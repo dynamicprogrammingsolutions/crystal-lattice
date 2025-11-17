@@ -466,105 +466,89 @@ ToolPlugin:
 ```python
 # openai_provider.py
 
-name = "openai"
-version = "1.0.0"
+from dataclasses import dataclass
+from typing import Dict, Any, Iterator, AsyncIterator
 
-def get_config_schema():
-    return {
-        "model": {"type": "string", "required": True},
-        "api_key": {"type": "string", "required": True},
-        "base_url": {"type": "string", "default": "https://api.openai.com/v1"}
-    }
-
-def init(config):
-    """Initialize provider state"""
-    return {
-        "config": config,
-        "capabilities": ["text_generation", "streaming", "tool_calling"],
-        "runtime_state": {}
-    }
-
-def update_state(state, updates):
-    """Update state from UI changes"""
-    return {
-        **state,
-        "config": {**state["config"], **updates}
-    }
-
-def can_handle(capability_id, state):
-    """Check if capability supported"""
-    return capability_id in state["capabilities"]
-
-def to_native_messages(messages, state):
-    """Convert to OpenAI format"""
-    return [
-        {
-            "role": msg["role"],
-            "content": msg["content"],
-            **msg.get("metadata", {})
+@dataclass
+class OpenAIProvider:
+    """
+    OpenAI provider plugin (stateless)
+    All methods are pure functions or I/O operations
+    """
+    
+    name: str = "openai"
+    version: str = "1.0.0"
+    
+    @staticmethod
+    def get_config_schema() -> Dict[str, Any]:
+        """Return configuration schema"""
+        return {
+            "model": {"type": "string", "required": True},
+            "api_key": {"type": "string", "required": True},
+            "base_url": {"type": "string", "default": "https://api.openai.com/v1"}
         }
-        for msg in messages
-    ]
-
-def build_request_body(messages, state):
-    """Build OpenAI request"""
-    return {
-        "model": state["config"]["model"],
-        "messages": messages,
-        "stream": True
-    }
-
-def process_chunk(native_chunk, state):
-    """Process streaming chunk"""
-    delta = native_chunk.get("choices", [{}])[0].get("delta", {})
-    partial = delta.get("content", "")
     
-    # Update state with chunk info
-    new_state = {
-        **state,
-        "runtime_state": {
-            **state["runtime_state"],
-            "last_chunk": native_chunk
+    @staticmethod
+    def get_capabilities() -> list[str]:
+        """Return provider capabilities"""
+        return ["text_generation", "streaming", "tool_calling"]
+    
+    @staticmethod
+    def to_native_messages(messages: list[Dict], config: Dict) -> list[Dict]:
+        """Convert to OpenAI format (pure function)"""
+        return [
+            {
+                "role": msg["role"],
+                "content": msg["content"],
+                **msg.get("metadata", {})
+            }
+            for msg in messages
+        ]
+    
+    @staticmethod
+    def build_request_body(messages: list[Dict], config: Dict) -> Dict:
+        """Build OpenAI request (pure function)"""
+        return {
+            "model": config["model"],
+            "messages": messages,
+            "stream": True
         }
-    }
     
-    return partial, new_state
-
-def finalize(state):
-    """Create final message"""
-    # Get accumulated content from state
-    content = state["runtime_state"].get("accumulated_content", "")
+    @staticmethod
+    def process_chunk(native_chunk: Dict) -> str:
+        """Process streaming chunk (pure function)"""
+        delta = native_chunk.get("choices", [{}])[0].get("delta", {})
+        return delta.get("content", "")
     
-    message = {
-        "role": "assistant",
-        "content": content,
-        "metadata": {}
-    }
+    @staticmethod
+    def finalize_message(content: str, config: Dict) -> Dict:
+        """Create final message (pure function)"""
+        return {
+            "role": "assistant",
+            "content": content,
+            "metadata": {}
+        }
     
-    metadata = {}
-    
-    return message, metadata
-
-async def stream_api(body, state):
-    """Make streaming API call"""
-    import httpx
-    
-    config = state["config"]
-    
-    async with httpx.AsyncClient() as client:
-        async with client.stream(
-            "POST",
-            f"{config['base_url']}/chat/completions",
-            json=body,
-            headers={"Authorization": f"Bearer {config['api_key']}"},
-            timeout=30.0
-        ) as response:
-            async for line in response.aiter_lines():
-                if line.startswith("data: "):
-                    data = line[6:]
-                    if data == "[DONE]":
-                        break
-                    yield json.loads(data)
+    @staticmethod
+    async def stream_api(body: Dict, config: Dict) -> AsyncIterator[Dict]:
+        """Make streaming API call (I/O operation)"""
+        import httpx
+        import json
+        
+        async with httpx.AsyncClient() as client:
+            async with client.stream(
+                "POST",
+                f"{config['base_url']}/chat/completions",
+                json=body,
+                headers={"Authorization": f"Bearer {config['api_key']}"},
+                timeout=30.0
+            ) as response:
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        data = line[6:]
+                        if data == "[DONE]":
+                            break
+                        yield json.loads(data)
 ```
 
 ### Example 2: Provider Extension for Thinking Blocks
@@ -888,190 +872,180 @@ def format_tool_result(result, state):
 
 ### Core SDK Interface
 
+**IMPORTANT: Functional Architecture**
+
+The Core SDK follows pure functional programming principles:
+- **AgentCore** stores only the processing pipeline (registered plugins)
+- **Session** is an immutable dataclass (pure data, no methods)
+- **Config** is managed by the application layer
+- All transformations are pure functions that return new objects
+- The application manages state (sessions, config)
+
 ```python
+@dataclass(frozen=True)
+class Session:
+    """
+    Immutable session data structure
+    Pure data container with no transformation logic
+    """
+    session_id: str
+    messages: tuple[Message, ...]  # Immutable tuple
+    metadata: dict = field(default_factory=dict)
+
+
 class AgentCore:
     """
-    Core SDK for AI Agent Platform
-    Low-level conversation and plugin management
+    Stateless processing pipeline for AI Agent Platform
+    
+    Stores only the plugin pipeline (processing logic), not runtime state.
+    All methods are pure functions that take session/config and return new objects.
     """
     
     # ========================================
     # Initialization
     # ========================================
     
-    def __init__(self, config: dict = None):
+    def __init__(self):
         """
-        Initialize core
-        
-        Args:
-            config: Optional core configuration dict
+        Initialize core with empty plugin pipeline
+        No configuration or state storage
         """
     
     # ========================================
-    # Plugin Management
+    # Plugin Management (Pipeline Definition)
     # ========================================
     
-    def register_provider(
-        self,
-        plugin: object,
-        extensions: list = None,
-        config: dict = None
-    ) -> None:
-        """Register provider plugin"""
+    def register_provider(self, plugin_class: type) -> None:
+        """Register provider plugin class"""
     
-    def register_feature(self, plugin: object, config: dict = None) -> None:
-        """Register feature plugin"""
+    def register_feature(self, plugin_class: type) -> None:
+        """Register feature plugin class"""
     
-    def register_tool(self, plugin: object, config: dict = None) -> None:
-        """Register tool plugin"""
-    
-    def update_plugin_state(self, plugin_name: str, updates: dict) -> None:
-        """Update plugin state"""
+    def register_tool(self, plugin_class: type) -> None:
+        """Register tool plugin class"""
     
     def get_ui_schema(self) -> dict:
-        """Get combined UI schema from all plugins"""
+        """Get combined UI schema from all registered plugins"""
     
     # ========================================
-    # Session Management
-    # ========================================
-    
-    def create_session(self, session_id: str = None) -> "Session":
-        """Create conversation session"""
-    
-    def get_session(self, session_id: str) -> "Session":
-        """Get existing session"""
-    
-    def close_session(self, session_id: str) -> None:
-        """Close session"""
-
-
-class Session:
-    """
-    Low-level conversation session
-    Provides fine-grained control over messages and API calls
-    """
-    
-    # ========================================
-    # Properties
-    # ========================================
-    
-    @property
-    def session_id(self) -> str:
-        """Session identifier"""
-    
-    @property
-    def messages(self) -> list:
-        """Current conversation messages"""
-    
-    # ========================================
-    # Message Management (Low-Level)
+    # Pure Transformation Functions
     # ========================================
     
     def add_message(
         self,
+        session: Session,
         role: str,
         content: str,
         metadata: dict = None
-    ) -> None:
+    ) -> Session:
         """
-        Add message to conversation
+        Add message to session (returns new session)
         
         Args:
-            role: "system" | "user" | "assistant" | "tool"
+            session: Current session
+            role: Message role
             content: Message content
-            metadata: Optional metadata (tool_calls, tool_call_id, etc.)
+            metadata: Optional metadata
+            
+        Returns:
+            New session with added message
         """
     
-    def remove_message(self, index: int) -> None:
+    def send_request(
+        self,
+        session: Session,
+        config: dict
+    ) -> tuple[Session, dict]:
         """
-        Remove message at index
+        Send request and return new session with response
         
         Args:
-            index: Message index (negative indexing supported)
-        """
-    
-    def get_message(self, index: int) -> dict:
-        """Get message at index"""
-    
-    def clear_messages(self) -> None:
-        """Clear all messages"""
-    
-    def set_messages(self, messages: list) -> None:
-        """Replace all messages"""
-    
-    # ========================================
-    # API Calls (Low-Level)
-    # ========================================
-    
-    def send_request(self) -> dict:
-        """
-        Send current conversation to provider (non-streaming)
-        
+            session: Current session
+            config: Provider and feature configuration
+            
         Returns:
-            Message dict with role, content, metadata
-            If message contains tool_calls, they're in metadata
+            Tuple of (new_session, response_message)
         """
     
-    def send_request_stream(self) -> Iterator[dict]:
+    def send_request_stream(
+        self,
+        session: Session,
+        config: dict
+    ) -> Iterator[dict | tuple[Session, dict]]:
         """
-        Send current conversation to provider (streaming)
+        Stream request and yield partials, then final session
         
+        Args:
+            session: Current session
+            config: Provider and feature configuration
+            
         Yields:
-            Partial messages: {"type": "partial", "content": "..."}
-            Final message: {"type": "final", "message": {...}}
+            Partial chunks: {"type": "partial", "content": "..."}
+            Final result: {"type": "final", "session": new_session, "message": {...}}
         """
     
-    async def send_request_stream_async(self) -> AsyncIterator[dict]:
+    async def send_request_stream_async(
+        self,
+        session: Session,
+        config: dict
+    ) -> AsyncIterator[dict | tuple[Session, dict]]:
         """Async version of send_request_stream"""
     
     # ========================================
-    # Tool Utilities
+    # Utility Functions
     # ========================================
     
-    def get_tool_schemas(self) -> list[dict]:
-        """Get all registered tool schemas"""
+    def get_tool_schemas(self, config: dict) -> list[dict]:
+        """Get tool schemas from registered tool plugins"""
     
-    # ========================================
-    # Export/Import
-    # ========================================
+    def create_session(self, session_id: str = None) -> Session:
+        """Create new empty session (convenience function)"""
     
-    def export_messages(self, format: str = "json") -> str:
-        """Export conversation"""
+    def export_session(self, session: Session, format: str = "json") -> str:
+        """Export session to string"""
     
-    def import_messages(self, data: str, format: str = "json") -> None:
-        """Import conversation"""
+    def import_session(self, data: str, format: str = "json") -> Session:
+        """Import session from string"""
 ```
 
 ### Data Types
 
 ```python
-# Message structure
-{
-    "role": "user" | "assistant" | "system" | "tool",
-    "content": str,
-    "metadata": {
-        # For assistant messages with tool calls
-        "tool_calls": [
-            {
-                "id": str,
-                "type": "function",
-                "function": {
-                    "name": str,
-                    "arguments": str  # JSON string
-                }
-            }
-        ],
-        
-        # For tool result messages
-        "tool_call_id": str,
-        "name": str,  # Tool name
-        
-        # Other metadata
-        "citations": [...],
-        "thinking_blocks": [...],
-        ...
-    }
-}
+from typing import Literal, Tuple, Dict, Any, Optional
+from dataclasses import dataclass, field
+
+MessageRole = Literal["system", "user", "assistant", "tool"]
+
+@dataclass(frozen=True)
+class Message:
+    """
+    Immutable message structure representing a single conversation message.
+    
+    Attributes:
+        role: Message role ("system", "user", "assistant", or "tool")
+        content: Message content text
+        metadata: Optional metadata dict containing tool_calls, tool_call_id, citations, etc.
+    """
+    role: MessageRole
+    content: str
+    metadata: Optional[Dict[str, Any]] = None
+
+@dataclass(frozen=True)
+class Session:
+    """
+    Immutable session data structure (pure data container).
+    
+    Contains only data, no transformation logic. All transformations
+    are performed by AgentCore functions that return new sessions.
+    
+    Attributes:
+        session_id: Unique identifier for this session
+        messages: Immutable tuple of messages
+        metadata: Optional session-level metadata
+    """
+    session_id: str
+    messages: Tuple[Message, ...] = field(default_factory=tuple)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 ```
 
 ## Configuration System
@@ -1079,6 +1053,13 @@ class Session:
 ### Configuration Structure
 
 The application loads and resolves configuration from JSON files, then passes the final resolved config to Core.
+
+**Important principles:**
+- Configuration is a flat dictionary passed to plugins
+- Each plugin defines its own config schema (via `get_config_schema()`)
+- Plugin-specific config is mixed into the main config object
+- Agent configuration has no mandatory keys (fully flexible)
+- There is no configuration for tools or plugins enabled for an agent, it will be added later
 
 ```json
 {
@@ -1089,16 +1070,14 @@ The application loads and resolves configuration from JSON files, then passes th
   },
   
   "providers": {
-    "defaults": {
-      "openai": {
+    "openai": {
         "api_key": "${env:OPENAI_API_KEY}",
         "base_url": "https://api.openai.com/v1",
         "timeout": 30
-      },
-      "anthropic": {
+    },
+    "anthropic": {
         "api_key": "${file:~/.anthropic_key}",
         "base_url": "https://api.anthropic.com"
-      }
     }
   },
   
@@ -1106,42 +1085,20 @@ The application loads and resolves configuration from JSON files, then passes th
     "default": {
       "provider": "openai",
       "model": "gpt-4o",
-      "provider_config": {
-        "temperature": 0.7,
-        "max_tokens": 4096
-      },
-      "features": {
-        "web_search": {
-          "enabled": true,
-          "max_results": 5
-        },
-        "thinking_blocks": {
-          "enabled": true,
-          "extract_thinking": true
-        }
-      },
-      "tools": {
-        "file_reader": {
-          "enabled": true,
-          "allowed_paths": ["./workspace"],
-          "max_file_size": 1048576
-        }
-      }
+      "temperature": 0.7,
+      "max_tokens": 4096,
+      "web_search_enabled": true,
+      "max_results": 5,
+      "extract_thinking": true
     },
     
     "research_agent": {
       "provider": "openai",
       "model": "gpt-4-search",
-      "provider_config": {
-        "api_key": "${env:OPENAI_RESEARCH_KEY}",
-        "temperature": 0.3
-      },
-      "features": {
-        "web_search": {
-          "enabled": true,
-          "max_results": 10
-        }
-      }
+      "api_key": "${env:OPENAI_RESEARCH_KEY}",
+      "temperature": 0.3,
+      "web_search_enabled": true,
+      "max_results": 10
     }
   }
 }
@@ -1174,10 +1131,12 @@ The application loads and resolves configuration from JSON files, then passes th
 2. Resolve `${env:...}` references
 3. Resolve `${file:...}` references
 4. Merge provider defaults with agent-specific overrides
-5. Pass final resolved dict to Core SDK
+5. Pass final resolved flat dict to Core SDK
 
-**Core SDK receives:**
+**Core SDK receives flat config dict:**
 ```python
+# All plugin config mixed into single flat dict
+# No nested structure, no mandatory keys
 resolved_config = {
     "provider": "openai",
     "model": "gpt-4o",
@@ -1185,8 +1144,27 @@ resolved_config = {
     "temperature": 0.7,
     "web_search_enabled": True,
     "max_results": 5,
-    # ... all resolved
+    "extract_thinking": True,
+    # ... all resolved and flattened
 }
+```
+
+**Config is passed to every plugin method:**
+```python
+# Provider receives full config
+provider.call_api(body, config)
+
+# Feature receives full config
+feature.transform_messages(messages, config)
+
+# Each plugin extracts what it needs
+class DummyFeature:
+    @staticmethod
+    def transform_messages(messages, config):
+        # Extract only what this feature needs
+        if config.get("web_search_enabled"):
+            max_results = config.get("max_results", 5)
+            # ...
 ```
 
 ## Example Usage
@@ -1195,39 +1173,39 @@ resolved_config = {
 
 ```python
 from agent_core import AgentCore
-from plugins import openai_provider
+from plugins import OpenAIProvider
 
-# Initialize core
+# Initialize core (stateless pipeline)
 core = AgentCore()
 
-# Register provider
-core.register_provider(
-    openai_provider,
-    config={
-        "model": "gpt-4o",
-        "api_key": "sk-..."
-    }
-)
+# Register provider (just the class, no config)
+core.register_provider(OpenAIProvider)
 
-# Create session
+# Application manages config
+config = {
+    "model": "gpt-4o",
+    "api_key": "sk-..."
+}
+
+# Application creates and manages session (immutable)
 session = core.create_session()
 
-# Add messages manually
-session.add_message("system", "You are a helpful assistant.")
-session.add_message("user", "What is 2+2?")
+# Add messages (returns new session each time)
+session = core.add_message(session, "system", "You are a helpful assistant.")
+session = core.add_message(session, "user", "What is 2+2?")
 
-# Send request (non-streaming)
-response = session.send_request()
+# Send request (returns new session with response)
+session, response = core.send_request(session, config)
 print(response["content"])  # "4"
 
 # Messages now include the response
 print(len(session.messages))  # 3
 
-# Add another message
-session.add_message("user", "What about 3+3?")
+# Add another message (functional - returns new session)
+session = core.add_message(session, "user", "What about 3+3?")
 
 # Send again
-response = session.send_request()
+session, response = core.send_request(session, config)
 print(response["content"])  # "6"
 ```
 
@@ -1235,42 +1213,53 @@ print(response["content"])  # "6"
 
 ```python
 from agent_core import AgentCore
-from plugins import openai_provider
+from plugins import OpenAIProvider
 
+# Core stores only pipeline
 core = AgentCore()
-core.register_provider(openai_provider, config={"model": "gpt-4o", "api_key": "sk-..."})
+core.register_provider(OpenAIProvider)
 
+# Application manages config and session
+config = {"model": "gpt-4o", "api_key": "sk-..."}
 session = core.create_session()
-session.add_message("user", "Write a short poem")
+session = core.add_message(session, "user", "Write a short poem")
 
-# Stream response
-for chunk in session.send_request_stream():
+# Stream response (functional - returns new session at end)
+for chunk in core.send_request_stream(session, config):
     if chunk["type"] == "partial":
         print(chunk["content"], end="", flush=True)
     elif chunk["type"] == "final":
+        # Get new session with response message
+        session = chunk["session"]
         print("\n[Done]")
-        # Message automatically added to session.messages
 ```
 
 ### Example 3: Tool Calls (Application-Level Logic)
 
 ```python
 from agent_core import AgentCore
-from plugins import openai_provider, file_reader_tool
+from plugins import OpenAIProvider, FileReaderTool
 import json
 
 core = AgentCore()
-core.register_provider(openai_provider, config={"model": "gpt-4", "api_key": "sk-..."})
-core.register_tool(file_reader_tool, config={"allowed_paths": ["./"]})
+core.register_provider(OpenAIProvider)
+core.register_tool(FileReaderTool)
+
+# Application manages config
+config = {
+    "model": "gpt-4",
+    "api_key": "sk-...",
+    "allowed_paths": ["."]  # Tool config mixed in
+}
 
 session = core.create_session()
-session.add_message("user", "Read the contents of README.md")
+session = core.add_message(session, "user", "Read the contents of README.md")
 
 # Application handles tool loop
 max_iterations = 5
 for i in range(max_iterations):
-    # Send request
-    response = session.send_request()
+    # Send request (functional)
+    session, response = core.send_request(session, config)
     
     # Check for tool calls
     tool_calls = response.get("metadata", {}).get("tool_calls", [])
@@ -1285,15 +1274,13 @@ for i in range(max_iterations):
         tool_name = tool_call["function"]["name"]
         arguments = json.loads(tool_call["function"]["arguments"])
         
-        # Get tool plugin and execute
-        tool_plugins = {t.name: t for t in core._tool_plugins}
-        tool = tool_plugins[tool_name]
+        # Execute tool (stateless - pass config)
+        result = FileReaderTool.execute_tool(tool_name, arguments, config)
+        formatted = FileReaderTool.format_tool_result(result, config)
         
-        result = tool.execute_tool(tool_name, arguments, tool._state)
-        formatted = tool.format_tool_result(result, tool._state)
-        
-        # Add tool result as message
-        session.add_message(
+        # Add tool result as message (functional)
+        session = core.add_message(
+            session,
             "tool",
             formatted,
             metadata={
@@ -1309,57 +1296,79 @@ for i in range(max_iterations):
 
 ```python
 from agent_core import AgentCore
-from plugins import openai_provider
+from plugins import OpenAIProvider
 
 core = AgentCore()
-core.register_provider(openai_provider, config={"model": "gpt-4", "api_key": "sk-..."})
+core.register_provider(OpenAIProvider)
+
+config = {"model": "gpt-4", "api_key": "sk-..."}
 
 session = core.create_session()
 
-# Add multiple messages
-session.add_message("system", "You are a helpful assistant.")
-session.add_message("user", "Hello")
-session.add_message("assistant", "Hi! How can I help?")
-session.add_message("user", "What's the weather?")
+# Add multiple messages (functional chaining)
+session = core.add_message(session, "system", "You are a helpful assistant.")
+session = core.add_message(session, "user", "Hello")
+session = core.add_message(session, "assistant", "Hi! How can I help?")
+session = core.add_message(session, "user", "What's the weather?")
 
-# Remove last message
-session.remove_message(-1)
+# Remove last message (functional)
+from agent_core.types import Session
+session = Session(
+    session_id=session.session_id,
+    messages=session.messages[:-1],
+    metadata=session.metadata
+)
 
 # Add different message
-session.add_message("user", "Tell me a joke")
+session = core.add_message(session, "user", "Tell me a joke")
 
 # Send request with modified history
-response = session.send_request()
+session, response = core.send_request(session, config)
 
-# Clear conversation and start fresh
-session.clear_messages()
-session.add_message("user", "New conversation")
+# Clear conversation and start fresh (functional)
+session = Session(
+    session_id=session.session_id,
+    messages=(),
+    metadata=session.metadata
+)
+session = core.add_message(session, "user", "New conversation")
 ```
 
-### Example 5: Configuration and State Updates
+### Example 5: Configuration Updates (Application Managed)
 
 ```python
 from agent_core import AgentCore
-from plugins import openai_provider, web_search_feature
+from plugins import OpenAIProvider, WebSearchFeature
 
 core = AgentCore()
 
-# Register with initial config
-core.register_provider(openai_provider, config={"model": "gpt-4o", "api_key": "sk-..."})
-core.register_feature(web_search_feature, config={"web_search_enabled": False})
+# Register plugins (no config)
+core.register_provider(OpenAIProvider)
+core.register_feature(WebSearchFeature)
 
 session = core.create_session()
 
-# Initial request without search
-session.add_message("user", "Latest AI news")
-response = session.send_request()
+# Application manages config
+config1 = {
+    "model": "gpt-4o",
+    "api_key": "sk-...",
+    "web_search_enabled": False
+}
 
-# User enables search in UI
-core.update_plugin_state("web_search", {"web_search_enabled": True})
+# Initial request without search
+session = core.add_message(session, "user", "Latest AI news")
+session, response = core.send_request(session, config1)
+
+# User enables search in UI - application updates config
+config2 = {
+    **config1,
+    "web_search_enabled": True,
+    "max_results": 10
+}
 
 # Next request uses search
-session.add_message("user", "Latest AI news")  # Will use web search now
-response = session.send_request()
+session = core.add_message(session, "user", "More AI news")
+session, response = core.send_request(session, config2)
 ```
 
 ### Example 6: Full Application with Tool Loop (Python Backend)
@@ -1400,14 +1409,26 @@ with open("config.json") as f:
 # Initialize core
 core = AgentCore()
 
-# Register plugins with resolved config
-provider_config = resolve_config(config["providers"]["defaults"]["openai"])
-provider_config.update(config["agents"]["default"]["provider_config"])
+# Register plugins (just classes, no config)
+core.register_provider(openai_provider)
+core.register_feature(web_search_feature)
+core.register_tool(file_reader_tool)
 
-core.register_provider(openai_provider, config=provider_config)
-core.register_feature(web_search_feature, config=config["agents"]["default"]["features"]["web_search"])
-core.register_tool(file_reader_tool, config=config["agents"]["default"]["tools"]["file_reader"])
+# Application resolves and merges config
+def get_agent_config(agent_name):
+    """Resolve and merge config for an agent."""
+    agent_config = config["agents"][agent_name]
+    provider_name = agent_config.get("provider", "openai")
+    
+    # Start with provider defaults
+    merged = resolve_config(config["providers"]["defaults"][provider_name].copy())
+    
+    # Merge agent-specific config (flat structure)
+    merged.update(resolve_config(agent_config))
+    
+    return merged
 
+# Application manages sessions
 sessions = {}
 
 @app.websocket("/ws/{session_id}")
@@ -1418,26 +1439,30 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         sessions[session_id] = core.create_session(session_id)
     session = sessions[session_id]
     
+    # Application manages config
+    agent_config = get_agent_config("default")
+    
     try:
         while True:
             data = await websocket.receive_json()
             
             if data["type"] == "message":
-                # Add user message
-                session.add_message("user", data["content"])
+                # Add user message (functional)
+                session = core.add_message(session, "user", data["content"])
                 
                 # Tool loop (application logic)
                 max_iterations = 5
                 for i in range(max_iterations):
-                    # Stream response
+                    # Stream response (functional - pass config)
                     full_message = None
-                    async for chunk in session.send_request_stream_async():
+                    async for chunk in core.send_request_stream_async(session, agent_config):
                         if chunk["type"] == "partial":
                             await websocket.send_json({
                                 "type": "partial",
                                 "content": chunk["content"]
                             })
                         elif chunk["type"] == "final":
+                            session = chunk["session"]
                             full_message = chunk["message"]
                     
                     # Check for tool calls
@@ -1463,19 +1488,20 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                             "arguments": arguments
                         })
                         
-                        # Execute (simplified - should lookup from registry)
+                        # Execute (stateless - just pass config)
                         result = file_reader_tool.execute_tool(
                             tool_name,
                             arguments,
-                            file_reader_tool._state
+                            agent_config
                         )
                         formatted = file_reader_tool.format_tool_result(
                             result,
-                            file_reader_tool._state
+                            agent_config
                         )
                         
-                        # Add tool result
-                        session.add_message(
+                        # Add tool result (functional)
+                        session = core.add_message(
+                            session,
                             "tool",
                             formatted,
                             metadata={
@@ -1487,7 +1513,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     # Continue loop with tool results
             
             elif data["type"] == "update_config":
-                core.update_plugin_state(data["plugin_name"], data["updates"])
+                # Application updates its config
+                agent_config = {**agent_config, **data["updates"]}
+                sessions[session_id] = session  # Store updated session
     
     except Exception as e:
         print(f"Error: {e}")
