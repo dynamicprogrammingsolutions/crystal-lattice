@@ -114,6 +114,60 @@ Documentation is developed alongside the code and treated as part of the deliver
   - Python docstrings: Google style; include Args, Returns, Raises, and clear examples where helpful.
   - Keep inline examples minimal and correct; prefer linking to tested examples when long.
 
+## Types & Protocols Sync (Mandatory)
+When you change any type or protocol definitions, you MUST update all of the following in the same change. Treat these as the authoritative documentation set for agents and contributors.
+
+- Authoritative Spec: `TYPES_AND_PROTOCOLS.md`
+  - Describes shared provider state model, plugin protocols, method signatures
+  - Includes finalize tuple outputs, initialize_request return contract, and stateless transforms
+  - Contains basic/streaming flow diagrams and notes on messages vs native_messages
+
+- SDK Type Definitions: `core/python/agent_core/types.py`
+  - Python Protocols for ProviderPlugin, ProviderExtensionPlugin, FeaturePlugin, ToolPlugin
+  - Wrapper Protocols: ProviderWrapperProtocol, ExtensionWrapperProtocol, FeatureWrapperProtocol, ToolWrapperProtocol
+  - Ensure signatures exactly match `TYPES_AND_PROTOCOLS.md` (names, params, tuple return shapes)
+
+- Architecture Overview: `ARCHITECTURE.md`
+  - Who owns state (provider wrapper), how state propagates, when it is discarded
+  - Streaming vs finalize chains and where stateless transforms run
+  - Updated data-flow steps with clear messages vs native_messages distinction
+
+- API Reference: `docs/api/core-sdk.md`
+  - Public `AgentCore` method signatures and behaviors
+  - Plugin infrastructure descriptions reflecting shared state and finalize tuple contracts
+  - Any example snippets must compile with current signatures
+
+- Examples: `PLUGIN_EXAMPLES.md`
+  - Provider: `finalize(native_messages, state) → (final_messages, native_messages, new_state)`; `call_api` returns 4‑tuple
+  - Extension: shared-state lifecycle; `process_chunk(..., state, ...) → (..., new_state)`; `finalize` returns tuple; stateless `to/from_native_messages`
+  - Feature: shared-state lifecycle; stateless transforms; `finalize(messages, final_messages, native_messages, state) → (final_messages, native_messages, new_state)`
+
+- Core SDK README: `core/python/README.md`
+  - Quick start and streaming examples use list of final messages, not single dict
+  - Provider example reflects new signatures and tuple returns
+
+- Project Plan: `PROJECT_PLAN.md`
+  - References to spec remain accurate; any code snippets align with current contracts
+
+- Tests and Dummies: `core/python/tests/*`
+  - Dummy provider/extension/feature must compile against current Protocols
+
+Enforcement
+- Any PR that changes types or protocol definitions MUST update all files listed above and run tests.
+- Keep “messages” (core) and “native_messages” (provider-native) consistent in docs and code.
+- finalize MUST return a tuple everywhere; initialize_request MUST return state.
+- Provider wrapper discards shared state after each completed request; apply update_state with UI settings after init on each request.
+
+Checklist for Type/Protocol Changes
+- [ ] Update `TYPES_AND_PROTOCOLS.md`
+- [ ] Update `core/python/agent_core/types.py`
+- [ ] Update `ARCHITECTURE.md`
+- [ ] Update `docs/api/core-sdk.md`
+- [ ] Update `PLUGIN_EXAMPLES.md`
+- [ ] Update `core/python/README.md`
+- [ ] Update references in `PROJECT_PLAN.md`
+- [ ] Update dummies/tests if needed; run `pytest`
+
 ---
 
 ## Code Style & Tooling (Python)

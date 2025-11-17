@@ -59,9 +59,9 @@ session = core.create_session()
 session = core.add_message(session, "system", "You are a helpful assistant.")
 session = core.add_message(session, "user", "What is 2+2?")
 
-# Send request (functional - returns new session with response)
-session, response = core.send_request(session, config)
-print(response["content"])  # "4"
+# Send request (functional - returns new session + final messages list)
+session, messages = core.send_request(session, config)
+print(messages[-1]["content"])  # "4"
 
 # Original operations don't modify - they return new objects
 print(len(session.messages))  # 3 (system + user + assistant)
@@ -158,33 +158,48 @@ session2, resp2 = core.send_request(session2, config2)
 
 ### Plugin Classes
 
-Plugins are dataclasses with static methods (functional approach):
+Plugins are plain classes with static methods (functional approach). Example provider:
 
 ```python
-from dataclasses import dataclass
-from typing import Dict, Any
+from typing import Dict, Any, List, Tuple, Iterator
 
-@dataclass
 class MyProvider:
-    """Stateless provider plugin."""
-    
     name: str = "my_provider"
     version: str = "1.0.0"
-    
+
     @staticmethod
     def get_config_schema() -> Dict[str, Any]:
         return {"api_key": {"type": "string", "required": True}}
-    
+
     @staticmethod
-    def to_native_messages(messages: list, config: dict) -> list:
-        """Pure function - no side effects."""
+    def init(config: Dict[str, Any]) -> Dict[str, Any]:
+        return {"config": config, "capabilities": [], "runtime_state": {}, "ui_state": {}}
+
+    @staticmethod
+    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+        return {**state, "config": {**state.get("config", {}), **updates}}
+
+    @staticmethod
+    def to_native_messages(messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
         return [{"role": m["role"], "content": m["content"]} for m in messages]
-    
+
     @staticmethod
-    def call_api(body: dict, config: dict) -> dict:
-        """I/O operation."""
-        # Make API call
-        return {"role": "assistant", "content": "Response"}
+    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+        return state
+
+    @staticmethod
+    def call_api(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        # Return (final_messages, partial_messages, native_messages, new_state)
+        return ([{"role": "assistant", "content": "Response"}], [], [], state)
+
+    @staticmethod
+    def finalize(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        # Return (final_messages, native_messages, new_state)
+        return ([], [], state)
+
+    @staticmethod
+    def stream_api(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
+        yield from []
 ```
 
 ## Running Tests

@@ -5,13 +5,113 @@ This module defines immutable data structures following functional programming p
 All transformations return new instances rather than modifying existing ones.
 """
 
-from typing import Any, Dict, List, Optional, Literal, Tuple, Protocol, Iterator, AsyncIterator
+from typing import Any, Dict, List, Optional, Literal, Tuple, Protocol, Iterator, AsyncIterator, runtime_checkable
 from dataclasses import dataclass, field
 from copy import deepcopy
 
 
 MessageRole = Literal["system", "user", "assistant", "tool"]
 
+
+# Plugin Protocol Types
+
+# Wrapper Protocol Types (for adapters/wrappers to implement)
+class ProviderWrapperProtocol(Protocol):
+    name: str
+    version: str
+
+    def initialize(self, config: Dict[str, Any]) -> None: ...
+    def update_state(self, updates: Dict[str, Any]) -> None: ...
+    def get_config_schema(self) -> Dict[str, Any]: ...
+    def get_ui_elements(self) -> List[Dict[str, Any]]: ...
+
+    def to_native_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]: ...
+    def initialize_request(self, native_messages: List[Dict[str, Any]]) -> None: ...
+    def call_api(self, native_messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]: ...
+    def stream_api(self, native_messages: List[Dict[str, Any]]) -> Iterator[Dict[str, Any]]: ...
+    async def stream_api_async(self, native_messages: List[Dict[str, Any]]) -> AsyncIterator[Dict[str, Any]]: ...
+    def process_chunk(self, native_chunk: Dict[str, Any], messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]: ...
+    def finalize(self, native_messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]: ...
+
+    def get_extension_config_schemas(self) -> Dict[str, Any]: ...
+    def get_extension_ui_elements(self) -> Dict[str, List[Dict[str, Any]]]: ...
+
+    def get_state(self) -> Dict[str, Any]: ...
+    def set_state(self, state: Dict[str, Any]) -> None: ...
+    def reset_state(self) -> None: ...
+
+class ExtensionWrapperProtocol(Protocol):
+    name: str
+    version: str
+    target_provider: Optional[str]
+
+    def get_config_schema(self) -> Dict[str, Any]: ...
+    def get_ui_elements(self) -> List[Dict[str, Any]]: ...
+
+    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]: ...
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]: ...
+
+    def to_native_messages(self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]: ...
+    def from_native_messages(self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]: ...
+
+    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]: ...
+
+    def process_chunk(
+        self,
+        native_chunk: Optional[Dict[str, Any]],
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        partial_messages: List[Dict[str, Any]],
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
+
+    def finalize(
+        self,
+        messages: List[Dict[str, Any]],
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
+
+
+class FeatureWrapperProtocol(Protocol):
+    name: str
+    version: str
+
+    def get_config_schema(self) -> Dict[str, Any]: ...
+    def get_ui_elements(self) -> List[Dict[str, Any]]: ...
+
+    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]: ...
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]: ...
+    def to_native_messages(self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]: ...
+
+    def from_native_messages(self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]: ...
+
+    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]: ...
+
+    def finalize(
+        self,
+        messages: List[Dict[str, Any]],
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
+
+
+class ToolWrapperProtocol(Protocol):
+    name: str
+    version: str
+
+    def get_config_schema(self) -> Dict[str, Any]: ...
+    def get_ui_elements(self) -> List[Dict[str, Any]]: ...
+
+    def initialize(self, config: Dict[str, Any]) -> None: ...
+    def update_state(self, updates: Dict[str, Any]) -> None: ...
+
+    def get_tool_schemas(self) -> List[Dict[str, Any]]: ...
+    def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]: ...
+    def format_tool_result(self, result: Dict[str, Any]) -> str: ...
 
 # Plugin Protocol Types
 
@@ -54,7 +154,7 @@ class ProviderPlugin(Protocol):
 
     @staticmethod
     def finalize(
-        messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
         state: Dict[str, Any]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
     # Returns: (final_messages, native_messages, new_state)
@@ -64,8 +164,8 @@ class ProviderPlugin(Protocol):
 
     # I/O entry points now take native messages
     @staticmethod
-    def call_api(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
-    # Returns: (final_messages, native_messages, new_state)
+    def call_api(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
+    # Returns: (final_messages, partial_messages, native_messages, new_state)
 
     @staticmethod
     def stream_api(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]: ...
@@ -75,7 +175,7 @@ class ProviderPlugin(Protocol):
 
 
 class ProviderExtensionPlugin(Protocol):
-    """Protocol for provider extension plugins (process provider outputs)."""
+    """Protocol for provider extension plugins (shared provider state)."""
 
     name: str
     version: str
@@ -88,26 +188,43 @@ class ProviderExtensionPlugin(Protocol):
     def get_ui_elements() -> List[Dict[str, Any]]: ...
 
     @staticmethod
-    def init(config: Dict[str, Any]) -> Dict[str, Any]: ...
+    def init(config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]: ...
 
     @staticmethod
     def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]: ...
+
+    # Stateless transforms
+    @staticmethod
+    def to_native_messages(messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]: ...
+
+    @staticmethod
+    def from_native_messages(native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]: ...
+
+    @staticmethod
+    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]: ...
 
     @staticmethod
     def process_chunk(
         native_chunk: Optional[Dict[str, Any]],
         messages: List[Dict[str, Any]],
-        provider_state: Dict[str, Any],
-        extension_state: Dict[str, Any],
+        state: Dict[str, Any],
         partial_messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
-    # Returns: (partial_messages, final_messages, native_messages, new_extension_state)
+    # Returns: (partial_messages, final_messages, native_messages, new_state)
+
+    @staticmethod
+    def finalize(
+        messages: List[Dict[str, Any]],
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
 
 
 class FeaturePlugin(Protocol):
-    """Protocol for feature plugins (finalize-only, plus initialize_request)."""
+    """Protocol for feature plugins (cold path, shared state)."""
 
     name: str
     version: str
@@ -119,10 +236,17 @@ class FeaturePlugin(Protocol):
     def get_ui_elements() -> List[Dict[str, Any]]: ...
 
     @staticmethod
-    def init(config: Dict[str, Any]) -> Dict[str, Any]: ...
+    def init(config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]: ...
 
     @staticmethod
     def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]: ...
+
+    # Stateless transforms
+    @staticmethod
+    def to_native_messages(messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]: ...
+
+    @staticmethod
+    def from_native_messages(native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]: ...
 
     @staticmethod
     def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]: ...
@@ -130,10 +254,10 @@ class FeaturePlugin(Protocol):
     @staticmethod
     def finalize(
         messages: List[Dict[str, Any]],
-        output: Dict[str, Any],
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
         state: Dict[str, Any]
-    ) -> Dict[str, Any]: ...
-    # Expects output keys: {"final_messages": [...], "native_messages": [...]} and returns same shape
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
 
 
 class ToolPlugin(Protocol):

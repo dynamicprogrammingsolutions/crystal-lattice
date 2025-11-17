@@ -7,10 +7,11 @@ Follows the state-based plugin protocol with init/update_state methods.
 
 from typing import Dict, Any, List, Iterator, Tuple
 from dataclasses import dataclass
+from agent_core.types import ProviderPlugin
 
 
 @dataclass
-class DummyProvider:
+class DummyProvider(ProviderPlugin):
     """
     Dummy provider plugin (stateless with state parameter).
     All methods are static and take state as parameter.
@@ -72,7 +73,7 @@ class DummyProvider:
         return native_messages
 
     @staticmethod
-    def initialize_request(messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
         # Reset runtime accumulators
         return {
             **state,
@@ -107,7 +108,7 @@ class DummyProvider:
 
     @staticmethod
     def finalize(
-        messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
         state: Dict[str, Any]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """

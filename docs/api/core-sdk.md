@@ -6,9 +6,9 @@ The AI Agent Platform Core SDK provides a **functional**, modular interface for 
 
 **Key Principles:**
 - **Functional Architecture**: Immutable data structures, pure functions
-- **State Management**: Plugins maintain state through wrappers
+- **State Management**: Provider wrapper maintains a single shared state per request; extensions/features update it; tools manage their own state
 - **Typed Interfaces**: Specialized adapters for each plugin type (provider, feature, tool, extension)
-- **Extensible**: Provider extensions for hot-path processing
+- **Extensible**: Provider extensions for hot-path processing and stateless message transforms
 
 ## Installation
 
@@ -315,7 +315,7 @@ get_ui_schema() -> Dict[str, Any]
 Get combined UI schema from all registered plugins.
 
 **Returns:**
-- `dict`: Mapping of plugin names to their UI element definitions (includes provider, features, and tools)
+- `dict`: Mapping of plugin names to their UI element definitions (includes provider, provider extensions, features, and tools)
 
 **Example:**
 ```python
@@ -463,10 +463,10 @@ MessageRole = Literal["system", "user", "assistant", "tool"]
 
 Specialized wrappers and adapters provide typed, intuitive interfaces for each plugin type. These handle state and typed operations without generic wrapper layers.
 
-- Provider: `ProviderWrapper`, `ProviderAdapter`
-- Feature: `FeatureWrapper`, `FeatureAdapter`
+- Provider: `ProviderWrapper` (owns shared state), `ProviderAdapter`
+- Feature: `FeatureWrapper` (no internal state; shared-state lifecycle), `FeatureAdapter`
 - Tool: `ToolWrapper`, `ToolAdapter`
-- Provider extension: `ExtensionWrapper`
+- Provider extension: `ExtensionWrapper` (no internal state; shared-state lifecycle, stateless transforms)
 
 ---
 

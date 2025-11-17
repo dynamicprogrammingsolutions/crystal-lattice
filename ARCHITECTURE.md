@@ -31,16 +31,13 @@ Core provides orchestration only. All provider/feature logic lives in plugins. A
 - Same-language = zero-overhead passthrough
 - Cross-language = subprocess with JSON-RPC
 
-**Single State Object:**
+**Shared Provider State:**
 
-Each plugin has one state object containing:
-- config: configuration values
-- capabilities: what the plugin can do
-- runtime_state: working data
-- ui_state: current UI settings
+- The provider wrapper owns a single shared state object for each request/turn.
+- Provider extensions and feature plugins receive this shared `state` and may return `new_state` which the provider wrapper propagates.
+- Tools are the exception: each tool plugin maintains its own independent state.
 
-Updated immutably, passed to all methods.
-
+State shape remains the same (config, capabilities, runtime_state, ui_state) and updates are immutable.
 **Duck Typing:**
 
 Plugin type determined by which functions it implements, not by inheritance. No required base class. Functional architecture without object-oriented constraints.
@@ -66,7 +63,7 @@ Extensions enhance provider streaming. They can observe and transform provider o
 
 **Unified State:**
 
-config + capabilities + runtime_state + ui_state = plugin state. State initialized once via init(config). State updated via update_state(state, updates). State passed to all plugin methods.
+config + capabilities + runtime_state + ui_state = provider shared state. State initialized via init(config) on the provider, then propagated through extensions/features. For each request, after init, update_state(state, ui_state) is applied to inject UI settings. initialize_request(...) MUST return state (updated or unchanged). The provider wrapper discards internal shared state after each completed request.
 
 **UI-Driven Updates:**
 
@@ -193,9 +190,9 @@ Code cannot be merged without:
                       │ Direct call or JSON-RPC
 ┌─────────────────────┴───────────────────────────────────┐
 │  PLUGIN WRAPPER LAYER (Plugin Language)                │
-│  - Holds plugin state                                  │
-│  - Direct method calls to plugin                       │
-│  - State lifecycle management                          │
+│  - Provider wrapper holds shared provider state        │
+│  - Extensions/features operate on shared state         │
+│  - Tools hold their own state                          │
 └─────────────────────┬───────────────────────────────────┘
                       │ Method calls
 ┌─────────────────────┴───────────────────────────────────┐
@@ -221,19 +218,25 @@ Application → Core SDK (send_request or send_request_stream)
   ↓
 Core → Provider.to_native_messages(messages)
   ↓
-Core → Provider.initialize_request(native_messages)
+Core → Apply stateless transforms: Provider Extensions.to_native_messages(messages, native_messages)
   ↓
-Core → Each Feature.initialize_request(native_messages)
+Core → Apply stateless transforms: Features.to_native_messages(messages, native_messages)
+  ↓
+Core → Provider.initialize_request(native_messages) → shared state
+  ↓
+Core → Each Feature.initialize_request(native_messages, state) → shared state
   ↓
 Provider.stream_api(native_messages) → yields native chunks
   ↓
-Provider.process_chunk + Extensions.process_chunk → Core (partial/final/native)
+Provider.process_chunk + Extensions.process_chunk(state) → Core (partial/final/native)
   ↓
 Core → Application → Frontend (stream partials)
   ↓
-Provider.finalize (optional) → final/native outputs
+Provider.finalize(native_messages, state) → final/native outputs
   ↓
-Core → Features.finalize(messages, {final_messages, native_messages})
+Core → Provider Extensions.finalize(messages, final_messages, native_messages, state)
+  ↓
+Core → Features.finalize(messages, final_messages, native_messages, state)
   ↓
 Core → Application (final messages, may include tool calls)
   ↓

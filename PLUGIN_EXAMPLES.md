@@ -66,7 +66,7 @@ class EchoProvider:
 
     @staticmethod
     def finalize(
-        messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         # Emit one final assistant message from accumulated content
@@ -95,32 +95,65 @@ version = "1.0.0"
 target_provider = "echo"
 
 def get_config_schema():
-    return {"enabled": {"type": "boolean", "default": True}, "prefix": {"type": "string", "default": "[EXT] "}}
+    return {"enabled": {"type": "boolean", "default": True}, "prefix": {"type": "string", "default": "[EXT]"}}
 
 def get_ui_elements():
-    return [{"type": "checkbox", "key": "enabled", "label": "Enable Extension"}, {"type": "text", "key": "prefix", "label": "Prefix"}]
+    return [
+        {"type": "checkbox", "key": "enabled", "label": "Enable Extension"},
+        {"type": "text", "key": "prefix", "label": "Prefix"}
+    ]
 
-def init(config):
-    return {"config": config, "runtime_state": {"processed_chunks": 0}}
+# Shared-state lifecycle
+
+def init(config, state):
+    rs = {**state.get("runtime_state", {}), "extension_processed_chunks": 0}
+    return {**state, "config": {**state.get("config", {}), **config}, "runtime_state": rs}
 
 def update_state(state, updates):
-    return {**state, "config": {**state["config"], **updates}}
+    return {**state, "config": {**state.get("config", {}), **updates}}
 
-def process_chunk(native_chunk, messages, provider_state, extension_state, partial_messages, final_messages, native_messages):
-    # Count chunks during streaming
-    if native_chunk is not None:
-        extension_state = {
-            **extension_state,
-            "runtime_state": {**extension_state.get("runtime_state", {}), "processed_chunks": extension_state.get("runtime_state", {}).get("processed_chunks", 0) + 1},
-        }
-    # Optionally prefix final messages at any stage (including finalize phase where native_chunk=None)
-    if extension_state["config"].get("enabled", True):
-        pref = extension_state["config"].get("prefix", "")
-        final_messages = [
-            {**m, "content": f"{pref}{m['content']}", "metadata": {**m.get("metadata", {}), "extension_processed_chunks": extension_state["runtime_state"]["processed_chunks"]}}
-            for m in final_messages
-        ]
-    return partial_messages, final_messages, native_messages, extension_state
+# Stateless transforms (optional)
+
+def to_native_messages(messages, native_messages):
+    return native_messages
+
+def from_native_messages(native_messages, messages):
+    return native_messages
+
+# Request lifecycle
+
+def initialize_request(native_messages, state):
+    return state
+
+# Hot path processing
+
+def process_chunk(native_chunk, messages, state, partial_messages, final_messages, native_messages):
+    if not state.get("config", {}).get("enabled", True):
+        return partial_messages, final_messages, native_messages, state
+    processed = state.get("runtime_state", {}).get("extension_processed_chunks", 0) + (1 if native_chunk is not None else 0)
+    rs = {**state.get("runtime_state", {}), "extension_processed_chunks": processed}
+    prefix = state.get("config", {}).get("prefix", "[EXT]")
+    finals = [
+        {**m, "content": f"{prefix} {m['content']}"}
+        for m in final_messages
+    ] if final_messages else final_messages
+    if finals:
+        last = finals[-1]
+        finals[-1] = {**last, "metadata": {**last.get("metadata", {}), "extension_processed_chunks": processed}}
+    return partial_messages, finals, native_messages, {**state, "runtime_state": rs}
+
+# Finalization (cold path)
+
+def finalize(messages, final_messages, native_messages, state):
+    if not state.get("config", {}).get("enabled", True):
+        return final_messages, native_messages, state
+    prefix = state.get("config", {}).get("prefix", "[EXT]")
+    finals = [{**m, "content": f"{prefix} {m['content']}"} for m in final_messages]
+    if finals:
+        count = state.get("runtime_state", {}).get("extension_processed_chunks", 0)
+        last = finals[-1]
+        finals[-1] = {**last, "metadata": {**last.get("metadata", {}), "extension_processed_chunks": count}}
+    return finals, native_messages, state
 ```
 
 ## Example 3: Web Search Feature (finalize-only)
@@ -139,27 +172,35 @@ def get_ui_elements():
         {"type": "number", "key": "max_results", "label": "Max Results", "condition": {"web_search_enabled": True}},
     ]
 
-def init(config):
-    return {"config": config, "capabilities": ["web_search"], "runtime_state": {}}
+# Shared-state lifecycle
+
+def init(config, state):
+    return {**state, "config": {**state.get("config", {}), **config}, "capabilities": ["web_search"]}
 
 def update_state(state, updates):
-    return {**state, "config": {**state["config"], **updates}}
+    return {**state, "config": {**state.get("config", {}), **updates}}
 
 def initialize_request(native_messages, state):
-    # Reset any per-turn flags
     return state
 
-def finalize(messages, output, state):
-    # Optionally post-process final messages (e.g., format citations)
-    if not state["config"].get("web_search_enabled"):
-        return output
-    finals = output.get("final_messages", [])
-    # This example just annotates metadata
+# Stateless transforms (optional)
+
+def to_native_messages(messages, native_messages):
+    return native_messages
+
+def from_native_messages(native_messages, messages):
+    return native_messages
+
+# Finalize (returns tuple)
+
+def finalize(messages, final_messages, native_messages, state):
+    if not state.get("config", {}).get("web_search_enabled"):
+        return final_messages, native_messages, state
     finals = [
         {**m, "metadata": {**m.get("metadata", {}), "web_search_used": True}}
-        for m in finals
+        for m in final_messages
     ]
-    return {**output, "final_messages": finals}
+    return finals, native_messages, state
 ```
 
 ## Example 4: File Reader Tool Plugin

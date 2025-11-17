@@ -77,6 +77,60 @@ class AgentCore:
             metadata=session.metadata
         )
 
+    def _pre_request(self, session: Session, config: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """Prepare state and inputs for a request; returns (messages, native_messages)."""
+        assert self._provider is not None
+        # Init chain: Provider → Extensions (inside provider) → Features
+        self._provider.initialize(config)
+        ui_state = config.get("ui_state", {})
+        # Update chain: Provider → Extensions (inside provider) → Features
+        if ui_state:
+            self._provider.update_state(ui_state)
+        for feature in self._features:
+            state = self._provider.get_state()
+            state = feature.init(config, state)
+            state = feature.update_state(state, ui_state) if ui_state else state
+            self._provider.set_state(state)
+        # Build messages
+        messages = [msg.to_dict() for msg in session.messages]
+        # Provider-first conversion (native_base for stateless transforms)
+        native_messages = self._provider.to_native_messages(messages)
+        # Apply stateless transforms: Extensions then Features
+        native_messages = self._provider.apply_extension_transforms(messages, native_messages)
+        for feature in self._features:
+            native_messages = feature.to_native_messages(messages, native_messages)
+        # Initialize request chains
+        self._provider.initialize_request(native_messages)
+        for feature in self._features:
+            state = self._provider.get_state()
+            state = feature.initialize_request(native_messages, state)
+            self._provider.set_state(state)
+        return messages, native_messages
+
+    def _finalize_and_reset(
+        self,
+        session: Session,
+        messages: List[Dict[str, Any]],
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+    ) -> Tuple[Session, List[Dict[str, Any]]]:
+        assert self._provider is not None
+        # Feature finalize chain
+        for feature in self._features:
+            state = self._provider.get_state()
+            final_messages, native_messages, state = feature.finalize(messages, final_messages, native_messages, state)
+            self._provider.set_state(state)
+        # Build new session
+        appended: Tuple[Message, ...] = tuple(Message.from_dict(m) for m in final_messages)
+        new_session = Session(
+            session_id=session.session_id,
+            messages=session.messages + appended,
+            metadata=session.metadata,
+        )
+        # Purge state after request
+        self._provider.reset_state()
+        return new_session, final_messages
+
     def send_request(
         self,
         session: Session,
@@ -87,37 +141,9 @@ class AgentCore:
         """
         if not self._provider:
             raise RuntimeError("No provider registered")
-
-        # Initialize provider and features with config
-        self._provider.initialize(config)
-        for feature in self._features:
-            feature.initialize(config)
-
-        # Current user-visible messages (dicts)
-        messages = [msg.to_dict() for msg in session.messages]
-
-        # Convert to native and initialize request phase with native messages
-        native_messages = self._provider.to_native_messages(messages)
-        self._provider.initialize_request(native_messages)
-        for feature in self._features:
-            feature.initialize_request(native_messages)
-
-        # Non-streaming API call
+        messages, native_messages = self._pre_request(session, config)
         final_messages, partial_messages, native_out = self._provider.call_api(native_messages)
-        # Build output bundle for feature finalize
-        output = {"final_messages": final_messages, "native_messages": native_out}
-        for feature in self._features:
-            output = feature.finalize(messages, output)
-
-        # Append final messages to session
-        appended: Tuple[Message, ...] = tuple(Message.from_dict(m) for m in output.get("final_messages", []))
-        new_session = Session(
-            session_id=session.session_id,
-            messages=session.messages + appended,
-            metadata=session.metadata,
-        )
-        # Return all final messages (breaking change: no single 'message')
-        return new_session, output.get("final_messages", [])
+        return self._finalize_and_reset(session, messages, final_messages, native_out)
 
     def send_request_stream(
         self,
@@ -129,70 +155,30 @@ class AgentCore:
         """
         if not self._provider:
             raise RuntimeError("No provider registered")
-
-        # Initialize provider and features
-        self._provider.initialize(config)
-        for feature in self._features:
-            feature.initialize(config)
-
-        # External messages and native messages
-        messages: List[Dict[str, Any]] = [msg.to_dict() for msg in session.messages]
-
-        initial_native = self._provider.to_native_messages(messages)
-        self._provider.initialize_request(initial_native)
-        for feature in self._features:
-            feature.initialize_request(initial_native)
-        current_native: List[Dict[str, Any]] = list(initial_native)
-
+        messages, current_native = self._pre_request(session, config)
         aggregated_finals: List[Dict[str, Any]] = []
 
         # Stream from provider
         for native_chunk in self._provider.stream_api(current_native):
-            final_msgs, partial_msgs, native_msgs = self._provider.process_chunk(native_chunk, current_native)
-            # forward partials as-is
+            final_msgs, partial_msgs, native_msgs = self._provider.process_chunk(native_chunk, messages)
             for p in partial_msgs:
                 yield {"type": "partial", "message": p}
-            # update messages/native contexts
             if final_msgs:
                 aggregated_finals.extend(final_msgs)
                 messages.extend(final_msgs)
             if native_msgs:
                 current_native.extend(native_msgs)
 
-        # Finalize if provider supports it
-        final_final_msgs: List[Dict[str, Any]] = []
-        final_native_msgs: List[Dict[str, Any]] = []
-        try:
-            final_final_msgs, final_native_msgs = self._provider.finalize(current_native)
-        except AttributeError:
-            final_final_msgs, final_native_msgs = [], []
-
+        # Finalize
+        final_final_msgs, final_native_msgs = self._provider.finalize(current_native)
         if final_final_msgs:
             aggregated_finals.extend(final_final_msgs)
             messages.extend(final_final_msgs)
         if final_native_msgs:
             current_native.extend(final_native_msgs)
 
-        # Feature finalize
-        output = {"final_messages": aggregated_finals, "native_messages": current_native}
-        for feature in self._features:
-            output = feature.finalize(messages, output)
-
-        # Update session
-        appended: Tuple[Message, ...] = tuple(Message.from_dict(m) for m in output.get("final_messages", []))
-        new_session = Session(
-            session_id=session.session_id,
-            messages=session.messages + appended,
-            metadata=session.metadata,
-        )
-
-        final_messages_out = output.get("final_messages", [])
-        yield {
-            "type": "final",
-            "session": new_session,
-            "messages": final_messages_out,
-
-        }
+        new_session, finals = self._finalize_and_reset(session, messages, aggregated_finals, current_native)
+        yield {"type": "final", "session": new_session, "messages": finals}
 
     async def send_request_stream_async(
         self,
@@ -205,24 +191,12 @@ class AgentCore:
         if not self._provider:
             raise RuntimeError("No provider registered")
 
-        # Initialize provider and features
-        self._provider.initialize(config)
-        for feature in self._features:
-            feature.initialize(config)
-
-        messages: List[Dict[str, Any]] = [msg.to_dict() for msg in session.messages]
-
-        initial_native = self._provider.to_native_messages(messages)
-        self._provider.initialize_request(initial_native)
-        for feature in self._features:
-            feature.initialize_request(initial_native)
-        current_native: List[Dict[str, Any]] = list(initial_native)
-
+        messages, current_native = self._pre_request(session, config)
         aggregated_finals: List[Dict[str, Any]] = []
 
         # Stream from provider (async)
         async for native_chunk in self._provider.stream_api_async(current_native):
-            final_msgs, partial_msgs, native_msgs = self._provider.process_chunk(native_chunk, current_native)
+            final_msgs, partial_msgs, native_msgs = self._provider.process_chunk(native_chunk, messages)
             for p in partial_msgs:
                 yield {"type": "partial", "message": p}
             if final_msgs:
@@ -232,37 +206,16 @@ class AgentCore:
                 current_native.extend(native_msgs)
 
         # Finalize
-        final_final_msgs: List[Dict[str, Any]] = []
-        final_native_msgs: List[Dict[str, Any]] = []
-        try:
-            final_final_msgs, final_native_msgs = self._provider.finalize(current_native)
-        except AttributeError:
-            final_final_msgs, final_native_msgs = [], []
-
+        final_final_msgs, final_native_msgs = self._provider.finalize(current_native)
         if final_final_msgs:
             aggregated_finals.extend(final_final_msgs)
             messages.extend(final_final_msgs)
         if final_native_msgs:
             current_native.extend(final_native_msgs)
 
-        output = {"final_messages": aggregated_finals, "native_messages": current_native}
-        for feature in self._features:
-            output = feature.finalize(messages, output)
+        new_session, finals = self._finalize_and_reset(session, messages, aggregated_finals, current_native)
+        yield {"type": "final", "session": new_session, "messages": finals}
 
-        appended: Tuple[Message, ...] = tuple(Message.from_dict(m) for m in output.get("final_messages", []))
-        new_session = Session(
-            session_id=session.session_id,
-            messages=session.messages + appended,
-            metadata=session.metadata,
-        )
-
-        final_messages_out = output.get("final_messages", [])
-        yield {
-            "type": "final",
-            "session": new_session,
-            "messages": final_messages_out,
-
-        }
 
     def get_config_schema(self) -> Dict[str, Any]:
         """Get combined config schema from all registered plugins."""
