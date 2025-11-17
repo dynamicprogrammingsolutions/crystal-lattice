@@ -1547,13 +1547,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 **Goal:** Create a functional system we can use ourselves immediately.
 
 **Core SDK:**
-- [ ] Implement basic data types (Message, ConversationState, PluginState)
-- [ ] Create plugin wrapper and passthrough adapter
-- [ ] Build session management with low-level message API
-- [ ] Implement send_request, send_request_stream
-- [ ] Create plugin registry and discovery
-- [ ] Integration tests for complete request/response cycle
-- [ ] API reference documentation
+- [x] Implement basic data types
+- [x] Create plugin wrapper and passthrough adapter
+- [x] Build session management with low-level message API
+- [x] Implement send_request, send_request_stream
+- [x] Create plugin registry and discovery
+- [x] Integration tests for complete request/response cycle (with dummy plugins made for testing)
+- [x] API reference documentation
 
 **Plugins (One of Each Type):**
 - [ ] Openrouter provider plugin (basic, working streaming)
