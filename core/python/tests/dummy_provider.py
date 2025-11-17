@@ -116,6 +116,8 @@ class DummyProvider(ProviderPlugin):
         Returns (final_messages, native_messages, new_state).
         """
         content = state["runtime_state"]["accumulated_content"]
+        if not content:
+            return [], [], state
         message = {"role": "assistant", "content": content, "metadata": {"chunk_count": len(state["runtime_state"]["native_chunks"])}}
         return [message], [], state
 

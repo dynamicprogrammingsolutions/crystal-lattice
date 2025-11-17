@@ -50,7 +50,6 @@ class DummyFeature(FeaturePlugin):
 
     @staticmethod
     def finalize(
-        messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any]

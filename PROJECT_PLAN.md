@@ -237,7 +237,7 @@ session, messages = core.send_request(session, config)
 # Clear conversation and start fresh (functional)
 session = Session(
     session_id=session.session_id,
-    messages=(),
+    messages=[],
     metadata=session.metadata
 )
 session = core.add_message(session, "user", "New conversation")

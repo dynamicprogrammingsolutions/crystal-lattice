@@ -102,14 +102,14 @@ from agent_core import Session, Message
 # Create session
 session = Session(
     session_id="my-session",
-    messages=(
+    messages=[
         Message(role="user", content="Hello"),
         Message(role="assistant", content="Hi there!")
-    )
+    ]
 )
 
 # Cannot modify - it's frozen
-# session.messages.append(...)  # Error! Tuple is immutable
+# Avoid mutating session.messages directly; create a new Session instead
 # session.session_id = "new"    # Error! Dataclass is frozen
 ```
 
@@ -243,7 +243,7 @@ Immutable session data structure.
 #### Attributes
 
 - `session_id: str` - Session identifier
-- `messages: Tuple[Message, ...]` - Immutable tuple of messages
+- `messages: List[Message]` - Messages (treat as immutable; use pure updates)
 - `metadata: Dict[str, Any]` - Session metadata
 
 #### Methods
@@ -278,13 +278,13 @@ msg = Message(role="user", content="Test")
 # msg.role = "assistant"  # Error!
 
 # Immutable session
-session = Session(session_id="test", messages=())
+session = Session(session_id="test", messages=[])
 # session.messages.append(...)  # Error!
 
 # Functional updates
 new_session = Session(
     session_id=session.session_id,
-    messages=session.messages + (msg,)
+    messages=[*session.messages, msg]
 )
 ```
 

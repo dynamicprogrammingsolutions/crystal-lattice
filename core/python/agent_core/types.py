@@ -27,11 +27,11 @@ class ProviderWrapperProtocol(Protocol):
 
     def to_native_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]: ...
     def initialize_request(self, native_messages: List[Dict[str, Any]]) -> None: ...
-    def call_api(self, native_messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]: ...
+    def call_api(self, native_messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
     def stream_api(self, native_messages: List[Dict[str, Any]]) -> Iterator[Dict[str, Any]]: ...
     async def stream_api_async(self, native_messages: List[Dict[str, Any]]) -> AsyncIterator[Dict[str, Any]]: ...
     def process_chunk(self, native_chunk: Dict[str, Any], messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]: ...
-    def finalize(self, native_messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]: ...
+    def finalize(self, native_messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
 
     def get_extension_config_schemas(self) -> Dict[str, Any]: ...
     def get_extension_ui_elements(self) -> Dict[str, List[Dict[str, Any]]]: ...
@@ -68,7 +68,6 @@ class ExtensionWrapperProtocol(Protocol):
 
     def finalize(
         self,
-        messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
@@ -92,7 +91,6 @@ class FeatureWrapperProtocol(Protocol):
 
     def finalize(
         self,
-        messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
@@ -216,7 +214,6 @@ class ProviderExtensionPlugin(Protocol):
 
     @staticmethod
     def finalize(
-        messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
@@ -253,7 +250,6 @@ class FeaturePlugin(Protocol):
 
     @staticmethod
     def finalize(
-        messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any]
@@ -364,16 +360,16 @@ class Session:
 
     Attributes:
         session_id: Unique identifier for this session
-        messages: Immutable tuple of messages
+        messages: List of messages
         metadata: Optional session-level metadata
 
     Examples:
-        >>> session = Session(session_id="test", messages=())
+        >>> session = Session(session_id="test", messages=[])
         >>> len(session.messages)
         0
     """
     session_id: str
-    messages: Tuple[Message, ...] = field(default_factory=tuple)
+    messages: List[Message] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -400,7 +396,7 @@ class Session:
         Returns:
             New Session instance
         """
-        messages = tuple(Message.from_dict(msg) for msg in data.get("messages", []))
+        messages = [Message.from_dict(msg) for msg in data.get("messages", [])]
         return cls(
             session_id=data["session_id"],
             messages=messages,

@@ -89,12 +89,11 @@ class ExtensionWrapper(ExtensionWrapperProtocol):
 
     def finalize(
         self,
-        messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Finalize after provider; return (final_messages, native_messages, new_state)."""
         if hasattr(self.plugin_class, "finalize"):
-            return self.plugin_class.finalize(messages, final_messages, native_messages, state)
+            return self.plugin_class.finalize(final_messages, native_messages, state)
         return final_messages, native_messages, state

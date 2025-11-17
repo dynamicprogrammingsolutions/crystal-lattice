@@ -140,7 +140,7 @@ When you change any type or protocol definitions, you MUST update all of the fol
 - Examples: `PLUGIN_EXAMPLES.md`
   - Provider: `finalize(native_messages, state) → (final_messages, native_messages, new_state)`; `call_api` returns 4‑tuple
   - Extension: shared-state lifecycle; `process_chunk(..., state, ...) → (..., new_state)`; `finalize` returns tuple; stateless `to/from_native_messages`
-  - Feature: shared-state lifecycle; stateless transforms; `finalize(messages, final_messages, native_messages, state) → (final_messages, native_messages, new_state)`
+  - Feature: shared-state lifecycle; stateless transforms; `finalize(final_messages, native_messages, state) → (final_messages, native_messages, new_state)`
 
 - Core SDK README: `core/python/README.md`
   - Quick start and streaming examples use list of final messages, not single dict

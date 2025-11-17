@@ -51,7 +51,7 @@ def test_session_creation():
     session = Session(session_id="test-123")
     assert session.session_id == "test-123"
     assert len(session.messages) == 0
-    assert isinstance(session.messages, tuple)
+    assert isinstance(session.messages, list)
 
 
 def test_session_with_messages():
@@ -61,7 +61,7 @@ def test_session_with_messages():
     
     session = Session(
         session_id="test",
-        messages=(msg1, msg2)
+        messages=[msg1, msg2]
     )
     
     assert len(session.messages) == 2
@@ -74,7 +74,7 @@ def test_session_to_dict():
     msg = Message(role="user", content="Test")
     session = Session(
         session_id="test",
-        messages=(msg,),
+        messages=[msg],
         metadata={"key": "value"}
     )
     
@@ -109,13 +109,13 @@ def test_session_from_dict():
 def test_session_functional_update():
     """Test that session updates return new instances (functional pattern)."""
     msg1 = Message(role="user", content="First")
-    session1 = Session(session_id="test", messages=(msg1,))
+    session1 = Session(session_id="test", messages=[msg1])
     
     # Create new session with additional message
     msg2 = Message(role="assistant", content="Second")
     session2 = Session(
         session_id=session1.session_id,
-        messages=session1.messages + (msg2,),
+        messages=[*session1.messages, msg2],
         metadata=session1.metadata
     )
     

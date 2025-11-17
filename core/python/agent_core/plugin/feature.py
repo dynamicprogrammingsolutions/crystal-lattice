@@ -57,14 +57,13 @@ class FeatureWrapper(FeatureWrapperProtocol):
 
     def finalize(
         self,
-        messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Run feature finalize; return (final_messages, native_messages, new_state)."""
         if hasattr(self.plugin_class, "finalize"):
-            return self.plugin_class.finalize(messages, final_messages, native_messages, state)
+            return self.plugin_class.finalize(final_messages, native_messages, state)
         return final_messages, native_messages, state
 
 
@@ -98,12 +97,11 @@ class FeatureAdapter(FeatureWrapperProtocol):
     # Finalize
     def finalize(
         self,
-        messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        return self.wrapper.finalize(messages, final_messages, native_messages, state)
+        return self.wrapper.finalize(final_messages, native_messages, state)
 
     def get_config_schema(self) -> Dict[str, Any]:
         return self.wrapper.get_config_schema()

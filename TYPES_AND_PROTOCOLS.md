@@ -211,7 +211,6 @@ ProviderExtensionPlugin:
   
   # Finalization (cold path for extensions)
   finalize(
-    messages: list,
     final_messages: list,
     native_messages: list,
     state: dict
@@ -258,7 +257,6 @@ FeaturePlugin:
   
   # Finalization (required)
   finalize(
-    messages: list,
     final_messages: list,
     native_messages: list,
     state: dict
@@ -418,9 +416,9 @@ Important principles:
      - For each Feature (optional): state = feat.initialize_request(native_messages, state)
    - Provider.call_api(native_messages, state) → (final, partial, native, state)
    - Provider.finalize(native_messages, state) → (final_messages, native_messages, state)
-   - Provider Extensions.finalize(messages, final_messages, native_messages, state) in order
+   - Provider Extensions.finalize(final_messages, native_messages, state) in order
      → (final_messages, native_messages, state)
-   - Features.finalize(messages, final_messages, native_messages, state)
+   - Features.finalize(final_messages, native_messages, state)
      → (final_messages, native_messages, state)
    - Purge internal shared state after request completes
 5. Core returns (new_session, final_messages)
@@ -443,9 +441,9 @@ Note: The provider wrapper discards the internal shared state after each complet
    - Shared state is updated by the provider wrapper if returned
 5. After stream completes (cold path):
    - Provider.finalize(native_messages, state) → (final_messages, native_messages, state)
-   - Provider Extensions.finalize(messages, final_messages, native_messages, state) in order
+   - Provider Extensions.finalize(final_messages, native_messages, state) in order
      → (final_messages, native_messages, state)
-   - Features.finalize(messages, final_messages, native_messages, state)
+   - Features.finalize(final_messages, native_messages, state)
      → (final_messages, native_messages, state)
 6. Core yields final event:
    {"type": "final", "session": new_session, "messages": [...]} 

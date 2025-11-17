@@ -425,7 +425,7 @@ Immutable session data structure (pure data container).
 @dataclass(frozen=True)
 class Session:
     session_id: str
-    messages: Tuple[Message, ...]  # Immutable tuple
+    messages: List[Message]  # Messages (treat as immutable)
     metadata: Dict[str, Any] = field(default_factory=dict)
 ```
 
@@ -439,14 +439,14 @@ from agent_core import Session, Message
 
 session = Session(
     session_id="test",
-    messages=(
+    messages=[
         Message(role="user", content="Hello"),
         Message(role="assistant", content="Hi!")
-    )
+    ]
 )
 
 # Cannot modify (frozen dataclass)
-# session.messages.append(...)  # Error! Tuple is immutable
+# Avoid mutating session.messages directly; create a new Session instead
 ```
 
 ### MessageRole
@@ -617,13 +617,13 @@ msg = Message(role="user", content="Test")
 # msg.role = "assistant"  # Error!
 
 # Sessions are immutable
-session = Session(session_id="test", messages=())
-# session.messages.append(...)  # Error!
+session = Session(session_id="test", messages=[])
+# Avoid mutating session.messages directly; create a new Session instead
 
 # Functional updates
 new_session = Session(
     session_id=session.session_id,
-    messages=session.messages + (msg,)
+    messages=[*session.messages, msg]
 )
 ```
 

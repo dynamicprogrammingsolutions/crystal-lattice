@@ -144,7 +144,7 @@ def process_chunk(native_chunk, messages, state, partial_messages, final_message
 
 # Finalization (cold path)
 
-def finalize(messages, final_messages, native_messages, state):
+def finalize(final_messages, native_messages, state):
     if not state.get("config", {}).get("enabled", True):
         return final_messages, native_messages, state
     prefix = state.get("config", {}).get("prefix", "[EXT]")
@@ -193,7 +193,7 @@ def from_native_messages(native_messages, messages):
 
 # Finalize (returns tuple)
 
-def finalize(messages, final_messages, native_messages, state):
+def finalize(final_messages, native_messages, state):
     if not state.get("config", {}).get("web_search_enabled"):
         return final_messages, native_messages, state
     finals = [

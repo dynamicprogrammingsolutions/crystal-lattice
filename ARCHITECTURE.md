@@ -234,9 +234,9 @@ Core → Application → Frontend (stream partials)
   ↓
 Provider.finalize(native_messages, state) → final/native outputs
   ↓
-Core → Provider Extensions.finalize(messages, final_messages, native_messages, state)
+Core → Provider Extensions.finalize(final_messages, native_messages, state)
   ↓
-Core → Features.finalize(messages, final_messages, native_messages, state)
+Core → Features.finalize(final_messages, native_messages, state)
   ↓
 Core → Application (final messages, may include tool calls)
   ↓
