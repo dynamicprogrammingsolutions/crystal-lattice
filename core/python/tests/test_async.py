@@ -24,10 +24,10 @@ async def test_async_streaming_basic():
     
     async for chunk in core.send_request_stream_async(session, config):
         if chunk["type"] == "partial":
-            partials.append(chunk["content"])
+            partials.append(chunk["message"]["content"])
         elif chunk["type"] == "final":
             final_session = chunk["session"]
-            final_message = chunk["message"]
+            final_message = chunk["messages"][-1]
     
     assert len(partials) > 0
     assert final_session is not None
@@ -57,7 +57,7 @@ async def test_async_streaming_with_feature():
     async for chunk in core.send_request_stream_async(session, config):
         if chunk["type"] == "final":
             final_session = chunk["session"]
-            final_message = chunk["message"]
+            final_message = chunk["messages"][-1]
     
     assert final_session is not None
     assert final_message is not None
@@ -79,9 +79,9 @@ async def test_async_streaming_accumulation():
     final_content = ""
     async for chunk in core.send_request_stream_async(session, config):
         if chunk["type"] == "partial":
-            accumulated += chunk["content"]
+            accumulated += chunk["message"]["content"]
         elif chunk["type"] == "final":
-            final_content = chunk["message"]["content"]
+            final_content = chunk["messages"][-1]["content"]
     
     # Accumulated partials should match final
     assert accumulated == final_content
@@ -111,7 +111,7 @@ async def test_async_streaming_multiple_turns():
     async for chunk in core.send_request_stream_async(session, config):
         if chunk["type"] == "final":
             session = chunk["session"]
-            response = chunk["message"]
+            response = chunk["messages"][-1]
             break
     
     assert len(session.messages) == 4
@@ -125,7 +125,7 @@ async def test_provider_stream_api_async_preferred(monkeypatch):
     # Monkeypatch a native async stream on DummyProvider
     from .dummy_provider import DummyProvider as DP
 
-    async def fake_async_stream(body, state):
+    async def fake_async_stream(native_messages, state):
         # Ignore body/state; yield fixed chunks
         for _ in range(3):
             yield {"content": "Z"}
@@ -142,7 +142,7 @@ async def test_provider_stream_api_async_preferred(monkeypatch):
     final = None
     async for chunk in core.send_request_stream_async(session, config):
         if chunk["type"] == "final":
-            final = chunk["message"]
+            final = chunk["messages"][-1]
 
     assert final is not None
     # Accumulated ZZZ from fake async stream

@@ -23,7 +23,7 @@ def test_provider_with_extension():
     for chunk in core.send_request_stream(session, config):
         if chunk["type"] == "final":
             final_session = chunk["session"]
-            final_message = chunk["message"]
+            final_message = chunk["messages"][-1]
     
     assert final_session is not None
     assert final_message is not None
@@ -46,7 +46,7 @@ def test_extension_can_be_disabled():
     final_message = None
     for chunk in core.send_request_stream(session, config):
         if chunk["type"] == "final":
-            final_message = chunk["message"]
+            final_message = chunk["messages"][-1]
     
     # Extension disabled, so no prefix
     assert "[EXT]" not in final_message["content"]
@@ -69,7 +69,7 @@ def test_extension_chunk_counting():
         if chunk["type"] == "partial":
             chunk_count += 1
         elif chunk["type"] == "final":
-            final_message = chunk["message"]
+            final_message = chunk["messages"][-1]
     
     # Extension should have counted the same number of chunks
     assert final_message["metadata"]["extension_processed_chunks"] == chunk_count
@@ -88,7 +88,7 @@ def test_multiple_extensions():
     final_message = None
     for chunk in core.send_request_stream(session, config):
         if chunk["type"] == "final":
-            final_message = chunk["message"]
+            final_message = chunk["messages"][-1]
     
     assert final_message is not None
 
@@ -112,7 +112,7 @@ def test_extension_with_feature():
     final_message = None
     for chunk in core.send_request_stream(session, config):
         if chunk["type"] == "final":
-            final_message = chunk["message"]
+            final_message = chunk["messages"][-1]
     
     # Both extension and feature should process
     # Extension adds prefix first, then feature adds prefix
@@ -134,7 +134,7 @@ async def test_extension_with_async_streaming():
     final_message = None
     async for chunk in core.send_request_stream_async(session, config):
         if chunk["type"] == "final":
-            final_message = chunk["message"]
+            final_message = chunk["messages"][-1]
     
     assert final_message is not None
     assert "[ASYNC-EXT]" in final_message["content"]

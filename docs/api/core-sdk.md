@@ -37,8 +37,8 @@ session = core.create_session()
 session = core.add_message(session, "user", "Hello!")
 
 # Send request (returns new session + response)
-session, response = core.send_request(session, config)
-print(response["content"])
+session, messages = core.send_request(session, config)
+print(messages[-1]["content"])
 ```
 
 ---
@@ -213,7 +213,7 @@ session = core.add_message(
 send_request(
     session: Session,
     config: Dict[str, Any]
-) -> Tuple[Session, Dict[str, Any]]
+) -> Tuple[Session, List[Dict[str, Any]]]
 ```
 
 Send request and return new session with response (pure function).
@@ -223,13 +223,13 @@ Send request and return new session with response (pure function).
 - `config` (dict): Provider and feature configuration
 
 **Returns:**
-- `Tuple[Session, dict]`: Tuple of (new_session, response_message)
+- `Tuple[Session, list]`: Tuple of (new_session, final_messages)
 
 **Example:**
 ```python
 config = {"model": "gpt-4o", "api_key": "sk-..."}
-session, response = core.send_request(session, config)
-print(response["content"])
+session, messages = core.send_request(session, config)
+print(messages[-1]["content"])
 ```
 
 #### send_request_stream
@@ -249,14 +249,14 @@ Stream request and yield partials, then final session (generator function).
 
 **Yields:**
 - `dict`: Chunk dictionaries:
-  - `{"type": "partial", "content": "..."}` - Streaming content
-  - `{"type": "final", "session": new_session, "message": {...}}` - Final result
+  - `{"type": "partial", "message": {"role": "assistant", "content": "...", "metadata": {...}}}` - Streaming partial message
+  - `{"type": "final", "session": new_session, "messages": [...]}` - Final result (list of final messages)
 
 **Example:**
 ```python
 for chunk in core.send_request_stream(session, config):
     if chunk["type"] == "partial":
-        print(chunk["content"], end="", flush=True)
+        print(chunk["message"]["content"], end="", flush=True)
     elif chunk["type"] == "final":
         session = chunk["session"]
         print("\n[Done]")
@@ -284,7 +284,7 @@ Async version of `send_request_stream()`.
 ```python
 async for chunk in core.send_request_stream_async(session, config):
     if chunk["type"] == "partial":
-        print(chunk["content"], end="", flush=True)
+        print(chunk["message"]["content"], end="", flush=True)
     elif chunk["type"] == "final":
         session = chunk["session"]
 ```
@@ -496,7 +496,7 @@ while True:
     
     # Functional updates
     session = core.add_message(session, "user", user_input)
-    session, response = core.send_request(session, config)
+    session, messages = core.send_request(session, config)
     print(f"Assistant: {response['content']}")
 ```
 
@@ -515,7 +515,7 @@ session = core.add_message(session, "user", "Write a story")
 print("Assistant: ", end="", flush=True)
 for chunk in core.send_request_stream(session, config):
     if chunk["type"] == "partial":
-        print(chunk["content"], end="", flush=True)
+        print(chunk["message"]["content"], end="", flush=True)
     elif chunk["type"] == "final":
         session = chunk["session"]
         print("\n")
@@ -546,7 +546,7 @@ session = core.add_message(session, "user", "Explain quantum physics")
 
 for chunk in core.send_request_stream(session, config):
     if chunk["type"] == "final":
-        message = chunk["message"]
+        message = chunk["messages"][-1]
         # Extensions added metadata
         if "thinking_blocks" in message.get("metadata", {}):
             print("Thinking:", message["metadata"]["thinking_blocks"])
@@ -577,7 +577,7 @@ config = {
 
 session = core.create_session()
 session = core.add_message(session, "user", "Search for AI news")
-session, response = core.send_request(session, config)
+session, messages = core.send_request(session, config)
 ```
 
 ### Async Streaming
@@ -596,7 +596,7 @@ async def chat():
     
     async for chunk in core.send_request_stream_async(session, config):
         if chunk["type"] == "partial":
-            print(chunk["content"], end="", flush=True)
+            print(chunk["message"]["content"], end="", flush=True)
         elif chunk["type"] == "final":
             session = chunk["session"]
 
@@ -639,8 +639,8 @@ session = core.add_message(session, "user", "Hello")
 result1 = core.send_request(session, config)
 result2 = core.send_request(session, config)
 
-# Both produce same results
-assert result1[1]["content"] == result2[1]["content"]
+# Both produce same results (compare last message)
+assert result1[1][-1]["content"] == result2[1][-1]["content"]
 
 # Original session unchanged
 assert len(session.messages) == 1
@@ -652,7 +652,7 @@ No hidden state - everything passed explicitly:
 
 ```python
 # Config passed explicitly (not stored in core)
-session, response = core.send_request(session, config)
+session, messages = core.send_request(session, config)
 
 # Session passed explicitly (not stored in core)
 new_session = core.add_message(session, "user", "Test")
@@ -676,7 +676,7 @@ configs = {
 }
 
 # Application decides which to use
-session, response = core.send_request(
+session, messages = core.send_request(
     sessions["user-1"],
     configs["smart"]
 )
@@ -696,7 +696,7 @@ session, response = core.send_request(
 **Example:**
 ```python
 try:
-    session, response = core.send_request(session, config)
+    session, messages = core.send_request(session, config)
 except RuntimeError as e:
     print(f"Error: {e}")  # "No provider registered"
 ```

@@ -1,5 +1,5 @@
 """
-Dummy transform feature implementing transform_messages with direction.
+Dummy transform feature updated to finalize outputs.
 """
 
 from typing import Dict, Any, List
@@ -28,19 +28,14 @@ class DummyTransformFeature:
         return {**state, "config": {**state["config"], **updates}}
 
     @staticmethod
-    def transform_messages(messages: List[Dict[str, Any]], state: Dict[str, Any], direction: str) -> List[Dict[str, Any]]:
-        # Uppercase user content when going to_compat, identity otherwise
-        if direction == "to_compat":
-            transformed = []
-            for m in messages:
-                if m.get("role") == "user" and isinstance(m.get("content"), str):
-                    transformed.append({**m, "content": m["content"].upper()})
-                else:
-                    transformed.append(m)
-            return transformed
-        return messages
+    def initialize_request(messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+        return state
 
     @staticmethod
-    def process_final_message(message: Dict[str, Any], conversation_dict: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        # No-op
-        return message
+    def finalize(messages: List[Dict[str, Any]], output: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        # Uppercase assistant response content
+        finals = [
+            {**m, "content": (m.get("content", "").upper() if isinstance(m.get("content"), str) else m.get("content"))}
+            for m in output.get("final_messages", [])
+        ]
+        return {**output, "final_messages": finals}

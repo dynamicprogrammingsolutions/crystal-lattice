@@ -4,7 +4,7 @@ Dummy provider extension plugin for testing purposes.
 This plugin extends the dummy provider with additional processing during streaming.
 """
 
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 from dataclasses import dataclass
 
 
@@ -14,11 +14,11 @@ class DummyExtension:
     Dummy provider extension (stateless with state parameter).
     Extends dummy_provider with additional chunk processing.
     """
-    
+
     name: str = "dummy_extension"
     version: str = "1.0.0"
     target_provider: str = "dummy_provider"
-    
+
     @staticmethod
     def get_config_schema() -> Dict[str, Any]:
         """Return configuration schema."""
@@ -26,7 +26,7 @@ class DummyExtension:
             "prefix": {"type": "string", "default": "[EXT]"},
             "enabled": {"type": "boolean", "default": True}
         }
-    
+
     @staticmethod
     def get_ui_elements() -> List[Dict[str, Any]]:
         """Return UI elements."""
@@ -34,17 +34,11 @@ class DummyExtension:
             {"type": "checkbox", "key": "enabled", "label": "Enable Extension"},
             {"type": "text", "key": "prefix", "label": "Extension Prefix"}
         ]
-    
+
     @staticmethod
     def init(config: Dict[str, Any]) -> Dict[str, Any]:
         """
         Initialize extension state.
-        
-        Args:
-            config: Configuration dictionary
-            
-        Returns:
-            Initial state dictionary
         """
         return {
             "config": config,
@@ -55,92 +49,38 @@ class DummyExtension:
             },
             "ui_state": {}
         }
-    
+
     @staticmethod
     def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Update extension state (pure function).
-        
-        Args:
-            state: Current state
-            updates: Dictionary of updates
-            
-        Returns:
-            New state
-        """
-        return {
-            **state,
-            "config": {**state["config"], **updates}
-        }
-    
-    @staticmethod
-    def can_handle(capability_id: str, state: Dict[str, Any]) -> bool:
-        """Check if capability is supported."""
-        return state["config"].get("enabled", True)
-    
+        return {**state, "config": {**state["config"], **updates}}
+
     @staticmethod
     def process_chunk(
-        native_chunk: Dict[str, Any],
+        native_chunk: Optional[Dict[str, Any]],
+        messages: List[Dict[str, Any]],
         provider_state: Dict[str, Any],
-        extension_state: Dict[str, Any]
-    ) -> Tuple[str, Dict[str, Any]]:
-        """
-        Process chunk from provider (hot path).
-        
-        Args:
-            native_chunk: Chunk from provider
-            provider_state: Provider's current state
-            extension_state: Extension's current state
-            
-        Returns:
-            Tuple of (partial_content, new_extension_state)
-        """
+        extension_state: Dict[str, Any],
+        partial_messages: List[Dict[str, Any]],
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         if not extension_state["config"].get("enabled", True):
-            return "", extension_state
-        
-        # Count processed chunks
+            return partial_messages, final_messages, native_messages, extension_state
+        # Count processed native chunk if present
+        processed = extension_state["runtime_state"]["processed_chunks"] + (1 if native_chunk is not None else 0)
         new_state = {
             **extension_state,
-            "runtime_state": {
-                **extension_state["runtime_state"],
-                "processed_chunks": extension_state["runtime_state"]["processed_chunks"] + 1
-            }
+            "runtime_state": {**extension_state["runtime_state"], "processed_chunks": processed},
         }
-        
-        # No content modification during streaming
-        return "", new_state
-    
-    @staticmethod
-    def enhance_final_message(
-        message: Dict[str, Any],
-        metadata: Dict[str, Any],
-        state: Dict[str, Any]
-    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        """
-        Enhance final message with extension data.
-        
-        Args:
-            message: Final message from provider
-            metadata: Message metadata
-            state: Extension state
-            
-        Returns:
-            Tuple of (enhanced_message, enhanced_metadata)
-        """
-        if not state["config"].get("enabled", True):
-            return message, metadata
-        
-        # Add prefix to content
-        prefix = state["config"].get("prefix", "[EXT]")
-        enhanced_message = {
-            **message,
-            "content": f"{prefix} {message['content']}"
-        }
-        
-        # Add extension metadata
-        enhanced_metadata = {
-            **metadata,
-            "extension_processed_chunks": state["runtime_state"]["processed_chunks"]
-        }
-        
-        return enhanced_message, enhanced_metadata
+        # If we have final messages, add prefix
+        prefix = extension_state["config"].get("prefix", "[EXT]")
+        enhanced_finals = [
+            {**m, "content": f"{prefix} {m['content']}"}
+            for m in final_messages
+        ] if final_messages else final_messages
+        # Add metadata about processed chunks to last final message if exists
+        if enhanced_finals:
+            last = enhanced_finals[-1]
+            meta = {**last.get("metadata", {}), "extension_processed_chunks": processed}
+            enhanced_finals[-1] = {**last, "metadata": meta}
+        return partial_messages, enhanced_finals, native_messages, new_state

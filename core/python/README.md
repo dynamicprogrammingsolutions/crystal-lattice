@@ -83,7 +83,7 @@ session = core.add_message(session, "user", "Write a short poem")
 # Stream response (generator yields partials, then final session)
 for chunk in core.send_request_stream(session, config):
     if chunk["type"] == "partial":
-        print(chunk["content"], end="", flush=True)
+        print(chunk["message"]["content"], end="", flush=True)
     elif chunk["type"] == "final":
         # Get new session with response
         session = chunk["session"]

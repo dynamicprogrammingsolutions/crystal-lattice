@@ -16,147 +16,154 @@ MessageRole = Literal["system", "user", "assistant", "tool"]
 # Plugin Protocol Types
 
 class ProviderPlugin(Protocol):
-    """Protocol for provider plugins."""
-    
+    """Protocol for provider plugins (new lifecycle)."""
+
     name: str
     version: str
-    
+
     @staticmethod
     def get_config_schema() -> Dict[str, Any]: ...
-    
+
     @staticmethod
     def get_ui_elements() -> List[Dict[str, Any]]: ...
-    
+
     @staticmethod
     def init(config: Dict[str, Any]) -> Dict[str, Any]: ...
-    
+
     @staticmethod
     def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]: ...
-    
+
+    # Message conversion
     @staticmethod
     def to_native_messages(messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]: ...
-    
+
     @staticmethod
     def from_native_messages(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]: ...
-    
+
+    # New request lifecycle
     @staticmethod
-    def build_request_body(messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]: ...
-    
+    def initialize_request(messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]: ...
+
     @staticmethod
-    def process_chunk(native_chunk: Dict[str, Any], state: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]: ...
-    
+    def process_chunk(
+        native_chunk: Dict[str, Any],
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any]
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
+    # Returns: (final_messages, partial_messages, native_messages, new_state)
+
     @staticmethod
-    def finalize(state: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]: ...
-    
+    def finalize(
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any]
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
+    # Returns: (final_messages, native_messages, new_state)
+
     @staticmethod
     def to_display_format(message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]: ...
-    
+
+    # I/O entry points now take native messages
     @staticmethod
-    def call_api(body: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]: ...
-    
+    def call_api(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
+    # Returns: (final_messages, native_messages, new_state)
+
     @staticmethod
-    def stream_api(body: Dict[str, Any], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]: ...
-    
+    def stream_api(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]: ...
+
     @staticmethod
     def detect_capabilities(config: Dict[str, Any]) -> List[str]: ...
 
 
 class ProviderExtensionPlugin(Protocol):
-    """Protocol for provider extension plugins."""
-    
+    """Protocol for provider extension plugins (process provider outputs)."""
+
     name: str
     version: str
     target_provider: str
-    
+
     @staticmethod
     def get_config_schema() -> Dict[str, Any]: ...
-    
+
     @staticmethod
     def get_ui_elements() -> List[Dict[str, Any]]: ...
-    
+
     @staticmethod
     def init(config: Dict[str, Any]) -> Dict[str, Any]: ...
-    
+
     @staticmethod
     def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]: ...
-    
+
     @staticmethod
     def process_chunk(
-        native_chunk: Dict[str, Any],
+        native_chunk: Optional[Dict[str, Any]],
+        messages: List[Dict[str, Any]],
         provider_state: Dict[str, Any],
-        extension_state: Dict[str, Any]
-    ) -> Tuple[str, Dict[str, Any]]: ...
-    
-    @staticmethod
-    def enhance_final_message(
-        message: Dict[str, Any],
-        metadata: Dict[str, Any],
-        state: Dict[str, Any]
-    ) -> Tuple[Dict[str, Any], Dict[str, Any]]: ...
+        extension_state: Dict[str, Any],
+        partial_messages: List[Dict[str, Any]],
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]]
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
+    # Returns: (partial_messages, final_messages, native_messages, new_extension_state)
 
 
 class FeaturePlugin(Protocol):
-    """Protocol for feature plugins."""
-    
+    """Protocol for feature plugins (finalize-only, plus initialize_request)."""
+
     name: str
     version: str
-    
+
     @staticmethod
     def get_config_schema() -> Dict[str, Any]: ...
-    
+
     @staticmethod
     def get_ui_elements() -> List[Dict[str, Any]]: ...
-    
+
     @staticmethod
     def init(config: Dict[str, Any]) -> Dict[str, Any]: ...
-    
+
     @staticmethod
     def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]: ...
-    
+
     @staticmethod
-    def can_handle(capability_id: str, state: Dict[str, Any]) -> bool: ...
-    
+    def initialize_request(messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]: ...
+
     @staticmethod
-    def modify_request_body(body: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]: ...
-    
-    @staticmethod
-    def transform_messages(messages: List[Dict[str, Any]], state: Dict[str, Any], direction: str) -> List[Dict[str, Any]]: ...
-    
-    @staticmethod
-    def process_final_message(message: Dict[str, Any], conversation_state: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]: ...
-    
-    @staticmethod
-    def format_display(display: Dict[str, Any], message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]: ...
+    def finalize(
+        messages: List[Dict[str, Any]],
+        output: Dict[str, Any],
+        state: Dict[str, Any]
+    ) -> Dict[str, Any]: ...
+    # Expects output keys: {"final_messages": [...], "native_messages": [...]} and returns same shape
 
 
 class ToolPlugin(Protocol):
     """Protocol for tool plugins."""
-    
+
     name: str
     version: str
-    
+
     @staticmethod
     def get_config_schema() -> Dict[str, Any]: ...
-    
+
     @staticmethod
     def get_ui_elements() -> List[Dict[str, Any]]: ...
-    
+
     @staticmethod
     def init(config: Dict[str, Any]) -> Dict[str, Any]: ...
-    
+
     @staticmethod
     def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]: ...
-    
+
     @staticmethod
     def get_tool_schemas(state: Dict[str, Any]) -> List[Dict[str, Any]]: ...
-    
+
     @staticmethod
     def execute_tool(
         tool_name: str,
         arguments: Dict[str, Any],
         state: Dict[str, Any]
     ) -> Dict[str, Any]: ...
-    
+
     @staticmethod
     def format_tool_result(result: Dict[str, Any], state: Dict[str, Any]) -> str: ...
 
@@ -165,12 +172,12 @@ class ToolPlugin(Protocol):
 class Message:
     """
     Immutable message structure representing a single conversation message.
-    
+
     Attributes:
         role: Message role ("system", "user", "assistant", or "tool")
         content: Message content text
         metadata: Optional metadata dict containing tool_calls, tool_call_id, citations, etc.
-    
+
     Examples:
         >>> msg = Message(role="user", content="Hello!")
         >>> msg.role
@@ -181,11 +188,11 @@ class Message:
     role: MessageRole
     content: str
     metadata: Optional[Dict[str, Any]] = None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """
         Convert message to dictionary format.
-        
+
         Returns:
             Dictionary representation of the message
         """
@@ -196,15 +203,15 @@ class Message:
         if self.metadata:
             result["metadata"] = deepcopy(self.metadata)
         return result
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Message":
         """
         Create message from dictionary.
-        
+
         Args:
             data: Dictionary containing role, content, and optional metadata
-        
+
         Returns:
             New Message instance
         """
@@ -216,18 +223,26 @@ class Message:
 
 
 @dataclass(frozen=True)
+class PartialMessage:
+    """Partial message type used during streaming (forwarded to frontend as-is)."""
+    role: MessageRole
+    content: str
+    metadata: Optional[Dict[str, Any]] = None
+
+
+@dataclass(frozen=True)
 class Session:
     """
     Immutable session data structure (pure data container).
-    
+
     Contains only data, no transformation logic. All transformations
     are performed by AgentCore functions that return new sessions.
-    
+
     Attributes:
         session_id: Unique identifier for this session
         messages: Immutable tuple of messages
         metadata: Optional session-level metadata
-    
+
     Examples:
         >>> session = Session(session_id="test", messages=())
         >>> len(session.messages)
@@ -236,11 +251,11 @@ class Session:
     session_id: str
     messages: Tuple[Message, ...] = field(default_factory=tuple)
     metadata: Dict[str, Any] = field(default_factory=dict)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """
         Convert session to dictionary format.
-        
+
         Returns:
             Dictionary representation of the session
         """
@@ -249,15 +264,15 @@ class Session:
             "messages": [msg.to_dict() for msg in self.messages],
             "metadata": deepcopy(self.metadata)
         }
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Session":
         """
         Create session from dictionary.
-        
+
         Args:
             data: Dictionary containing session_id, messages, and optional metadata
-        
+
         Returns:
             New Session instance
         """
@@ -267,6 +282,3 @@ class Session:
             messages=messages,
             metadata=deepcopy(data.get("metadata", {}))
         )
-
-
-

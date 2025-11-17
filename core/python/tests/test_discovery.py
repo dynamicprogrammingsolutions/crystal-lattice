@@ -25,7 +25,7 @@ def test_discover_and_register_plugins():
     final_message = None
     for chunk in core.send_request_stream(session, config):
         if chunk["type"] == "final":
-            final_message = chunk["message"]
+            final_message = chunk["messages"][-1]
 
     assert final_message is not None
     assert "Echo: Hello" in final_message["content"]

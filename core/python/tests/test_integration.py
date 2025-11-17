@@ -19,15 +19,15 @@ def test_basic_request_response():
     session = core.add_message(session, "user", "Hello")
     
     # Send request (functional - returns new session)
-    new_session, response = core.send_request(session, config)
+    new_session, responses = core.send_request(session, config)
     
     # Original session unchanged
     assert len(session.messages) == 1
     # New session has response
     assert len(new_session.messages) == 2
     
-    assert response["role"] == "assistant"
-    assert "Echo: Hello" in response["content"]
+    assert responses[-1]["role"] == "assistant"
+    assert "Echo: Hello" in responses[-1]["content"]
 
 
 def test_streaming_request_response():
@@ -45,10 +45,11 @@ def test_streaming_request_response():
     
     for chunk in core.send_request_stream(session, config):
         if chunk["type"] == "partial":
-            partials.append(chunk["content"])
+            partials.append(chunk["message"]["content"]) 
         elif chunk["type"] == "final":
             final_session = chunk["session"]
-            final_message = chunk["message"]
+            final_message = chunk["messages"][-1]
+
     
     assert len(partials) > 0
     assert final_session is not None
@@ -71,10 +72,10 @@ def test_request_with_feature_plugin():
     session = core.create_session()
     session = core.add_message(session, "user", "Hi")
     
-    session, response = core.send_request(session, config)
+    session, responses = core.send_request(session, config)
     
-    assert response["content"].startswith("[PREFIX]")
-    assert "Echo: Hi" in response["content"]
+    assert responses[-1]["content"].startswith("[PREFIX]")
+    assert "Echo: Hi" in responses[-1]["content"]
 
 
 def test_functional_chaining():
@@ -105,12 +106,12 @@ def test_config_managed_by_application():
     session = core.add_message(session, "user", "Test")
     
     # Same session, different configs (application's responsibility)
-    session1, response1 = core.send_request(session, config1)
-    session2, response2 = core.send_request(session, config2)
+    session1, responses1 = core.send_request(session, config1)
+    session2, responses2 = core.send_request(session, config2)
     
     # Both work, application manages which config to use
-    assert response1["content"] == "Echo: Test"
-    assert response2["content"] == "Echo: Test"
+    assert responses1[-1]["content"] == "Echo: Test"
+    assert responses2[-1]["content"] == "Echo: Test"
 
 
 def test_session_export_import():
@@ -121,7 +122,7 @@ def test_session_export_import():
     config = {"model": "test"}
     session = core.create_session(session_id="test-123")
     session = core.add_message(session, "user", "Hello")
-    session, response = core.send_request(session, config)
+    session, responses = core.send_request(session, config)
     
     # Export
     exported = core.export_session(session)
@@ -145,14 +146,14 @@ def test_conversation_flow():
     # Turn 1
     session = core.create_session()
     session = core.add_message(session, "user", "What is 2+2?")
-    session, response1 = core.send_request(session, config)
-    assert "Echo: What is 2+2?" in response1["content"]
+    session, responses1 = core.send_request(session, config)
+    assert "Echo: What is 2+2?" in responses1[-1]["content"]
     assert len(session.messages) == 2
     
     # Turn 2
     session = core.add_message(session, "user", "Thank you")
-    session, response2 = core.send_request(session, config)
-    assert "Echo: Thank you" in response2["content"]
+    session, responses2 = core.send_request(session, config)
+    assert "Echo: Thank you" in responses2[-1]["content"]
     assert len(session.messages) == 4
 
 
@@ -171,7 +172,7 @@ def test_streaming_with_feature():
     for chunk in core.send_request_stream(session, config):
         if chunk["type"] == "final":
             final_session = chunk["session"]
-            final_message = chunk["message"]
+            final_message = chunk["messages"][-1]
     
     assert final_session is not None
     assert final_message is not None
@@ -188,10 +189,10 @@ def test_multiple_features():
     session = core.create_session()
     session = core.add_message(session, "user", "Test")
     
-    session, response = core.send_request(session, config)
+    session, responses = core.send_request(session, config)
     
     # Feature applied
-    assert "[A]" in response["content"]
+    assert "[A]" in responses[-1]["content"]
 
 
 def test_tool_schemas():
@@ -226,11 +227,11 @@ def test_pure_function_behavior():
     session = core.add_message(session, "user", "Hello")
     
     # Same inputs should work consistently
-    session1, response1 = core.send_request(session, config)
-    session2, response2 = core.send_request(session, config)
+    session1, responses1 = core.send_request(session, config)
+    session2, responses2 = core.send_request(session, config)
     
     # Both produce same results
-    assert response1["content"] == response2["content"]
+    assert responses1[-1]["content"] == responses2[-1]["content"]
     # Original session still unchanged
     assert len(session.messages) == 1
 

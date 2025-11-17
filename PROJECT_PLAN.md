@@ -1,5 +1,18 @@
 # AI Agent Platform - Project Plan
 
+> Breaking Change Notice (2025-11): Provider/Feature Lifecycle Update
+>
+> - New initialize_request(messages, state) on provider and feature plugins; returns updated state for the turn.
+> - Provider call_api(native_messages, state) and stream_api(native_messages, state) now take native messages directly.
+> - Provider process_chunk(native_chunk, messages, state) returns (final_messages, partial_messages, native_messages, new_state).
+> - Finalize is optional: provider finalize(messages, state) → (final_messages, native_messages, new_state).
+> - PartialMessage is a distinct type: {role, content, metadata}; frontend receives it as-is.
+> - Provider extensions can observe and modify partial/final/native via process_chunk(native_chunk|None, messages, provider_state, extension_state, partial_messages, final_messages, native_messages).
+> - Feature plugins now only implement finalize(messages, output, state) with option to modify/discard outputs; output shape: {final_messages, native_messages}. Features may also implement initialize_request.
+> - Non-streaming call_api may also return partial_messages for reuse: (final_messages, partial_messages, native_messages, new_state).
+>
+> Core orchestration updated accordingly. All examples and tests reflect the new streaming chunk shape: partials emitted as `{"type":"partial","message":{...}}` and final result includes `messages` plus convenience `message` (last final).
+
 ## Project Overview
 
 ### Purpose
@@ -89,11 +102,11 @@ Plugin type determined by which functions it implements, not by inheritance. No 
 
 **Dual Message Mode:**
 
-Partial messages: streamed token-by-token during generation. Final messages: complete, with metadata (citations, etc.). Frontend shows partials, replaces with final when done.
+Partial messages: streamed token-by-token during generation. Final messages: complete, with metadata (citations, etc.). Frontend shows partials, replaces with final when done. Partials are distinct `PartialMessage` objects `{role, content, metadata}`.
 
 **Provider Extension Model:**
 
-Extensions enhance provider streaming. Process each chunk in hot path (same language required). Accumulate data (citations, traces) during streaming. Contribute to final message metadata.
+Extensions enhance provider streaming. They can observe and transform provider outputs per-chunk and at finalize.
 
 **Performance Stratification:**
 

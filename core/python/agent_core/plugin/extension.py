@@ -76,31 +76,31 @@ class ExtensionWrapper:
             return self.plugin_class.get_ui_elements()
         return []
     
-    def process_chunk(self, native_chunk: Dict[str, Any], provider_state: Dict[str, Any]) -> str:
+    def process_chunk(
+        self,
+        native_chunk: Optional[Dict[str, Any]],
+        messages: List[Dict[str, Any]],
+        provider_state: Dict[str, Any],
+        partial_messages: List[Dict[str, Any]],
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """
-        Process chunk during streaming (hot path).
+        Process provider outputs during streaming or after finalization (hot path).
         Updates internal extension state.
-        
-        Returns partial content (usually empty).
+
+        Returns updated (partial_messages, final_messages, native_messages, new_extension_state).
         """
         if self.state is None:
             raise RuntimeError(f"Extension {self.name} not initialized")
-        partial, new_state = self.plugin_class.process_chunk(
+        new_partials, new_finals, new_native, new_state = self.plugin_class.process_chunk(
             native_chunk,
+            messages,
             provider_state,
-            self.state
+            self.state,
+            partial_messages,
+            final_messages,
+            native_messages,
         )
         self.state = new_state
-        return partial
-    
-    def enhance_final_message(
-        self,
-        message: Dict[str, Any],
-        metadata: Dict[str, Any]
-    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        """
-        Enhance final message with extension data.
-        """
-        if self.state is None:
-            raise RuntimeError(f"Extension {self.name} not initialized")
-        return self.plugin_class.enhance_final_message(message, metadata, self.state)
+        return new_partials, new_finals, new_native, new_state

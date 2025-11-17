@@ -15,10 +15,10 @@ class DummyProvider:
     Dummy provider plugin (stateless with state parameter).
     All methods are static and take state as parameter.
     """
-    
+
     name: str = "dummy_provider"
     version: str = "1.0.0"
-    
+
     @staticmethod
     def get_config_schema() -> Dict[str, Any]:
         """Return configuration schema."""
@@ -26,29 +26,23 @@ class DummyProvider:
             "model": {"type": "string", "required": True},
             "api_key": {"type": "string", "required": False},
         }
-    
+
     @staticmethod
     def get_ui_elements() -> List[Dict[str, Any]]:
         """Return UI elements."""
         return [
             {"type": "text", "key": "model", "label": "Model Name"}
         ]
-    
+
     @staticmethod
     def get_capabilities() -> List[str]:
         """Return provider capabilities."""
         return ["text_generation", "streaming"]
-    
+
     @staticmethod
     def init(config: Dict[str, Any]) -> Dict[str, Any]:
         """
         Initialize provider state.
-        
-        Args:
-            config: Configuration dictionary
-            
-        Returns:
-            Initial state dictionary
         """
         return {
             "config": config,
@@ -59,29 +53,12 @@ class DummyProvider:
             },
             "ui_state": {}
         }
-    
+
     @staticmethod
     def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Update provider state (pure function).
-        
-        Args:
-            state: Current state
-            updates: Dictionary of updates
-            
-        Returns:
-            New state
-        """
-        return {
-            **state,
-            "config": {**state["config"], **updates}
-        }
-    
-    @staticmethod
-    def can_handle(capability_id: str, state: Dict[str, Any]) -> bool:
-        """Check if capability is supported."""
-        return capability_id in state.get("capabilities", [])
-    
+        """Update provider state (pure function)."""
+        return {**state, "config": {**state["config"], **updates}}
+
     @staticmethod
     def to_native_messages(
         messages: List[Dict[str, Any]],
@@ -89,97 +66,74 @@ class DummyProvider:
     ) -> List[Dict[str, Any]]:
         """Convert to native message format (passthrough for dummy)."""
         return messages
-    
+
     @staticmethod
-    def build_request_body(
-        messages: List[Dict[str, Any]],
-        state: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Build request body."""
+    def from_native_messages(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        return native_messages
+
+    @staticmethod
+    def initialize_request(messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+        # Reset runtime accumulators
         return {
-            "model": state["config"]["model"],
-            "messages": messages,
-            "stream": True
+            **state,
+            "runtime_state": {
+                **state.get("runtime_state", {}),
+                "accumulated_content": "",
+                "native_chunks": []
+            }
         }
-    
+
     @staticmethod
     def process_chunk(
         native_chunk: Dict[str, Any],
+        messages: List[Dict[str, Any]],
         state: Dict[str, Any]
-    ) -> Tuple[str, Dict[str, Any]]:
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """
         Process streaming chunk and update state.
-        
-        Args:
-            native_chunk: Native chunk from API
-            state: Current state
-            
-        Returns:
-            Tuple of (partial_content, new_state)
+        Returns (final_messages, partial_messages, native_messages, new_state).
         """
         partial_content = native_chunk.get("content", "")
-        
-        # Accumulate in state
         new_state = {
             **state,
             "runtime_state": {
                 **state["runtime_state"],
                 "accumulated_content": state["runtime_state"]["accumulated_content"] + partial_content,
-                "native_chunks": state["runtime_state"]["native_chunks"] + [native_chunk]
-            }
+                "native_chunks": state["runtime_state"]["native_chunks"] + [native_chunk],
+            },
         }
-        
-        return partial_content, new_state
-    
+        partial_msg = {"role": "assistant", "content": partial_content, "metadata": {}}
+        return [], ([partial_msg] if partial_content else []), [native_chunk], new_state
+
     @staticmethod
-    def finalize(state: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    def finalize(
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any]
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """
         Finalize message from accumulated state.
-        
-        Args:
-            state: Current state with accumulated content
-            
-        Returns:
-            Tuple of (message, metadata)
+        Returns (final_messages, native_messages, new_state).
         """
         content = state["runtime_state"]["accumulated_content"]
-        
-        message = {
-            "role": "assistant",
-            "content": content,
-            "metadata": {}
-        }
-        
-        metadata = {
-            "chunk_count": len(state["runtime_state"]["native_chunks"])
-        }
-        
-        return message, metadata
-    
+        message = {"role": "assistant", "content": content, "metadata": {"chunk_count": len(state["runtime_state"]["native_chunks"])}}
+        return [message], [], state
+
     @staticmethod
-    def call_api(body: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        """Make non-streaming API call (simulated)."""
-        messages = body.get("messages", [])
-        last_message = messages[-1] if messages else {}
+    def call_api(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        """Make non-streaming API call (simulated). Returns finals, partials, natives, state."""
+        last_message = native_messages[-1] if native_messages else {}
         user_content = last_message.get("content", "")
-        
-        return {
-            "role": "assistant",
-            "content": f"Echo: {user_content}",
-            "metadata": {}
-        }
-    
+        final = {"role": "assistant", "content": f"Echo: {user_content}", "metadata": {}}
+        return [final], [], [], state
+
     @staticmethod
     def stream_api(
-        body: Dict[str, Any],
+        native_messages: List[Dict[str, Any]],
         state: Dict[str, Any]
     ) -> Iterator[Dict[str, Any]]:
         """Make streaming API call (simulated)."""
-        messages = body.get("messages", [])
-        last_message = messages[-1] if messages else {}
+        last_message = native_messages[-1] if native_messages else {}
         user_content = last_message.get("content", "")
-        
         response_text = f"Echo: {user_content}"
-        
         for char in response_text:
             yield {"content": char}

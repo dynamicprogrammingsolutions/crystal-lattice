@@ -19,18 +19,18 @@ import json
 class AgentCore:
     """
     Stateless processing pipeline for AI Agent Platform.
-    
+
     Stores registered plugin adapters (processing logic), not runtime state.
     All methods are pure functions that take session/config as parameters.
     The application layer manages sessions and configuration.
     """
-    
+
     def __init__(self):
         """Initialize core with empty plugin pipeline."""
         self._provider: Optional[ProviderAdapter] = None
         self._features: List[FeatureAdapter] = []
         self._tools: List[ToolAdapter] = []
-    
+
     def register_provider(
         self,
         plugin_class: type,
@@ -42,25 +42,25 @@ class AgentCore:
         """
         wrapper = ProviderWrapper(plugin_class, extensions or [])
         self._provider = ProviderAdapter(wrapper)
-    
+
     def register_feature(self, plugin_class: type) -> None:
         """Register feature plugin class."""
         wrapper = FeatureWrapper(plugin_class)
         adapter = FeatureAdapter(wrapper)
         self._features.append(adapter)
-    
+
     def register_tool(self, plugin_class: type) -> None:
         """Register tool plugin class."""
         wrapper = ToolWrapper(plugin_class)
         adapter = ToolAdapter(wrapper)
         self._tools.append(adapter)
-    
+
     def create_session(self, session_id: Optional[str] = None) -> Session:
         """Create new empty session (convenience function)."""
         if session_id is None:
             session_id = str(uuid.uuid4())
         return Session(session_id=session_id, messages=())
-    
+
     def add_message(
         self,
         session: Session,
@@ -76,63 +76,51 @@ class AgentCore:
             messages=new_messages,
             metadata=session.metadata
         )
-    
+
     def send_request(
         self,
         session: Session,
         config: Dict[str, Any]
-    ) -> Tuple[Session, Dict[str, Any]]:
+    ) -> Tuple[Session, List[Dict[str, Any]]]:
         """
         Send request and return new session with response (pure function).
         """
         if not self._provider:
             raise RuntimeError("No provider registered")
-        
-        # Initialize provider with config
+
+        # Initialize provider and features with config
         self._provider.initialize(config)
-        
-        # Initialize features
         for feature in self._features:
             feature.initialize(config)
-        
-        # Convert messages to dicts
+
+        # Current user-visible messages (dicts)
         messages = [msg.to_dict() for msg in session.messages]
-        
-        # Transform through features
+
+        # Initialize request phase
+        self._provider.initialize_request(messages)
         for feature in self._features:
-            messages = feature.transform_messages(messages, direction="to_compat")
-        
-        # Convert to native format
+            feature.initialize_request(messages)
+
+        # Provider expects native messages for I/O
         native_messages = self._provider.to_native_messages(messages)
-        
-        # Build request body
-        body = self._provider.build_request_body(native_messages)
-        
-        # Modify body through features
+
+        # Non-streaming API call
+        final_messages, partial_messages, native_out = self._provider.call_api(native_messages)
+        # Build output bundle for feature finalize
+        output = {"final_messages": final_messages, "native_messages": native_out}
         for feature in self._features:
-            body = feature.modify_request_body(body)
-        
-        # Call provider API
-        response_message = self._provider.call_api(body)
-        
-        # Process through features
-        for feature in self._features:
-            response_message = feature.process_final_message(
-                response_message,
-                session.to_dict()
-            )
-        
-        # Add response to session
-        response_msg = Message.from_dict(response_message)
-        new_messages = session.messages + (response_msg,)
+            output = feature.finalize(messages, output)
+
+        # Append final messages to session
+        appended: Tuple[Message, ...] = tuple(Message.from_dict(m) for m in output.get("final_messages", []))
         new_session = Session(
             session_id=session.session_id,
-            messages=new_messages,
-            metadata=session.metadata
+            messages=session.messages + appended,
+            metadata=session.metadata,
         )
-        
-        return new_session, response_message
-    
+        # Return all final messages (breaking change: no single 'message')
+        return new_session, output.get("final_messages", [])
+
     def send_request_stream(
         self,
         session: Session,
@@ -143,63 +131,72 @@ class AgentCore:
         """
         if not self._provider:
             raise RuntimeError("No provider registered")
-        
-        # Initialize provider with config
+
+        # Initialize provider and features
         self._provider.initialize(config)
-        
-        # Initialize features
         for feature in self._features:
             feature.initialize(config)
-        
-        # Convert messages to dicts
-        messages = [msg.to_dict() for msg in session.messages]
-        
-        # Transform through features
+
+        # External messages and native messages
+        messages: List[Dict[str, Any]] = [msg.to_dict() for msg in session.messages]
+
+        self._provider.initialize_request(messages)
         for feature in self._features:
-            messages = feature.transform_messages(messages, direction="to_compat")
-        
-        # Convert to native format
-        native_messages = self._provider.to_native_messages(messages)
-        
-        # Build request body
-        body = self._provider.build_request_body(native_messages)
-        
-        # Modify body through features
-        for feature in self._features:
-            body = feature.modify_request_body(body)
-        
+            feature.initialize_request(messages)
+
+        initial_native = self._provider.to_native_messages(messages)
+        current_native: List[Dict[str, Any]] = list(initial_native)
+
+        aggregated_finals: List[Dict[str, Any]] = []
+
         # Stream from provider
-        for chunk in self._provider.stream_api(body):
-            # Process chunk through provider (provider wrapper invokes extensions)
-            partial = self._provider.process_chunk(chunk)
-            if partial:
-                yield {"type": "partial", "content": partial}
-        
-        # Finalize (provider wrapper enhances via extensions)
-        final_message, metadata = self._provider.finalize()
-        
-        # Process through features
+        for native_chunk in self._provider.stream_api(current_native):
+            final_msgs, partial_msgs, native_msgs = self._provider.process_chunk(native_chunk, current_native)
+            # forward partials as-is
+            for p in partial_msgs:
+                yield {"type": "partial", "message": p}
+            # update messages/native contexts
+            if final_msgs:
+                aggregated_finals.extend(final_msgs)
+                messages.extend(final_msgs)
+            if native_msgs:
+                current_native.extend(native_msgs)
+
+        # Finalize if provider supports it
+        final_final_msgs: List[Dict[str, Any]] = []
+        final_native_msgs: List[Dict[str, Any]] = []
+        try:
+            final_final_msgs, final_native_msgs = self._provider.finalize(current_native)
+        except AttributeError:
+            final_final_msgs, final_native_msgs = [], []
+
+        if final_final_msgs:
+            aggregated_finals.extend(final_final_msgs)
+            messages.extend(final_final_msgs)
+        if final_native_msgs:
+            current_native.extend(final_native_msgs)
+
+        # Feature finalize
+        output = {"final_messages": aggregated_finals, "native_messages": current_native}
         for feature in self._features:
-            final_message = feature.process_final_message(
-                final_message,
-                session.to_dict()
-            )
-        
-        # Create new session with response
-        response_msg = Message.from_dict(final_message)
-        new_messages = session.messages + (response_msg,)
+            output = feature.finalize(messages, output)
+
+        # Update session
+        appended: Tuple[Message, ...] = tuple(Message.from_dict(m) for m in output.get("final_messages", []))
         new_session = Session(
             session_id=session.session_id,
-            messages=new_messages,
-            metadata=session.metadata
+            messages=session.messages + appended,
+            metadata=session.metadata,
         )
-        
+
+        final_messages_out = output.get("final_messages", [])
         yield {
             "type": "final",
             "session": new_session,
-            "message": final_message
+            "messages": final_messages_out,
+
         }
-    
+
     async def send_request_stream_async(
         self,
         session: Session,
@@ -210,62 +207,67 @@ class AgentCore:
         """
         if not self._provider:
             raise RuntimeError("No provider registered")
-        
-        # Initialize provider with config
+
+        # Initialize provider and features
         self._provider.initialize(config)
-        
-        # Initialize features
         for feature in self._features:
             feature.initialize(config)
-        
-        # Convert messages to dicts
-        messages = [msg.to_dict() for msg in session.messages]
-        
-        # Transform through features
+
+        messages: List[Dict[str, Any]] = [msg.to_dict() for msg in session.messages]
+
+        self._provider.initialize_request(messages)
         for feature in self._features:
-            messages = feature.transform_messages(messages, direction="to_compat")
-        
-        # Convert to native format
-        native_messages = self._provider.to_native_messages(messages)
-        
-        # Build request body
-        body = self._provider.build_request_body(native_messages)
-        
-        # Modify body through features
-        for feature in self._features:
-            body = feature.modify_request_body(body)
-        
+            feature.initialize_request(messages)
+
+        initial_native = self._provider.to_native_messages(messages)
+        current_native: List[Dict[str, Any]] = list(initial_native)
+
+        aggregated_finals: List[Dict[str, Any]] = []
+
         # Stream from provider (async)
-        async for chunk in self._provider.stream_api_async(body):
-            partial = self._provider.process_chunk(chunk)
-            if partial:
-                yield {"type": "partial", "content": partial}
-        
-        # Finalize (provider wrapper enhances via extensions)
-        final_message, metadata = self._provider.finalize()
-        
-        # Process through features
+        async for native_chunk in self._provider.stream_api_async(current_native):
+            final_msgs, partial_msgs, native_msgs = self._provider.process_chunk(native_chunk, current_native)
+            for p in partial_msgs:
+                yield {"type": "partial", "message": p}
+            if final_msgs:
+                aggregated_finals.extend(final_msgs)
+                messages.extend(final_msgs)
+            if native_msgs:
+                current_native.extend(native_msgs)
+
+        # Finalize
+        final_final_msgs: List[Dict[str, Any]] = []
+        final_native_msgs: List[Dict[str, Any]] = []
+        try:
+            final_final_msgs, final_native_msgs = self._provider.finalize(current_native)
+        except AttributeError:
+            final_final_msgs, final_native_msgs = [], []
+
+        if final_final_msgs:
+            aggregated_finals.extend(final_final_msgs)
+            messages.extend(final_final_msgs)
+        if final_native_msgs:
+            current_native.extend(final_native_msgs)
+
+        output = {"final_messages": aggregated_finals, "native_messages": current_native}
         for feature in self._features:
-            final_message = feature.process_final_message(
-                final_message,
-                session.to_dict()
-            )
-        
-        # Create new session with response
-        response_msg = Message.from_dict(final_message)
-        new_messages = session.messages + (response_msg,)
+            output = feature.finalize(messages, output)
+
+        appended: Tuple[Message, ...] = tuple(Message.from_dict(m) for m in output.get("final_messages", []))
         new_session = Session(
             session_id=session.session_id,
-            messages=new_messages,
-            metadata=session.metadata
+            messages=session.messages + appended,
+            metadata=session.metadata,
         )
-        
+
+        final_messages_out = output.get("final_messages", [])
         yield {
             "type": "final",
             "session": new_session,
-            "message": final_message
+            "messages": final_messages_out,
+
         }
-    
+
     def get_config_schema(self) -> Dict[str, Any]:
         """Get combined config schema from all registered plugins."""
         schema: Dict[str, Any] = {}
@@ -279,7 +281,7 @@ class AgentCore:
         for tool in self._tools:
             schema[tool.name] = tool.get_config_schema()
         return schema
-    
+
     def get_ui_schema(self) -> Dict[str, Any]:
         """Get combined UI schema from all registered plugins."""
         ui: Dict[str, Any] = {}
@@ -293,7 +295,7 @@ class AgentCore:
         for tool in self._tools:
             ui[tool.name] = tool.get_ui_elements()
         return ui
-    
+
     def get_tool_schemas(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Get tool schemas from all registered tool plugins."""
         schemas: List[Dict[str, Any]] = []
@@ -301,13 +303,13 @@ class AgentCore:
             tool.initialize(config)
             schemas.extend(tool.get_tool_schemas())
         return schemas
-    
+
     def export_session(self, session: Session, format: str = "json") -> str:
         """Export session to string."""
         if format == "json":
             return json.dumps(session.to_dict(), indent=2)
         raise ValueError(f"Unsupported format: {format}")
-    
+
     def import_session(self, data: str, format: str = "json") -> Session:
         """Import session from string."""
         if format == "json":
@@ -318,27 +320,28 @@ class AgentCore:
     def discover_and_register(self, modules: List[str]) -> Dict[str, List[str]]:
         """
         Discover plugins from a list of module import paths and register them.
-        
+
         Discovery is duck-typed:
         - Provider: has static 'stream_api' or 'call_api'
         - Provider Extension: has 'process_chunk' and 'target_provider'
         - Tool: has 'get_tool_schemas' and 'execute_tool'
         - Feature: otherwise
-        
+
         Args:
-            modules: List of Python module import paths to scan
         
+            modules: List of Python module import paths to scan
+
         Returns:
             Summary dict with registered plugin names by type
         """
         import importlib
         import inspect
-        
+
         providers = []
         features = []
         tools = []
         extensions = []
-        
+
         for mod_path in modules:
             module = importlib.import_module(mod_path)
             for _, obj in inspect.getmembers(module, inspect.isclass):
@@ -354,7 +357,7 @@ class AgentCore:
                     tools.append(obj)
                 else:
                     features.append(obj)
-        
+
         # Register a single provider (first), with matching extensions
         summary: Dict[str, List[str]] = {"providers": [], "features": [], "tools": [], "extensions": []}
         if providers:
@@ -365,7 +368,7 @@ class AgentCore:
             self.register_provider(provider_cls, extensions=matched_exts)
             summary["providers"].append(target_name)
             summary["extensions"].extend([getattr(ext, "name", ext.__name__) for ext in matched_exts])
-        
+
         # Register features and tools
         for feat in features:
             self.register_feature(feat)
@@ -373,5 +376,5 @@ class AgentCore:
         for tool in tools:
             self.register_tool(tool)
             summary["tools"].append(getattr(tool, "name", tool.__name__))
-        
+
         return summary
