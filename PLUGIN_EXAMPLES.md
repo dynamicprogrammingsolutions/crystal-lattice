@@ -1,290 +1,165 @@
 # AI Agent Platform - Plugin Examples
 
-This document provides complete, working examples of each plugin type.
+This document provides concise, working-style examples of each plugin type using the current lifecycle and types.
 
-## Example 1: Basic OpenAI Provider
+## Example 1: Basic Echo Provider (native, streaming)
 
 ```python
-# openai_provider.py
+# echo_provider.py
+from typing import Dict, Any, List, Iterator, Tuple
 
-from dataclasses import dataclass
-from typing import Dict, Any, Iterator, AsyncIterator
+class EchoProvider:
+    name = "echo"
+    version = "1.0.0"
 
-@dataclass
-class OpenAIProvider:
-    """
-    OpenAI provider plugin (stateless)
-    All methods are pure functions or I/O operations
-    """
-    
-    name: str = "openai"
-    version: str = "1.0.0"
-    
     @staticmethod
     def get_config_schema() -> Dict[str, Any]:
-        """Return configuration schema"""
-        return {
-            "model": {"type": "string", "required": True},
-            "api_key": {"type": "string", "required": True},
-            "base_url": {"type": "string", "default": "https://api.openai.com/v1"}
-        }
-    
+        return {"model": {"type": "string", "default": "echo-1"}}
+
     @staticmethod
-    def get_capabilities() -> list[str]:
-        """Return provider capabilities"""
-        return ["text_generation", "streaming", "tool_calling"]
-    
+    def get_ui_elements() -> List[Dict[str, Any]]:
+        return [{"type": "text", "key": "model", "label": "Model"}]
+
     @staticmethod
-    def to_native_messages(messages: list[Dict], config: Dict) -> list[Dict]:
-        """Convert to OpenAI format (pure function)"""
-        return [
-            {
-                "role": msg["role"],
-                "content": msg["content"],
-                **msg.get("metadata", {})
-            }
-            for msg in messages
-        ]
-    
+    def init(config: Dict[str, Any]) -> Dict[str, Any]:
+        return {"config": config, "runtime_state": {}}
+
     @staticmethod
-    def build_request_body(messages: list[Dict], config: Dict) -> Dict:
-        """Build OpenAI request (pure function)"""
-        return {
-            "model": config["model"],
-            "messages": messages,
-            "stream": True
-        }
-    
+    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+        return {**state, "config": {**state.get("config", {}), **updates}}
+
     @staticmethod
-    def process_chunk(native_chunk: Dict) -> str:
-        """Process streaming chunk (pure function)"""
-        delta = native_chunk.get("choices", [{}])[0].get("delta", {})
-        return delta.get("content", "")
-    
+    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+        # Reset per-turn runtime data (called with native messages)
+        return {**state, "runtime_state": {"accumulated": ""}}
+
     @staticmethod
-    def finalize_message(content: str, config: Dict) -> Dict:
-        """Create final message (pure function)"""
-        return {
-            "role": "assistant",
-            "content": content,
-            "metadata": {}
-        }
-    
+    def to_native_messages(messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        # Echo provider uses same shape for native messages
+        return list(messages)
+
     @staticmethod
-    async def stream_api(body: Dict, config: Dict) -> AsyncIterator[Dict]:
-        """Make streaming API call (I/O operation)"""
-        import httpx
-        import json
-        
-        async with httpx.AsyncClient() as client:
-            async with client.stream(
-                "POST",
-                f"{config['base_url']}/chat/completions",
-                json=body,
-                headers={"Authorization": f"Bearer {config['api_key']}"},
-                timeout=30.0
-            ) as response:
-                async for line in response.aiter_lines():
-                    if line.startswith("data: "):
-                        data = line[6:]
-                        if data == "[DONE]":
-                            break
-                        yield json.loads(data)
+    def from_native_messages(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        # Identity conversion for this example
+        return list(native_messages)
+
+    @staticmethod
+    def stream_api(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
+        # Stream "Echo: <last user>" one character at a time as native chunks
+        last_user = next((m for m in reversed(native_messages) if m["role"] == "user"), {"content": ""})
+        text = f"Echo: {last_user['content']}"
+        for ch in text:
+            yield {"content": ch}
+
+    @staticmethod
+    def process_chunk(
+        native_chunk: Dict[str, Any],
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        # Accumulate partial content and emit PartialMessage
+        acc = state["runtime_state"].get("accumulated", "") + native_chunk.get("content", "")
+        new_state = {**state, "runtime_state": {**state["runtime_state"], "accumulated": acc}}
+        partial = [{"role": "assistant", "content": native_chunk.get("content", ""), "metadata": {}}]
+        # No final/native outputs per chunk beyond the partial for this echo
+        return [], partial, [], new_state
+
+    @staticmethod
+    def finalize(
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        # Emit one final assistant message from accumulated content
+        content = state["runtime_state"].get("accumulated", "")
+        final = [{"role": "assistant", "content": content, "metadata": {}}]
+        return final, [], state
+
+    @staticmethod
+    def call_api(
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        # Non-streaming: return the echo directly as a final message
+        last_user = next((m for m in reversed(native_messages) if m["role"] == "user"), {"content": ""})
+        content = f"Echo: {last_user['content']}"
+        final = [{"role": "assistant", "content": content, "metadata": {}}]
+        return final, [], [], state
 ```
 
-## Example 2: Provider Extension for Thinking Blocks
+## Example 2: Provider Extension (chunk counting + prefix)
 
 ```python
-# thinking_extension.py
-
-name = "thinking_blocks"
+# prefix_extension.py
+name = "prefix_extension"
 version = "1.0.0"
-target_provider = "openai"
+target_provider = "echo"
 
 def get_config_schema():
-    return {
-        "extract_thinking": {"type": "boolean", "default": True}
-    }
+    return {"enabled": {"type": "boolean", "default": True}, "prefix": {"type": "string", "default": "[EXT] "}}
 
 def get_ui_elements():
-    return [
-        {
-            "type": "checkbox",
-            "key": "extract_thinking",
-            "label": "Show Reasoning Process"
-        }
-    ]
+    return [{"type": "checkbox", "key": "enabled", "label": "Enable Extension"}, {"type": "text", "key": "prefix", "label": "Prefix"}]
 
 def init(config):
-    return {
-        "config": config,
-        "runtime_state": {
-            "thinking_blocks": [],
-            "current_thinking": ""
-        }
-    }
+    return {"config": config, "runtime_state": {"processed_chunks": 0}}
 
 def update_state(state, updates):
-    return {
-        **state,
-        "config": {**state["config"], **updates}
-    }
+    return {**state, "config": {**state["config"], **updates}}
 
-def process_chunk(native_chunk, provider_state, extension_state):
-    """Extract thinking blocks from chunks"""
-    if not extension_state["config"]["extract_thinking"]:
-        return "", extension_state
-    
-    # Check for thinking block markers
-    delta = native_chunk.get("choices", [{}])[0].get("delta", {})
-    content = delta.get("content", "")
-    
-    # Simple example: detect <thinking>...</thinking> tags
-    if "<thinking>" in content:
-        new_state = {
+def process_chunk(native_chunk, messages, provider_state, extension_state, partial_messages, final_messages, native_messages):
+    # Count chunks during streaming
+    if native_chunk is not None:
+        extension_state = {
             **extension_state,
-            "runtime_state": {
-                **extension_state["runtime_state"],
-                "in_thinking": True
-            }
+            "runtime_state": {**extension_state.get("runtime_state", {}), "processed_chunks": extension_state.get("runtime_state", {}).get("processed_chunks", 0) + 1},
         }
-        return "", new_state
-    
-    if extension_state["runtime_state"].get("in_thinking"):
-        if "</thinking>" in content:
-            # End of thinking block
-            thinking = extension_state["runtime_state"]["current_thinking"]
-            new_state = {
-                **extension_state,
-                "runtime_state": {
-                    **extension_state["runtime_state"],
-                    "thinking_blocks": extension_state["runtime_state"]["thinking_blocks"] + [thinking],
-                    "current_thinking": "",
-                    "in_thinking": False
-                }
-            }
-            return "", new_state
-        else:
-            # Accumulate thinking content
-            new_state = {
-                **extension_state,
-                "runtime_state": {
-                    **extension_state["runtime_state"],
-                    "current_thinking": extension_state["runtime_state"]["current_thinking"] + content
-                }
-            }
-            return "", new_state
-    
-    return "", extension_state
-
-def enhance_final_message(message, metadata, state):
-    """Add thinking blocks to metadata"""
-    thinking_blocks = state["runtime_state"]["thinking_blocks"]
-    
-    if thinking_blocks:
-        enhanced_metadata = {
-            **metadata,
-            "thinking_blocks": thinking_blocks
-        }
-        return message, enhanced_metadata
-    
-    return message, metadata
+    # Optionally prefix final messages at any stage (including finalize phase where native_chunk=None)
+    if extension_state["config"].get("enabled", True):
+        pref = extension_state["config"].get("prefix", "")
+        final_messages = [
+            {**m, "content": f"{pref}{m['content']}", "metadata": {**m.get("metadata", {}), "extension_processed_chunks": extension_state["runtime_state"]["processed_chunks"]}}
+            for m in final_messages
+        ]
+    return partial_messages, final_messages, native_messages, extension_state
 ```
 
-## Example 3: Web Search Feature with Citations
+## Example 3: Web Search Feature (finalize-only)
 
 ```python
 # web_search_feature.py
-
 name = "web_search"
 version = "1.0.0"
 
 def get_config_schema():
-    return {
-        "web_search_enabled": {"type": "boolean", "default": False},
-        "max_results": {"type": "integer", "default": 5}
-    }
+    return {"web_search_enabled": {"type": "boolean", "default": False}, "max_results": {"type": "integer", "default": 5}}
 
 def get_ui_elements():
     return [
-        {
-            "type": "checkbox",
-            "key": "web_search_enabled",
-            "label": "Enable Web Search"
-        },
-        {
-            "type": "number",
-            "key": "max_results",
-            "label": "Max Results",
-            "condition": {"web_search_enabled": True}
-        }
+        {"type": "checkbox", "key": "web_search_enabled", "label": "Enable Web Search"},
+        {"type": "number", "key": "max_results", "label": "Max Results", "condition": {"web_search_enabled": True}},
     ]
 
 def init(config):
-    return {
-        "config": config,
-        "capabilities": ["web_search"],
-        "runtime_state": {}
-    }
+    return {"config": config, "capabilities": ["web_search"], "runtime_state": {}}
 
 def update_state(state, updates):
-    return {
-        **state,
-        "config": {**state["config"], **updates}
-    }
+    return {**state, "config": {**state["config"], **updates}}
 
-def can_handle(capability_id, state):
-    return (
-        capability_id == "web_search" and
-        state["config"]["web_search_enabled"]
-    )
+def initialize_request(native_messages, state):
+    # Reset any per-turn flags
+    return state
 
-def modify_request_body(body, state):
-    """Add search parameters to request"""
-    if not state["config"]["web_search_enabled"]:
-        return body
-    
-    return {
-        **body,
-        "search": {
-            "enabled": True,
-            "max_results": state["config"]["max_results"]
-        }
-    }
-
-def process_final_message(message, conversation_state, state):
-    """Extract and format citations from metadata"""
-    if "citations" not in message.get("metadata", {}):
-        return message
-    
-    citations = message["metadata"]["citations"]
-    
-    # Add citation markers to content
-    content = message["content"]
-    for i, citation in enumerate(citations, 1):
-        content += f"\n[{i}] {citation['title']}: {citation['url']}"
-    
-    return {
-        **message,
-        "content": content,
-        "metadata": {
-            **message.get("metadata", {}),
-            "formatted_citations": True
-        }
-    }
-
-def format_display(display, message, state):
-    """Enhance display with citation UI"""
-    citations = message.get("metadata", {}).get("citations", [])
-    
-    if citations:
-        return {
-            **display,
-            "citations": citations,
-            "has_citations": True
-        }
-    
-    return display
+def finalize(messages, output, state):
+    # Optionally post-process final messages (e.g., format citations)
+    if not state["config"].get("web_search_enabled"):
+        return output
+    finals = output.get("final_messages", [])
+    # This example just annotates metadata
+    finals = [
+        {**m, "metadata": {**m.get("metadata", {}), "web_search_used": True}}
+        for m in finals
+    ]
+    return {**output, "final_messages": finals}
 ```
 
 ## Example 4: File Reader Tool Plugin
@@ -298,42 +173,20 @@ version = "1.0.0"
 
 def get_config_schema():
     return {
-        "allowed_paths": {
-            "type": "array",
-            "items": {"type": "string"},
-            "default": ["."],
-            "description": "Allowed base paths for file reading"
-        },
-        "max_file_size": {
-            "type": "integer",
-            "default": 1048576,  # 1MB
-            "description": "Maximum file size in bytes"
-        }
+        "allowed_paths": {"type": "array", "items": {"type": "string"}, "default": ["."], "description": "Allowed base paths for file reading"},
+        "max_file_size": {"type": "integer", "default": 1048576, "description": "Maximum file size in bytes"},
     }
 
 def get_ui_elements():
-    return [
-        {
-            "type": "text",
-            "key": "allowed_paths",
-            "label": "Allowed Paths (comma-separated)"
-        }
-    ]
+    return [{"type": "text", "key": "allowed_paths", "label": "Allowed Paths (comma-separated)"}]
 
 def init(config):
-    return {
-        "config": config,
-        "runtime_state": {}
-    }
+    return {"config": config, "runtime_state": {}}
 
 def update_state(state, updates):
-    return {
-        **state,
-        "config": {**state["config"], **updates}
-    }
+    return {**state, "config": {**state["config"], **updates}}
 
 def get_tool_schemas(state):
-    """Return tool definition for LLM"""
     return [
         {
             "type": "function",
@@ -342,69 +195,30 @@ def get_tool_schemas(state):
                 "description": "Read contents of a text file",
                 "parameters": {
                     "type": "object",
-                    "properties": {
-                        "file_path": {
-                            "type": "string",
-                            "description": "Path to the file to read"
-                        }
-                    },
-                    "required": ["file_path"]
-                }
-            }
+                    "properties": {"file_path": {"type": "string", "description": "Path to the file to read"}},
+                    "required": ["file_path"],
+                },
+            },
         }
     ]
 
 def execute_tool(tool_name, arguments, state):
-    """Execute file read operation"""
     if tool_name != "read_file":
-        return {
-            "success": False,
-            "error": f"Unknown tool: {tool_name}"
-        }
-    
-    file_path = arguments.get("file_path")
-    
-    # Security: Check if path is allowed
-    allowed_paths = state["config"]["allowed_paths"]
-    if not any(file_path.startswith(base) for base in allowed_paths):
-        return {
-            "success": False,
-            "error": f"Access denied: {file_path} not in allowed paths"
-        }
-    
-    # Check file size
+        return {"success": False, "error": f"Unknown tool: {tool_name}"}
+    file_path = arguments.get("file_path", "")
+    allowed = state["config"].get("allowed_paths", ["."])
+    if not any(os.path.abspath(file_path).startswith(os.path.abspath(base)) for base in allowed):
+        return {"success": False, "error": f"Access denied: {file_path} not in allowed paths"}
     try:
-        file_size = os.path.getsize(file_path)
-        if file_size > state["config"]["max_file_size"]:
-            return {
-                "success": False,
-                "error": f"File too large: {file_size} bytes"
-            }
-    except OSError as e:
-        return {
-            "success": False,
-            "error": f"Cannot access file: {str(e)}"
-        }
-    
-    # Read file
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        size = os.path.getsize(file_path)
+        if size > state["config"].get("max_file_size", 1048576):
+            return {"success": False, "error": f"File too large: {size} bytes"}
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
-        
-        return {
-            "success": True,
-            "result": content
-        }
+        return {"success": True, "result": content}
     except Exception as e:
-        return {
-            "success": False,
-            "error": f"Error reading file: {str(e)}"
-        }
+        return {"success": False, "error": f"Error reading file: {str(e)}"}
 
 def format_tool_result(result, state):
-    """Format result for LLM"""
-    if result["success"]:
-        return f"File contents:\n{result['result']}"
-    else:
-        return f"Error: {result['error']}"
+    return f"File contents:\n{result['result']}" if result.get("success") else f"Error: {result.get('error')}"
 ```

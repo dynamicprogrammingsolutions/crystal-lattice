@@ -103,19 +103,19 @@ session = core.create_session()
 session = core.add_message(session, "system", "You are a helpful assistant.")
 session = core.add_message(session, "user", "What is 2+2?")
 
-# Send request (returns new session with response)
-session, response = core.send_request(session, config)
-print(response["content"])  # "4"
+# Send request (returns new session + final messages)
+session, messages = core.send_request(session, config)
+print(messages[-1]["content"])  # "4"
 
-# Messages now include the response
+# Messages now include the assistant response(s)
 print(len(session.messages))  # 3
 
 # Add another message (functional - returns new session)
 session = core.add_message(session, "user", "What about 3+3?")
 
 # Send again
-session, response = core.send_request(session, config)
-print(response["content"])  # "6"
+session, messages = core.send_request(session, config)
+print(messages[-1]["content"])  # "6"
 ```
 
 ### Example 2: Streaming with Low-Level API
@@ -136,7 +136,7 @@ session = core.add_message(session, "user", "Write a short poem")
 # Stream response (functional - returns new session at end)
 for chunk in core.send_request_stream(session, config):
     if chunk["type"] == "partial":
-        print(chunk["content"], end="", flush=True)
+        print(chunk["message"]["content"], end="", flush=True)
     elif chunk["type"] == "final":
         # Get new session with response message
         session = chunk["session"]
@@ -168,14 +168,14 @@ session = core.add_message(session, "user", "Read the contents of README.md")
 max_iterations = 5
 for i in range(max_iterations):
     # Send request (functional)
-    session, response = core.send_request(session, config)
+    session, messages = core.send_request(session, config)
     
     # Check for tool calls
-    tool_calls = response.get("metadata", {}).get("tool_calls", [])
+    tool_calls = messages[-1].get("metadata", {}).get("tool_calls", [])
     
     if not tool_calls:
         # No tools, we're done
-        print("Assistant:", response["content"])
+        print("Assistant:", messages[-1]["content"])
         break
     
     # Execute tools (application responsibility)
@@ -232,7 +232,7 @@ session = Session(
 session = core.add_message(session, "user", "Tell me a joke")
 
 # Send request with modified history
-session, response = core.send_request(session, config)
+session, messages = core.send_request(session, config)
 
 # Clear conversation and start fresh (functional)
 session = Session(
@@ -266,7 +266,7 @@ config1 = {
 
 # Initial request without search
 session = core.add_message(session, "user", "Latest AI news")
-session, response = core.send_request(session, config1)
+session, messages = core.send_request(session, config1)
 
 # User enables search in UI - application updates config
 config2 = {
@@ -277,7 +277,7 @@ config2 = {
 
 # Next request uses search
 session = core.add_message(session, "user", "More AI news")
-session, response = core.send_request(session, config2)
+session, messages = core.send_request(session, config2)
 ```
 
 ### Example 6: Full Application with Tool Loop (Python Backend)
@@ -363,25 +363,25 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 max_iterations = 5
                 for i in range(max_iterations):
                     # Stream response (functional - pass config)
-                    full_message = None
+                    final_messages = []
                     async for chunk in core.send_request_stream_async(session, agent_config):
                         if chunk["type"] == "partial":
                             await websocket.send_json({
                                 "type": "partial",
-                                "content": chunk["content"]
+                                "content": chunk["message"]["content"]
                             })
                         elif chunk["type"] == "final":
                             session = chunk["session"]
-                            full_message = chunk["message"]
+                            final_messages = chunk["messages"]
                     
                     # Check for tool calls
-                    tool_calls = full_message.get("metadata", {}).get("tool_calls", [])
+                    tool_calls = (final_messages[-1] if final_messages else {}).get("metadata", {}).get("tool_calls", [])
                     
                     if not tool_calls:
                         # Done
                         await websocket.send_json({
                             "type": "final",
-                            "message": full_message
+                            "messages": final_messages
                         })
                         break
                     

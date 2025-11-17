@@ -2,29 +2,6 @@
 
 This document defines the language-neutral types and protocols for the AI Agent Platform. These definitions apply to all language implementations (Python, JavaScript, etc.).
 
-> **Breaking Change Notice (2025-11): Provider/Feature Lifecycle Update**
->
-> Recent updates have changed the lifecycle methods for provider and feature plugins:
-> 
-> **Provider Changes:**
-> - New `initialize_request(messages, state)` method returns updated state for the turn
-> - `call_api(native_messages, state)` and `stream_api(native_messages, state)` now take native messages directly
-> - `process_chunk(native_chunk, messages, state)` returns `(final_messages, partial_messages, native_messages, new_state)`
-> - Optional `finalize(messages, state)` method returns `(final_messages, native_messages, new_state)`
-> - Non-streaming `call_api` may also return `partial_messages` for reuse: `(final_messages, partial_messages, native_messages, new_state)`
->
-> **Message Types:**
-> - `PartialMessage` is now a distinct type: `{role, content, metadata}`
-> - Frontend receives partials as-is in stream events: `{"type":"partial","message":{...}}`
-> - Provider extensions can observe and modify via `process_chunk(native_chunk|None, messages, provider_state, extension_state, partial_messages, final_messages, native_messages)`
->
-> **Feature Changes:**
-> - Features now only implement `finalize(messages, output, state)` with option to modify/discard outputs
-> - Output shape: `{final_messages, native_messages}`
-> - Features may also implement `initialize_request`
->
-> All examples and tests reflect these changes.
-
 ## Core Data Types
 
 ### Message
@@ -74,8 +51,8 @@ Each plugin maintains state containing configuration, capabilities, runtime data
 PluginState:
   config: dict                    # Configuration values for the plugin
   capabilities: list[string]      # List of capabilities the plugin provides
-  runtime_state: dict            # Working data that changes during execution
-  ui_state: dict                 # Current UI settings from frontend
+  runtime_state: dict             # Working data that changes during execution
+  ui_state: dict                  # Current UI settings from frontend
   
   # Immutability: State objects are immutable. All updates return new state objects.
 ```
@@ -84,10 +61,10 @@ PluginState:
 
 Plugins are identified by which functions they implement (duck typing):
 
-- **Provider Plugin**: Has `stream_api()` or `call_api()` functions
-- **Provider Extension**: Has `process_chunk()` and `target_provider` property
-- **Feature Plugin**: Has `transform_messages()` or `process_final_message()` or `finalize()` functions
-- **Tool Plugin**: Has `get_tool_schemas()` and `execute_tool()` functions
+- Provider Plugin: has `stream_api()` or `call_api()`
+- Provider Extension: has `process_chunk()` and `target_provider`
+- Feature Plugin: has `finalize()` (and may implement `initialize_request()`)
+- Tool Plugin: has `get_tool_schemas()` and `execute_tool()`
 
 ## Base Plugin Properties
 
@@ -136,48 +113,43 @@ ProviderPlugin:
   update_state(state: dict, updates: dict) → dict
     # Update state, return new state
   
-  can_handle(capability_id: string, state: dict) → bool
-    # Check if capability supported
+  initialize_request(native_messages: list, state: dict) → dict
+    # Called with provider-native messages; prepare for a new turn and return updated state
   
-  initialize_request(messages: list, state: dict) → dict
-    # Returns updated state for the turn
-  
-  # Pure Functions
+  # Message Conversion (pure)
   to_native_messages(messages: list, state: dict) → list
     # Convert to provider's native format
   
   from_native_messages(native_messages: list, state: dict) → list
     # Convert from provider's native format
   
-  build_request_body(messages: list, state: dict) → dict
-    # Build request body for API
-  
+  # Hot Path Processing (pure)
   process_chunk(native_chunk: dict, messages: list, state: dict)
     → (final_messages: list, partial_messages: list, native_messages: list, new_state: dict)
-    # Process streaming chunk and return updated messages and state
+    # Process a streaming chunk; may emit new partials/finals and native outputs
   
   finalize(messages: list, state: dict) (optional)
     → (final_messages: list, native_messages: list, new_state: dict)
     # Final processing after streaming completes
   
   to_display_format(message: dict, state: dict) → dict
-    # Convert message to display-friendly format
+    # Convert message to display-friendly format (optional)
   
   # I/O Functions
   detect_capabilities(config: dict) → list[string]
-    # Detect available capabilities
+    # Detect available capabilities (optional)
   
   call_api(native_messages: list, state: dict)
     → (final_messages: list, partial_messages: list, native_messages: list, new_state: dict)
-    # Make non-streaming API call
+    # Make non-streaming API call; may also return partials
   
   stream_api(native_messages: list, state: dict) → Iterator[dict]
-    # Make streaming API call, yields native chunks
+    # Make streaming API call; yields provider-native chunks
 ```
 
 ### 2. Provider Extension Protocol
 
-Enhances provider streaming with additional processing (citations, reasoning extraction, etc.).
+Enhances provider streaming with additional processing (citations, reasoning extraction, etc.). Runs in the provider's language on the hot path.
 
 ```yaml
 ProviderExtensionPlugin:
@@ -193,9 +165,8 @@ ProviderExtensionPlugin:
   # Lifecycle
   init(config: dict) → state: dict
   update_state(state: dict, updates: dict) → dict
-  can_handle(capability_id: string, state: dict) → bool
   
-  # Chunk Processing (Hot Path - Must be same language as provider)
+  # Chunk Processing (Hot Path)
   process_chunk(
     native_chunk: dict | None,
     messages: list,
@@ -205,21 +176,17 @@ ProviderExtensionPlugin:
     final_messages: list,
     native_messages: list
   ) → (
-    new_extension_state: dict,
     updated_partial_messages: list,
     updated_final_messages: list,
-    updated_native_messages: list
+    updated_native_messages: list,
+    new_extension_state: dict
   )
-    # Observe and modify provider outputs per-chunk
-  
-  finalize(messages: list, provider_state: dict, extension_state: dict) (optional)
-    → (enhanced_messages: list, new_extension_state: dict)
-    # Final enhancement after streaming completes
+    # Observe/modify provider outputs per chunk; called with native_chunk=None during finalize
 ```
 
 ### 3. Feature Plugin Protocol
 
-Transforms messages or adds features (web search, content filtering, etc.).
+Transforms final outputs or coordinates per-turn behavior. Features operate on the cold path only.
 
 ```yaml
 FeaturePlugin:
@@ -234,29 +201,13 @@ FeaturePlugin:
   # Lifecycle
   init(config: dict) → state: dict
   update_state(state: dict, updates: dict) → dict
-  can_handle(capability_id: string, state: dict) → bool
+  initialize_request(native_messages: list, state: dict) (optional) → dict
+    # Called with provider-native messages; prepare for a new turn and return updated state
   
-  initialize_request(messages: list, state: dict) (optional) → dict
-    # Returns updated state for the turn
-  
-  # Transformations (at least one required)
-  transform_messages(messages: list, state: dict, direction: string) → list
-    # direction: "to_compat" | "from_compat"
-  
-  finalize(messages: list, output: dict, state: dict) → dict | None
-    # Modify or discard outputs
+  # Finalization (required)
+  finalize(messages: list, output: dict, state: dict) → dict
+    # Modify or discard outputs from provider
     # output: {final_messages: list, native_messages: list}
-    # Returns modified output or None to discard
-  
-  format_display(display: dict, message: dict, state: dict) → dict
-    # Enhance display with additional UI elements
-  
-  # Legacy Methods (deprecated, will be removed)
-  modify_request_body(body: dict, state: dict) → dict
-    # Modify request body before API call
-  
-  process_final_message(message: dict, conversation_state: dict, state: dict) → dict
-    # Process final message after API call
 ```
 
 ### 4. Tool Plugin Protocol
@@ -295,7 +246,7 @@ The Core SDK provides the main interface for applications to interact with the a
 
 ### Core SDK Interface
 
-**Important:** The Core SDK follows functional programming principles:
+Important principles:
 - `AgentCore` stores only the processing pipeline (registered plugins)
 - `Session` is an immutable data structure
 - Configuration is managed by the application layer
@@ -303,83 +254,39 @@ The Core SDK provides the main interface for applications to interact with the a
 
 ```yaml
 AgentCore:
-  # ========================================
   # Initialization
-  # ========================================
-  
   __init__()
-    # Initialize core with empty plugin pipeline
-  
-  # ========================================
-  # Plugin Management (Pipeline Definition)
-  # ========================================
-  
+
+  # Plugin Management
   register_provider(plugin_class: type) → None
-    # Register provider plugin class
-  
   register_feature(plugin_class: type) → None
-    # Register feature plugin class
-  
   register_tool(plugin_class: type) → None
-    # Register tool plugin class
-  
+
   get_ui_schema() → dict
-    # Get combined UI schema from all registered plugins
-  
-  # ========================================
-  # Pure Transformation Functions
-  # ========================================
-  
-  add_message(
-    session: Session,
-    role: string,
-    content: string,
-    metadata: dict (optional)
-  ) → Session
-    # Add message to session (returns new session)
-  
-  send_request(
-    session: Session,
-    config: dict
-  ) → (Session, dict)
-    # Send request and return new session with response
-    # Returns: (new_session, response_message)
-  
-  send_request_stream(
-    session: Session,
-    config: dict
-  ) → Iterator[dict]
-    # Stream request and yield partials, then final session
+
+  # Pure Transformations
+  add_message(session: Session, role: string, content: string, metadata?: dict) → Session
+
+  send_request(session: Session, config: dict) → (Session, list)
+    # Returns: (new_session, final_messages)
+
+  send_request_stream(session: Session, config: dict) → Iterator[dict]
     # Yields:
     #   Partial chunks: {"type": "partial", "message": {...}}
-    #   Final result: {"type": "final", "session": new_session, "message": {...}}
-  
-  send_request_stream_async(
-    session: Session,
-    config: dict
-  ) → AsyncIterator[dict]
-    # Async version of send_request_stream
-  
-  # ========================================
-  # Utility Functions
-  # ========================================
-  
+    #   Final result: {"type": "final", "session": new_session, "messages": [...]}
+
+  send_request_stream_async(session: Session, config: dict) → AsyncIterator[dict]
+
+  # Utilities
   get_tool_schemas(config: dict) → list[dict]
-    # Get tool schemas from registered tool plugins
-  
-  create_session(session_id: string (optional)) → Session
-    # Create new empty session (convenience function)
-  
+  create_session(session_id?: string) → Session
   export_session(session: Session, format: string = "json") → string
-    # Export session to string
-  
   import_session(data: string, format: string = "json") → Session
-    # Import session from string
 ```
 
 ### Stream Event Format
 
-**Partial Event:**
+Partial Event:
 ```yaml
 PartialEvent:
   type: "partial"
@@ -389,17 +296,14 @@ PartialEvent:
     metadata: dict
 ```
 
-**Final Event:**
+Final Event:
 ```yaml
 FinalEvent:
   type: "final"
   session:
     session_id: string
     messages: list[Message]
-  message:
-    role: string
-    content: string               # Complete response text
-    metadata: dict                # May include tool_calls, citations, etc.
+  messages: list[Message]          # Final messages emitted this turn
 ```
 
 ### Configuration Format
@@ -420,12 +324,11 @@ Config:
   # ... any other plugin-specific keys
 ```
 
-**Important principles:**
+Important principles:
 - Configuration is application-managed, not stored in Core
 - Each request receives its current configuration
 - Plugins extract only the keys they need
-- No nested structure - flat dictionary for simplicity
-- No validation in Core - plugins validate their own config
+- Flat dictionary for simplicity; plugins validate their own config
 
 ## Usage Flow Patterns
 
@@ -435,35 +338,36 @@ Config:
 1. Application creates session
 2. Application adds user message to session (returns new session)
 3. Application calls send_request(session, config)
-4. Core orchestrates plugins:
-   - Feature plugins may transform messages
-   - Provider plugin converts to native format
-   - Provider plugin calls LLM API
-   - Provider extensions process response
-   - Feature plugins process final message
-5. Core returns (new_session, response_message)
+4. Core orchestration per turn:
+   - Provider.to_native_messages(messages)
+   - Provider.initialize_request(native_messages)
+   - Each Feature.initialize_request(native_messages) (optional)
+   - Provider.call_api(native_messages) → (final, partial, native, state)
+   - Provider Extensions post-process outputs
+   - Features.finalize(messages, {final_messages, native_messages})
+5. Core returns (new_session, final_messages)
 6. Application decides what to do next
 ```
 
 ### Streaming Flow
 
 ```
-1. Application creates session
-2. Application adds user message
-3. Application calls send_request_stream(session, config)
-4. Core yields partial events as they arrive:
+1. Application creates session and adds a user message
+2. Application calls send_request_stream(session, config)
+3. Core yields partial events as they arrive:
    {"type": "partial", "message": {...}}
-5. Application forwards partials to frontend
-6. Core yields final event:
-   {"type": "final", "session": new_session, "message": {...}}
-7. Application processes final message
+4. After stream completes:
+   - Provider.finalize(messages)
+   - Features.finalize(messages, {final_messages, native_messages})
+5. Core yields final event:
+   {"type": "final", "session": new_session, "messages": [...]}
 ```
 
 ### Tool Calling Flow
 
 ```
 1. Application sends request
-2. Response includes tool_calls in metadata
+2. Final messages may include tool_calls in metadata
 3. Application executes tools (not Core responsibility)
 4. Application adds tool results as messages
 5. Application sends request again with tool results
@@ -472,4 +376,4 @@ Config:
 
 ## Plugin Examples
 
-For complete, runnable examples of each plugin type, see [PLUGIN_EXAMPLES.md](PLUGIN_EXAMPLES.md).
+For complete, runnable examples of each plugin type, see PLUGIN_EXAMPLES.md.

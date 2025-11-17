@@ -96,13 +96,11 @@ class AgentCore:
         # Current user-visible messages (dicts)
         messages = [msg.to_dict() for msg in session.messages]
 
-        # Initialize request phase
-        self._provider.initialize_request(messages)
-        for feature in self._features:
-            feature.initialize_request(messages)
-
-        # Provider expects native messages for I/O
+        # Convert to native and initialize request phase with native messages
         native_messages = self._provider.to_native_messages(messages)
+        self._provider.initialize_request(native_messages)
+        for feature in self._features:
+            feature.initialize_request(native_messages)
 
         # Non-streaming API call
         final_messages, partial_messages, native_out = self._provider.call_api(native_messages)
@@ -140,11 +138,10 @@ class AgentCore:
         # External messages and native messages
         messages: List[Dict[str, Any]] = [msg.to_dict() for msg in session.messages]
 
-        self._provider.initialize_request(messages)
-        for feature in self._features:
-            feature.initialize_request(messages)
-
         initial_native = self._provider.to_native_messages(messages)
+        self._provider.initialize_request(initial_native)
+        for feature in self._features:
+            feature.initialize_request(initial_native)
         current_native: List[Dict[str, Any]] = list(initial_native)
 
         aggregated_finals: List[Dict[str, Any]] = []
@@ -215,11 +212,10 @@ class AgentCore:
 
         messages: List[Dict[str, Any]] = [msg.to_dict() for msg in session.messages]
 
-        self._provider.initialize_request(messages)
-        for feature in self._features:
-            feature.initialize_request(messages)
-
         initial_native = self._provider.to_native_messages(messages)
+        self._provider.initialize_request(initial_native)
+        for feature in self._features:
+            feature.initialize_request(initial_native)
         current_native: List[Dict[str, Any]] = list(initial_native)
 
         aggregated_finals: List[Dict[str, Any]] = []

@@ -217,31 +217,31 @@ Frontend → Application (WebSocket)
   ↓
 Application → Core SDK (add_message)
   ↓
-Application → Core SDK (send_request)
+Application → Core SDK (send_request or send_request_stream)
   ↓
-Core → Feature Plugins (transform messages)
+Core → Provider.to_native_messages(messages)
   ↓
-Core → Provider Plugin (stream_api)
+Core → Provider.initialize_request(native_messages)
   ↓
-Provider → LLM API (HTTP/HTTPS)
+Core → Each Feature.initialize_request(native_messages)
   ↓
-LLM API → Provider (streaming chunks)
+Provider.stream_api(native_messages) → yields native chunks
   ↓
-Provider + Extensions → Core (partial messages)
+Provider.process_chunk + Extensions.process_chunk → Core (partial/final/native)
   ↓
 Core → Application → Frontend (stream partials)
   ↓
-Provider + Extensions → Core (final message)
+Provider.finalize (optional) → final/native outputs
   ↓
-Core → Feature Plugins (process final)
+Core → Features.finalize(messages, {final_messages, native_messages})
   ↓
-Core → Application (final message, may include tool calls)
+Core → Application (final messages, may include tool calls)
   ↓
 Application: Decides to execute tools (application logic)
   ↓
 Application → Core SDK (add tool results)
   ↓
-Application → Core SDK (send_request again)
+Application → Core SDK (send_request/send_request_stream again)
   ↓
 [Loop continues until no more tool calls]
 ```

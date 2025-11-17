@@ -42,7 +42,7 @@ class ProviderPlugin(Protocol):
 
     # New request lifecycle
     @staticmethod
-    def initialize_request(messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]: ...
+    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]: ...
 
     @staticmethod
     def process_chunk(
@@ -125,7 +125,7 @@ class FeaturePlugin(Protocol):
     def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]: ...
 
     @staticmethod
-    def initialize_request(messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]: ...
+    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]: ...
 
     @staticmethod
     def finalize(

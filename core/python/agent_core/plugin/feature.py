@@ -53,11 +53,11 @@ class FeatureWrapper:
             return self.plugin_class.get_ui_elements()
         return []
 
-    def initialize_request(self, messages: List[Dict[str, Any]]) -> None:
+    def initialize_request(self, native_messages: List[Dict[str, Any]]) -> None:
         if self.state is None:
             raise RuntimeError(f"Feature {self.name} not initialized")
         if hasattr(self.plugin_class, "initialize_request"):
-            self.state = self.plugin_class.initialize_request(messages, self.state)
+            self.state = self.plugin_class.initialize_request(native_messages, self.state)
 
     def finalize(self, messages: List[Dict[str, Any]], output: Dict[str, Any]) -> Dict[str, Any]:
         """Run feature finalize to possibly modify/discard outputs.
@@ -96,8 +96,8 @@ class FeatureAdapter:
     def update_state(self, updates: Dict[str, Any]) -> None:
         self.wrapper.update_state(updates)
 
-    def initialize_request(self, messages: List[Dict[str, Any]]) -> None:
-        self.wrapper.initialize_request(messages)
+    def initialize_request(self, native_messages: List[Dict[str, Any]]) -> None:
+        self.wrapper.initialize_request(native_messages)
 
     def finalize(self, messages: List[Dict[str, Any]], output: Dict[str, Any]) -> Dict[str, Any]:
         return self.wrapper.finalize(messages, output)

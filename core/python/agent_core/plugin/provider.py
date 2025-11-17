@@ -94,11 +94,11 @@ class ProviderWrapper:
             return self.plugin_class.get_ui_elements()
         return []
 
-    def initialize_request(self, messages: List[Dict[str, Any]]) -> None:
-        """Run provider.initialize_request to prepare state for a new turn."""
+    def initialize_request(self, native_messages: List[Dict[str, Any]]) -> None:
+        """Run provider.initialize_request with native messages for a new turn."""
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
-        self.state = self.plugin_class.initialize_request(messages, self.state)
+        self.state = self.plugin_class.initialize_request(native_messages, self.state)
 
     def to_native_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Convert messages to provider's native format (state-validated)."""
@@ -251,9 +251,9 @@ class ProviderAdapter:
         """
         self.wrapper.update_state(updates)
 
-    def initialize_request(self, messages: List[Dict[str, Any]]) -> None:
-        """Prepare provider for a new request (passthrough)."""
-        self.wrapper.initialize_request(messages)
+    def initialize_request(self, native_messages: List[Dict[str, Any]]) -> None:
+        """Prepare provider for a new request with native messages (passthrough)."""
+        self.wrapper.initialize_request(native_messages)
 
     def to_native_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Convert messages to provider's native format (passthrough)."""
