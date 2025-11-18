@@ -43,14 +43,6 @@ class BaseWrapper(Protocol):
         """
         ...
         
-    def update_state(self, updates: Dict[str, Any]) -> None:
-        """
-        Apply UI/runtime updates to the wrapper-owned shared provider state.
-
-        Args:
-            updates: Partial state updates (e.g., UI settings) to merge.
-        """
-        ...
 
 
 class ProviderWrapperProtocol(BaseWrapper, Protocol):
@@ -109,7 +101,7 @@ class ProviderWrapperProtocol(BaseWrapper, Protocol):
         """
         ...
 
-    async def stream_api_async(self, native_messages: List[Dict[str, Any]]) -> AsyncIterator[Dict[str, Any]]:
+    def stream_api_async(self, native_messages: List[Dict[str, Any]]) -> AsyncIterator[Dict[str, Any]]:
         """
         Execute a streaming provider API call (async generator).
 

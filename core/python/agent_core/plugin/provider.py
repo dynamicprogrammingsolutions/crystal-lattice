@@ -321,7 +321,4 @@ class ProviderAdapter(ProviderWrapperProtocol):
         """Get UI schemas for registered extensions."""
         return self.wrapper.get_extension_ui_elements()
 
-    def apply_extension_transforms(self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Apply extension transforms via wrapper."""
-        return self.wrapper.apply_extension_transforms(messages, native_messages)
 

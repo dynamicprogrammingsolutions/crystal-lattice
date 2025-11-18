@@ -1,0 +1,24 @@
+{
+  "include": [
+    "core/python",
+    "plugins",
+    "examples"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "**/.pytest_cache",
+    "**/.venv",
+    ".git",
+    "dist",
+    "build"
+  ],
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "extraPaths": [
+        "core/python",
+        "."
+      ]
+    }
+  ]
+}

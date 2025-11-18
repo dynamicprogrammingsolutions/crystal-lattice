@@ -69,6 +69,7 @@ def test_add_message_with_metadata():
         metadata={"model": "gpt-4"}
     )
     
+    assert session.messages[0].metadata
     assert session.messages[0].metadata["model"] == "gpt-4"
 
 

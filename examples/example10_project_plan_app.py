@@ -2,7 +2,7 @@
 PROJECT_PLAN Example 6: FastAPI/WebSocket App (Ollama)
 Runs a simple WS endpoint using the core and plugins.
 """
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket  # type: ignore[reportMissingImports]
 from agent_core import AgentCore
 from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
 from examples.example3_web_search_feature import WebSearchFeature
