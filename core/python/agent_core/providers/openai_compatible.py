@@ -169,7 +169,7 @@ class OpenAICompatibleProvider(ProviderPlugin):
     @staticmethod
     def process_chunk(
         native_chunk: Dict[str, Any],
-        messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         # Extract incremental content from various possible shapes

@@ -9,52 +9,246 @@ from typing import Any, Dict, List, Optional, Literal, Tuple, Protocol, Iterator
 from dataclasses import dataclass, field
 from copy import deepcopy
 
-
 MessageRole = Literal["system", "user", "assistant", "tool"]
-
 
 # Plugin Protocol Types
 
 # Wrapper Protocol Types (for adapters/wrappers to implement)
-class ProviderWrapperProtocol(Protocol):
+@runtime_checkable
+class BaseWrapper(Protocol):
+    """
+    Common instance-level contract for all wrapper types (provider, extension, feature, tool).
+
+    - Provides shared identity and UI schema access used by orchestration and UIs
+    - Concrete wrapper protocols extend this base with type-specific operations
+    """
     name: str
     version: str
 
-    def initialize(self, config: Dict[str, Any]) -> None: ...
-    def update_state(self, updates: Dict[str, Any]) -> None: ...
-    def get_config_schema(self) -> Dict[str, Any]: ...
-    def get_ui_elements(self) -> List[Dict[str, Any]]: ...
+    def get_config_schema(self) -> Dict[str, Any]:
+        """
+        Return JSON schema describing this provider's configuration.
 
-    def to_native_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]: ...
-    def initialize_request(self, native_messages: List[Dict[str, Any]]) -> None: ...
-    def call_api(self, native_messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
-    def stream_api(self, native_messages: List[Dict[str, Any]]) -> Iterator[Dict[str, Any]]: ...
-    async def stream_api_async(self, native_messages: List[Dict[str, Any]]) -> AsyncIterator[Dict[str, Any]]: ...
-    def process_chunk(self, native_chunk: Dict[str, Any], messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]: ...
-    def finalize(self, native_messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
+        Returns:
+            Schema dictionary consumable by applications for validation.
+        """
+        ...
 
-    def get_extension_config_schemas(self) -> Dict[str, Any]: ...
-    def get_extension_ui_elements(self) -> Dict[str, List[Dict[str, Any]]]: ...
+    def get_ui_elements(self) -> List[Dict[str, Any]]:
+        """
+        Return UI element definitions for configuring this provider.
 
-    def get_state(self) -> Dict[str, Any]: ...
-    def set_state(self, state: Dict[str, Any]) -> None: ...
-    def reset_state(self) -> None: ...
+        Returns:
+            List of UI element descriptors used by frontends.
+        """
+        ...
+        
+    def update_state(self, updates: Dict[str, Any]) -> None:
+        """
+        Apply UI/runtime updates to the wrapper-owned shared provider state.
 
-class ExtensionWrapperProtocol(Protocol):
-    name: str
-    version: str
+        Args:
+            updates: Partial state updates (e.g., UI settings) to merge.
+        """
+        ...
+
+
+class ProviderWrapperProtocol(BaseWrapper, Protocol):
+    def initialize(self, config: Dict[str, Any]) -> None:
+        """
+        Initialize wrapper-owned provider state from application config.
+
+        Args:
+            config: Application-supplied configuration for the provider.
+        """
+        ...
+
+
+    def to_native_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Convert core messages to provider-native message format.
+
+        Args:
+            messages: Core messages from the session.
+
+        Returns:
+            Provider-native messages suitable for over-the-wire use.
+        """
+        ...
+
+    def initialize_request(self, native_messages: List[Dict[str, Any]]) -> None:
+        """
+        Prepare internal shared state for a new request.
+
+        Args:
+            native_messages: Provider-native messages for this request.
+        """
+        ...
+
+    def call_api(self, native_messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        """
+        Execute a non-streaming provider API call.
+
+        Args:
+            native_messages: Provider-native input messages.
+
+        Returns:
+            A tuple of (final_messages, partial_messages, native_messages, new_state).
+        """
+        ...
+
+    def stream_api(self, native_messages: List[Dict[str, Any]]) -> Iterator[Dict[str, Any]]:
+        """
+        Execute a streaming provider API call (sync generator).
+
+        Args:
+            native_messages: Provider-native input messages.
+
+        Yields:
+            Provider-native streaming chunks.
+        """
+        ...
+
+    async def stream_api_async(self, native_messages: List[Dict[str, Any]]) -> AsyncIterator[Dict[str, Any]]:
+        """
+        Execute a streaming provider API call (async generator).
+
+        Args:
+            native_messages: Provider-native input messages.
+
+        Yields:
+            Provider-native streaming chunks.
+        """
+        ...
+
+    def process_chunk(self, native_chunk: Dict[str, Any], native_messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """
+        Process a single provider-native streaming chunk into core structures.
+
+        Args:
+            native_chunk: Provider-native streaming chunk.
+            native_messages: Provider-native messages (for context).
+
+        Returns:
+            Tuple of (final_messages, partial_messages, native_messages) produced by this chunk.
+        """
+        ...
+
+    def finalize(self, native_messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        """
+        Perform final processing after streaming completes.
+
+        Args:
+            native_messages: Accumulated provider-native messages for this turn.
+
+        Returns:
+            Tuple of (final_messages, native_messages, new_state).
+        """
+        ...
+
+    def get_extension_config_schemas(self) -> Dict[str, Any]:
+        """
+        Return config schemas for all registered provider extensions.
+
+        Returns:
+            Mapping of extension name to its JSON schema.
+        """
+        ...
+
+    def get_extension_ui_elements(self) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Return UI element definitions for all registered provider extensions.
+
+        Returns:
+            Mapping of extension name to list of UI element descriptors.
+        """
+        ...
+
+    def get_state(self) -> Dict[str, Any]:
+        """
+        Get a copy of the current wrapper-owned shared provider state.
+
+        Returns:
+            Current provider state dictionary.
+        """
+        ...
+
+    def set_state(self, state: Dict[str, Any]) -> None:
+        """
+        Replace the wrapper-owned shared provider state.
+
+        Args:
+            state: New provider state to set.
+        """
+        ...
+
+    def reset_state(self) -> None:
+        """
+        Reset the wrapper-owned shared provider state to an empty/default value.
+        """
+        ...
+
+
+class ExtensionWrapperProtocol(BaseWrapper, Protocol):
     target_provider: Optional[str]
 
-    def get_config_schema(self) -> Dict[str, Any]: ...
-    def get_ui_elements(self) -> List[Dict[str, Any]]: ...
 
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]: ...
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]: ...
 
-    def to_native_messages(self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]: ...
-    def from_native_messages(self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]: ...
+    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Initialize with application config and shared provider state.
 
-    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]: ...
+        Args:
+            config: Application-supplied configuration.
+            state: Shared provider state provided by the provider wrapper.
+
+        Returns:
+            Updated shared provider state (or the same state).
+        """
+        ...
+
+    def to_native_messages(self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Transform provider-native messages using visibility of core messages.
+
+        Stateless and deterministic; should not depend on shared state.
+
+        Args:
+            messages: Core session messages for context.
+            native_messages: Current provider-native messages.
+
+        Returns:
+            Updated provider-native messages.
+        """
+        ...
+
+    def from_native_messages(self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Transform provider-native messages back into core messages.
+
+        Stateless and deterministic; should not depend on shared state.
+
+        Args:
+            native_messages: Provider-native messages to transform.
+            messages: Core session messages for context.
+
+        Returns:
+            Updated core messages.
+        """
+        ...
+
+    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Prepare for a new request with provider-native messages.
+
+        Args:
+            native_messages: Provider-native messages for this request.
+            state: Current shared provider state.
+
+        Returns:
+            Updated shared provider state (or the same state).
+        """
+        ...
 
     def process_chunk(
         self,
@@ -64,142 +258,448 @@ class ExtensionWrapperProtocol(Protocol):
         partial_messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        """
+        Observe/modify provider outputs for a streaming chunk.
+
+        Called on the hot path for each provider-native chunk. May be called
+        with native_chunk=None during provider finalize.
+
+        Args:
+            native_chunk: Provider-native streaming chunk, or None during finalize.
+            messages: Core session messages (context).
+            state: Current shared provider state.
+            partial_messages: Current list of partial messages.
+            final_messages: Current list of final messages.
+            native_messages: Current list of provider-native messages.
+
+        Returns:
+            Tuple of (updated_partial_messages, updated_final_messages, updated_native_messages, new_state).
+        """
+        ...
 
     def finalize(
         self,
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        """
+        Perform cold-path finalization after provider completes streaming.
+
+        Args:
+            final_messages: Final core messages emitted this turn.
+            native_messages: Accumulated provider-native messages for this turn.
+            state: Current shared provider state.
+
+        Returns:
+            Tuple of (final_messages, native_messages, new_state).
+        """
+        ...
 
 
-class FeatureWrapperProtocol(Protocol):
-    name: str
-    version: str
+class FeatureWrapperProtocol(BaseWrapper, Protocol):
 
-    def get_config_schema(self) -> Dict[str, Any]: ...
-    def get_ui_elements(self) -> List[Dict[str, Any]]: ...
+        
 
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]: ...
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]: ...
-    def to_native_messages(self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]: ...
+    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Initialize with application config and shared provider state.
 
-    def from_native_messages(self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]: ...
+        Loads feature-specific config into the shared provider state.
 
-    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]: ...
+        Args:
+            config: Application-supplied configuration.
+            state: Current shared provider state.
+
+        Returns:
+            Updated shared provider state (or the same state).
+        """
+        ...
+
+    def to_native_messages(self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Transform provider-native messages using visibility of core messages.
+
+        Stateless and deterministic; should not depend on shared state.
+
+        Args:
+            messages: Core session messages for context.
+            native_messages: Current provider-native messages.
+
+        Returns:
+            Updated provider-native messages.
+        """
+        ...
+
+    def from_native_messages(self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Transform provider-native messages back into core messages.
+
+        Stateless and deterministic; should not depend on shared state.
+
+        Args:
+            native_messages: Provider-native messages to transform.
+            messages: Core session messages for context.
+
+        Returns:
+            Updated core messages.
+        """
+        ...
+
+    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Prepare for a new request with provider-native messages.
+
+        Args:
+            native_messages: Provider-native messages for this request.
+            state: Current shared provider state.
+
+        Returns:
+            Updated shared provider state (or the same state).
+        """
+        ...
 
     def finalize(
         self,
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        """
+        Final cold-path processing for this feature after provider completes.
+
+        Args:
+            final_messages: Final core messages emitted this turn.
+            native_messages: Accumulated provider-native messages for this turn.
+            state: Current shared provider state.
+
+        Returns:
+            Tuple of (final_messages, native_messages, new_state).
+        """
+        ...
 
 
-class ToolWrapperProtocol(Protocol):
-    name: str
-    version: str
+class ToolWrapperProtocol(BaseWrapper, Protocol):
 
-    def get_config_schema(self) -> Dict[str, Any]: ...
-    def get_ui_elements(self) -> List[Dict[str, Any]]: ...
 
-    def initialize(self, config: Dict[str, Any]) -> None: ...
-    def update_state(self, updates: Dict[str, Any]) -> None: ...
 
-    def get_tool_schemas(self) -> List[Dict[str, Any]]: ...
-    def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]: ...
-    def format_tool_result(self, result: Dict[str, Any]) -> str: ...
+    def initialize(self, config: Dict[str, Any]) -> None:
+        """
+        Initialize internal tool state from application config.
+
+        Args:
+            config: Application-supplied configuration for the tool.
+        """
+        ...
+
+    def get_tool_schemas(self) -> List[Dict[str, Any]]:
+        """
+        Return OpenAI-style function definitions for this tool.
+
+        Returns:
+            List of tool/function definition dictionaries.
+        """
+        ...
+
+    def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Execute a tool function by name with structured arguments.
+
+        Args:
+            tool_name: Name of the tool/function to execute.
+            arguments: Structured arguments for the tool.
+
+        Returns:
+            Result dictionary, e.g., {"success": bool, "result": any, "error": str}.
+        """
+        ...
+
+    def format_tool_result(self, result: Dict[str, Any]) -> str:
+        """
+        Format a tool result dictionary for LLM consumption/display.
+
+        Args:
+            result: Tool execution result dictionary.
+
+        Returns:
+            Human-readable string representation.
+        """
+        ...
 
 # Plugin Protocol Types
 
-class ProviderPlugin(Protocol):
-    """Protocol for provider plugins (new lifecycle)."""
+@runtime_checkable
+class BasePlugin(Protocol):
+    """
+    Common class-level protocol for non-tool plugins (Provider, ProviderExtension, Feature).
 
+    Unifies identity, configuration UI, and the subset of lifecycle methods whose
+    signatures are identical across these plugin types.
+    """
+    # Identity (class-level)
     name: str
     version: str
 
+    # Config/UI (class-level)
     @staticmethod
-    def get_config_schema() -> Dict[str, Any]: ...
+    def get_config_schema() -> Dict[str, Any]:
+        """
+        Return JSON schema describing this provider's configuration.
+
+        Returns:
+            Schema dictionary consumable by applications for validation.
+        """
+        ...
 
     @staticmethod
-    def get_ui_elements() -> List[Dict[str, Any]]: ...
+    def get_ui_elements() -> List[Dict[str, Any]]:
+        """
+        Return UI element definitions for configuring this provider.
+
+        Returns:
+            List of UI element descriptors used by frontends.
+        """
+        ...
+
+    # Common lifecycle across provider/extension/feature
+    @staticmethod
+    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Apply UI/runtime updates to the shared provider state immutably.
+
+        Args:
+            state: Current shared provider state.
+            updates: Partial updates (e.g., UI inputs) to merge.
+
+        Returns:
+            New shared provider state.
+        """
+        ...
+
+class ProviderPlugin(BasePlugin, Protocol):
+    """Protocol for provider plugins (new lifecycle)."""
+
 
     @staticmethod
-    def init(config: Dict[str, Any]) -> Dict[str, Any]: ...
+    def init(config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Initialize provider state from application config.
 
-    @staticmethod
-    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]: ...
+        Args:
+            config: Application-supplied configuration for the provider.
+
+        Returns:
+            Initial shared provider state owned by the provider wrapper.
+        """
+        ...
 
     # Message conversion
     @staticmethod
-    def to_native_messages(messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]: ...
+    def to_native_messages(messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Convert core messages to this provider's native wire format.
+
+        Args:
+            messages: Core session messages.
+            state: Current shared provider state.
+
+        Returns:
+            Provider-native messages suitable for API calls.
+        """
+        ...
 
     @staticmethod
-    def from_native_messages(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]: ...
+    def from_native_messages(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Convert provider-native messages into core message dictionaries.
+
+        Args:
+            native_messages: Provider-native messages to convert.
+            state: Current shared provider state.
+
+        Returns:
+            Core messages derived from native messages.
+        """
+        ...
 
     # New request lifecycle
     @staticmethod
-    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]: ...
+    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Prepare for a new request with provider-native messages.
+
+        Args:
+            native_messages: Provider-native messages for this request.
+            state: Current shared provider state.
+
+        Returns:
+            Updated shared provider state (or the same state).
+        """
+        ...
 
     @staticmethod
     def process_chunk(
         native_chunk: Dict[str, Any],
-        messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
         state: Dict[str, Any]
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        """
+        Process a streaming chunk from the provider on the hot path.
+
+        Args:
+            native_chunk: Provider-native streaming chunk.
+            native_messages: Provider-native input messages (context).
+            state: Current shared provider state.
+
+        Returns:
+            Tuple of (final_messages, partial_messages, native_messages, new_state).
+        """
+        ...
     # Returns: (final_messages, partial_messages, native_messages, new_state)
 
     @staticmethod
     def finalize(
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any]
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        """
+        Perform final processing after streaming completes; provider runs first in finalize chain.
+
+        Args:
+            native_messages: Accumulated provider-native messages for this turn.
+            state: Current shared provider state.
+
+        Returns:
+            Tuple of (final_messages, native_messages, new_state).
+        """
+        ...
     # Returns: (final_messages, native_messages, new_state)
 
     @staticmethod
-    def to_display_format(message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]: ...
+    def to_display_format(message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Convert a message to a display-friendly format for UIs.
+
+        Args:
+            message: Core message dictionary to format.
+            state: Current shared provider state.
+
+        Returns:
+            Display-friendly message dictionary.
+        """
+        ...
 
     # I/O entry points now take native messages
     @staticmethod
-    def call_api(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
+    def call_api(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        """
+        Make a non-streaming API call with provider-native messages.
+
+        Args:
+            native_messages: Provider-native input messages.
+            state: Current shared provider state.
+
+        Returns:
+            Tuple of (final_messages, partial_messages, native_messages, new_state).
+        """
+        ...
     # Returns: (final_messages, partial_messages, native_messages, new_state)
 
     @staticmethod
-    def stream_api(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]: ...
+    def stream_api(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
+        """
+        Make a streaming API call; yields provider-native chunks.
+
+        Args:
+            native_messages: Provider-native input messages.
+            state: Current shared provider state.
+
+        Yields:
+            Provider-native streaming chunks.
+        """
+        ...
 
     @staticmethod
-    def detect_capabilities(config: Dict[str, Any]) -> List[str]: ...
+    def detect_capabilities(config: Dict[str, Any]) -> List[str]:
+        """
+        Detect capability flags supported by the provider for a given config.
+
+        Args:
+            config: Application-supplied configuration for probing capabilities.
+
+        Returns:
+            List of capability identifiers.
+        """
+        ...
 
 
-class ProviderExtensionPlugin(Protocol):
+class ProviderExtensionPlugin(BasePlugin, Protocol):
     """Protocol for provider extension plugins (shared provider state)."""
 
-    name: str
-    version: str
     target_provider: str
 
-    @staticmethod
-    def get_config_schema() -> Dict[str, Any]: ...
 
     @staticmethod
-    def get_ui_elements() -> List[Dict[str, Any]]: ...
+    def init(config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Initialize with application config and shared provider state.
 
-    @staticmethod
-    def init(config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]: ...
+        Args:
+            config: Application-supplied configuration.
+            state: Current shared provider state.
 
-    @staticmethod
-    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]: ...
+        Returns:
+            Updated shared provider state (or the same state).
+        """
+        ...
 
     # Stateless transforms
     @staticmethod
-    def to_native_messages(messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]: ...
+    def to_native_messages(messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Transform provider-native messages using visibility of core messages.
+
+        Stateless and deterministic; must not depend on shared state or config.
+
+        Args:
+            messages: Core session messages for context.
+            native_messages: Current provider-native messages.
+
+        Returns:
+            Updated provider-native messages.
+        """
+        ...
 
     @staticmethod
-    def from_native_messages(native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]: ...
+    def from_native_messages(native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Transform provider-native messages back into core messages.
+
+        Stateless and deterministic; must not depend on shared state or config.
+
+        Args:
+            native_messages: Provider-native messages to transform.
+            messages: Core session messages for context.
+
+        Returns:
+            Updated core messages.
+        """
+        ...
 
     @staticmethod
-    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]: ...
+    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Prepare for a new request with provider-native messages.
+
+        Args:
+            native_messages: Provider-native messages for this request.
+            state: Current shared provider state.
+
+        Returns:
+            Updated shared provider state (or the same state).
+        """
+        ...
 
     @staticmethod
     def process_chunk(
@@ -209,7 +709,25 @@ class ProviderExtensionPlugin(Protocol):
         partial_messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]]
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        """
+        Observe/modify provider outputs for a streaming chunk.
+
+        Called on the hot path for each provider-native chunk. May be called
+        with native_chunk=None during provider finalize.
+
+        Args:
+            native_chunk: Provider-native streaming chunk, or None during finalize.
+            messages: Core session messages (context).
+            state: Current shared provider state.
+            partial_messages: Current list of partial messages.
+            final_messages: Current list of final messages.
+            native_messages: Current list of provider-native messages.
+
+        Returns:
+            Tuple of (updated_partial_messages, updated_final_messages, updated_native_messages, new_state).
+        """
+        ...
     # Returns: (partial_messages, final_messages, native_messages, new_state)
 
     @staticmethod
@@ -217,75 +735,167 @@ class ProviderExtensionPlugin(Protocol):
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        """
+        Final cold-path processing after provider streaming/finalize.
+
+        Args:
+            final_messages: Final core messages emitted this turn.
+            native_messages: Accumulated provider-native messages for this turn.
+            state: Current shared provider state.
+
+        Returns:
+            Tuple of (final_messages, native_messages, new_state).
+        """
+        ...
 
 
-class FeaturePlugin(Protocol):
+class FeaturePlugin(BasePlugin, Protocol):
     """Protocol for feature plugins (cold path, shared state)."""
 
-    name: str
-    version: str
 
     @staticmethod
-    def get_config_schema() -> Dict[str, Any]: ...
+    def init(config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Initialize with application config and shared provider state.
 
-    @staticmethod
-    def get_ui_elements() -> List[Dict[str, Any]]: ...
+        Args:
+            config: Application-supplied configuration.
+            state: Current shared provider state.
 
-    @staticmethod
-    def init(config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]: ...
-
-    @staticmethod
-    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]: ...
+        Returns:
+            Updated shared provider state (or the same state).
+        """
+        ...
 
     # Stateless transforms
     @staticmethod
-    def to_native_messages(messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]: ...
+    def to_native_messages(messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Transform provider-native messages using visibility of core messages.
+
+        Stateless and deterministic; must not depend on shared state or config.
+
+        Args:
+            messages: Core session messages for context.
+            native_messages: Current provider-native messages.
+
+        Returns:
+            Updated provider-native messages.
+        """
+        ...
 
     @staticmethod
-    def from_native_messages(native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]: ...
+    def from_native_messages(native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Transform provider-native messages back into core messages.
+
+        Stateless and deterministic; must not depend on shared state or config.
+
+        Args:
+            native_messages: Provider-native messages to transform.
+            messages: Core session messages for context.
+
+        Returns:
+            Updated core messages.
+        """
+        ...
 
     @staticmethod
-    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]: ...
+    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Prepare for a new request with provider-native messages.
+
+        Args:
+            native_messages: Provider-native messages for this request.
+            state: Current shared provider state.
+
+        Returns:
+            Updated shared provider state (or the same state).
+        """
+        ...
 
     @staticmethod
     def finalize(
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any]
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]: ...
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        """
+        Final cold-path processing after provider and extensions complete.
+
+        Args:
+            final_messages: Final core messages emitted this turn.
+            native_messages: Accumulated provider-native messages for this turn.
+            state: Current shared provider state.
+
+        Returns:
+            Tuple of (final_messages, native_messages, new_state).
+        """
+        ...
 
 
-class ToolPlugin(Protocol):
+class ToolPlugin(BasePlugin, Protocol):
     """Protocol for tool plugins."""
 
-    name: str
-    version: str
+    @staticmethod
+    def init(config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Initialize internal tool state from application config.
+
+        Args:
+            config: Application-supplied configuration for the tool.
+
+        Returns:
+            Initial tool state dictionary.
+        """
+        ...
 
     @staticmethod
-    def get_config_schema() -> Dict[str, Any]: ...
+    def get_tool_schemas(state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Return OpenAI-style function definitions provided by this tool.
 
-    @staticmethod
-    def get_ui_elements() -> List[Dict[str, Any]]: ...
+        Args:
+            state: Current tool state (if needed by the tool).
 
-    @staticmethod
-    def init(config: Dict[str, Any]) -> Dict[str, Any]: ...
-
-    @staticmethod
-    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]: ...
-
-    @staticmethod
-    def get_tool_schemas(state: Dict[str, Any]) -> List[Dict[str, Any]]: ...
+        Returns:
+            List of tool/function definition dictionaries.
+        """
+        ...
 
     @staticmethod
     def execute_tool(
         tool_name: str,
         arguments: Dict[str, Any],
         state: Dict[str, Any]
-    ) -> Dict[str, Any]: ...
+    ) -> Dict[str, Any]:
+        """
+        Execute a tool function by name with structured arguments.
+
+        Args:
+            tool_name: Name of the tool/function to execute.
+            arguments: Structured arguments for the tool.
+            state: Current tool state.
+
+        Returns:
+            Result dictionary, e.g., {"success": bool, "result": any, "error": str}.
+        """
+        ...
 
     @staticmethod
-    def format_tool_result(result: Dict[str, Any], state: Dict[str, Any]) -> str: ...
+    def format_tool_result(result: Dict[str, Any], state: Dict[str, Any]) -> str:
+        """
+        Format a tool result dictionary for LLM consumption/display.
+
+        Args:
+            result: Tool execution result dictionary.
+            state: Current tool state.
+
+        Returns:
+            Human-readable string representation.
+        """
+        ...
 
 
 @dataclass(frozen=True)

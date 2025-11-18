@@ -188,7 +188,7 @@ class AgentCore:
 
         # Stream from provider (async)
         async for native_chunk in self._provider.stream_api_async(native_messages):
-            final_messages, partial_msgs, native_msgs = self._provider.process_chunk(native_chunk, messages)
+            final_messages, partial_msgs, native_messages = self._provider.process_chunk(native_chunk, native_messages)
             for p in partial_msgs:
                 yield {"type": "partial", "message": p}
             if final_messages:

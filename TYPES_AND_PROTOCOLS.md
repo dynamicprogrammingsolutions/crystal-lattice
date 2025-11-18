@@ -135,7 +135,7 @@ ProviderPlugin:
     # Convert from provider's native format
   
   # Hot Path Processing (pure)
-  process_chunk(native_chunk: dict, messages: list, state: dict)
+  process_chunk(native_chunk: dict, native_messages: list, state: dict)
     → (final_messages: list, partial_messages: list, native_messages: list, new_state: dict)
     # Process a streaming chunk; may emit new partials/finals and native outputs
   

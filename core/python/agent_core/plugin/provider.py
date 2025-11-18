@@ -142,7 +142,7 @@ class ProviderWrapper(ProviderWrapperProtocol):
             raise RuntimeError(f"Provider {self.name} not initialized")
         yield from self.plugin_class.stream_api(native_messages, self.state)
 
-    async def stream_api_async(self, native_messages: List[Dict[str, Any]]):
+    async def stream_api_async(self, native_messages: List[Dict[str, Any]]) -> AsyncIterator[Dict[str, Any]]:
         """Make async streaming API call, preferring native async if available."""
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
@@ -154,7 +154,7 @@ class ProviderWrapper(ProviderWrapperProtocol):
         for chunk in self.plugin_class.stream_api(native_messages, self.state):
             yield chunk
 
-    def process_chunk(self, native_chunk: Dict[str, Any], messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+    def process_chunk(self, native_chunk: Dict[str, Any], native_messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         Process provider chunk and invoke extensions (hot path).
         Returns (final_messages, partial_messages, native_messages) produced for this chunk.
@@ -162,14 +162,14 @@ class ProviderWrapper(ProviderWrapperProtocol):
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
         final_messages, partial_messages, native_messages, new_state = self.plugin_class.process_chunk(
-            native_chunk, messages, self.state
+            native_chunk, native_messages, self.state
         )
         self.state = new_state
         # Extensions observe and can enhance/discard using shared state
         for ext in self._extensions:
             partial_messages, final_messages, native_messages, self.state = ext.process_chunk(
                 native_chunk=native_chunk,
-                messages=messages,
+                messages=native_messages,
                 state=self._get_state(),
                 partial_messages=partial_messages,
                 final_messages=final_messages,
@@ -280,12 +280,12 @@ class ProviderAdapter(ProviderWrapperProtocol):
         async for chunk in self.wrapper.stream_api_async(native_messages):
             yield chunk
 
-    def process_chunk(self, native_chunk: Dict[str, Any], messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+    def process_chunk(self, native_chunk: Dict[str, Any], native_messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         Process streaming chunk (provider + extensions) and update internal state.
         Returns (final_messages, partial_messages, native_messages) for this chunk.
         """
-        return self.wrapper.process_chunk(native_chunk, messages)
+        return self.wrapper.process_chunk(native_chunk, native_messages)
 
     def finalize(self, native_messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]],Dict[str, Any]]:
         """

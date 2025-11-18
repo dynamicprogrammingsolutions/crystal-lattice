@@ -49,6 +49,7 @@ def test_extension_can_be_disabled():
             final_message = chunk["messages"][-1]
     
     # Extension disabled, so no prefix
+    assert final_message is not None
     assert "[EXT]" not in final_message["content"]
     assert "Echo: Test" in final_message["content"]
 
@@ -72,6 +73,7 @@ def test_extension_chunk_counting():
             final_message = chunk["messages"][-1]
     
     # Extension should have counted the same number of chunks
+    assert final_message is not None
     assert final_message["metadata"]["extension_processed_chunks"] == chunk_count
 
 
@@ -117,6 +119,7 @@ def test_extension_with_feature():
     # Both extension and feature should process
     # Extension adds prefix first, then feature adds prefix
     # So we get "[TEST] [EXT] Echo: Test" (feature prefix applied last)
+    assert final_message is not None
     assert "[EXT]" in final_message["content"]
     assert "Echo: Test" in final_message["content"]
 
