@@ -90,117 +90,153 @@ class EchoProvider:
 
 ```python
 # prefix_extension.py
-name = "prefix_extension"
-version = "1.0.0"
-target_provider = "echo"
+from typing import Any, Dict, List, Tuple, Optional
 
-def get_config_schema():
-    return {"enabled": {"type": "boolean", "default": True}, "prefix": {"type": "string", "default": "[EXT]"}}
+class PrefixExtension:
+    name: str = "prefix_extension"
+    version: str = "1.0.0"
+    target_provider: str = "echo"
 
-def get_ui_elements():
-    return [
-        {"type": "checkbox", "key": "enabled", "label": "Enable Extension"},
-        {"type": "text", "key": "prefix", "label": "Prefix"}
-    ]
+    @staticmethod
+    def get_config_schema() -> Dict[str, Any]:
+        return {
+            "enabled": {"type": "boolean", "default": True},
+            "prefix": {"type": "string", "default": "[EXT]"},
+        }
 
-# Shared-state lifecycle
+    @staticmethod
+    def get_ui_elements() -> List[Dict[str, Any]]:
+        return [
+            {"type": "checkbox", "key": "enabled", "label": "Enable Extension"},
+            {"type": "text", "key": "prefix", "label": "Prefix"},
+        ]
 
-def init(config, state):
-    rs = {**state.get("runtime_state", {}), "extension_processed_chunks": 0}
-    return {**state, "config": {**state.get("config", {}), **config}, "runtime_state": rs}
+    # Shared-state lifecycle
+    @staticmethod
+    def init(config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        rs = {**state.get("runtime_state", {}), "extension_processed_chunks": 0}
+        return {**state, "config": {**state.get("config", {}), **config}, "runtime_state": rs}
 
-def update_state(state, updates):
-    return {**state, "config": {**state.get("config", {}), **updates}}
+    @staticmethod
+    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+        return {**state, "config": {**state.get("config", {}), **updates}}
 
-# Stateless transforms (optional)
+    # Stateless transforms (optional)
+    @staticmethod
+    def to_native_messages(messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        return messages
 
-def to_native_messages(messages, native_messages):
-    return native_messages
+    @staticmethod
+    def from_native_messages(native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        return messages
 
-def from_native_messages(native_messages, messages):
-    return native_messages
+    # Request lifecycle
+    @staticmethod
+    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+        return state
 
-# Request lifecycle
+    # Hot path processing
+    @staticmethod
+    def process_chunk(
+        native_chunk: Optional[Dict[str, Any]],
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        partial_messages: List[Dict[str, Any]],
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        if not state.get("config", {}).get("enabled", True):
+            return partial_messages, final_messages, native_messages, state
+        processed = state.get("runtime_state", {}).get("extension_processed_chunks", 0) + (1 if native_chunk is not None else 0)
+        rs = {**state.get("runtime_state", {}), "extension_processed_chunks": processed}
+        prefix = state.get("config", {}).get("prefix", "[EXT]")
+        finals = [
+            {**m, "content": f"{prefix} {m['content']}"}
+            for m in final_messages
+        ] if final_messages else final_messages
+        if finals:
+            last = finals[-1]
+            finals[-1] = {**last, "metadata": {**last.get("metadata", {}), "extension_processed_chunks": processed}}
+        return partial_messages, finals, native_messages, {**state, "runtime_state": rs}
 
-def initialize_request(native_messages, state):
-    return state
-
-# Hot path processing
-
-def process_chunk(native_chunk, messages, state, partial_messages, final_messages, native_messages):
-    if not state.get("config", {}).get("enabled", True):
-        return partial_messages, final_messages, native_messages, state
-    processed = state.get("runtime_state", {}).get("extension_processed_chunks", 0) + (1 if native_chunk is not None else 0)
-    rs = {**state.get("runtime_state", {}), "extension_processed_chunks": processed}
-    prefix = state.get("config", {}).get("prefix", "[EXT]")
-    finals = [
-        {**m, "content": f"{prefix} {m['content']}"}
-        for m in final_messages
-    ] if final_messages else final_messages
-    if finals:
-        last = finals[-1]
-        finals[-1] = {**last, "metadata": {**last.get("metadata", {}), "extension_processed_chunks": processed}}
-    return partial_messages, finals, native_messages, {**state, "runtime_state": rs}
-
-# Finalization (cold path)
-
-def finalize(final_messages, native_messages, state):
-    if not state.get("config", {}).get("enabled", True):
-        return final_messages, native_messages, state
-    prefix = state.get("config", {}).get("prefix", "[EXT]")
-    finals = [{**m, "content": f"{prefix} {m['content']}"} for m in final_messages]
-    if finals:
-        count = state.get("runtime_state", {}).get("extension_processed_chunks", 0)
-        last = finals[-1]
-        finals[-1] = {**last, "metadata": {**last.get("metadata", {}), "extension_processed_chunks": count}}
-    return finals, native_messages, state
+    # Finalization (cold path)
+    @staticmethod
+    def finalize(
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        if not state.get("config", {}).get("enabled", True):
+            return final_messages, native_messages, state
+        prefix = state.get("config", {}).get("prefix", "[EXT]")
+        finals = [{**m, "content": f"{prefix} {m['content']}"} for m in final_messages]
+        if finals:
+            count = state.get("runtime_state", {}).get("extension_processed_chunks", 0)
+            last = finals[-1]
+            finals[-1] = {**last, "metadata": {**last.get("metadata", {}), "extension_processed_chunks": count}}
+        return finals, native_messages, state
 ```
 
 ## Example 3: Web Search Feature (finalize-only)
 
 ```python
 # web_search_feature.py
-name = "web_search"
-version = "1.0.0"
+from typing import Any, Dict, List, Tuple
 
-def get_config_schema():
-    return {"web_search_enabled": {"type": "boolean", "default": False}, "max_results": {"type": "integer", "default": 5}}
+class WebSearchFeature:
+    name: str = "web_search"
+    version: str = "1.0.0"
 
-def get_ui_elements():
-    return [
-        {"type": "checkbox", "key": "web_search_enabled", "label": "Enable Web Search"},
-        {"type": "number", "key": "max_results", "label": "Max Results", "condition": {"web_search_enabled": True}},
-    ]
+    @staticmethod
+    def get_config_schema() -> Dict[str, Any]:
+        return {
+            "web_search_enabled": {"type": "boolean", "default": False},
+            "max_results": {"type": "integer", "default": 5},
+        }
 
-# Shared-state lifecycle
+    @staticmethod
+    def get_ui_elements() -> List[Dict[str, Any]]:
+        return [
+            {"type": "checkbox", "key": "web_search_enabled", "label": "Enable Web Search"},
+            {"type": "number", "key": "max_results", "label": "Max Results", "condition": {"web_search_enabled": True}},
+        ]
 
-def init(config, state):
-    return {**state, "config": {**state.get("config", {}), **config}, "capabilities": ["web_search"]}
+    # Shared-state lifecycle
+    @staticmethod
+    def init(config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        return {**state, "config": {**state.get("config", {}), **config}, "capabilities": ["web_search"]}
 
-def update_state(state, updates):
-    return {**state, "config": {**state.get("config", {}), **updates}}
+    @staticmethod
+    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+        return {**state, "config": {**state.get("config", {}), **updates}}
 
-def initialize_request(native_messages, state):
-    return state
+    @staticmethod
+    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+        return state
 
-# Stateless transforms (optional)
+    # Stateless transforms (optional)
+    @staticmethod
+    def to_native_messages(messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        return messages
 
-def to_native_messages(messages, native_messages):
-    return native_messages
+    @staticmethod
+    def from_native_messages(native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        return messages
 
-def from_native_messages(native_messages, messages):
-    return native_messages
-
-# Finalize (returns tuple)
-
-def finalize(final_messages, native_messages, state):
-    if not state.get("config", {}).get("web_search_enabled"):
-        return final_messages, native_messages, state
-    finals = [
-        {**m, "metadata": {**m.get("metadata", {}), "web_search_used": True}}
-        for m in final_messages
-    ]
-    return finals, native_messages, state
+    # Finalize (returns tuple)
+    @staticmethod
+    def finalize(
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        if not state.get("config", {}).get("web_search_enabled"):
+            return final_messages, native_messages, state
+        finals = [
+            {**m, "metadata": {**m.get("metadata", {}), "web_search_used": True}}
+            for m in final_messages
+        ]
+        return finals, native_messages, state
 ```
 
 ## Example 4: File Reader Tool Plugin
@@ -208,58 +244,78 @@ def finalize(final_messages, native_messages, state):
 ```python
 # file_reader_tool.py
 import os
+from typing import Any, Dict, List
 
-name = "file_reader"
-version = "1.0.0"
+class FileReaderTool:
+    name: str = "file_reader"
+    version: str = "1.0.0"
 
-def get_config_schema():
-    return {
-        "allowed_paths": {"type": "array", "items": {"type": "string"}, "default": ["."], "description": "Allowed base paths for file reading"},
-        "max_file_size": {"type": "integer", "default": 1048576, "description": "Maximum file size in bytes"},
-    }
-
-def get_ui_elements():
-    return [{"type": "text", "key": "allowed_paths", "label": "Allowed Paths (comma-separated)"}]
-
-def init(config):
-    return {"config": config, "runtime_state": {}}
-
-def update_state(state, updates):
-    return {**state, "config": {**state["config"], **updates}}
-
-def get_tool_schemas(state):
-    return [
-        {
-            "type": "function",
-            "function": {
-                "name": "read_file",
-                "description": "Read contents of a text file",
-                "parameters": {
-                    "type": "object",
-                    "properties": {"file_path": {"type": "string", "description": "Path to the file to read"}},
-                    "required": ["file_path"],
-                },
+    @staticmethod
+    def get_config_schema() -> Dict[str, Any]:
+        return {
+            "allowed_paths": {
+                "type": "array",
+                "items": {"type": "string"},
+                "default": ["."],
+                "description": "Allowed base paths for file reading",
+            },
+            "max_file_size": {
+                "type": "integer",
+                "default": 1048576,
+                "description": "Maximum file size in bytes",
             },
         }
-    ]
 
-def execute_tool(tool_name, arguments, state):
-    if tool_name != "read_file":
-        return {"success": False, "error": f"Unknown tool: {tool_name}"}
-    file_path = arguments.get("file_path", "")
-    allowed = state["config"].get("allowed_paths", ["."])
-    if not any(os.path.abspath(file_path).startswith(os.path.abspath(base)) for base in allowed):
-        return {"success": False, "error": f"Access denied: {file_path} not in allowed paths"}
-    try:
-        size = os.path.getsize(file_path)
-        if size > state["config"].get("max_file_size", 1048576):
-            return {"success": False, "error": f"File too large: {size} bytes"}
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        return {"success": True, "result": content}
-    except Exception as e:
-        return {"success": False, "error": f"Error reading file: {str(e)}"}
+    @staticmethod
+    def get_ui_elements() -> List[Dict[str, Any]]:
+        return [{"type": "text", "key": "allowed_paths", "label": "Allowed Paths (comma-separated)"}]
 
-def format_tool_result(result, state):
-    return f"File contents:\n{result['result']}" if result.get("success") else f"Error: {result.get('error')}"
+    @staticmethod
+    def init(config: Dict[str, Any]) -> Dict[str, Any]:
+        return {"config": config, "runtime_state": {}, "ui_state": {}, "capabilities": []}
+
+    @staticmethod
+    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+        return {**state, "config": {**state["config"], **updates}}
+
+    @staticmethod
+    def get_tool_schemas(state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_file",
+                    "description": "Read contents of a text file",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"file_path": {"type": "string", "description": "Path to the file to read"}},
+                        "required": ["file_path"],
+                    },
+                },
+            }
+        ]
+
+    @staticmethod
+    def execute_tool(tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        if tool_name != "read_file":
+            return {"success": False, "error": f"Unknown tool: {tool_name}"}
+        file_path = arguments.get("file_path", "")
+        allowed = state["config"].get("allowed_paths", ["."])
+        if not any(os.path.abspath(file_path).startswith(os.path.abspath(base)) for base in allowed):
+            return {"success": False, "error": f"Access denied: {file_path} not in allowed paths"}
+        try:
+            size = os.path.getsize(file_path)
+            if size > state["config"].get("max_file_size", 1048576):
+                return {"success": False, "error": f"File too large: {size} bytes"}
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            return {"success": True, "result": content}
+        except Exception as e:
+            return {"success": False, "error": f"Error reading file: {str(e)}"}
+
+    @staticmethod
+    def format_tool_result(result: Dict[str, Any], state: Dict[str, Any]) -> str:
+        return (
+            f"File contents:\n{result['result']}" if result.get("success") else f"Error: {result.get('error')}"
+        )
 ```

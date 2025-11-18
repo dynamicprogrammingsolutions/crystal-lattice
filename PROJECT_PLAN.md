@@ -33,20 +33,152 @@ Build a **modular, functional AI agent platform** that enables developers to:
 - **Streaming-first**: Real-time response display
 - **Local-first**: Run entirely on localhost, no external dependencies required
 
-### Potential Naming
+## Core Design Concepts
 
-**Crystal Lattice**
-Meaning: Ordered arrangement of atoms in crystalline solid  
-Why it works: Crystal = pure/clean, lattice = extensible structure; suggests clarity and organization  
-Tagline: Pure architecture, infinite extension
-available domains: crystal-lattice.ai, crystal-lattice.com
+### 1. Functional Programming Paradigm
 
-**Polymer Chain**
-Meaning: Sequence of repeating monomer units
-Why it works: Messages/plugins chain together; suggests growth and connection
+**Immutability:**
 
-**Quantum Lattice**
-Meaning: Lattice structure in quantum mechanics (quantum field theory)
+All transformations return new objects, never mutate. State changes are explicit and traceable.
+
+**Pure Functions:**
+
+Plugin methods (except I/O) are pure functions. Same input always produces same output. Easy to test, debug, and reason about.
+
+**Composition:**
+
+Small, focused functions compose into complex pipelines. Feature A + Feature B = Combined functionality. No hidden interactions or side effects.
+
+### 2. Plugin Architecture
+
+**Modularity:**
+
+Core provides orchestration only. All provider/feature logic lives in plugins. Add/remove plugins without core changes.
+
+**Two-Layer Plugin System:**
+
+- Layer 1: Wrapper (holds state, same language as plugin)
+- Layer 2: Adapter (protocol bridge, core language)
+- Same-language = zero-overhead passthrough
+- Cross-language = subprocess with JSON-RPC
+
+**Shared Provider State:**
+
+- The provider wrapper owns a single shared state object for each request/turn.
+- Provider extensions and feature plugins receive this shared `state` and may return `new_state` which the provider wrapper propagates.
+- Tools are the exception: each tool plugin maintains its own independent state.
+
+State shape remains the same (config, capabilities, runtime_state, ui_state) and updates are immutable.
+
+**Duck Typing:**
+
+Plugin type determined by which functions it implements, not by inheritance. No required base class. Functional architecture without object-oriented constraints.
+
+### 3. Streaming Architecture
+
+**Dual Message Mode:**
+
+Partial messages: streamed token-by-token during generation. Final messages: complete, with metadata (citations, etc.). Frontend shows partials, replaces with final when done. Partials are distinct `PartialMessage` objects `{role, content, metadata}`.
+
+**Provider Extension Model:**
+
+Extensions enhance provider streaming. They can observe and transform provider outputs per-chunk and at finalize.
+
+**Performance Stratification:**
+
+- Hot path (per-chunk): Must be native, same language
+- Cold path (per-turn): Can be cross-language
+- Streaming happens in provider's language
+- Final processing can be any language
+
+### 4. Configuration & State Management
+
+**Unified State:**
+
+config + capabilities + runtime_state + ui_state = provider shared state. State initialized via init(config) on the provider, then propagated through extensions/features. For each request, after init, update_state(state, ui_state) is applied to inject UI settings. initialize_request(...) MUST return state (updated or unchanged). The provider wrapper discards internal shared state after each completed request.
+
+**UI-Driven Updates:**
+
+Frontend UI elements generated from plugin schemas. User interaction → state update → next request uses new state. Example: Toggle "Enable Web Search" → immediate effect.
+
+**Configuration Hierarchy:**
+
+Default provider config → Agent-specific overrides → Environment variables and file references. Application loads and resolves config, Core receives final resolved dict/object.
+
+### 5. Cross-Language Strategy
+
+**Native First:**
+
+Python Core ←→ Python Plugins (default). JavaScript Core ←→ JavaScript Plugins (default). Zero serialization overhead, full language features.
+
+**Cross-Language When Needed:**
+
+Python Core ←→ JavaScript Plugin (via subprocess). JavaScript Core ←→ Python Plugin (via subprocess). Subprocess wrapper manages state internally. JSON-RPC over stdin/stdout.
+
+**Performance Trade-offs:**
+
+- Same language: ~0μs overhead per call
+- Cross-language: ~1-5ms overhead per RPC
+- Acceptable for cold path (once per turn)
+- Not acceptable for hot path (hundreds of times per turn)
+
+### 6. Low-Level Core API
+
+**Separation of Concerns:**
+
+Adding messages and sending requests are separate operations. Tool execution is application-level responsibility, not core. Messages, tool calls, and tool results are all just message types. Full control over conversation flow.
+
+**Message Manipulation:**
+
+Add, remove, or modify any message in conversation. Clear distinction between conversation state and API calls. Application decides when to call tools, core just handles messages.
+
+### 7. Documentation & Testing Principles
+
+**Documentation as Code:**
+
+Documentation is not written after the fact—it's developed alongside the code as an integral part of development. Every function has docstrings, every plugin has a README, every API change updates the reference documentation.
+
+**Test-Driven Development:**
+
+Tests are written before or during implementation, not after. Each feature includes its test suite. Tests serve as living documentation of expected behavior. Code without tests is considered incomplete.
+
+**Executable Examples:**
+
+All examples in documentation are real, runnable code. Examples are tested as part of CI/CD to ensure they never go stale. If an example breaks, it's a bug.
+
+**Layered Documentation:**
+
+- **Code level**: Docstrings and type hints
+- **Module level**: README explaining purpose and basic usage
+- **API level**: Auto-generated reference from docstrings
+- **Guide level**: Tutorials and how-tos for common tasks
+- **Architecture level**: Design decisions and system overview
+
+**Testing Strategy:**
+
+- **Unit tests**: Pure functions, state transformations
+- **Integration tests**: Plugin interactions, pipeline flows
+- **End-to-end tests**: Complete request/response cycles
+- **Examples as tests**: Documentation examples run in CI
+- **Performance tests**: Benchmarks for critical paths
+
+**Documentation-First Changes:**
+
+When proposing a new feature or API change, start with documentation:
+1. Write the documentation showing how it would work
+2. Get feedback on the design
+3. Implement to match the documentation
+4. Tests verify implementation matches docs
+
+**Quality Gates:**
+
+Code cannot be merged without:
+- Passing tests (minimum 80% coverage for new code)
+- Updated documentation
+- Type hints (Python) or TypeScript definitions (JavaScript)
+- Docstrings for public APIs
+- At least one executable example
+
 
 ## Architecture Summary
 
@@ -82,13 +214,13 @@ The platform defines clear protocols for:
 
 ```python
 from agent_core import AgentCore
-from plugins import OpenAIProvider
+from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
 
 # Initialize core (stateless pipeline)
 core = AgentCore()
 
 # Register provider (just the class, no config)
-core.register_provider(OpenAIProvider)
+core.register_provider(OpenAICompatibleProvider)
 
 # Application manages config
 config = {
@@ -122,11 +254,11 @@ print(messages[-1]["content"])  # "6"
 
 ```python
 from agent_core import AgentCore
-from plugins import OpenAIProvider
+from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
 
 # Core stores only pipeline
 core = AgentCore()
-core.register_provider(OpenAIProvider)
+core.register_provider(OpenAICompatibleProvider)
 
 # Application manages config and session
 config = {"model": "gpt-4o", "api_key": "sk-..."}
@@ -147,11 +279,12 @@ for chunk in core.send_request_stream(session, config):
 
 ```python
 from agent_core import AgentCore
-from plugins import OpenAIProvider, FileReaderTool
+from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
+from my_plugins.file_reader_tool import FileReaderTool
 import json
 
 core = AgentCore()
-core.register_provider(OpenAIProvider)
+core.register_provider(OpenAICompatibleProvider)
 core.register_tool(FileReaderTool)
 
 # Application manages config
@@ -160,6 +293,9 @@ config = {
     "api_key": "sk-...",
     "allowed_paths": ["."]  # Tool config mixed in
 }
+
+# Initialize tool state once (tool plugins are stateful)
+tool_state = FileReaderTool.init(config)
 
 session = core.create_session()
 session = core.add_message(session, "user", "Read the contents of README.md")
@@ -183,9 +319,9 @@ for i in range(max_iterations):
         tool_name = tool_call["function"]["name"]
         arguments = json.loads(tool_call["function"]["arguments"])
         
-        # Execute tool (stateless - pass config)
-        result = FileReaderTool.execute_tool(tool_name, arguments, config)
-        formatted = FileReaderTool.format_tool_result(result, config)
+        # Execute tool (stateful - pass initialized state)
+        result = FileReaderTool.execute_tool(tool_name, arguments, tool_state)
+        formatted = FileReaderTool.format_tool_result(result, tool_state)
         
         # Add tool result as message (functional)
         session = core.add_message(
@@ -205,10 +341,10 @@ for i in range(max_iterations):
 
 ```python
 from agent_core import AgentCore
-from plugins import OpenAIProvider
+from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
 
 core = AgentCore()
-core.register_provider(OpenAIProvider)
+core.register_provider(OpenAICompatibleProvider)
 
 config = {"model": "gpt-4", "api_key": "sk-..."}
 
@@ -247,12 +383,13 @@ session = core.add_message(session, "user", "New conversation")
 
 ```python
 from agent_core import AgentCore
-from plugins import OpenAIProvider, WebSearchFeature
+from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
+from my_plugins.web_search_feature import WebSearchFeature
 
 core = AgentCore()
 
 # Register plugins (no config)
-core.register_provider(OpenAIProvider)
+core.register_provider(OpenAICompatibleProvider)
 core.register_feature(WebSearchFeature)
 
 session = core.create_session()
@@ -285,7 +422,9 @@ session, messages = core.send_request(session, config2)
 ```python
 from fastapi import FastAPI, WebSocket
 from agent_core import AgentCore
-from plugins import openai_provider, web_search_feature, file_reader_tool
+from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
+from my_plugins.web_search_feature import WebSearchFeature
+from my_plugins.file_reader_tool import FileReaderTool
 import json
 
 app = FastAPI()
@@ -319,9 +458,9 @@ with open("config.json") as f:
 core = AgentCore()
 
 # Register plugins (just classes, no config)
-core.register_provider(openai_provider)
-core.register_feature(web_search_feature)
-core.register_tool(file_reader_tool)
+core.register_provider(OpenAICompatibleProvider)
+core.register_feature(WebSearchFeature)
+core.register_tool(FileReaderTool)
 
 # Application resolves and merges config
 def get_agent_config(agent_name):
@@ -350,6 +489,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     
     # Application manages config
     agent_config = get_agent_config("default")
+    # Initialize tool state once per connection
+    file_reader_state = FileReaderTool.init(agent_config)
     
     try:
         while True:
@@ -397,15 +538,15 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                             "arguments": arguments
                         })
                         
-                        # Execute (stateless - just pass config)
-                        result = file_reader_tool.execute_tool(
+                        # Execute (stateful - pass initialized tool state)
+                        result = FileReaderTool.execute_tool(
                             tool_name,
                             arguments,
-                            agent_config
+                            file_reader_state
                         )
-                        formatted = file_reader_tool.format_tool_result(
+                        formatted = FileReaderTool.format_tool_result(
                             result,
-                            agent_config
+                            file_reader_state
                         )
                         
                         # Add tool result (functional)
