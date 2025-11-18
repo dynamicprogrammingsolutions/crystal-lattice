@@ -1,0 +1,94 @@
+"""
+PrefixExtension example (class-based provider extension) derived from PLUGIN_EXAMPLES.md.
+Adds a prefix to final assistant messages and counts processed chunks in metadata.
+"""
+from typing import Any, Dict, List, Tuple, Optional
+
+
+class PrefixExtension:
+    name: str = "prefix_extension"
+    version: str = "1.0.0"
+    target_provider: str = "echo"
+
+    @staticmethod
+    def get_config_schema() -> Dict[str, Any]:
+        return {
+            "enabled": {"type": "boolean", "default": True},
+            "prefix": {"type": "string", "default": "[EXT]"},
+        }
+
+    @staticmethod
+    def get_ui_elements() -> List[Dict[str, Any]]:
+        return [
+            {"type": "checkbox", "key": "enabled", "label": "Enable Extension"},
+            {"type": "text", "key": "prefix", "label": "Prefix"},
+        ]
+
+    @staticmethod
+    def init(config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        rs = {**state.get("runtime_state", {}), "extension_processed_chunks": 0}
+        return {**state, "config": {**state.get("config", {}), **config}, "runtime_state": rs}
+
+    @staticmethod
+    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+        return {**state, "config": {**state.get("config", {}), **updates}}
+
+    @staticmethod
+    def to_native_messages(messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        return messages
+
+    @staticmethod
+    def from_native_messages(native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        return messages
+
+    @staticmethod
+    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+        return state
+
+    @staticmethod
+    def process_chunk(
+        native_chunk: Optional[Dict[str, Any]],
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        partial_messages: List[Dict[str, Any]],
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        if not state.get("config", {}).get("enabled", True):
+            return partial_messages, final_messages, native_messages, state
+        processed = state.get("runtime_state", {}).get("extension_processed_chunks", 0) + (
+            1 if native_chunk is not None else 0
+        )
+        rs = {**state.get("runtime_state", {}), "extension_processed_chunks": processed}
+        prefix = state.get("config", {}).get("prefix", "[EXT]")
+        finals = (
+            [
+                {**m, "content": f"{prefix} {m['content']}"}
+                for m in final_messages
+            ]
+            if final_messages
+            else final_messages
+        )
+        if finals:
+            last = finals[-1]
+            finals[-1] = {
+                **last,
+                "metadata": {**last.get("metadata", {}), "extension_processed_chunks": processed},
+            }
+        return partial_messages, finals, native_messages, {**state, "runtime_state": rs}
+
+    @staticmethod
+    def finalize(
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        if not state.get("config", {}).get("enabled", True):
+            return final_messages, native_messages, state
+        prefix = state.get("config", {}).get("prefix", "[EXT]")
+        finals = [{**m, "content": f"{prefix} {m['content']}"} for m in final_messages]
+        if finals:
+            count = state.get("runtime_state", {}).get("extension_processed_chunks", 0)
+            last = finals[-1]
+            finals[-1] = {**last, "metadata": {**last.get("metadata", {}), "extension_processed_chunks": count}}
+        return finals, native_messages, state
