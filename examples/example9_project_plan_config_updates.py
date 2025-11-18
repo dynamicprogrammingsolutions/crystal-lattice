@@ -1,7 +1,11 @@
+"""
+PROJECT_PLAN Example 5: Config Updates + Web Search Feature (Ollama)
+Preserves original prompts and prints when search is enabled.
+"""
 import os
 from agent_core import AgentCore
 from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
-from examples.web_search_feature import WebSearchFeature
+from examples.example3_web_search_feature import WebSearchFeature
 
 
 def run_example():

@@ -1,8 +1,12 @@
+"""
+PROJECT_PLAN Example 3: Tool Calls Loop (Ollama)
+Preserves original messages and uses FileReaderTool.
+"""
 import os
 import json
 from agent_core import AgentCore
 from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
-from examples.file_reader_tool import FileReaderTool
+from examples.example4_file_reader_tool import FileReaderTool
 
 
 def run_example():

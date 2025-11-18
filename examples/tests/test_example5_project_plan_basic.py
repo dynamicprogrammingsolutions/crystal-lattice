@@ -1,7 +1,6 @@
 """
-Integration test for PROJECT_PLAN Example 3 (tool calls) against local Ollama.
+Integration test for PROJECT_PLAN Example 1 against local Ollama.
 Skips gracefully if Ollama is unavailable or model cannot be pulled.
-Note: provider may not emit tool_calls; this test only verifies endpoint call.
 """
 import os
 import shutil
@@ -33,10 +32,13 @@ def _run(cmd: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
 def ensure_model():
     if _which("ollama") is None:
         pytest.skip("ollama is not installed; skipping project plan example test")
+    # Quick ping to the server via ollama ps
     try:
         _run(["ollama", "ps"], timeout=30)
     except Exception:
         pytest.skip("ollama command unavailable or not responding; skipping")
+
+    # Pull model if needed (idempotent)
     try:
         cp = _run(["ollama", "pull", MODEL], timeout=600)
         if cp.returncode != 0:
@@ -47,10 +49,11 @@ def ensure_model():
 
 
 @pytest.mark.integration
-def test_project_plan_example3_tool_calls_runs(ensure_model):
+def test_project_plan_example1_basic_runs(ensure_model):
+    # The example reads OLLAMA_HOST/OLLAMA_MODEL from env
     os.environ.setdefault("OLLAMA_HOST", OLLAMA_HOST)
     os.environ.setdefault("OLLAMA_MODEL", MODEL)
 
-    mod = __import__("examples.project_plan_example3_tool_calls", fromlist=["run_example"])
+    mod = __import__("examples.example5_project_plan_basic", fromlist=["run_example"])
     assert hasattr(mod, "run_example")
     mod.run_example()

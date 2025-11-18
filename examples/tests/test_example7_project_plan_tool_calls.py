@@ -1,6 +1,7 @@
 """
-Integration test for PROJECT_PLAN Example 4 (message history manipulation) against local Ollama.
+Integration test for PROJECT_PLAN Example 3 (tool calls) against local Ollama.
 Skips gracefully if Ollama is unavailable or model cannot be pulled.
+Note: provider may not emit tool_calls; this test only verifies endpoint call.
 """
 import os
 import shutil
@@ -46,10 +47,10 @@ def ensure_model():
 
 
 @pytest.mark.integration
-def test_project_plan_example4_messages_runs(ensure_model):
+def test_project_plan_example3_tool_calls_runs(ensure_model):
     os.environ.setdefault("OLLAMA_HOST", OLLAMA_HOST)
     os.environ.setdefault("OLLAMA_MODEL", MODEL)
 
-    mod = __import__("examples.project_plan_example4_messages", fromlist=["run_example"])
+    mod = __import__("examples.example7_project_plan_tool_calls", fromlist=["run_example"])
     assert hasattr(mod, "run_example")
     mod.run_example()

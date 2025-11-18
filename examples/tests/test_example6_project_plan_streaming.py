@@ -53,6 +53,6 @@ def test_project_plan_example2_streaming_runs(ensure_model):
     os.environ.setdefault("OLLAMA_HOST", OLLAMA_HOST)
     os.environ.setdefault("OLLAMA_MODEL", MODEL)
 
-    mod = __import__("examples.project_plan_example2_streaming", fromlist=["run_example"])
+    mod = __import__("examples.example6_project_plan_streaming", fromlist=["run_example"])
     assert hasattr(mod, "run_example")
     mod.run_example()

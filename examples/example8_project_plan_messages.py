@@ -1,3 +1,7 @@
+"""
+PROJECT_PLAN Example 4: Message History Manipulation (Ollama)
+Preserves original message sequence and edits.
+"""
 import os
 from agent_core import AgentCore
 from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider

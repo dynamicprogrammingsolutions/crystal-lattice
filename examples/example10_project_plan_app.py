@@ -1,8 +1,12 @@
+"""
+PROJECT_PLAN Example 6: FastAPI/WebSocket App (Ollama)
+Runs a simple WS endpoint using the core and plugins.
+"""
 from fastapi import FastAPI, WebSocket
 from agent_core import AgentCore
 from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
-from my_plugins.web_search_feature import WebSearchFeature
-from my_plugins.file_reader_tool import FileReaderTool
+from examples.example3_web_search_feature import WebSearchFeature
+from examples.example4_file_reader_tool import FileReaderTool
 import json
 
 app = FastAPI()

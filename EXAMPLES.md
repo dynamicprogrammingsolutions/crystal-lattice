@@ -1,27 +1,29 @@
-# Examples (Code + Tests)
+# Examples
 
-Each example below includes:
-- Actual code (identical to the file in `examples/`)
-- Link to code file and its test
-- Command to run the test for that example only
+## PROJECT_PLAN Example 6: FastAPI/WebSocket App (Ollama)
 
-Note: Examples tests are placed in `examples/tests/` and are not part of the core test suite. Run them explicitly as shown.
+PROJECT_PLAN Example 6: FastAPI/WebSocket App (Ollama)
+Runs a simple WS endpoint using the core and plugins.
 
----
-
-## Echo Provider (streaming)
-- Code: examples/echo_provider.py
-- Test: examples/tests/example_echo_provider.py
-- Run: `pytest examples/tests/example_echo_provider.py -q`
+Usage (run_example)
 
 ```python
-# examples/echo_provider.py
-"""
+return app
+```
+
+- Code: `examples/example10_project_plan_app.py`
+- Test: `examples/tests/test_example10_project_plan_app.py`
+- Run: `pytest -q examples/tests/test_example10_project_plan_app.py`
+
+## EchoProvider example (class-based provider plugin) derived from PLUGIN_EXAMPLES.md.
+
 EchoProvider example (class-based provider plugin) derived from PLUGIN_EXAMPLES.md.
 Streams characters of "Echo: <last user message>" as native chunks, and finalizes the full message.
-"""
-from typing import Any, Dict, List, Iterator, Tuple
 
+Plugin code
+
+```python
+from typing import Any, Dict, List, Iterator, Tuple
 
 class EchoProvider:
     name = "echo"
@@ -65,7 +67,7 @@ class EchoProvider:
     @staticmethod
     def process_chunk(
         native_chunk: Dict[str, Any],
-        messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         acc = state.get("runtime_state", {}).get("accumulated", "") + native_chunk.get("content", "")
@@ -98,21 +100,19 @@ class EchoProvider:
         return ([{"role": "assistant", "content": content, "metadata": {}}], [], [], state)
 ```
 
----
+- Code: `examples/example1_echo_provider.py`
+- Test: `examples/tests/test_example1_echo_provider.py`
+- Run: `pytest -q examples/tests/test_example1_echo_provider.py`
 
-## Prefix Extension
-- Code: examples/prefix_extension.py
-- Test: examples/tests/example_prefix_extension.py
-- Run: `pytest examples/tests/example_prefix_extension.py -q`
+## PrefixExtension example (class-based provider extension) derived from PLUGIN_EXAMPLES.md.
 
-```python
-# examples/prefix_extension.py
-"""
 PrefixExtension example (class-based provider extension) derived from PLUGIN_EXAMPLES.md.
 Adds a prefix to final assistant messages and counts processed chunks in metadata.
-"""
-from typing import Any, Dict, List, Tuple, Optional
 
+Plugin code
+
+```python
+from typing import Any, Dict, List, Tuple, Optional
 
 class PrefixExtension:
     name: str = "prefix_extension"
@@ -203,21 +203,19 @@ class PrefixExtension:
         return finals, native_messages, state
 ```
 
----
+- Code: `examples/example2_prefix_extension.py`
+- Test: `examples/tests/test_example2_prefix_extension.py`
+- Run: `pytest -q examples/tests/test_example2_prefix_extension.py`
 
-## Web Search Feature
-- Code: examples/web_search_feature.py
-- Test: examples/tests/example_web_search_feature.py
-- Run: `pytest examples/tests/example_web_search_feature.py -q`
+## WebSearchFeature example (class-based feature plugin) derived from PLUGIN_EXAMPLES.md.
+
+WebSearchFeature example (class-based feature plugin) derived from PLUGIN_EXAMPLES.md.
+This feature marks finals with metadata when web_search_enabled is True and prints a notice.
+
+Plugin code
 
 ```python
-# examples/web_search_feature.py
-"""
-WebSearchFeature example (class-based feature plugin) derived from PLUGIN_EXAMPLES.md.
-This feature marks finals with metadata when web_search_enabled is True.
-"""
 from typing import Any, Dict, List, Tuple
-
 
 class WebSearchFeature:
     name: str = "web_search"
@@ -265,6 +263,9 @@ class WebSearchFeature:
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         if not state.get("config", {}).get("web_search_enabled"):
             return final_messages, native_messages, state
+        # Print a simple notice to stdout when enabled
+        max_results = state.get("config", {}).get("max_results")
+        print(f"[WebSearchFeature] Search enabled; annotating finals (max_results={max_results})")
         finals = [
             {**m, "metadata": {**m.get("metadata", {}), "web_search_used": True}}
             for m in final_messages
@@ -272,21 +273,19 @@ class WebSearchFeature:
         return finals, native_messages, state
 ```
 
----
+- Code: `examples/example3_web_search_feature.py`
+- Test: `examples/tests/test_example3_web_search_feature.py`
+- Run: `pytest -q examples/tests/test_example3_web_search_feature.py`
 
-## File Reader Tool
-- Code: examples/file_reader_tool.py
-- Test: examples/tests/example_file_reader_tool.py
-- Run: `pytest examples/tests/example_file_reader_tool.py -q`
+## FileReaderTool example (class-based tool plugin) derived from PLUGIN_EXAMPLES.md.
+
+FileReaderTool example (class-based tool plugin) derived from PLUGIN_EXAMPLES.md.
+
+Plugin code
 
 ```python
-# examples/file_reader_tool.py
-"""
-FileReaderTool example (class-based tool plugin) derived from PLUGIN_EXAMPLES.md.
-"""
 import os
 from typing import Any, Dict, List
-
 
 class FileReaderTool:
     name: str = "file_reader"
@@ -362,15 +361,23 @@ class FileReaderTool:
         )
 ```
 
----
+- Code: `examples/example4_file_reader_tool.py`
+- Test: `examples/tests/test_example4_file_reader_tool.py`
+- Run: `pytest -q examples/tests/test_example4_file_reader_tool.py`
 
-## PROJECT_PLAN Example 1: Basic API
-- Code: examples/project_plan_example1_basic.py
-- Test: examples/tests/example_project_plan_example1_basic.py
-- Run: `pytest examples/tests/example_project_plan_example1_basic.py -q`
+## PROJECT_PLAN Example 1: Basic Low-Level API Usage (Python)
+
+PROJECT_PLAN Example 1: Basic Low-Level API Usage (Python)
+Configured to call a local Ollama OpenAI-compatible endpoint.
+
+Environment variables (optional):
+- OLLAMA_HOST (default: http://localhost:11434)
+- OLLAMA_MODEL (default: llama3.2:1b)
+
+Usage (run_example)
 
 ```python
-# examples/project_plan_example1_basic.py
+import os
 from agent_core import AgentCore
 from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
 
@@ -380,10 +387,17 @@ core = AgentCore()
 # Register provider (just the class, no config)
 core.register_provider(OpenAICompatibleProvider)
 
+# Discover Ollama endpoint/model from env
+ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+base_url = f"{ollama_host}/v1"
+model = os.getenv("OLLAMA_MODEL", "llama3.2:1b")
+
 # Application manages config
 config = {
-    "model": "gpt-4o",
-    "api_key": "sk-..."
+    "model": model,
+    "base_url": base_url,
+    # No API key required for local Ollama
+    "timeout": 60,
 }
 
 # Application creates and manages session (immutable)
@@ -395,73 +409,89 @@ session = core.add_message(session, "user", "What is 2+2?")
 
 # Send request (returns new session + final messages)
 session, messages = core.send_request(session, config)
-print(messages[-1]["content"])  # "4"
+print(messages[-1]["content"])  # expect some text
 
 # Messages now include the assistant response(s)
-print(len(session.messages))  # 3
+print(len(session.messages))  # expect 3
 
 # Add another message (functional - returns new session)
 session = core.add_message(session, "user", "What about 3+3?")
 
 # Send again
 session, messages = core.send_request(session, config)
-print(messages[-1]["content"])  # "6"
+print(messages[-1]["content"])  # expect some text
 ```
 
----
+- Code: `examples/example5_project_plan_basic.py`
+- Test: `examples/tests/test_example5_project_plan_basic.py`
+- Run: `pytest -q examples/tests/test_example5_project_plan_basic.py`
 
-## PROJECT_PLAN Example 2: Streaming
-- Code: examples/project_plan_example2_streaming.py
-- Test: examples/tests/example_project_plan_example2_streaming.py
-- Run: `pytest examples/tests/example_project_plan_example2_streaming.py -q`
+## PROJECT_PLAN Example 2: Streaming with Low-Level API
+
+PROJECT_PLAN Example 2: Streaming with Low-Level API
+Configured to call a local Ollama OpenAI-compatible endpoint.
+
+Environment variables (optional):
+- OLLAMA_HOST (default: http://localhost:11434)
+- OLLAMA_MODEL (default: llama3.2:1b)
+
+Usage (run_example)
 
 ```python
-# examples/project_plan_example2_streaming.py
-from agent_core import AgentCore
-from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
-
-# Core stores only pipeline
 core = AgentCore()
 core.register_provider(OpenAICompatibleProvider)
 
+# Discover Ollama endpoint/model from env
+ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+base_url = f"{ollama_host}/v1"
+model = os.getenv("OLLAMA_MODEL", "llama3.2:1b")
+
 # Application manages config and session
-config = {"model": "gpt-4o", "api_key": "sk-..."}
+config = {
+    "model": model,
+    "base_url": base_url,
+    "timeout": 60,
+}
 session = core.create_session()
 session = core.add_message(session, "user", "Write a short poem")
 
 # Stream response (functional - returns new session at end)
 for chunk in core.send_request_stream(session, config):
     if chunk["type"] == "partial":
-        print(chunk["message"]["content"], end="", flush=True)
+        print(chunk["message"].get("content", ""), end="", flush=True)
     elif chunk["type"] == "final":
         # Get new session with response message
         session = chunk["session"]
         print("\n[Done]")
 ```
 
----
+- Code: `examples/example6_project_plan_streaming.py`
+- Test: `examples/tests/test_example6_project_plan_streaming.py`
+- Run: `pytest -q examples/tests/test_example6_project_plan_streaming.py`
 
-## PROJECT_PLAN Example 3: Tool Calls
-- Code: examples/project_plan_example3_tool_calls.py
-- Test: examples/tests/example_project_plan_example3_tool_calls.py
-- Run: `pytest examples/tests/example_project_plan_example3_tool_calls.py -q` (expected to fail until provider emits tool calls)
+## PROJECT_PLAN Example 3: Tool Calls Loop (Ollama)
+
+PROJECT_PLAN Example 3: Tool Calls Loop (Ollama)
+Preserves original messages and uses FileReaderTool.
+
+Usage (run_example)
 
 ```python
-# examples/project_plan_example3_tool_calls.py
-from agent_core import AgentCore
-from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
-from my_plugins.file_reader_tool import FileReaderTool
-import json
-
 core = AgentCore()
 core.register_provider(OpenAICompatibleProvider)
 core.register_tool(FileReaderTool)
 
-# Application manages config
+# Discover Ollama endpoint/model from env
+ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+base_url = f"{ollama_host}/v1"
+model = os.getenv("OLLAMA_MODEL", "llama3.2:1b")
+
+# Application manages config (mixing tool config)
 config = {
-    "model": "gpt-4",
-    "api_key": "sk-...",
-    "allowed_paths": ["."]  # Tool config mixed in
+    "model": model,
+    "base_url": base_url,
+    "timeout": 60,
+    "allowed_paths": ["."]
 }
 
 # Initialize tool state once (tool plugins are stateful)
@@ -475,24 +505,24 @@ max_iterations = 5
 for i in range(max_iterations):
     # Send request (functional)
     session, messages = core.send_request(session, config)
-    
+
     # Check for tool calls
     tool_calls = messages[-1].get("metadata", {}).get("tool_calls", [])
-    
+
     if not tool_calls:
         # No tools, we're done
         print("Assistant:", messages[-1]["content"])
         break
-    
+
     # Execute tools (application responsibility)
     for tool_call in tool_calls:
         tool_name = tool_call["function"]["name"]
         arguments = json.loads(tool_call["function"]["arguments"])
-        
+
         # Execute tool (stateful - pass initialized state)
         result = FileReaderTool.execute_tool(tool_name, arguments, tool_state)
         formatted = FileReaderTool.format_tool_result(result, tool_state)
-        
+
         # Add tool result as message (functional)
         session = core.add_message(
             session,
@@ -503,26 +533,33 @@ for i in range(max_iterations):
                 "name": tool_name
             }
         )
-    
-    # Loop continues with tool results in conversation
 ```
 
----
+- Code: `examples/example7_project_plan_tool_calls.py`
+- Test: `examples/tests/test_example7_project_plan_tool_calls.py`
+- Run: `pytest -q examples/tests/test_example7_project_plan_tool_calls.py`
 
-## PROJECT_PLAN Example 4: Message Manipulation
-- Code: examples/project_plan_example4_messages.py
-- Test: examples/tests/example_project_plan_example4_messages.py
-- Run: `pytest examples/tests/example_project_plan_example4_messages.py -q`
+## PROJECT_PLAN Example 4: Message History Manipulation (Ollama)
+
+PROJECT_PLAN Example 4: Message History Manipulation (Ollama)
+Preserves original message sequence and edits.
+
+Usage (run_example)
 
 ```python
-# examples/project_plan_example4_messages.py
-from agent_core import AgentCore
-from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
-
 core = AgentCore()
 core.register_provider(OpenAICompatibleProvider)
 
-config = {"model": "gpt-4", "api_key": "sk-..."}
+# Discover Ollama endpoint/model from env
+ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+base_url = f"{ollama_host}/v1"
+model = os.getenv("OLLAMA_MODEL", "llama3.2:1b")
+
+config = {
+    "model": model,
+    "base_url": base_url,
+    "timeout": 60,
+}
 
 session = core.create_session()
 
@@ -533,7 +570,6 @@ session = core.add_message(session, "assistant", "Hi! How can I help?")
 session = core.add_message(session, "user", "What's the weather?")
 
 # Remove last message (functional)
-from agent_core.types import Session
 session = Session(
     session_id=session.session_id,
     messages=session.messages[:-1],
@@ -555,19 +591,18 @@ session = Session(
 session = core.add_message(session, "user", "New conversation")
 ```
 
----
+- Code: `examples/example8_project_plan_messages.py`
+- Test: `examples/tests/test_example8_project_plan_messages.py`
+- Run: `pytest -q examples/tests/test_example8_project_plan_messages.py`
 
-## PROJECT_PLAN Example 5: Configuration Updates
-- Code: examples/project_plan_example5_config_updates.py
-- Test: examples/tests/example_project_plan_example5_config_updates.py
-- Run: `pytest examples/tests/example_project_plan_example5_config_updates.py -q`
+## PROJECT_PLAN Example 5: Config Updates + Web Search Feature (Ollama)
+
+PROJECT_PLAN Example 5: Config Updates + Web Search Feature (Ollama)
+Preserves original prompts and prints when search is enabled.
+
+Usage (run_example)
 
 ```python
-# examples/project_plan_example5_config_updates.py
-from agent_core import AgentCore
-from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
-from my_plugins.web_search_feature import WebSearchFeature
-
 core = AgentCore()
 
 # Register plugins (no config)
@@ -576,190 +611,40 @@ core.register_feature(WebSearchFeature)
 
 session = core.create_session()
 
+# Discover Ollama endpoint/model from env
+ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+base_url = f"{ollama_host}/v1"
+model = os.getenv("OLLAMA_MODEL", "llama3.2:1b")
+
 # Application manages config
 config1 = {
-    "model": "gpt-4o",
-    "api_key": "sk-...",
-    "web_search_enabled": False
+    "model": model,
+    "base_url": base_url,
+    "timeout": 60,
+    "web_search_enabled": False,
 }
 
 # Initial request without search
+session = core.add_message(session, "system", "Your task is to find the latest news in a topic. Return the most important 3 news with just the headline. No summary is needed, just a short headline.")
 session = core.add_message(session, "user", "Latest AI news")
 session, messages = core.send_request(session, config1)
+print(messages[-1]["content"])
+print(messages[-1]["metadata"])
 
 # User enables search in UI - application updates config
 config2 = {
     **config1,
     "web_search_enabled": True,
-    "max_results": 10
+    "max_results": 10,
 }
 
 # Next request uses search
 session = core.add_message(session, "user", "More AI news")
 session, messages = core.send_request(session, config2)
+print(messages[-1]["content"])
+print(messages[-1]["metadata"])
 ```
 
----
-
-## PROJECT_PLAN Example 6: Full App (Not Implemented)
-- Code: examples/project_plan_example6_app.py
-- Test: examples/tests/example_project_plan_example6_app.py
-- Run: `pytest examples/tests/example_project_plan_example6_app.py -q` (expected to fail)
-
-```python
-# examples/project_plan_example6_app.py
-from fastapi import FastAPI, WebSocket
-from agent_core import AgentCore
-from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
-from my_plugins.web_search_feature import WebSearchFeature
-from my_plugins.file_reader_tool import FileReaderTool
-import json
-
-app = FastAPI()
-
-# Load and resolve config (application responsibility)
-import os
-
-def resolve_config(config):
-    """Resolve ${env:...} and ${file:...} references"""
-    resolved = {}
-    for key, value in config.items():
-        if isinstance(value, str):
-            if value.startswith("${env:"):
-                var_name = value[6:-1]
-                resolved[key] = os.getenv(var_name)
-            elif value.startswith("${file:"):
-                file_path = value[7:-1]
-                with open(os.path.expanduser(file_path)) as f:
-                    resolved[key] = f.read().strip()
-            else:
-                resolved[key] = value
-        else:
-            resolved[key] = value
-    return resolved
-
-# Load config from file
-with open("config.json") as f:
-    config = json.load(f)
-
-# Initialize core
-core = AgentCore()
-
-# Register plugins (just classes, no config)
-core.register_provider(OpenAICompatibleProvider)
-core.register_feature(WebSearchFeature)
-core.register_tool(FileReaderTool)
-
-# Application resolves and merges config
-def get_agent_config(agent_name):
-    """Resolve and merge config for an agent."""
-    agent_config = config["agents"][agent_name]
-    provider_name = agent_config.get("provider", "openai")
-    
-    # Start with provider defaults
-    merged = resolve_config(config["providers"]["defaults"][provider_name].copy())
-    
-    # Merge agent-specific config (flat structure)
-    merged.update(resolve_config(agent_config))
-    
-    return merged
-
-# Application manages sessions
-sessions = {}
-
-@app.websocket("/ws/{session_id}")
-async def websocket_endpoint(websocket: WebSocket, session_id: str):
-    await websocket.accept()
-    
-    if session_id not in sessions:
-        sessions[session_id] = core.create_session(session_id)
-    session = sessions[session_id]
-    
-    # Application manages config
-    agent_config = get_agent_config("default")
-    # Initialize tool state once per connection
-    file_reader_state = FileReaderTool.init(agent_config)
-    
-    try:
-        while True:
-            data = await websocket.receive_json()
-            
-            if data["type"] == "message":
-                # Add user message (functional)
-                session = core.add_message(session, "user", data["content"])
-                
-                # Tool loop (application logic)
-                max_iterations = 5
-                for i in range(max_iterations):
-                    # Stream response (functional - pass config)
-                    final_messages = []
-                    async for chunk in core.send_request_stream_async(session, agent_config):
-                        if chunk["type"] == "partial":
-                            await websocket.send_json({
-                                "type": "partial",
-                                "content": chunk["message"]["content"]
-                            })
-                        elif chunk["type"] == "final":
-                            session = chunk["session"]
-                            final_messages = chunk["messages"]
-                    
-                    # Check for tool calls
-                    tool_calls = (final_messages[-1] if final_messages else {}).get("metadata", {}).get("tool_calls", [])
-                    
-                    if not tool_calls:
-                        # Done
-                        await websocket.send_json({
-                            "type": "final",
-                            "messages": final_messages
-                        })
-                        break
-                    
-                    # Execute tools
-                    for tool_call in tool_calls:
-                        tool_name = tool_call["function"]["name"]
-                        arguments = json.loads(tool_call["function"]["arguments"])
-                        
-                        # Notify frontend
-                        await websocket.send_json({
-                            "type": "tool_call",
-                            "name": tool_name,
-                            "arguments": arguments
-                        })
-                        
-                        # Execute (stateful - pass initialized tool state)
-                        result = FileReaderTool.execute_tool(
-                            tool_name,
-                            arguments,
-                            file_reader_state
-                        )
-                        formatted = FileReaderTool.format_tool_result(
-                            result,
-                            file_reader_state
-                        )
-                        
-                        # Add tool result (functional)
-                        session = core.add_message(
-                            session,
-                            "tool",
-                            formatted,
-                            metadata={
-                                "tool_call_id": tool_call["id"],
-                                "name": tool_name
-                            }
-                        )
-                    
-                    # Continue loop with tool results
-            
-            elif data["type"] == "update_config":
-                # Application updates its config
-                agent_config = {**agent_config, **data["updates"]}
-                sessions[session_id] = session  # Store updated session
-    
-    except Exception as e:
-        print(f"Error: {e}")
-        await websocket.close()
-
-# Optional: allow tests to import and touch the app
-def run_example():
-    return app
-```
+- Code: `examples/example9_project_plan_config_updates.py`
+- Test: `examples/tests/test_example9_project_plan_config_updates.py`
+- Run: `pytest -q examples/tests/test_example9_project_plan_config_updates.py`

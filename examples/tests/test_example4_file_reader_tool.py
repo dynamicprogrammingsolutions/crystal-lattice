@@ -14,7 +14,7 @@ if CORE_PY not in sys.path:
 
 
 def test_file_reader_tool_reads_file():
-    FileReaderTool = __import__("examples.file_reader_tool", fromlist=["FileReaderTool"]).FileReaderTool
+    FileReaderTool = __import__("examples.example4_file_reader_tool", fromlist=["FileReaderTool"]).FileReaderTool
 
     cfg = {"allowed_paths": ["."], "max_file_size": 1024 * 1024}
     state = FileReaderTool.init(cfg)

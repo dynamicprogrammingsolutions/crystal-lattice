@@ -14,7 +14,7 @@ if CORE_PY not in sys.path:
 
 def test_echo_provider_streaming_and_finalize():
     from agent_core import AgentCore
-    EchoProvider = __import__("examples.echo_provider", fromlist=["EchoProvider"]).EchoProvider
+    EchoProvider = __import__("examples.example1_echo_provider", fromlist=["EchoProvider"]).EchoProvider
 
     core = AgentCore()
     core.register_provider(EchoProvider)
