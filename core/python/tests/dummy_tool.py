@@ -13,7 +13,7 @@ from dataclasses import dataclass
 class DummyCalculator:
     """
     Dummy calculator tool plugin (stateless with state parameter).
-    All methods are static and take state as parameter.
+    Instance methods use the provided state parameter.
     """
 
     name: str = "dummy_calculator"
@@ -27,8 +27,7 @@ class DummyCalculator:
         """Return UI elements."""
         return []
 
-    @staticmethod
-    def init(config: Dict[str, Any]) -> Dict[str, Any]:
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
         Initialize tool state.
 
@@ -58,8 +57,7 @@ class DummyCalculator:
         """
         return {**state, "config": {**state["config"], **updates}}
 
-    @staticmethod
-    def get_tool_schemas(state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return tool schemas."""
         return [
             {
@@ -79,8 +77,8 @@ class DummyCalculator:
             }
         ]
 
-    @staticmethod
     def execute_tool(
+        self,
         tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Execute tool."""
@@ -91,8 +89,7 @@ class DummyCalculator:
 
         return {"success": False, "error": f"Unknown tool: {tool_name}"}
 
-    @staticmethod
-    def format_tool_result(result: Dict[str, Any], state: Dict[str, Any]) -> str:
+    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
         """Format tool result."""
         if result["success"]:
             return f"Result: {result['result']}"
