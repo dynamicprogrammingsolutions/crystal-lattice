@@ -5,8 +5,9 @@ Goal
 - After the plugins are migrated, align wrapper protocol types to be fully compatible with the plugin types so wrappers can be removed in a follow-up step.
 
 Ground rules
-- Keep signatures the same aside from adding `self` (retain existing parameters like `state`, `config`, etc.).
-- Migrate in safe, testable slices: one plugin type per commit, keep tests green after each slice.
+- For plugin protocols: keep method parameters identical aside from adding `self`; retain existing `state`, `config`, etc.
+- For wrappers/adapters: align method names and signatures exactly to the plugin protocols (including renames like `initialize` -> `init` and adding explicit `state` parameters). Update AgentCore call sites in the same slice to keep tests green.
+- Migrate in safe, testable slices: one plugin type per commit where possible; keep tests green after each slice.
 - Avoid unrelated changes; update docs/tests/examples alongside code.
 
 0) Baseline
@@ -66,10 +67,34 @@ Ground rules
 7) Update duck-typed discovery
 - `core/python/agent_core/core.py` uses `hasattr(obj, "stream_api")`/`"call_api"` to classify providers. Instance migration keeps attributes on the class, so discovery logic can remain unchanged. Verify by running example discovery tests.
 
-8) Align Wrapper Protocol Types with Plugin Protocols
-- In `core/python/agent_core/types.py`, update `BaseWrapper`, `ProviderWrapperProtocol`, `ExtensionWrapperProtocol`, `FeatureWrapperProtocol`, and `ToolWrapperProtocol` so their instance method signatures mirror the instance-based plugin protocols.
-- Ensure no wrapper-only methods remain that differ in name/signature from plugin types unless required by orchestration; aim for 1:1 compatibility.
-- Update adapters (`provider.py`, `extension.py`, `feature.py`, `tool.py`) and any `AgentCore` usage to satisfy the updated wrapper protocols without changing observable behavior.
+8) Align Wrappers/Adapters to Plugin Signatures
+- Update wrapper protocols and adapters to exactly match plugin protocol method names and signatures while preserving current wrapper-managed state behavior.
+- Provider wrapper/adapters: rename and add explicit state parameters to match `ProviderPlugin`.
+  - `initialize(config)` -> `init(config)` -> `Dict[str, Any]` (return initial state)
+  - `update_state(updates)` -> `update_state(state, updates)` -> `Dict[str, Any]`
+  - `to_native_messages(messages)` -> `to_native_messages(messages, state)` -> `List[Dict]`
+  - `initialize_request(native_messages)` -> `initialize_request(native_messages, state)` -> `Dict[str, Any]`
+  - `call_api(native_messages)` -> `call_api(native_messages, state)` -> `Tuple[..., Dict]`
+  - `stream_api(native_messages)` -> `stream_api(native_messages, state)` -> `Iterator[...]`
+  - `process_chunk(native_chunk, native_messages)` -> `process_chunk(native_chunk, native_messages, state)` -> `Tuple[..., Dict]`
+  - `finalize(native_messages)` -> `finalize(native_messages, state)` -> `Tuple[..., Dict]`
+  - Expose `from_native_messages(native_messages, state)` and `to_display_format(message, state)` to match `ProviderPlugin` (no-op or `NotImplementedError` if not used yet).
+  - Keep capability detection consistent: plugin keeps `@staticmethod detect_capabilities(config) -> List[str]`; wrapper/adapter provides an instance `detect_capabilities(config)` passthrough.
+- Tool wrapper/adapters: rename and add explicit state parameters to match `ToolPlugin`.
+  - `initialize(config)` -> `init(config)` -> `Dict[str, Any]`
+  - `update_state(updates)` -> `update_state(state, updates)` -> `Dict[str, Any]`
+  - `get_tool_schemas()` -> `get_tool_schemas(state)` -> `List[Dict]`
+  - `execute_tool(tool_name, arguments)` -> `execute_tool(tool_name, arguments, state)` -> `Dict`
+  - `format_tool_result(result)` -> `format_tool_result(result, state)` -> `str`
+- Extension and Feature wrappers: already aligned; verify wrappers implement `ProviderExtensionPlugin` and `FeaturePlugin` directly.
+- Adapters: ensure `ProviderAdapter` and `ToolAdapter` pass through and return state per the new signatures.
+- AgentCore call sites: update to the new signatures and thread state explicitly.
+  - Replace `_provider.initialize(config)` with `state = _provider.init(config)`.
+  - Replace `_provider.update_state(ui_state)` with `state = _provider.update_state(state, ui_state)`.
+  - Pass `state` into `to_native_messages`, `initialize_request`, `call_api`/`stream_api`/`process_chunk`/`finalize`, capturing and threading returned state.
+- Wrapper-only helpers remain wrapper-specific orchestration utilities and can coexist with plugin parity:
+  - `get_state`/`set_state`/`reset_state`, `apply_extension_transforms`, extension UI/config aggregation.
+- Tests/types: adjust affected tests and type hints; keep observable behavior unchanged.
 - Run full test suite and type checks.
 
 9) Documentation and examples

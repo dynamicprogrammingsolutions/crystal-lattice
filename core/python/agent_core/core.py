@@ -80,24 +80,23 @@ class AgentCore:
 
     def _pre_request(
         self, session: Session, config: Dict[str, Any]
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-        """Prepare state and inputs for a request; returns (messages, native_messages)."""
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        """Prepare state and inputs for a request; returns (messages, native_messages, state)."""
         assert self._provider is not None
         # Init chain: Provider → Extensions (inside provider) → Features
-        self._provider.initialize(config)
+        state = self._provider.init(config)
         ui_state = config.get("ui_state", {})
         # Update chain: Provider → Extensions (inside provider) → Features
         if ui_state:
-            self._provider.update_state(ui_state)
+            state = self._provider.update_state(state, ui_state)
         for feature in self._features:
-            state = self._provider.get_state()
             state = feature.init(config, state)
             state = feature.update_state(state, ui_state) if ui_state else state
             self._provider.set_state(state)
         # Build messages
         messages = [msg.to_dict() for msg in session.messages]
         # Provider-first conversion (native_base for stateless transforms)
-        native_messages = self._provider.to_native_messages(messages)
+        native_messages = self._provider.to_native_messages(messages, state)
         # Apply stateless transforms: Extensions then Features
         native_messages = self._provider.apply_extension_transforms(
             messages, native_messages
@@ -105,12 +104,11 @@ class AgentCore:
         for feature in self._features:
             native_messages = feature.to_native_messages(messages, native_messages)
         # Initialize request chains
-        self._provider.initialize_request(native_messages)
+        state = self._provider.initialize_request(native_messages, state)
         for feature in self._features:
-            state = self._provider.get_state()
             state = feature.initialize_request(native_messages, state)
             self._provider.set_state(state)
-        return messages, native_messages
+        return messages, native_messages, state
 
     def send_request(
         self, session: Session, config: Dict[str, Any]
@@ -120,14 +118,14 @@ class AgentCore:
         """
         if not self._provider:
             raise RuntimeError("No provider registered")
-        messages, native_messages = self._pre_request(session, config)
+        messages, native_messages, state = self._pre_request(session, config)
         final_messages_1, partial_messages, native_messages, state = (
-            self._provider.call_api(native_messages)
+            self._provider.call_api(native_messages, state)
         )
 
         # maybe redundant, but the API is defined this way
         final_messages_2, native_messages, state = self._provider.finalize(
-            native_messages
+            native_messages, state
         )
 
         # Combine finals from call_api and provider.finalize
@@ -155,13 +153,13 @@ class AgentCore:
         """
         if not self._provider:
             raise RuntimeError("No provider registered")
-        messages, native_messages = self._pre_request(session, config)
+        messages, native_messages, state = self._pre_request(session, config)
         aggregated_finals: List[Dict[str, Any]] = []
 
         # Stream from provider
-        for native_chunk in self._provider.stream_api(native_messages):
-            final_messages, partial_msgs, native_messages = (
-                self._provider.process_chunk(native_chunk, native_messages)
+        for native_chunk in self._provider.stream_api(native_messages, state):
+            final_messages, partial_msgs, native_messages, state = (
+                self._provider.process_chunk(native_chunk, native_messages, state)
             )
             for p in partial_msgs:
                 yield {"type": "partial", "message": p}
@@ -170,7 +168,7 @@ class AgentCore:
 
         # Finalize
         final_messages, native_messages, state = self._provider.finalize(
-            native_messages
+            native_messages, state
         )
 
         # Feature finalize chain
@@ -198,13 +196,13 @@ class AgentCore:
         if not self._provider:
             raise RuntimeError("No provider registered")
 
-        messages, native_messages = self._pre_request(session, config)
+        messages, native_messages, state = self._pre_request(session, config)
         aggregated_finals: List[Dict[str, Any]] = []
 
         # Stream from provider (async)
-        async for native_chunk in self._provider.stream_api_async(native_messages):
-            final_messages, partial_msgs, native_messages = (
-                self._provider.process_chunk(native_chunk, native_messages)
+        async for native_chunk in self._provider.stream_api_async(native_messages, state):
+            final_messages, partial_msgs, native_messages, state = (
+                self._provider.process_chunk(native_chunk, native_messages, state)
             )
             for p in partial_msgs:
                 yield {"type": "partial", "message": p}
@@ -212,7 +210,7 @@ class AgentCore:
                 aggregated_finals.extend(final_messages)
 
         final_messages, native_messages, state = self._provider.finalize(
-            native_messages
+            native_messages, state
         )
 
         # Feature finalize chain
@@ -266,8 +264,8 @@ class AgentCore:
         """Get tool schemas from all registered tool plugins."""
         schemas: List[Dict[str, Any]] = []
         for tool in self._tools:
-            tool.initialize(config)
-            schemas.extend(tool.get_tool_schemas())
+            state = tool.init(config)
+            schemas.extend(tool.get_tool_schemas(state))
         return schemas
 
     def export_session(self, session: Session, format: str = "json") -> str:

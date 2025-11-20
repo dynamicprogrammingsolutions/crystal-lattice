@@ -70,31 +70,42 @@ class ProviderWrapperProtocol(BaseWrapper, Protocol):
         """
         ...
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Initialize wrapper-owned provider state from application config.
+        Initialize wrapper/provider with application config; return initial state.
 
         Args:
             config: Application-supplied configuration for the provider.
         """
         ...
 
-    def update_state(self, updates: Dict[str, Any]) -> None:
-        """Apply updates (e.g., UI) to shared provider state managed by the wrapper."""
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+        """Apply updates (e.g., UI) to shared provider state and return new state."""
         ...
 
     def to_native_messages(
-        self, messages: List[Dict[str, Any]]
+        self, messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
-        Convert core messages to provider-native message format.
+        Convert core messages to provider-native message format (pure w.r.t. state).
 
         Args:
             messages: Core messages from the session.
+            state: Current shared provider state.
 
         Returns:
             Provider-native messages suitable for over-the-wire use.
         """
+        ...
+
+    def from_native_messages(
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """Convert provider-native messages back into core messages."""
+        ...
+
+    def to_display_format(self, message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert a message to a display-friendly format for UIs."""
         ...
 
     def apply_extension_transforms(
@@ -103,17 +114,18 @@ class ProviderWrapperProtocol(BaseWrapper, Protocol):
         """Apply stateless provider extension transforms with visibility of native messages."""
         ...
 
-    def initialize_request(self, native_messages: List[Dict[str, Any]]) -> None:
+    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Prepare internal shared state for a new request.
+        Prepare for a new request using provider-native messages; return updated state.
 
         Args:
             native_messages: Provider-native messages for this request.
+            state: Current shared provider state.
         """
         ...
 
     def call_api(
-        self, native_messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
     ]:
@@ -122,6 +134,7 @@ class ProviderWrapperProtocol(BaseWrapper, Protocol):
 
         Args:
             native_messages: Provider-native input messages.
+            state: Current shared provider state.
 
         Returns:
             A tuple of (final_messages, partial_messages, native_messages, new_state).
@@ -129,13 +142,14 @@ class ProviderWrapperProtocol(BaseWrapper, Protocol):
         ...
 
     def stream_api(
-        self, native_messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Iterator[Dict[str, Any]]:
         """
         Execute a streaming provider API call (sync generator).
 
         Args:
             native_messages: Provider-native input messages.
+            state: Current shared provider state.
 
         Yields:
             Provider-native streaming chunks.
@@ -143,13 +157,14 @@ class ProviderWrapperProtocol(BaseWrapper, Protocol):
         ...
 
     def stream_api_async(
-        self, native_messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> AsyncIterator[Dict[str, Any]]:
         """
         Execute a streaming provider API call (async generator).
 
         Args:
             native_messages: Provider-native input messages.
+            state: Current shared provider state.
 
         Yields:
             Provider-native streaming chunks.
@@ -157,28 +172,30 @@ class ProviderWrapperProtocol(BaseWrapper, Protocol):
         ...
 
     def process_chunk(
-        self, native_chunk: Dict[str, Any], native_messages: List[Dict[str, Any]]
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+        self, native_chunk: Dict[str, Any], native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """
         Process a single provider-native streaming chunk into core structures.
 
         Args:
             native_chunk: Provider-native streaming chunk.
             native_messages: Provider-native messages (for context).
+            state: Current shared provider state.
 
         Returns:
-            Tuple of (final_messages, partial_messages, native_messages) produced by this chunk.
+            Tuple of (final_messages, partial_messages, native_messages, new_state) produced by this chunk.
         """
         ...
 
     def finalize(
-        self, native_messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """
         Perform final processing after streaming completes.
 
         Args:
             native_messages: Accumulated provider-native messages for this turn.
+            state: Current shared provider state.
 
         Returns:
             Tuple of (final_messages, native_messages, new_state).
@@ -443,20 +460,20 @@ class FeatureWrapperProtocol(BaseWrapper, Protocol):
 
 class ToolWrapperProtocol(BaseWrapper, Protocol):
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Initialize internal tool state from application config.
+        Initialize internal tool state from application config and return state.
 
         Args:
             config: Application-supplied configuration for the tool.
         """
         ...
 
-    def update_state(self, updates: Dict[str, Any]) -> None:
-        """Apply updates to internal tool state managed by the wrapper."""
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+        """Apply updates to tool state and return new state."""
         ...
 
-    def get_tool_schemas(self) -> List[Dict[str, Any]]:
+    def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Return OpenAI-style function definitions for this tool.
 
@@ -465,7 +482,7 @@ class ToolWrapperProtocol(BaseWrapper, Protocol):
         """
         ...
 
-    def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_tool(self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """
         Execute a tool function by name with structured arguments.
 
@@ -478,7 +495,7 @@ class ToolWrapperProtocol(BaseWrapper, Protocol):
         """
         ...
 
-    def format_tool_result(self, result: Dict[str, Any]) -> str:
+    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
         """
         Format a tool result dictionary for LLM consumption/display.
 

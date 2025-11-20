@@ -39,9 +39,9 @@ class ToolWrapper:
         """Get tool version."""
         return self._version
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Initialize tool state.
+        Initialize tool state and return it.
 
         Args:
             config: Tool configuration
@@ -56,25 +56,31 @@ class ToolWrapper:
                 "runtime_state": {},
                 "ui_state": {},
             }
+        assert self.state is not None
+        return self.state
 
-    def update_state(self, updates: Dict[str, Any]) -> None:
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Update tool state.
+        Update tool state and return new state.
 
         Args:
+            state: Current tool state
             updates: State updates
         """
         if self.state is None:
             raise RuntimeError(f"Tool {self.name} not initialized")
 
+        working_state = state or self.state
         if hasattr(self.plugin, "update_state"):
-            self.state = self.plugin.update_state(self.state, updates)
+            self.state = self.plugin.update_state(working_state, updates)
         else:
             # Simple config update
             self.state = {
-                **self.state,
-                "config": {**self.state.get("config", {}), **updates},
+                **working_state,
+                "config": {**working_state.get("config", {}), **updates},
             }
+        assert self.state is not None
+        return self.state
 
     def get_config_schema(self) -> Dict[str, Any]:
         """Get tool configuration schema."""
@@ -88,26 +94,29 @@ class ToolWrapper:
             return self.plugin.get_ui_elements()
         return []
 
-    def get_tool_schemas(self) -> List[Dict[str, Any]]:
+    def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Get tool schemas via plugin if implemented; otherwise empty list."""
         if self.state is None:
             raise RuntimeError(f"Tool {self.name} not initialized")
+        working_state = state or self.state
         if hasattr(self.plugin, "get_tool_schemas"):
-            return self.plugin.get_tool_schemas(self.state)
+            return self.plugin.get_tool_schemas(working_state)
         return []
 
-    def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_tool(self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """Execute tool via plugin; requires initialized state."""
         if self.state is None:
             raise RuntimeError(f"Tool {self.name} not initialized")
-        return self.plugin.execute_tool(tool_name, arguments, self.state)
+        working_state = state or self.state
+        return self.plugin.execute_tool(tool_name, arguments, working_state)
 
-    def format_tool_result(self, result: Dict[str, Any]) -> str:
+    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
         """Format tool result via plugin if implemented; otherwise default formatting."""
         if self.state is None:
             raise RuntimeError(f"Tool {self.name} not initialized")
+        working_state = state or self.state
         if hasattr(self.plugin, "format_tool_result"):
-            return self.plugin.format_tool_result(result, self.state)
+            return self.plugin.format_tool_result(result, working_state)
         if result.get("success"):
             return f"Result: {result.get('result')}"
         else:
@@ -141,35 +150,29 @@ class ToolAdapter:
         """Get tool version."""
         return self.wrapper.version
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Initialize tool with configuration.
-
-        Args:
-            config: Tool configuration
+        Initialize tool with configuration and return state.
         """
-        self.wrapper.initialize(config)
+        return self.wrapper.init(config)
 
-    def update_state(self, updates: Dict[str, Any]) -> None:
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         """
         Update tool state.
-
-        Args:
-            updates: State updates
         """
-        self.wrapper.update_state(updates)
+        return self.wrapper.update_state(state, updates)
 
-    def get_tool_schemas(self) -> List[Dict[str, Any]]:
+    def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Get tool schemas (passthrough)."""
-        return self.wrapper.get_tool_schemas()
+        return self.wrapper.get_tool_schemas(state)
 
-    def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_tool(self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """Execute tool (passthrough)."""
-        return self.wrapper.execute_tool(tool_name, arguments)
+        return self.wrapper.execute_tool(tool_name, arguments, state)
 
-    def format_tool_result(self, result: Dict[str, Any]) -> str:
+    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
         """Format tool result for display (passthrough)."""
-        return self.wrapper.format_tool_result(result)
+        return self.wrapper.format_tool_result(result, state)
 
     def get_config_schema(self) -> Dict[str, Any]:
         """Get tool configuration schema."""

@@ -47,7 +47,7 @@ class ProviderWrapper(ProviderWrapperProtocol):
         for ext_cls in extension_classes:
             self._extensions.append(ExtensionWrapper(ext_cls))
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
         Initialize provider and extensions using shared state owned by provider wrapper.
 
@@ -58,6 +58,7 @@ class ProviderWrapper(ProviderWrapperProtocol):
         # Let extensions update shared state during init
         for ext in self._extensions:
             self.state = ext.init(config, self._get_state())
+        return self._get_state()
 
     def _get_state(self) -> Dict[str, Any]:
         """Internal helper to get non-optional state with validation."""
@@ -65,18 +66,23 @@ class ProviderWrapper(ProviderWrapperProtocol):
             raise RuntimeError(f"Provider {self.name} not initialized")
         return self.state
 
-    def update_state(self, updates: Dict[str, Any]) -> None:
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         """
         Update shared provider state and propagate to extensions.
 
         Args:
+            state: Current shared provider state
             updates: State updates (e.g., UI settings)
         """
-        if self.state is None:
-            raise RuntimeError(f"Provider {self.name} not initialized")
-        self.state = self.plugin.update_state(self.state, updates)
+        # Ensure wrapper is initialized
+        _ = self._get_state()
+        # Prefer provided state if given; fall back to internal
+        working_state = state or self.state or {}
+        new_state = self.plugin.update_state(working_state, updates)
         for ext in self._extensions:
-            self.state = ext.update_state(self._get_state(), updates)
+            new_state = ext.update_state(new_state, updates)
+        self.state = new_state
+        return self._get_state()
 
     def get_config_schema(self) -> Dict[str, Any]:
         """Get provider configuration schema."""
@@ -100,22 +106,46 @@ class ProviderWrapper(ProviderWrapperProtocol):
             raise RuntimeError(f"Provider {self.name} not initialized")
         self.state = state
 
-    def initialize_request(self, native_messages: List[Dict[str, Any]]) -> None:
-        """Run provider and extensions initialize_request with native messages for a new turn."""
+    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+        """Run provider and extensions initialize_request with native messages for a new turn; returns updated state."""
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
-        self.state = self.plugin.initialize_request(native_messages, self.state)
+        working_state = state or self.state
+        new_state = self.plugin.initialize_request(native_messages, working_state)
         for ext in self._extensions:
-            self.state = ext.initialize_request(native_messages, self._get_state())
+            new_state = ext.initialize_request(native_messages, new_state)
+        self.state = new_state
+        return self._get_state()
 
     def to_native_messages(
-        self, messages: List[Dict[str, Any]]
+        self, messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """Convert core messages to provider's native format (provider-first)."""
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
-        native = self.plugin.to_native_messages(messages, self.state)
+        working_state = state or self.state
+        native = self.plugin.to_native_messages(messages, working_state)
         return native
+
+    def from_native_messages(
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """Convert provider-native messages back to core messages if supported; otherwise return empty list."""
+        if self.state is None:
+            raise RuntimeError(f"Provider {self.name} not initialized")
+        working_state = state or self.state
+        if hasattr(self.plugin, "from_native_messages"):
+            return self.plugin.from_native_messages(native_messages, working_state)
+        return []
+
+    def to_display_format(self, message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        """Format a message for display if supported; otherwise return as-is."""
+        if self.state is None:
+            raise RuntimeError(f"Provider {self.name} not initialized")
+        working_state = state or self.state
+        if hasattr(self.plugin, "to_display_format"):
+            return self.plugin.to_display_format(message, working_state)
+        return message
 
     def apply_extension_transforms(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
@@ -127,7 +157,7 @@ class ProviderWrapper(ProviderWrapperProtocol):
         return transformed
 
     def call_api(
-        self, native_messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
     ]:
@@ -137,67 +167,71 @@ class ProviderWrapper(ProviderWrapperProtocol):
         """
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
-        # Call provider API directly; pre-request transforms were already applied in core
+        working_state = state or self.state
         transformed_native = list(native_messages)
         final_messages, partials, native_msgs, new_state = self.plugin.call_api(
-            transformed_native, self.state
+            transformed_native, working_state
         )
         self.state = new_state
-        return final_messages, partials, native_msgs, new_state
+        return final_messages, partials, native_msgs, self._get_state()
 
     def stream_api(
-        self, native_messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Iterator[Dict[str, Any]]:
         """Make streaming API call (state-validated)."""
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
-        yield from self.plugin.stream_api(native_messages, self.state)
+        working_state = state or self.state
+        yield from self.plugin.stream_api(native_messages, working_state)
 
     async def stream_api_async(
-        self, native_messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> AsyncIterator[Dict[str, Any]]:
         """Make async streaming API call, preferring native async if available."""
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
+        working_state = state or self.state
         if hasattr(self.plugin, "stream_api_async"):
             async for chunk in self.plugin.stream_api_async(
-                native_messages, self.state
+                native_messages, working_state
             ):
                 yield chunk
             return
         # Fallback to sync stream
-        for chunk in self.plugin.stream_api(native_messages, self.state):
+        for chunk in self.plugin.stream_api(native_messages, working_state):
             yield chunk
 
     def process_chunk(
-        self, native_chunk: Dict[str, Any], native_messages: List[Dict[str, Any]]
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+        self, native_chunk: Dict[str, Any], native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """
         Process provider chunk and invoke extensions (hot path).
-        Returns (final_messages, partial_messages, native_messages) produced for this chunk.
+        Returns (final_messages, partial_messages, native_messages, state) produced for this chunk.
         """
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
+        working_state = state or self.state
         final_messages, partial_messages, native_messages, new_state = (
-            self.plugin.process_chunk(native_chunk, native_messages, self.state)
+            self.plugin.process_chunk(native_chunk, native_messages, working_state)
         )
-        self.state = new_state
         # Extensions observe and can enhance/discard using shared state
+        ext_state = new_state
         for ext in self._extensions:
-            partial_messages, final_messages, native_messages, self.state = (
+            partial_messages, final_messages, native_messages, ext_state = (
                 ext.process_chunk(
                     native_chunk=native_chunk,
                     messages=native_messages,
-                    state=self._get_state(),
+                    state=ext_state,
                     partial_messages=partial_messages,
                     final_messages=final_messages,
                     native_messages=native_messages,
                 )
             )
-        return final_messages, partial_messages, native_messages
+        self.state = ext_state
+        return final_messages, partial_messages, native_messages, self._get_state()
 
     def finalize(
-        self, native_messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """
         Finalize provider turn and let extensions enhance outputs.
@@ -205,10 +239,11 @@ class ProviderWrapper(ProviderWrapperProtocol):
         """
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
+        working_state = state or self.state
         if not hasattr(self.plugin, "finalize"):
             return [], [], self._get_state()
         final_messages, native_messages, new_state = self.plugin.finalize(
-            native_messages, self.state
+            native_messages, working_state
         )
 
         # Allow extensions to modify final/native messages
@@ -221,7 +256,7 @@ class ProviderWrapper(ProviderWrapperProtocol):
 
         self.state = new_state
 
-        return final_messages, native_messages, new_state
+        return final_messages, native_messages, self._get_state()
 
     def detect_capabilities(self, config: Dict[str, Any]) -> List[str]:
         """Detect provider capabilities using static plugin method when available."""
@@ -265,33 +300,42 @@ class ProviderAdapter(ProviderWrapperProtocol):
         self.name: str = wrapper.name
         self.version: str = wrapper.version
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
         Initialize provider with configuration.
 
         Args:
             config: Provider configuration
         """
-        self.wrapper.initialize(config)
+        return self.wrapper.init(config)
 
-    def update_state(self, updates: Dict[str, Any]) -> None:
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         """
         Update provider state.
 
         Args:
+            state: Current shared provider state
             updates: State updates
         """
-        self.wrapper.update_state(updates)
+        return self.wrapper.update_state(state, updates)
 
-    def initialize_request(self, native_messages: List[Dict[str, Any]]) -> None:
+    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
         """Prepare provider for a new request with native messages (passthrough)."""
-        self.wrapper.initialize_request(native_messages)
+        return self.wrapper.initialize_request(native_messages, state)
 
     def to_native_messages(
-        self, messages: List[Dict[str, Any]]
+        self, messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """Convert messages to provider's native format (passthrough)."""
-        return self.wrapper.to_native_messages(messages)
+        return self.wrapper.to_native_messages(messages, state)
+
+    def from_native_messages(
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        return self.wrapper.from_native_messages(native_messages, state)
+
+    def to_display_format(self, message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        return self.wrapper.to_display_format(message, state)
 
     def apply_extension_transforms(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
@@ -300,43 +344,43 @@ class ProviderAdapter(ProviderWrapperProtocol):
         return self.wrapper.apply_extension_transforms(messages, native_messages)
 
     def call_api(
-        self, native_messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
     ]:
         """Make non-streaming API call (passthrough).
         Returns (final_messages, partial_messages, native_messages, state)."""
-        return self.wrapper.call_api(native_messages)
+        return self.wrapper.call_api(native_messages, state)
 
     def stream_api(
-        self, native_messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Iterator[Dict[str, Any]]:
         """Make streaming API call (passthrough)."""
-        yield from self.wrapper.stream_api(native_messages)
+        yield from self.wrapper.stream_api(native_messages, state)
 
     async def stream_api_async(
-        self, native_messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> AsyncIterator[Dict[str, Any]]:
         """Make async streaming API call (passthrough)."""
-        async for chunk in self.wrapper.stream_api_async(native_messages):
+        async for chunk in self.wrapper.stream_api_async(native_messages, state):
             yield chunk
 
     def process_chunk(
-        self, native_chunk: Dict[str, Any], native_messages: List[Dict[str, Any]]
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+        self, native_chunk: Dict[str, Any], native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """
         Process streaming chunk (provider + extensions) and update internal state.
-        Returns (final_messages, partial_messages, native_messages) for this chunk.
+        Returns (final_messages, partial_messages, native_messages, state) for this chunk.
         """
-        return self.wrapper.process_chunk(native_chunk, native_messages)
+        return self.wrapper.process_chunk(native_chunk, native_messages, state)
 
     def finalize(
-        self, native_messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """
         Finalize after streaming (passthrough). Returns (final_messages, native_messages, state).
         """
-        return self.wrapper.finalize(native_messages)
+        return self.wrapper.finalize(native_messages, state)
 
     def get_state(self) -> Dict[str, Any]:
         """Expose current shared state for orchestration."""
