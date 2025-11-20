@@ -7,10 +7,10 @@ by the provider wrapper.
 """
 
 from typing import Dict, Any, List, Tuple, Optional
-from ..types import ExtensionWrapperProtocol
+from ..types import ProviderExtensionPlugin
 
 
-class ExtensionWrapper(ExtensionWrapperProtocol):
+class ExtensionWrapper(ProviderExtensionPlugin):
     """
     Wrapper for provider extension plugin (no internal state).
     Coordinates calls with shared provider state managed by the provider wrapper.

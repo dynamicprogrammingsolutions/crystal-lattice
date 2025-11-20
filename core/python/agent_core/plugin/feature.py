@@ -5,10 +5,10 @@ Stateless wrapper; features operate on shared provider state managed by the prov
 """
 
 from typing import Dict, Any, List
-from ..types import FeatureWrapperProtocol
+from ..types import FeaturePlugin
 
 
-class FeatureWrapper(FeatureWrapperProtocol):
+class FeatureWrapper(FeaturePlugin):
     """
     Wrapper for feature plugin (no internal state).
     Orchestrates initialize_request and finalize using shared state passed in/out.
@@ -76,7 +76,7 @@ class FeatureWrapper(FeatureWrapperProtocol):
         return final_messages, native_messages, state
 
 
-class FeatureAdapter(FeatureWrapperProtocol):
+class FeatureAdapter(FeaturePlugin):
     """
     Passthrough adapter for feature plugins.
     """
