@@ -70,6 +70,8 @@ Core provides orchestration only. All provider/feature logic lives in plugins. A
 
 State shape remains the same (config, capabilities, runtime_state, ui_state) and updates are immutable.
 
+Note on instance lifecycle: Plugin methods should remain stateless and operate on explicit state parameters. Plugin class instances may be constructed by wrappers for convenience, but they are short‑lived and scoped to a single request, matching the lifecycle of the shared provider state. The provider wrapper discards shared state after each request. Tool plugins should rely on explicit `ToolState` and avoid persistent object state.
+
 **Duck Typing:**
 
 Plugin type determined by which functions it implements, not by inheritance. No required base class. Functional architecture without object-oriented constraints.

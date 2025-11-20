@@ -13,8 +13,8 @@ from agent_core.types import ProviderPlugin
 @dataclass
 class DummyProvider(ProviderPlugin):
     """
-    Dummy provider plugin (stateless with state parameter).
-    All methods are static and take state as parameter.
+    Dummy provider plugin (stateless with explicit state parameter).
+    Instance methods operate on provided state; instances are short‑lived per request.
     """
 
     name: str = "dummy_provider"

@@ -21,7 +21,7 @@ class ToolWrapper:
         Initialize wrapper with tool plugin class.
 
         Args:
-            plugin_class: Tool plugin class with static methods
+            plugin_class: Tool plugin class (instance methods; stateless behavior)
         """
         self.plugin_class = plugin_class
         self.plugin = plugin_class()

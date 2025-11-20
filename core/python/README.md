@@ -158,7 +158,7 @@ session2, resp2 = core.send_request(session2, config2)
 
 ### Plugin Classes
 
-Plugins are plain classes with static methods (functional approach). Example provider:
+Plugins are plain classes with instance methods (functional style; pass state explicitly). Note: keep methods stateless and treat any object attributes as per‑request only; instances are short‑lived and should not retain durable state. Example provider:
 
 ```python
 from typing import Dict, Any, List, Tuple, Iterator
@@ -167,38 +167,30 @@ class MyProvider:
     name: str = "my_provider"
     version: str = "1.0.0"
 
-    @staticmethod
-    def get_config_schema() -> Dict[str, Any]:
+    def get_config_schema(self) -> Dict[str, Any]:
         return {"api_key": {"type": "string", "required": True}}
 
-    @staticmethod
-    def init(config: Dict[str, Any]) -> Dict[str, Any]:
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         return {"config": config, "capabilities": [], "runtime_state": {}, "ui_state": {}}
 
-    @staticmethod
-    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         return {**state, "config": {**state.get("config", {}), **updates}}
 
-    @staticmethod
-    def to_native_messages(messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def to_native_messages(self, messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
         return [{"role": m["role"], "content": m["content"]} for m in messages]
 
-    @staticmethod
-    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
         return state
 
-    @staticmethod
-    def call_api(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    def call_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         # Return (final_messages, partial_messages, native_messages, new_state)
         return ([{"role": "assistant", "content": "Response"}], [], [], state)
 
-    @staticmethod
-    def finalize(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    def finalize(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         # Return (final_messages, native_messages, new_state)
         return ([], [], state)
 
-    @staticmethod
-    def stream_api(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
+    def stream_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
         yield from []
 ```
 

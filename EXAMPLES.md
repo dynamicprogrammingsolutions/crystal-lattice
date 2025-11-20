@@ -1,5 +1,7 @@
 # Examples
 
+Note: Plugins use instance methods but should remain stateless (pure) and operate on explicit state objects. Plugin instances are short‑lived and scoped to a single request, just like the shared provider state managed by the provider wrapper. Tools rely on explicit ToolState and should not keep durable object state.
+
 ## PROJECT_PLAN Example 6: FastAPI/WebSocket App (Ollama)
 
 PROJECT_PLAN Example 6: FastAPI/WebSocket App (Ollama)
@@ -24,63 +26,87 @@ Plugin code
 
 ```python
 from typing import Any, Dict, List, Iterator, Tuple
+from agent_core.types import ProviderPlugin
 
-class EchoProvider:
+class EchoProvider(ProviderPlugin):
     name = "echo"
     version = "1.0.0"
 
-    @staticmethod
-    def get_config_schema() -> Dict[str, Any]:
+    def get_config_schema(self) -> Dict[str, Any]:
         return {"model": {"type": "string", "default": "echo-1"}}
 
-    @staticmethod
-    def get_ui_elements() -> List[Dict[str, Any]]:
+    def get_ui_elements(self) -> List[Dict[str, Any]]:
         return [{"type": "text", "key": "model", "label": "Model"}]
 
-    @staticmethod
-    def init(config: Dict[str, Any]) -> Dict[str, Any]:
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         return {"config": config, "runtime_state": {"accumulated": ""}}
 
-    @staticmethod
-    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         return {**state, "config": {**state.get("config", {}), **updates}}
 
-    @staticmethod
-    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, "runtime_state": {**state.get("runtime_state", {}), "accumulated": ""}}
+    def initialize_request(
+        self,
+        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        return {
+            **state,
+            "runtime_state": {**state.get("runtime_state", {}), "accumulated": ""},
+        }
 
-    @staticmethod
-    def to_native_messages(messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def to_native_messages(
+        self,
+        messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         return list(messages)
 
-    @staticmethod
-    def from_native_messages(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def from_native_messages(
+        self,
+        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         return list(native_messages)
 
-    @staticmethod
-    def stream_api(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
-        last_user = next((m for m in reversed(native_messages) if m.get("role") == "user"), {"content": ""})
+    def stream_api(
+        self,
+        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Iterator[Dict[str, Any]]:
+        last_user = next(
+            (m for m in reversed(native_messages) if m.get("role") == "user"),
+            {"content": ""},
+        )
         text = f"Echo: {last_user.get('content', '')}"
         for ch in text:
             yield {"content": ch}
 
-    @staticmethod
     def process_chunk(
+        self,
         native_chunk: Dict[str, Any],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        acc = state.get("runtime_state", {}).get("accumulated", "") + native_chunk.get("content", "")
-        new_state = {**state, "runtime_state": {**state.get("runtime_state", {}), "accumulated": acc}}
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
+        acc = state.get("runtime_state", {}).get("accumulated", "") + native_chunk.get(
+            "content", ""
+        )
+        new_state = {
+            **state,
+            "runtime_state": {**state.get("runtime_state", {}), "accumulated": acc},
+        }
         partial = (
-            [{"role": "assistant", "content": native_chunk.get("content", ""), "metadata": {}}]
+            [
+                {
+                    "role": "assistant",
+                    "content": native_chunk.get("content", ""),
+                    "metadata": {},
+                }
+            ]
             if native_chunk.get("content")
             else []
         )
         return [], partial, [], new_state
 
-    @staticmethod
     def finalize(
+        self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
@@ -90,14 +116,24 @@ class EchoProvider:
         final = [{"role": "assistant", "content": content, "metadata": {}}]
         return final, [], state
 
-    @staticmethod
     def call_api(
+        self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        last_user = next((m for m in reversed(native_messages) if m.get("role") == "user"), {"content": ""})
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
+        last_user = next(
+            (m for m in reversed(native_messages) if m.get("role") == "user"),
+            {"content": ""},
+        )
         content = f"Echo: {last_user.get('content', '')}"
-        return ([{"role": "assistant", "content": content, "metadata": {}}], [], [], state)
+        return (
+            [{"role": "assistant", "content": content, "metadata": {}}],
+            [],
+            [],
+            state,
+        )
 ```
 
 - Code: `examples/example1_echo_provider.py`
@@ -113,68 +149,74 @@ Plugin code
 
 ```python
 from typing import Any, Dict, List, Tuple, Optional
+from agent_core.types import ProviderExtensionPlugin
 
-class PrefixExtension:
+class PrefixExtension(ProviderExtensionPlugin):
     name: str = "prefix_extension"
     version: str = "1.0.0"
     target_provider: str = "echo"
 
-    @staticmethod
-    def get_config_schema() -> Dict[str, Any]:
+    def get_config_schema(self) -> Dict[str, Any]:
         return {
             "enabled": {"type": "boolean", "default": True},
             "prefix": {"type": "string", "default": "[EXT]"},
         }
 
-    @staticmethod
-    def get_ui_elements() -> List[Dict[str, Any]]:
+    def get_ui_elements(self) -> List[Dict[str, Any]]:
         return [
             {"type": "checkbox", "key": "enabled", "label": "Enable Extension"},
             {"type": "text", "key": "prefix", "label": "Prefix"},
         ]
 
-    @staticmethod
-    def init(config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         rs = {**state.get("runtime_state", {}), "extension_processed_chunks": 0}
-        return {**state, "config": {**state.get("config", {}), **config}, "runtime_state": rs}
+        return {
+            **state,
+            "config": {**state.get("config", {}), **config},
+            "runtime_state": rs,
+        }
 
-    @staticmethod
-    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         return {**state, "config": {**state.get("config", {}), **updates}}
 
-    @staticmethod
-    def to_native_messages(messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def to_native_messages(
+        self,
+        messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         return messages
 
-    @staticmethod
-    def from_native_messages(native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def from_native_messages(
+        self,
+        native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         return messages
 
-    @staticmethod
-    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+    def initialize_request(
+        self,
+        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         return state
 
-    @staticmethod
     def process_chunk(
+        self,
         native_chunk: Optional[Dict[str, Any]],
         messages: List[Dict[str, Any]],
         state: Dict[str, Any],
         partial_messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         if not state.get("config", {}).get("enabled", True):
             return partial_messages, final_messages, native_messages, state
-        processed = state.get("runtime_state", {}).get("extension_processed_chunks", 0) + (
-            1 if native_chunk is not None else 0
-        )
+        processed = state.get("runtime_state", {}).get(
+            "extension_processed_chunks", 0
+        ) + (1 if native_chunk is not None else 0)
         rs = {**state.get("runtime_state", {}), "extension_processed_chunks": processed}
         prefix = state.get("config", {}).get("prefix", "[EXT]")
         finals = (
-            [
-                {**m, "content": f"{prefix} {m['content']}"}
-                for m in final_messages
-            ]
+            [{**m, "content": f"{prefix} {m['content']}"} for m in final_messages]
             if final_messages
             else final_messages
         )
@@ -182,12 +224,15 @@ class PrefixExtension:
             last = finals[-1]
             finals[-1] = {
                 **last,
-                "metadata": {**last.get("metadata", {}), "extension_processed_chunks": processed},
+                "metadata": {
+                    **last.get("metadata", {}),
+                    "extension_processed_chunks": processed,
+                },
             }
         return partial_messages, finals, native_messages, {**state, "runtime_state": rs}
 
-    @staticmethod
     def finalize(
+        self,
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
@@ -199,7 +244,13 @@ class PrefixExtension:
         if finals:
             count = state.get("runtime_state", {}).get("extension_processed_chunks", 0)
             last = finals[-1]
-            finals[-1] = {**last, "metadata": {**last.get("metadata", {}), "extension_processed_chunks": count}}
+            finals[-1] = {
+                **last,
+                "metadata": {
+                    **last.get("metadata", {}),
+                    "extension_processed_chunks": count,
+                },
+            }
         return finals, native_messages, state
 ```
 
@@ -216,47 +267,60 @@ Plugin code
 
 ```python
 from typing import Any, Dict, List, Tuple
+from agent_core.types import FeaturePlugin
 
 class WebSearchFeature:
     name: str = "web_search"
     version: str = "1.0.0"
 
-    @staticmethod
-    def get_config_schema() -> Dict[str, Any]:
+    def get_config_schema(self) -> Dict[str, Any]:
         return {
             "web_search_enabled": {"type": "boolean", "default": False},
             "max_results": {"type": "integer", "default": 5},
         }
 
-    @staticmethod
-    def get_ui_elements() -> List[Dict[str, Any]]:
+    def get_ui_elements(self) -> List[Dict[str, Any]]:
         return [
-            {"type": "checkbox", "key": "web_search_enabled", "label": "Enable Web Search"},
-            {"type": "number", "key": "max_results", "label": "Max Results", "condition": {"web_search_enabled": True}},
+            {
+                "type": "checkbox",
+                "key": "web_search_enabled",
+                "label": "Enable Web Search",
+            },
+            {
+                "type": "number",
+                "key": "max_results",
+                "label": "Max Results",
+                "condition": {"web_search_enabled": True},
+            },
         ]
 
-    @staticmethod
-    def init(config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, "config": {**state.get("config", {}), **config}, "capabilities": ["web_search"]}
+    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            **state,
+            "config": {**state.get("config", {}), **config},
+            "capabilities": ["web_search"],
+        }
 
-    @staticmethod
-    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         return {**state, "config": {**state.get("config", {}), **updates}}
 
-    @staticmethod
-    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+    def initialize_request(
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         return state
 
-    @staticmethod
-    def to_native_messages(messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def to_native_messages(
+        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         return messages
 
-    @staticmethod
-    def from_native_messages(native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def from_native_messages(
+        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         return messages
 
-    @staticmethod
     def finalize(
+        self,
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
@@ -265,7 +329,9 @@ class WebSearchFeature:
             return final_messages, native_messages, state
         # Print a simple notice to stdout when enabled
         max_results = state.get("config", {}).get("max_results")
-        print(f"[WebSearchFeature] Search enabled; annotating finals (max_results={max_results})")
+        print(
+            f"[WebSearchFeature] Search enabled; annotating finals (max_results={max_results})"
+        )
         finals = [
             {**m, "metadata": {**m.get("metadata", {}), "web_search_used": True}}
             for m in final_messages
@@ -286,13 +352,13 @@ Plugin code
 ```python
 import os
 from typing import Any, Dict, List
+from agent_core.types import ToolPlugin
 
-class FileReaderTool:
+class FileReaderTool(ToolPlugin):
     name: str = "file_reader"
     version: str = "1.0.0"
 
-    @staticmethod
-    def get_config_schema() -> Dict[str, Any]:
+    def get_config_schema(self) -> Dict[str, Any]:
         return {
             "allowed_paths": {
                 "type": "array",
@@ -307,20 +373,27 @@ class FileReaderTool:
             },
         }
 
-    @staticmethod
-    def get_ui_elements() -> List[Dict[str, Any]]:
-        return [{"type": "text", "key": "allowed_paths", "label": "Allowed Paths (comma-separated)"}]
+    def get_ui_elements(self) -> List[Dict[str, Any]]:
+        return [
+            {
+                "type": "text",
+                "key": "allowed_paths",
+                "label": "Allowed Paths (comma-separated)",
+            }
+        ]
 
-    @staticmethod
-    def init(config: Dict[str, Any]) -> Dict[str, Any]:
-        return {"config": config, "runtime_state": {}, "ui_state": {}, "capabilities": []}
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "config": config,
+            "runtime_state": {},
+            "ui_state": {},
+            "capabilities": [],
+        }
 
-    @staticmethod
-    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         return {**state, "config": {**state["config"], **updates}}
 
-    @staticmethod
-    def get_tool_schemas(state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         return [
             {
                 "type": "function",
@@ -329,21 +402,34 @@ class FileReaderTool:
                     "description": "Read contents of a text file",
                     "parameters": {
                         "type": "object",
-                        "properties": {"file_path": {"type": "string", "description": "Path to the file to read"}},
+                        "properties": {
+                            "file_path": {
+                                "type": "string",
+                                "description": "Path to the file to read",
+                            }
+                        },
                         "required": ["file_path"],
                     },
                 },
             }
         ]
 
-    @staticmethod
-    def execute_tool(tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_tool(
+        self,
+        tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         if tool_name != "read_file":
             return {"success": False, "error": f"Unknown tool: {tool_name}"}
         file_path = arguments.get("file_path", "")
         allowed = state["config"].get("allowed_paths", ["."])
-        if not any(os.path.abspath(file_path).startswith(os.path.abspath(base)) for base in allowed):
-            return {"success": False, "error": f"Access denied: {file_path} not in allowed paths"}
+        if not any(
+            os.path.abspath(file_path).startswith(os.path.abspath(base))
+            for base in allowed
+        ):
+            return {
+                "success": False,
+                "error": f"Access denied: {file_path} not in allowed paths",
+            }
         try:
             size = os.path.getsize(file_path)
             if size > state["config"].get("max_file_size", 1048576):
@@ -354,10 +440,11 @@ class FileReaderTool:
         except Exception as e:
             return {"success": False, "error": f"Error reading file: {str(e)}"}
 
-    @staticmethod
-    def format_tool_result(result: Dict[str, Any], state: Dict[str, Any]) -> str:
+    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
         return (
-            f"File contents:\n{result['result']}" if result.get("success") else f"Error: {result.get('error')}"
+            f"File contents:\n{result['result']}"
+            if result.get("success")
+            else f"Error: {result.get('error')}"
         )
 ```
 
@@ -491,11 +578,11 @@ config = {
     "model": model,
     "base_url": base_url,
     "timeout": 60,
-    "allowed_paths": ["."]
+    "allowed_paths": ["."],
 }
 
 # Initialize tool state once (tool plugins are stateful)
-tool_state = FileReaderTool.init(config)
+tool_state = FileReaderTool().init(config)
 
 session = core.create_session()
 session = core.add_message(session, "user", "Read the contents of README.md")
@@ -520,18 +607,15 @@ for i in range(max_iterations):
         arguments = json.loads(tool_call["function"]["arguments"])
 
         # Execute tool (stateful - pass initialized state)
-        result = FileReaderTool.execute_tool(tool_name, arguments, tool_state)
-        formatted = FileReaderTool.format_tool_result(result, tool_state)
+        result = FileReaderTool().execute_tool(tool_name, arguments, tool_state)
+        formatted = FileReaderTool().format_tool_result(result, tool_state)
 
         # Add tool result as message (functional)
         session = core.add_message(
             session,
             "tool",
             formatted,
-            metadata={
-                "tool_call_id": tool_call["id"],
-                "name": tool_name
-            }
+            metadata={"tool_call_id": tool_call["id"], "name": tool_name},
         )
 ```
 
@@ -573,7 +657,7 @@ session = core.add_message(session, "user", "What's the weather?")
 session = Session(
     session_id=session.session_id,
     messages=session.messages[:-1],
-    metadata=session.metadata
+    metadata=session.metadata,
 )
 
 # Add different message
@@ -584,9 +668,7 @@ session, messages = core.send_request(session, config)
 
 # Clear conversation and start fresh (functional)
 session = Session(
-    session_id=session.session_id,
-    messages=[],
-    metadata=session.metadata
+    session_id=session.session_id, messages=[], metadata=session.metadata
 )
 session = core.add_message(session, "user", "New conversation")
 ```
@@ -625,7 +707,11 @@ config1 = {
 }
 
 # Initial request without search
-session = core.add_message(session, "system", "Your task is to find the latest news in a topic. Return the most important 3 news with just the headline. No summary is needed, just a short headline.")
+session = core.add_message(
+    session,
+    "system",
+    "Your task is to find the latest news in a topic. Return the most important 3 news with just the headline. No summary is needed, just a short headline.",
+)
 session = core.add_message(session, "user", "Latest AI news")
 session, messages = core.send_request(session, config1)
 print(messages[-1]["content"])

@@ -24,7 +24,7 @@ class ProviderWrapper(ProviderWrapperProtocol):
         Initialize wrapper with provider plugin class and optional extensions.
 
         Args:
-            plugin_class: Provider plugin class with static methods
+            plugin_class: Provider plugin class (instance methods; stateless behavior)
             extension_classes: Optional list of provider extension classes
         """
         self.plugin_class = plugin_class

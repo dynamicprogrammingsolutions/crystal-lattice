@@ -80,7 +80,7 @@ register_provider(
 Register provider plugin class with optional extensions.
 
 **Parameters:**
-- `plugin_class` (type): Provider plugin class with static methods
+- `plugin_class` (type): Provider plugin class (instance methods)
 - `extensions` (list, optional): List of provider extension classes
 
 **Example:**
@@ -103,7 +103,7 @@ register_feature(plugin_class: type) -> None
 Register feature plugin class.
 
 **Parameters:**
-- `plugin_class` (type): Feature plugin class with static methods
+- `plugin_class` (type): Feature plugin class (instance methods)
 
 **Example:**
 ```python
@@ -120,7 +120,7 @@ register_tool(plugin_class: type) -> None
 Register tool plugin class.
 
 **Parameters:**
-- `plugin_class` (type): Tool plugin class with static methods
+- `plugin_class` (type): Tool plugin class (instance methods)
 
 **Example:**
 ```python
@@ -467,6 +467,8 @@ Specialized wrappers and adapters provide typed, intuitive interfaces for each p
 - Feature: `FeatureWrapper` (no internal state; shared-state lifecycle), `FeatureAdapter`
 - Tool: `ToolWrapper`, `ToolAdapter`
 - Provider extension: `ExtensionWrapper` (no internal state; shared-state lifecycle, stateless transforms)
+
+Note: Methods remain stateless (pure) and use explicit state parameters. Plugin instances are short‑lived (per request) and should not hold durable mutable state. The provider wrapper discards shared state after each request. Tools use explicit `ToolState` passed in/out.
 
 ---
 

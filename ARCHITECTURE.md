@@ -60,6 +60,8 @@ This document describes the architecture and core design principles of the AI Ag
 └─────────────────────────────────────────────────────────┘
 ```
 
+Note on lifecycle and state: Methods should remain stateless (pure) and use the explicit `state` parameters. Plugin class instances may exist for convenience but are short‑lived and scoped to a single request, matching the lifecycle of the shared provider state. The provider wrapper discards shared state after each request. Tool plugins likewise should not rely on long‑lived internal object state; tools use explicit `ToolState` passed in/out.
+
 ### Data Flow
 
 ```

@@ -68,6 +68,8 @@ Implications:
 - Feature plugins do not process streaming chunks; they operate only on the cold path but still may update the shared `state` via `init` and `initialize_request`.
 - Tool plugins are unchanged and continue to manage their own `ToolState`.
 
+Note on instance lifecycle: Methods should remain stateless and operate on provided `state` objects. Plugin instances may be constructed by wrappers for convenience, but they are short‑lived and scoped to a single request, just like the shared provider state. Do not rely on any implicit, long‑lived object state across requests. Tool plugins should treat any internal attributes as ephemeral and rely on explicit `ToolState`.
+
 ## Plugin Type Detection
 
 Plugins are identified by which functions they implement (duck typing):

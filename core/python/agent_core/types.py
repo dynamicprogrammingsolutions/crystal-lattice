@@ -67,6 +67,10 @@ class ProviderWrapperProtocol(BaseWrapper, Protocol):
         """
         ...
 
+    def update_state(self, updates: Dict[str, Any]) -> None:
+        """Apply updates (e.g., UI) to shared provider state managed by the wrapper."""
+        ...
+
     def to_native_messages(
         self, messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
@@ -79,6 +83,12 @@ class ProviderWrapperProtocol(BaseWrapper, Protocol):
         Returns:
             Provider-native messages suitable for over-the-wire use.
         """
+        ...
+
+    def apply_extension_transforms(
+        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Apply stateless provider extension transforms with visibility of native messages."""
         ...
 
     def initialize_request(self, native_messages: List[Dict[str, Any]]) -> None:
@@ -222,6 +232,12 @@ class ExtensionWrapperProtocol(BaseWrapper, Protocol):
         """
         ...
 
+    def update_state(
+        self, state: Dict[str, Any], updates: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Apply updates to shared provider state and return new state."""
+        ...
+
     def to_native_messages(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
@@ -338,6 +354,12 @@ class FeatureWrapperProtocol(BaseWrapper, Protocol):
         """
         ...
 
+    def update_state(
+        self, state: Dict[str, Any], updates: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Apply updates (e.g., UI) to shared state and return new state."""
+        ...
+
     def to_native_messages(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
@@ -418,6 +440,10 @@ class ToolWrapperProtocol(BaseWrapper, Protocol):
         """
         ...
 
+    def update_state(self, updates: Dict[str, Any]) -> None:
+        """Apply updates to internal tool state managed by the wrapper."""
+        ...
+
     def get_tool_schemas(self) -> List[Dict[str, Any]]:
         """
         Return OpenAI-style function definitions for this tool.
@@ -459,17 +485,18 @@ class ToolWrapperProtocol(BaseWrapper, Protocol):
 @runtime_checkable
 class BasePlugin(Protocol):
     """
-    Common class-level protocol for non-tool plugins (Provider, ProviderExtension, Feature).
+    Common instance-level protocol for non-tool plugins (Provider, ProviderExtension, Feature).
 
     Unifies identity, configuration UI, and the subset of lifecycle methods whose
-    signatures are identical across these plugin types.
+    signatures are identical across these plugin types. Methods should remain
+    stateless and operate on explicit state parameters; plugin instances are short‑lived per request.
     """
 
-    # Identity (class-level)
+    # Identity (attributes on the class)
     name: str
     version: str
 
-    # Config/UI (class-level)
+    # Config/UI
     def get_config_schema(self) -> Dict[str, Any]:
         """
         Return JSON schema describing this provider's configuration.

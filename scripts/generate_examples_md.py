@@ -122,7 +122,12 @@ def main() -> None:
         if f.startswith("example") and f.endswith(".py")
     ]
     files.sort()
-    sections: List[str] = ["# Examples", ""]
+    sections: List[str] = [
+        "# Examples",
+        "",
+        "Note: Plugins use instance methods but should remain stateless (pure) and operate on explicit state objects. Plugin instances are short‑lived and scoped to a single request, just like the shared provider state managed by the provider wrapper. Tools rely on explicit ToolState and should not keep durable object state.",
+        "",
+    ]
     for path in files:
         sections.append(build_section(path))
     content = "\n".join(sections).rstrip() + "\n"

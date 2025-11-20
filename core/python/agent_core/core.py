@@ -288,7 +288,7 @@ class AgentCore:
         Discover plugins from a list of module import paths and register them.
 
         Discovery is duck-typed:
-        - Provider: has static 'stream_api' or 'call_api'
+        - Provider: has 'stream_api' or 'call_api'
         - Provider Extension: has 'process_chunk' and 'target_provider'
         - Tool: has 'get_tool_schemas' and 'execute_tool'
         - Feature: otherwise
