@@ -5,9 +5,10 @@ Manages tool plugin state (if any) and provides typed interface.
 """
 
 from typing import Dict, Any, List, Optional
+from ..types import ToolPlugin
 
 
-class ToolWrapper:
+class ToolWrapper(ToolPlugin):
     """
     Wrapper for tool plugin.
 
@@ -26,18 +27,8 @@ class ToolWrapper:
         self.plugin_class = plugin_class
         self.plugin = plugin_class()
         self.state: Optional[Dict[str, Any]] = None
-        self._name = getattr(plugin_class, "name", plugin_class.__name__)
-        self._version = getattr(plugin_class, "version", "unknown")
-
-    @property
-    def name(self) -> str:
-        """Get tool name."""
-        return self._name
-
-    @property
-    def version(self) -> str:
-        """Get tool version."""
-        return self._version
+        self.name = getattr(plugin_class, "name", plugin_class.__name__)
+        self.version = getattr(plugin_class, "version", "unknown")
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -123,7 +114,7 @@ class ToolWrapper:
             return f"Error: {result.get('error')}"
 
 
-class ToolAdapter:
+class ToolAdapter(ToolPlugin):
     """
     Passthrough adapter for tool plugins.
 
@@ -139,16 +130,8 @@ class ToolAdapter:
             wrapper: ToolWrapper instance
         """
         self.wrapper = wrapper
-
-    @property
-    def name(self) -> str:
-        """Get tool name."""
-        return self.wrapper.name
-
-    @property
-    def version(self) -> str:
-        """Get tool version."""
-        return self.wrapper.version
+        self.name: str = wrapper.name
+        self.version: str = wrapper.version
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """

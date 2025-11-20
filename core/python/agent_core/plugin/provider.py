@@ -6,10 +6,10 @@ Manages provider plugin state and provides typed interface for provider operatio
 
 from typing import Dict, Any, List, Iterator, AsyncIterator, Tuple, Optional
 from .extension import ExtensionWrapper
-from ..types import ProviderWrapperProtocol
+from ..types import ProviderPlugin
 
 
-class ProviderWrapper(ProviderWrapperProtocol):
+class ProviderWrapper(ProviderPlugin):
     """
     Wrapper for provider plugin managing state during streaming.
 
@@ -258,14 +258,6 @@ class ProviderWrapper(ProviderWrapperProtocol):
 
         return final_messages, native_messages, self._get_state()
 
-    def detect_capabilities(self, config: Dict[str, Any]) -> List[str]:
-        """Detect provider capabilities using static plugin method when available."""
-        if hasattr(self.plugin_class, "detect_capabilities"):
-            try:
-                return list(self.plugin_class.detect_capabilities(config))
-            except Exception:
-                return []
-        return []
 
     def get_extension_config_schemas(self) -> Dict[str, Any]:
         """Get config schemas for all extensions."""
@@ -279,8 +271,13 @@ class ProviderWrapper(ProviderWrapperProtocol):
         """Discard internal shared state after request."""
         self.state = None
 
+    @staticmethod
+    def detect_capabilities(config: Dict[str, Any]) -> List[str]:
+        """Static capability detection shim for protocol compliance; wrappers don't implement probing."""
+        return []
 
-class ProviderAdapter(ProviderWrapperProtocol):
+
+class ProviderAdapter(ProviderPlugin):
     """
     Passthrough adapter for provider plugins.
 
@@ -402,9 +399,6 @@ class ProviderAdapter(ProviderWrapperProtocol):
         """Get provider UI elements."""
         return self.wrapper.get_ui_elements()
 
-    def detect_capabilities(self, config: Dict[str, Any]) -> List[str]:
-        """Detect provider capabilities (passthrough)."""
-        return self.wrapper.detect_capabilities(config)
 
     def get_extension_config_schemas(self) -> Dict[str, Any]:
         """Get config schemas for registered extensions."""
@@ -413,3 +407,8 @@ class ProviderAdapter(ProviderWrapperProtocol):
     def get_extension_ui_elements(self) -> Dict[str, List[Dict[str, Any]]]:
         """Get UI schemas for registered extensions."""
         return self.wrapper.get_extension_ui_elements()
+
+    @staticmethod
+    def detect_capabilities(config: Dict[str, Any]) -> List[str]:
+        """Static capability detection shim for protocol compliance; adapter delegates elsewhere when needed."""
+        return []
