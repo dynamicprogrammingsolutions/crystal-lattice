@@ -58,6 +58,18 @@ class BaseWrapper(Protocol):
 
 
 class ProviderWrapperProtocol(BaseWrapper, Protocol):
+    def detect_capabilities(self, config: Dict[str, Any]) -> List[str]:
+        """
+        Detect capability flags supported by the provider for a given config.
+
+        Args:
+            config: Application-supplied configuration for probing capabilities.
+
+        Returns:
+            List of capability identifiers.
+        """
+        ...
+
     def initialize(self, config: Dict[str, Any]) -> None:
         """
         Initialize wrapper-owned provider state from application config.
@@ -217,7 +229,7 @@ class ProviderWrapperProtocol(BaseWrapper, Protocol):
 
 
 class ExtensionWrapperProtocol(BaseWrapper, Protocol):
-    target_provider: Optional[str]
+    target_provider: str
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """

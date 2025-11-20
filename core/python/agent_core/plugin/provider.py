@@ -4,7 +4,7 @@ Provider plugin wrapper and adapter.
 Manages provider plugin state and provides typed interface for provider operations.
 """
 
-from typing import Dict, Any, List, Iterator, AsyncIterator, Tuple, Optional, cast
+from typing import Dict, Any, List, Iterator, AsyncIterator, Tuple, Optional
 from .extension import ExtensionWrapper
 from ..types import ProviderWrapperProtocol
 
@@ -223,6 +223,15 @@ class ProviderWrapper(ProviderWrapperProtocol):
 
         return final_messages, native_messages, new_state
 
+    def detect_capabilities(self, config: Dict[str, Any]) -> List[str]:
+        """Detect provider capabilities using static plugin method when available."""
+        if hasattr(self.plugin_class, "detect_capabilities"):
+            try:
+                return list(self.plugin_class.detect_capabilities(config))
+            except Exception:
+                return []
+        return []
+
     def get_extension_config_schemas(self) -> Dict[str, Any]:
         """Get config schemas for all extensions."""
         return {ext.name: ext.get_config_schema() for ext in self._extensions}
@@ -348,6 +357,10 @@ class ProviderAdapter(ProviderWrapperProtocol):
     def get_ui_elements(self) -> List[Dict[str, Any]]:
         """Get provider UI elements."""
         return self.wrapper.get_ui_elements()
+
+    def detect_capabilities(self, config: Dict[str, Any]) -> List[str]:
+        """Detect provider capabilities (passthrough)."""
+        return self.wrapper.detect_capabilities(config)
 
     def get_extension_config_schemas(self) -> Dict[str, Any]:
         """Get config schemas for registered extensions."""

@@ -21,7 +21,12 @@ class ExtensionWrapper(ExtensionWrapperProtocol):
         self.plugin = plugin_class()
         self.name = getattr(plugin_class, "name", plugin_class.__name__)
         self.version = getattr(plugin_class, "version", "unknown")
-        self.target_provider = getattr(plugin_class, "target_provider", None)
+        tp = getattr(plugin_class, "target_provider", None)
+        if tp is None:
+            raise ValueError(
+                f"Extension plugin {self.name} is missing required 'target_provider'"
+            )
+        self.target_provider: str = tp
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize with config and shared state; return updated shared state."""
