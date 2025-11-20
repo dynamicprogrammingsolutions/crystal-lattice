@@ -19,13 +19,11 @@ class DummyCalculator:
     name: str = "dummy_calculator"
     version: str = "1.0.0"
 
-    @staticmethod
-    def get_config_schema() -> Dict[str, Any]:
+    def get_config_schema(self) -> Dict[str, Any]:
         """Return configuration schema."""
         return {}
 
-    @staticmethod
-    def get_ui_elements() -> List[Dict[str, Any]]:
+    def get_ui_elements(self) -> List[Dict[str, Any]]:
         """Return UI elements."""
         return []
 
@@ -47,8 +45,7 @@ class DummyCalculator:
             "ui_state": {},
         }
 
-    @staticmethod
-    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         """
         Update tool state (pure function).
 

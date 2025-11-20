@@ -20,8 +20,7 @@ class OpenAICompatibleProvider(ProviderPlugin):
     version: str = "0.3.0"
 
     # ---------- Schemas ----------
-    @staticmethod
-    def get_config_schema() -> Dict[str, Any]:
+    def get_config_schema(self) -> Dict[str, Any]:
         return {
             "model": {"type": "string", "required": True},
             "api_key": {"type": "string", "required": False},
@@ -33,14 +32,12 @@ class OpenAICompatibleProvider(ProviderPlugin):
             "timeout": {"type": "number", "required": False, "default": 60},
         }
 
-    @staticmethod
-    def get_ui_elements() -> List[Dict[str, Any]]:
+    def get_ui_elements(self) -> List[Dict[str, Any]]:
         # No UI elements
         return []
 
     # ---------- State lifecycle ----------
-    @staticmethod
-    def init(config: Dict[str, Any]) -> Dict[str, Any]:
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         # Use only provided config values
         base_url = (config.get("base_url") or "https://api.openai.com/v1").rstrip("/")
         api_key = config.get("api_key")
@@ -60,14 +57,12 @@ class OpenAICompatibleProvider(ProviderPlugin):
             "ui_state": {},
         }
 
-    @staticmethod
-    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         new_config = {**state.get("config", {}), **updates}
         return {**state, "config": new_config}
 
-    @staticmethod
     def initialize_request(
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         return {
             **state,
@@ -79,21 +74,19 @@ class OpenAICompatibleProvider(ProviderPlugin):
         }
 
     # ---------- Message conversion ----------
-    @staticmethod
     def to_native_messages(
-        messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self, messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         return [{"role": m["role"], "content": m.get("content", "")} for m in messages]
 
-    @staticmethod
     def from_native_messages(
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         return list(native_messages)
 
     # ---------- Core API calls ----------
-    @staticmethod
     def call_api(
+        self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[
@@ -121,9 +114,8 @@ class OpenAICompatibleProvider(ProviderPlugin):
         final = [{"role": "assistant", "content": content, "metadata": {}}]
         return final, [], [], state
 
-    @staticmethod
     def stream_api(
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Iterator[Dict[str, Any]]:
         cfg = state["config"]
         url = f"{cfg['base_url']}/chat/completions"
@@ -162,8 +154,8 @@ class OpenAICompatibleProvider(ProviderPlugin):
         except requests.RequestException as e:  # pragma: no cover
             raise RuntimeError(f"OpenAI-compatible stream failed: {e}") from e
 
-    @staticmethod
     def process_chunk(
+        self,
         native_chunk: Dict[str, Any],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
@@ -203,8 +195,8 @@ class OpenAICompatibleProvider(ProviderPlugin):
         partials = [partial] if partial else []
         return [], partials, [native_chunk], new_state
 
-    @staticmethod
     def finalize(
+        self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
@@ -214,8 +206,7 @@ class OpenAICompatibleProvider(ProviderPlugin):
         final = {"role": "assistant", "content": content, "metadata": {}}
         return [final], [], state
 
-    @staticmethod
     def to_display_format(
-        message: Dict[str, Any], state: Dict[str, Any]
+        self, message: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         return message

@@ -19,15 +19,13 @@ class DummyExtension(ProviderExtensionPlugin):
     version: str = "1.0.0"
     target_provider: str = "dummy_provider"
 
-    @staticmethod
-    def get_config_schema() -> Dict[str, Any]:
+    def get_config_schema(self) -> Dict[str, Any]:
         return {
             "prefix": {"type": "string", "default": "[EXT]"},
             "enabled": {"type": "boolean", "default": True},
         }
 
-    @staticmethod
-    def get_ui_elements() -> List[Dict[str, Any]]:
+    def get_ui_elements(self) -> List[Dict[str, Any]]:
         return [
             {"type": "checkbox", "key": "enabled", "label": "Enable Extension"},
             {"type": "text", "key": "prefix", "label": "Extension Prefix"},
@@ -43,8 +41,7 @@ class DummyExtension(ProviderExtensionPlugin):
         rs = {**rs, "extension_processed_chunks": 0}
         return {**state, "config": new_config, "runtime_state": rs}
 
-    @staticmethod
-    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         return {**state, "config": {**state.get("config", {}), **updates}}
 
     # Stateless transforms

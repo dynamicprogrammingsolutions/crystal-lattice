@@ -19,20 +19,17 @@ class DummyFeature(FeaturePlugin):
     name: str = "dummy_feature"
     version: str = "1.0.0"
 
-    @staticmethod
-    def get_config_schema() -> Dict[str, Any]:
+    def get_config_schema(self) -> Dict[str, Any]:
         return {"prefix": {"type": "string", "default": "[TEST]"}}
 
-    @staticmethod
-    def get_ui_elements() -> List[Dict[str, Any]]:
+    def get_ui_elements(self) -> List[Dict[str, Any]]:
         return [{"type": "text", "key": "prefix", "label": "Response Prefix"}]
 
     @staticmethod
     def init(config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         return {**state, "config": {**state.get("config", {}), **config}}
 
-    @staticmethod
-    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         return {**state, "config": {**state.get("config", {}), **updates}}
 
     # Stateless transforms

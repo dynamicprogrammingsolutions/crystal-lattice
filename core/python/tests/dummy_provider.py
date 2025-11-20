@@ -20,16 +20,14 @@ class DummyProvider(ProviderPlugin):
     name: str = "dummy_provider"
     version: str = "1.0.0"
 
-    @staticmethod
-    def get_config_schema() -> Dict[str, Any]:
+    def get_config_schema(self) -> Dict[str, Any]:
         """Return configuration schema."""
         return {
             "model": {"type": "string", "required": True},
             "api_key": {"type": "string", "required": False},
         }
 
-    @staticmethod
-    def get_ui_elements() -> List[Dict[str, Any]]:
+    def get_ui_elements(self) -> List[Dict[str, Any]]:
         """Return UI elements."""
         return [{"type": "text", "key": "model", "label": "Model Name"}]
 
@@ -38,8 +36,7 @@ class DummyProvider(ProviderPlugin):
         """Return provider capabilities."""
         return ["text_generation", "streaming"]
 
-    @staticmethod
-    def init(config: Dict[str, Any]) -> Dict[str, Any]:
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
         Initialize provider state.
         """
@@ -50,26 +47,25 @@ class DummyProvider(ProviderPlugin):
             "ui_state": {},
         }
 
-    @staticmethod
-    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         """Update provider state (pure function)."""
         return {**state, "config": {**state["config"], **updates}}
 
-    @staticmethod
     def to_native_messages(
+        self,
         messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """Convert to native message format (passthrough for dummy)."""
         return messages
 
-    @staticmethod
     def from_native_messages(
+        self,
         native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         return native_messages
 
-    @staticmethod
     def initialize_request(
+        self,
         native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         # Reset runtime accumulators
@@ -82,8 +78,8 @@ class DummyProvider(ProviderPlugin):
             },
         }
 
-    @staticmethod
     def process_chunk(
+        self,
         native_chunk: Dict[str, Any],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
@@ -108,8 +104,8 @@ class DummyProvider(ProviderPlugin):
         partial_msg = {"role": "assistant", "content": partial_content, "metadata": {}}
         return [], ([partial_msg] if partial_content else []), [native_chunk], new_state
 
-    @staticmethod
     def finalize(
+        self,
         native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """
@@ -126,8 +122,8 @@ class DummyProvider(ProviderPlugin):
         }
         return [message], [], state
 
-    @staticmethod
     def call_api(
+        self,
         native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
@@ -142,8 +138,8 @@ class DummyProvider(ProviderPlugin):
         }
         return [final], [], [], state
 
-    @staticmethod
     def stream_api(
+        self,
         native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Iterator[Dict[str, Any]]:
         """Make streaming API call (simulated)."""

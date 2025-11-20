@@ -28,6 +28,7 @@ class ProviderWrapper(ProviderWrapperProtocol):
             extension_classes: Optional list of provider extension classes
         """
         self.plugin_class = plugin_class
+        self.plugin = plugin_class()
         self.state: Optional[Dict[str, Any]] = None
         self.name = getattr(plugin_class, "name", plugin_class.__name__)
         self.version = getattr(plugin_class, "version", "unknown")
@@ -53,7 +54,7 @@ class ProviderWrapper(ProviderWrapperProtocol):
         Args:
             config: Provider configuration
         """
-        self.state = self.plugin_class.init(config)
+        self.state = self.plugin.init(config)
         # Let extensions update shared state during init
         for ext in self._extensions:
             self.state = ext.init(config, self._get_state())
@@ -73,20 +74,20 @@ class ProviderWrapper(ProviderWrapperProtocol):
         """
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
-        self.state = self.plugin_class.update_state(self.state, updates)
+        self.state = self.plugin.update_state(self.state, updates)
         for ext in self._extensions:
             self.state = ext.update_state(self._get_state(), updates)
 
     def get_config_schema(self) -> Dict[str, Any]:
         """Get provider configuration schema."""
-        if hasattr(self.plugin_class, "get_config_schema"):
-            return self.plugin_class.get_config_schema()
+        if hasattr(self.plugin, "get_config_schema"):
+            return self.plugin.get_config_schema()
         return {}
 
     def get_ui_elements(self) -> List[Dict[str, Any]]:
         """Get provider UI elements."""
-        if hasattr(self.plugin_class, "get_ui_elements"):
-            return self.plugin_class.get_ui_elements()
+        if hasattr(self.plugin, "get_ui_elements"):
+            return self.plugin.get_ui_elements()
         return []
 
     def get_state(self) -> Dict[str, Any]:
@@ -103,7 +104,7 @@ class ProviderWrapper(ProviderWrapperProtocol):
         """Run provider and extensions initialize_request with native messages for a new turn."""
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
-        self.state = self.plugin_class.initialize_request(native_messages, self.state)
+        self.state = self.plugin.initialize_request(native_messages, self.state)
         for ext in self._extensions:
             self.state = ext.initialize_request(native_messages, self._get_state())
 
@@ -113,7 +114,7 @@ class ProviderWrapper(ProviderWrapperProtocol):
         """Convert core messages to provider's native format (provider-first)."""
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
-        native = self.plugin_class.to_native_messages(messages, self.state)
+        native = self.plugin.to_native_messages(messages, self.state)
         return native
 
     def apply_extension_transforms(
@@ -138,7 +139,7 @@ class ProviderWrapper(ProviderWrapperProtocol):
             raise RuntimeError(f"Provider {self.name} not initialized")
         # Call provider API directly; pre-request transforms were already applied in core
         transformed_native = list(native_messages)
-        final_messages, partials, native_msgs, new_state = self.plugin_class.call_api(
+        final_messages, partials, native_msgs, new_state = self.plugin.call_api(
             transformed_native, self.state
         )
         self.state = new_state
@@ -150,7 +151,7 @@ class ProviderWrapper(ProviderWrapperProtocol):
         """Make streaming API call (state-validated)."""
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
-        yield from self.plugin_class.stream_api(native_messages, self.state)
+        yield from self.plugin.stream_api(native_messages, self.state)
 
     async def stream_api_async(
         self, native_messages: List[Dict[str, Any]]
@@ -158,14 +159,14 @@ class ProviderWrapper(ProviderWrapperProtocol):
         """Make async streaming API call, preferring native async if available."""
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
-        if hasattr(self.plugin_class, "stream_api_async"):
-            async for chunk in self.plugin_class.stream_api_async(
+        if hasattr(self.plugin, "stream_api_async"):
+            async for chunk in self.plugin.stream_api_async(
                 native_messages, self.state
             ):
                 yield chunk
             return
         # Fallback to sync stream
-        for chunk in self.plugin_class.stream_api(native_messages, self.state):
+        for chunk in self.plugin.stream_api(native_messages, self.state):
             yield chunk
 
     def process_chunk(
@@ -178,7 +179,7 @@ class ProviderWrapper(ProviderWrapperProtocol):
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
         final_messages, partial_messages, native_messages, new_state = (
-            self.plugin_class.process_chunk(native_chunk, native_messages, self.state)
+            self.plugin.process_chunk(native_chunk, native_messages, self.state)
         )
         self.state = new_state
         # Extensions observe and can enhance/discard using shared state
@@ -204,9 +205,9 @@ class ProviderWrapper(ProviderWrapperProtocol):
         """
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
-        if not hasattr(self.plugin_class, "finalize"):
+        if not hasattr(self.plugin, "finalize"):
             return [], [], self._get_state()
-        final_messages, native_messages, new_state = self.plugin_class.finalize(
+        final_messages, native_messages, new_state = self.plugin.finalize(
             native_messages, self.state
         )
 

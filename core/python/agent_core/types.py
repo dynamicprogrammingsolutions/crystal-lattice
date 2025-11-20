@@ -470,8 +470,7 @@ class BasePlugin(Protocol):
     version: str
 
     # Config/UI (class-level)
-    @staticmethod
-    def get_config_schema() -> Dict[str, Any]:
+    def get_config_schema(self) -> Dict[str, Any]:
         """
         Return JSON schema describing this provider's configuration.
 
@@ -480,8 +479,7 @@ class BasePlugin(Protocol):
         """
         ...
 
-    @staticmethod
-    def get_ui_elements() -> List[Dict[str, Any]]:
+    def get_ui_elements(self) -> List[Dict[str, Any]]:
         """
         Return UI element definitions for configuring this provider.
 
@@ -491,8 +489,7 @@ class BasePlugin(Protocol):
         ...
 
     # Common lifecycle across provider/extension/feature
-    @staticmethod
-    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         """
         Apply UI/runtime updates to the shared provider state immutably.
 
@@ -509,8 +506,7 @@ class BasePlugin(Protocol):
 class ProviderPlugin(BasePlugin, Protocol):
     """Protocol for provider plugins (new lifecycle)."""
 
-    @staticmethod
-    def init(config: Dict[str, Any]) -> Dict[str, Any]:
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
         Initialize provider state from application config.
 
@@ -523,9 +519,8 @@ class ProviderPlugin(BasePlugin, Protocol):
         ...
 
     # Message conversion
-    @staticmethod
     def to_native_messages(
-        messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self, messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
         Convert core messages to this provider's native wire format.
@@ -539,9 +534,8 @@ class ProviderPlugin(BasePlugin, Protocol):
         """
         ...
 
-    @staticmethod
     def from_native_messages(
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
         Convert provider-native messages into core message dictionaries.
@@ -556,9 +550,8 @@ class ProviderPlugin(BasePlugin, Protocol):
         ...
 
     # New request lifecycle
-    @staticmethod
     def initialize_request(
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Prepare for a new request with provider-native messages.
@@ -572,8 +565,8 @@ class ProviderPlugin(BasePlugin, Protocol):
         """
         ...
 
-    @staticmethod
     def process_chunk(
+        self,
         native_chunk: Dict[str, Any],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
@@ -595,8 +588,8 @@ class ProviderPlugin(BasePlugin, Protocol):
 
     # Returns: (final_messages, partial_messages, native_messages, new_state)
 
-    @staticmethod
     def finalize(
+        self,
         native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """
@@ -613,9 +606,8 @@ class ProviderPlugin(BasePlugin, Protocol):
 
     # Returns: (final_messages, native_messages, new_state)
 
-    @staticmethod
     def to_display_format(
-        message: Dict[str, Any], state: Dict[str, Any]
+        self, message: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Convert a message to a display-friendly format for UIs.
@@ -630,8 +622,8 @@ class ProviderPlugin(BasePlugin, Protocol):
         ...
 
     # I/O entry points now take native messages
-    @staticmethod
     def call_api(
+        self,
         native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
@@ -650,9 +642,8 @@ class ProviderPlugin(BasePlugin, Protocol):
 
     # Returns: (final_messages, partial_messages, native_messages, new_state)
 
-    @staticmethod
     def stream_api(
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Iterator[Dict[str, Any]]:
         """
         Make a streaming API call; yields provider-native chunks.

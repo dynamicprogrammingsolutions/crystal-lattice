@@ -24,6 +24,7 @@ class ToolWrapper:
             plugin_class: Tool plugin class with static methods
         """
         self.plugin_class = plugin_class
+        self.plugin = plugin_class()
         self.state: Optional[Dict[str, Any]] = None
         self._name = getattr(plugin_class, "name", plugin_class.__name__)
         self._version = getattr(plugin_class, "version", "unknown")
@@ -45,8 +46,8 @@ class ToolWrapper:
         Args:
             config: Tool configuration
         """
-        if hasattr(self.plugin_class, "init"):
-            self.state = self.plugin_class.init(config)
+        if hasattr(self.plugin, "init"):
+            self.state = self.plugin.init(config)
         else:
             # Stateless tool, just store config and default state buckets
             self.state = {
@@ -66,8 +67,8 @@ class ToolWrapper:
         if self.state is None:
             raise RuntimeError(f"Tool {self.name} not initialized")
 
-        if hasattr(self.plugin_class, "update_state"):
-            self.state = self.plugin_class.update_state(self.state, updates)
+        if hasattr(self.plugin, "update_state"):
+            self.state = self.plugin.update_state(self.state, updates)
         else:
             # Simple config update
             self.state = {
@@ -77,36 +78,36 @@ class ToolWrapper:
 
     def get_config_schema(self) -> Dict[str, Any]:
         """Get tool configuration schema."""
-        if hasattr(self.plugin_class, "get_config_schema"):
-            return self.plugin_class.get_config_schema()
+        if hasattr(self.plugin, "get_config_schema"):
+            return self.plugin.get_config_schema()
         return {}
 
     def get_ui_elements(self) -> List[Dict[str, Any]]:
         """Get tool UI elements."""
-        if hasattr(self.plugin_class, "get_ui_elements"):
-            return self.plugin_class.get_ui_elements()
+        if hasattr(self.plugin, "get_ui_elements"):
+            return self.plugin.get_ui_elements()
         return []
 
     def get_tool_schemas(self) -> List[Dict[str, Any]]:
         """Get tool schemas via plugin if implemented; otherwise empty list."""
         if self.state is None:
             raise RuntimeError(f"Tool {self.name} not initialized")
-        if hasattr(self.plugin_class, "get_tool_schemas"):
-            return self.plugin_class.get_tool_schemas(self.state)
+        if hasattr(self.plugin, "get_tool_schemas"):
+            return self.plugin.get_tool_schemas(self.state)
         return []
 
     def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Execute tool via plugin; requires initialized state."""
         if self.state is None:
             raise RuntimeError(f"Tool {self.name} not initialized")
-        return self.plugin_class.execute_tool(tool_name, arguments, self.state)
+        return self.plugin.execute_tool(tool_name, arguments, self.state)
 
     def format_tool_result(self, result: Dict[str, Any]) -> str:
         """Format tool result via plugin if implemented; otherwise default formatting."""
         if self.state is None:
             raise RuntimeError(f"Tool {self.name} not initialized")
-        if hasattr(self.plugin_class, "format_tool_result"):
-            return self.plugin_class.format_tool_result(result, self.state)
+        if hasattr(self.plugin, "format_tool_result"):
+            return self.plugin.format_tool_result(result, self.state)
         if result.get("success"):
             return f"Result: {result.get('result')}"
         else:
