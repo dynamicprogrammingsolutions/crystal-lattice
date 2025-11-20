@@ -4,30 +4,27 @@ Streams characters of "Echo: <last user message>" as native chunks, and finalize
 """
 
 from typing import Any, Dict, List, Iterator, Tuple
+from agent_core.types import ProviderPlugin
 
 
-class EchoProvider:
+class EchoProvider(ProviderPlugin):
     name = "echo"
     version = "1.0.0"
 
-    @staticmethod
-    def get_config_schema() -> Dict[str, Any]:
+    def get_config_schema(self) -> Dict[str, Any]:
         return {"model": {"type": "string", "default": "echo-1"}}
 
-    @staticmethod
-    def get_ui_elements() -> List[Dict[str, Any]]:
+    def get_ui_elements(self) -> List[Dict[str, Any]]:
         return [{"type": "text", "key": "model", "label": "Model"}]
 
-    @staticmethod
-    def init(config: Dict[str, Any]) -> Dict[str, Any]:
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         return {"config": config, "runtime_state": {"accumulated": ""}}
 
-    @staticmethod
-    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         return {**state, "config": {**state.get("config", {}), **updates}}
 
-    @staticmethod
     def initialize_request(
+        self,
         native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         return {
@@ -35,20 +32,20 @@ class EchoProvider:
             "runtime_state": {**state.get("runtime_state", {}), "accumulated": ""},
         }
 
-    @staticmethod
     def to_native_messages(
+        self,
         messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         return list(messages)
 
-    @staticmethod
     def from_native_messages(
+        self,
         native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         return list(native_messages)
 
-    @staticmethod
     def stream_api(
+        self,
         native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Iterator[Dict[str, Any]]:
         last_user = next(
@@ -59,8 +56,8 @@ class EchoProvider:
         for ch in text:
             yield {"content": ch}
 
-    @staticmethod
     def process_chunk(
+        self,
         native_chunk: Dict[str, Any],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
@@ -87,8 +84,8 @@ class EchoProvider:
         )
         return [], partial, [], new_state
 
-    @staticmethod
     def finalize(
+        self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
@@ -98,8 +95,8 @@ class EchoProvider:
         final = [{"role": "assistant", "content": content, "metadata": {}}]
         return final, [], state
 
-    @staticmethod
     def call_api(
+        self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[

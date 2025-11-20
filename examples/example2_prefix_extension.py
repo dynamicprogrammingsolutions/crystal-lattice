@@ -4,29 +4,26 @@ Adds a prefix to final assistant messages and counts processed chunks in metadat
 """
 
 from typing import Any, Dict, List, Tuple, Optional
+from agent_core.types import ProviderExtensionPlugin
 
-
-class PrefixExtension:
+class PrefixExtension(ProviderExtensionPlugin):
     name: str = "prefix_extension"
     version: str = "1.0.0"
     target_provider: str = "echo"
 
-    @staticmethod
-    def get_config_schema() -> Dict[str, Any]:
+    def get_config_schema(self) -> Dict[str, Any]:
         return {
             "enabled": {"type": "boolean", "default": True},
             "prefix": {"type": "string", "default": "[EXT]"},
         }
 
-    @staticmethod
-    def get_ui_elements() -> List[Dict[str, Any]]:
+    def get_ui_elements(self) -> List[Dict[str, Any]]:
         return [
             {"type": "checkbox", "key": "enabled", "label": "Enable Extension"},
             {"type": "text", "key": "prefix", "label": "Prefix"},
         ]
 
-    @staticmethod
-    def init(config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         rs = {**state.get("runtime_state", {}), "extension_processed_chunks": 0}
         return {
             **state,
@@ -34,30 +31,29 @@ class PrefixExtension:
             "runtime_state": rs,
         }
 
-    @staticmethod
-    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         return {**state, "config": {**state.get("config", {}), **updates}}
 
-    @staticmethod
     def to_native_messages(
+        self,
         messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         return messages
 
-    @staticmethod
     def from_native_messages(
+        self,
         native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         return messages
 
-    @staticmethod
     def initialize_request(
+        self,
         native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         return state
 
-    @staticmethod
     def process_chunk(
+        self,
         native_chunk: Optional[Dict[str, Any]],
         messages: List[Dict[str, Any]],
         state: Dict[str, Any],
@@ -90,8 +86,8 @@ class PrefixExtension:
             }
         return partial_messages, finals, native_messages, {**state, "runtime_state": rs}
 
-    @staticmethod
     def finalize(
+        self,
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],

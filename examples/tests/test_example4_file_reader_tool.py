@@ -20,7 +20,7 @@ def test_file_reader_tool_reads_file():
     ).FileReaderTool
 
     cfg = {"allowed_paths": ["."], "max_file_size": 1024 * 1024}
-    state = FileReaderTool.init(cfg)
+    state = FileReaderTool().init(cfg)
 
     with tempfile.NamedTemporaryFile("w+", delete=False, dir=".") as tf:
         tf.write("hello world")
@@ -28,9 +28,9 @@ def test_file_reader_tool_reads_file():
         path = tf.name
 
     try:
-        result = FileReaderTool.execute_tool("read_file", {"file_path": path}, state)
+        result = FileReaderTool().execute_tool("read_file", {"file_path": path}, state)
         assert result.get("success") is True
-        formatted = FileReaderTool.format_tool_result(result, state)
+        formatted = FileReaderTool().format_tool_result(result, state)
         assert "hello world" in formatted
     finally:
         os.unlink(path)

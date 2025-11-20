@@ -4,7 +4,7 @@ This feature marks finals with metadata when web_search_enabled is True and prin
 """
 
 from typing import Any, Dict, List, Tuple
-
+from agent_core.types import FeaturePlugin
 
 class WebSearchFeature:
     name: str = "web_search"

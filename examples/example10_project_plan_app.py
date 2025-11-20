@@ -78,7 +78,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     # Application manages config
     agent_config = get_agent_config("default")
     # Initialize tool state once per connection
-    file_reader_state = FileReaderTool.init(agent_config)
+    file_reader_tool = FileReaderTool()
+    file_reader_state = file_reader_tool.init(agent_config)
 
     try:
         while True:
@@ -136,10 +137,10 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         )
 
                         # Execute (stateful - pass initialized tool state)
-                        result = FileReaderTool.execute_tool(
+                        result = file_reader_tool.execute_tool(
                             tool_name, arguments, file_reader_state
                         )
-                        formatted = FileReaderTool.format_tool_result(
+                        formatted = file_reader_tool.format_tool_result(
                             result, file_reader_state
                         )
 

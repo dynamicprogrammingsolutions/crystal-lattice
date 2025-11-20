@@ -29,7 +29,7 @@ def run_example():
     }
 
     # Initialize tool state once (tool plugins are stateful)
-    tool_state = FileReaderTool.init(config)
+    tool_state = FileReaderTool().init(config)
 
     session = core.create_session()
     session = core.add_message(session, "user", "Read the contents of README.md")
@@ -54,8 +54,8 @@ def run_example():
             arguments = json.loads(tool_call["function"]["arguments"])
 
             # Execute tool (stateful - pass initialized state)
-            result = FileReaderTool.execute_tool(tool_name, arguments, tool_state)
-            formatted = FileReaderTool.format_tool_result(result, tool_state)
+            result = FileReaderTool().execute_tool(tool_name, arguments, tool_state)
+            formatted = FileReaderTool().format_tool_result(result, tool_state)
 
             # Add tool result as message (functional)
             session = core.add_message(

@@ -676,8 +676,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
 
     target_provider: str
 
-    @staticmethod
-    def init(config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """
         Initialize with application config and shared provider state.
 
@@ -691,9 +690,8 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         ...
 
     # Stateless transforms
-    @staticmethod
     def to_native_messages(
-        messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
         Transform provider-native messages using visibility of core messages.
@@ -709,9 +707,8 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         """
         ...
 
-    @staticmethod
     def from_native_messages(
-        native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
         Transform provider-native messages back into core messages.
@@ -727,9 +724,8 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         """
         ...
 
-    @staticmethod
     def initialize_request(
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Prepare for a new request with provider-native messages.
@@ -743,8 +739,8 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         """
         ...
 
-    @staticmethod
     def process_chunk(
+        self,
         native_chunk: Optional[Dict[str, Any]],
         messages: List[Dict[str, Any]],
         state: Dict[str, Any],
@@ -775,8 +771,8 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
 
     # Returns: (partial_messages, final_messages, native_messages, new_state)
 
-    @staticmethod
     def finalize(
+        self,
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
@@ -888,8 +884,7 @@ class FeaturePlugin(BasePlugin, Protocol):
 class ToolPlugin(BasePlugin, Protocol):
     """Protocol for tool plugins."""
 
-    @staticmethod
-    def init(config: Dict[str, Any]) -> Dict[str, Any]:
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
         Initialize internal tool state from application config.
 
@@ -901,8 +896,7 @@ class ToolPlugin(BasePlugin, Protocol):
         """
         ...
 
-    @staticmethod
-    def get_tool_schemas(state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Return OpenAI-style function definitions provided by this tool.
 
@@ -914,9 +908,8 @@ class ToolPlugin(BasePlugin, Protocol):
         """
         ...
 
-    @staticmethod
     def execute_tool(
-        tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
+        self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Execute a tool function by name with structured arguments.
@@ -931,8 +924,7 @@ class ToolPlugin(BasePlugin, Protocol):
         """
         ...
 
-    @staticmethod
-    def format_tool_result(result: Dict[str, Any], state: Dict[str, Any]) -> str:
+    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
         """
         Format a tool result dictionary for LLM consumption/display.
 

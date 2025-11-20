@@ -8,7 +8,6 @@ from typing import Dict, Any, List, Tuple, Optional
 from dataclasses import dataclass
 from agent_core.types import ProviderExtensionPlugin
 
-
 @dataclass
 class DummyExtension(ProviderExtensionPlugin):
     """
@@ -32,8 +31,7 @@ class DummyExtension(ProviderExtensionPlugin):
         ]
 
     # New lifecycle: init accepts shared state
-    @staticmethod
-    def init(config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         # Store extension config under provider state's config
         new_config = {**state.get("config", {}), **config}
         # Initialize extension counters within provider runtime_state
@@ -45,26 +43,26 @@ class DummyExtension(ProviderExtensionPlugin):
         return {**state, "config": {**state.get("config", {}), **updates}}
 
     # Stateless transforms
-    @staticmethod
     def to_native_messages(
-        messages: List[Dict[str, Any]], native_messages
+        self,
+        messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         return messages
 
-    @staticmethod
     def from_native_messages(
-        native_messages: List[Dict[str, Any]], messages
+        self,
+        native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         return native_messages
 
-    @staticmethod
     def initialize_request(
+        self,
         native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         return state
 
-    @staticmethod
     def process_chunk(
+        self,
         native_chunk: Optional[Dict[str, Any]],
         messages: List[Dict[str, Any]],
         state: Dict[str, Any],
@@ -98,8 +96,8 @@ class DummyExtension(ProviderExtensionPlugin):
             {**state, "runtime_state": rs},
         )
 
-    @staticmethod
     def finalize(
+        self,
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],

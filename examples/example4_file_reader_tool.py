@@ -4,14 +4,13 @@ FileReaderTool example (class-based tool plugin) derived from PLUGIN_EXAMPLES.md
 
 import os
 from typing import Any, Dict, List
+from agent_core.types import ToolPlugin
 
-
-class FileReaderTool:
+class FileReaderTool(ToolPlugin):
     name: str = "file_reader"
     version: str = "1.0.0"
 
-    @staticmethod
-    def get_config_schema() -> Dict[str, Any]:
+    def get_config_schema(self) -> Dict[str, Any]:
         return {
             "allowed_paths": {
                 "type": "array",
@@ -26,8 +25,7 @@ class FileReaderTool:
             },
         }
 
-    @staticmethod
-    def get_ui_elements() -> List[Dict[str, Any]]:
+    def get_ui_elements(self) -> List[Dict[str, Any]]:
         return [
             {
                 "type": "text",
@@ -36,8 +34,7 @@ class FileReaderTool:
             }
         ]
 
-    @staticmethod
-    def init(config: Dict[str, Any]) -> Dict[str, Any]:
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "config": config,
             "runtime_state": {},
@@ -45,12 +42,10 @@ class FileReaderTool:
             "capabilities": [],
         }
 
-    @staticmethod
-    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         return {**state, "config": {**state["config"], **updates}}
 
-    @staticmethod
-    def get_tool_schemas(state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         return [
             {
                 "type": "function",
@@ -71,8 +66,8 @@ class FileReaderTool:
             }
         ]
 
-    @staticmethod
     def execute_tool(
+        self,
         tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         if tool_name != "read_file":
@@ -97,8 +92,7 @@ class FileReaderTool:
         except Exception as e:
             return {"success": False, "error": f"Error reading file: {str(e)}"}
 
-    @staticmethod
-    def format_tool_result(result: Dict[str, Any], state: Dict[str, Any]) -> str:
+    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
         return (
             f"File contents:\n{result['result']}"
             if result.get("success")
