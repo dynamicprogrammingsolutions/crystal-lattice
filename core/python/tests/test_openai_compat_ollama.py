@@ -9,6 +9,7 @@ Requirements:
 
 This test skips gracefully if Ollama is unavailable or the model cannot be pulled.
 """
+
 import os
 import shutil
 import subprocess
@@ -36,7 +37,9 @@ def _which(cmd: str) -> Optional[str]:
 
 
 def _run(cmd: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    return subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout
+    )
 
 
 @pytest.fixture(scope="module")

@@ -2,6 +2,7 @@
 PROJECT_PLAN Example 3: Tool Calls Loop (Ollama)
 Preserves original messages and uses FileReaderTool.
 """
+
 import os
 import json
 from agent_core import AgentCore
@@ -24,7 +25,7 @@ def run_example():
         "model": model,
         "base_url": base_url,
         "timeout": 60,
-        "allowed_paths": ["."]
+        "allowed_paths": ["."],
     }
 
     # Initialize tool state once (tool plugins are stateful)
@@ -38,35 +39,32 @@ def run_example():
     for i in range(max_iterations):
         # Send request (functional)
         session, messages = core.send_request(session, config)
-        
+
         # Check for tool calls
         tool_calls = messages[-1].get("metadata", {}).get("tool_calls", [])
-        
+
         if not tool_calls:
             # No tools, we're done
             print("Assistant:", messages[-1]["content"])
             break
-        
+
         # Execute tools (application responsibility)
         for tool_call in tool_calls:
             tool_name = tool_call["function"]["name"]
             arguments = json.loads(tool_call["function"]["arguments"])
-            
+
             # Execute tool (stateful - pass initialized state)
             result = FileReaderTool.execute_tool(tool_name, arguments, tool_state)
             formatted = FileReaderTool.format_tool_result(result, tool_state)
-            
+
             # Add tool result as message (functional)
             session = core.add_message(
                 session,
                 "tool",
                 formatted,
-                metadata={
-                    "tool_call_id": tool_call["id"],
-                    "name": tool_name
-                }
+                metadata={"tool_call_id": tool_call["id"], "name": tool_name},
             )
-    
+
     # Loop continues with tool results in conversation
 
 

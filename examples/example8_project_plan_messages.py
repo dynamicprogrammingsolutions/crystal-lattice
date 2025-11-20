@@ -2,6 +2,7 @@
 PROJECT_PLAN Example 4: Message History Manipulation (Ollama)
 Preserves original message sequence and edits.
 """
+
 import os
 from agent_core import AgentCore
 from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
@@ -35,7 +36,7 @@ def run_example():
     session = Session(
         session_id=session.session_id,
         messages=session.messages[:-1],
-        metadata=session.metadata
+        metadata=session.metadata,
     )
 
     # Add different message
@@ -46,13 +47,10 @@ def run_example():
 
     # Clear conversation and start fresh (functional)
     session = Session(
-        session_id=session.session_id,
-        messages=[],
-        metadata=session.metadata
+        session_id=session.session_id, messages=[], metadata=session.metadata
     )
     session = core.add_message(session, "user", "New conversation")
 
 
 if __name__ == "__main__":
     run_example()
-

@@ -4,6 +4,7 @@ OpenAI-Compatible Provider Plugin (plugins/providers/openai/python/openai_provid
 Minimal provider for OpenAI-compatible Chat Completions endpoints (e.g., Ollama at /v1).
 Loads configuration only from the provided config dict (no environment variable usage).
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, Iterator, List, Tuple
@@ -24,7 +25,11 @@ class OpenAICompatibleProvider(ProviderPlugin):
         return {
             "model": {"type": "string", "required": True},
             "api_key": {"type": "string", "required": False},
-            "base_url": {"type": "string", "required": False, "default": "https://api.openai.com/v1"},
+            "base_url": {
+                "type": "string",
+                "required": False,
+                "default": "https://api.openai.com/v1",
+            },
             "timeout": {"type": "number", "required": False, "default": 60},
         }
 
@@ -61,7 +66,9 @@ class OpenAICompatibleProvider(ProviderPlugin):
         return {**state, "config": new_config}
 
     @staticmethod
-    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+    def initialize_request(
+        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         return {
             **state,
             "runtime_state": {
@@ -73,11 +80,15 @@ class OpenAICompatibleProvider(ProviderPlugin):
 
     # ---------- Message conversion ----------
     @staticmethod
-    def to_native_messages(messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def to_native_messages(
+        messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         return [{"role": m["role"], "content": m.get("content", "")} for m in messages]
 
     @staticmethod
-    def from_native_messages(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def from_native_messages(
+        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         return list(native_messages)
 
     # ---------- Core API calls ----------
@@ -85,7 +96,9 @@ class OpenAICompatibleProvider(ProviderPlugin):
     def call_api(
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         cfg = state["config"]
         url = f"{cfg['base_url']}/chat/completions"
         payload: Dict[str, Any] = {
@@ -97,21 +110,21 @@ class OpenAICompatibleProvider(ProviderPlugin):
         if cfg.get("api_key"):
             headers["Authorization"] = f"Bearer {cfg['api_key']}"
         try:
-            r = requests.post(url, json=payload, headers=headers, timeout=cfg.get("timeout", 60))
+            r = requests.post(
+                url, json=payload, headers=headers, timeout=cfg.get("timeout", 60)
+            )
             r.raise_for_status()
             obj = r.json()
         except requests.RequestException as e:  # pragma: no cover
             raise RuntimeError(f"OpenAI-compatible call failed: {e}") from e
-        content = (
-            obj.get("choices", [{}])[0]
-            .get("message", {})
-            .get("content", "")
-        )
+        content = obj.get("choices", [{}])[0].get("message", {}).get("content", "")
         final = [{"role": "assistant", "content": content, "metadata": {}}]
         return final, [], [], state
 
     @staticmethod
-    def stream_api(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
+    def stream_api(
+        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Iterator[Dict[str, Any]]:
         cfg = state["config"]
         url = f"{cfg['base_url']}/chat/completions"
         payload: Dict[str, Any] = {
@@ -123,7 +136,13 @@ class OpenAICompatibleProvider(ProviderPlugin):
         if cfg.get("api_key"):
             headers["Authorization"] = f"Bearer {cfg['api_key']}"
         try:
-            with requests.post(url, json=payload, headers=headers, timeout=cfg.get("timeout", 60), stream=True) as r:
+            with requests.post(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=cfg.get("timeout", 60),
+                stream=True,
+            ) as r:
                 r.raise_for_status()
                 for line in r.iter_lines(decode_unicode=True):
                     if not line:
@@ -148,7 +167,9 @@ class OpenAICompatibleProvider(ProviderPlugin):
         native_chunk: Dict[str, Any],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         delta_text = ""
         if "content" in native_chunk and isinstance(native_chunk["content"], str):
             delta_text = native_chunk["content"]
@@ -162,7 +183,9 @@ class OpenAICompatibleProvider(ProviderPlugin):
             )
         elif "text" in native_chunk:
             delta_text = native_chunk["text"]
-        new_accum = state["runtime_state"].get("accumulated_content", "") + (delta_text or "")
+        new_accum = state["runtime_state"].get("accumulated_content", "") + (
+            delta_text or ""
+        )
         new_native = state["runtime_state"].get("native_chunks", []) + [native_chunk]
         new_state = {
             **state,
@@ -172,7 +195,11 @@ class OpenAICompatibleProvider(ProviderPlugin):
                 "native_chunks": new_native,
             },
         }
-        partial = ({"role": "assistant", "content": delta_text, "metadata": {}} if delta_text else None)
+        partial = (
+            {"role": "assistant", "content": delta_text, "metadata": {}}
+            if delta_text
+            else None
+        )
         partials = [partial] if partial else []
         return [], partials, [native_chunk], new_state
 
@@ -188,5 +215,7 @@ class OpenAICompatibleProvider(ProviderPlugin):
         return [final], [], state
 
     @staticmethod
-    def to_display_format(message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def to_display_format(
+        message: Dict[str, Any], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         return message

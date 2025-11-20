@@ -2,6 +2,7 @@
 EchoProvider example (class-based provider plugin) derived from PLUGIN_EXAMPLES.md.
 Streams characters of "Echo: <last user message>" as native chunks, and finalizes the full message.
 """
+
 from typing import Any, Dict, List, Iterator, Tuple
 
 
@@ -26,20 +27,34 @@ class EchoProvider:
         return {**state, "config": {**state.get("config", {}), **updates}}
 
     @staticmethod
-    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, "runtime_state": {**state.get("runtime_state", {}), "accumulated": ""}}
+    def initialize_request(
+        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        return {
+            **state,
+            "runtime_state": {**state.get("runtime_state", {}), "accumulated": ""},
+        }
 
     @staticmethod
-    def to_native_messages(messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def to_native_messages(
+        messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         return list(messages)
 
     @staticmethod
-    def from_native_messages(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def from_native_messages(
+        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         return list(native_messages)
 
     @staticmethod
-    def stream_api(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
-        last_user = next((m for m in reversed(native_messages) if m.get("role") == "user"), {"content": ""})
+    def stream_api(
+        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Iterator[Dict[str, Any]]:
+        last_user = next(
+            (m for m in reversed(native_messages) if m.get("role") == "user"),
+            {"content": ""},
+        )
         text = f"Echo: {last_user.get('content', '')}"
         for ch in text:
             yield {"content": ch}
@@ -49,11 +64,24 @@ class EchoProvider:
         native_chunk: Dict[str, Any],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        acc = state.get("runtime_state", {}).get("accumulated", "") + native_chunk.get("content", "")
-        new_state = {**state, "runtime_state": {**state.get("runtime_state", {}), "accumulated": acc}}
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
+        acc = state.get("runtime_state", {}).get("accumulated", "") + native_chunk.get(
+            "content", ""
+        )
+        new_state = {
+            **state,
+            "runtime_state": {**state.get("runtime_state", {}), "accumulated": acc},
+        }
         partial = (
-            [{"role": "assistant", "content": native_chunk.get("content", ""), "metadata": {}}]
+            [
+                {
+                    "role": "assistant",
+                    "content": native_chunk.get("content", ""),
+                    "metadata": {},
+                }
+            ]
             if native_chunk.get("content")
             else []
         )
@@ -74,7 +102,17 @@ class EchoProvider:
     def call_api(
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        last_user = next((m for m in reversed(native_messages) if m.get("role") == "user"), {"content": ""})
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
+        last_user = next(
+            (m for m in reversed(native_messages) if m.get("role") == "user"),
+            {"content": ""},
+        )
         content = f"Echo: {last_user.get('content', '')}"
-        return ([{"role": "assistant", "content": content, "metadata": {}}], [], [], state)
+        return (
+            [{"role": "assistant", "content": content, "metadata": {}}],
+            [],
+            [],
+            state,
+        )

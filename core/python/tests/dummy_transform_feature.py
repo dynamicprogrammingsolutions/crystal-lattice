@@ -29,27 +29,40 @@ class DummyTransformFeature(FeaturePlugin):
         return {**state, "config": {**state.get("config", {}), **updates}}
 
     @staticmethod
-    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+    def initialize_request(
+        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         return state
 
     # Stateless transforms
     @staticmethod
-    def to_native_messages(messages: List[Dict[str, Any]], native_messages) -> List[Dict[str, Any]]:
+    def to_native_messages(
+        messages: List[Dict[str, Any]], native_messages
+    ) -> List[Dict[str, Any]]:
         return messages
 
     @staticmethod
-    def from_native_messages(native_messages: List[Dict[str, Any]], messages) -> List[Dict[str, Any]]:
+    def from_native_messages(
+        native_messages: List[Dict[str, Any]], messages
+    ) -> List[Dict[str, Any]]:
         return native_messages
 
     @staticmethod
     def finalize(
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any]
+        state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         # Uppercase assistant response content
         finals = [
-            {**m, "content": (m.get("content", "").upper() if isinstance(m.get("content"), str) else m.get("content"))}
+            {
+                **m,
+                "content": (
+                    m.get("content", "").upper()
+                    if isinstance(m.get("content"), str)
+                    else m.get("content")
+                ),
+            }
             for m in final_messages
         ]
         return finals, native_messages, state

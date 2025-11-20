@@ -28,7 +28,9 @@ class ExtensionWrapper(ExtensionWrapperProtocol):
             return self.plugin_class.init(config, state)
         return state
 
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_state(
+        self, state: Dict[str, Any], updates: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Apply updates (e.g., UI) to shared state; return new state."""
         if hasattr(self.plugin_class, "update_state"):
             return self.plugin_class.update_state(state, updates)
@@ -46,17 +48,23 @@ class ExtensionWrapper(ExtensionWrapperProtocol):
         return []
 
     # Stateless transforms
-    def to_native_messages(self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def to_native_messages(
+        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         if hasattr(self.plugin_class, "to_native_messages"):
             return self.plugin_class.to_native_messages(messages, native_messages)
         return messages
 
-    def from_native_messages(self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def from_native_messages(
+        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         if hasattr(self.plugin_class, "from_native_messages"):
             return self.plugin_class.from_native_messages(native_messages, messages)
         return messages
 
-    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+    def initialize_request(
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Prepare for a new turn; MUST return shared state (updated or unchanged)."""
         if hasattr(self.plugin_class, "initialize_request"):
             return self.plugin_class.initialize_request(native_messages, state)
@@ -70,7 +78,9 @@ class ExtensionWrapper(ExtensionWrapperProtocol):
         partial_messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         """
         Process provider outputs during streaming or after finalization (hot path).
         Returns updated (partial_messages, final_messages, native_messages, new_shared_state).

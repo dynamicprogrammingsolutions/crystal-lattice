@@ -2,6 +2,7 @@
 Integration test for PROJECT_PLAN Example 1 against local Ollama.
 Skips gracefully if Ollama is unavailable or model cannot be pulled.
 """
+
 import os
 import shutil
 import subprocess
@@ -25,7 +26,9 @@ def _which(cmd: str):
 
 
 def _run(cmd: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    return subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout
+    )
 
 
 @pytest.fixture(scope="module")

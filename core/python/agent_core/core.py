@@ -8,9 +8,12 @@ all transformations are pure functions that take session/config and return new o
 from typing import Any, Dict, List, Optional, Iterator, AsyncIterator, Tuple
 from .types import Message, Session, MessageRole
 from .plugin import (
-    ProviderWrapper, ProviderAdapter,
-    FeatureWrapper, FeatureAdapter,
-    ToolWrapper, ToolAdapter,
+    ProviderWrapper,
+    ProviderAdapter,
+    FeatureWrapper,
+    FeatureAdapter,
+    ToolWrapper,
+    ToolAdapter,
 )
 import uuid
 import json
@@ -32,9 +35,7 @@ class AgentCore:
         self._tools: List[ToolAdapter] = []
 
     def register_provider(
-        self,
-        plugin_class: type,
-        extensions: Optional[List[type]] = None
+        self, plugin_class: type, extensions: Optional[List[type]] = None
     ) -> None:
         """
         Register provider plugin class with optional provider extensions.
@@ -66,7 +67,7 @@ class AgentCore:
         session: Session,
         role: MessageRole,
         content: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> Session:
         """Add message to session (pure function - returns new session)."""
         message = Message(role=role, content=content, metadata=metadata)
@@ -74,10 +75,12 @@ class AgentCore:
         return Session(
             session_id=session.session_id,
             messages=new_messages,
-            metadata=session.metadata
+            metadata=session.metadata,
         )
 
-    def _pre_request(self, session: Session, config: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    def _pre_request(
+        self, session: Session, config: Dict[str, Any]
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Prepare state and inputs for a request; returns (messages, native_messages)."""
         assert self._provider is not None
         # Init chain: Provider → Extensions (inside provider) → Features
@@ -96,7 +99,9 @@ class AgentCore:
         # Provider-first conversion (native_base for stateless transforms)
         native_messages = self._provider.to_native_messages(messages)
         # Apply stateless transforms: Extensions then Features
-        native_messages = self._provider.apply_extension_transforms(messages, native_messages)
+        native_messages = self._provider.apply_extension_transforms(
+            messages, native_messages
+        )
         for feature in self._features:
             native_messages = feature.to_native_messages(messages, native_messages)
         # Initialize request chains
@@ -108,9 +113,7 @@ class AgentCore:
         return messages, native_messages
 
     def send_request(
-        self,
-        session: Session,
-        config: Dict[str, Any]
+        self, session: Session, config: Dict[str, Any]
     ) -> Tuple[Session, List[Dict[str, Any]]]:
         """
         Send request and return new session with response (pure function).
@@ -118,28 +121,34 @@ class AgentCore:
         if not self._provider:
             raise RuntimeError("No provider registered")
         messages, native_messages = self._pre_request(session, config)
-        final_messages_1, partial_messages, native_messages, state = self._provider.call_api(native_messages)
-        
+        final_messages_1, partial_messages, native_messages, state = (
+            self._provider.call_api(native_messages)
+        )
+
         # maybe redundant, but the API is defined this way
-        final_messages_2, native_messages, state = self._provider.finalize(native_messages)
-        
+        final_messages_2, native_messages, state = self._provider.finalize(
+            native_messages
+        )
+
         # Combine finals from call_api and provider.finalize
         final_messages = final_messages_1 + final_messages_2
-        
+
         # Feature finalize chain over all finals
         for feature in self._features:
-            final_messages, native_messages, state = feature.finalize(final_messages, native_messages, state)
-            
+            final_messages, native_messages, state = feature.finalize(
+                final_messages, native_messages, state
+            )
+
         # Build new session messages by appending new Message objects
         appended: List[Message] = [Message.from_dict(m) for m in final_messages]
-        new_session = Session(session.session_id, [*session.messages, *appended], session.metadata)
-        
+        new_session = Session(
+            session.session_id, [*session.messages, *appended], session.metadata
+        )
+
         return new_session, final_messages
 
     def send_request_stream(
-        self,
-        session: Session,
-        config: Dict[str, Any]
+        self, session: Session, config: Dict[str, Any]
     ) -> Iterator[Dict[str, Any]]:
         """
         Stream request and yield partials, then final session (generator function).
@@ -151,31 +160,37 @@ class AgentCore:
 
         # Stream from provider
         for native_chunk in self._provider.stream_api(native_messages):
-            final_messages, partial_msgs, native_messages = self._provider.process_chunk(native_chunk, native_messages)
+            final_messages, partial_msgs, native_messages = (
+                self._provider.process_chunk(native_chunk, native_messages)
+            )
             for p in partial_msgs:
                 yield {"type": "partial", "message": p}
             if final_messages:
                 aggregated_finals.extend(final_messages)
 
         # Finalize
-        final_messages, native_messages, state = self._provider.finalize(native_messages)
-        
+        final_messages, native_messages, state = self._provider.finalize(
+            native_messages
+        )
+
         # Feature finalize chain
         for feature in self._features:
-            final_messages, native_messages, state = feature.finalize(final_messages, native_messages, state)
+            final_messages, native_messages, state = feature.finalize(
+                final_messages, native_messages, state
+            )
 
         if final_messages:
             aggregated_finals.extend(final_messages)
-                
+
         appended: List[Message] = [Message.from_dict(m) for m in aggregated_finals]
-        new_session = Session(session.session_id, [*session.messages, *appended], session.metadata)
+        new_session = Session(
+            session.session_id, [*session.messages, *appended], session.metadata
+        )
 
         yield {"type": "final", "session": new_session, "messages": final_messages}
 
     async def send_request_stream_async(
-        self,
-        session: Session,
-        config: Dict[str, Any]
+        self, session: Session, config: Dict[str, Any]
     ) -> AsyncIterator[Dict[str, Any]]:
         """
         Async version of send_request_stream.
@@ -188,26 +203,33 @@ class AgentCore:
 
         # Stream from provider (async)
         async for native_chunk in self._provider.stream_api_async(native_messages):
-            final_messages, partial_msgs, native_messages = self._provider.process_chunk(native_chunk, native_messages)
+            final_messages, partial_msgs, native_messages = (
+                self._provider.process_chunk(native_chunk, native_messages)
+            )
             for p in partial_msgs:
                 yield {"type": "partial", "message": p}
             if final_messages:
                 aggregated_finals.extend(final_messages)
 
-        final_messages, native_messages, state = self._provider.finalize(native_messages)
-        
+        final_messages, native_messages, state = self._provider.finalize(
+            native_messages
+        )
+
         # Feature finalize chain
         for feature in self._features:
-            final_messages, native_messages, state = feature.finalize(final_messages, native_messages, state)
-            
+            final_messages, native_messages, state = feature.finalize(
+                final_messages, native_messages, state
+            )
+
         if final_messages:
             aggregated_finals.extend(final_messages)
-        
+
         appended: List[Message] = [Message.from_dict(m) for m in aggregated_finals]
-        new_session = Session(session.session_id, [*session.messages, *appended], session.metadata)
+        new_session = Session(
+            session.session_id, [*session.messages, *appended], session.metadata
+        )
 
         yield {"type": "final", "session": new_session, "messages": final_messages}
-
 
     def get_config_schema(self) -> Dict[str, Any]:
         """Get combined config schema from all registered plugins."""
@@ -215,7 +237,10 @@ class AgentCore:
         if self._provider:
             schema[self._provider.name] = self._provider.get_config_schema()
             # Include provider extension schemas
-            for name, ext_schema in self._provider.get_extension_config_schemas().items():
+            for (
+                name,
+                ext_schema,
+            ) in self._provider.get_extension_config_schemas().items():
                 schema[name] = ext_schema
         for feature in self._features:
             schema[feature.name] = feature.get_config_schema()
@@ -269,7 +294,7 @@ class AgentCore:
         - Feature: otherwise
 
         Args:
-        
+
             modules: List of Python module import paths to scan
 
         Returns:
@@ -300,15 +325,26 @@ class AgentCore:
                     features.append(obj)
 
         # Register a single provider (first), with matching extensions
-        summary: Dict[str, List[str]] = {"providers": [], "features": [], "tools": [], "extensions": []}
+        summary: Dict[str, List[str]] = {
+            "providers": [],
+            "features": [],
+            "tools": [],
+            "extensions": [],
+        }
         if providers:
             provider_cls = providers[0]
             # Match extensions by target_provider name
             target_name = getattr(provider_cls, "name", provider_cls.__name__)
-            matched_exts = [ext for ext in extensions if getattr(ext, "target_provider", None) in (target_name,)]
+            matched_exts = [
+                ext
+                for ext in extensions
+                if getattr(ext, "target_provider", None) in (target_name,)
+            ]
             self.register_provider(provider_cls, extensions=matched_exts)
             summary["providers"].append(target_name)
-            summary["extensions"].extend([getattr(ext, "name", ext.__name__) for ext in matched_exts])
+            summary["extensions"].extend(
+                [getattr(ext, "name", ext.__name__) for ext in matched_exts]
+            )
 
         # Register features and tools
         for feat in features:

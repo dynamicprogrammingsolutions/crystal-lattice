@@ -5,13 +5,25 @@ This module defines immutable data structures following functional programming p
 All transformations return new instances rather than modifying existing ones.
 """
 
-from typing import Any, Dict, List, Optional, Literal, Tuple, Protocol, Iterator, AsyncIterator, runtime_checkable
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Literal,
+    Tuple,
+    Protocol,
+    Iterator,
+    AsyncIterator,
+    runtime_checkable,
+)
 from dataclasses import dataclass, field
 from copy import deepcopy
 
 MessageRole = Literal["system", "user", "assistant", "tool"]
 
 # Plugin Protocol Types
+
 
 # Wrapper Protocol Types (for adapters/wrappers to implement)
 @runtime_checkable
@@ -22,6 +34,7 @@ class BaseWrapper(Protocol):
     - Provides shared identity and UI schema access used by orchestration and UIs
     - Concrete wrapper protocols extend this base with type-specific operations
     """
+
     name: str
     version: str
 
@@ -42,7 +55,6 @@ class BaseWrapper(Protocol):
             List of UI element descriptors used by frontends.
         """
         ...
-        
 
 
 class ProviderWrapperProtocol(BaseWrapper, Protocol):
@@ -55,8 +67,9 @@ class ProviderWrapperProtocol(BaseWrapper, Protocol):
         """
         ...
 
-
-    def to_native_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def to_native_messages(
+        self, messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """
         Convert core messages to provider-native message format.
 
@@ -77,7 +90,11 @@ class ProviderWrapperProtocol(BaseWrapper, Protocol):
         """
         ...
 
-    def call_api(self, native_messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    def call_api(
+        self, native_messages: List[Dict[str, Any]]
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         """
         Execute a non-streaming provider API call.
 
@@ -89,7 +106,9 @@ class ProviderWrapperProtocol(BaseWrapper, Protocol):
         """
         ...
 
-    def stream_api(self, native_messages: List[Dict[str, Any]]) -> Iterator[Dict[str, Any]]:
+    def stream_api(
+        self, native_messages: List[Dict[str, Any]]
+    ) -> Iterator[Dict[str, Any]]:
         """
         Execute a streaming provider API call (sync generator).
 
@@ -101,7 +120,9 @@ class ProviderWrapperProtocol(BaseWrapper, Protocol):
         """
         ...
 
-    def stream_api_async(self, native_messages: List[Dict[str, Any]]) -> AsyncIterator[Dict[str, Any]]:
+    def stream_api_async(
+        self, native_messages: List[Dict[str, Any]]
+    ) -> AsyncIterator[Dict[str, Any]]:
         """
         Execute a streaming provider API call (async generator).
 
@@ -113,7 +134,9 @@ class ProviderWrapperProtocol(BaseWrapper, Protocol):
         """
         ...
 
-    def process_chunk(self, native_chunk: Dict[str, Any], native_messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+    def process_chunk(
+        self, native_chunk: Dict[str, Any], native_messages: List[Dict[str, Any]]
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         Process a single provider-native streaming chunk into core structures.
 
@@ -126,7 +149,9 @@ class ProviderWrapperProtocol(BaseWrapper, Protocol):
         """
         ...
 
-    def finalize(self, native_messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    def finalize(
+        self, native_messages: List[Dict[str, Any]]
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """
         Perform final processing after streaming completes.
 
@@ -184,8 +209,6 @@ class ProviderWrapperProtocol(BaseWrapper, Protocol):
 class ExtensionWrapperProtocol(BaseWrapper, Protocol):
     target_provider: Optional[str]
 
-
-
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """
         Initialize with application config and shared provider state.
@@ -199,7 +222,9 @@ class ExtensionWrapperProtocol(BaseWrapper, Protocol):
         """
         ...
 
-    def to_native_messages(self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def to_native_messages(
+        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """
         Transform provider-native messages using visibility of core messages.
 
@@ -214,7 +239,9 @@ class ExtensionWrapperProtocol(BaseWrapper, Protocol):
         """
         ...
 
-    def from_native_messages(self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def from_native_messages(
+        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """
         Transform provider-native messages back into core messages.
 
@@ -229,7 +256,9 @@ class ExtensionWrapperProtocol(BaseWrapper, Protocol):
         """
         ...
 
-    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+    def initialize_request(
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Prepare for a new request with provider-native messages.
 
@@ -250,7 +279,9 @@ class ExtensionWrapperProtocol(BaseWrapper, Protocol):
         partial_messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         """
         Observe/modify provider outputs for a streaming chunk.
 
@@ -292,8 +323,6 @@ class ExtensionWrapperProtocol(BaseWrapper, Protocol):
 
 class FeatureWrapperProtocol(BaseWrapper, Protocol):
 
-        
-
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """
         Initialize with application config and shared provider state.
@@ -309,7 +338,9 @@ class FeatureWrapperProtocol(BaseWrapper, Protocol):
         """
         ...
 
-    def to_native_messages(self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def to_native_messages(
+        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """
         Transform provider-native messages using visibility of core messages.
 
@@ -324,7 +355,9 @@ class FeatureWrapperProtocol(BaseWrapper, Protocol):
         """
         ...
 
-    def from_native_messages(self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def from_native_messages(
+        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """
         Transform provider-native messages back into core messages.
 
@@ -339,7 +372,9 @@ class FeatureWrapperProtocol(BaseWrapper, Protocol):
         """
         ...
 
-    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+    def initialize_request(
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Prepare for a new request with provider-native messages.
 
@@ -373,8 +408,6 @@ class FeatureWrapperProtocol(BaseWrapper, Protocol):
 
 
 class ToolWrapperProtocol(BaseWrapper, Protocol):
-
-
 
     def initialize(self, config: Dict[str, Any]) -> None:
         """
@@ -419,7 +452,9 @@ class ToolWrapperProtocol(BaseWrapper, Protocol):
         """
         ...
 
+
 # Plugin Protocol Types
+
 
 @runtime_checkable
 class BasePlugin(Protocol):
@@ -429,6 +464,7 @@ class BasePlugin(Protocol):
     Unifies identity, configuration UI, and the subset of lifecycle methods whose
     signatures are identical across these plugin types.
     """
+
     # Identity (class-level)
     name: str
     version: str
@@ -469,9 +505,9 @@ class BasePlugin(Protocol):
         """
         ...
 
+
 class ProviderPlugin(BasePlugin, Protocol):
     """Protocol for provider plugins (new lifecycle)."""
-
 
     @staticmethod
     def init(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -488,7 +524,9 @@ class ProviderPlugin(BasePlugin, Protocol):
 
     # Message conversion
     @staticmethod
-    def to_native_messages(messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def to_native_messages(
+        messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         """
         Convert core messages to this provider's native wire format.
 
@@ -502,7 +540,9 @@ class ProviderPlugin(BasePlugin, Protocol):
         ...
 
     @staticmethod
-    def from_native_messages(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def from_native_messages(
+        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         """
         Convert provider-native messages into core message dictionaries.
 
@@ -517,7 +557,9 @@ class ProviderPlugin(BasePlugin, Protocol):
 
     # New request lifecycle
     @staticmethod
-    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+    def initialize_request(
+        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Prepare for a new request with provider-native messages.
 
@@ -534,8 +576,10 @@ class ProviderPlugin(BasePlugin, Protocol):
     def process_chunk(
         native_chunk: Dict[str, Any],
         native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any]
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        state: Dict[str, Any],
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         """
         Process a streaming chunk from the provider on the hot path.
 
@@ -548,12 +592,12 @@ class ProviderPlugin(BasePlugin, Protocol):
             Tuple of (final_messages, partial_messages, native_messages, new_state).
         """
         ...
+
     # Returns: (final_messages, partial_messages, native_messages, new_state)
 
     @staticmethod
     def finalize(
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any]
+        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """
         Perform final processing after streaming completes; provider runs first in finalize chain.
@@ -566,10 +610,13 @@ class ProviderPlugin(BasePlugin, Protocol):
             Tuple of (final_messages, native_messages, new_state).
         """
         ...
+
     # Returns: (final_messages, native_messages, new_state)
 
     @staticmethod
-    def to_display_format(message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def to_display_format(
+        message: Dict[str, Any], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Convert a message to a display-friendly format for UIs.
 
@@ -584,7 +631,11 @@ class ProviderPlugin(BasePlugin, Protocol):
 
     # I/O entry points now take native messages
     @staticmethod
-    def call_api(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    def call_api(
+        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         """
         Make a non-streaming API call with provider-native messages.
 
@@ -596,10 +647,13 @@ class ProviderPlugin(BasePlugin, Protocol):
             Tuple of (final_messages, partial_messages, native_messages, new_state).
         """
         ...
+
     # Returns: (final_messages, partial_messages, native_messages, new_state)
 
     @staticmethod
-    def stream_api(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
+    def stream_api(
+        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Iterator[Dict[str, Any]]:
         """
         Make a streaming API call; yields provider-native chunks.
 
@@ -631,7 +685,6 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
 
     target_provider: str
 
-
     @staticmethod
     def init(config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -648,7 +701,9 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
 
     # Stateless transforms
     @staticmethod
-    def to_native_messages(messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def to_native_messages(
+        messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """
         Transform provider-native messages using visibility of core messages.
 
@@ -664,7 +719,9 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         ...
 
     @staticmethod
-    def from_native_messages(native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def from_native_messages(
+        native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """
         Transform provider-native messages back into core messages.
 
@@ -680,7 +737,9 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         ...
 
     @staticmethod
-    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+    def initialize_request(
+        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Prepare for a new request with provider-native messages.
 
@@ -700,8 +759,10 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         state: Dict[str, Any],
         partial_messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
-        native_messages: List[Dict[str, Any]]
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        native_messages: List[Dict[str, Any]],
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         """
         Observe/modify provider outputs for a streaming chunk.
 
@@ -720,6 +781,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
             Tuple of (updated_partial_messages, updated_final_messages, updated_native_messages, new_state).
         """
         ...
+
     # Returns: (partial_messages, final_messages, native_messages, new_state)
 
     @staticmethod
@@ -745,7 +807,6 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
 class FeaturePlugin(BasePlugin, Protocol):
     """Protocol for feature plugins (cold path, shared state)."""
 
-
     @staticmethod
     def init(config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -762,7 +823,9 @@ class FeaturePlugin(BasePlugin, Protocol):
 
     # Stateless transforms
     @staticmethod
-    def to_native_messages(messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def to_native_messages(
+        messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """
         Transform provider-native messages using visibility of core messages.
 
@@ -778,7 +841,9 @@ class FeaturePlugin(BasePlugin, Protocol):
         ...
 
     @staticmethod
-    def from_native_messages(native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def from_native_messages(
+        native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """
         Transform provider-native messages back into core messages.
 
@@ -794,7 +859,9 @@ class FeaturePlugin(BasePlugin, Protocol):
         ...
 
     @staticmethod
-    def initialize_request(native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+    def initialize_request(
+        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Prepare for a new request with provider-native messages.
 
@@ -811,7 +878,7 @@ class FeaturePlugin(BasePlugin, Protocol):
     def finalize(
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any]
+        state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """
         Final cold-path processing after provider and extensions complete.
@@ -858,9 +925,7 @@ class ToolPlugin(BasePlugin, Protocol):
 
     @staticmethod
     def execute_tool(
-        tool_name: str,
-        arguments: Dict[str, Any],
-        state: Dict[str, Any]
+        tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Execute a tool function by name with structured arguments.
@@ -907,6 +972,7 @@ class Message:
         >>> msg.content
         'Hello!'
     """
+
     role: MessageRole
     content: str
     metadata: Optional[Dict[str, Any]] = None
@@ -918,10 +984,7 @@ class Message:
         Returns:
             Dictionary representation of the message
         """
-        result: Dict[str, Any] = {
-            "role": self.role,
-            "content": self.content
-        }
+        result: Dict[str, Any] = {"role": self.role, "content": self.content}
         if self.metadata:
             result["metadata"] = deepcopy(self.metadata)
         return result
@@ -940,13 +1003,14 @@ class Message:
         return cls(
             role=data["role"],
             content=data["content"],
-            metadata=deepcopy(data.get("metadata"))
+            metadata=deepcopy(data.get("metadata")),
         )
 
 
 @dataclass(frozen=True)
 class PartialMessage:
     """Partial message type used during streaming (forwarded to frontend as-is)."""
+
     role: MessageRole
     content: str
     metadata: Optional[Dict[str, Any]] = None
@@ -970,6 +1034,7 @@ class Session:
         >>> len(session.messages)
         0
     """
+
     session_id: str
     messages: List[Message] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -984,7 +1049,7 @@ class Session:
         return {
             "session_id": self.session_id,
             "messages": [msg.to_dict() for msg in self.messages],
-            "metadata": deepcopy(self.metadata)
+            "metadata": deepcopy(self.metadata),
         }
 
     @classmethod
@@ -1002,5 +1067,5 @@ class Session:
         return cls(
             session_id=data["session_id"],
             messages=messages,
-            metadata=deepcopy(data.get("metadata", {}))
+            metadata=deepcopy(data.get("metadata", {})),
         )

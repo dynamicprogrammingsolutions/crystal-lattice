@@ -24,7 +24,9 @@ class FeatureWrapper(FeatureWrapperProtocol):
             return self.plugin_class.init(config, state)
         return state
 
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_state(
+        self, state: Dict[str, Any], updates: Dict[str, Any]
+    ) -> Dict[str, Any]:
         if hasattr(self.plugin_class, "update_state"):
             return self.plugin_class.update_state(state, updates)
         return {**state, "config": {**state.get("config", {}), **updates}}
@@ -40,17 +42,23 @@ class FeatureWrapper(FeatureWrapperProtocol):
         return []
 
     # Stateless transforms
-    def to_native_messages(self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def to_native_messages(
+        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         if hasattr(self.plugin_class, "to_native_messages"):
             return self.plugin_class.to_native_messages(messages, native_messages)
         return messages
 
-    def from_native_messages(self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def from_native_messages(
+        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         if hasattr(self.plugin_class, "from_native_messages"):
             return self.plugin_class.from_native_messages(native_messages, messages)
         return messages
 
-    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+    def initialize_request(
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         if hasattr(self.plugin_class, "initialize_request"):
             return self.plugin_class.initialize_request(native_messages, state)
         return state
@@ -81,17 +89,25 @@ class FeatureAdapter(FeatureWrapperProtocol):
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         return self.wrapper.init(config, state)
 
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_state(
+        self, state: Dict[str, Any], updates: Dict[str, Any]
+    ) -> Dict[str, Any]:
         return self.wrapper.update_state(state, updates)
 
-    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+    def initialize_request(
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         return self.wrapper.initialize_request(native_messages, state)
 
     # Stateless transforms
-    def to_native_messages(self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def to_native_messages(
+        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         return self.wrapper.to_native_messages(messages, native_messages)
 
-    def from_native_messages(self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def from_native_messages(
+        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         return self.wrapper.from_native_messages(native_messages, messages)
 
     # Finalize

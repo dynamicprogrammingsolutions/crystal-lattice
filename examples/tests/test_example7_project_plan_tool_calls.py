@@ -3,6 +3,7 @@ Integration test for PROJECT_PLAN Example 3 (tool calls) against local Ollama.
 Skips gracefully if Ollama is unavailable or model cannot be pulled.
 Note: provider may not emit tool_calls; this test only verifies endpoint call.
 """
+
 import os
 import shutil
 import subprocess
@@ -26,7 +27,9 @@ def _which(cmd: str):
 
 
 def _run(cmd: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    return subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout
+    )
 
 
 @pytest.fixture(scope="module")
@@ -51,6 +54,8 @@ def test_project_plan_example3_tool_calls_runs(ensure_model):
     os.environ.setdefault("OLLAMA_HOST", OLLAMA_HOST)
     os.environ.setdefault("OLLAMA_MODEL", MODEL)
 
-    mod = __import__("examples.example7_project_plan_tool_calls", fromlist=["run_example"])
+    mod = __import__(
+        "examples.example7_project_plan_tool_calls", fromlist=["run_example"]
+    )
     assert hasattr(mod, "run_example")
     mod.run_example()

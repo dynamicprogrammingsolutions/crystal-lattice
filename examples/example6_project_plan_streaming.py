@@ -6,6 +6,7 @@ Environment variables (optional):
 - OLLAMA_HOST (default: http://localhost:11434)
 - OLLAMA_MODEL (default: llama3.2:1b)
 """
+
 import os
 from agent_core import AgentCore
 from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider

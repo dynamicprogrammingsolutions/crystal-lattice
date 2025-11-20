@@ -3,6 +3,7 @@ Integration test for PROJECT_PLAN Example 5 (config updates + web search feature
 Skips gracefully if Ollama is unavailable or model cannot be pulled.
 Also verifies that the web search feature prints when enabled.
 """
+
 import os
 import shutil
 import subprocess
@@ -26,7 +27,9 @@ def _which(cmd: str):
 
 
 def _run(cmd: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    return subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout
+    )
 
 
 @pytest.fixture(scope="module")
@@ -51,7 +54,9 @@ def test_project_plan_example5_config_updates_runs(ensure_model, capsys):
     os.environ.setdefault("OLLAMA_HOST", OLLAMA_HOST)
     os.environ.setdefault("OLLAMA_MODEL", MODEL)
 
-    mod = __import__("examples.example9_project_plan_config_updates", fromlist=["run_example"])
+    mod = __import__(
+        "examples.example9_project_plan_config_updates", fromlist=["run_example"]
+    )
     assert hasattr(mod, "run_example")
     mod.run_example()
 

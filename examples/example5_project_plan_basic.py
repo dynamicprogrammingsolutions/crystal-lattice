@@ -7,8 +7,9 @@ Environment variables (optional):
 - OLLAMA_MODEL (default: llama3.2:1b)
 """
 
+
 def run_example():
-    
+
     import os
     from agent_core import AgentCore
     from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
@@ -52,6 +53,7 @@ def run_example():
     # Send again
     session, messages = core.send_request(session, config)
     print(messages[-1]["content"])  # expect some text
+
 
 if __name__ == "__main__":
     run_example()
