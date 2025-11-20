@@ -794,8 +794,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
 class FeaturePlugin(BasePlugin, Protocol):
     """Protocol for feature plugins (cold path, shared state)."""
 
-    @staticmethod
-    def init(config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """
         Initialize with application config and shared provider state.
 
@@ -809,9 +808,8 @@ class FeaturePlugin(BasePlugin, Protocol):
         ...
 
     # Stateless transforms
-    @staticmethod
     def to_native_messages(
-        messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
         Transform provider-native messages using visibility of core messages.
@@ -827,9 +825,8 @@ class FeaturePlugin(BasePlugin, Protocol):
         """
         ...
 
-    @staticmethod
     def from_native_messages(
-        native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
         Transform provider-native messages back into core messages.
@@ -845,9 +842,8 @@ class FeaturePlugin(BasePlugin, Protocol):
         """
         ...
 
-    @staticmethod
     def initialize_request(
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Prepare for a new request with provider-native messages.
@@ -861,8 +857,8 @@ class FeaturePlugin(BasePlugin, Protocol):
         """
         ...
 
-    @staticmethod
     def finalize(
+        self,
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],

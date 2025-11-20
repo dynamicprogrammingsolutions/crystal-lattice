@@ -18,34 +18,30 @@ class DummyTransformFeature(FeaturePlugin):
     def get_ui_elements(self) -> List[Dict[str, Any]]:
         return []
 
-    @staticmethod
-    def init(config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         return {**state, "config": {**state.get("config", {}), **config}}
 
     def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         return {**state, "config": {**state.get("config", {}), **updates}}
 
-    @staticmethod
     def initialize_request(
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         return state
 
     # Stateless transforms
-    @staticmethod
     def to_native_messages(
-        messages: List[Dict[str, Any]], native_messages
+        self, messages: List[Dict[str, Any]], native_messages
     ) -> List[Dict[str, Any]]:
         return messages
 
-    @staticmethod
     def from_native_messages(
-        native_messages: List[Dict[str, Any]], messages
+        self, native_messages: List[Dict[str, Any]], messages
     ) -> List[Dict[str, Any]]:
         return native_messages
 
-    @staticmethod
     def finalize(
+        self,
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],

@@ -10,15 +10,13 @@ class WebSearchFeature:
     name: str = "web_search"
     version: str = "1.0.0"
 
-    @staticmethod
-    def get_config_schema() -> Dict[str, Any]:
+    def get_config_schema(self) -> Dict[str, Any]:
         return {
             "web_search_enabled": {"type": "boolean", "default": False},
             "max_results": {"type": "integer", "default": 5},
         }
 
-    @staticmethod
-    def get_ui_elements() -> List[Dict[str, Any]]:
+    def get_ui_elements(self) -> List[Dict[str, Any]]:
         return [
             {
                 "type": "checkbox",
@@ -33,38 +31,33 @@ class WebSearchFeature:
             },
         ]
 
-    @staticmethod
-    def init(config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         return {
             **state,
             "config": {**state.get("config", {}), **config},
             "capabilities": ["web_search"],
         }
 
-    @staticmethod
-    def update_state(state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         return {**state, "config": {**state.get("config", {}), **updates}}
 
-    @staticmethod
     def initialize_request(
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         return state
 
-    @staticmethod
     def to_native_messages(
-        messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         return messages
 
-    @staticmethod
     def from_native_messages(
-        native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         return messages
 
-    @staticmethod
     def finalize(
+        self,
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
