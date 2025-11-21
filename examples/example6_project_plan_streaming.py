@@ -29,7 +29,7 @@ def run_example():
         "timeout": 60,
     }
     session = core.create_session()
-    session = core.add_message(session, "user", "Write a long poem")
+    session = core.add_message(session, "user", "Write a short poem")
 
     # Stream response (functional - returns new session at end)
     for chunk in core.send_request_stream(session, config):

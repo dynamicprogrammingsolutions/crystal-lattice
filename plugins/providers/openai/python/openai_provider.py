@@ -115,7 +115,7 @@ class OpenAICompatibleProvider(ProviderPlugin):
         request = state["request"]        
         try:
             with requests.post(
-                request["url"], json={**request["payload"], "messages": native_messages, "stream": True}, headers=request["headers"], timeout=request["timeout"]
+                request["url"], json={**request["payload"], "messages": native_messages, "stream": True}, headers=request["headers"], timeout=request["timeout"], stream=True
             ) as r:
                 r.raise_for_status()
                 for line in r.iter_lines(decode_unicode=True):
@@ -160,8 +160,7 @@ class OpenAICompatibleProvider(ProviderPlugin):
         Partial:
         {'index': 0, 'delta': {'role': 'assistant', 'content': 'Sil'}, 'finish_reason': None}
         """
-        print(f"delta_to_message: {delta}\n")
-        
+       
         if not partial:
             return delta, None
         
@@ -183,9 +182,7 @@ class OpenAICompatibleProvider(ProviderPlugin):
         state: Dict[str, Any],
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
-    ]:
-        print(f"chunk:{native_chunk}\n")
-        
+    ]:        
         # 1) Extract structured delta
         delta = self.extract_delta(native_chunk)
 
