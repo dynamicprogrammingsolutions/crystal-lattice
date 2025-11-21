@@ -250,11 +250,16 @@ All runnable examples have moved to `EXAMPLES.md` (contains full code, tests, an
 - [x] Integration tests for complete request/response cycle (with dummy plugins made for testing)
 - [x] API reference documentation
 
-**Plugins (One of Each Type):**
-- [ ] Openrouter provider plugin (basic, working streaming)
-- [ ] Thinking blocks provider extension for openrouter
+**Plugins**
+- [x] OpenAI compatible plugin & local integration test with ollama
+- [ ] Thinking blocks provider extension for Ollama (should add thinking flag and process thinking blocks into final native message)
+- [ ] System message feature plugin (configure system message in config, load from specific files like AGENTS.md)
+- [ ] Develop/refine tool calling system & test with Ollama with a file reader tool plugin, supported by tool calling provider extension
+
+**Openrouter plugins**
+- [ ] Openrouter provider plugin
+- [ ] Support for thinking and tool calling
 - [ ] Web search feature plugin (basic version)
-- [ ] File reader tool plugin
 - [ ] Plugin development quick start guide (tutorial showing how to create each type)
 
 **Application Layer:**
