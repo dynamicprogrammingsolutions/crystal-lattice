@@ -7,7 +7,7 @@ Loads configuration only from the provided config dict (no environment variable 
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterator, List, Tuple
+from typing import Any, Dict, Iterator, List, Tuple, Optional
 import json
 
 import requests
@@ -49,12 +49,7 @@ class OpenAICompatibleProvider(ProviderPlugin):
                 "api_key": api_key,
                 "model": model,
                 "timeout": timeout,
-            },
-            "runtime_state": {
-                "accumulated_content": "",
-                "native_chunks": [],
-            },
-            "ui_state": {},
+            }
         }
 
     def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
@@ -66,11 +61,7 @@ class OpenAICompatibleProvider(ProviderPlugin):
     ) -> Dict[str, Any]:
         return {
             **state,
-            "runtime_state": {
-                **state.get("runtime_state", {}),
-                "accumulated_content": "",
-                "native_chunks": [],
-            },
+            "partial": None
         }
 
     # ---------- Message conversion ----------
@@ -154,6 +145,55 @@ class OpenAICompatibleProvider(ProviderPlugin):
         except requests.RequestException as e:  # pragma: no cover
             raise RuntimeError(f"OpenAI-compatible stream failed: {e}") from e
 
+    # ---------- Helpers (default/general implementations) ----------
+    def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract a provider-native delta dictionary from a streaming chunk.
+        Return the first choice if present.
+        """
+        if "choices" in native_chunk and native_chunk["choices"]:
+            # Prefer returning the raw choice object (lets reducer decide)
+            return dict(native_chunk["choices"][0])
+        return {}
+
+    def delta_to_message(
+        self, delta: Dict[str, Any], partial: Dict[str, Any]
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        """
+        Reduce a delta dict into a new partial accumulator, and optionally a final.
+        Returns (partial_message_or_none, final_message_or_none).
+        Default behavior aggregates content and treats any non-None finish_reason
+        as final.
+        """
+        
+        # Extract content piece from common shapes
+        piece = (
+            (delta.get("delta") or {}).get("content")
+            or (delta.get("message") or {}).get("content")
+            or delta.get("text")
+            or delta.get("content")
+            or ""
+        )
+        prev_meta = partial.get("metadata") if isinstance(partial, dict) else None
+        new_content = (partial.get("content", "") if isinstance(partial, dict) else "") + (
+            piece or ""
+        )
+        # Determine finality from OpenAI-style finish_reason or explicit flag
+        finish_reason = delta.get("finish_reason")
+        is_final = finish_reason is not None or bool(delta.get("final"))
+
+        if is_final:
+            if new_content:
+                final = {"role": "assistant", "content": new_content, "metadata": prev_meta or {}}
+            else:
+                final = {"role": "assistant", "content": "", "metadata": prev_meta or {}}
+            return None, final
+
+        # Not final: emit updated partial if content changed; otherwise none
+        if not new_content:
+            return None, None
+        return {"role": "assistant", "content": new_content, "metadata": prev_meta or {}}, None
+
     def process_chunk(
         self,
         native_chunk: Dict[str, Any],
@@ -162,52 +202,49 @@ class OpenAICompatibleProvider(ProviderPlugin):
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
     ]:
-        delta_text = ""
-        if "content" in native_chunk and isinstance(native_chunk["content"], str):
-            delta_text = native_chunk["content"]
-        elif "choices" in native_chunk and native_chunk["choices"]:
-            choice = native_chunk["choices"][0]
-            delta_text = (
-                choice.get("delta", {}).get("content")
-                or choice.get("message", {}).get("content")
-                or choice.get("text")
-                or ""
-            )
-        elif "text" in native_chunk:
-            delta_text = native_chunk["text"]
-        new_accum = state["runtime_state"].get("accumulated_content", "") + (
-            delta_text or ""
-        )
-        new_native = state["runtime_state"].get("native_chunks", []) + [native_chunk]
-        new_state = {
-            **state,
-            "runtime_state": {
-                **state.get("runtime_state", {}),
-                "accumulated_content": new_accum,
-                "native_chunks": new_native,
-            },
-        }
-        partial = (
-            {"role": "assistant", "content": delta_text, "metadata": {}}
-            if delta_text
-            else None
-        )
-        partials = [partial] if partial else []
-        # Return full history for native_messages: previous full history + this chunk
-        full_history = [*native_messages, native_chunk]
-        return [], partials, full_history, new_state
+        #print(f"chunk:{native_chunk}\n")
+        
+        # 1) Extract structured delta
+        delta = self.extract_delta(native_chunk)
+
+        # 2) Prepare current partial accumulator from state
+        current_partial = state.get("partial", {})
+
+        # 3) Reduce delta into partial/final message
+        partial_msg, final_msg = self.delta_to_message(delta, current_partial)
+
+        # 4) Prepare returns
+        partials = [partial_msg] if partial_msg else []
+        finals = [final_msg] if final_msg else []
+        new_native_messages = [*native_messages, *finals]
+        new_state = {**state, "partial": partial_msg}
+
+        return finals, partials, new_native_messages, new_state
 
     def finalize(
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        content = state.get("runtime_state", {}).get("accumulated_content", "")
+        # Prefer a final message that may have been appended to native history
+        if native_messages:
+            last = native_messages[-1]
+            if isinstance(last, dict) and last.get("role") == "assistant":
+                content = last.get("content", "")
+                if isinstance(content, str) and content:
+                    return [last], native_messages, state
+
+        # Fallback to current_partial accumulator
+        runtime = state.get("runtime_state", {})
+        current_partial = runtime.get("current_partial") or {}
+        content = current_partial.get("content", "") if isinstance(current_partial, dict) else ""
         if not content:
-            # Return the full history unchanged
             return [], native_messages, state
-        final = {"role": "assistant", "content": content, "metadata": {}}
-        # Return the full history unchanged for native_messages
+        final = {
+            "role": "assistant",
+            "content": content,
+            "metadata": current_partial.get("metadata", {}) if isinstance(current_partial, dict) else {},
+        }
         return [final], native_messages, state
 
     def to_display_format(
