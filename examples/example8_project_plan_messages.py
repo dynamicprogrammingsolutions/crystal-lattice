@@ -32,11 +32,14 @@ def run_example():
     session = core.add_message(session, "assistant", "Hi! How can I help?")
     session = core.add_message(session, "user", "What's the weather?")
 
-    # Remove last message (functional)
+    # Remove last message (functional): since we change history, drop native history metadata first
+    md = dict(session.metadata)
+    md.pop("native_messages", None)
+    md.pop("native_messages_integrity", None)
     session = Session(
         session_id=session.session_id,
         messages=session.messages[:-1],
-        metadata=session.metadata,
+        metadata=md,
     )
 
     # Add different message
@@ -45,9 +48,12 @@ def run_example():
     # Send request with modified history
     session, messages = core.send_request(session, config)
 
-    # Clear conversation and start fresh (functional)
+    # Clear conversation and start fresh (functional): drop native history metadata first
+    md2 = dict(session.metadata)
+    md2.pop("native_messages", None)
+    md2.pop("native_messages_integrity", None)
     session = Session(
-        session_id=session.session_id, messages=[], metadata=session.metadata
+        session_id=session.session_id, messages=[], metadata=md2
     )
     session = core.add_message(session, "user", "New conversation")
 

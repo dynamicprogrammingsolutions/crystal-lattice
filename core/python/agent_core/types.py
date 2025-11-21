@@ -42,11 +42,7 @@ class BasePlugin(Protocol):
     # Config/UI
     def get_config_schema(self) -> Dict[str, Any]:
         """
-        Return JSON schema describing this provider's configuration.
-
-        Returns:
-            Tuple of (final_messages, native_messages, new_state).
-            native_messages MUST be full history (not a delta).
+        Return JSON schema describing this plugin's configuration.
         """
         ...
 
@@ -57,9 +53,14 @@ class BasePlugin(Protocol):
         Return UI element definitions for configuring this provider.
 
         Returns:
-            List of UI element descriptors used by frontends.
+            Updated provider-native messages.
+        
+        Notes:
+            When the core converts a single new message (e.g., via add_message), it passes a list containing only
+            that single message in 'messages'. Implementations must handle both full-history lists and single-message lists.
         """
         ...
+
 
     # Common lifecycle across provider/extension/feature
     def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
@@ -98,12 +99,20 @@ class ProviderPlugin(BasePlugin, Protocol):
         """
         Convert core messages to this provider's native wire format.
 
+        Notes:
+            When the core converts a single new message (e.g., via add_message), it passes a list containing only
+            that single message in 'messages'. Implementations must handle both full-history lists and single-message lists.
+
         Args:
-            messages: Core session messages.
+            messages: Core session messages (may be a single-element list for add_message).
             state: Current shared provider state.
 
         Returns:
             Provider-native messages suitable for API calls.
+        
+        Notes:
+            When the core converts a single new message (e.g., via add_message), it passes a list containing only
+            that single message in 'messages'. Implementations must handle both full-history lists and single-message lists.
         """
         ...
 
@@ -174,7 +183,8 @@ class ProviderPlugin(BasePlugin, Protocol):
             state: Current shared provider state.
 
         Returns:
-            Tuple of (final_messages, native_messages, new_state). native_messages MUST be full history.
+            Tuple of (final_messages, native_messages, new_state), where both final_messages and native_messages are
+            provider-native. final_messages contains only the new messages for this turn; native_messages MUST be full history.
         """
         ...
 
@@ -272,14 +282,19 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
 
         Stateless and deterministic; must not depend on shared state or config.
 
+        Notes:
+            When the core converts a single new message (e.g., via add_message), it passes a list containing only
+            that single message in 'messages'. Implementations must handle both full-history lists and single-message lists.
+
         Args:
-            messages: Core session messages for context.
+            messages: Core session messages for context (may be a single-element list for add_message).
             native_messages: Current provider-native messages.
 
         Returns:
             Updated provider-native messages.
         """
         ...
+
 
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
@@ -354,12 +369,12 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         Final cold-path processing after provider streaming/finalize.
 
         Args:
-            final_messages: Final core messages emitted this turn.
-            native_messages: Accumulated provider-native messages for this turn.
+            final_messages: Provider-native final messages emitted this turn (deltas).
+            native_messages: Full provider-native message history for this turn.
             state: Current shared provider state.
 
         Returns:
-            Tuple of (final_messages, native_messages, new_state).
+            Tuple of (final_messages, native_messages, new_state), all provider-native.
         """
         ...
 
@@ -389,14 +404,19 @@ class FeaturePlugin(BasePlugin, Protocol):
 
         Stateless and deterministic; must not depend on shared state or config.
 
+        Notes:
+            When the core converts a single new message (e.g., via add_message), it passes a list containing only
+            that single message in 'messages'. Implementations must handle both full-history lists and single-message lists.
+
         Args:
-            messages: Core session messages for context.
+            messages: Core session messages for context (may be a single-element list for add_message).
             native_messages: Current provider-native messages.
 
         Returns:
             Updated provider-native messages.
         """
         ...
+
 
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
@@ -440,12 +460,12 @@ class FeaturePlugin(BasePlugin, Protocol):
         Final cold-path processing after provider and extensions complete.
 
         Args:
-            final_messages: Final core messages emitted this turn.
-            native_messages: Accumulated provider-native messages for this turn.
+            final_messages: Provider-native final messages emitted this turn (deltas).
+            native_messages: Full provider-native message history for this turn.
             state: Current shared provider state.
 
         Returns:
-            Tuple of (final_messages, native_messages, new_state).
+            Tuple of (final_messages, native_messages, new_state), all provider-native.
         """
         ...
 

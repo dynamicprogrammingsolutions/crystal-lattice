@@ -235,11 +235,11 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
     def apply_extension_transforms(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """Apply stateless extension transforms to messages with visibility of provider native messages."""
-        transformed = list(messages)
+        """Apply stateless extension transforms to provider-native messages with visibility of core messages."""
+        transformed_native = list(native_messages)
         for ext in self._extensions:
-            transformed = ext.to_native_messages(transformed, native_messages)
-        return transformed
+            transformed_native = ext.to_native_messages(messages, transformed_native)
+        return transformed_native
 
     def _merge_history(self, base: List[Dict[str, Any]], returned: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Merge plugin-returned native messages into base, ensuring full history without duplication."""
