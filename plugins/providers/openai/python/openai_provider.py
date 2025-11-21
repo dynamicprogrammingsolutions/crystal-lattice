@@ -7,13 +7,12 @@ Loads configuration only from the provided config dict (no environment variable 
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterator, List, Tuple, Optional
+from typing import List, Any, Dict, Iterator, List, Tuple, Optional
 import json
 
 import requests
 
 from agent_core.types import ProviderPlugin
-
 
 class OpenAICompatibleProvider(ProviderPlugin):
     name: str = "openai_compatible"
@@ -147,33 +146,34 @@ class OpenAICompatibleProvider(ProviderPlugin):
         
         return {}
 
-    def delta_to_message(
-        self, delta: Dict[str, Any], partial: Dict[str, Any]
+    def process_delta(
+        self, delta: Dict[str, Any], current_partial: Dict[str, Any]
     ):
         """
         Reduce a delta dict into a new partial accumulator, and optionally a final.
         Returns (partial_message_or_none, final_message_or_none).
-        
-        Full message:
-        {'index': 0, 'message': {'role': 'assistant', 'content': "Here's a short poem:\n\nSilent stars shine bright and far,\nA midnight sky, with dreams afar.\nThe moon glows soft, like silver hue,\nAs night descends, all is new."}, 'finish_reason': 'stop'}
-        
-        Partial:
-        {'index': 0, 'delta': {'role': 'assistant', 'content': 'Sil'}, 'finish_reason': None}
         """
        
-        if not partial:
-            return delta, None
-        
-        this_part = partial.get("delta")
-        if (this_part) :
-            new_partial = {**delta, **this_part, "content": delta.get("content", "") + this_part.get("content", "")}
-            return (None, new_partial) if partial.get("finish_reason") == "stop" else (new_partial, None)
-        
-        this_part = partial.get("content")
-        if (this_part):
-            return None, this_part
-        
-        return None, None
+        current_partial = current_partial or {}
+       
+        if "message" in delta:
+            # This is a full message, not a delta. example: {'index': 0, 'message': {'role': 'assistant', 'content': "Here's a short poem:\n\nSilent stars shine bright and far,\nA midnight sky, with dreams afar.\nThe moon glows soft, like silver hue,\nAs
+            return None, delta.get("message")
+
+        delta_content = delta.get("delta")
+        if not delta_content:
+            return None, None
+
+        # This is a delta. example: {'index': 0, 'delta': {'role': 'assistant', 'content': 'Sil'}, 'finish_reason': None}
+        new_partial = self._merge_delta_content(current_partial, delta_content, keys=["content"])
+        return (None, new_partial) if delta.get("finish_reason") == "stop" else (new_partial, None)
+
+    def _merge_delta_content(self, current: Dict[str, Any], delta: Dict[str, Any], keys: List[str]) -> Dict[str, Any]:
+        return {
+            **current,
+            **delta,
+            **dict((key, current.get(key, "") + delta.get(key, "")) for key in keys)
+        }
 
     def process_chunk(
         self,
@@ -182,17 +182,10 @@ class OpenAICompatibleProvider(ProviderPlugin):
         state: Dict[str, Any],
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
-    ]:        
-        # 1) Extract structured delta
-        delta = self.extract_delta(native_chunk)
+    ]:
+        partial_msg, final_msg = self.process_delta(delta=self.extract_delta(native_chunk), current_partial=state.get("partial", {}))
 
-        # 2) Prepare current partial accumulator from state
-        current_partial = state.get("partial", {})
-
-        # 3) Reduce delta into partial/final message
-        partial_msg, final_msg = self.delta_to_message(delta, current_partial)
-
-        # 4) Prepare returns
+        # returns
         partials = [partial_msg] if partial_msg else []
         finals = [final_msg] if final_msg else []
         new_native_messages = [*native_messages, *finals]
