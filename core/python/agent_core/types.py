@@ -45,9 +45,12 @@ class BasePlugin(Protocol):
         Return JSON schema describing this provider's configuration.
 
         Returns:
-            Schema dictionary consumable by applications for validation.
+            Tuple of (final_messages, native_messages, new_state).
+            native_messages MUST be full history (not a delta).
         """
         ...
+
+
 
     def get_ui_elements(self) -> List[Dict[str, Any]]:
         """
@@ -153,6 +156,7 @@ class ProviderPlugin(BasePlugin, Protocol):
 
         Returns:
             Tuple of (final_messages, partial_messages, native_messages, new_state).
+            native_messages MUST be the full provider-native history (not a delta).
         """
         ...
 
@@ -166,11 +170,11 @@ class ProviderPlugin(BasePlugin, Protocol):
         Perform final processing after streaming completes; provider runs first in finalize chain.
 
         Args:
-            native_messages: Accumulated provider-native messages for this turn.
+            native_messages: Full provider-native message history (all prior turns plus any for this turn).
             state: Current shared provider state.
 
         Returns:
-            Tuple of (final_messages, native_messages, new_state).
+            Tuple of (final_messages, native_messages, new_state). native_messages MUST be full history.
         """
         ...
 
@@ -336,6 +340,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
 
         Returns:
             Tuple of (updated_partial_messages, updated_final_messages, updated_native_messages, new_state).
+            updated_native_messages MUST be full history (not a delta).
         """
         ...
 

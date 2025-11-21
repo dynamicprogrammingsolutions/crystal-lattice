@@ -112,10 +112,30 @@ Ground rules
 - Stream tests: `pytest core/python/tests/test_async.py -q`.
 - Lint/format/typecheck: `ruff`, `black`, `pyright` per `AGENTS.md`.
 
+12) Remove passthrough adapters and use wrappers directly
+- Delete `ProviderAdapter`, `FeatureAdapter`, and `ToolAdapter` classes.
+- Update `core/python/agent_core/plugin/__init__.py` to export only wrappers.
+- Update `AgentCore` to store and use wrappers directly for provider, features, and tools.
+- Update any tests importing adapters to use wrappers instead.
+
+13) Provider streaming mixin and core integration
+- Create a `ProviderStreamMixin` mixed into `ProviderWrapper` that adds optimized streaming APIs:
+  - `stream_messages(native_messages, state)` -> yields dict events without raw chunks:
+    - `{"type": "partial", "message": <partial_message>}` per partial
+    - `{"type": "final_messages", "messages": <list_of_final_messages>}` when available
+  - `stream_messages_async(native_messages, state)` -> async variant.
+  - Internally consumes `plugin.stream_api`/`plugin.stream_api_async`, calls `process_chunk` on each chunk, updates wrapper state, and tracks the latest `native_messages`.
+  - Adds `get_last_native_messages()` to expose the latest accumulated native messages after streaming.
+- Update `AgentCore.send_request_stream` and `send_request_stream_async` to use `ProviderWrapper.stream_messages*` and forward yielded events to the caller; aggregate finals as before. Use `wrapper.get_last_native_messages()` for provider `finalize`.
+- Keep the finalize chain unchanged: provider `finalize` then feature `finalize`.
+
+14) Re-run validation
+- Run tests and examples. Fix any test that referenced adapters (`test_tool_adapter.py` -> use `ToolWrapper`).
+- Ensure streaming behavior and output shape remain consistent for consumers.
+
 Risk mitigation
-- Make each slice self-contained (protocol change + wrapper + implementations + tests).
-- Keep method signatures stable (add only `self`).
-- Avoid changing state shape or control flow.
+- Maintain message/event shapes in the core API so example and integration tests continue to pass.
+- Keep the provider wrapper responsible for native message accumulation; the core relies on `get_last_native_messages()` only during finalize.
 
 Notes
-- If third-party plugins exist, consider a temporary shim in wrappers to support both styles (detecting `@staticmethod` vs instance) during the transition window; remove once internal migration completes.
+- The mixin keeps raw chunk handling within the wrapper hot path to reduce crossings and repeated plumbing, improving performance in high-chunk scenarios.

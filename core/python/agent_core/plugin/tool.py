@@ -1,5 +1,5 @@
 """
-Tool plugin wrapper and adapter.
+Tool plugin wrapper.
 
 Manages tool plugin state (if any) and provides typed interface.
 """
@@ -14,7 +14,6 @@ class ToolWrapper(ToolPlugin):
 
     Holds tool state if needed. Many tools are stateless.
     All protocol-facing methods are implemented here with state validation.
-    Adapters must delegate without performing error handling.
     """
 
     def __init__(self, plugin_class: type):
@@ -112,55 +111,3 @@ class ToolWrapper(ToolPlugin):
             return f"Result: {result.get('result')}"
         else:
             return f"Error: {result.get('error')}"
-
-
-class ToolAdapter(ToolPlugin):
-    """
-    Passthrough adapter for tool plugins.
-
-    Performs no validation or error handling; delegates to ToolWrapper which
-    enforces protocol and state.
-    """
-
-    def __init__(self, wrapper: ToolWrapper):
-        """
-        Initialize adapter with tool wrapper.
-
-        Args:
-            wrapper: ToolWrapper instance
-        """
-        self.wrapper = wrapper
-        self.name: str = wrapper.name
-        self.version: str = wrapper.version
-
-    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Initialize tool with configuration and return state.
-        """
-        return self.wrapper.init(config)
-
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Update tool state.
-        """
-        return self.wrapper.update_state(state, updates)
-
-    def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Get tool schemas (passthrough)."""
-        return self.wrapper.get_tool_schemas(state)
-
-    def execute_tool(self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute tool (passthrough)."""
-        return self.wrapper.execute_tool(tool_name, arguments, state)
-
-    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
-        """Format tool result for display (passthrough)."""
-        return self.wrapper.format_tool_result(result, state)
-
-    def get_config_schema(self) -> Dict[str, Any]:
-        """Get tool configuration schema."""
-        return self.wrapper.get_config_schema()
-
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
-        """Get tool UI elements."""
-        return self.wrapper.get_ui_elements()

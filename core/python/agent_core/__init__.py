@@ -24,12 +24,9 @@ from .types import (
 )
 from .plugin import (
     ProviderWrapper,
-    ProviderAdapter,
     ExtensionWrapper,
     FeatureWrapper,
-    FeatureAdapter,
     ToolWrapper,
-    ToolAdapter,
 )
 
 __version__ = "0.3.0"
@@ -46,12 +43,9 @@ __all__ = [
     "ProviderExtensionPlugin",
     "FeaturePlugin",
     "ToolPlugin",
-    # Specialized adapters and wrappers
+    # Specialized wrappers
     "ProviderWrapper",
-    "ProviderAdapter",
     "ExtensionWrapper",
     "FeatureWrapper",
-    "FeatureAdapter",
     "ToolWrapper",
-    "ToolAdapter",
 ]

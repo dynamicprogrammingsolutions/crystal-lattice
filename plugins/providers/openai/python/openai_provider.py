@@ -193,7 +193,9 @@ class OpenAICompatibleProvider(ProviderPlugin):
             else None
         )
         partials = [partial] if partial else []
-        return [], partials, [native_chunk], new_state
+        # Return full history for native_messages: previous full history + this chunk
+        full_history = [*native_messages, native_chunk]
+        return [], partials, full_history, new_state
 
     def finalize(
         self,
@@ -202,9 +204,11 @@ class OpenAICompatibleProvider(ProviderPlugin):
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         content = state.get("runtime_state", {}).get("accumulated_content", "")
         if not content:
-            return [], [], state
+            # Return the full history unchanged
+            return [], native_messages, state
         final = {"role": "assistant", "content": content, "metadata": {}}
-        return [final], [], state
+        # Return the full history unchanged for native_messages
+        return [final], native_messages, state
 
     def to_display_format(
         self, message: Dict[str, Any], state: Dict[str, Any]

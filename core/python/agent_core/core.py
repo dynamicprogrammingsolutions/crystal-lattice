@@ -1,7 +1,7 @@
 """
 Core SDK for the AI Agent Platform.
 
-Functional architecture: AgentCore stores only the processing pipeline (plugins via adapters),
+Functional architecture: AgentCore stores only the processing pipeline (plugins via wrappers),
 all transformations are pure functions that take session/config and return new objects.
 """
 
@@ -9,11 +9,8 @@ from typing import Any, Dict, List, Optional, Iterator, AsyncIterator, Tuple
 from .types import Message, Session, MessageRole
 from .plugin import (
     ProviderWrapper,
-    ProviderAdapter,
     FeatureWrapper,
-    FeatureAdapter,
     ToolWrapper,
-    ToolAdapter,
 )
 import uuid
 import json
@@ -23,16 +20,16 @@ class AgentCore:
     """
     Stateless processing pipeline for AI Agent Platform.
 
-    Stores registered plugin adapters (processing logic), not runtime state.
+    Stores registered plugin wrappers (processing logic), not runtime state.
     All methods are pure functions that take session/config as parameters.
     The application layer manages sessions and configuration.
     """
 
     def __init__(self):
         """Initialize core with empty plugin pipeline."""
-        self._provider: Optional[ProviderAdapter] = None
-        self._features: List[FeatureAdapter] = []
-        self._tools: List[ToolAdapter] = []
+        self._provider: Optional[ProviderWrapper] = None
+        self._features: List[FeatureWrapper] = []
+        self._tools: List[ToolWrapper] = []
 
     def register_provider(
         self, plugin_class: type, extensions: Optional[List[type]] = None
@@ -42,19 +39,17 @@ class AgentCore:
         Extensions are loaded by the provider wrapper (same language, hot path).
         """
         wrapper = ProviderWrapper(plugin_class, extensions or [])
-        self._provider = ProviderAdapter(wrapper)
+        self._provider = wrapper
 
     def register_feature(self, plugin_class: type) -> None:
         """Register feature plugin class."""
         wrapper = FeatureWrapper(plugin_class)
-        adapter = FeatureAdapter(wrapper)
-        self._features.append(adapter)
+        self._features.append(wrapper)
 
     def register_tool(self, plugin_class: type) -> None:
         """Register tool plugin class."""
         wrapper = ToolWrapper(plugin_class)
-        adapter = ToolAdapter(wrapper)
-        self._tools.append(adapter)
+        self._tools.append(wrapper)
 
     def create_session(self, session_id: Optional[str] = None) -> Session:
         """Create new empty session (convenience function)."""
@@ -156,19 +151,16 @@ class AgentCore:
         messages, native_messages, state = self._pre_request(session, config)
         aggregated_finals: List[Dict[str, Any]] = []
 
-        # Stream from provider
-        for native_chunk in self._provider.stream_api(native_messages, state):
-            final_messages, partial_msgs, native_messages, state = (
-                self._provider.process_chunk(native_chunk, native_messages, state)
-            )
-            for p in partial_msgs:
-                yield {"type": "partial", "message": p}
-            if final_messages:
-                aggregated_finals.extend(final_messages)
+        # Stream from provider using optimized streaming
+        for event in self._provider.stream_messages(native_messages, state):
+            if event["type"] == "partial":
+                yield {"type": "partial", "message": event["message"]}
+            elif event["type"] == "final_messages":
+                aggregated_finals.extend(event["messages"])
 
-        # Finalize
+        # Finalize using the last accumulated native messages
         final_messages, native_messages, state = self._provider.finalize(
-            native_messages, state
+            self._provider.get_last_native_messages(), self._provider.get_state()
         )
 
         # Feature finalize chain
@@ -199,18 +191,15 @@ class AgentCore:
         messages, native_messages, state = self._pre_request(session, config)
         aggregated_finals: List[Dict[str, Any]] = []
 
-        # Stream from provider (async)
-        async for native_chunk in self._provider.stream_api_async(native_messages, state):
-            final_messages, partial_msgs, native_messages, state = (
-                self._provider.process_chunk(native_chunk, native_messages, state)
-            )
-            for p in partial_msgs:
-                yield {"type": "partial", "message": p}
-            if final_messages:
-                aggregated_finals.extend(final_messages)
+        # Stream from provider (async) using optimized streaming
+        async for event in self._provider.stream_messages_async(native_messages, state):
+            if event["type"] == "partial":
+                yield {"type": "partial", "message": event["message"]}
+            elif event["type"] == "final_messages":
+                aggregated_finals.extend(event["messages"])
 
         final_messages, native_messages, state = self._provider.finalize(
-            native_messages, state
+            self._provider.get_last_native_messages(), self._provider.get_state()
         )
 
         # Feature finalize chain
