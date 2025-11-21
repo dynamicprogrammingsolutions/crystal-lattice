@@ -38,18 +38,8 @@ class OpenAICompatibleProvider(ProviderPlugin):
 
     # ---------- State lifecycle ----------
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        # Use only provided config values
-        base_url = (config.get("base_url") or "https://api.openai.com/v1").rstrip("/")
-        api_key = config.get("api_key")
-        model = config.get("model")
-        timeout = float(config.get("timeout", 60))
         return {
-            "config": {
-                "base_url": base_url,
-                "api_key": api_key,
-                "model": model,
-                "timeout": timeout,
-            }
+            "config": config
         }
 
     def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
@@ -59,8 +49,30 @@ class OpenAICompatibleProvider(ProviderPlugin):
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
+
+        config = state["config"]
+        
+        base_url = (config.get("base_url") or "https://api.openai.com/v1").rstrip("/")
+        api_key = config.get("api_key")
+        model = config.get("model")
+        timeout = float(config.get("timeout", 60))
+
+        url = f"{base_url}/chat/completions"
+        payload: Dict[str, Any] = {
+            "model": model,
+        }
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
         return {
             **state,
+            "request": {
+                "url": url,
+                "payload": payload,
+                "headers": headers,
+                "timeout": timeout,
+            },
             "partial": None
         }
 
@@ -83,19 +95,10 @@ class OpenAICompatibleProvider(ProviderPlugin):
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
     ]:
-        cfg = state["config"]
-        url = f"{cfg['base_url']}/chat/completions"
-        payload: Dict[str, Any] = {
-            "model": cfg["model"],
-            "messages": native_messages,
-            "stream": False,
-        }
-        headers = {"Content-Type": "application/json"}
-        if cfg.get("api_key"):
-            headers["Authorization"] = f"Bearer {cfg['api_key']}"
+        request = state["request"]        
         try:
             r = requests.post(
-                url, json=payload, headers=headers, timeout=cfg.get("timeout", 60)
+                request["url"], json={**request["payload"], "messages": native_messages, "stream": False}, headers=request["headers"], timeout=request["timeout"]
             )
             r.raise_for_status()
             obj = r.json()
@@ -108,23 +111,11 @@ class OpenAICompatibleProvider(ProviderPlugin):
     def stream_api(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Iterator[Dict[str, Any]]:
-        cfg = state["config"]
-        url = f"{cfg['base_url']}/chat/completions"
-        payload: Dict[str, Any] = {
-            "model": cfg["model"],
-            "messages": native_messages,
-            "stream": True,
-        }
-        headers = {"Content-Type": "application/json"}
-        if cfg.get("api_key"):
-            headers["Authorization"] = f"Bearer {cfg['api_key']}"
+        
+        request = state["request"]        
         try:
             with requests.post(
-                url,
-                json=payload,
-                headers=headers,
-                timeout=cfg.get("timeout", 60),
-                stream=True,
+                request["url"], json={**request["payload"], "messages": native_messages, "stream": True}, headers=request["headers"], timeout=request["timeout"]
             ) as r:
                 r.raise_for_status()
                 for line in r.iter_lines(decode_unicode=True):
@@ -152,47 +143,38 @@ class OpenAICompatibleProvider(ProviderPlugin):
         Return the first choice if present.
         """
         if "choices" in native_chunk and native_chunk["choices"]:
-            # Prefer returning the raw choice object (lets reducer decide)
             return dict(native_chunk["choices"][0])
+        
         return {}
 
     def delta_to_message(
         self, delta: Dict[str, Any], partial: Dict[str, Any]
-    ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    ):
         """
         Reduce a delta dict into a new partial accumulator, and optionally a final.
         Returns (partial_message_or_none, final_message_or_none).
-        Default behavior aggregates content and treats any non-None finish_reason
-        as final.
-        """
         
-        # Extract content piece from common shapes
-        piece = (
-            (delta.get("delta") or {}).get("content")
-            or (delta.get("message") or {}).get("content")
-            or delta.get("text")
-            or delta.get("content")
-            or ""
-        )
-        prev_meta = partial.get("metadata") if isinstance(partial, dict) else None
-        new_content = (partial.get("content", "") if isinstance(partial, dict) else "") + (
-            piece or ""
-        )
-        # Determine finality from OpenAI-style finish_reason or explicit flag
-        finish_reason = delta.get("finish_reason")
-        is_final = finish_reason is not None or bool(delta.get("final"))
-
-        if is_final:
-            if new_content:
-                final = {"role": "assistant", "content": new_content, "metadata": prev_meta or {}}
-            else:
-                final = {"role": "assistant", "content": "", "metadata": prev_meta or {}}
-            return None, final
-
-        # Not final: emit updated partial if content changed; otherwise none
-        if not new_content:
-            return None, None
-        return {"role": "assistant", "content": new_content, "metadata": prev_meta or {}}, None
+        Full message:
+        {'index': 0, 'message': {'role': 'assistant', 'content': "Here's a short poem:\n\nSilent stars shine bright and far,\nA midnight sky, with dreams afar.\nThe moon glows soft, like silver hue,\nAs night descends, all is new."}, 'finish_reason': 'stop'}
+        
+        Partial:
+        {'index': 0, 'delta': {'role': 'assistant', 'content': 'Sil'}, 'finish_reason': None}
+        """
+        print(f"delta_to_message: {delta}\n")
+        
+        if not partial:
+            return delta, None
+        
+        this_part = partial.get("delta")
+        if (this_part) :
+            new_partial = {**delta, **this_part, "content": delta.get("content", "") + this_part.get("content", "")}
+            return (None, new_partial) if partial.get("finish_reason") == "stop" else (new_partial, None)
+        
+        this_part = partial.get("content")
+        if (this_part):
+            return None, this_part
+        
+        return None, None
 
     def process_chunk(
         self,
@@ -202,7 +184,7 @@ class OpenAICompatibleProvider(ProviderPlugin):
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
     ]:
-        #print(f"chunk:{native_chunk}\n")
+        print(f"chunk:{native_chunk}\n")
         
         # 1) Extract structured delta
         delta = self.extract_delta(native_chunk)
@@ -226,26 +208,10 @@ class OpenAICompatibleProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        # Prefer a final message that may have been appended to native history
-        if native_messages:
-            last = native_messages[-1]
-            if isinstance(last, dict) and last.get("role") == "assistant":
-                content = last.get("content", "")
-                if isinstance(content, str) and content:
-                    return [last], native_messages, state
-
-        # Fallback to current_partial accumulator
-        runtime = state.get("runtime_state", {})
-        current_partial = runtime.get("current_partial") or {}
-        content = current_partial.get("content", "") if isinstance(current_partial, dict) else ""
-        if not content:
-            return [], native_messages, state
-        final = {
-            "role": "assistant",
-            "content": content,
-            "metadata": current_partial.get("metadata", {}) if isinstance(current_partial, dict) else {},
-        }
-        return [final], native_messages, state
+        current_partial = state.get("partial", None)
+        new_finals = [current_partial] if current_partial else []
+        new_native_messages = [*native_messages, *([current_partial] if current_partial else [])]
+        return new_finals, new_native_messages, state
 
     def to_display_format(
         self, message: Dict[str, Any], state: Dict[str, Any]
