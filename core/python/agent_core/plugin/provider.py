@@ -308,20 +308,19 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
         working_state = state or self.state
-        # Ensure baseline history
-        baseline = self._last_native_messages or list(native_messages)
-        final_messages, partial_messages, native_returned, new_state = (
-            self.plugin.process_chunk(native_chunk, baseline, working_state)
+        # Use the provided full native history directly
+        full_history = list(native_messages)
+        final_messages, partial_messages, returned_history, new_state = (
+            self.plugin.process_chunk(native_chunk, full_history, working_state)
         )
-        # Merge to full history
-        full_history = self._merge_history(baseline, native_returned)
-        # Extensions observe with full history and can modify it
+        # Replace history with provider-returned history
+        full_history = returned_history
+        # Let extensions transform partials/finals/native history in order
         ext_state = new_state
         for ext in self._extensions:
             partial_messages, final_messages, full_history, ext_state = (
                 ext.process_chunk(
                     native_chunk=native_chunk,
-                    messages=baseline,  # core messages are not available here; pass baseline native for context
                     state=ext_state,
                     partial_messages=partial_messages,
                     final_messages=final_messages,
@@ -329,9 +328,22 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
                 )
             )
         self.state = ext_state
-        # track latest full history
+        # Convert partial messages (provider-native) to core using provider + extensions
+        core_partials: List[Dict[str, Any]] = []
+        if partial_messages:
+            try:
+                core_partials = (
+                    self.plugin.from_native_messages(partial_messages, ext_state)  # type: ignore[attr-defined]
+                    if hasattr(self.plugin, "from_native_messages")  # type: ignore[attr-defined]
+                    else []
+                )
+                for ext in self._extensions:
+                    core_partials = ext.from_native_messages(partial_messages, core_partials)
+            except Exception:
+                core_partials = partial_messages
+        # Track latest full history
         self._last_native_messages = full_history
-        return final_messages, partial_messages, full_history, self._get_state()
+        return final_messages, core_partials, full_history, self._get_state()
 
     def finalize(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]

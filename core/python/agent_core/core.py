@@ -181,14 +181,19 @@ class AgentCore:
         as the full provider-native history for the session. Otherwise, native is reconstructed from core messages.
         """
         assert self._provider is not None
+
+        # Collect tool schemas from registered tools and inject into config
+        tools = self.get_tool_schemas(config) if self._tools else []
+        provider_config = {**config, **({"tools": tools} if tools else {})}
+
         # Init chain: Provider → Extensions (inside provider) → Features
-        state = self._provider.init(config)
-        ui_state = config.get("ui_state", {})
+        state = self._provider.init(provider_config)
+        ui_state = provider_config.get("ui_state", {})
         # Update chain: Provider → Extensions (inside provider) → Features
         if ui_state:
             state = self._provider.update_state(state, ui_state)
         for feature in self._features:
-            state = feature.init(config, state)
+            state = feature.init(provider_config, state)
             state = feature.update_state(state, ui_state) if ui_state else state
             self._provider.set_state(state)
         # Build messages (core shape)
@@ -250,6 +255,11 @@ class AgentCore:
 
         # Convert provider-native finals to core messages once finalization completes
         final_core = self._provider.from_native_messages(final_native, state)
+        # Apply extension and feature from-native transforms
+        for ext in self._provider.extensions:
+            final_core = ext.from_native_messages(final_native, final_core)
+        for feature in self._features:
+            final_core = feature.from_native_messages(final_native, final_core)
 
         # Build new session messages by appending new Message objects
         appended: List[Message] = [Message.from_dict(m) for m in final_core]
@@ -299,6 +309,12 @@ class AgentCore:
         # Convert provider-native finals to core messages
         final_core = self._provider.from_native_messages(combined_native_finals, state)
 
+        # Apply extension and feature from-native transforms
+        for ext in self._provider.extensions:
+            final_core = ext.from_native_messages(combined_native_finals, final_core)
+        for feature in self._features:
+            final_core = feature.from_native_messages(combined_native_finals, final_core)
+
         appended: List[Message] = [Message.from_dict(m) for m in final_core]
         new_metadata = dict(session.metadata)
         new_metadata["native_messages"] = native_messages
@@ -343,6 +359,12 @@ class AgentCore:
 
         # Convert provider-native finals to core messages
         final_core = self._provider.from_native_messages(combined_native_finals, state)
+        
+        # Apply extension and feature from-native transforms
+        for ext in self._provider.extensions:
+            final_core = ext.from_native_messages(combined_native_finals, final_core)
+        for feature in self._features:
+            final_core = feature.from_native_messages(combined_native_finals, final_core)
 
         appended: List[Message] = [Message.from_dict(m) for m in final_core]
         new_metadata = dict(session.metadata)
@@ -393,6 +415,61 @@ class AgentCore:
             state = tool.init(config)
             schemas.extend(tool.get_tool_schemas(state))
         return schemas
+
+    def execute_tool_calls(self, tool_calls: List[Dict[str, Any]], config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Execute a batch of tool calls and return core "tool" messages.
+
+        Args:
+            tool_calls: List of tool call dicts normalized as
+                {"id": str, "name": str, "arguments": Dict[str, Any]}
+            config: Application config to initialize tools
+
+        Returns:
+            List of core message dicts with role "tool", formatted content, and metadata.tool_call_id
+        """
+        results: List[Dict[str, Any]] = []
+        if not tool_calls:
+            return results
+
+        # Initialize tool states once per call set
+        tool_states = [(tool, tool.init(config)) for tool in self._tools]
+
+        for call in tool_calls:
+            call_id = call.get("id") or call.get("tool_call_id")
+            name = call.get("name") or (call.get("function") or {}).get("name")
+            args = call.get("arguments") or (call.get("function") or {}).get("arguments") or {}
+            # Accept OpenAI-style string arguments; parse JSON when needed
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except Exception:
+                    args = {}
+            executed = False
+            formatted_content = None
+
+            for tool, state in tool_states:
+                try:
+                    result = tool.execute_tool(str(name), args, state)
+                except Exception as e:
+                    result = {"success": False, "error": f"Tool error: {e}"}
+                # Consider success if plugin reports success True
+                if result.get("success"):
+                    formatted_content = tool.format_tool_result(result, state)
+                    executed = True
+                    break
+            if not executed:
+                formatted_content = f"Error: no tool handled '{name}'"
+
+            results.append(
+                {
+                    "role": "tool",
+                    "content": formatted_content or "",
+                    "metadata": {"tool_call_id": call_id, "tool_name": name},
+                }
+            )
+
+        return results
 
     def export_session(self, session: Session, format: str = "json") -> str:
         """Export session to string."""

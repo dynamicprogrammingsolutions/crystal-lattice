@@ -79,7 +79,6 @@ class ExtensionWrapper(ProviderExtensionPlugin):
     def process_chunk(
         self,
         native_chunk: Optional[Dict[str, Any]],
-        messages: List[Dict[str, Any]],
         state: Dict[str, Any],
         partial_messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
@@ -94,7 +93,6 @@ class ExtensionWrapper(ProviderExtensionPlugin):
         if hasattr(self.plugin, "process_chunk"):
             return self.plugin.process_chunk(
                 native_chunk,
-                messages,
                 state,
                 partial_messages,
                 final_messages,
@@ -102,6 +100,7 @@ class ExtensionWrapper(ProviderExtensionPlugin):
             )
         # Default: no changes
         return partial_messages, final_messages, native_messages, state
+
 
     def finalize(
         self,

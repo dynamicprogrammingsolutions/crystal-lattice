@@ -84,35 +84,72 @@ class OpenAICompatibleProvider(ProviderPlugin):
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        return list(native_messages)
+        """
+        Convert provider-native finals to core messages. Expects message-like dicts
+        (e.g., {"role": ..., "content": ...}). Non-message shapes are ignored.
+        """
+        normalized: List[Dict[str, Any]] = []
+        for m in native_messages:
+            if not isinstance(m, dict):
+                continue
+            if not ("role" in m or "content" in m or "reasoning" in m):
+                # Ignore non-message shapes (like full completion objects)
+                continue
+            msg = {
+                "role": m.get("role", "assistant"),
+                "content": m.get("content", ""),
+            }
+            if "reasoning" in m:
+                msg["reasoning"] = m.get("reasoning")
+            normalized.append({**msg, "metadata": {}})
+        return normalized
 
     # ---------- Core API calls ----------
+    def _validate_message_list(self, history: List[Dict[str, Any]]) -> None:
+        """Validate that every item is a message-shaped dict with role and content.
+        Other keys are allowed. Raise with details if invalid.
+        """
+        for idx, item in enumerate(history):
+            if not isinstance(item, dict):
+                raise RuntimeError(f"[openai_provider] invalid message at index {idx}: expected dict, got {type(item).__name__} -> {item}")
+            if "role" not in item or "content" not in item:
+                raise RuntimeError(
+                    f"[openai_provider] invalid message at index {idx}: missing 'role' or 'content' -> {json.dumps(item, ensure_ascii=False)}"
+                )
+
     def call_api(
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
-    ]:
-        request = state["request"]        
+    ]:        
+        request = state["request"]
         try:
+            # Validate native_messages are proper message objects
+            self._validate_message_list(native_messages)
             r = requests.post(
-                request["url"], json={**request["payload"], "messages": native_messages, "stream": False}, headers=request["headers"], timeout=request["timeout"]
+                request["url"],
+                json={**request["payload"], "messages": native_messages, "stream": False},
+                headers=request["headers"],
+                timeout=request["timeout"],
             )
             r.raise_for_status()
             obj = r.json()
         except requests.RequestException as e:  # pragma: no cover
             raise RuntimeError(f"OpenAI-compatible call failed: {e}") from e
-        content = obj.get("choices", [{}])[0].get("message", {}).get("content", "")
-        final = [{"role": "assistant", "content": content, "metadata": {}}]
-        return final, [], [], state
+
+        message = obj.get("choices", [{}])[0].get("message", {})        
+        return [message], [], [*native_messages, message], state
 
     def stream_api(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Iterator[Dict[str, Any]]:
         
-        request = state["request"]        
+        request = state["request"]
         try:
+            # Validate native_messages before sending stream request
+            self._validate_message_list(native_messages)
             with requests.post(
                 request["url"], json={**request["payload"], "messages": native_messages, "stream": True}, headers=request["headers"], timeout=request["timeout"], stream=True
             ) as r:
@@ -147,32 +184,48 @@ class OpenAICompatibleProvider(ProviderPlugin):
         return {}
 
     def process_delta(
-        self, delta: Dict[str, Any], current_partial: Dict[str, Any]
+        self, delta: Dict[str, Any], accumulated
     ):
         """
         Reduce a delta dict into a new partial accumulator, and optionally a final.
-        Returns (partial_message_or_none, final_message_or_none).
+        Returns (partial_message_or_none, final_message_or_none, new_accumulated).
         """
-       
-        current_partial = current_partial or {}
-       
-        if "message" in delta:
-            # This is a full message, not a delta. example: {'index': 0, 'message': {'role': 'assistant', 'content': "Here's a short poem:\n\nSilent stars shine bright and far,\nA midnight sky, with dreams afar.\nThe moon glows soft, like silver hue,\nAs
-            return None, delta.get("message")
+        accumulated = accumulated or {}
 
+        # Full message chunk
+        if "message" in delta:
+            full_msg = delta.get("message") or None
+            return None, full_msg, accumulated
+
+        # Delta chunk
         delta_content = delta.get("delta")
         if not delta_content:
-            return None, None
+            return None, None, accumulated
 
-        # This is a delta. example: {'index': 0, 'delta': {'role': 'assistant', 'content': 'Sil'}, 'finish_reason': None}
-        new_partial = self._merge_delta_content(current_partial, delta_content, keys=["content"])
-        return (None, new_partial) if delta.get("finish_reason") == "stop" else (new_partial, None)
+        # Merge role/content fragments
+        accumulated = self._merge_delta_content(
+            accumulated, delta_content, override=["role"], accumulate=["content"]
+        )
 
-    def _merge_delta_content(self, current: Dict[str, Any], delta: Dict[str, Any], keys: List[str]) -> Dict[str, Any]:
+        if delta.get("finish_reason") == "stop":
+            # Only emit a final if we have something meaningful accumulated
+            has_meaning = bool((accumulated.get("content") or accumulated.get("role")))
+            if has_meaning:
+                return None, accumulated, accumulated
+            else:
+                # Keep accumulated as-is for potential finalize step
+                return None, None, accumulated
+
+        # Regular delta chunk -> partial
+        return delta_content, None, accumulated
+
+    def _merge_delta_content(self, current: Dict[str, Any], delta: Dict[str, Any], override: List[str] = [], accumulate: List[str] = []) -> Dict[str, Any]:
         return {
             **current,
-            **delta,
-            **dict((key, current.get(key, "") + delta.get(key, "")) for key in keys)
+            # For override keys, prefer the incoming delta value, falling back to current
+            **{key: delta.get(key, current.get(key, "")) for key in override},
+            # For accumulate keys, append incoming delta fragments to current value
+            **{key: (current.get(key, "") + delta.get(key, "")) for key in accumulate}
         }
 
     def process_chunk(
@@ -183,14 +236,18 @@ class OpenAICompatibleProvider(ProviderPlugin):
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
     ]:
-        partial_msg, final_msg = self.process_delta(delta=self.extract_delta(native_chunk), current_partial=state.get("partial", {}))
+        partial_msg, final_msg, accumulated = self.process_delta(delta=self.extract_delta(native_chunk), accumulated=state.get("partial", {}))
 
         # returns
         partials = [partial_msg] if partial_msg else []
         finals = [final_msg] if final_msg else []
+        if any(isinstance(f, dict) and not f for f in finals):
+            print("[openai_provider] WARNING: emitting empty final message from stream chunk")
         new_native_messages = [*native_messages, *finals]
-        new_state = {**state, "partial": partial_msg}
-
+        new_state = {**state, "partial": accumulated}
+    
+        #print(f"[openai_provider] partials: {partials}")
+        #print(f"[openai_provider] finals: {finals}, accumulated: {accumulated}")
         return finals, partials, new_native_messages, new_state
 
     def finalize(
@@ -198,12 +255,19 @@ class OpenAICompatibleProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        
         current_partial = state.get("partial", None)
-        new_finals = [current_partial] if current_partial else []
-        new_native_messages = [*native_messages, *([current_partial] if current_partial else [])]
-        return new_finals, new_native_messages, state
+        if isinstance(current_partial, dict) and (
+            current_partial.get("content") or current_partial.get("role") or current_partial.get("reasoning")
+        ):
+            # Streaming path: finalize from accumulated partial message.
+            return [current_partial], [*native_messages, current_partial], state
+
+        return [], native_messages, state
 
     def to_display_format(
         self, message: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         return message
+
+

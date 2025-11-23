@@ -75,17 +75,19 @@ def test_openai_compat_non_streaming_with_ollama(ensure_model):
     }
 
     session = core.create_session()
-    session = core.add_message(session, "user", "Say: ok")
+    session = core.add_message(session, "user", "Write a short poem")
 
     partial_count = 0
     final = None
     for chunk in core.send_request_stream(session, config):
         if chunk["type"] == "partial":
             text = chunk["message"].get("content", "")
+            print(text, end="")
             if text:
                 partial_count += 1
         elif chunk["type"] == "final":
             final = chunk["messages"][-1]
+            print(f"\n\nfinal: {final}")
 
     assert partial_count > 0, "expected some streaming partials"
     assert final is not None
