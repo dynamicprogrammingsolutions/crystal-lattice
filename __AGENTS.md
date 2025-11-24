@@ -24,7 +24,7 @@ Application Layer (FastAPI/Express)
     ↓
 Core SDK (AgentCore) ← Pure functions, immutable state
     ↓
-Plugin Adapters (Wrappers)
+Plugin Wrappers
     ↓
 Plugins (Provider/Extension/Feature/Tool)
 ```

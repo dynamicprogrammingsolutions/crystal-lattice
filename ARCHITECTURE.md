@@ -37,13 +37,6 @@ This document describes the architecture and core design principles of the AI Ag
 └─────────────────────┬───────────────────────────────────┘
                       │ Plugin interface
 ┌─────────────────────┴───────────────────────────────────┐
-│  PLUGIN ADAPTER LAYER (Core Language)                  │
-│  - PassthroughAdapter (same language)                  │
-│  - SubprocessAdapter (different language)              │
-│  - Protocol translation                                │
-└─────────────────────┬───────────────────────────────────┘
-                      │ Direct call or JSON-RPC
-┌─────────────────────┴───────────────────────────────────┐
 │  PLUGIN WRAPPER LAYER (Plugin Language)                │
 │  - Provider wrapper holds shared provider state        │
 │  - Extensions/features operate on shared state         │
@@ -105,6 +98,15 @@ Application → Core SDK (send_request/send_request_stream again)
   ↓
 [Loop continues until no more tool calls]
 ```
+
+## Native History
+
+The core can retain provider-native history on the session to preserve exact provider semantics across requests and even across `AgentCore` instances.
+
+- When a request completes, `session.metadata.native_messages` stores the full provider-native history for the turn.
+- A verification object `session.metadata.native_messages_integrity` ensures that the immutable core `messages` still match the retained native history; if they do not, the core raises an integrity error unless `native_messages` is removed.
+- When adding a message via `add_message`, if native history is present and a provider is registered, the core converts just the new message to provider-native and appends it to `native_messages` for efficiency.
+- During the next request, if native history is present, the core trusts it as input (skipping conversion from core) and proceeds with initialize/stream/finalize. Conversion to core happens only after the finalize pipeline completes.
 
 ## Configuration System
 
@@ -215,9 +217,10 @@ agent-platform/
 │   │   │   ├── types.py          # Data types
 │   │   │   ├── plugin/
 │   │   │   │   ├── __init__.py
-│   │   │   │   ├── wrapper.py    # PluginWrapper
-│   │   │   │   ├── adapter.py    # Passthrough/Subprocess adapters
-│   │   │   │   └── protocol.py   # JSON-RPC protocol
+│   │   │   │   ├── provider.py    # ProviderWrapper + streaming mixin
+│   │   │   │   ├── extension.py   # ExtensionWrapper
+│   │   │   │   ├── feature.py     # FeatureWrapper
+│   │   │   │   └── tool.py        # ToolWrapper
 │   │   │   ├── pipeline.py       # Transformation pipeline
 │   │   │   └── session.py        # Session management
 │   │   ├── tests/

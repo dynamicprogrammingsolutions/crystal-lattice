@@ -104,18 +104,23 @@ def test_tools_flow_with_ollama(ensure_model):
             "user",
             f"Use the tool to read this file and tell me its content exactly: {file_path}",
         )
+        print("\n==> Sending messages")
+        print("  - system: Always use read_file for file contents")
+        print(f"  - user: Please read and echo file: {file_path}")
 
         # Round 1: expect tool call
         new_session, responses = core.send_request(session, config)
         session = new_session
         assert responses, "expected assistant response"
         assistant = responses[-1]
-        print("\n\nresponses:",responses)
-        print("\n\nnew session:",new_session)
         md = assistant.get("metadata") or {}
         tool_calls = md.get("tool_calls") or []
-        call = tool_calls[0]
-        fn = call.get("function") or {}
+        print("\n<== Assistant proposed tool call:")
+        assert len(tool_calls) == 1, f"expected a single tool call, got {len(tool_calls)}"
+        tc = tool_calls[0]
+        fn_info = (tc.get("function") or {})
+        print(f"  [0] {fn_info.get('name')} args={fn_info.get('arguments')}")
+        fn = fn_info
         assert fn.get("name") == "read_file"
         args = fn.get("arguments")
         if isinstance(args, str):
@@ -125,30 +130,32 @@ def test_tools_flow_with_ollama(ensure_model):
             except Exception:
                 args = {}
         assert "file_path" in (args or {})
+        _arg_path = (args or {}).get("file_path")
+        print("   -> Will execute read_file on:", _arg_path)
 
-        # Execute tool calls
+        # Execute tool call
         tool_msgs = core.execute_tool_calls(tool_calls, config)
         assert tool_msgs, "expected tool results"
-        # Feed back tool results
-        for tm in tool_msgs:
-            session = core.add_message(
-                session,
-                role=tm.get("role", "tool"),
-                content=tm.get("content", ""),
-                metadata=tm.get("metadata"),
-            )
-
-        print("\n\nsession after tool results:",session)
+        # Feed back single tool result (no loop)
+        tm = tool_msgs[0]
+        _tool_content = tm.get("content", "")
+        print("\n==> Tool result for read_file:", _tool_content)
+        session = core.add_message(
+            session,
+            role=tm.get("role", "tool"),
+            content=tm.get("content", ""),
+            metadata=tm.get("metadata"),
+        )
+        print("\n==> Sent tool result back to assistant")
 
         # Round 2: expect final answer referencing file content
         new_session, responses = core.send_request(session, config)
         session = new_session
-        
-        print(f"\n\nsession after final answer: {session}")
-        
+        print("\n<== Assistant final answer received")
         assert responses, "expected a follow-up assistant response"
         final = responses[-1]
         text = final.get("content", "")
+        print("  - final:", text)
         assert isinstance(text, str)
         assert "hello from tools" in text or "File contents:" in text
     finally:

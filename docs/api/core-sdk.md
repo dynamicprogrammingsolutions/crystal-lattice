@@ -7,7 +7,7 @@ The AI Agent Platform Core SDK provides a **functional**, modular interface for 
 **Key Principles:**
 - **Functional Architecture**: Immutable data structures, pure functions
 - **State Management**: Provider wrapper maintains a single shared state per request; extensions/features update it; tools manage their own state
-- **Typed Interfaces**: Specialized adapters for each plugin type (provider, feature, tool, extension)
+- **Typed Interfaces**: Specialized wrappers for each plugin type (provider, feature, tool, extension)
 - **Extensible**: Provider extensions for hot-path processing and stateless message transforms
 
 ## Installation
@@ -196,6 +196,10 @@ Add message to session (pure function - returns new session).
 **Returns:**
 - `Session`: New session with added message
 
+**Notes:**
+- When `session.metadata.native_messages` exists and a provider is registered, the core converts only the newly added message to provider-native format and appends it to `native_messages` for efficient retention.
+- The core maintains `session.metadata.native_messages_integrity` to verify that `messages` still match the retained native history; modifying `messages` without clearing `native_messages` raises an integrity error.
+
 **Example:**
 ```python
 session = core.add_message(session, "user", "Hello!")
@@ -343,6 +347,33 @@ schemas = core.get_tool_schemas(config)
 # [{"type": "function", "function": {...}}, ...]
 ```
 
+#### execute_tool_calls
+
+```python
+execute_tool_calls(tool_calls: List[Dict[str, Any]], config: Dict[str, Any]) -> List[Dict[str, Any]]
+```
+
+Execute a batch of tool calls via registered tool plugins and return core "tool" messages.
+
+- Accepts OpenAI-style tool call shapes; `arguments` may be a JSON string or dict. The function normalizes inputs.
+- Formats results using each tool's `format_tool_result`.
+
+**Parameters:**
+- `tool_calls` (list): `[{"id": str, "name": str, "arguments": dict | str}, ...]` (also accepts OpenAI `{function: {name, arguments}}`)
+- `config` (dict): Application config passed to initialize tool state
+
+**Returns:**
+- `list[dict]`: Core messages with `role: "tool"`, `content` formatted string, and `metadata.tool_call_id` and `metadata.tool_name`.
+
+**Example:**
+```python
+tool_calls = [
+    {"id": "call_1", "name": "read_file", "arguments": {"file_path": "README.md"}},
+]
+results = core.execute_tool_calls(tool_calls, config)
+# [{"role": "tool", "content": "File contents...", "metadata": {"tool_call_id": "call_1", "tool_name": "read_file"}}]
+```
+
 #### export_session
 
 ```python
@@ -461,11 +492,11 @@ MessageRole = Literal["system", "user", "assistant", "tool"]
 
 ## Plugin Infrastructure
 
-Specialized wrappers and adapters provide typed, intuitive interfaces for each plugin type. These handle state and typed operations without generic wrapper layers.
+Specialized wrappers provide typed, intuitive interfaces for each plugin type. These handle state and typed operations without generic adapter layers.
 
-- Provider: `ProviderWrapper` (owns shared state), `ProviderAdapter`
-- Feature: `FeatureWrapper` (no internal state; shared-state lifecycle), `FeatureAdapter`
-- Tool: `ToolWrapper`, `ToolAdapter`
+- Provider: `ProviderWrapper` (owns shared state)
+- Feature: `FeatureWrapper` (no internal state; shared-state lifecycle)
+- Tool: `ToolWrapper`
 - Provider extension: `ExtensionWrapper` (no internal state; shared-state lifecycle, stateless transforms)
 
 Note: Methods remain stateless (pure) and use explicit state parameters. Plugin instances are short‑lived (per request) and should not hold durable mutable state. The provider wrapper discards shared state after each request. Tools use explicit `ToolState` passed in/out.

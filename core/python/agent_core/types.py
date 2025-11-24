@@ -50,14 +50,7 @@ class BasePlugin(Protocol):
 
     def get_ui_elements(self) -> List[Dict[str, Any]]:
         """
-        Return UI element definitions for configuring this provider.
-
-        Returns:
-            Updated provider-native messages.
-        
-        Notes:
-            When the core converts a single new message (e.g., via add_message), it passes a list containing only
-            that single message in 'messages'. Implementations must handle both full-history lists and single-message lists.
+        Return UI element definitions for configuring this plugin.
         """
         ...
 

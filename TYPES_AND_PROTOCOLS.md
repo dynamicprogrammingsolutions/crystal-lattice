@@ -417,14 +417,15 @@ Important principles:
      - For each Provider Extension (optional): state = ext.initialize_request(native_messages, state)
      - For each Feature (optional): state = feat.initialize_request(native_messages, state)
    - Provider.call_api(native_messages, state) → (final, partial, native, state)
-   - Provider.finalize(native_messages, state) → (final_messages, native_messages, state)
-   - Provider Extensions.finalize(final_messages, native_messages, state) in order
-     → (final_messages, native_messages, state)
-   - Features.finalize(final_messages, native_messages, state)
-     → (final_messages, native_messages, state)
-   - Purge internal shared state after request completes
-5. Core returns (new_session, final_messages)
-6. Application decides what to do next
+    - Provider.finalize(native_messages, state) → (final_messages, native_messages, state)
+    - Provider Extensions.finalize(final_messages, native_messages, state) in order
+      → (final_messages, native_messages, state)
+    - Features.finalize(final_messages, native_messages, state)
+      → (final_messages, native_messages, state)
+    - Convert combined provider-native finals to core via provider.from_native_messages, then apply extension.from_native_messages and feature.from_native_messages before appending to the session
+    - Purge internal shared state after request completes
+ 5. Core returns (new_session, final_messages)
+ 6. Application decides what to do next
 ```
 
 Note: The provider wrapper discards the internal shared state after each completed request. Each request initializes state via init and then applies UI settings via update_state, ensuring request independence (REST-style).
@@ -452,10 +453,16 @@ Note: The provider wrapper discards the internal shared state after each complet
 ```
 
 Notes on nomenclature:
-- `messages`: always refers to core Message objects in the Session (role/content/metadata).
-- `native_messages`: always refers to provider-native structures used over the wire.
-- `final_messages`: assistant/tool core Message objects emitted this turn as final outputs.
-- `partial_messages`: PartialMessage objects emitted during streaming.
+- Context: In plugin protocols, `final_messages` refers to provider-native deltas emitted this turn; `native_messages` is the full provider-native history.
+- Context: In core API stream events, `chunk["messages"]` within the final event are core messages returned to the application.
+- `messages`: core Message dictionaries representing the session history.
+- `partial_messages`: partial outputs (provider-native) used on the hot path and surfaced as core-friendly partial events by the provider wrapper.
+
+### Session Metadata Retention
+
+- After each request, the core saves provider-native history to `session.metadata.native_messages` and keeps a verification object in `session.metadata.native_messages_integrity`.
+- When `native_messages` is present, the next request trusts it as input; otherwise the core reconstructs native messages from core `messages` via the provider and stateless transforms.
+- When adding a message via `add_message`, if native history is present, the core converts only the new message to native and appends it to `native_messages`.
 
 ## Plugin Examples
 

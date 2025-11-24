@@ -58,7 +58,7 @@ class OpenAICompatibleProvider(ProviderPlugin):
 
         url = f"{base_url}/chat/completions"
         payload: Dict[str, Any] = {
-            "model": model,
+            "model": model
         }
         headers = {"Content-Type": "application/json"}
         if api_key:

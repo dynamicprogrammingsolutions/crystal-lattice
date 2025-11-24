@@ -103,23 +103,18 @@ class OpenAIToolsExtension:
         """Accumulate tool_calls across deltas; merge into current partial/final and accumulator.
         Returns (new_partial, new_final, new_accumulated).
         """
+        if (not delta.get("delta",{}).get("reasoning")): print("process delta:",delta)
         accumulated = accumulated or {"tool_calls": []}
         
         #print(f"process_delta: {delta}, partial: {current_partial}, final: {current_final}, accumulated: {accumulated}")
 
-        # Full message update
+        # Full message update (provider final). Replace tool_calls and stop accumulating to avoid duplicates.
         if "message" in delta and current_final is not None:
             msg = delta.get("message") or {}
             if isinstance(msg.get("tool_calls"), list) and msg["tool_calls"]:
                 merged_final = dict(current_final)
-                merged_final["tool_calls"] = [
-                    *(current_final.get("tool_calls") or []), *msg["tool_calls"]
-                ]
-                # also accumulate
-                acc_tc = list(accumulated.get("tool_calls") or [])
-                acc_tc.extend(msg["tool_calls"])
-                #print("accumulate:", accumulated, acc_tc)
-                accumulated = {**accumulated, "tool_calls": acc_tc}
+                # Replace any previously accumulated tool_calls with the provider's final list
+                merged_final["tool_calls"] = list(msg["tool_calls"])  # replace-mode
                 return current_partial, merged_final, accumulated
             return current_partial, current_final, accumulated
 
@@ -175,28 +170,12 @@ class OpenAIToolsExtension:
             # Do not write tool_calls into metadata for partial messages; emit native-only
             new_partial_messages = [*(partial_messages[:-1] or []), new_partial_message]
 
-        #print(f"partials: {new_partial_messages}, final: {new_final_messages}, accumulated: {accumulated}")
-
         return new_partial_messages, new_final_messages, new_native_messages, {**state, "partial": accumulated}
 
-    # ---- Finalize: attach accumulated tool_calls to last final and native ----
     def finalize(
         self,
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        accumulated = state.get("partial") or {}
-        tc_list = accumulated.get("tool_calls") if isinstance(accumulated, dict) else None
-        if tc_list:
-            if final_messages:
-                last_final = dict(final_messages[-1])
-                last_final["tool_calls"] = [*(last_final.get("tool_calls") or []), *tc_list]
-                final_messages = [*final_messages[:-1], last_final]
-            if native_messages:
-                last_native = dict(native_messages[-1])
-                last_native["tool_calls"] = [*(last_native.get("tool_calls") or []), *tc_list]
-                native_messages = [*native_messages[:-1], last_native]
-                
-        #print("Finalized messages:", final_messages)
         return final_messages, native_messages, state

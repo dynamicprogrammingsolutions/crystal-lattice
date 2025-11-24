@@ -328,6 +328,15 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
                 )
             )
         self.state = ext_state
+        
+        #print("\nchunk:",native_chunk,"\n","partial_messages:",partial_messages," final_messages:",final_messages, "accumulated:", (self.state or {}).get("partial",{}))
+        
+        if (len(final_messages) > 0):
+            print("\nfinal_messages:",final_messages, "accumulated:", (self.state or {}).get("partial",{}))
+            
+        # if (len(partial_messages) > 0):
+        #     print("partial_messages:",partial_messages)
+        
         # Convert partial messages (provider-native) to core using provider + extensions
         core_partials: List[Dict[str, Any]] = []
         if partial_messages:
@@ -343,6 +352,7 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
                 core_partials = partial_messages
         # Track latest full history
         self._last_native_messages = full_history
+                
         return final_messages, core_partials, full_history, self._get_state()
 
     def finalize(
@@ -355,6 +365,9 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
         working_state = state or self.state
+        
+        print("(finalize) accumulated:", (self.state or {}).get("partial",{}))
+        
         if not hasattr(self.plugin, "finalize"):
             return [], self._last_native_messages, self._get_state()
         # Use full history baseline
@@ -375,6 +388,9 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         self.state = new_state
         # track latest full history
         self._last_native_messages = full_history
+
+        if (len(final_messages) > 0):
+            print("\n(finalize) final_messages:",final_messages)
 
         return final_messages, full_history, self._get_state()
 
