@@ -1,0 +1,37 @@
+site_name: AI Agent Platform
+site_description: Functional AI agent platform core SDK with plugin system
+site_url: ""
+repo_url: ""
+use_directory_urls: true
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.tabs
+    - content.code.copy
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          # Add the core package path so imports resolve during builds
+          paths:
+            - .
+            - core/python
+          options:
+            docstring_style: google
+            show_source: true
+            separate_signature: true
+            merge_init_into_class: true
+            inherited_members: false
+            members_order: alphabetical
+
+nav:
+  - Overview: index.md
+  - Reference:
+    - AgentCore: reference/agent_core/core.md
+    - Types & Protocols: reference/agent_core/types.md
+    - Provider Wrapper: reference/agent_core/plugin/provider.md
+    - OpenAI-Compatible Provider: reference/providers/openai_provider.md
