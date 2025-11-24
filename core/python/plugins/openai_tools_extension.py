@@ -179,3 +179,4 @@ class OpenAIToolsExtension:
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         return final_messages, native_messages, state
+

@@ -5,7 +5,7 @@ Preserves original message sequence and edits.
 
 import os
 from agent_core import AgentCore
-from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
+from plugins.openai_provider import OpenAICompatibleProvider
 from agent_core.types import Session
 
 

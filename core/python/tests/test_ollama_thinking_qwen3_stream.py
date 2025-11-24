@@ -18,10 +18,6 @@ import pytest
 
 from agent_core import AgentCore
 
-# Ensure repo root is importable to load plugins/* modules
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
 
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
@@ -64,8 +60,8 @@ def test_ollama_thinking_streaming_with_qwen3(ensure_model):
     core = AgentCore()
     core.discover_and_register(
         [
-            "plugins.providers.openai.python.openai_provider",
-            "plugins.providers.openai.python.ollama_thinking_extension",
+            "plugins.openai_provider",
+            "plugins.ollama_thinking_extension",
         ]
     )
 

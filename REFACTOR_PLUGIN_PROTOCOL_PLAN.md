@@ -11,7 +11,7 @@ Ground rules
 - Avoid unrelated changes; update docs/tests/examples alongside code.
 
 0) Baseline
-- Run: `pytest core/python/tests -q` and `pytest examples/tests -qs` to ensure green baseline.
+- Run: `pytest core/python/tests -q` and `pytest core/python/examples/tests -qs` to ensure green baseline.
 - Run: `ruff check core/python/agent_core tests examples` and `pyright`.
 
 1) Prepare code search and inventory
@@ -19,7 +19,7 @@ Ground rules
 - Focus files likely impacted:
   - Protocols: `core/python/agent_core/types.py`
   - Wrappers/adapters: `core/python/agent_core/plugin/provider.py`, `core/python/agent_core/plugin/extension.py`, `core/python/agent_core/plugin/feature.py`, `core/python/agent_core/plugin/tool.py`
-  - Provider implementations: `core/python/agent_core/providers/openai_compatible.py`, `plugins/providers/openai/python/openai_provider.py`
+  - Provider implementations: `core/python/agent_core/providers/openai_compatible.py`, `core/python/plugins/openai_provider.py`
   - Dummy plugins used by tests: `core/python/tests/dummy_provider.py`, `core/python/tests/dummy_extension.py`, `core/python/tests/dummy_feature.py`, `core/python/tests/dummy_tool.py`
   - Orchestrator: `core/python/agent_core/core.py`
 
@@ -36,7 +36,7 @@ Ground rules
 - Change `ProviderPlugin` methods in `core/python/agent_core/types.py` to instance methods (remove `@staticmethod`).
 - Update implementations:
   - `core/python/agent_core/providers/openai_compatible.py`
-  - `plugins/providers/openai/python/openai_provider.py`
+  - `core/python/plugins/openai_provider.py`
   - `core/python/tests/dummy_provider.py`
 - Update wrapper `core/python/agent_core/plugin/provider.py`:
   - Instantiate the plugin class once in `__init__` and hold `self.plugin`.
@@ -100,7 +100,7 @@ Ground rules
 9) Documentation and examples
 - Update API docs and references where they mention "static methods" for plugins:
   - `docs/api/core-sdk.md`, `ARCHITECTURE.md`, `TYPES_AND_PROTOCOLS.md`, `EXAMPLES.md` as needed.
-- Update example implementations under `examples/` if any directly use static methods.
+- Update example implementations under `core/python/examples/` if any directly use static methods.
 
 10) Cleanup and readiness for wrapper removal (follow-up PR)
 - Confirm wrapper protocols are identical to plugin protocols (method names, parameters, return types).
@@ -108,7 +108,7 @@ Ground rules
 - Prepare a follow-up step to remove wrapper types and collapse adapters where they are pure pass-throughs.
 
 11) Validation
-- Run: `pytest core/python/tests -q` and `pytest examples/tests -qs`.
+- Run: `pytest core/python/tests -q` and `pytest core/python/examples/tests -qs`.
 - Stream tests: `pytest core/python/tests/test_async.py -q`.
 - Lint/format/typecheck: `ruff`, `black`, `pyright` per `AGENTS.md`.
 

@@ -16,14 +16,6 @@ from typing import Optional
 
 import pytest
 
-# Ensure repo root and core/python are importable
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
-CORE_PY = os.path.join(ROOT, "core/python")
-if CORE_PY not in sys.path:
-    sys.path.insert(0, CORE_PY)
-
 from agent_core import AgentCore
 
 
@@ -61,16 +53,9 @@ def ensure_model():
 
 @pytest.mark.integration
 def test_parallel_tools_read_multiple_files(ensure_model):
-    OpenAICompatibleProvider = __import__(
-        "plugins.providers.openai.python.openai_provider", fromlist=["OpenAICompatibleProvider"]
-    ).OpenAICompatibleProvider
-    OpenAIToolsExtension = __import__(
-        "plugins.providers.openai.python.openai_tools_extension",
-        fromlist=["OpenAIToolsExtension"],
-    ).OpenAIToolsExtension
-    FileReaderTool = __import__(
-        "plugins.tools.python.file_reader_tool", fromlist=["FileReaderTool"]
-    ).FileReaderTool
+    from plugins.openai_provider import OpenAICompatibleProvider
+    from plugins.openai_tools_extension import OpenAIToolsExtension
+    from plugins.file_reader_tool import FileReaderTool
 
     core = AgentCore()
     core.register_provider(OpenAICompatibleProvider, extensions=[OpenAIToolsExtension])

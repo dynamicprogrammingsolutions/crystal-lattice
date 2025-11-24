@@ -1,5 +1,5 @@
 """
-FileWriterTool plugin: write text content to a file within allowed paths.
+FileReaderTool plugin: simple file reading tool with allowlist and size limit.
 """
 
 from __future__ import annotations
@@ -10,8 +10,8 @@ from typing import Any, Dict, List
 from agent_core.types import ToolPlugin
 
 
-class FileWriterTool(ToolPlugin):
-    name: str = "file_writer"
+class FileReaderTool(ToolPlugin):
+    name: str = "file_reader"
     version: str = "1.0.0"
 
     def get_config_schema(self) -> Dict[str, Any]:
@@ -20,12 +20,12 @@ class FileWriterTool(ToolPlugin):
                 "type": "array",
                 "items": {"type": "string"},
                 "default": ["."],
-                "description": "Allowed base paths for file writing",
+                "description": "Allowed base paths for file reading",
             },
             "max_file_size": {
                 "type": "integer",
-                "default": 5 * 1024 * 1024,
-                "description": "Maximum content size to write in bytes",
+                "default": 1048576,
+                "description": "Maximum file size in bytes",
             },
         }
 
@@ -48,21 +48,17 @@ class FileWriterTool(ToolPlugin):
             {
                 "type": "function",
                 "function": {
-                    "name": "write_file",
-                    "description": "Write text content to a file (overwrites if exists)",
+                    "name": "read_file",
+                    "description": "Read contents of a text file",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "file_path": {
                                 "type": "string",
-                                "description": "Path to the file to write",
-                            },
-                            "content": {
-                                "type": "string",
-                                "description": "Text content to write",
-                            },
+                                "description": "Path to the file to read",
+                            }
                         },
-                        "required": ["file_path", "content"],
+                        "required": ["file_path"],
                     },
                 },
             }
@@ -71,10 +67,9 @@ class FileWriterTool(ToolPlugin):
     def execute_tool(
         self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
-        if tool_name != "write_file":
+        if tool_name != "read_file":
             return {"success": False, "error": f"Unknown tool: {tool_name}"}
         file_path = arguments.get("file_path", "")
-        content = arguments.get("content", "")
         try:
             abs_path = os.path.abspath(file_path)
         except Exception:
@@ -86,20 +81,19 @@ class FileWriterTool(ToolPlugin):
                 "error": f"Access denied: {file_path} not in allowed paths",
             }
         try:
-            data = content if isinstance(content, str) else str(content)
-            max_size = int(state.get("config", {}).get("max_file_size", 5 * 1024 * 1024))
-            if len(data.encode("utf-8")) > max_size:
-                return {"success": False, "error": f"Content too large"}
-            os.makedirs(os.path.dirname(abs_path) or ".", exist_ok=True)
-            with open(abs_path, "w", encoding="utf-8") as f:
-                f.write(data)
-            return {"success": True, "result": {"path": abs_path, "bytes_written": len(data.encode("utf-8"))}}
+            size = os.path.getsize(abs_path)
+            if size > state.get("config", {}).get("max_file_size", 1048576):
+                return {"success": False, "error": f"File too large: {size} bytes"}
+            with open(abs_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            return {"success": True, "result": content}
         except Exception as e:
-            return {"success": False, "error": f"Error writing file: {str(e)}"}
+            return {"success": False, "error": f"Error reading file: {str(e)}"}
 
     def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
         return (
-            f"File written: {result['result'].get('path')} ({result['result'].get('bytes_written')} bytes)"
+            f"File contents:\n{result['result']}"
             if result.get("success")
             else f"Error: {result.get('error')}"
         )
+

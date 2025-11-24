@@ -21,10 +21,6 @@ import pytest
 
 from agent_core import AgentCore
 
-# Ensure repo root is importable to load plugins/* modules
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
 
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
@@ -66,7 +62,7 @@ def ensure_model():
 def test_openai_compat_non_streaming_with_ollama(ensure_model):
     core = AgentCore()
     # Discover and register provider from plugins directory structure
-    core.discover_and_register(["plugins.providers.openai.python.openai_provider"])
+    core.discover_and_register(["plugins.openai_provider"])
 
     config = {
         "model": MODEL,

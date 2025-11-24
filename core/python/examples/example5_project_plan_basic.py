@@ -12,7 +12,7 @@ def run_example():
 
     import os
     from agent_core import AgentCore
-    from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
+    from plugins.openai_provider import OpenAICompatibleProvider
 
     # Initialize core (stateless pipeline)
     core = AgentCore()

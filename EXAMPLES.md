@@ -13,9 +13,108 @@ Usage (run_example)
 return app
 ```
 
-- Code: `examples/example10_project_plan_app.py`
-- Test: `examples/tests/test_example10_project_plan_app.py`
-- Run: `pytest -q examples/tests/test_example10_project_plan_app.py`
+- Code: `core/python/examples/example10_project_plan_app.py`
+- Test: `core/python/examples/tests/test_example10_project_plan_app.py`
+- Run: `pytest -q core/python/examples/tests/test_example10_project_plan_app.py`
+
+## Example 11: OpenAI-compatible provider with tool-calling (FileReaderTool) on Ollama.
+
+Example 11: OpenAI-compatible provider with tool-calling (FileReaderTool) on Ollama.
+
+Requires:
+- `ollama` running locally (default http://localhost:11434)
+- A model that supports tool/function calling via OpenAI-compatible API
+
+This example performs a simple non-streaming loop:
+1) Ask the model to read a file via the read_file tool
+2) If the model issues tool calls, the app executes them and appends tool results
+3) Repeat until the model stops calling tools
+
+Usage (run_example)
+
+```python
+core = AgentCore()
+
+# Register provider, extension, and tool from local plugins package
+from plugins.openai_provider import OpenAICompatibleProvider
+from plugins.openai_tools_extension import OpenAIToolsExtension
+from plugins.file_reader_tool import FileReaderTool
+
+core.register_provider(OpenAICompatibleProvider, extensions=[OpenAIToolsExtension])
+core.register_tool(FileReaderTool)
+
+# Ollama OpenAI-compatible endpoint and model
+ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+base_url = f"{ollama_host}/v1"
+model = os.getenv("OLLAMA_MODEL_TOOLS", "qwen3:0.6b")
+
+# Prepare a small temp file
+with tempfile.NamedTemporaryFile("w+", delete=False, dir=".") as tf:
+    tf.write("hello from tools")
+    tf.flush()
+    file_path = tf.name
+
+try:
+    config: Dict[str, Any] = {
+        "model": model,
+        "base_url": base_url,
+        "timeout": 120,
+        # FileReader tool config is read via core when injecting schemas
+        "allowed_paths": ["."],
+        "max_file_size": 1024 * 1024,
+    }
+
+    # Session and prompt that forces tool usage
+    session = core.create_session()
+    session = core.add_message(
+        session,
+        "system",
+        "You are a helpful assistant. You MUST use the read_file tool to answer questions about file contents. Never guess.",
+    )
+    session = core.add_message(
+        session,
+        "user",
+        f"Read and return the content of this file using the tool: {file_path}",
+    )
+
+    # Allow up to 3 tool execution rounds
+    for _ in range(3):
+        new_session, responses = core.send_request(session, config)
+        session = new_session
+        if not responses:
+            break
+        assistant = responses[-1]
+        print(assistant)
+        md = assistant.get("metadata") or {}
+        tool_calls = md.get("tool_calls") or []
+        if not tool_calls:
+            # No more tool calls, we are done
+            break
+
+        # Execute tool calls via core and append tool results
+        print(f"Executing tool calls: {tool_calls}")
+        tool_msgs = core.execute_tool_calls(tool_calls, config)
+        for tm in tool_msgs:
+            session = core.add_message(
+                session,
+                role=tm.get("role", "tool"),
+                content=tm.get("content", ""),
+                metadata=tm.get("metadata"),
+            )
+
+    # Return the last assistant content
+    last = session.messages[-1].to_dict() if session.messages else {}
+    return last.get("content", ""), {"file_path": file_path, "model": model}
+finally:
+    try:
+        os.unlink(file_path)
+    except Exception:
+        pass
+```
+
+- Code: `core/python/examples/example11_openai_tools_file_reader.py`
+- Test: `core/python/examples/tests/test_example11_openai_tools_file_reader.py`
+- Run: `pytest -q core/python/examples/tests/test_example11_openai_tools_file_reader.py`
 
 ## EchoProvider example (class-based provider plugin) derived from PLUGIN_EXAMPLES.md.
 
@@ -136,9 +235,9 @@ class EchoProvider(ProviderPlugin):
         )
 ```
 
-- Code: `examples/example1_echo_provider.py`
-- Test: `examples/tests/test_example1_echo_provider.py`
-- Run: `pytest -q examples/tests/test_example1_echo_provider.py`
+- Code: `core/python/examples/example1_echo_provider.py`
+- Test: `core/python/examples/tests/test_example1_echo_provider.py`
+- Run: `pytest -q core/python/examples/tests/test_example1_echo_provider.py`
 
 ## PrefixExtension example (class-based provider extension) derived from PLUGIN_EXAMPLES.md.
 
@@ -200,7 +299,6 @@ class PrefixExtension(ProviderExtensionPlugin):
     def process_chunk(
         self,
         native_chunk: Optional[Dict[str, Any]],
-        messages: List[Dict[str, Any]],
         state: Dict[str, Any],
         partial_messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
@@ -254,9 +352,9 @@ class PrefixExtension(ProviderExtensionPlugin):
         return finals, native_messages, state
 ```
 
-- Code: `examples/example2_prefix_extension.py`
-- Test: `examples/tests/test_example2_prefix_extension.py`
-- Run: `pytest -q examples/tests/test_example2_prefix_extension.py`
+- Code: `core/python/examples/example2_prefix_extension.py`
+- Test: `core/python/examples/tests/test_example2_prefix_extension.py`
+- Run: `pytest -q core/python/examples/tests/test_example2_prefix_extension.py`
 
 ## WebSearchFeature example (class-based feature plugin) derived from PLUGIN_EXAMPLES.md.
 
@@ -339,9 +437,9 @@ class WebSearchFeature:
         return finals, native_messages, state
 ```
 
-- Code: `examples/example3_web_search_feature.py`
-- Test: `examples/tests/test_example3_web_search_feature.py`
-- Run: `pytest -q examples/tests/test_example3_web_search_feature.py`
+- Code: `core/python/examples/example3_web_search_feature.py`
+- Test: `core/python/examples/tests/test_example3_web_search_feature.py`
+- Run: `pytest -q core/python/examples/tests/test_example3_web_search_feature.py`
 
 ## FileReaderTool example (class-based tool plugin) derived from PLUGIN_EXAMPLES.md.
 
@@ -448,9 +546,9 @@ class FileReaderTool(ToolPlugin):
         )
 ```
 
-- Code: `examples/example4_file_reader_tool.py`
-- Test: `examples/tests/test_example4_file_reader_tool.py`
-- Run: `pytest -q examples/tests/test_example4_file_reader_tool.py`
+- Code: `core/python/examples/example4_file_reader_tool.py`
+- Test: `core/python/examples/tests/test_example4_file_reader_tool.py`
+- Run: `pytest -q core/python/examples/tests/test_example4_file_reader_tool.py`
 
 ## PROJECT_PLAN Example 1: Basic Low-Level API Usage (Python)
 
@@ -466,7 +564,7 @@ Usage (run_example)
 ```python
 import os
 from agent_core import AgentCore
-from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
+from plugins.openai_provider import OpenAICompatibleProvider
 
 # Initialize core (stateless pipeline)
 core = AgentCore()
@@ -509,9 +607,9 @@ session, messages = core.send_request(session, config)
 print(messages[-1]["content"])  # expect some text
 ```
 
-- Code: `examples/example5_project_plan_basic.py`
-- Test: `examples/tests/test_example5_project_plan_basic.py`
-- Run: `pytest -q examples/tests/test_example5_project_plan_basic.py`
+- Code: `core/python/examples/example5_project_plan_basic.py`
+- Test: `core/python/examples/tests/test_example5_project_plan_basic.py`
+- Run: `pytest -q core/python/examples/tests/test_example5_project_plan_basic.py`
 
 ## PROJECT_PLAN Example 2: Streaming with Low-Level API
 
@@ -552,9 +650,9 @@ for chunk in core.send_request_stream(session, config):
         print("\n[Done]")
 ```
 
-- Code: `examples/example6_project_plan_streaming.py`
-- Test: `examples/tests/test_example6_project_plan_streaming.py`
-- Run: `pytest -q examples/tests/test_example6_project_plan_streaming.py`
+- Code: `core/python/examples/example6_project_plan_streaming.py`
+- Test: `core/python/examples/tests/test_example6_project_plan_streaming.py`
+- Run: `pytest -q core/python/examples/tests/test_example6_project_plan_streaming.py`
 
 ## PROJECT_PLAN Example 3: Tool Calls Loop (Ollama)
 
@@ -619,9 +717,9 @@ for i in range(max_iterations):
         )
 ```
 
-- Code: `examples/example7_project_plan_tool_calls.py`
-- Test: `examples/tests/test_example7_project_plan_tool_calls.py`
-- Run: `pytest -q examples/tests/test_example7_project_plan_tool_calls.py`
+- Code: `core/python/examples/example7_project_plan_tool_calls.py`
+- Test: `core/python/examples/tests/test_example7_project_plan_tool_calls.py`
+- Run: `pytest -q core/python/examples/tests/test_example7_project_plan_tool_calls.py`
 
 ## PROJECT_PLAN Example 4: Message History Manipulation (Ollama)
 
@@ -653,11 +751,14 @@ session = core.add_message(session, "user", "Hello")
 session = core.add_message(session, "assistant", "Hi! How can I help?")
 session = core.add_message(session, "user", "What's the weather?")
 
-# Remove last message (functional)
+# Remove last message (functional): since we change history, drop native history metadata first
+md = dict(session.metadata)
+md.pop("native_messages", None)
+md.pop("native_messages_integrity", None)
 session = Session(
     session_id=session.session_id,
     messages=session.messages[:-1],
-    metadata=session.metadata,
+    metadata=md,
 )
 
 # Add different message
@@ -666,16 +767,19 @@ session = core.add_message(session, "user", "Tell me a joke")
 # Send request with modified history
 session, messages = core.send_request(session, config)
 
-# Clear conversation and start fresh (functional)
+# Clear conversation and start fresh (functional): drop native history metadata first
+md2 = dict(session.metadata)
+md2.pop("native_messages", None)
+md2.pop("native_messages_integrity", None)
 session = Session(
-    session_id=session.session_id, messages=[], metadata=session.metadata
+    session_id=session.session_id, messages=[], metadata=md2
 )
 session = core.add_message(session, "user", "New conversation")
 ```
 
-- Code: `examples/example8_project_plan_messages.py`
-- Test: `examples/tests/test_example8_project_plan_messages.py`
-- Run: `pytest -q examples/tests/test_example8_project_plan_messages.py`
+- Code: `core/python/examples/example8_project_plan_messages.py`
+- Test: `core/python/examples/tests/test_example8_project_plan_messages.py`
+- Run: `pytest -q core/python/examples/tests/test_example8_project_plan_messages.py`
 
 ## PROJECT_PLAN Example 5: Config Updates + Web Search Feature (Ollama)
 
@@ -731,6 +835,6 @@ print(messages[-1]["content"])
 print(messages[-1]["metadata"])
 ```
 
-- Code: `examples/example9_project_plan_config_updates.py`
-- Test: `examples/tests/test_example9_project_plan_config_updates.py`
-- Run: `pytest -q examples/tests/test_example9_project_plan_config_updates.py`
+- Code: `core/python/examples/example9_project_plan_config_updates.py`
+- Test: `core/python/examples/tests/test_example9_project_plan_config_updates.py`
+- Run: `pytest -q core/python/examples/tests/test_example9_project_plan_config_updates.py`

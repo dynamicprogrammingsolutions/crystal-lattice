@@ -5,23 +5,13 @@ Tests for examples/web_search_feature.py with EchoProvider.
 import os
 import sys
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
-CORE_PY = os.path.join(ROOT, "core/python")
-if CORE_PY not in sys.path:
-    sys.path.insert(0, CORE_PY)
 
 
 def test_web_search_feature_metadata_toggle():
     from agent_core import AgentCore
 
-    EchoProvider = __import__(
-        "examples.example1_echo_provider", fromlist=["EchoProvider"]
-    ).EchoProvider
-    WebSearchFeature = __import__(
-        "examples.example3_web_search_feature", fromlist=["WebSearchFeature"]
-    ).WebSearchFeature
+    from examples.example1_echo_provider import EchoProvider
+    from examples.example3_web_search_feature import WebSearchFeature
 
     core = AgentCore()
     core.register_provider(EchoProvider)

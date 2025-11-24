@@ -5,7 +5,7 @@ Preserves original prompts and prints when search is enabled.
 
 import os
 from agent_core import AgentCore
-from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
+from plugins.openai_provider import OpenAICompatibleProvider
 from examples.example3_web_search_feature import WebSearchFeature
 
 

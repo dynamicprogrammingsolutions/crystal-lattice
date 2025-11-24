@@ -10,9 +10,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-Ext = __import__(
-    "plugins.providers.openai.python.openai_tools_extension", fromlist=["OpenAIToolsExtension"]
-).OpenAIToolsExtension
+from plugins.openai_tools_extension import OpenAIToolsExtension as Ext
 
 
 def test_to_native_messages_maps_tool_call_id_and_tool_calls():

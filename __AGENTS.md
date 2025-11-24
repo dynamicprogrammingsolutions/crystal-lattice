@@ -81,7 +81,7 @@ Contains plugin wrappers (hold state, call plugin methods) and adapters (protoco
 
 ### 4. Working Examples
 
-**Directory**: `examples/`
+**Directory**: `core/python/examples/`
 
 All examples are tested and documented in [EXAMPLES.md](EXAMPLES.md), covering:
 
@@ -96,7 +96,7 @@ All examples are tested and documented in [EXAMPLES.md](EXAMPLES.md), covering:
 
 ### 5. Real Provider Implementation
 
-**File**: `plugins/providers/openai/python/openai_provider.py`
+**File**: `core/python/plugins/openai_provider.py`
 
 OpenAI-compatible provider (works with OpenAI, Ollama, etc.)
 
@@ -118,10 +118,10 @@ pytest
 pytest core/python/tests/test_core.py -v
 
 # Run example
-python examples/example5_project_plan_basic.py
+python core/python/examples/example5_project_plan_basic.py
 
 # Run example test
-pytest examples/tests/test_example5_project_plan_basic.py
+pytest core/python/examples/tests/test_example5_project_plan_basic.py
 
 # Typecheck
 pyright
@@ -156,18 +156,18 @@ See [PROJECT_PLAN.md](PROJECT_PLAN.md) for complete roadmap, implementation stag
 ## Getting Help
 
 1. **Read examples first**: [EXAMPLES.md](EXAMPLES.md) has working code
-2. **Check tests**: `examples/tests/` shows expected behavior
-3. **Read protocols**: `types.py` defines contracts
-4. **Study implementations**: Real plugins in `plugins/` and `examples/`
+2. **Check tests**: `core/python/examples/tests/` shows expected behavior
+4. **Study implementations**: Real plugins in `core/python/plugins/` and `core/python/examples/`
+
 
 ## Quick Reference
 
 **Core SDK**: `core/python/agent_core/core.py`  
 **Types**: `core/python/agent_core/types.py`  
 **Plugin Wrappers**: `core/python/agent_core/plugin/`  
-**Examples**: `examples/` or [EXAMPLES.md](EXAMPLES.md)  
+**Examples**: `core/python/examples/` or [EXAMPLES.md](EXAMPLES.md)  
 **Tests**: `core/python/tests/`
-**Plugins**: `plugins/`
+**Plugins**: `core/python/plugins/`
 
 **Test Command**: `pytest core/python/tests -q`
-**Test Example Command**: `pytest -qs examples/tests/example1_echo_provider.py`  
+**Test Example Command**: `pytest -qs core/python/examples/tests/test_example1_echo_provider.py`  

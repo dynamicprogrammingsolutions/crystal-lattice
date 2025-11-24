@@ -9,7 +9,7 @@ Environment variables (optional):
 
 import os
 from agent_core import AgentCore
-from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
+from plugins.openai_provider import OpenAICompatibleProvider
 
 
 def run_example():

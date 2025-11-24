@@ -6,18 +6,10 @@ import os
 import sys
 import tempfile
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
-CORE_PY = os.path.join(ROOT, "core/python")
-if CORE_PY not in sys.path:
-    sys.path.insert(0, CORE_PY)
 
 
 def test_file_reader_tool_reads_file():
-    FileReaderTool = __import__(
-        "examples.example4_file_reader_tool", fromlist=["FileReaderTool"]
-    ).FileReaderTool
+    from examples.example4_file_reader_tool import FileReaderTool
 
     cfg = {"allowed_paths": ["."], "max_file_size": 1024 * 1024}
     state = FileReaderTool().init(cfg)

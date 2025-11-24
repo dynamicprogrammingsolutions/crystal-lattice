@@ -5,7 +5,7 @@ import textwrap
 from typing import List
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-EX_DIR = os.path.join(ROOT, "examples")
+EX_DIR = os.path.join(ROOT, "core/python/examples")
 OUT = os.path.join(ROOT, "EXAMPLES.md")
 
 

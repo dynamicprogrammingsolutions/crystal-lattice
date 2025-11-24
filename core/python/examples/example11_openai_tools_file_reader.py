@@ -23,15 +23,10 @@ from agent_core import AgentCore
 def run_example() -> Tuple[str, Dict[str, Any]]:
     core = AgentCore()
 
-    # Register provider and its tools extension explicitly
-    from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
-    OpenAIToolsExtension = __import__(
-        "plugins.providers.openai.python.openai_tools_extension",
-        fromlist=["OpenAIToolsExtension"],
-    ).OpenAIToolsExtension
-    FileReaderTool = __import__(
-        "plugins.tools.python.file_reader_tool", fromlist=["FileReaderTool"]
-    ).FileReaderTool
+    # Register provider, extension, and tool from local plugins package
+    from plugins.openai_provider import OpenAICompatibleProvider
+    from plugins.openai_tools_extension import OpenAIToolsExtension
+    from plugins.file_reader_tool import FileReaderTool
 
     core.register_provider(OpenAICompatibleProvider, extensions=[OpenAIToolsExtension])
     core.register_tool(FileReaderTool)
