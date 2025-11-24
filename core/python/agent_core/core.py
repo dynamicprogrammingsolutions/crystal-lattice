@@ -3,6 +3,45 @@ Core SDK for the AI Agent Platform.
 
 Functional architecture: AgentCore stores only the processing pipeline (plugins via wrappers),
 all transformations are pure functions that take session/config and return new objects.
+
+Examples:
+    Basic non-streaming usage:
+
+    ```python
+    from agent_core import AgentCore
+    from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
+
+    core = AgentCore()
+    core.register_provider(OpenAICompatibleProvider)
+
+    session = core.create_session()
+    session = core.add_message(session, "user", "Hello!")
+
+    config = {"model": "gpt-4o", "base_url": "https://api.openai.com/v1", "api_key": "sk-..."}
+    session, finals = core.send_request(session, config)
+    print(finals[-1]["content"])  # Assistant reply
+    ```
+
+    Streaming usage:
+
+    ```python
+    for chunk in core.send_request_stream(session, config):
+        if chunk["type"] == "partial":
+            print(chunk["message"]["content"], end="", flush=True)
+        elif chunk["type"] == "final":
+            session = chunk["session"]
+            print("\n[Done]")
+    ```
+
+    Tool schemas and execution:
+
+    ```python
+    tool_schemas = core.get_tool_schemas(config)
+    # Execute tool calls the model asked for (application loop)
+    tool_results = core.execute_tool_calls(tool_calls, config)
+    for msg in tool_results:
+        session = core.add_message(session, msg["role"], msg["content"], msg.get("metadata"))
+    ```
 """
 
 from typing import Any, Dict, List, Optional, Iterator, AsyncIterator, Tuple
@@ -17,8 +56,7 @@ import json
 
 
 class AgentCore:
-    """
-    Stateless processing pipeline for AI Agent Platform.
+    """Stateless processing pipeline for AI Agent Platform.
 
     Stores registered plugin wrappers (processing logic), not runtime state.
     All methods are pure functions that take session/config as parameters.
@@ -27,7 +65,17 @@ class AgentCore:
 
     # -------- Integrity helpers --------
     def _compute_native_integrity(self, messages: List[Message]) -> Dict[str, Any]:
-        """Compute verification data for native history integrity."""
+        """Compute verification data for native history integrity.
+
+        Args:
+            messages: Core messages in the session.
+
+        Returns:
+            Dict containing a simple integrity checksum of the current session messages
+            used to guard retained provider-native history. Keys:
+            - message_count: Number of messages in the session
+            - total_chars: Sum of content lengths for all messages (non-strings count as 0)
+        """
         total_chars = 0
         for m in messages:
             try:
@@ -40,8 +88,16 @@ class AgentCore:
     def _verify_native_integrity(self, session: Session) -> None:
         """Verify that session messages match integrity data when native history is present.
 
-        Raises RuntimeError if mismatch is detected. Users may remove 'native_messages' from metadata
-        to intentionally change history or bypass integrity check.
+        This ensures the retained provider-native history still corresponds to the
+        immutable core message sequence.
+
+        Args:
+            session: Current session with potential retained native history in metadata.
+
+        Raises:
+            RuntimeError: If integrity is missing or does not match the current messages.
+                Users may remove 'native_messages' from metadata to intentionally change
+                history or bypass integrity check.
         """
         md = session.metadata if isinstance(session.metadata, dict) else {}
         if "native_messages" not in md:
@@ -67,7 +123,17 @@ class AgentCore:
     #     state: Dict[str, Any],
     # ) -> List[Dict[str, Any]]:
     #     """Attempt to append only the suffix of new core messages to retained native history.
+    #
     #     Not used in current flow, kept for potential future optimization.
+    #
+    #     Args:
+    #         messages: Full core messages.
+    #         retained_native: Previously retained provider-native messages.
+    #         state: Current provider shared state.
+    #
+    #     Returns:
+    #         Full provider-native messages after attempting suffix append, or full
+    #         reconstruction when suffixing is not feasible.
     #     """
     #     base_core = self._provider.from_native_messages(retained_native, state)  # type: ignore[union-attr]
     #     # Compare role/content only to ignore metadata differences
@@ -96,25 +162,44 @@ class AgentCore:
     def register_provider(
         self, plugin_class: type, extensions: Optional[List[type]] = None
     ) -> None:
-        """
-        Register provider plugin class with optional provider extensions.
+        """Register provider plugin class with optional provider extensions.
+
         Extensions are loaded by the provider wrapper (same language, hot path).
+
+        Args:
+            plugin_class: Provider plugin class.
+            extensions: Optional list of provider extension classes to register with the provider.
         """
         wrapper = ProviderWrapper(plugin_class, extensions or [])
         self._provider = wrapper
 
     def register_feature(self, plugin_class: type) -> None:
-        """Register feature plugin class."""
+        """Register a feature plugin class.
+
+        Args:
+            plugin_class: Feature plugin class.
+        """
         wrapper = FeatureWrapper(plugin_class)
         self._features.append(wrapper)
 
     def register_tool(self, plugin_class: type) -> None:
-        """Register tool plugin class."""
+        """Register a tool plugin class.
+
+        Args:
+            plugin_class: Tool plugin class.
+        """
         wrapper = ToolWrapper(plugin_class)
         self._tools.append(wrapper)
 
     def create_session(self, session_id: Optional[str] = None) -> Session:
-        """Create new empty session (convenience function)."""
+        """Create a new empty session.
+
+        Args:
+            session_id: Optional session identifier. Auto-generated if omitted.
+
+        Returns:
+            New immutable Session instance with no messages.
+        """
         if session_id is None:
             session_id = str(uuid.uuid4())
         return Session(session_id=session_id, messages=[])
@@ -126,11 +211,21 @@ class AgentCore:
         content: str,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Session:
-        """Add message to session (pure function - returns new session).
+        """Add a message to the session (pure function).
 
-        If session.metadata contains provider-native history (native_messages), and a provider is registered,
-        convert the newly added message to provider-native format via provider + stateless transforms and append
-        to the stored native history. Also updates verification data for integrity checks.
+        When session.metadata contains provider-native history (native_messages), and a provider is
+        registered, converts the newly added message to provider-native format via the provider and
+        stateless transforms, and appends it to the stored native history. Updates verification data
+        for integrity checks.
+
+        Args:
+            session: Current session.
+            role: Message role ("system", "user", "assistant", or "tool").
+            content: Message content.
+            metadata: Optional per-message metadata.
+
+        Returns:
+            New Session with the message appended (immutable update).
         """
         message = Message(role=role, content=content, metadata=metadata)
         new_messages: List[Message] = [*session.messages, message]
@@ -175,10 +270,20 @@ class AgentCore:
     def _pre_request(
         self, session: Session, config: Dict[str, Any]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        """Prepare state and inputs for a request; returns (messages, native_messages, state).
+        """Prepare shared state and inputs for a request.
 
         Integrity is verified if native history is present. When native history exists, it is trusted
         as the full provider-native history for the session. Otherwise, native is reconstructed from core messages.
+
+        Args:
+            session: Current session.
+            config: Application-provided configuration for this request.
+
+        Returns:
+            A tuple of (messages, native_messages, state):
+            - messages: Core message dicts for the session.
+            - native_messages: Provider-native full history (either retained or reconstructed).
+            - state: Shared provider state after init/update/initialize_request for features as well.
         """
         assert self._provider is not None
 
@@ -229,8 +334,21 @@ class AgentCore:
     def send_request(
         self, session: Session, config: Dict[str, Any]
     ) -> Tuple[Session, List[Dict[str, Any]]]:
-        """
-        Send request and return new session with response (pure function).
+        """Send request and return a new session with the response.
+
+        Runs provider call + finalize with features operating on provider-native data;
+        converts provider-native finals to core at the end and appends them to the session.
+
+        Args:
+            session: Current session.
+            config: Application-provided configuration for this request.
+
+        Returns:
+            Tuple of (new_session, final_core_messages) where the new session includes the
+            appended final messages and retained provider-native history for this turn.
+
+        Raises:
+            RuntimeError: If no provider is registered.
         """
         if not self._provider:
             raise RuntimeError("No provider registered")
@@ -277,8 +395,22 @@ class AgentCore:
     def send_request_stream(
         self, session: Session, config: Dict[str, Any]
     ) -> Iterator[Dict[str, Any]]:
-        """
-        Stream request and yield partials, then final session (generator function).
+        """Stream request and yield partial events, then the final session.
+
+        Uses provider streaming with optimized hot-path processing; features operate on the
+        provider-native finals at finalize, then core converts once and appends to the session.
+
+        Args:
+            session: Current session.
+            config: Application-provided configuration for this request.
+
+        Yields:
+            Event dictionaries:
+            - {"type": "partial", "message": core-like partial dict}
+            - {"type": "final", "session": new_session, "messages": final_core_messages}
+
+        Raises:
+            RuntimeError: If no provider is registered.
         """
         if not self._provider:
             raise RuntimeError("No provider registered")
@@ -329,8 +461,17 @@ class AgentCore:
     async def send_request_stream_async(
         self, session: Session, config: Dict[str, Any]
     ) -> AsyncIterator[Dict[str, Any]]:
-        """
-        Async version of send_request_stream.
+        """Async version of send_request_stream.
+
+        Args:
+            session: Current session.
+            config: Application-provided configuration for this request.
+
+        Yields:
+            Event dictionaries analogous to send_request_stream, but from an async iterator.
+
+        Raises:
+            RuntimeError: If no provider is registered.
         """
         if not self._provider:
             raise RuntimeError("No provider registered")
@@ -378,7 +519,12 @@ class AgentCore:
         yield {"type": "final", "session": new_session, "messages": final_core}
 
     def get_config_schema(self) -> Dict[str, Any]:
-        """Get combined config schema from all registered plugins."""
+        """Get combined config schema from all registered plugins.
+
+        Returns:
+            Mapping from plugin name to JSON schema of its configuration. Includes provider,
+            provider extensions, features, and tools when registered.
+        """
         schema: Dict[str, Any] = {}
         if self._provider:
             schema[self._provider.name] = self._provider.get_config_schema()
@@ -395,7 +541,12 @@ class AgentCore:
         return schema
 
     def get_ui_schema(self) -> Dict[str, Any]:
-        """Get combined UI schema from all registered plugins."""
+        """Get combined UI schema from all registered plugins.
+
+        Returns:
+            Mapping from plugin name to UI element definitions. Includes provider,
+            provider extensions, features, and tools when registered.
+        """
         ui: Dict[str, Any] = {}
         if self._provider:
             ui[self._provider.name] = self._provider.get_ui_elements()
@@ -409,7 +560,14 @@ class AgentCore:
         return ui
 
     def get_tool_schemas(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Get tool schemas from all registered tool plugins."""
+        """Get tool schemas from all registered tool plugins.
+
+        Args:
+            config: Application configuration passed to each tool's init.
+
+        Returns:
+            List of OpenAI-style function definitions across all registered tools.
+        """
         schemas: List[Dict[str, Any]] = []
         for tool in self._tools:
             state = tool.init(config)
@@ -417,16 +575,20 @@ class AgentCore:
         return schemas
 
     def execute_tool_calls(self, tool_calls: List[Dict[str, Any]], config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """
-        Execute a batch of tool calls and return core "tool" messages.
+        """Execute a batch of tool calls and return core "tool" messages.
+
+        Accepts OpenAI-style tool call objects. The method initializes tool state from the
+        provided config once per batch and invokes each registered tool to handle the call by name.
+        If no tool handles a given call, an error tool message is returned.
 
         Args:
-            tool_calls: List of tool call dicts normalized as
-                {"id": str, "name": str, "arguments": Dict[str, Any]}
-            config: Application config to initialize tools
+            tool_calls: List of tool call dictionaries normalized as
+                {"id": str, "name": str, "arguments": dict | str} or OpenAI {"function": {"name", "arguments"}}.
+            config: Application configuration passed to initialize tool plugins.
 
         Returns:
-            List of core message dicts with role "tool", formatted content, and metadata.tool_call_id
+            List of core message dicts with role "tool". content contains formatted tool output; metadata
+            includes tool_call_id and tool_name.
         """
         results: List[Dict[str, Any]] = []
         if not tool_calls:
@@ -472,34 +634,54 @@ class AgentCore:
         return results
 
     def export_session(self, session: Session, format: str = "json") -> str:
-        """Export session to string."""
+        """Export session to a serialized string.
+
+        Args:
+            session: Session to serialize.
+            format: Export format. Only "json" is supported.
+
+        Returns:
+            Serialized string representing the session.
+
+        Raises:
+            ValueError: If the format is not supported.
+        """
         if format == "json":
             return json.dumps(session.to_dict(), indent=2)
         raise ValueError(f"Unsupported format: {format}")
 
     def import_session(self, data: str, format: str = "json") -> Session:
-        """Import session from string."""
+        """Import a session from a serialized string.
+
+        Args:
+            data: Serialized session string.
+            format: Import format. Only "json" is supported.
+
+        Returns:
+            A new Session reconstructed from the serialized data.
+
+        Raises:
+            ValueError: If the format is not supported.
+        """
         if format == "json":
             session_dict = json.loads(data)
             return Session.from_dict(session_dict)
         raise ValueError(f"Unsupported format: {format}")
 
     def discover_and_register(self, modules: List[str]) -> Dict[str, List[str]]:
-        """
-        Discover plugins from a list of module import paths and register them.
+        """Discover plugins from Python modules and register them by duck typing.
 
-        Discovery is duck-typed:
+        Plugin type is inferred based on the presence of methods on the class:
         - Provider: has 'stream_api' or 'call_api'
         - Provider Extension: has 'process_chunk' and 'target_provider'
         - Tool: has 'get_tool_schemas' and 'execute_tool'
         - Feature: otherwise
 
         Args:
-
-            modules: List of Python module import paths to scan
+            modules: List of import paths to scan for plugin classes.
 
         Returns:
-            Summary dict with registered plugin names by type
+            Summary of registered plugin names by type with keys: providers, features, tools, extensions.
         """
         import importlib
         import inspect

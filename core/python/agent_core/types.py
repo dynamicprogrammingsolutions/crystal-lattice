@@ -3,6 +3,18 @@ Core data types for the AI Agent Platform.
 
 This module defines immutable data structures following functional programming principles.
 All transformations return new instances rather than modifying existing ones.
+
+Examples:
+    Creating immutable messages and sessions:
+
+    ```python
+    from agent_core.types import Message, Session
+
+    msg = Message(role="user", content="Hello")
+    session = Session(session_id="s1", messages=[msg])
+    data = session.to_dict()
+    restored = Session.from_dict(data)
+    ```
 """
 
 from typing import (
@@ -27,12 +39,13 @@ MessageRole = Literal["system", "user", "assistant", "tool"]
 
 @runtime_checkable
 class BasePlugin(Protocol):
-    """
-    Common instance-level protocol for non-tool plugins (Provider, ProviderExtension, Feature).
+    """Common instance-level protocol for non-tool plugins.
 
-    Unifies identity, configuration UI, and the subset of lifecycle methods whose
-    signatures are identical across these plugin types. Methods should remain
-    stateless and operate on explicit state parameters; plugin instances are short‑lived per request.
+    Applies to Provider, ProviderExtension, and Feature plugins.
+    Unifies identity, configuration UI, and lifecycle method signatures
+    that are identical across these plugin types. Methods should remain
+    stateless and operate on explicit state parameters; plugin instances
+    are short‑lived per request.
     """
 
     # Identity (attributes on the class)
@@ -41,24 +54,24 @@ class BasePlugin(Protocol):
 
     # Config/UI
     def get_config_schema(self) -> Dict[str, Any]:
-        """
-        Return JSON schema describing this plugin's configuration.
+        """Return JSON schema describing this plugin's configuration.
+
+        Returns:
+            JSON schema dictionary.
         """
         ...
-
-
 
     def get_ui_elements(self) -> List[Dict[str, Any]]:
-        """
-        Return UI element definitions for configuring this plugin.
+        """Return UI element definitions for configuring this plugin.
+
+        Returns:
+            List of UI element dictionaries.
         """
         ...
-
 
     # Common lifecycle across provider/extension/feature
     def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Apply UI/runtime updates to the shared provider state immutably.
+        """Apply UI/runtime updates to the shared provider state immutably.
 
         Args:
             state: Current shared provider state.
@@ -71,11 +84,44 @@ class BasePlugin(Protocol):
 
 
 class ProviderPlugin(BasePlugin, Protocol):
-    """Protocol for provider plugins (new lifecycle)."""
+    """Protocol for provider plugins (hot + cold paths, shared provider state).
+
+    Providers handle API I/O with LLMs and convert between core messages and
+    provider-native messages. They run chunk processing on the hot path and
+    participate in per-turn finalization on the cold path.
+
+    Example:
+        Minimal echo-like provider:
+
+        ```python
+        from typing import Any, Dict, List, Tuple, Iterator
+        class EchoProvider:
+            name = "echo"
+            version = "1.0.0"
+            def get_config_schema(self) -> Dict[str, Any]:
+                return {"model": {"type": "string", "default": "echo-1"}}
+            def get_ui_elements(self) -> List[Dict[str, Any]]:  # optional
+                return []
+            def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
+                return {"config": config, "runtime_state": {}}
+            def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+                return {**state, "config": {**state.get("config", {}), **updates}}
+            def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+                return state
+            def to_native_messages(self, messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
+                return list(messages)
+            def from_native_messages(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
+                return list(native_messages)
+            def call_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+                content = f"Echo: {next((m['content'] for m in reversed(native_messages) if m.get('role')=='user'), '')}"
+                return ([{"role": "assistant", "content": content}], [], [], state)
+            def stream_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
+                yield from []
+        ```
+    """
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Initialize provider state from application config.
+        """Initialize provider state from application config.
 
         Args:
             config: Application-supplied configuration for the provider.
@@ -89,12 +135,12 @@ class ProviderPlugin(BasePlugin, Protocol):
     def to_native_messages(
         self, messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        """
-        Convert core messages to this provider's native wire format.
+        """Convert core messages to this provider's native wire format.
 
-        Notes:
-            When the core converts a single new message (e.g., via add_message), it passes a list containing only
-            that single message in 'messages'. Implementations must handle both full-history lists and single-message lists.
+        Note:
+            When the core converts a single new message (e.g., via add_message), it passes a list
+            containing only that single message in "messages". Implementations must handle both
+            full-history lists and single-message lists.
 
         Args:
             messages: Core session messages (may be a single-element list for add_message).
@@ -102,18 +148,13 @@ class ProviderPlugin(BasePlugin, Protocol):
 
         Returns:
             Provider-native messages suitable for API calls.
-        
-        Notes:
-            When the core converts a single new message (e.g., via add_message), it passes a list containing only
-            that single message in 'messages'. Implementations must handle both full-history lists and single-message lists.
         """
         ...
 
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        """
-        Convert provider-native messages into core message dictionaries.
+        """Convert provider-native messages into core message dictionaries.
 
         Args:
             native_messages: Provider-native messages to convert.
@@ -128,8 +169,7 @@ class ProviderPlugin(BasePlugin, Protocol):
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """
-        Prepare for a new request with provider-native messages.
+        """Prepare for a new request with provider-native messages.
 
         Args:
             native_messages: Provider-native messages for this request.
@@ -148,8 +188,7 @@ class ProviderPlugin(BasePlugin, Protocol):
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
     ]:
-        """
-        Process a streaming chunk from the provider on the hot path.
+        """Process a streaming chunk from the provider on the hot path.
 
         Args:
             native_chunk: Provider-native streaming chunk.
@@ -168,16 +207,18 @@ class ProviderPlugin(BasePlugin, Protocol):
         self,
         native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        """
-        Perform final processing after streaming completes; provider runs first in finalize chain.
+        """Perform final processing after streaming completes.
+
+        The provider runs first in the finalize chain. Both final_messages and
+        native_messages are provider-native. final_messages contains only the
+        new messages for this turn; native_messages MUST be full history.
 
         Args:
             native_messages: Full provider-native message history (all prior turns plus any for this turn).
             state: Current shared provider state.
 
         Returns:
-            Tuple of (final_messages, native_messages, new_state), where both final_messages and native_messages are
-            provider-native. final_messages contains only the new messages for this turn; native_messages MUST be full history.
+            Tuple of (final_messages, native_messages, new_state).
         """
         ...
 
@@ -186,8 +227,7 @@ class ProviderPlugin(BasePlugin, Protocol):
     def to_display_format(
         self, message: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """
-        Convert a message to a display-friendly format for UIs.
+        """Convert a message to a display-friendly format for UIs.
 
         Args:
             message: Core message dictionary to format.
@@ -205,8 +245,7 @@ class ProviderPlugin(BasePlugin, Protocol):
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
     ]:
-        """
-        Make a non-streaming API call with provider-native messages.
+        """Make a non-streaming API call with provider-native messages.
 
         Args:
             native_messages: Provider-native input messages.
@@ -222,8 +261,7 @@ class ProviderPlugin(BasePlugin, Protocol):
     def stream_api(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Iterator[Dict[str, Any]]:
-        """
-        Make a streaming API call; yields provider-native chunks.
+        """Make a streaming API call; yields provider-native chunks.
 
         Args:
             native_messages: Provider-native input messages.
@@ -236,8 +274,7 @@ class ProviderPlugin(BasePlugin, Protocol):
 
     @staticmethod
     def detect_capabilities(config: Dict[str, Any]) -> List[str]:
-        """
-        Detect capability flags supported by the provider for a given config.
+        """Detect capability flags supported by the provider for a given config.
 
         Args:
             config: Application-supplied configuration for probing capabilities.
@@ -249,13 +286,40 @@ class ProviderPlugin(BasePlugin, Protocol):
 
 
 class ProviderExtensionPlugin(BasePlugin, Protocol):
-    """Protocol for provider extension plugins (shared provider state)."""
+    """Protocol for provider extension plugins (shared provider state, hot + cold path observers).
+
+    Provider extensions run in the provider's language and observe/transform streaming
+    chunks on the hot path and participate in finalize on the cold path. They do not own
+    separate state; they receive and update the shared provider state.
+
+    Example:
+        Basic prefix extension:
+
+        ```python
+        from typing import Any, Dict, List, Tuple, Optional
+        class PrefixExt:
+            name = "prefix"
+            version = "1.0.0"
+            target_provider = "echo"
+            def get_config_schema(self):
+                return {"prefix": {"type": "string", "default": "[EXT]"}}
+            def init(self, config, state):
+                return state
+            def update_state(self, state, updates):
+                return {**state, "config": {**state.get("config", {}), **updates}}
+            def process_chunk(self, native_chunk, state, partial_messages, final_messages, native_messages):
+                pfx = state.get("config", {}).get("prefix", "[EXT]")
+                finals = [{**m, "content": f"{pfx} {m['content']}"} for m in final_messages]
+                return partial_messages, finals, native_messages, state
+            def finalize(self, final_messages, native_messages, state):
+                return final_messages, native_messages, state
+        ```
+    """
 
     target_provider: str
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Initialize with application config and shared provider state.
+        """Initialize with application config and shared provider state.
 
         Args:
             config: Application-supplied configuration.
@@ -270,14 +334,11 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
     def to_native_messages(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """
-        Transform provider-native messages using visibility of core messages.
+        """Transform provider-native messages using visibility of core messages (stateless).
 
-        Stateless and deterministic; must not depend on shared state or config.
-
-        Notes:
+        Note:
             When the core converts a single new message (e.g., via add_message), it passes a list containing only
-            that single message in 'messages'. Implementations must handle both full-history lists and single-message lists.
+            that single message in "messages". Implementations must handle both full-history lists and single-message lists.
 
         Args:
             messages: Core session messages for context (may be a single-element list for add_message).
@@ -288,14 +349,10 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         """
         ...
 
-
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """
-        Transform provider-native messages back into core messages.
-
-        Stateless and deterministic; must not depend on shared state or config.
+        """Transform provider-native messages back into core messages (stateless).
 
         Args:
             native_messages: Provider-native messages to transform.
@@ -309,8 +366,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """
-        Prepare for a new request with provider-native messages.
+        """Prepare for a new request with provider-native messages.
 
         Args:
             native_messages: Provider-native messages for this request.
@@ -331,11 +387,10 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
     ]:
-        """
-        Observe/modify provider outputs for a streaming chunk.
+        """Observe/modify provider outputs for a streaming chunk.
 
-        Called on the hot path for each provider-native chunk. May be called
-        with native_chunk=None during provider finalize.
+        Called on the hot path for each provider-native chunk. May be called with
+        native_chunk=None during provider finalize.
 
         Args:
             native_chunk: Provider-native streaming chunk, or None during finalize.
@@ -356,8 +411,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        """
-        Final cold-path processing after provider streaming/finalize.
+        """Final cold-path processing after provider streaming/finalize.
 
         Args:
             final_messages: Provider-native final messages emitted this turn (deltas).
@@ -371,11 +425,39 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
 
 
 class FeaturePlugin(BasePlugin, Protocol):
-    """Protocol for feature plugins (cold path, shared state)."""
+    """Protocol for feature plugins (cold path; shared provider state).
+
+    Features operate on the cold path only (no per-chunk processing). They can
+    transform both provider-native messages and core messages during finalize and
+    may update the shared provider state during init and initialize_request.
+
+    Example:
+        Minimal feature that annotates finals:
+
+        ```python
+        class TagFeature:
+            name = "tag"
+            version = "1.0.0"
+            def get_config_schema(self):
+                return {"enabled": {"type": "boolean", "default": True}}
+            def init(self, config, state):
+                return state
+            def update_state(self, state, updates):
+                return state
+            def to_native_messages(self, messages, native_messages):
+                return native_messages
+            def from_native_messages(self, native_messages, messages):
+                return messages
+            def initialize_request(self, native_messages, state):
+                return state
+            def finalize(self, final_messages, native_messages, state):
+                finals = [{**m, "metadata": {**m.get("metadata", {}), "tag": True}} for m in final_messages]
+                return finals, native_messages, state
+        ```
+    """
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Initialize with application config and shared provider state.
+        """Initialize with application config and shared provider state.
 
         Args:
             config: Application-supplied configuration.
@@ -390,14 +472,11 @@ class FeaturePlugin(BasePlugin, Protocol):
     def to_native_messages(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """
-        Transform provider-native messages using visibility of core messages.
+        """Transform provider-native messages using visibility of core messages (stateless).
 
-        Stateless and deterministic; must not depend on shared state or config.
-
-        Notes:
+        Note:
             When the core converts a single new message (e.g., via add_message), it passes a list containing only
-            that single message in 'messages'. Implementations must handle both full-history lists and single-message lists.
+            that single message in "messages". Implementations must handle both full-history lists and single-message lists.
 
         Args:
             messages: Core session messages for context (may be a single-element list for add_message).
@@ -408,14 +487,10 @@ class FeaturePlugin(BasePlugin, Protocol):
         """
         ...
 
-
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """
-        Transform provider-native messages back into core messages.
-
-        Stateless and deterministic; must not depend on shared state or config.
+        """Transform provider-native messages back into core messages (stateless).
 
         Args:
             native_messages: Provider-native messages to transform.
@@ -429,8 +504,7 @@ class FeaturePlugin(BasePlugin, Protocol):
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """
-        Prepare for a new request with provider-native messages.
+        """Prepare for a new request with provider-native messages.
 
         Args:
             native_messages: Provider-native messages for this request.
@@ -447,8 +521,7 @@ class FeaturePlugin(BasePlugin, Protocol):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        """
-        Final cold-path processing after provider and extensions complete.
+        """Final cold-path processing after provider and extensions complete.
 
         Args:
             final_messages: Provider-native final messages emitted this turn (deltas).
@@ -462,11 +535,33 @@ class FeaturePlugin(BasePlugin, Protocol):
 
 
 class ToolPlugin(BasePlugin, Protocol):
-    """Protocol for tool plugins."""
+    """Protocol for tool plugins (own tool state; unchanged by shared state design).
+
+    Tools provide function schemas and handle execution with their own state, independent
+    from the provider shared state.
+
+    Example:
+        Minimal calculator tool:
+
+        ```python
+        class DummyCalc:
+            name = "calculator"
+            version = "1.0.0"
+            def get_tool_schemas(self, state):
+                return [{"type": "function", "function": {"name": "add", "parameters": {"type": "object", "properties": {"a": {"type": "number"}, "b": {"type": "number"}}, "required": ["a","b"]}}}]
+            def init(self, config):
+                return {"config": config}
+            def execute_tool(self, tool_name, arguments, state):
+                if tool_name == "add":
+                    return {"success": True, "result": arguments.get("a", 0) + arguments.get("b", 0)}
+                return {"success": False, "error": "unknown"}
+            def format_tool_result(self, result, state):
+                return f"Result: {result['result']}" if result.get("success") else f"Error: {result.get('error')}"
+        ```
+    """
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Initialize internal tool state from application config.
+        """Initialize internal tool state from application config.
 
         Args:
             config: Application-supplied configuration for the tool.
@@ -477,8 +572,7 @@ class ToolPlugin(BasePlugin, Protocol):
         ...
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """
-        Return OpenAI-style function definitions provided by this tool.
+        """Return OpenAI-style function definitions provided by this tool.
 
         Args:
             state: Current tool state (if needed by the tool).
@@ -491,8 +585,7 @@ class ToolPlugin(BasePlugin, Protocol):
     def execute_tool(
         self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """
-        Execute a tool function by name with structured arguments.
+        """Execute a tool function by name with structured arguments.
 
         Args:
             tool_name: Name of the tool/function to execute.
@@ -505,8 +598,7 @@ class ToolPlugin(BasePlugin, Protocol):
         ...
 
     def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
-        """
-        Format a tool result dictionary for LLM consumption/display.
+        """Format a tool result dictionary for LLM consumption/display.
 
         Args:
             result: Tool execution result dictionary.
@@ -520,12 +612,11 @@ class ToolPlugin(BasePlugin, Protocol):
 
 @dataclass(frozen=True)
 class Message:
-    """
-    Immutable message structure representing a single conversation message.
+    """Immutable message structure representing a single conversation message.
 
     Attributes:
-        role: Message role ("system", "user", "assistant", or "tool")
-        content: Message content text
+        role: Message role ("system", "user", "assistant", or "tool").
+        content: Message content text.
         metadata: Optional metadata dict containing tool_calls, tool_call_id, citations, etc.
 
     Examples:
@@ -541,11 +632,10 @@ class Message:
     metadata: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        """
-        Convert message to dictionary format.
+        """Convert message to dictionary format.
 
         Returns:
-            Dictionary representation of the message
+            Dictionary representation of the message.
         """
         result: Dict[str, Any] = {"role": self.role, "content": self.content}
         if self.metadata:
@@ -554,14 +644,13 @@ class Message:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Message":
-        """
-        Create message from dictionary.
+        """Create message from dictionary.
 
         Args:
-            data: Dictionary containing role, content, and optional metadata
+            data: Dictionary containing role, content, and optional metadata.
 
         Returns:
-            New Message instance
+            New Message instance.
         """
         return cls(
             role=data["role"],
@@ -581,16 +670,15 @@ class PartialMessage:
 
 @dataclass(frozen=True)
 class Session:
-    """
-    Immutable session data structure (pure data container).
+    """Immutable session data structure (pure data container).
 
-    Contains only data, no transformation logic. All transformations
-    are performed by AgentCore functions that return new sessions.
+    Contains only data, no transformation logic. All transformations are performed
+    by AgentCore functions that return new sessions.
 
     Attributes:
-        session_id: Unique identifier for this session
-        messages: List of messages
-        metadata: Optional session-level metadata
+        session_id: Unique identifier for this session.
+        messages: List of messages.
+        metadata: Optional session-level metadata.
 
     Examples:
         >>> session = Session(session_id="test", messages=[])
@@ -603,11 +691,10 @@ class Session:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
-        """
-        Convert session to dictionary format.
+        """Convert session to dictionary format.
 
         Returns:
-            Dictionary representation of the session
+            Dictionary representation of the session.
         """
         return {
             "session_id": self.session_id,
@@ -617,14 +704,13 @@ class Session:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Session":
-        """
-        Create session from dictionary.
+        """Create session from dictionary.
 
         Args:
-            data: Dictionary containing session_id, messages, and optional metadata
+            data: Dictionary containing session_id, messages, and optional metadata.
 
         Returns:
-            New Session instance
+            New Session instance.
         """
         messages = [Message.from_dict(msg) for msg in data.get("messages", [])]
         return cls(
