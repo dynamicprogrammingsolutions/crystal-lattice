@@ -1,3 +1,3 @@
 # OpenAI-Compatible Provider
 
-::: plugins.providers.openai.python.openai_provider
+::: plugins.openai_provider

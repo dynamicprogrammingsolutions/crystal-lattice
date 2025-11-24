@@ -252,9 +252,13 @@ All runnable examples have moved to `EXAMPLES.md` (contains full code, tests, an
 
 **Plugins**
 - [x] OpenAI compatible plugin & local integration test with ollama
-- [ ] Thinking blocks provider extension for Ollama (should add thinking flag and process thinking blocks into final native message)
-- [ ] System message feature plugin (configure system message in config, load from specific files like AGENTS.md)
-- [ ] Develop/refine tool calling system & test with Ollama with a file reader tool plugin, supported by tool calling provider extension
+- [x] Thinking blocks provider extension for Ollama (should add thinking flag and process thinking blocks into final native message)
+- [ ] Request options feature plugin (configure request options in config via key request_options, contents will be merged and applied in initialize_request)
+- [ ] System message feature plugin (configure system message in config, load from specific files like AGENTS.md. Can be
+  disabled via config, list of files to use should be configurable. Applied if the user didn't add a system message
+  manually. If any of the dynamic elements 
+  are changed, it should affect the next request.)
+- [x] Develop/refine tool calling system & test with Ollama with a file reader tool plugin, supported by tool calling provider extension
 
 **Openrouter plugins**
 - [ ] Openrouter provider plugin

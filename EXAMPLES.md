@@ -33,6 +33,7 @@ This example performs a simple non-streaming loop:
 Usage (run_example)
 
 ```python
+from agent_core import AgentCore
 core = AgentCore()
 
 # Register provider, extension, and tool from local plugins package
