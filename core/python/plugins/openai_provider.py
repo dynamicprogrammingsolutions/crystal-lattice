@@ -128,9 +128,14 @@ class OpenAICompatibleProvider(ProviderPlugin):
         try:
             # Validate native_messages are proper message objects
             self._validate_message_list(native_messages)
+            # Allow features to override the message history for this
+            # request by placing a rendered list under
+            # state["request"]["messages"].
+            override = request.get("messages")
+            messages_to_send = override if isinstance(override, list) else native_messages
             r = requests.post(
                 request["url"],
-                json={**request["payload"], "messages": native_messages, "stream": False},
+                json={**request["payload"], "messages": messages_to_send, "stream": False},
                 headers=request["headers"],
                 timeout=request["timeout"],
             )
@@ -150,8 +155,10 @@ class OpenAICompatibleProvider(ProviderPlugin):
         try:
             # Validate native_messages before sending stream request
             self._validate_message_list(native_messages)
+            override = request.get("messages")
+            messages_to_send = override if isinstance(override, list) else native_messages
             with requests.post(
-                request["url"], json={**request["payload"], "messages": native_messages, "stream": True}, headers=request["headers"], timeout=request["timeout"], stream=True
+                request["url"], json={**request["payload"], "messages": messages_to_send, "stream": True}, headers=request["headers"], timeout=request["timeout"], stream=True
             ) as r:
                 r.raise_for_status()
                 for line in r.iter_lines(decode_unicode=True):

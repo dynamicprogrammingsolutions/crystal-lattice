@@ -5,7 +5,7 @@ Requirements:
 - `ollama` executable available on PATH
 - Ollama running locally (default http://localhost:11434)
 - Uses OpenAI-compatible endpoint at http://localhost:11434/v1
-- Uses a very small, non-reasoning model to keep it fast
+- Uses a small reasoning-capable model (qwen3) for stability
 
 This test skips gracefully if Ollama is unavailable or the model cannot be pulled.
 """
@@ -25,7 +25,7 @@ from agent_core import AgentCore
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OPENAI_BASE_URL = f"{OLLAMA_HOST}/v1"
-MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:1b")  # tiny non-reasoning model
+MODEL = os.getenv("OLLAMA_MODEL", "qwen3:0.6b")  # reasoning model for stable behavior
 
 
 def _which(cmd: str) -> Optional[str]:
@@ -88,3 +88,85 @@ def test_openai_compat_non_streaming_with_ollama(ensure_model):
     assert partial_count > 0, "expected some streaming partials"
     assert final is not None
     assert isinstance(final.get("content"), str) and len(final.get("content", "")) > 0
+
+
+@pytest.mark.integration
+def test_system_message_feature_with_ollama(ensure_model, tmp_path):
+    from plugins.openai_provider import OpenAICompatibleProvider
+    from plugins.system_message_feature import SystemMessageFeature
+
+    core = AgentCore()
+    core.register_provider(OpenAICompatibleProvider)
+    core.register_feature(SystemMessageFeature)
+
+    context_file = tmp_path / "context.txt"
+    context_file.write_text("SPECIAL-CONTEXT-TOKEN", encoding="utf-8")
+
+    config = {
+        "model": MODEL,
+        "base_url": OPENAI_BASE_URL,
+        "timeout": 60,
+        "system_message": {
+            "template": "Use this token in your first sentence: {{TOKEN}}",
+            "variables": {
+                "TOKEN": {"files": [str(context_file)]},
+            },
+        },
+    }
+
+    session = core.create_session()
+    session = core.add_message(
+        session,
+        "user",
+        "Respond with one or two short sentences.",
+    )
+
+    new_session, responses = core.send_request(session, config)
+
+    print("complete session:", new_session)
+
+    assert new_session is not None
+    assert responses
+    final_message = responses[-1]
+    assert final_message.get("role") == "assistant"
+    content = final_message.get("content", "") or ""
+    assert isinstance(content, str)
+    assert content
+    # Ensure the special token configured via the system
+    # message template actually appears in the assistant reply.
+    assert "SPECIAL-CONTEXT-TOKEN" in content
+
+
+@pytest.mark.integration
+def test_request_options_feature_with_ollama(ensure_model):
+    from plugins.openai_provider import OpenAICompatibleProvider
+    from plugins.request_options_feature import RequestOptionsFeature
+
+    core = AgentCore()
+    core.register_provider(OpenAICompatibleProvider)
+    core.register_feature(RequestOptionsFeature)
+
+    config = {
+        "model": MODEL,
+        "base_url": OPENAI_BASE_URL,
+        "timeout": 60,
+        "request_options": {
+            "temperature": 0.1,
+            "max_tokens": 32,
+        },
+    }
+
+    session = core.create_session()
+    session = core.add_message(
+        session,
+        "user",
+        "List three programming languages in a short sentence.",
+    )
+
+    new_session, responses = core.send_request(session, config)
+
+    assert new_session is not None
+    assert responses
+    final_message = responses[-1]
+    assert isinstance(final_message, dict)
+    assert final_message.get("role") == "assistant"
