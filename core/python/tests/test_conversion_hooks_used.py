@@ -19,8 +19,6 @@ class ConversionProvider(ProviderPlugin):
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         return {"config": dict(config)}
 
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, "config": {**state.get("config", {}), **updates}}
 
     def to_native_messages(self, messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
         # Mark that to_native was used
@@ -86,8 +84,6 @@ class ConversionFeature(FeaturePlugin):
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         return state
 
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        return state
 
     def to_native_messages(self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return native_messages

@@ -45,10 +45,6 @@ class OllamaThinkingExtension(ProviderExtensionPlugin):
             "ollama_think_enabled": True,
         }
 
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        # No special runtime UI state; passthrough.
-        return {**state, **updates}
-
     def to_native_messages(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:

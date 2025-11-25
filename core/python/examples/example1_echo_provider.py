@@ -18,19 +18,16 @@ class EchoProvider(ProviderPlugin):
         return [{"type": "text", "key": "model", "label": "Model"}]
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        return {"config": config, "runtime_state": {"accumulated": ""}}
-
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, "config": {**state.get("config", {}), **updates}}
+        # Provider state is an opaque dict owned by the provider and its
+        # extensions/features. This example only tracks an accumulated string
+        # during streaming.
+        return {"config": dict(config), "accumulated": ""}
 
     def initialize_request(
         self,
         native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
-        return {
-            **state,
-            "runtime_state": {**state.get("runtime_state", {}), "accumulated": ""},
-        }
+        return {**state, "accumulated": ""}
 
     def to_native_messages(
         self,
@@ -64,13 +61,8 @@ class EchoProvider(ProviderPlugin):
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
     ]:
-        acc = state.get("runtime_state", {}).get("accumulated", "") + native_chunk.get(
-            "content", ""
-        )
-        new_state = {
-            **state,
-            "runtime_state": {**state.get("runtime_state", {}), "accumulated": acc},
-        }
+        acc = state.get("accumulated", "") + native_chunk.get("content", "")
+        new_state = {**state, "accumulated": acc}
         partial = (
             [
                 {
@@ -89,7 +81,7 @@ class EchoProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        content = state.get("runtime_state", {}).get("accumulated", "")
+        content = state.get("accumulated", "")
         if not content:
             return [], [], state
         final = [{"role": "assistant", "content": content, "metadata": {}}]

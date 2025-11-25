@@ -44,31 +44,38 @@ Session:
 ```
 
 ## State Model
-
-Only the provider wrapper stores state during a request. A single, shared provider state object is passed to the provider plugin and to all provider extensions and feature plugins. Each may return an updated copy of this same state. Tools are the exception: tool plugins continue to manage their own independent state.
-
-```yaml
-ProviderState:                    # Shared across provider + extensions + features
-  config: dict                    # Configuration values in effect for this request
-  capabilities: list[string]      # Capability flags detected/derived
-  runtime_state: dict             # Working data that changes during execution
-  ui_state: dict                  # Current UI settings from frontend
-  
-  # Immutability: State objects are immutable. All updates return new state objects.
-
-ToolState:                        # Private to each tool plugin (unchanged)
-  config: dict
-  runtime_state: dict
-  ui_state: dict
-```
-
+ 
+Only the provider wrapper stores state during a request. A single, shared
+provider state object (an opaque ``dict``) is passed to the provider plugin
+and to all provider extensions and feature plugins. Each may return an
+updated copy of this same state. Tools are the exception: each tool plugin
+continues to manage its own independent state ``dict``.
+ 
+The platform deliberately does **not** prescribe a concrete shape for these
+state objects. Plugins are free to choose whatever nested structure they
+need (for example, grouping configuration under a ``"config"`` key or using
+plugin‑specific keys for runtime data), as long as they treat state as
+immutable and return a new dict whenever it changes.
+ 
 Implications:
-- The provider wrapper owns the lifecycle and storage of `ProviderState`.
-- Provider extensions and feature plugins receive `state` and may return `new_state` to be merged/propagated by the provider wrapper.
-- Feature plugins do not process streaming chunks; they operate only on the cold path but still may update the shared `state` via `init` and `initialize_request`.
-- Tool plugins are unchanged and continue to manage their own `ToolState`.
+- The provider wrapper owns the lifecycle and storage of the shared provider
+  state object for each request/turn.
+- Provider extensions and feature plugins receive ``state`` and may return
+  ``new_state`` from their lifecycle methods; the wrapper propagates the
+  latest value.
+- Feature plugins do not process streaming chunks; they operate only on the
+  cold path but may still update the shared ``state`` via ``init`` and
+  ``initialize_request``.
+- Tool plugins manage their own tool state dict between ``init``,
+  ``execute_tool``, and ``format_tool_result``; the shape of this dict is a
+  plugin concern, not part of the core protocol.
+ 
+Note on instance lifecycle: Methods should remain stateless and operate on
+provided ``state`` objects. Plugin instances may be constructed by wrappers
+for convenience, but they are short‑lived and scoped to a single request,
+just like the shared provider state. Do not rely on any implicit,
+long‑lived object state across requests.
 
-Note on instance lifecycle: Methods should remain stateless and operate on provided `state` objects. Plugin instances may be constructed by wrappers for convenience, but they are short‑lived and scoped to a single request, just like the shared provider state. Do not rely on any implicit, long‑lived object state across requests. Tool plugins should treat any internal attributes as ephemeral and rely on explicit `ToolState`.
 
 ## Plugin Type Detection
 
@@ -122,9 +129,6 @@ ProviderPlugin:
   # Lifecycle
   init(config: dict) → state: dict
     # Initialize with config, return provider state (owned by provider wrapper)
-  
-  update_state(state: dict, updates: dict) → dict
-    # Update state immutably, return new state
   
   initialize_request(native_messages: list, state: dict) → dict
     # Called with provider-native messages; MUST return shared state (updated or unchanged)
@@ -181,9 +185,6 @@ ProviderExtensionPlugin:
   
   initialize_request(native_messages: list, state: dict) (optional) → dict
     # Prepare for a new turn; MUST return a shared state (updated or unchanged)
-  
-  update_state(state: dict, updates: dict) → dict
-    # Apply UI or other updates to the shared state; return new state
   
   # Message Transformation (pure, stateless)
   to_native_messages(messages: list, native_messages: list) → list
@@ -242,9 +243,6 @@ FeaturePlugin:
   init(config: dict, state: dict) → dict
     # Initialize with config and shared state; return updated shared state (or the same state)
   
-  update_state(state: dict, updates: dict) → dict
-    # Update shared state immutably (e.g., with UI settings), return new state
-  
   initialize_request(native_messages: list, state: dict) (optional) → dict
     # Called with provider-native messages; MUST return shared state (updated or unchanged)
   
@@ -272,7 +270,7 @@ FeaturePlugin:
 
 ### 4. Tool Plugin Protocol
 
-Provides tools that the LLM can call (file operations, web search, calculations, etc.). Tools are unchanged in this revision and maintain their own internal `ToolState`.
+Provides tools that the LLM can call (file operations, web search, calculations, etc.). Tools manage their own internal state dicts; the core does not prescribe a particular structure.
 
 ```yaml
 ToolPlugin:
@@ -286,7 +284,6 @@ ToolPlugin:
   
   # Lifecycle
   init(config: dict) → state: dict
-  update_state(state: dict, updates: dict) → dict
   
   # Tool Definition
   get_tool_schemas(state: dict) → list[dict]
@@ -404,10 +401,6 @@ Important principles:
      - Provider.init(config) → state
      - For each Provider Extension: state = ext.init(config, state)
      - For each Feature: state = feat.init(config, state)
-   - Apply UI settings (in the same order):
-     - Provider.update_state(state, ui_state) → state
-     - For each Provider Extension: state = ext.update_state(state, ui_state)
-     - For each Feature: state = feat.update_state(state, ui_state)
    - Pre-request transforms (in the same order) to produce native_messages:
      - native_messages = Provider.to_native_messages(messages, state)
      - For each Provider Extension: native_messages = ext.to_native_messages(messages, native_messages)
@@ -428,7 +421,9 @@ Important principles:
  6. Application decides what to do next
 ```
 
-Note: The provider wrapper discards the internal shared state after each completed request. Each request initializes state via init and then applies UI settings via update_state, ensuring request independence (REST-style).
+Note: The provider wrapper discards the internal shared state after each
+completed request. Each request initializes state via ``init`` using the
+current configuration, ensuring request independence (REST-style).
 
 ### Streaming Flow
 

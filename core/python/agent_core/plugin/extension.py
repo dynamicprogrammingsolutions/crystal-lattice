@@ -34,15 +34,6 @@ class ExtensionWrapper(ProviderExtensionPlugin):
             return self.plugin.init(config, state)
         return state
 
-    def update_state(
-        self, state: Dict[str, Any], updates: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Apply updates (e.g., UI) to shared state; return new state."""
-        if hasattr(self.plugin, "update_state"):
-            return self.plugin.update_state(state, updates)
-        # Default: merge into config bucket
-        return {**state, "config": {**state.get("config", {}), **updates}}
-
     def get_config_schema(self) -> Dict[str, Any]:
         if hasattr(self.plugin, "get_config_schema"):
             return self.plugin.get_config_schema()

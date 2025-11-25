@@ -2,7 +2,7 @@
 Dummy tool plugin for testing purposes.
 
 This plugin provides a simple calculator tool.
-Follows the state-based plugin protocol.
+Follows the state-based plugin protocol with explicit state dicts.
 """
 
 from typing import Dict, Any, List
@@ -37,25 +37,8 @@ class DummyCalculator:
         Returns:
             Initial state dictionary
         """
-        return {
-            "config": config,
-            "capabilities": [],
-            "runtime_state": {},
-            "ui_state": {},
-        }
+        return {"config": dict(config)}
 
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Update tool state (pure function).
-
-        Args:
-            state: Current state
-            updates: Dictionary of updates
-
-        Returns:
-            New state
-        """
-        return {**state, "config": {**state["config"], **updates}}
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return tool schemas."""

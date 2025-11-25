@@ -2,7 +2,7 @@
 Dummy provider plugin for testing purposes.
 
 This plugin simulates a basic LLM provider without making actual API calls.
-Follows the state-based plugin protocol with init/update_state methods.
+Follows the state-based plugin protocol with explicit state dicts.
 """
 
 from typing import Dict, Any, List, Iterator, Tuple
@@ -41,15 +41,10 @@ class DummyProvider(ProviderPlugin):
         Initialize provider state.
         """
         return {
-            "config": config,
-            "capabilities": DummyProvider.get_capabilities(),
+            "config": dict(config),
             "runtime_state": {"accumulated_content": "", "native_chunks": []},
-            "ui_state": {},
         }
 
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        """Update provider state (pure function)."""
-        return {**state, "config": {**state["config"], **updates}}
 
     def to_native_messages(
         self,

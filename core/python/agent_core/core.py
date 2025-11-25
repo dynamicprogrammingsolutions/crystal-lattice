@@ -292,14 +292,11 @@ class AgentCore:
         provider_config = {**config, **({"tools": tools} if tools else {})}
 
         # Init chain: Provider → Extensions (inside provider) → Features
+        # Configuration (including any UI-driven values) is passed directly via
+        # provider_config; there is no separate update_state step.
         state = self._provider.init(provider_config)
-        ui_state = provider_config.get("ui_state", {})
-        # Update chain: Provider → Extensions (inside provider) → Features
-        if ui_state:
-            state = self._provider.update_state(state, ui_state)
         for feature in self._features:
             state = feature.init(provider_config, state)
-            state = feature.update_state(state, ui_state) if ui_state else state
             self._provider.set_state(state)
         # Build messages (core shape)
         messages = [msg.to_dict() for msg in session.messages]

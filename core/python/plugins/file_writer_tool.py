@@ -33,15 +33,9 @@ class FileWriterTool(ToolPlugin):
         return []
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        return {
-            "config": config,
-            "runtime_state": {},
-            "ui_state": {},
-            "capabilities": [],
-        }
-
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, "config": {**state.get("config", {}), **updates}}
+        # Tools are free to choose their own internal state shape. This
+        # implementation only needs access to configuration values.
+        return {"config": config}
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         return [

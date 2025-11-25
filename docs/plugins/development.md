@@ -19,7 +19,6 @@ Providers adapt LLM APIs and convert between core and provider-native messages. 
 
 Key methods (subset):
 - `init(config) -> state`
-- `update_state(state, updates) -> state`
 - `to_native_messages(messages, state) -> list`
 - `from_native_messages(native_messages, state) -> list`
 - `initialize_request(native_messages, state) -> state`
@@ -41,10 +40,9 @@ class EchoProvider(ProviderPlugin):
         return {"model": {"type": "string", "default": "echo-1"}}
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        return {"config": config, "runtime_state": {}}
-
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, "config": {**state.get("config", {}), **updates}}
+        # Provider state is an opaque dict; this minimal example only
+        # needs configuration.
+        return {"config": dict(config)}
 
     def to_native_messages(self, messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
         return list(messages)
@@ -77,7 +75,6 @@ Provider extensions run beside the provider on the hot path and the cold path. T
 
 Key methods (subset):
 - `init(config, state) -> state`
-- `update_state(state, updates) -> state`
 - `to_native_messages(messages, native_messages) -> list` (stateless)
 - `from_native_messages(native_messages, messages) -> list` (stateless)
 - `initialize_request(native_messages, state) -> state`
@@ -99,9 +96,6 @@ class PrefixExtension(ProviderExtensionPlugin):
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         return {**state, "config": {**state.get("config", {}), **config}}
-
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, "config": {**state.get("config", {}), **updates}}
 
     def to_native_messages(self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return native_messages
@@ -127,7 +121,6 @@ Features operate on the cold path only. They see the shared provider state and c
 
 Key methods (subset):
 - `init(config, state) -> state`
-- `update_state(state, updates) -> state`
 - `to_native_messages(messages, native_messages) -> list` (stateless)
 - `from_native_messages(native_messages, messages) -> list` (stateless)
 - `initialize_request(native_messages, state) -> state`
@@ -146,9 +139,6 @@ class TagFeature(FeaturePlugin):
         return {"enabled": {"type": "boolean", "default": True}}
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        return state
-
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         return state
 
     def to_native_messages(self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -170,7 +160,7 @@ class TagFeature(FeaturePlugin):
 Tools expose callable functions to the model and manage their own tool state.
 
 Key methods (subset):
-- `init(config) -> tool_state`
+- `init(config) -> state`
 - `get_tool_schemas(state) -> list`
 - `execute_tool(tool_name, arguments, state) -> dict`
 - `format_tool_result(result, state) -> str`
@@ -192,9 +182,6 @@ class Calculator(ToolPlugin):
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         return {"config": config}
-
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, "config": {**state.get("config", {}), **updates}}
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         return [{"type": "function", "function": {"name": "add", "parameters": {"type": "object", "properties": {"a": {"type": "number"}, "b": {"type": "number"}}, "required": ["a", "b"]}}}]

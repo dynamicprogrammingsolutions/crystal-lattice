@@ -189,25 +189,6 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
             raise RuntimeError(f"Provider {self.name} not initialized")
         return self.state
 
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        """Update shared provider state and propagate to extensions.
-
-        Args:
-            state: Current shared provider state
-            updates: State updates (e.g., UI settings)
-
-        Returns:
-            New shared state after provider and extensions processed updates.
-        """
-        # Ensure wrapper is initialized
-        _ = self._get_state()
-        # Prefer provided state if given; fall back to internal
-        working_state = state or self.state or {}
-        new_state = self.plugin.update_state(working_state, updates)
-        for ext in self._extensions:
-            new_state = ext.update_state(new_state, updates)
-        self.state = new_state
-        return self._get_state()
 
     def get_config_schema(self) -> Dict[str, Any]:
         """Get provider configuration schema.

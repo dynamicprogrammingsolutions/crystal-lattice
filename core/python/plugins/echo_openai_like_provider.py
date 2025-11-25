@@ -42,10 +42,10 @@ class EchoOpenAILikeProvider(ProviderPlugin):
 
     # ---------- State lifecycle ----------
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        # Provider state is opaque; this provider tracks configuration,
+        # request metadata, and a partial accumulator for compatibility
+        # with the OpenAI-style streaming helpers.
         return {"config": dict(config), "request": {}, "partial": None}
-
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, "config": {**state.get("config", {}), **updates}}
 
     # ---------- Message conversion ----------
     def to_native_messages(

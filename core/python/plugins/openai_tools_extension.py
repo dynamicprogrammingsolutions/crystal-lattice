@@ -31,9 +31,6 @@ class OpenAIToolsExtension:
         tools = config.get("tools")
         return {**state, "_openai_tools": tools if isinstance(tools, list) else []}
 
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, **updates}
-
     # ---- Stateless transforms ----
     def to_native_messages(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]

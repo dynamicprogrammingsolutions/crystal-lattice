@@ -21,8 +21,6 @@ class RetentionProvider(ProviderPlugin):
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         return {"config": dict(config), "runtime": {}}
 
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, "config": {**state.get("config", {}), **updates}}
 
     # --- Message conversion ---
     def to_native_messages(self, messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -102,8 +100,6 @@ class RetentionExtension(ProviderExtensionPlugin):
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         return state
 
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        return state
 
     def to_native_messages(self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         # No-op for stateless transform

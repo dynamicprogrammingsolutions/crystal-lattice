@@ -39,8 +39,6 @@ class DummyExtension(ProviderExtensionPlugin):
         rs = {**rs, "extension_processed_chunks": 0}
         return {**state, "config": new_config, "runtime_state": rs}
 
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, "config": {**state.get("config", {}), **updates}}
 
     # Stateless transforms
     def to_native_messages(

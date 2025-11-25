@@ -70,17 +70,10 @@ class BasePlugin(Protocol):
         ...
 
     # Common lifecycle across provider/extension/feature
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        """Apply UI/runtime updates to the shared provider state immutably.
-
-        Args:
-            state: Current shared provider state.
-            updates: Partial updates (e.g., UI inputs) to merge.
-
-        Returns:
-            New shared provider state.
-        """
-        ...
+    # No dedicated update_state lifecycle step is required; plugins are free
+    # to define and use whatever state shape they need. Configuration and
+    # UI-driven values should be provided via the config dict passed into
+    # init/initialize_request rather than a separate UI state merge step.
 
 
 class ProviderPlugin(BasePlugin, Protocol):
@@ -103,9 +96,9 @@ class ProviderPlugin(BasePlugin, Protocol):
             def get_ui_elements(self) -> List[Dict[str, Any]]:  # optional
                 return []
             def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-                return {"config": config, "runtime_state": {}}
-            def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-                return {**state, "config": {**state.get("config", {}), **updates}}
+                # Provider state is an opaque dict; this minimal example
+                # only stores configuration.
+                return {"config": dict(config)}
             def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
                 return state
             def to_native_messages(self, messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -305,8 +298,6 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
                 return {"prefix": {"type": "string", "default": "[EXT]"}}
             def init(self, config, state):
                 return state
-            def update_state(self, state, updates):
-                return {**state, "config": {**state.get("config", {}), **updates}}
             def process_chunk(self, native_chunk, state, partial_messages, final_messages, native_messages):
                 pfx = state.get("config", {}).get("prefix", "[EXT]")
                 finals = [{**m, "content": f"{pfx} {m['content']}"} for m in final_messages]
@@ -441,8 +432,6 @@ class FeaturePlugin(BasePlugin, Protocol):
             def get_config_schema(self):
                 return {"enabled": {"type": "boolean", "default": True}}
             def init(self, config, state):
-                return state
-            def update_state(self, state, updates):
                 return state
             def to_native_messages(self, messages, native_messages):
                 return native_messages

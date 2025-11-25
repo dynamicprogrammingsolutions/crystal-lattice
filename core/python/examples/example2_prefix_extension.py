@@ -24,15 +24,11 @@ class PrefixExtension(ProviderExtensionPlugin):
         ]
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        rs = {**state.get("runtime_state", {}), "extension_processed_chunks": 0}
         return {
             **state,
             "config": {**state.get("config", {}), **config},
-            "runtime_state": rs,
+            "extension_processed_chunks": 0,
         }
-
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, "config": {**state.get("config", {}), **updates}}
 
     def to_native_messages(
         self,
@@ -64,10 +60,9 @@ class PrefixExtension(ProviderExtensionPlugin):
     ]:
         if not state.get("config", {}).get("enabled", True):
             return partial_messages, final_messages, native_messages, state
-        processed = state.get("runtime_state", {}).get(
-            "extension_processed_chunks", 0
-        ) + (1 if native_chunk is not None else 0)
-        rs = {**state.get("runtime_state", {}), "extension_processed_chunks": processed}
+        processed = state.get("extension_processed_chunks", 0) + (
+            1 if native_chunk is not None else 0
+        )
         prefix = state.get("config", {}).get("prefix", "[EXT]")
         finals = (
             [{**m, "content": f"{prefix} {m['content']}"} for m in final_messages]
@@ -83,7 +78,10 @@ class PrefixExtension(ProviderExtensionPlugin):
                     "extension_processed_chunks": processed,
                 },
             }
-        return partial_messages, finals, native_messages, {**state, "runtime_state": rs}
+        return partial_messages, finals, native_messages, {
+            **state,
+            "extension_processed_chunks": processed,
+        }
 
     def finalize(
         self,
@@ -96,7 +94,7 @@ class PrefixExtension(ProviderExtensionPlugin):
         prefix = state.get("config", {}).get("prefix", "[EXT]")
         finals = [{**m, "content": f"{prefix} {m['content']}"} for m in final_messages]
         if finals:
-            count = state.get("runtime_state", {}).get("extension_processed_chunks", 0)
+            count = state.get("extension_processed_chunks", 0)
             last = finals[-1]
             finals[-1] = {
                 **last,

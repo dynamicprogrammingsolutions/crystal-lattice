@@ -60,7 +60,7 @@ Ground rules
 6) Migrate ToolPlugin
 - Change `ToolPlugin` methods in `core/python/agent_core/types.py` to instance methods.
 - Update `core/python/tests/dummy_tool.py` to instance methods.
-- Update wrapper `core/python/agent_core/plugin/tool.py` to instantiate and call instance methods for all operations (`init`, `get_tool_schemas`, `execute_tool`, `format_tool_result`, config/ui, `update_state`).
+- Update wrapper `core/python/agent_core/plugin/tool.py` to instantiate and call instance methods for all operations (`init`, `get_tool_schemas`, `execute_tool`, `format_tool_result`, config/ui).
 - Ensure `AgentCore.get_tool_schemas` path remains correct.
 - Run tests.
 
@@ -71,7 +71,7 @@ Ground rules
 - Update wrapper protocols and adapters to exactly match plugin protocol method names and signatures while preserving current wrapper-managed state behavior.
 - Provider wrapper/adapters: rename and add explicit state parameters to match `ProviderPlugin`.
   - `initialize(config)` -> `init(config)` -> `Dict[str, Any]` (return initial state)
-  - `update_state(updates)` -> `update_state(state, updates)` -> `Dict[str, Any]`
+  - (legacy `update_state` lifecycles were removed; configuration is merged via explicit config dicts in `init`/`initialize_request`.)
   - `to_native_messages(messages)` -> `to_native_messages(messages, state)` -> `List[Dict]`
   - `initialize_request(native_messages)` -> `initialize_request(native_messages, state)` -> `Dict[str, Any]`
   - `call_api(native_messages)` -> `call_api(native_messages, state)` -> `Tuple[..., Dict]`
@@ -82,7 +82,7 @@ Ground rules
   - Keep capability detection consistent: plugin keeps `@staticmethod detect_capabilities(config) -> List[str]`; wrapper/adapter provides an instance `detect_capabilities(config)` passthrough.
 - Tool wrapper/adapters: rename and add explicit state parameters to match `ToolPlugin`.
   - `initialize(config)` -> `init(config)` -> `Dict[str, Any]`
-  - `update_state(updates)` -> `update_state(state, updates)` -> `Dict[str, Any]`
+  - (legacy tool `update_state` lifecycles were removed; tools manage their own explicit state dicts.)
   - `get_tool_schemas()` -> `get_tool_schemas(state)` -> `List[Dict]`
   - `execute_tool(tool_name, arguments)` -> `execute_tool(tool_name, arguments, state)` -> `Dict`
   - `format_tool_result(result)` -> `format_tool_result(result, state)` -> `str`
@@ -90,7 +90,7 @@ Ground rules
 - Adapters: ensure `ProviderAdapter` and `ToolAdapter` pass through and return state per the new signatures.
 - AgentCore call sites: update to the new signatures and thread state explicitly.
   - Replace `_provider.initialize(config)` with `state = _provider.init(config)`.
-  - Replace `_provider.update_state(ui_state)` with `state = _provider.update_state(state, ui_state)`.
+  - Remove any separate `update_state` phase; pass the final merged configuration (including any UI-driven values) via the `config` dict into `init`/`initialize_request`.
   - Pass `state` into `to_native_messages`, `initialize_request`, `call_api`/`stream_api`/`process_chunk`/`finalize`, capturing and threading returned state.
 - Wrapper-only helpers remain wrapper-specific orchestration utilities and can coexist with plugin parity:
   - `get_state`/`set_state`/`reset_state`, `apply_extension_transforms`, extension UI/config aggregation.

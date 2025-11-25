@@ -499,7 +499,7 @@ Specialized wrappers provide typed, intuitive interfaces for each plugin type. T
 - Tool: `ToolWrapper`
 - Provider extension: `ExtensionWrapper` (no internal state; shared-state lifecycle, stateless transforms)
 
-Note: Methods remain stateless (pure) and use explicit state parameters. Plugin instances are short‑lived (per request) and should not hold durable mutable state. The provider wrapper discards shared state after each request. Tools use explicit `ToolState` passed in/out.
+Note: Methods remain stateless (pure) and use explicit state parameters. Plugin instances are short‑lived (per request) and should not hold durable mutable state. The provider wrapper discards shared state after each request. Tools manage their own state dicts passed in/out explicitly.
 
 ---
 

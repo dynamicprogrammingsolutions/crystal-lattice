@@ -2,7 +2,7 @@
 Dummy feature plugin for testing purposes.
 
 This plugin adds a prefix to all assistant responses.
-Follows the state-based plugin protocol.
+Follows the state-based plugin protocol with explicit state dicts.
 """
 
 from typing import Dict, Any, List, Tuple
@@ -28,8 +28,6 @@ class DummyFeature(FeaturePlugin):
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         return {**state, "config": {**state.get("config", {}), **config}}
 
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, "config": {**state.get("config", {}), **updates}}
 
     # Stateless transforms
     def to_native_messages(

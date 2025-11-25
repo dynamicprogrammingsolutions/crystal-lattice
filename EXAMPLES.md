@@ -1,6 +1,6 @@
 # Examples
 
-Note: Plugins use instance methods but should remain stateless (pure) and operate on explicit state objects. Plugin instances are short‑lived and scoped to a single request, just like the shared provider state managed by the provider wrapper. Tools rely on explicit ToolState and should not keep durable object state.
+Note: Plugins use instance methods but should remain stateless (pure) and operate on explicit state objects. Plugin instances are short‑lived and scoped to a single request, just like the shared provider state managed by the provider wrapper.
 
 ## PROJECT_PLAN Example 6: FastAPI/WebSocket App (Ollama)
 
@@ -33,7 +33,6 @@ This example performs a simple non-streaming loop:
 Usage (run_example)
 
 ```python
-from agent_core import AgentCore
 core = AgentCore()
 
 # Register provider, extension, and tool from local plugins package
@@ -139,19 +138,16 @@ class EchoProvider(ProviderPlugin):
         return [{"type": "text", "key": "model", "label": "Model"}]
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        return {"config": config, "runtime_state": {"accumulated": ""}}
-
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, "config": {**state.get("config", {}), **updates}}
+        # Provider state is an opaque dict owned by the provider and its
+        # extensions/features. This example only tracks an accumulated string
+        # during streaming.
+        return {"config": dict(config), "accumulated": ""}
 
     def initialize_request(
         self,
         native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
-        return {
-            **state,
-            "runtime_state": {**state.get("runtime_state", {}), "accumulated": ""},
-        }
+        return {**state, "accumulated": ""}
 
     def to_native_messages(
         self,
@@ -185,13 +181,8 @@ class EchoProvider(ProviderPlugin):
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
     ]:
-        acc = state.get("runtime_state", {}).get("accumulated", "") + native_chunk.get(
-            "content", ""
-        )
-        new_state = {
-            **state,
-            "runtime_state": {**state.get("runtime_state", {}), "accumulated": acc},
-        }
+        acc = state.get("accumulated", "") + native_chunk.get("content", "")
+        new_state = {**state, "accumulated": acc}
         partial = (
             [
                 {
@@ -210,7 +201,7 @@ class EchoProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        content = state.get("runtime_state", {}).get("accumulated", "")
+        content = state.get("accumulated", "")
         if not content:
             return [], [], state
         final = [{"role": "assistant", "content": content, "metadata": {}}]
@@ -269,15 +260,11 @@ class PrefixExtension(ProviderExtensionPlugin):
         ]
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        rs = {**state.get("runtime_state", {}), "extension_processed_chunks": 0}
         return {
             **state,
             "config": {**state.get("config", {}), **config},
-            "runtime_state": rs,
+            "extension_processed_chunks": 0,
         }
-
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, "config": {**state.get("config", {}), **updates}}
 
     def to_native_messages(
         self,
@@ -309,10 +296,9 @@ class PrefixExtension(ProviderExtensionPlugin):
     ]:
         if not state.get("config", {}).get("enabled", True):
             return partial_messages, final_messages, native_messages, state
-        processed = state.get("runtime_state", {}).get(
-            "extension_processed_chunks", 0
-        ) + (1 if native_chunk is not None else 0)
-        rs = {**state.get("runtime_state", {}), "extension_processed_chunks": processed}
+        processed = state.get("extension_processed_chunks", 0) + (
+            1 if native_chunk is not None else 0
+        )
         prefix = state.get("config", {}).get("prefix", "[EXT]")
         finals = (
             [{**m, "content": f"{prefix} {m['content']}"} for m in final_messages]
@@ -328,7 +314,10 @@ class PrefixExtension(ProviderExtensionPlugin):
                     "extension_processed_chunks": processed,
                 },
             }
-        return partial_messages, finals, native_messages, {**state, "runtime_state": rs}
+        return partial_messages, finals, native_messages, {
+            **state,
+            "extension_processed_chunks": processed,
+        }
 
     def finalize(
         self,
@@ -341,7 +330,7 @@ class PrefixExtension(ProviderExtensionPlugin):
         prefix = state.get("config", {}).get("prefix", "[EXT]")
         finals = [{**m, "content": f"{prefix} {m['content']}"} for m in final_messages]
         if finals:
-            count = state.get("runtime_state", {}).get("extension_processed_chunks", 0)
+            count = state.get("extension_processed_chunks", 0)
             last = finals[-1]
             finals[-1] = {
                 **last,
@@ -394,14 +383,7 @@ class WebSearchFeature:
         ]
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        return {
-            **state,
-            "config": {**state.get("config", {}), **config},
-            "capabilities": ["web_search"],
-        }
-
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, "config": {**state.get("config", {}), **updates}}
+        return {**state, "config": {**state.get("config", {}), **config}}
 
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
@@ -482,15 +464,9 @@ class FileReaderTool(ToolPlugin):
         ]
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        return {
-            "config": config,
-            "runtime_state": {},
-            "ui_state": {},
-            "capabilities": [],
-        }
-
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, "config": {**state["config"], **updates}}
+        # Tool state is an opaque dict owned by the tool. This example
+        # only relies on configuration values.
+        return {"config": dict(config)}
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         return [

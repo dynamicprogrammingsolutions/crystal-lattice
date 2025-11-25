@@ -68,9 +68,9 @@ Core provides orchestration only. All provider/feature logic lives in plugins. A
 - Provider extensions and feature plugins receive this shared `state` and may return `new_state` which the provider wrapper propagates.
 - Tools are the exception: each tool plugin maintains its own independent state.
 
-State shape remains the same (config, capabilities, runtime_state, ui_state) and updates are immutable.
+State is an immutable dict; plugins choose whatever keys they need, and the core does not prescribe a specific layout.
 
-Note on instance lifecycle: Plugin methods should remain stateless and operate on explicit state parameters. Plugin class instances may be constructed by wrappers for convenience, but they are short‑lived and scoped to a single request, matching the lifecycle of the shared provider state. The provider wrapper discards shared state after each request. Tool plugins should rely on explicit `ToolState` and avoid persistent object state.
+Note on instance lifecycle: Plugin methods should remain stateless and operate on explicit state parameters. Plugin class instances may be constructed by wrappers for convenience, but they are short‑lived and scoped to a single request, matching the lifecycle of the shared provider state. The provider wrapper discards shared state after each request. Tool plugins should manage explicit tool state dicts and avoid persistent object state.
 
 **Duck Typing:**
 
@@ -97,7 +97,7 @@ Extensions enhance provider streaming. They can observe and transform provider o
 
 **Unified State:**
 
-config + capabilities + runtime_state + ui_state = provider shared state. State initialized via init(config) on the provider, then propagated through extensions/features. For each request, after init, update_state(state, ui_state) is applied to inject UI settings. initialize_request(...) MUST return state (updated or unchanged). The provider wrapper discards internal shared state after each completed request.
+Provider shared state is a single opaque dict owned by the provider wrapper. It is initialized via `init(config)` on the provider and then threaded through extensions/features via their `init` and `initialize_request` methods. UI-driven configuration should be resolved into the `config` dict before calling core; there is no separate `update_state` lifecycle step. The provider wrapper discards its internal shared state after each completed request.
 
 **UI-Driven Updates:**
 

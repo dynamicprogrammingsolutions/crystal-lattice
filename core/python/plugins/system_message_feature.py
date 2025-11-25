@@ -334,13 +334,6 @@ class SystemMessageFeature(FeaturePlugin):
         self._config = self._extract_plugin_config(config)
         return {**state, "config": {**state.get("config", {}), **config}}
 
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        # Merge updates into config and refresh the plugin snapshot so that
-        # UI-driven changes take effect on the next request.
-        merged_config = {**state.get("config", {}), **updates}
-        self._config = self._extract_plugin_config(merged_config)
-        return {**state, "config": merged_config}
-
     # ---- Stateless transforms (native side) ----
     def to_native_messages(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]

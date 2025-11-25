@@ -32,14 +32,7 @@ class WebSearchFeature:
         ]
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        return {
-            **state,
-            "config": {**state.get("config", {}), **config},
-            "capabilities": ["web_search"],
-        }
-
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, "config": {**state.get("config", {}), **updates}}
+        return {**state, "config": {**state.get("config", {}), **config}}
 
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]

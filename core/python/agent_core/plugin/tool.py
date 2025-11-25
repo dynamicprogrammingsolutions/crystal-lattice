@@ -39,36 +39,8 @@ class ToolWrapper(ToolPlugin):
         if hasattr(self.plugin, "init"):
             self.state = self.plugin.init(config)
         else:
-            # Stateless tool, just store config and default state buckets
-            self.state = {
-                "config": config,
-                "capabilities": [],
-                "runtime_state": {},
-                "ui_state": {},
-            }
-        assert self.state is not None
-        return self.state
-
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Update tool state and return new state.
-
-        Args:
-            state: Current tool state
-            updates: State updates
-        """
-        if self.state is None:
-            raise RuntimeError(f"Tool {self.name} not initialized")
-
-        working_state = state or self.state
-        if hasattr(self.plugin, "update_state"):
-            self.state = self.plugin.update_state(working_state, updates)
-        else:
-            # Simple config update
-            self.state = {
-                **working_state,
-                "config": {**working_state.get("config", {}), **updates},
-            }
+            # Stateless tool, just store provided config under a single key.
+            self.state = {"config": config}
         assert self.state is not None
         return self.state
 

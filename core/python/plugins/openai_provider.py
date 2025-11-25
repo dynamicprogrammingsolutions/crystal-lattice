@@ -37,13 +37,10 @@ class OpenAICompatibleProvider(ProviderPlugin):
 
     # ---------- State lifecycle ----------
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        return {
-            "config": config
-        }
-
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        new_config = {**state.get("config", {}), **updates}
-        return {**state, "config": new_config}
+        # Provider state is an opaque dict owned by the provider and its
+        # extensions/features. This implementation only needs configuration,
+        # request metadata, and a partial accumulator for streaming.
+        return {"config": config}
 
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]

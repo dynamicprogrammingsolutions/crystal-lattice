@@ -35,15 +35,9 @@ class FileReaderTool(ToolPlugin):
         ]
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        return {
-            "config": config,
-            "runtime_state": {},
-            "ui_state": {},
-            "capabilities": [],
-        }
-
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, "config": {**state["config"], **updates}}
+        # Tool state is an opaque dict owned by the tool. This example
+        # only relies on configuration values.
+        return {"config": dict(config)}
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         return [

@@ -75,10 +75,6 @@ class RequestOptionsFeature(FeaturePlugin):
 
         return {**state, "config": {**state.get("config", {}), **config}}
 
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        # Reuse the common pattern: merge updates into config.
-        return {**state, "config": {**state.get("config", {}), **updates}}
-
     # ---- Stateless transforms (no-ops for this feature) ----
     def to_native_messages(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]

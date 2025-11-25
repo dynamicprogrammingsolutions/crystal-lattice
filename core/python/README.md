@@ -171,10 +171,11 @@ class MyProvider:
         return {"api_key": {"type": "string", "required": True}}
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        return {"config": config, "capabilities": [], "runtime_state": {}, "ui_state": {}}
+        # Provider state is an opaque dict; this minimal example keeps
+        # configuration under a single "config" key and is free to add
+        # any other per-request data it needs.
+        return {"config": config}
 
-    def update_state(self, state: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
-        return {**state, "config": {**state.get("config", {}), **updates}}
 
     def to_native_messages(self, messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
         return [{"role": m["role"], "content": m["content"]} for m in messages]

@@ -125,7 +125,7 @@ def main() -> None:
     sections: List[str] = [
         "# Examples",
         "",
-        "Note: Plugins use instance methods but should remain stateless (pure) and operate on explicit state objects. Plugin instances are short‑lived and scoped to a single request, just like the shared provider state managed by the provider wrapper. Tools rely on explicit ToolState and should not keep durable object state.",
+        "Note: Plugins use instance methods but should remain stateless (pure) and operate on explicit state objects. Plugin instances are short‑lived and scoped to a single request, just like the shared provider state managed by the provider wrapper.",
         "",
     ]
     for path in files:
