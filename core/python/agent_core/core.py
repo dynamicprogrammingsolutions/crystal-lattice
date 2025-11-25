@@ -17,7 +17,12 @@ Examples:
     session = core.create_session()
     session = core.add_message(session, "user", "Hello!")
 
-    config = {"model": "gpt-4o", "base_url": "https://api.openai.com/v1", "api_key": "sk-..."}
+    config = {
+        "provider": "openai_compatible",
+        "model": "gpt-4o",
+        "base_url": "https://api.openai.com/v1",
+        "api_key": "sk-...",
+    }
     session, finals = core.send_request(session, config)
     print(finals[-1]["content"])  # Assistant reply
     ```
@@ -116,56 +121,20 @@ class AgentCore:
                 "Session messages changed without updating native history; remove 'native_messages' from session.metadata to modify history."
             )
 
-    # -------- Optional future helper (not used currently) --------
-    # def _try_reconstruct_native_with_suffix(
-    #     self,
-    #     messages: List[Dict[str, Any]],
-    #     retained_native: List[Dict[str, Any]],
-    #     state: Dict[str, Any],
-    # ) -> List[Dict[str, Any]]:
-    #     """Attempt to append only the suffix of new core messages to retained native history.
-    #
-    #     Not used in current flow, kept for potential future optimization.
-    #
-    #     Args:
-    #         messages: Full core messages.
-    #         retained_native: Previously retained provider-native messages.
-    #         state: Current provider shared state.
-    #
-    #     Returns:
-    #         Full provider-native messages after attempting suffix append, or full
-    #         reconstruction when suffixing is not feasible.
-    #     """
-    #     base_core = self._provider.from_native_messages(retained_native, state)  # type: ignore[union-attr]
-    #     # Compare role/content only to ignore metadata differences
-    #     def _strip(lst: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    #         return [{"role": m.get("role"), "content": m.get("content", "")} for m in lst]
-    #     if _strip(messages[: len(base_core)]) == _strip(base_core):
-    #         suffix_core = messages[len(base_core) :]
-    #         suffix_native = self._provider.to_native_messages(suffix_core, state)  # type: ignore[union-attr]
-    #         suffix_native = self._provider.apply_extension_transforms(messages, suffix_native)  # type: ignore[union-attr]
-    #         for feature in self._features:
-    #             suffix_native = feature.to_native_messages(messages, suffix_native)
-    #         return [*retained_native, *suffix_native]
-    #     # Fallback: full conversion path
-    #     native_messages = self._provider.to_native_messages(messages, state)  # type: ignore[union-attr]
-    #     native_messages = self._provider.apply_extension_transforms(messages, native_messages)  # type: ignore[union-attr]
-    #     for feature in self._features:
-    #         native_messages = feature.to_native_messages(messages, native_messages)
-    #     return native_messages
-
     def __init__(self):
         """Initialize core with empty plugin pipeline."""
-        self._provider: Optional[ProviderWrapper] = None
+        self._providers: List[ProviderWrapper] = []
         self._features: List[FeatureWrapper] = []
         self._tools: List[ToolWrapper] = []
-        # Caches for model discovery and tag-based dependency resolution
-        self._models_cache: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+        # Caches for model discovery and tag-based dependency resolution.
+        # Keys use provider wrapper id for uniqueness, independent of
+        # human-readable provider names.
+        self._models_cache: Dict[Tuple[int, str], List[Dict[str, Any]]] = {}
         self._dependency_cache: Dict[
-            Tuple[str, str, str],
+            Tuple[int, str, str],
             Tuple[List[str], List[str], List[str], List[str]],
         ] = {}
-        self._tags_cache: Dict[Tuple[str, Tuple[str, str, str]], List[str]] = {}
+        self._tags_cache: Dict[Tuple[int, Tuple[int, str, str]], List[str]] = {}
 
     def _reset_caches(self) -> None:
         """Reset internal caches for models, dependencies, and tags."""
@@ -186,7 +155,7 @@ class AgentCore:
             extensions: Optional list of provider extension classes to register with the provider.
         """
         wrapper = ProviderWrapper(plugin_class, extensions or [])
-        self._provider = wrapper
+        self._providers = [*self._providers, wrapper]
         self._reset_caches()
  
     def register_feature(self, plugin_class: type) -> None:
@@ -257,26 +226,34 @@ class AgentCore:
         # If native history exists, verify integrity before modification
         if isinstance(session.metadata, dict) and "native_messages" in session.metadata:
             self._verify_native_integrity(session)
-
-        # Attempt to append native for the new message if provider is available and native history exists
-        if self._provider and isinstance(session.metadata, dict):
+ 
+        # Attempt to append native for the new message if a single provider is
+        # available and native history exists. When multiple providers are
+        # registered, this method does not attempt to infer which provider was
+        # used; native history is left unchanged.
+        if self._providers and isinstance(session.metadata, dict):
             retained_native = session.metadata.get("native_messages")
-            if isinstance(retained_native, list):
+            if isinstance(retained_native, list) and len(self._providers) == 1:
+                provider = self._providers[0]
                 # Initialize minimal state for stateless transforms
-                state = self._provider.init({})
+                state = provider.init({})
                 for feature in self._features:
                     state = feature.init({}, state)
-                    self._provider.set_state(state)
+                    provider.set_state(state)
                 # Build core dict for the single new message only
                 core_new_msg = [message.to_dict()]
-                # Convert single message to provider-native and apply stateless transforms (single-message context)
-                suffix_native = self._provider.to_native_messages(core_new_msg, state)
-                suffix_native = self._provider.apply_extension_transforms(
+                # Convert single message to provider-native and apply stateless
+                # transforms (single-message context)
+                suffix_native = provider.to_native_messages(core_new_msg, state)
+                suffix_native = provider.apply_extension_transforms(
                     core_new_msg, suffix_native
                 )
                 for feature in self._features:
-                    suffix_native = feature.to_native_messages(core_new_msg, suffix_native)
+                    suffix_native = feature.to_native_messages(
+                        core_new_msg, suffix_native
+                    )
                 new_metadata["native_messages"] = [*retained_native, *suffix_native]
+
 
         # Always update integrity data when we have native history
         if "native_messages" in new_metadata:
@@ -319,7 +296,131 @@ class AgentCore:
         except TypeError:
             return repr(models)
 
+    def _provider_identities(self, provider: ProviderWrapper) -> List[str]:
+        """Return identifier strings that can refer to this provider.
+
+        Includes the provider's configured name and fully-qualified variants
+        derived from the plugin class. This helper centralizes naming so it
+        is easy to extend with additional variants in the future.
+        """
+        names: List[str] = []
+
+        plugin_class = getattr(provider, "plugin_class", None)
+
+        raw_names: List[Any] = [getattr(provider, "name", None)]
+        if plugin_class is not None:
+            raw_names.extend(
+                [
+                    getattr(plugin_class, "name", None),
+                    getattr(plugin_class, "__name__", None),
+                    getattr(plugin_class, "__qualname__", None),
+                ]
+            )
+
+        for value in raw_names:
+            if isinstance(value, str) and value:
+                names.append(value)
+
+        module = getattr(plugin_class, "__module__", None) if plugin_class is not None else None
+        if isinstance(module, str) and module:
+            class_names: List[str] = []
+            if plugin_class is not None:
+                qual = getattr(plugin_class, "__qualname__", "") or ""
+                if qual:
+                    class_names.append(qual)
+                cls_name = getattr(plugin_class, "__name__", "") or ""
+                if cls_name and cls_name not in class_names:
+                    class_names.append(cls_name)
+                cfg_name = getattr(plugin_class, "name", None)
+                if isinstance(cfg_name, str) and cfg_name and cfg_name not in class_names:
+                    class_names.append(cfg_name)
+            for cls_name in class_names:
+                names.append(f"{module}.{cls_name}")
+
+        # De-duplicate while preserving order.
+        seen: Set[str] = set()
+        unique: List[str] = []
+        for n in names:
+            if n not in seen:
+                seen.add(n)
+                unique.append(n)
+        return unique
+
+    def _select_provider_for_config(self, config: Dict[str, Any]) -> ProviderWrapper:
+        """Select a provider for the given config.
+
+        When multiple providers are registered, the "provider" key in config
+        is mandatory and may use either a short name or a fully-qualified name
+        such as "plugins.openai_provider.OpenAICompatibleProvider".
+        """
+        if not self._providers:
+            raise RuntimeError("No provider registered")
+
+        # Fast path: single provider and no explicit selector.
+        if len(self._providers) == 1 and "provider" not in config:
+            return self._providers[0]
+
+        provider_value = config.get("provider")
+
+        # Build mapping from identifier -> providers sharing it.
+        identity_map: Dict[str, List[ProviderWrapper]] = {}
+        for prov in self._providers:
+            for ident in self._provider_identities(prov):
+                identity_map.setdefault(ident, []).append(prov)
+
+        def _format_available() -> str:
+            items: List[str] = []
+            for prov in self._providers:
+                idents = self._provider_identities(prov)
+                if not idents:
+                    continue
+                primary = idents[0]
+                extras = [i for i in idents[1:] if i != primary]
+                if extras:
+                    items.append(f"{primary} (also: {', '.join(extras)})")
+                else:
+                    items.append(primary)
+            return ", ".join(items)
+
+        if not isinstance(provider_value, str) or not provider_value.strip():
+            msg = (
+                "Configuration must include a non-empty 'provider' string when multiple providers are registered. "  # noqa: E501
+                "Known providers (you may use either a short name or a fully-qualified name like 'package.module.ProviderClass'): "  # noqa: E501
+                f"{_format_available()}"
+            )
+            raise ValueError(msg)
+
+        provider_key = provider_value.strip()
+        matches = identity_map.get(provider_key, [])
+
+        if not matches:
+            msg = (
+                f"Unknown provider '{provider_key}' in configuration. "  # noqa: E501
+                "Known providers (you may use either a short name or a fully-qualified name like 'package.module.ProviderClass') are: "  # noqa: E501
+                f"{_format_available()}"
+            )
+            raise ValueError(msg)
+
+        if len(matches) > 1:
+            # Ambiguous identifier; recommend fully-qualified names.
+            suggestions: List[str] = []
+            for prov in matches:
+                idents = self._provider_identities(prov)
+                fq = next((i for i in idents if "." in i), idents[0] if idents else "")
+                if fq:
+                    suggestions.append(fq)
+            suggestions_str = ", ".join(sorted(set(suggestions)))
+            msg = (
+                f"Ambiguous provider name '{provider_key}' in configuration; it matches multiple registered providers. "  # noqa: E501
+                "Please choose a more specific name, for example one of: "  # noqa: E501
+                f"{suggestions_str}"
+            )
+            raise ValueError(msg)
+
+        return matches[0]
+
     def _coerce_models_result(
+
         self,
         result: Any,
         previous: List[Dict[str, Any]],
@@ -359,14 +460,15 @@ class AgentCore:
                 return []
         return [str(tag) for tag in seq]
 
-    def _get_models_for_config(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Return cached or freshly-computed model descriptors for this config."""
-        if not self._provider:
-            return []
-        provider = self._provider
-        provider_name = provider.name
+    def _get_models_for_config(
+        self,
+        provider: ProviderWrapper,
+        config: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        """Return cached or freshly-computed model descriptors for this provider+config."""
+        provider_id = id(provider)
         norm_config = self._normalize_config(config)
-        cache_key = (provider_name, norm_config)
+        cache_key = (provider_id, norm_config)
         cached = self._models_cache.get(cache_key)
         if cached is not None:
             # Return shallow copies to avoid accidental mutation of cached structures
@@ -391,7 +493,6 @@ class AgentCore:
                 models,
             )
 
-
         # Validate and normalize
         validated: List[Dict[str, Any]] = []
         for model in models:
@@ -404,6 +505,7 @@ class AgentCore:
 
         self._models_cache = {**self._models_cache, cache_key: validated}
         return [dict(m) for m in validated]
+
 
     def _resolve_plugins_for_config(
         self,
@@ -420,15 +522,12 @@ class AgentCore:
         Uses tag-based dependencies declared by non-provider plugins and
         cached per (provider, config, models) triple.
         """
-        if not self._provider:
-            raise RuntimeError("No provider registered")
-
-        provider = self._provider
-        models = self._get_models_for_config(config)
-        provider_name = provider.name
+        provider = self._select_provider_for_config(config)
+        models = self._get_models_for_config(provider, config)
+        provider_id = id(provider)
         norm_config = self._normalize_config(config)
         norm_models = self._normalize_models(models)
-        dep_key = (provider_name, norm_config, norm_models)
+        dep_key = (provider_id, norm_config, norm_models)
 
         cached = self._dependency_cache.get(dep_key)
         if cached is not None:
@@ -460,7 +559,7 @@ class AgentCore:
             available_tags = set()
 
             # Provider tags
-            provider_tag_key = (provider.name, dep_key)
+            provider_tag_key = (provider_id, dep_key)
             provider_tags = self._tags_cache.get(provider_tag_key)
             if provider_tags is None:
                 try:
@@ -473,10 +572,10 @@ class AgentCore:
                     provider_tag_key: provider_tags,
                 }
             available_tags.update(provider_tags)
- 
+
             # Extension tags
             for ext in enabled_extensions:
-                key = (ext.name, dep_key)
+                key = (id(ext), dep_key)
                 tags = self._tags_cache.get(key)
                 if tags is None:
                     try:
@@ -486,10 +585,10 @@ class AgentCore:
                     tags = self._coerce_tags_result(tags)
                     self._tags_cache = {**self._tags_cache, key: tags}
                 available_tags.update(tags)
- 
+
             # Feature tags
             for feat in enabled_features:
-                key = (feat.name, dep_key)
+                key = (id(feat), dep_key)
                 tags = self._tags_cache.get(key)
                 if tags is None:
                     try:
@@ -499,10 +598,10 @@ class AgentCore:
                     tags = self._coerce_tags_result(tags)
                     self._tags_cache = {**self._tags_cache, key: tags}
                 available_tags.update(tags)
- 
+
             # Tool tags
             for tool in enabled_tools:
-                key = (tool.name, dep_key)
+                key = (id(tool), dep_key)
                 tags = self._tags_cache.get(key)
                 if tags is None:
                     try:
@@ -512,7 +611,6 @@ class AgentCore:
                     tags = self._coerce_tags_result(tags)
                     self._tags_cache = {**self._tags_cache, key: tags}
                 available_tags.update(tags)
-
 
             # Filter by required_tags
             next_enabled_extensions = [
@@ -571,6 +669,7 @@ class AgentCore:
         }
 
         return provider, enabled_extensions, enabled_features, enabled_tools, final_tags
+
 
     def _pre_request(
         self,
@@ -647,31 +746,32 @@ class AgentCore:
 
 
     def send_request(
-
+ 
         self, session: Session, config: Dict[str, Any]
     ) -> Tuple[Session, List[Dict[str, Any]]]:
         """Send request and return a new session with the response.
-
+ 
         Runs provider call + finalize with features operating on provider-native data;
         converts provider-native finals to core at the end and appends them to the session.
-
+ 
         Args:
             session: Current session.
             config: Application-provided configuration for this request.
-
+ 
         Returns:
             Tuple of (new_session, final_core_messages) where the new session includes the
             appended final messages and retained provider-native history for this turn.
-
+ 
         Raises:
             RuntimeError: If no provider is registered.
         """
-        if not self._provider:
+        if not self._providers:
             raise RuntimeError("No provider registered")
 
         provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
             config
         )
+
         provider.set_active_extensions(enabled_extensions)
         messages, native_messages, state = self._pre_request(
             session,
@@ -724,28 +824,29 @@ class AgentCore:
         self, session: Session, config: Dict[str, Any]
     ) -> Iterator[Dict[str, Any]]:
         """Stream request and yield partial events, then the final session.
-
+ 
         Uses provider streaming with optimized hot-path processing; features operate on the
         provider-native finals at finalize, then core converts once and appends to the session.
-
+ 
         Args:
             session: Current session.
             config: Application-provided configuration for this request.
-
+ 
         Yields:
             Event dictionaries:
             - {"type": "partial", "message": core-like partial dict}
             - {"type": "final", "session": new_session, "messages": final_core_messages}
-
+ 
         Raises:
             RuntimeError: If no provider is registered.
         """
-        if not self._provider:
+        if not self._providers:
             raise RuntimeError("No provider registered")
 
         provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
             config
         )
+
         provider.set_active_extensions(enabled_extensions)
         messages, native_messages, state = self._pre_request(
             session,
@@ -802,22 +903,23 @@ class AgentCore:
         self, session: Session, config: Dict[str, Any]
     ) -> AsyncIterator[Dict[str, Any]]:
         """Async version of send_request_stream.
-
+ 
         Args:
             session: Current session.
             config: Application-provided configuration for this request.
-
+ 
         Yields:
             Event dictionaries analogous to send_request_stream, but from an async iterator.
-
+ 
         Raises:
             RuntimeError: If no provider is registered.
         """
-        if not self._provider:
+        if not self._providers:
             raise RuntimeError("No provider registered")
         provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
             config
         )
+
         provider.set_active_extensions(enabled_extensions)
         messages, native_messages, state = self._pre_request(
             session,
@@ -878,19 +980,20 @@ class AgentCore:
             provider extensions, features, and tools when registered.
         """
         schema: Dict[str, Any] = {}
-        if self._provider:
-            schema[self._provider.name] = self._provider.get_config_schema()
+        for provider in self._providers:
+            schema[provider.name] = provider.get_config_schema()
             # Include provider extension schemas
             for (
                 name,
                 ext_schema,
-            ) in self._provider.get_extension_config_schemas().items():
+            ) in provider.get_extension_config_schemas().items():
                 schema[name] = ext_schema
         for feature in self._features:
             schema[feature.name] = feature.get_config_schema()
         for tool in self._tools:
             schema[tool.name] = tool.get_config_schema()
         return schema
+
 
     def get_ui_schema(self) -> Dict[str, Any]:
         """Get combined UI schema from all registered plugins.
@@ -900,16 +1003,17 @@ class AgentCore:
             provider extensions, features, and tools when registered.
         """
         ui: Dict[str, Any] = {}
-        if self._provider:
-            ui[self._provider.name] = self._provider.get_ui_elements()
+        for provider in self._providers:
+            ui[provider.name] = provider.get_ui_elements()
             # Include provider extension UI schemas
-            for name, ext_ui in self._provider.get_extension_ui_elements().items():
+            for name, ext_ui in provider.get_extension_ui_elements().items():
                 ui[name] = ext_ui
         for feature in self._features:
             ui[feature.name] = feature.get_ui_elements()
         for tool in self._tools:
             ui[tool.name] = tool.get_ui_elements()
         return ui
+
 
     def get_tool_schemas(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Get tool schemas from enabled tool plugins for a config.
@@ -925,7 +1029,7 @@ class AgentCore:
             return schemas
 
         # When no provider is registered, fall back to exposing all tools.
-        if not self._provider:
+        if not self._providers:
             for tool in self._tools:
                 state = tool.init(config)
                 schemas.extend(tool.get_tool_schemas(state))

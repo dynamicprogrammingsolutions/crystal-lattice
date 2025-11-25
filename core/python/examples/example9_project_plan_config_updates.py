@@ -25,6 +25,7 @@ def run_example():
 
     # Application manages config
     config1 = {
+        "provider": "openai_compatible",
         "model": model,
         "base_url": base_url,
         "timeout": 60,

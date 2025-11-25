@@ -56,6 +56,7 @@ with tempfile.NamedTemporaryFile("w+", delete=False, dir=".") as tf:
 
 try:
     config: Dict[str, Any] = {
+        "provider": "openai_compatible",
         "model": model,
         "base_url": base_url,
         "timeout": 120,
@@ -242,10 +243,9 @@ Plugin code
 from typing import Any, Dict, List, Tuple, Optional
 from agent_core.types import ProviderExtensionPlugin
 
-    class PrefixExtension(ProviderExtensionPlugin):
-         name: str = "prefix_extension"
-         version: str = "1.0.0"
-
+class PrefixExtension(ProviderExtensionPlugin):
+    name: str = "prefix_extension"
+    version: str = "1.0.0"
 
     def get_config_schema(self) -> Dict[str, Any]:
         return {
@@ -267,30 +267,30 @@ from agent_core.types import ProviderExtensionPlugin
         }
 
     def to_native_messages(
-        self,
-        messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+            self,
+            messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         return messages
 
     def from_native_messages(
-        self,
-        native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+            self,
+            native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         return messages
 
     def initialize_request(
-        self,
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+            self,
+            native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         return state
 
     def process_chunk(
-        self,
-        native_chunk: Optional[Dict[str, Any]],
-        state: Dict[str, Any],
-        partial_messages: List[Dict[str, Any]],
-        final_messages: List[Dict[str, Any]],
-        native_messages: List[Dict[str, Any]],
+            self,
+            native_chunk: Optional[Dict[str, Any]],
+            state: Dict[str, Any],
+            partial_messages: List[Dict[str, Any]],
+            final_messages: List[Dict[str, Any]],
+            native_messages: List[Dict[str, Any]],
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
     ]:
@@ -320,10 +320,10 @@ from agent_core.types import ProviderExtensionPlugin
         }
 
     def finalize(
-        self,
-        final_messages: List[Dict[str, Any]],
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
+            self,
+            final_messages: List[Dict[str, Any]],
+            native_messages: List[Dict[str, Any]],
+            state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         if not state.get("config", {}).get("enabled", True):
             return final_messages, native_messages, state
@@ -556,6 +556,7 @@ model = os.getenv("OLLAMA_MODEL", "llama3.2:1b")
 
 # Application manages config
 config = {
+    "provider": "openai_compatible",
     "model": model,
     "base_url": base_url,
     # No API key required for local Ollama
@@ -610,6 +611,7 @@ model = os.getenv("OLLAMA_MODEL", "llama3.2:1b")
 
 # Application manages config and session
 config = {
+    "provider": "openai_compatible",
     "model": model,
     "base_url": base_url,
     "timeout": 60,
@@ -650,6 +652,7 @@ model = os.getenv("OLLAMA_MODEL", "llama3.2:1b")
 
 # Application manages config (mixing tool config)
 config = {
+    "provider": "openai_compatible",
     "model": model,
     "base_url": base_url,
     "timeout": 60,
@@ -715,6 +718,7 @@ base_url = f"{ollama_host}/v1"
 model = os.getenv("OLLAMA_MODEL", "llama3.2:1b")
 
 config = {
+    "provider": "openai_compatible",
     "model": model,
     "base_url": base_url,
     "timeout": 60,
@@ -781,6 +785,7 @@ model = os.getenv("OLLAMA_MODEL", "llama3.2:1b")
 
 # Application manages config
 config1 = {
+    "provider": "openai_compatible",
     "model": model,
     "base_url": base_url,
     "timeout": 60,

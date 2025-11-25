@@ -19,6 +19,7 @@ def run_example():
     model = os.getenv("OLLAMA_MODEL", "llama3.2:1b")
 
     config = {
+        "provider": "openai_compatible",
         "model": model,
         "base_url": base_url,
         "timeout": 60,

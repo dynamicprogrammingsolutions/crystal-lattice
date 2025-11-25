@@ -16,6 +16,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Iterator, List, Tuple
 
+import pytest
+
 from agent_core import AgentCore
 
 
@@ -825,9 +827,34 @@ class CountingProvider:
         return
 
 
+# Additional providers used for provider selection tests.
+
+
+@dataclass
+class AltDependencyProvider(BasicDependencyProvider):
+    """Second provider with a distinct name for selection tests."""
+
+    name: str = "dep_provider_alt"
+
+
+@dataclass
+class SharedNameProviderA(BasicDependencyProvider):
+    """Provider that intentionally shares a short name with another."""
+
+    name: str = "shared_name"
+
+
+@dataclass
+class SharedNameProviderB(BasicDependencyProvider):
+    """Second provider with the same short name as SharedNameProviderA."""
+
+    name: str = "shared_name"
+
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 
 def test_extension_tag_enables_dependent_feature() -> None:
@@ -1014,3 +1041,98 @@ def test_dependency_resolution_caches_models_and_tags_per_config() -> None:
 
     assert CountingProvider.models_calls == 2
     assert CountingProvider.tags_calls == 2
+
+
+def test_multiple_providers_selected_by_name_and_fully_qualified() -> None:
+    """Config 'provider' key selects among multiple providers.
+
+    Supports both short names (class/provider name) and fully-qualified
+    names based on the provider's module and class.
+    """
+
+    core = AgentCore()
+    core.register_provider(BasicDependencyProvider)
+    core.register_provider(AltDependencyProvider)
+
+    # Short names
+    cfg_short_1: Dict[str, Any] = {"model": "m1", "provider": "dep_provider"}
+    prov1, _exts1, _feats1, _tools1, _tags1 = core._resolve_plugins_for_config(  # type: ignore[attr-defined]
+        cfg_short_1
+    )
+    assert prov1.name == "dep_provider"
+
+    cfg_short_2: Dict[str, Any] = {"model": "m1", "provider": "dep_provider_alt"}
+    prov2, _exts2, _feats2, _tools2, _tags2 = core._resolve_plugins_for_config(  # type: ignore[attr-defined]
+        cfg_short_2
+    )
+    assert prov2.name == "dep_provider_alt"
+
+    # Fully-qualified name
+    fq_alt = f"{AltDependencyProvider.__module__}.{AltDependencyProvider.__qualname__}"
+    cfg_fq: Dict[str, Any] = {"model": "m1", "provider": fq_alt}
+    prov3, _exts3, _feats3, _tools3, _tags3 = core._resolve_plugins_for_config(  # type: ignore[attr-defined]
+        cfg_fq
+    )
+    assert prov3.name == "dep_provider_alt"
+
+
+def test_missing_provider_key_with_multiple_providers_raises_helpful_error() -> None:
+    """When multiple providers exist, config must include 'provider'."""
+
+    core = AgentCore()
+    core.register_provider(BasicDependencyProvider)
+    core.register_provider(AltDependencyProvider)
+
+    config: Dict[str, Any] = {"model": "m1"}
+    with pytest.raises(ValueError) as exc:
+        _ = core._resolve_plugins_for_config(config)  # type: ignore[attr-defined]
+
+    msg = str(exc.value)
+    # Mention that a provider key is required and list options.
+    assert "provider" in msg.lower()
+    assert "dep_provider" in msg
+    assert "dep_provider_alt" in msg
+
+    fq_basic = f"{BasicDependencyProvider.__module__}.{BasicDependencyProvider.__qualname__}"
+    assert fq_basic in msg
+
+
+def test_ambiguous_provider_name_raises_and_suggests_fully_qualified() -> None:
+    """Short name shared by multiple providers is rejected.
+
+    Error message should contain fully-qualified suggestions for disambiguation.
+    """
+
+    core = AgentCore()
+    core.register_provider(SharedNameProviderA)
+    core.register_provider(SharedNameProviderB)
+
+    config: Dict[str, Any] = {"model": "m1", "provider": "shared_name"}
+    with pytest.raises(ValueError) as exc:
+        _ = core._resolve_plugins_for_config(config)  # type: ignore[attr-defined]
+
+    msg = str(exc.value)
+    assert "ambiguous" in msg.lower()
+    assert "shared_name" in msg
+
+    fq_a = f"{SharedNameProviderA.__module__}.{SharedNameProviderA.__qualname__}"
+    fq_b = f"{SharedNameProviderB.__module__}.{SharedNameProviderB.__qualname__}"
+    assert fq_a in msg
+    assert fq_b in msg
+
+
+def test_unknown_provider_name_raises_with_suggestions() -> None:
+    """Unknown provider name surfaces available provider identifiers."""
+
+    core = AgentCore()
+    core.register_provider(BasicDependencyProvider)
+    core.register_provider(AltDependencyProvider)
+
+    config: Dict[str, Any] = {"model": "m1", "provider": "does_not_exist"}
+    with pytest.raises(ValueError) as exc:
+        _ = core._resolve_plugins_for_config(config)  # type: ignore[attr-defined]
+
+    msg = str(exc.value)
+    assert "unknown provider" in msg.lower()
+    assert "dep_provider" in msg
+    assert "dep_provider_alt" in msg

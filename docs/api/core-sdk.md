@@ -20,15 +20,20 @@ pip install agent-core
 
 ```python
 from agent_core import AgentCore
+from plugins.openai_provider import OpenAICompatibleProvider
 
 # Initialize core (stateless pipeline)
 core = AgentCore()
 
 # Register provider
-core.register_provider(OpenAIProvider)
+core.register_provider(OpenAICompatibleProvider)
 
 # Application manages config
-config = {"model": "gpt-4o", "api_key": "sk-..."}
+config = {
+    "provider": "openai_compatible",
+    "model": "gpt-4o",
+    "api_key": "sk-...",
+}
 
 # Create session (immutable)
 session = core.create_session()
@@ -85,11 +90,13 @@ Register provider plugin class with optional extensions.
 
 **Example:**
 ```python
-core.register_provider(OpenAIProvider)
+from plugins.openai_provider import OpenAICompatibleProvider
+
+core.register_provider(OpenAICompatibleProvider)
 
 # With extensions
 core.register_provider(
-    OpenAIProvider,
+    OpenAICompatibleProvider,
     extensions=[ThinkingExtension, CitationExtension]
 )
 ```
@@ -151,7 +158,7 @@ summary = core.discover_and_register([
     "plugins.file_reader_tool",
 ])
 print(summary)
-# {"providers": ["openai"], "features": ["web_search"], "tools": ["file_reader"], "extensions": []}
+# {"providers": ["openai_compatible"], "features": ["web_search"], "tools": ["file_reader"], "extensions": []}
 ```
 
 #### create_session
@@ -174,43 +181,6 @@ session = core.create_session()
 session = core.create_session(session_id="user-123")
 ```
 
-#### add_message
-
-```python
-add_message(
-    session: Session,
-    role: MessageRole,
-    content: str,
-    metadata: Optional[Dict[str, Any]] = None
-) -> Session
-```
-
-Add message to session (pure function - returns new session).
-
-**Parameters:**
-- `session` (Session): Current session
-- `role` (str): Message role ("system", "user", "assistant", or "tool")
-- `content` (str): Message content
-- `metadata` (dict, optional): Additional metadata
-
-**Returns:**
-- `Session`: New session with added message
-
-**Notes:**
-- When `session.metadata.native_messages` exists and a provider is registered, the core converts only the newly added message to provider-native format and appends it to `native_messages` for efficient retention.
-- The core maintains `session.metadata.native_messages_integrity` to verify that `messages` still match the retained native history; modifying `messages` without clearing `native_messages` raises an integrity error.
-
-**Example:**
-```python
-session = core.add_message(session, "user", "Hello!")
-session = core.add_message(
-    session,
-    "assistant",
-    "Hi there!",
-    metadata={"model": "gpt-4"}
-)
-```
-
 #### send_request
 
 ```python
@@ -224,14 +194,18 @@ Send request and return new session with response (pure function).
 
 **Parameters:**
 - `session` (Session): Current session
-- `config` (dict): Provider and feature configuration
+- `config` (dict): Provider and feature configuration. When multiple providers are registered, `config["provider"]` must select the provider (by name or fully-qualified class path).
 
 **Returns:**
 - `Tuple[Session, list]`: Tuple of (new_session, final_messages)
 
 **Example:**
 ```python
-config = {"model": "gpt-4o", "api_key": "sk-..."}
+config = {
+    "provider": "openai_compatible",
+    "model": "gpt-4o",
+    "api_key": "sk-...",
+}
 session, messages = core.send_request(session, config)
 print(messages[-1]["content"])
 ```
@@ -509,13 +483,18 @@ Note: Methods remain stateless (pure) and use explicit state parameters. Plugin 
 
 ```python
 from agent_core import AgentCore
+from plugins.openai_provider import OpenAICompatibleProvider
 
 # Setup
 core = AgentCore()
-core.register_provider(OpenAIProvider)
+core.register_provider(OpenAICompatibleProvider)
 
 # Application manages config and sessions
-config = {"model": "gpt-4o", "api_key": "sk-..."}
+config = {
+    "provider": "openai_compatible",
+    "model": "gpt-4o",
+    "api_key": "sk-...",
+}
 
 # Create session
 session = core.create_session()
@@ -537,11 +516,15 @@ while True:
 
 ```python
 from agent_core import AgentCore
+from plugins.openai_provider import OpenAICompatibleProvider
 
 core = AgentCore()
-core.register_provider(OpenAIProvider)
+core.register_provider(OpenAICompatibleProvider)
 
-config = {"model": "gpt-4o"}
+config = {
+    "provider": "openai_compatible",
+    "model": "gpt-4o",
+}
 session = core.create_session()
 session = core.add_message(session, "user", "Write a story")
 
@@ -558,20 +541,22 @@ for chunk in core.send_request_stream(session, config):
 
 ```python
 from agent_core import AgentCore
+from plugins.openai_provider import OpenAICompatibleProvider
 
 core = AgentCore()
 
 # Register provider with extensions
 core.register_provider(
-    OpenAIProvider,
+    OpenAICompatibleProvider,
     extensions=[ThinkingExtension, CitationExtension]
 )
 
 config = {
+    "provider": "openai_compatible",
     "model": "gpt-4o",
     "api_key": "sk-...",
     "extract_thinking": True,  # Extension config
-    "extract_citations": True
+    "extract_citations": True,
 }
 
 session = core.create_session()
@@ -591,21 +576,23 @@ for chunk in core.send_request_stream(session, config):
 
 ```python
 from agent_core import AgentCore
+from plugins.openai_provider import OpenAICompatibleProvider
 
 core = AgentCore()
 
 # Register plugins
-core.register_provider(OpenAIProvider)
+core.register_provider(OpenAICompatibleProvider)
 core.register_feature(WebSearchFeature)
 core.register_feature(ContextManager)
 core.register_tool(FileReaderTool)
 
 config = {
+    "provider": "openai_compatible",
     "model": "gpt-4",
     "api_key": "sk-...",
     "web_search_enabled": True,
     "max_results": 5,
-    "allowed_paths": ["./workspace"]
+    "allowed_paths": ["./workspace"],
 }
 
 session = core.create_session()
@@ -618,12 +605,16 @@ session, messages = core.send_request(session, config)
 ```python
 import asyncio
 from agent_core import AgentCore
+from plugins.openai_provider import OpenAICompatibleProvider
 
 async def chat():
     core = AgentCore()
-    core.register_provider(OpenAIProvider)
+    core.register_provider(OpenAICompatibleProvider)
     
-    config = {"model": "gpt-4o"}
+    config = {
+        "provider": "openai_compatible",
+        "model": "gpt-4o",
+    }
     session = core.create_session()
     session = core.add_message(session, "user", "Hello")
     

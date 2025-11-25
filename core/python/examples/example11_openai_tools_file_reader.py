@@ -44,6 +44,7 @@ def run_example() -> Tuple[str, Dict[str, Any]]:
 
     try:
         config: Dict[str, Any] = {
+            "provider": "openai_compatible",
             "model": model,
             "base_url": base_url,
             "timeout": 120,

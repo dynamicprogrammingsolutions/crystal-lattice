@@ -206,6 +206,12 @@ core.register_provider(OpenAICompatibleProvider, extensions=[PrefixExtension])
 core.register_feature(TagFeature)
 core.register_tool(Calculator)
 
+config = {
+    "provider": "openai_compatible",
+    "model": "gpt-4o",
+    "api_key": "sk-...",
+}
+
 session = core.create_session()
 session = core.add_message(session, "user", "Hello")
 session, finals = core.send_request(session, config)

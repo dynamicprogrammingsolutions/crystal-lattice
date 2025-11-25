@@ -24,6 +24,7 @@ def run_example():
 
     # Application manages config and session
     config = {
+        "provider": "openai_compatible",
         "model": model,
         "base_url": base_url,
         "timeout": 60,

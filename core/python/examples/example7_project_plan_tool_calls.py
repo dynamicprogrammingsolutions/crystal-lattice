@@ -22,6 +22,7 @@ def run_example():
 
     # Application manages config (mixing tool config)
     config = {
+        "provider": "openai_compatible",
         "model": model,
         "base_url": base_url,
         "timeout": 60,

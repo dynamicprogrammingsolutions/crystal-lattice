@@ -448,10 +448,11 @@ and which follow-up items remain.
   provider extensions, and features contribute to the model list. Tools
   still implement `get_tags(config, models)` / `required_tags()` and are
   enabled/disabled via the tag-based fixpoint.
-- The Python `AgentCore` currently assumes a single registered provider
-  (set via `register_provider`). It does not select a provider from
-  `config["provider"]`; provider selection by name remains a possible
-  future extension rather than part of the current implementation.
+- The Python `AgentCore` now supports multiple registered providers. When
+  more than one provider is registered, it selects the provider from
+  `config["provider"]` (by short name or fully-qualified class path) for
+  each request. When exactly one provider is registered, `config["provider"]`
+  remains optional for backward compatibility.
 - Provider extensions are registered explicitly with the provider via
   `register_provider(..., extensions=[...])` instead of being matched by
   a `target_provider` attribute. Tag-based enablement still controls

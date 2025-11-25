@@ -40,16 +40,17 @@ pip install -e ".[dev]"
 
 ```python
 from agent_core import AgentCore
-from plugins import OpenAIProvider
+from plugins.openai_provider import OpenAICompatibleProvider
 
 # Core stores only processing pipeline (stateless)
 core = AgentCore()
-core.register_provider(OpenAIProvider)
+core.register_provider(OpenAICompatibleProvider)
 
 # Application manages config
 config = {
+    "provider": "openai_compatible",
     "model": "gpt-4o",
-    "api_key": "sk-..."
+    "api_key": "sk-...",
 }
 
 # Create session (immutable data structure)
@@ -71,12 +72,16 @@ print(len(session.messages))  # 3 (system + user + assistant)
 
 ```python
 from agent_core import AgentCore
-from plugins import OpenAIProvider
+from plugins.openai_provider import OpenAICompatibleProvider
 
 core = AgentCore()
-core.register_provider(OpenAIProvider)
+core.register_provider(OpenAICompatibleProvider)
 
-config = {"model": "gpt-4o", "api_key": "sk-..."}
+config = {
+    "provider": "openai_compatible",
+    "model": "gpt-4o",
+    "api_key": "sk-...",
+}
 session = core.create_session()
 session = core.add_message(session, "user", "Write a short poem")
 
@@ -91,6 +96,13 @@ for chunk in core.send_request_stream(session, config):
 ```
 
 ## Core Concepts
+
+### Provider Selection
+
+When you register multiple providers with `AgentCore`, each request selects a provider via the `provider` key in the config dict passed to `send_request` / `send_request_stream` / `send_request_stream_async`.
+
+- When exactly one provider is registered, `provider` is optional (the single provider is used by default), but it is recommended to set it for clarity.
+- When multiple providers are registered, `provider` is required and may be either the provider's configured name (for example `"openai_compatible"`) or a fully-qualified class path such as `"plugins.openai_provider.OpenAICompatibleProvider"`.
 
 ### Immutable Session
 
@@ -140,7 +152,7 @@ Core stores only the plugin pipeline, not runtime state:
 core = AgentCore()
 
 # Register plugins (just classes, no config)
-core.register_provider(OpenAIProvider)
+core.register_provider(OpenAICompatibleProvider)
 core.register_feature(WebSearchFeature)
 core.register_tool(CalculatorTool)
 
@@ -148,8 +160,8 @@ core.register_tool(CalculatorTool)
 # Application manages them
 session1 = core.create_session("user-1")
 session2 = core.create_session("user-2")
-config1 = {"model": "gpt-4"}
-config2 = {"model": "gpt-3.5-turbo"}
+config1 = {"provider": "openai_compatible", "model": "gpt-4"}
+config2 = {"provider": "openai_compatible", "model": "gpt-3.5-turbo"}
 
 # Same core, different sessions/configs
 session1, resp1 = core.send_request(session1, config1)
@@ -377,18 +389,20 @@ session, response = core.send_request(session, config)  # Pure function
 
 ```python
 from agent_core import AgentCore
-from plugins import OpenAIProvider, WebSearchFeature
+from plugins.openai_provider import OpenAICompatibleProvider
+from plugins import WebSearchFeature
 
 # Setup (stateless pipeline)
 core = AgentCore()
-core.register_provider(OpenAIProvider)
+core.register_provider(OpenAICompatibleProvider)
 core.register_feature(WebSearchFeature)
 
 # Application manages state
 config = {
+    "provider": "openai_compatible",
     "model": "gpt-4",
     "api_key": "sk-...",
-    "web_search_enabled": True
+    "web_search_enabled": True,
 }
 
 # Functional conversation flow

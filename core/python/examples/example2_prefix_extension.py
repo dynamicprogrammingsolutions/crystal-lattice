@@ -6,10 +6,10 @@ Adds a prefix to final assistant messages and counts processed chunks in metadat
 from typing import Any, Dict, List, Tuple, Optional
 from agent_core.types import ProviderExtensionPlugin
 
-class PrefixExtension(ProviderExtensionPlugin):
-     name: str = "prefix_extension"
-     version: str = "1.0.0"
 
+class PrefixExtension(ProviderExtensionPlugin):
+    name: str = "prefix_extension"
+    version: str = "1.0.0"
 
     def get_config_schema(self) -> Dict[str, Any]:
         return {
@@ -31,30 +31,30 @@ class PrefixExtension(ProviderExtensionPlugin):
         }
 
     def to_native_messages(
-        self,
-        messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+            self,
+            messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         return messages
 
     def from_native_messages(
-        self,
-        native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+            self,
+            native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         return messages
 
     def initialize_request(
-        self,
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+            self,
+            native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         return state
 
     def process_chunk(
-        self,
-        native_chunk: Optional[Dict[str, Any]],
-        state: Dict[str, Any],
-        partial_messages: List[Dict[str, Any]],
-        final_messages: List[Dict[str, Any]],
-        native_messages: List[Dict[str, Any]],
+            self,
+            native_chunk: Optional[Dict[str, Any]],
+            state: Dict[str, Any],
+            partial_messages: List[Dict[str, Any]],
+            final_messages: List[Dict[str, Any]],
+            native_messages: List[Dict[str, Any]],
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
     ]:
@@ -84,10 +84,10 @@ class PrefixExtension(ProviderExtensionPlugin):
         }
 
     def finalize(
-        self,
-        final_messages: List[Dict[str, Any]],
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
+            self,
+            final_messages: List[Dict[str, Any]],
+            native_messages: List[Dict[str, Any]],
+            state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         if not state.get("config", {}).get("enabled", True):
             return final_messages, native_messages, state
