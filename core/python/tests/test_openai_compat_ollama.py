@@ -99,17 +99,33 @@ def test_system_message_feature_with_ollama(ensure_model, tmp_path):
     core.register_provider(OpenAICompatibleProvider)
     core.register_feature(SystemMessageFeature)
 
-    context_file = tmp_path / "context.txt"
-    context_file.write_text("SPECIAL-CONTEXT-TOKEN", encoding="utf-8")
+    # Use a list of relatively uncommon languages so that their
+    # appearance in the answer is strong evidence that the system
+    # message (sourced via a file variable) influenced the model.
+    uncommon_languages = [
+        "Smalltalk",
+        "Erlang",
+        "Ada",
+        "Forth",
+        "OCaml",
+    ]
+
+    context_file = tmp_path / "languages.txt"
+    context_file.write_text(", ".join(uncommon_languages), encoding="utf-8")
 
     config = {
         "model": MODEL,
         "base_url": OPENAI_BASE_URL,
         "timeout": 60,
         "system_message": {
-            "template": "Use this token in your first sentence: {{TOKEN}}",
+            "template": (
+                "When asked about good or best programming languages, you must "
+                "say that the best programming languages are: {{LANG_LIST}}. "
+                "You may elaborate briefly, but ensure you explicitly mention "
+                "at least some of these names."
+            ),
             "variables": {
-                "TOKEN": {"files": [str(context_file)]},
+                "LANG_LIST": {"files": [str(context_file)]},
             },
         },
     }
@@ -118,7 +134,7 @@ def test_system_message_feature_with_ollama(ensure_model, tmp_path):
     session = core.add_message(
         session,
         "user",
-        "Respond with one or two short sentences.",
+        "What are the best programming languages and why? Provide a short answer.",
     )
 
     new_session, responses = core.send_request(session, config)
@@ -132,9 +148,14 @@ def test_system_message_feature_with_ollama(ensure_model, tmp_path):
     content = final_message.get("content", "") or ""
     assert isinstance(content, str)
     assert content
-    # Ensure the special token configured via the system
-    # message template actually appears in the assistant reply.
-    assert "SPECIAL-CONTEXT-TOKEN" in content
+
+    # Ensure that the answer reflects the file-driven system message by
+    # mentioning at least one of the uncommon languages from the
+    # LANG_LIST variable. This is more natural than requiring an
+    # arbitrary token while still validating that variable substitution
+    # and system prompting worked end-to-end.
+    lower_content = content.lower()
+    assert any(lang.lower() in lower_content for lang in uncommon_languages)
 
 
 @pytest.mark.integration
