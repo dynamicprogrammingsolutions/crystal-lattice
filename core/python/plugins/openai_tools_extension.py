@@ -17,7 +17,7 @@ class OpenAIToolsExtension:
 
     name: str = "openai_tools"
     version: str = "0.2.0"
-    target_provider: str = "openai_compatible"
+
 
     # ---- Config/UI ----
     def get_config_schema(self) -> Dict[str, Any]:
@@ -26,8 +26,33 @@ class OpenAIToolsExtension:
     def get_ui_elements(self) -> List[Dict[str, Any]]:
         return []
 
+    # ---- Models / capabilities ----
+    def get_models(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Forward model descriptors without modification.
+
+        The tools extension does not currently influence model discovery.
+        """
+        return list(models)
+
+    def get_tags(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[str]:
+        """Identify this extension in the global tag set."""
+        return ["ext:openai_tools"]
+
+    def required_tags(self) -> List[str]:
+        """Require tool-calling support from the provider/models."""
+        return ["supports_tools"]
+ 
     # ---- Init/State ----
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+
         tools = config.get("tools")
         return {**state, "_openai_tools": tools if isinstance(tools, list) else []}
 

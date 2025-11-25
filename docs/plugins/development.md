@@ -87,9 +87,9 @@ from typing import Any, Dict, List, Tuple, Optional
 from agent_core.types import ProviderExtensionPlugin
 
 class PrefixExtension(ProviderExtensionPlugin):
-    name = "prefix"
-    version = "1.0.0"
-    target_provider = "echo"
+     name = "prefix"
+     version = "1.0.0"
+
 
     def get_config_schema(self) -> Dict[str, Any]:
         return {"prefix": {"type": "string", "default": "[EXT]"}}

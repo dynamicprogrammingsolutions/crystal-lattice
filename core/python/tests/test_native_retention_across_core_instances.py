@@ -17,8 +17,24 @@ class RetentionProvider(ProviderPlugin):
     def get_ui_elements(self) -> List[Dict[str, Any]]:
         return []
 
+    def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return a minimal model descriptor list for retention tests."""
+        model = config.get("model")
+        if isinstance(model, str) and model:
+            return [{"id": model}]
+        return []
+
+    def get_tags(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[str]:
+        """Return simple capability tags for the retention provider."""
+        return ["provider:retention_provider"]
+ 
     # --- State ---
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
+
         return {"config": dict(config), "runtime": {}}
 
 
@@ -89,7 +105,6 @@ class RetentionProvider(ProviderPlugin):
 class RetentionExtension(ProviderExtensionPlugin):
     name: str = "retention_extension"
     version: str = "1.0.0"
-    target_provider: str = RetentionProvider.name
 
     def get_config_schema(self) -> Dict[str, Any]:
         return {}

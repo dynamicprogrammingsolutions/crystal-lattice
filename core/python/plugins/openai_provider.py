@@ -35,8 +35,38 @@ class OpenAICompatibleProvider(ProviderPlugin):
         # No UI elements
         return []
 
+    # ---------- Models / capabilities ----------
+    def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return minimal model descriptors for this provider.
+
+        Currently returns the configured `model` (if any) as a single
+        ModelDescriptor with only an `id` field.
+        """
+        model = config.get("model")
+        if isinstance(model, str) and model:
+            return [{"id": model}]
+        return []
+
+    def get_tags(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[str]:
+        """Return capability tags for the OpenAI-compatible provider.
+
+        This implementation is intentionally simple and conservative; it
+        assumes chat-completions style models with tool calling and
+        streaming support.
+        """
+        tags: List[str] = ["provider:openai_compatible"]
+        tags.append("supports_streaming")
+        tags.append("supports_tools")
+        tags.append("supports_thinking")
+        return tags
+ 
     # ---------- State lifecycle ----------
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
+
         # Provider state is an opaque dict owned by the provider and its
         # extensions/features. This implementation only needs configuration,
         # request metadata, and a partial accumulator for streaming.

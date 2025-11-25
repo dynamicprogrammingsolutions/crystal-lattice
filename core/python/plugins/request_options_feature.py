@@ -65,8 +65,29 @@ class RequestOptionsFeature(FeaturePlugin):
         # No dedicated UI; configuration is JSON-only for now.
         return []
 
+    def get_models(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Forward model descriptors without modification."""
+        return list(models)
+
+    def get_tags(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[str]:
+        """Identify this feature for dependency resolution."""
+        return ["feature:request_options"]
+
+    def required_tags(self) -> List[str]:
+        """This feature does not require any specific tags."""
+        return []
+ 
     # ---- Lifecycle ----
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+
         """Merge config into shared state.
 
         The plugin itself remains stateless; request options are read from

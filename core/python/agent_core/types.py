@@ -231,6 +231,26 @@ class ProviderPlugin(BasePlugin, Protocol):
         """
         ...
 
+    def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return model descriptors available for this provider and config.
+
+        Optional; providers may return an empty list when model enumeration
+        is not supported.
+        """
+        ...
+
+    def get_tags(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[str]:
+        """Return capability/environment tags for this provider.
+
+        Implementations must be pure and deterministic for a given
+        (config, models) pair.
+        """
+        ...
+
     # I/O entry points now take native messages
     def call_api(
         self,
@@ -265,17 +285,6 @@ class ProviderPlugin(BasePlugin, Protocol):
         """
         ...
 
-    @staticmethod
-    def detect_capabilities(config: Dict[str, Any]) -> List[str]:
-        """Detect capability flags supported by the provider for a given config.
-
-        Args:
-            config: Application-supplied configuration for probing capabilities.
-
-        Returns:
-            List of capability identifiers.
-        """
-        ...
 
 
 class ProviderExtensionPlugin(BasePlugin, Protocol):
@@ -293,7 +302,6 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         class PrefixExt:
             name = "prefix"
             version = "1.0.0"
-            target_provider = "echo"
             def get_config_schema(self):
                 return {"prefix": {"type": "string", "default": "[EXT]"}}
             def init(self, config, state):
@@ -307,24 +315,47 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         ```
     """
 
-    target_provider: str
-
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize with application config and shared provider state.
-
+ 
         Args:
             config: Application-supplied configuration.
             state: Current shared provider state.
-
+ 
         Returns:
             Updated shared provider state (or the same state).
         """
         ...
-
+ 
+    def get_models(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Statelessly transform or provide model descriptors.
+ 
+        Implementations must not mutate the incoming models list; they
+        should instead return a new list.
+        """
+        ...
+ 
+    def get_tags(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[str]:
+        """Return capability/environment tags contributed by this extension."""
+        ...
+ 
+    def required_tags(self) -> List[str]:
+        """Tags that must be present for this extension to be enabled."""
+        ...
+ 
     # Stateless transforms
     def to_native_messages(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
+
         """Transform provider-native messages using visibility of core messages (stateless).
 
         Note:
@@ -447,20 +478,41 @@ class FeaturePlugin(BasePlugin, Protocol):
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize with application config and shared provider state.
-
+ 
         Args:
             config: Application-supplied configuration.
             state: Current shared provider state.
-
+ 
         Returns:
             Updated shared provider state (or the same state).
         """
         ...
-
+ 
+    def get_models(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Statelessly transform or provide model descriptors."""
+        ...
+ 
+    def get_tags(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[str]:
+        """Return capability/environment tags contributed by this feature."""
+        ...
+ 
+    def required_tags(self) -> List[str]:
+        """Tags that must be present for this feature to be enabled."""
+        ...
+ 
     # Stateless transforms
     def to_native_messages(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
+
         """Transform provider-native messages using visibility of core messages (stateless).
 
         Note:
@@ -558,6 +610,19 @@ class ToolPlugin(BasePlugin, Protocol):
         Returns:
             Initial tool state dictionary.
         """
+        ...
+
+    def get_tags(
+
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[str]:
+        """Return capability/environment tags contributed by this tool."""
+        ...
+
+    def required_tags(self) -> List[str]:
+        """Tags that must be present for this tool to be exposed."""
         ...
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:

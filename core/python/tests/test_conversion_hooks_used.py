@@ -16,8 +16,24 @@ class ConversionProvider(ProviderPlugin):
     def get_ui_elements(self) -> List[Dict[str, Any]]:
         return []
 
+    def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return a minimal model descriptor list for conversion tests."""
+        model = config.get("model")
+        if isinstance(model, str) and model:
+            return [{"id": model}]
+        return []
+
+    def get_tags(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[str]:
+        """Return simple capability tags for the conversion provider."""
+        return ["provider:conversion_provider"]
+ 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         return {"config": dict(config)}
+
 
 
     def to_native_messages(self, messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:

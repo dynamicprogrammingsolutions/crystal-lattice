@@ -138,6 +138,7 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         self.name = getattr(plugin_class, "name", plugin_class.__name__)
         self.version = getattr(plugin_class, "version", "unknown")
         self._extensions: List[ExtensionWrapper] = []
+        self._active_extensions: Optional[List[ExtensionWrapper]] = None
         self._last_native_messages: List[Dict[str, Any]] = []
         if extension_classes:
             for ext_cls in extension_classes:
@@ -146,13 +147,22 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
     @property
     def extensions(self) -> List[ExtensionWrapper]:
         """Get extension wrappers.
-
+ 
         Returns:
             List of registered ExtensionWrapper instances.
         """
         return self._extensions
 
+    def _iter_extensions(self) -> List[ExtensionWrapper]:
+        """Return the list of extensions active for the current request."""
+        return self._active_extensions if self._active_extensions is not None else self._extensions
+
+    def set_active_extensions(self, extensions: List[ExtensionWrapper]) -> None:
+        """Restrict active extensions for the current request."""
+        self._active_extensions = list(extensions)
+ 
     def add_extensions(self, extension_classes: List[type]) -> None:
+
         """Add provider extensions (same language).
 
         Args:
@@ -163,18 +173,19 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize provider and extensions using shared state owned by provider wrapper.
-
+ 
         Args:
             config: Provider configuration
-
+ 
         Returns:
             Shared provider state after extensions have updated it (if they do).
         """
         self.state = self.plugin.init(config)
         # Let extensions update shared state during init
-        for ext in self._extensions:
+        for ext in self._iter_extensions():
             self.state = ext.init(config, self._get_state())
         return self._get_state()
+
 
     def _get_state(self) -> Dict[str, Any]:
         """Internal helper to get non-optional state with validation.
@@ -208,6 +219,22 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         """
         if hasattr(self.plugin, "get_ui_elements"):
             return self.plugin.get_ui_elements()
+        return []
+
+    def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Delegate model discovery to the underlying provider if implemented."""
+        if hasattr(self.plugin, "get_models"):
+            return self.plugin.get_models(config)
+        return []
+
+    def get_tags(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[str]:
+        """Delegate tag computation to the underlying provider if implemented."""
+        if hasattr(self.plugin, "get_tags"):
+            return self.plugin.get_tags(config, models)
         return []
 
     def get_state(self) -> Dict[str, Any]:
@@ -247,7 +274,7 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         # Start full native history at request boundary
         self._last_native_messages = list(native_messages)
         new_state = self.plugin.initialize_request(native_messages, working_state)
-        for ext in self._extensions:
+        for ext in self._iter_extensions():
             new_state = ext.initialize_request(native_messages, new_state)
         self.state = new_state
         return self._get_state()
@@ -319,7 +346,7 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
             Transformed provider-native messages after applying each extension.
         """
         transformed_native = list(native_messages)
-        for ext in self._extensions:
+        for ext in self._iter_extensions():
             transformed_native = ext.to_native_messages(messages, transformed_native)
         return transformed_native
 
@@ -439,7 +466,7 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         full_history = returned_history
         # Let extensions transform partials/finals/native history in order
         ext_state = new_state
-        for ext in self._extensions:
+        for ext in self._iter_extensions():
             partial_messages, final_messages, full_history, ext_state = (
                 ext.process_chunk(
                     native_chunk=native_chunk,
@@ -505,7 +532,7 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
 
         # Merge and allow extensions to modify full history
         full_history = self._merge_history(baseline, native_returned)
-        for ext in self._extensions:
+        for ext in self._iter_extensions():
             final_messages, full_history, new_state = ext.finalize(
                 final_messages=final_messages,
                 native_messages=full_history,
@@ -541,15 +568,4 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         """Discard internal shared state after request."""
         self.state = None
         self._last_native_messages = []
-
-    @staticmethod
-    def detect_capabilities(config: Dict[str, Any]) -> List[str]:
-        """Static capability detection shim for protocol compliance; wrappers don't implement probing.
-
-        Args:
-            config: Provider configuration.
-
-        Returns:
-            Empty list of capabilities.
-        """
-        return []
+        self._active_extensions = None

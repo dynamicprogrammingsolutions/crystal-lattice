@@ -21,12 +21,6 @@ class ExtensionWrapper(ProviderExtensionPlugin):
         self.plugin = plugin_class()
         self.name = getattr(plugin_class, "name", plugin_class.__name__)
         self.version = getattr(plugin_class, "version", "unknown")
-        tp = getattr(plugin_class, "target_provider", None)
-        if tp is None:
-            raise ValueError(
-                f"Extension plugin {self.name} is missing required 'target_provider'"
-            )
-        self.target_provider: str = tp
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize with config and shared state; return updated shared state."""
@@ -44,8 +38,35 @@ class ExtensionWrapper(ProviderExtensionPlugin):
             return self.plugin.get_ui_elements()
         return []
 
+    def get_models(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Statelessly transform or forward model descriptors."""
+        if hasattr(self.plugin, "get_models"):
+            return self.plugin.get_models(config, models)
+        return list(models)
+
+    def get_tags(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[str]:
+        """Return capability/environment tags from the underlying extension if any."""
+        if hasattr(self.plugin, "get_tags"):
+            return self.plugin.get_tags(config, models)
+        return []
+
+    def required_tags(self) -> List[str]:
+        """Tags required for this extension to be enabled."""
+        if hasattr(self.plugin, "required_tags"):
+            return self.plugin.required_tags()
+        return []
+ 
     # Stateless transforms
     def to_native_messages(
+
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         if hasattr(self.plugin, "to_native_messages"):

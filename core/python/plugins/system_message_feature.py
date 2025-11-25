@@ -166,8 +166,29 @@ class SystemMessageFeature(FeaturePlugin):
         # UI wiring is application-specific; keep this feature config-only.
         return []
 
+    def get_models(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Forward model descriptors without modification."""
+        return list(models)
+
+    def get_tags(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[str]:
+        """Identify this feature for dependency resolution."""
+        return ["feature:system_message"]
+
+    def required_tags(self) -> List[str]:
+        """This feature does not currently require specific tags."""
+        return []
+ 
     # ---- Internal helpers (pure-ish) ----
     @staticmethod
+
     def _normalize_variable_value(raw: Any) -> Dict[str, Any] | None:
         """Normalize a single variable value description.
 

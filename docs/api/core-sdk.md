@@ -137,7 +137,7 @@ discover_and_register(modules: List[str]) -> Dict[str, List[str]]
 Discover plugins from Python modules and register them by duck typing.
 
 - Provider: has `stream_api` or `call_api`
-- Provider Extension: has `process_chunk` and `target_provider`
+- Provider Extension: has `process_chunk` (and no tool/provider I/O methods)
 - Tool: has `get_tool_schemas` and `execute_tool`
 - Feature: otherwise
 

@@ -16,9 +16,9 @@ class DummyExtension(ProviderExtensionPlugin):
 
     name: str = "dummy_extension"
     version: str = "1.0.0"
-    target_provider: str = "dummy_provider"
 
     def get_config_schema(self) -> Dict[str, Any]:
+
         return {
             "prefix": {"type": "string", "default": "[EXT]"},
             "enabled": {"type": "boolean", "default": True},
@@ -30,8 +30,29 @@ class DummyExtension(ProviderExtensionPlugin):
             {"type": "text", "key": "prefix", "label": "Extension Prefix"},
         ]
 
+    def get_models(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Forward model descriptors without modification for tests."""
+        return list(models)
+
+    def get_tags(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[str]:
+        """Identify the dummy extension for dependency tests."""
+        return ["ext:dummy_extension"]
+
+    def required_tags(self) -> List[str]:
+        """Dummy extension has no hard tag requirements."""
+        return []
+ 
     # New lifecycle: init accepts shared state
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+
         # Store extension config under provider state's config
         new_config = {**state.get("config", {}), **config}
         # Initialize extension counters within provider runtime_state

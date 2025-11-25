@@ -35,8 +35,35 @@ class FeatureWrapper(FeaturePlugin):
             return self.plugin.get_ui_elements()
         return []
 
+    def get_models(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Statelessly transform or forward model descriptors."""
+        if hasattr(self.plugin, "get_models"):
+            return self.plugin.get_models(config, models)
+        return list(models)
+
+    def get_tags(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[str]:
+        """Return capability/environment tags from the underlying feature if any."""
+        if hasattr(self.plugin, "get_tags"):
+            return self.plugin.get_tags(config, models)
+        return []
+
+    def required_tags(self) -> List[str]:
+        """Tags required for this feature to be enabled."""
+        if hasattr(self.plugin, "required_tags"):
+            return self.plugin.required_tags()
+        return []
+ 
     # Stateless transforms
     def to_native_messages(
+
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         if hasattr(self.plugin, "to_native_messages"):

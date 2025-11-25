@@ -67,7 +67,8 @@ class FileWriterTool(ToolPlugin):
     ) -> Dict[str, Any]:
         if tool_name != "write_file":
             return {"success": False, "error": f"Unknown tool: {tool_name}"}
-        file_path = arguments.get("file_path", "")
+        raw_path = arguments.get("file_path", "")
+        file_path = str(raw_path).strip()
         content = arguments.get("content", "")
         try:
             abs_path = os.path.abspath(file_path)

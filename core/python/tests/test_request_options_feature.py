@@ -27,7 +27,15 @@ def test_request_options_merged_into_openai_request_payload():
     }
 
     # Run only the pre-request path by calling the private helper
-    messages, _native_messages, state = core._pre_request(session, config)  # type: ignore[attr-defined]
+    provider, exts, features, tools, _tags = core._resolve_plugins_for_config(config)  # type: ignore[attr-defined]
+    provider.set_active_extensions(exts)
+    messages, _native_messages, state = core._pre_request(
+        session,
+        config,
+        provider,
+        features,
+        tools,
+    )  # type: ignore[attr-defined]
     # Sanity check core messages flow
     assert messages[-1]["content"] == "hello"
 
@@ -53,7 +61,15 @@ def test_request_options_can_override_existing_payload_keys():
         "request_options": {"model": "override-model"},
     }
 
-    _messages, _native_messages, state = core._pre_request(session, config)  # type: ignore[attr-defined]
+    provider, exts, features, tools, _tags = core._resolve_plugins_for_config(config)  # type: ignore[attr-defined]
+    provider.set_active_extensions(exts)
+    _messages, _native_messages, state = core._pre_request(
+        session,
+        config,
+        provider,
+        features,
+        tools,
+    )  # type: ignore[attr-defined]
 
     request = state.get("request") or {}
     payload = request.get("payload") or {}
@@ -74,7 +90,15 @@ def test_request_options_noop_when_not_dict_or_empty():
         "request_options": None,
     }
 
-    _messages, _native_messages, state = core._pre_request(session, config)  # type: ignore[attr-defined]
+    provider, exts, features, tools, _tags = core._resolve_plugins_for_config(config)  # type: ignore[attr-defined]
+    provider.set_active_extensions(exts)
+    _messages, _native_messages, state = core._pre_request(
+        session,
+        config,
+        provider,
+        features,
+        tools,
+    )  # type: ignore[attr-defined]
 
     request = state.get("request") or {}
     payload = request.get("payload") or {}

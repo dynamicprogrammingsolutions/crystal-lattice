@@ -27,7 +27,21 @@ class DummyCalculator:
         """Return UI elements."""
         return []
 
+    def get_tags(
+
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[str]:
+        """Identify the dummy calculator tool for dependency tests."""
+        return ["tool:dummy_calculator"]
+
+    def required_tags(self) -> List[str]:
+        """Dummy calculator has no hard tag requirements."""
+        return []
+ 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
+
         """
         Initialize tool state.
 

@@ -56,8 +56,26 @@ class ToolWrapper(ToolPlugin):
             return self.plugin.get_ui_elements()
         return []
 
+    def get_tags(
+
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[str]:
+        """Return capability/environment tags from the underlying tool if any."""
+        if hasattr(self.plugin, "get_tags"):
+            return self.plugin.get_tags(config, models)
+        return []
+
+    def required_tags(self) -> List[str]:
+        """Tags required for this tool to be exposed."""
+        if hasattr(self.plugin, "required_tags"):
+            return self.plugin.required_tags()
+        return []
+ 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Get tool schemas via plugin if implemented; otherwise empty list."""
+
         if self.state is None:
             raise RuntimeError(f"Tool {self.name} not initialized")
         working_state = state or self.state

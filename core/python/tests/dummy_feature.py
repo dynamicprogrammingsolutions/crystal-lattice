@@ -25,12 +25,33 @@ class DummyFeature(FeaturePlugin):
     def get_ui_elements(self) -> List[Dict[str, Any]]:
         return [{"type": "text", "key": "prefix", "label": "Response Prefix"}]
 
+    def get_models(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Forward model descriptors without modification for tests."""
+        return list(models)
+
+    def get_tags(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[str]:
+        """Identify the dummy feature for dependency tests."""
+        return ["feature:dummy_feature"]
+
+    def required_tags(self) -> List[str]:
+        """Dummy feature has no hard tag requirements."""
+        return []
+ 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         return {**state, "config": {**state.get("config", {}), **config}}
-
-
+ 
+ 
     # Stateless transforms
     def to_native_messages(
+
         self, messages: List[Dict[str, Any]], native_messages
     ) -> List[Dict[str, Any]]:
         return messages

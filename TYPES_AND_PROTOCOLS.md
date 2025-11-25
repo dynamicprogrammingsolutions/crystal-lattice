@@ -43,6 +43,16 @@ Session:
   # Immutability: Sessions are immutable. All transformations return new sessions.
 ```
 
+### ModelDescriptor
+
+Represents a model available for a given provider/config.
+
+```yaml
+ModelDescriptor:
+  id: string                      # Model identifier (e.g., "gpt-4o", "llama3:8b")
+  data: dict (optional)           # Provider/plugin-specific metadata (capabilities, context, etc.)
+```
+
 ## State Model
  
 Only the provider wrapper stores state during a request. A single, shared
@@ -82,7 +92,7 @@ long‑lived object state across requests.
 Plugins are identified by which functions they implement (duck typing):
 
 - Provider Plugin: has `stream_api()` or `call_api()`
-- Provider Extension: has `process_chunk()` and `target_provider`
+- Provider Extension: has `process_chunk()` (and no tool/provider I/O methods)
 - Feature Plugin: has `finalize()` (and may implement `initialize_request()`)
 - Tool Plugin: has `get_tool_schemas()` and `execute_tool()`
 
@@ -121,10 +131,7 @@ ProviderPlugin:
   
   # Configuration
   get_config_schema() → dict
-    # Returns JSON schema for configuration
-  
   get_ui_elements() → list[dict]
-    # Returns UI elements for frontend
   
   # Lifecycle
   init(config: dict) → state: dict
@@ -140,6 +147,13 @@ ProviderPlugin:
   from_native_messages(native_messages: list, state: dict) → list
     # Convert from provider's native format
   
+  # Models and capabilities
+  get_models(config: dict) → list[ModelDescriptor]
+    # Optional; returns models available for this provider/config
+  
+  get_tags(config: dict, models: list[ModelDescriptor]) → list[string]
+    # Return capability/environment tags for this provider
+  
   # Hot Path Processing (pure)
   process_chunk(native_chunk: dict, native_messages: list, state: dict)
     → (final_messages: list, partial_messages: list, native_messages: list, new_state: dict)
@@ -153,9 +167,6 @@ ProviderPlugin:
     # Convert message to display-friendly format (optional)
   
   # I/O Functions
-  detect_capabilities(config: dict) → list[string]
-    # Detect available capabilities (optional)
-  
   call_api(native_messages: list, state: dict)
     → (final_messages: list, partial_messages: list, native_messages: list, new_state: dict)
     # Make non-streaming API call; may also return partials
@@ -164,16 +175,17 @@ ProviderPlugin:
     # Make streaming API call; yields provider-native chunks
 ```
 
+
 ### 2. Provider Extension Protocol
 
 Enhances provider streaming with additional processing (citations, reasoning extraction, etc.). Runs in the provider's language on the hot path. Provider extensions do not own separate state; they receive and update the shared provider `state`.
 
 ```yaml
-ProviderExtensionPlugin:
-  # Identity (required)
-  name: string
-  version: string
-  target_provider: string         # Which provider this extends
+  ProviderExtensionPlugin:
+   # Identity (required)
+   name: string
+   version: string
+
   
   # Configuration
   get_config_schema() → dict
@@ -185,6 +197,16 @@ ProviderExtensionPlugin:
   
   initialize_request(native_messages: list, state: dict) (optional) → dict
     # Prepare for a new turn; MUST return a shared state (updated or unchanged)
+  
+  # Models and capabilities
+  get_models(config: dict, models: list[ModelDescriptor]) → list[ModelDescriptor]
+    # Optional; transform or supply model descriptors
+  
+  get_tags(config: dict, models: list[ModelDescriptor]) → list[string]
+    # Capability/environment tags contributed by this extension
+  
+  required_tags() → list[string]
+    # Tags that must be present for this extension to be enabled
   
   # Message Transformation (pure, stateless)
   to_native_messages(messages: list, native_messages: list) → list
@@ -246,6 +268,16 @@ FeaturePlugin:
   initialize_request(native_messages: list, state: dict) (optional) → dict
     # Called with provider-native messages; MUST return shared state (updated or unchanged)
   
+  # Models and capabilities
+  get_models(config: dict, models: list[ModelDescriptor]) → list[ModelDescriptor]
+    # Optional; transform or supply model descriptors
+  
+  get_tags(config: dict, models: list[ModelDescriptor]) → list[string]
+    # Capability/environment tags contributed by this feature
+  
+  required_tags() → list[string]
+    # Tags that must be present for this feature to be enabled
+  
   # Message Transformation (pure, stateless)
   to_native_messages(messages: list, native_messages: list) → list
     # Transform native_messages using visibility of core messages; may add/alter/remove or drop
@@ -284,6 +316,13 @@ ToolPlugin:
   
   # Lifecycle
   init(config: dict) → state: dict
+  
+  # Models and capabilities
+  get_tags(config: dict, models: list[ModelDescriptor]) → list[string]
+    # Capability/environment tags contributed by this tool
+  
+  required_tags() → list[string]
+    # Tags that must be present for this tool to be exposed
   
   # Tool Definition
   get_tool_schemas(state: dict) → list[dict]

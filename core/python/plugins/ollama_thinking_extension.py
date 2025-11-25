@@ -22,9 +22,9 @@ class OllamaThinkingExtension(ProviderExtensionPlugin):
 
     name: str = "ollama_thinking"
     version: str = "0.1.0"
-    target_provider: str = "openai_compatible"
 
     def get_config_schema(self) -> Dict[str, Any]:
+
         return {"think": {"type": "boolean", "required": False, "default": False}}
 
     def get_ui_elements(self) -> List[Dict[str, Any]]:
@@ -36,7 +36,31 @@ class OllamaThinkingExtension(ProviderExtensionPlugin):
             }
         ]
 
+    def get_models(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Forward model descriptors without modification.
+
+        The thinking extension does not influence model discovery.
+        """
+        return list(models)
+
+    def get_tags(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[str]:
+        """Identify this extension for dependency resolution."""
+        return ["ext:ollama_thinking"]
+
+    def required_tags(self) -> List[str]:
+        """Require reasoning/thinking support from the provider/models."""
+        return ["supports_thinking"]
+ 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+
         enabled = bool(config.get("think"))
         if not enabled:
             return state

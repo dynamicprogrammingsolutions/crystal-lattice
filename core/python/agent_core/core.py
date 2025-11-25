@@ -44,10 +44,11 @@ Examples:
     ```
 """
 
-from typing import Any, Dict, List, Optional, Iterator, AsyncIterator, Tuple
+from typing import Any, Dict, List, Optional, Iterator, AsyncIterator, Tuple, Set
 from .types import Message, Session, MessageRole
 from .plugin import (
     ProviderWrapper,
+    ExtensionWrapper,
     FeatureWrapper,
     ToolWrapper,
 )
@@ -158,40 +159,60 @@ class AgentCore:
         self._provider: Optional[ProviderWrapper] = None
         self._features: List[FeatureWrapper] = []
         self._tools: List[ToolWrapper] = []
+        # Caches for model discovery and tag-based dependency resolution
+        self._models_cache: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+        self._dependency_cache: Dict[
+            Tuple[str, str, str],
+            Tuple[List[str], List[str], List[str], List[str]],
+        ] = {}
+        self._tags_cache: Dict[Tuple[str, Tuple[str, str, str]], List[str]] = {}
 
+    def _reset_caches(self) -> None:
+        """Reset internal caches for models, dependencies, and tags."""
+        self._models_cache = {}
+        self._dependency_cache = {}
+        self._tags_cache = {}
+ 
     def register_provider(
+
         self, plugin_class: type, extensions: Optional[List[type]] = None
     ) -> None:
         """Register provider plugin class with optional provider extensions.
-
+ 
         Extensions are loaded by the provider wrapper (same language, hot path).
-
+ 
         Args:
             plugin_class: Provider plugin class.
             extensions: Optional list of provider extension classes to register with the provider.
         """
         wrapper = ProviderWrapper(plugin_class, extensions or [])
         self._provider = wrapper
-
+        self._reset_caches()
+ 
     def register_feature(self, plugin_class: type) -> None:
-        """Register a feature plugin class.
 
+        """Register a feature plugin class.
+ 
         Args:
             plugin_class: Feature plugin class.
         """
         wrapper = FeatureWrapper(plugin_class)
         self._features.append(wrapper)
-
+        self._reset_caches()
+ 
     def register_tool(self, plugin_class: type) -> None:
-        """Register a tool plugin class.
 
+        """Register a tool plugin class.
+ 
         Args:
             plugin_class: Tool plugin class.
         """
         wrapper = ToolWrapper(plugin_class)
         self._tools.append(wrapper)
-
+        self._reset_caches()
+ 
     def create_session(self, session_id: Optional[str] = None) -> Session:
+
         """Create a new empty session.
 
         Args:
@@ -267,17 +288,311 @@ class AgentCore:
             metadata=new_metadata,
         )
 
+    def _normalize_config(self, config: Dict[str, Any]) -> str:
+        """Normalize config for use in cache keys.
+
+        Uses a stable JSON representation when possible, falling back to a
+        best-effort repr when values are not JSON-serializable.
+        """
+        try:
+            return json.dumps(
+                config,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            )
+        except TypeError:
+            try:
+                return repr(sorted(config.items()))
+            except Exception:
+                return repr(config)
+
+    def _normalize_models(self, models: List[Dict[str, Any]]) -> str:
+        """Normalize model descriptors for use in cache keys."""
+        try:
+            return json.dumps(
+                models,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            )
+        except TypeError:
+            return repr(models)
+
+    def _coerce_models_result(
+        self,
+        result: Any,
+        previous: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Normalize a plugin `get_models` result into a list.
+
+        Treats ``None`` as "no change" (returns ``previous``) and
+        attempts to coerce other iterables to a list. On type errors,
+        falls back to ``previous``.
+        """
+        if result is None:
+            return list(previous)
+        if isinstance(result, list):
+            return result
+        if isinstance(result, tuple):
+            return list(result)
+        try:
+            return list(result)
+        except TypeError:
+            return list(previous)
+
+    def _coerce_tags_result(self, result: Any) -> List[str]:
+        """Normalize a plugin `get_tags` result into a list of strings.
+
+        Treats ``None`` as an empty list and attempts to coerce other
+        iterables to a list. Non-iterable values result in an empty
+        list.
+        """
+        if result is None:
+            return []
+        if isinstance(result, (list, tuple, set)):
+            seq = result
+        else:
+            try:
+                seq = list(result)
+            except TypeError:
+                return []
+        return [str(tag) for tag in seq]
+
+    def _get_models_for_config(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return cached or freshly-computed model descriptors for this config."""
+        if not self._provider:
+            return []
+        provider = self._provider
+        provider_name = provider.name
+        norm_config = self._normalize_config(config)
+        cache_key = (provider_name, norm_config)
+        cached = self._models_cache.get(cache_key)
+        if cached is not None:
+            # Return shallow copies to avoid accidental mutation of cached structures
+            return [dict(m) for m in cached]
+
+        # Start with provider-declared models and let extensions and features
+        # participate in model discovery. Each contribution is normalized via
+        # _coerce_models_result so that `None` and non-list values do not
+        # break the pipeline.
+        models: List[Dict[str, Any]] = self._coerce_models_result(
+            provider.get_models(config),
+            [],
+        )
+        for ext in provider.extensions:
+            models = self._coerce_models_result(
+                ext.get_models(config, models),
+                models,
+            )
+        for feature in self._features:
+            models = self._coerce_models_result(
+                feature.get_models(config, models),
+                models,
+            )
+
+
+        # Validate and normalize
+        validated: List[Dict[str, Any]] = []
+        for model in models:
+            if not isinstance(model, Dict):
+                continue
+            model_id = model.get("id")
+            if not isinstance(model_id, str) or not model_id:
+                continue
+            validated.append(dict(model))
+
+        self._models_cache = {**self._models_cache, cache_key: validated}
+        return [dict(m) for m in validated]
+
+    def _resolve_plugins_for_config(
+        self,
+        config: Dict[str, Any],
+    ) -> Tuple[
+        ProviderWrapper,
+        List[ExtensionWrapper],
+        List[FeatureWrapper],
+        List[ToolWrapper],
+        List[str],
+    ]:
+        """Resolve enabled plugins and tags for a given config.
+
+        Uses tag-based dependencies declared by non-provider plugins and
+        cached per (provider, config, models) triple.
+        """
+        if not self._provider:
+            raise RuntimeError("No provider registered")
+
+        provider = self._provider
+        models = self._get_models_for_config(config)
+        provider_name = provider.name
+        norm_config = self._normalize_config(config)
+        norm_models = self._normalize_models(models)
+        dep_key = (provider_name, norm_config, norm_models)
+
+        cached = self._dependency_cache.get(dep_key)
+        if cached is not None:
+            ext_names, feature_names, tool_names, tags = cached
+            enabled_extensions = [
+                ext for ext in provider.extensions if ext.name in ext_names
+            ]
+            enabled_features = [
+                feat for feat in self._features if feat.name in feature_names
+            ]
+            enabled_tools = [
+                tool for tool in self._tools if tool.name in tool_names
+            ]
+            return provider, enabled_extensions, enabled_features, enabled_tools, list(
+                tags
+            )
+
+        # Build initial candidates
+        candidate_extensions: List[ExtensionWrapper] = list(provider.extensions)
+        candidate_features: List[FeatureWrapper] = list(self._features)
+        candidate_tools: List[ToolWrapper] = list(self._tools)
+
+        enabled_extensions = list(candidate_extensions)
+        enabled_features = list(candidate_features)
+        enabled_tools = list(candidate_tools)
+
+        available_tags: Set[str] = set()
+        while True:
+            available_tags = set()
+
+            # Provider tags
+            provider_tag_key = (provider.name, dep_key)
+            provider_tags = self._tags_cache.get(provider_tag_key)
+            if provider_tags is None:
+                try:
+                    provider_tags = provider.get_tags(config, models)
+                except Exception:
+                    provider_tags = []
+                provider_tags = self._coerce_tags_result(provider_tags)
+                self._tags_cache = {
+                    **self._tags_cache,
+                    provider_tag_key: provider_tags,
+                }
+            available_tags.update(provider_tags)
+ 
+            # Extension tags
+            for ext in enabled_extensions:
+                key = (ext.name, dep_key)
+                tags = self._tags_cache.get(key)
+                if tags is None:
+                    try:
+                        tags = ext.get_tags(config, models)
+                    except Exception:
+                        tags = []
+                    tags = self._coerce_tags_result(tags)
+                    self._tags_cache = {**self._tags_cache, key: tags}
+                available_tags.update(tags)
+ 
+            # Feature tags
+            for feat in enabled_features:
+                key = (feat.name, dep_key)
+                tags = self._tags_cache.get(key)
+                if tags is None:
+                    try:
+                        tags = feat.get_tags(config, models)
+                    except Exception:
+                        tags = []
+                    tags = self._coerce_tags_result(tags)
+                    self._tags_cache = {**self._tags_cache, key: tags}
+                available_tags.update(tags)
+ 
+            # Tool tags
+            for tool in enabled_tools:
+                key = (tool.name, dep_key)
+                tags = self._tags_cache.get(key)
+                if tags is None:
+                    try:
+                        tags = tool.get_tags(config, models)
+                    except Exception:
+                        tags = []
+                    tags = self._coerce_tags_result(tags)
+                    self._tags_cache = {**self._tags_cache, key: tags}
+                available_tags.update(tags)
+
+
+            # Filter by required_tags
+            next_enabled_extensions = [
+                ext
+                for ext in enabled_extensions
+                if set(self._coerce_tags_result(ext.required_tags())).issubset(
+                    available_tags
+                )
+            ]
+            next_enabled_features = [
+                feat
+                for feat in enabled_features
+                if set(self._coerce_tags_result(feat.required_tags())).issubset(
+                    available_tags
+                )
+            ]
+            next_enabled_tools = [
+                tool
+                for tool in enabled_tools
+                if set(self._coerce_tags_result(tool.required_tags())).issubset(
+                    available_tags
+                )
+            ]
+
+            cur_ext_names = [ext.name for ext in enabled_extensions]
+            cur_feat_names = [feat.name for feat in enabled_features]
+            cur_tool_names = [tool.name for tool in enabled_tools]
+            next_ext_names = [ext.name for ext in next_enabled_extensions]
+            next_feat_names = [feat.name for feat in next_enabled_features]
+            next_tool_names = [tool.name for tool in next_enabled_tools]
+
+            if (
+                cur_ext_names == next_ext_names
+                and cur_feat_names == next_feat_names
+                and cur_tool_names == next_tool_names
+            ):
+                break
+
+            enabled_extensions = next_enabled_extensions
+            enabled_features = next_enabled_features
+            enabled_tools = next_enabled_tools
+
+        enabled_extension_names = [ext.name for ext in enabled_extensions]
+        enabled_feature_names = [feat.name for feat in enabled_features]
+        enabled_tool_names = [tool.name for tool in enabled_tools]
+        final_tags = sorted(available_tags)
+
+        self._dependency_cache = {
+            **self._dependency_cache,
+            dep_key: (
+                enabled_extension_names,
+                enabled_feature_names,
+                enabled_tool_names,
+                final_tags,
+            ),
+        }
+
+        return provider, enabled_extensions, enabled_features, enabled_tools, final_tags
+
     def _pre_request(
-        self, session: Session, config: Dict[str, Any]
+        self,
+        session: Session,
+        config: Dict[str, Any],
+        provider: ProviderWrapper,
+        features: List[FeatureWrapper],
+        tools: List[ToolWrapper],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Prepare shared state and inputs for a request.
 
-        Integrity is verified if native history is present. When native history exists, it is trusted
-        as the full provider-native history for the session. Otherwise, native is reconstructed from core messages.
+        Integrity is verified if native history is present. When native
+        history exists, it is trusted as the full provider-native history
+        for the session. Otherwise, native is reconstructed from core
+        messages.
 
         Args:
             session: Current session.
             config: Application-provided configuration for this request.
+            provider: Provider wrapper selected for this request.
+            features: Enabled feature wrappers for this request.
+            tools: Enabled tool wrappers for this request.
 
         Returns:
             A tuple of (messages, native_messages, state):
@@ -285,19 +600,20 @@ class AgentCore:
             - native_messages: Provider-native full history (either retained or reconstructed).
             - state: Shared provider state after init/update/initialize_request for features as well.
         """
-        assert self._provider is not None
+        # Collect tool schemas from enabled tools and inject into config
+        tool_schemas: List[Dict[str, Any]] = []
+        for tool in tools:
+            tool_state = tool.init(config)
+            tool_schemas.extend(tool.get_tool_schemas(tool_state))
+        provider_config = {**config, **({"tools": tool_schemas} if tool_schemas else {})}
 
-        # Collect tool schemas from registered tools and inject into config
-        tools = self.get_tool_schemas(config) if self._tools else []
-        provider_config = {**config, **({"tools": tools} if tools else {})}
-
-        # Init chain: Provider → Extensions (inside provider) → Features
+        # Init chain: Provider  Extensions (inside provider)  Features
         # Configuration (including any UI-driven values) is passed directly via
         # provider_config; there is no separate update_state step.
-        state = self._provider.init(provider_config)
-        for feature in self._features:
+        state = provider.init(provider_config)
+        for feature in features:
             state = feature.init(provider_config, state)
-            self._provider.set_state(state)
+            provider.set_state(state)
         # Build messages (core shape)
         messages = [msg.to_dict() for msg in session.messages]
 
@@ -313,22 +629,25 @@ class AgentCore:
             native_messages = retained_native
         else:
             # Provider-first conversion (native_base for stateless transforms)
-            native_messages = self._provider.to_native_messages(messages, state)
+            native_messages = provider.to_native_messages(messages, state)
             # Apply stateless transforms: Extensions then Features
-            native_messages = self._provider.apply_extension_transforms(
+            native_messages = provider.apply_extension_transforms(
                 messages, native_messages
             )
-            for feature in self._features:
+            for feature in features:
                 native_messages = feature.to_native_messages(messages, native_messages)
 
         # Initialize request chains
-        state = self._provider.initialize_request(native_messages, state)
-        for feature in self._features:
+        state = provider.initialize_request(native_messages, state)
+        for feature in features:
             state = feature.initialize_request(native_messages, state)
-            self._provider.set_state(state)
+            provider.set_state(state)
         return messages, native_messages, state
 
+
+
     def send_request(
+
         self, session: Session, config: Dict[str, Any]
     ) -> Tuple[Session, List[Dict[str, Any]]]:
         """Send request and return a new session with the response.
@@ -349,32 +668,44 @@ class AgentCore:
         """
         if not self._provider:
             raise RuntimeError("No provider registered")
-        messages, native_messages, state = self._pre_request(session, config)
-        final_native_1, _partials, native_messages, state = (
-            self._provider.call_api(native_messages, state)
-        )
 
-        # Provider finalize returns provider-native finals and full native history
-        final_native_2, native_messages, state = self._provider.finalize(
+        provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
+            config
+        )
+        provider.set_active_extensions(enabled_extensions)
+        messages, native_messages, state = self._pre_request(
+            session,
+            config,
+            provider,
+            features,
+            tools,
+        )
+        final_native_1, _partials, native_messages, state = provider.call_api(
             native_messages, state
         )
-
+ 
+        # Provider finalize returns provider-native finals and full native history
+        final_native_2, native_messages, state = provider.finalize(
+            native_messages, state
+        )
+ 
         # Combine provider-native finals from call_api and provider.finalize
         final_native = final_native_1 + final_native_2
-
+ 
         # Feature finalize chain over provider-native finals (native cold path)
-        for feature in self._features:
+        for feature in features:
             final_native, native_messages, state = feature.finalize(
                 final_native, native_messages, state
             )
-
+ 
         # Convert provider-native finals to core messages once finalization completes
-        final_core = self._provider.from_native_messages(final_native, state)
+        final_core = provider.from_native_messages(final_native, state)
         # Apply extension and feature from-native transforms
-        for ext in self._provider.extensions:
+        for ext in enabled_extensions:
             final_core = ext.from_native_messages(final_native, final_core)
-        for feature in self._features:
+        for feature in features:
             final_core = feature.from_native_messages(final_native, final_core)
+
 
         # Build new session messages by appending new Message objects
         appended: List[Message] = [Message.from_dict(m) for m in final_core]
@@ -411,38 +742,50 @@ class AgentCore:
         """
         if not self._provider:
             raise RuntimeError("No provider registered")
-        messages, native_messages, state = self._pre_request(session, config)
-        aggregated_native_finals: List[Dict[str, Any]] = []
 
+        provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
+            config
+        )
+        provider.set_active_extensions(enabled_extensions)
+        messages, native_messages, state = self._pre_request(
+            session,
+            config,
+            provider,
+            features,
+            tools,
+        )
+        aggregated_native_finals: List[Dict[str, Any]] = []
+ 
         # Stream from provider using optimized streaming
-        for event in self._provider.stream_messages(native_messages, state):
+        for event in provider.stream_messages(native_messages, state):
             if event["type"] == "partial":
                 yield {"type": "partial", "message": event["message"]}
             elif event["type"] == "final_messages":
                 # These are provider-native finals
                 aggregated_native_finals.extend(event["messages"])
-
+ 
         # Finalize using the last accumulated native messages
-        final_native, native_messages, state = self._provider.finalize(
-            self._provider.get_last_native_messages(), self._provider.get_state()
+        final_native, native_messages, state = provider.finalize(
+            provider.get_last_native_messages(), provider.get_state()
         )
-
+ 
         # Feature finalize chain (native)
-        for feature in self._features:
+        for feature in features:
             final_native, native_messages, state = feature.finalize(
                 final_native, native_messages, state
             )
-
+ 
         combined_native_finals = [*aggregated_native_finals, *final_native]
-
+ 
         # Convert provider-native finals to core messages
-        final_core = self._provider.from_native_messages(combined_native_finals, state)
-
+        final_core = provider.from_native_messages(combined_native_finals, state)
+ 
         # Apply extension and feature from-native transforms
-        for ext in self._provider.extensions:
+        for ext in enabled_extensions:
             final_core = ext.from_native_messages(combined_native_finals, final_core)
-        for feature in self._features:
+        for feature in features:
             final_core = feature.from_native_messages(combined_native_finals, final_core)
+
 
         appended: List[Message] = [Message.from_dict(m) for m in final_core]
         new_metadata = dict(session.metadata)
@@ -472,37 +815,49 @@ class AgentCore:
         """
         if not self._provider:
             raise RuntimeError("No provider registered")
-
-        messages, native_messages, state = self._pre_request(session, config)
+        provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
+            config
+        )
+        provider.set_active_extensions(enabled_extensions)
+        messages, native_messages, state = self._pre_request(
+            session,
+            config,
+            provider,
+            features,
+            tools,
+        )
+ 
         aggregated_native_finals: List[Dict[str, Any]] = []
 
+ 
         # Stream from provider (async) using optimized streaming
-        async for event in self._provider.stream_messages_async(native_messages, state):
+        async for event in provider.stream_messages_async(native_messages, state):
             if event["type"] == "partial":
                 yield {"type": "partial", "message": event["message"]}
             elif event["type"] == "final_messages":
                 aggregated_native_finals.extend(event["messages"])  # native finals
-
-        final_native, native_messages, state = self._provider.finalize(
-            self._provider.get_last_native_messages(), self._provider.get_state()
+ 
+        final_native, native_messages, state = provider.finalize(
+            provider.get_last_native_messages(), provider.get_state()
         )
-
+ 
         # Feature finalize chain (native)
-        for feature in self._features:
+        for feature in features:
             final_native, native_messages, state = feature.finalize(
                 final_native, native_messages, state
             )
-
+ 
         combined_native_finals = [*aggregated_native_finals, *final_native]
-
+ 
         # Convert provider-native finals to core messages
-        final_core = self._provider.from_native_messages(combined_native_finals, state)
-        
+        final_core = provider.from_native_messages(combined_native_finals, state)
+         
         # Apply extension and feature from-native transforms
-        for ext in self._provider.extensions:
+        for ext in enabled_extensions:
             final_core = ext.from_native_messages(combined_native_finals, final_core)
-        for feature in self._features:
+        for feature in features:
             final_core = feature.from_native_messages(combined_native_finals, final_core)
+
 
         appended: List[Message] = [Message.from_dict(m) for m in final_core]
         new_metadata = dict(session.metadata)
@@ -557,19 +912,33 @@ class AgentCore:
         return ui
 
     def get_tool_schemas(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Get tool schemas from all registered tool plugins.
-
+        """Get tool schemas from enabled tool plugins for a config.
+ 
         Args:
             config: Application configuration passed to each tool's init.
-
+ 
         Returns:
-            List of OpenAI-style function definitions across all registered tools.
+            List of OpenAI-style function definitions across enabled tools.
         """
         schemas: List[Dict[str, Any]] = []
-        for tool in self._tools:
+        if not self._tools:
+            return schemas
+
+        # When no provider is registered, fall back to exposing all tools.
+        if not self._provider:
+            for tool in self._tools:
+                state = tool.init(config)
+                schemas.extend(tool.get_tool_schemas(state))
+            return schemas
+
+        _provider, _exts, _features, tools, _tags = self._resolve_plugins_for_config(
+            config
+        )
+        for tool in tools:
             state = tool.init(config)
             schemas.extend(tool.get_tool_schemas(state))
         return schemas
+
 
     def execute_tool_calls(self, tool_calls: List[Dict[str, Any]], config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Execute a batch of tool calls and return core "tool" messages.
@@ -670,7 +1039,7 @@ class AgentCore:
 
         Plugin type is inferred based on the presence of methods on the class:
         - Provider: has 'stream_api' or 'call_api'
-        - Provider Extension: has 'process_chunk' and 'target_provider'
+        - Provider Extension: has 'process_chunk' (and no tool/provider I/O methods)
         - Tool: has 'get_tool_schemas' and 'execute_tool'
         - Feature: otherwise
 
@@ -697,14 +1066,14 @@ class AgentCore:
                 # Duck typing
                 if hasattr(obj, "stream_api") or hasattr(obj, "call_api"):
                     providers.append(obj)
-                elif hasattr(obj, "process_chunk") and hasattr(obj, "target_provider"):
-                    extensions.append(obj)
                 elif hasattr(obj, "get_tool_schemas") and hasattr(obj, "execute_tool"):
                     tools.append(obj)
+                elif hasattr(obj, "process_chunk"):
+                    extensions.append(obj)
                 else:
                     features.append(obj)
 
-        # Register a single provider (first), with matching extensions
+        # Register a single provider (first), with all discovered extensions
         summary: Dict[str, List[str]] = {
             "providers": [],
             "features": [],
@@ -713,17 +1082,11 @@ class AgentCore:
         }
         if providers:
             provider_cls = providers[0]
-            # Match extensions by target_provider name
-            target_name = getattr(provider_cls, "name", provider_cls.__name__)
-            matched_exts = [
-                ext
-                for ext in extensions
-                if getattr(ext, "target_provider", None) in (target_name,)
-            ]
-            self.register_provider(provider_cls, extensions=matched_exts)
-            summary["providers"].append(target_name)
+            provider_name = getattr(provider_cls, "name", provider_cls.__name__)
+            self.register_provider(provider_cls, extensions=extensions)
+            summary["providers"].append(provider_name)
             summary["extensions"].extend(
-                [getattr(ext, "name", ext.__name__) for ext in matched_exts]
+                [getattr(ext, "name", ext.__name__) for ext in extensions]
             )
 
         # Register features and tools
