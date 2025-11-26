@@ -3,7 +3,7 @@ Unit tests for AgentCore (functional architecture).
 """
 
 import pytest
-from agent_core import AgentCore, Session, Message
+from agent_core import AgentCore, Session
 from .dummy_provider import DummyProvider
 from .dummy_feature import DummyFeature
 from .dummy_tool import DummyCalculator

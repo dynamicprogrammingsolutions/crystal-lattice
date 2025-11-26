@@ -43,9 +43,7 @@ class _BasePluginDefaults:
         except Exception:
             return []
 
-    def _get_impl_method(
-        self, name: str, protocol_cls: Optional[type] = None
-    ) -> Optional[Any]:
+    def _get_impl_method(self, name: str, protocol_cls: Optional[type] = None) -> Optional[Any]:
         """Return a concrete implementation for an optional hook.
 
         Treats Protocol stub methods (from the given protocol_cls) as "missing"
@@ -502,10 +500,14 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
         fn = getattr(self.impl, "execute_tool", None)
         if callable(fn):
             out = fn(tool_name, arguments, state)
-            return out if isinstance(out, dict) else {
-                "success": False,
-                "error": "invalid tool result",
-            }
+            return (
+                out
+                if isinstance(out, dict)
+                else {
+                    "success": False,
+                    "error": "invalid tool result",
+                }
+            )
         return {"success": False, "error": f"Unknown tool: {tool_name}"}
 
     def format_tool_result(  # type: ignore[override]

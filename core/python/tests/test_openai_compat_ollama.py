@@ -13,8 +13,6 @@ This test skips gracefully if Ollama is unavailable or the model cannot be pulle
 import os
 import shutil
 import subprocess
-import sys
-import time
 from typing import Optional
 
 import pytest

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Tuple, Iterator, Optional
+from typing import Any, Dict, List, Tuple
 from dataclasses import dataclass
 
 from agent_core import AgentCore

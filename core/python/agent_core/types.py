@@ -26,7 +26,6 @@ from typing import (
     Tuple,
     Protocol,
     Iterator,
-    AsyncIterator,
     runtime_checkable,
 )
 from dataclasses import dataclass, field
@@ -178,9 +177,7 @@ class ProviderPlugin(BasePlugin, Protocol):
         native_chunk: Dict[str, Any],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[
-        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
-    ]:
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Process a streaming chunk from the provider on the hot path.
 
         Args:
@@ -197,8 +194,7 @@ class ProviderPlugin(BasePlugin, Protocol):
     # Returns: (final_messages, partial_messages, native_messages, new_state)
 
     def finalize(
-        self,
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Perform final processing after streaming completes.
 
@@ -217,9 +213,7 @@ class ProviderPlugin(BasePlugin, Protocol):
 
     # Returns: (final_messages, native_messages, new_state)
 
-    def to_display_format(
-        self, message: Dict[str, Any], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def to_display_format(self, message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """Convert a message to a display-friendly format for UIs.
 
         Args:
@@ -253,11 +247,8 @@ class ProviderPlugin(BasePlugin, Protocol):
 
     # I/O entry points now take native messages
     def call_api(
-        self,
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Tuple[
-        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
-    ]:
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Make a non-streaming API call with provider-native messages.
 
         Args:
@@ -284,7 +275,6 @@ class ProviderPlugin(BasePlugin, Protocol):
             Provider-native streaming chunks.
         """
         ...
-
 
 
 class ProviderExtensionPlugin(BasePlugin, Protocol):
@@ -317,28 +307,28 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize with application config and shared provider state.
- 
+
         Args:
             config: Application-supplied configuration.
             state: Current shared provider state.
- 
+
         Returns:
             Updated shared provider state (or the same state).
         """
         ...
- 
+
     def get_models(
         self,
         config: Dict[str, Any],
         models: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         """Statelessly transform or provide model descriptors.
- 
+
         Implementations must not mutate the incoming models list; they
         should instead return a new list.
         """
         ...
- 
+
     def get_tags(
         self,
         config: Dict[str, Any],
@@ -346,16 +336,15 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
     ) -> List[str]:
         """Return capability/environment tags contributed by this extension."""
         ...
- 
+
     def required_tags(self) -> List[str]:
         """Tags that must be present for this extension to be enabled."""
         ...
- 
+
     # Stateless transforms
     def to_native_messages(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-
         """Transform provider-native messages using visibility of core messages (stateless).
 
         Note:
@@ -406,9 +395,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         partial_messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
-    ) -> Tuple[
-        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
-    ]:
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Observe/modify provider outputs for a streaming chunk.
 
         Called on the hot path for each provider-native chunk. May be called with
@@ -478,16 +465,16 @@ class FeaturePlugin(BasePlugin, Protocol):
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize with application config and shared provider state.
- 
+
         Args:
             config: Application-supplied configuration.
             state: Current shared provider state.
- 
+
         Returns:
             Updated shared provider state (or the same state).
         """
         ...
- 
+
     def get_models(
         self,
         config: Dict[str, Any],
@@ -495,7 +482,7 @@ class FeaturePlugin(BasePlugin, Protocol):
     ) -> List[Dict[str, Any]]:
         """Statelessly transform or provide model descriptors."""
         ...
- 
+
     def get_tags(
         self,
         config: Dict[str, Any],
@@ -503,16 +490,15 @@ class FeaturePlugin(BasePlugin, Protocol):
     ) -> List[str]:
         """Return capability/environment tags contributed by this feature."""
         ...
- 
+
     def required_tags(self) -> List[str]:
         """Tags that must be present for this feature to be enabled."""
         ...
- 
+
     # Stateless transforms
     def to_native_messages(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-
         """Transform provider-native messages using visibility of core messages (stateless).
 
         Note:
@@ -613,7 +599,6 @@ class ToolPlugin(BasePlugin, Protocol):
         ...
 
     def get_tags(
-
         self,
         config: Dict[str, Any],
         models: List[Dict[str, Any]],

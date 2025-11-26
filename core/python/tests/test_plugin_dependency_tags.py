@@ -14,7 +14,7 @@ The focus is on:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Iterator, List, Tuple
+from typing import Any, Dict, List
 
 import pytest
 

@@ -12,7 +12,6 @@ Skips gracefully if Ollama/model unavailable.
 """
 
 import os
-import sys
 import shutil
 import subprocess
 import tempfile
