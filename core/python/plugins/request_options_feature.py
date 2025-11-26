@@ -67,7 +67,6 @@ class RequestOptionsFeature(FeaturePlugin):
 
     # Uses adapter default get_models (no-op on models)
 
-
     def get_tags(
         self,
         config: Dict[str, Any],
@@ -79,10 +78,9 @@ class RequestOptionsFeature(FeaturePlugin):
     def required_tags(self) -> List[str]:
         """This feature does not require any specific tags."""
         return []
- 
+
     # ---- Lifecycle ----
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-
         """Merge config into shared state.
 
         The plugin itself remains stateless; request options are read from

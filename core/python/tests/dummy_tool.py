@@ -19,7 +19,6 @@ class DummyCalculator:
     name: str = "dummy_calculator"
     version: str = "1.0.0"
 
-
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return tool schemas."""
         return [
@@ -41,8 +40,7 @@ class DummyCalculator:
         ]
 
     def execute_tool(
-        self,
-        tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
+        self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Execute tool."""
         if tool_name == "add":

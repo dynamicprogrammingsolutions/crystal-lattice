@@ -13,14 +13,11 @@ This test skips gracefully if Ollama is unavailable or the model cannot be pulle
 import os
 import shutil
 import subprocess
-import sys
-import time
 from typing import Optional
 
 import pytest
 
 from agent_core import AgentCore
-
 
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
@@ -33,9 +30,7 @@ def _which(cmd: str) -> Optional[str]:
 
 
 def _run(cmd: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout
-    )
+    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
 
 
 @pytest.fixture(scope="module")

@@ -8,6 +8,7 @@ from typing import Dict, Any, List, Tuple, Optional
 from dataclasses import dataclass
 from agent_core.types import ProviderExtensionPlugin
 
+
 @dataclass
 class DummyExtension(ProviderExtensionPlugin):
     """
@@ -30,7 +31,6 @@ class DummyExtension(ProviderExtensionPlugin):
             {"type": "text", "key": "prefix", "label": "Extension Prefix"},
         ]
 
- 
     # New lifecycle: init accepts shared state
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
 
@@ -41,23 +41,20 @@ class DummyExtension(ProviderExtensionPlugin):
         rs = {**rs, "extension_processed_chunks": 0}
         return {**state, "config": new_config, "runtime_state": rs}
 
-
     def process_chunk(
         self,
         native_chunk: Optional[Dict[str, Any]],
-        state: Dict[str, Any],
         partial_messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
-    ) -> Tuple[
-        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
-    ]:
+        state: Dict[str, Any],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         enabled = state.get("config", {}).get("enabled", True)
         if not enabled:
             return partial_messages, final_messages, native_messages, state
-        processed = state.get("runtime_state", {}).get(
-            "extension_processed_chunks", 0
-        ) + (1 if native_chunk is not None else 0)
+        processed = state.get("runtime_state", {}).get("extension_processed_chunks", 0) + (
+            1 if native_chunk is not None else 0
+        )
         rs = {**state.get("runtime_state", {}), "extension_processed_chunks": processed}
         prefix = state.get("config", {}).get("prefix", "[EXT]")
         enhanced_finals = (

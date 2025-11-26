@@ -57,6 +57,7 @@ from .plugin import (
     FeatureWrapper,
     ToolWrapper,
 )
+from .utils import pipeline
 import uuid
 import json
 
@@ -116,7 +117,10 @@ class AgentCore:
         expected_count = integ.get("message_count")
         expected_chars = integ.get("total_chars")
         actual = self._compute_native_integrity(session.messages)
-        if actual.get("message_count") != expected_count or actual.get("total_chars") != expected_chars:
+        if (
+            actual.get("message_count") != expected_count
+            or actual.get("total_chars") != expected_chars
+        ):
             raise RuntimeError(
                 "Session messages changed without updating native history; remove 'native_messages' from session.metadata to modify history."
             )
@@ -141,15 +145,14 @@ class AgentCore:
         self._models_cache = {}
         self._dependency_cache = {}
         self._tags_cache = {}
- 
-    def register_provider(
 
+    def register_provider(
         self, plugin_class: type, extensions: Optional[List[type]] = None
     ) -> None:
         """Register provider plugin class with optional provider extensions.
- 
+
         Extensions are loaded by the provider wrapper (same language, hot path).
- 
+
         Args:
             plugin_class: Provider plugin class.
             extensions: Optional list of provider extension classes to register with the provider.
@@ -157,31 +160,28 @@ class AgentCore:
         wrapper = ProviderWrapper(plugin_class, extensions or [])
         self._providers = [*self._providers, wrapper]
         self._reset_caches()
- 
-    def register_feature(self, plugin_class: type) -> None:
 
+    def register_feature(self, plugin_class: type) -> None:
         """Register a feature plugin class.
- 
+
         Args:
             plugin_class: Feature plugin class.
         """
         wrapper = FeatureWrapper(plugin_class)
         self._features.append(wrapper)
         self._reset_caches()
- 
-    def register_tool(self, plugin_class: type) -> None:
 
+    def register_tool(self, plugin_class: type) -> None:
         """Register a tool plugin class.
- 
+
         Args:
             plugin_class: Tool plugin class.
         """
         wrapper = ToolWrapper(plugin_class)
         self._tools.append(wrapper)
         self._reset_caches()
- 
-    def create_session(self, session_id: Optional[str] = None) -> Session:
 
+    def create_session(self, session_id: Optional[str] = None) -> Session:
         """Create a new empty session.
 
         Args:
@@ -226,7 +226,7 @@ class AgentCore:
         # If native history exists, verify integrity before modification
         if isinstance(session.metadata, dict) and "native_messages" in session.metadata:
             self._verify_native_integrity(session)
- 
+
         # Attempt to append native for the new message if a single provider is
         # available and native history exists. When multiple providers are
         # registered, this method does not attempt to infer which provider was
@@ -245,15 +245,12 @@ class AgentCore:
                 # Convert single message to provider-native and apply stateless
                 # transforms (single-message context)
                 suffix_native = provider.to_native_messages(core_new_msg, state)
-                suffix_native = provider.apply_extension_transforms(
-                    core_new_msg, suffix_native
+                suffix_native = provider.apply_extension_transforms(core_new_msg, suffix_native)
+                pipe = pipeline(core_new_msg)
+                suffix_native = pipe(
+                    [feature.to_native_messages for feature in self._features], suffix_native
                 )
-                for feature in self._features:
-                    suffix_native = feature.to_native_messages(
-                        core_new_msg, suffix_native
-                    )
                 new_metadata["native_messages"] = [*retained_native, *suffix_native]
-
 
         # Always update integrity data when we have native history
         if "native_messages" in new_metadata:
@@ -457,7 +454,6 @@ class AgentCore:
         self._models_cache = {**self._models_cache, cache_key: validated}
         return [dict(m) for m in validated]
 
-
     def _resolve_plugins_for_config(
         self,
         config: Dict[str, Any],
@@ -483,18 +479,10 @@ class AgentCore:
         cached = self._dependency_cache.get(dep_key)
         if cached is not None:
             ext_names, feature_names, tool_names, tags = cached
-            enabled_extensions = [
-                ext for ext in provider.extensions if ext.name in ext_names
-            ]
-            enabled_features = [
-                feat for feat in self._features if feat.name in feature_names
-            ]
-            enabled_tools = [
-                tool for tool in self._tools if tool.name in tool_names
-            ]
-            return provider, enabled_extensions, enabled_features, enabled_tools, list(
-                tags
-            )
+            enabled_extensions = [ext for ext in provider.extensions if ext.name in ext_names]
+            enabled_features = [feat for feat in self._features if feat.name in feature_names]
+            enabled_tools = [tool for tool in self._tools if tool.name in tool_names]
+            return provider, enabled_extensions, enabled_features, enabled_tools, list(tags)
 
         # Build initial candidates
         candidate_extensions: List[ExtensionWrapper] = list(provider.extensions)
@@ -571,9 +559,7 @@ class AgentCore:
                 if set(feat.required_tags()).issubset(available_tags)
             ]
             next_enabled_tools = [
-                tool
-                for tool in enabled_tools
-                if set(tool.required_tags()).issubset(available_tags)
+                tool for tool in enabled_tools if set(tool.required_tags()).issubset(available_tags)
             ]
 
             cur_ext_names = [ext.name for ext in enabled_extensions]
@@ -610,7 +596,6 @@ class AgentCore:
         }
 
         return provider, enabled_extensions, enabled_features, enabled_tools, final_tags
-
 
     def _pre_request(
         self,
@@ -671,11 +656,11 @@ class AgentCore:
             # Provider-first conversion (native_base for stateless transforms)
             native_messages = provider.to_native_messages(messages, state)
             # Apply stateless transforms: Extensions then Features
-            native_messages = provider.apply_extension_transforms(
-                messages, native_messages
+            native_messages = provider.apply_extension_transforms(messages, native_messages)
+            pipe = pipeline(messages)
+            native_messages = pipe(
+                [feature.to_native_messages for feature in features], native_messages
             )
-            for feature in features:
-                native_messages = feature.to_native_messages(messages, native_messages)
 
         # Initialize request chains
         state = provider.initialize_request(native_messages, state)
@@ -684,25 +669,22 @@ class AgentCore:
             provider.set_state(state)
         return messages, native_messages, state
 
-
-
     def send_request(
- 
         self, session: Session, config: Dict[str, Any]
     ) -> Tuple[Session, List[Dict[str, Any]]]:
         """Send request and return a new session with the response.
- 
+
         Runs provider call + finalize with features operating on provider-native data;
         converts provider-native finals to core at the end and appends them to the session.
- 
+
         Args:
             session: Current session.
             config: Application-provided configuration for this request.
- 
+
         Returns:
             Tuple of (new_session, final_core_messages) where the new session includes the
             appended final messages and retained provider-native history for this turn.
- 
+
         Raises:
             RuntimeError: If no provider is registered.
         """
@@ -721,32 +703,31 @@ class AgentCore:
             features,
             tools,
         )
-        final_native_1, _partials, native_messages, state = provider.call_api(
+        _partials, final_native_1, native_messages, state = provider.call_api(
             native_messages, state
         )
- 
+
         # Provider finalize returns provider-native finals and full native history
-        final_native_2, native_messages, state = provider.finalize(
-            native_messages, state
-        )
- 
+        final_native_2, native_messages, state = provider.finalize(native_messages, state)
+
         # Combine provider-native finals from call_api and provider.finalize
         final_native = final_native_1 + final_native_2
- 
+
         # Feature finalize chain over provider-native finals (native cold path)
-        for feature in features:
-            final_native, native_messages, state = feature.finalize(
-                final_native, native_messages, state
-            )
- 
+        pipe = pipeline()
+        final_native, native_messages, state = pipe(
+            [feature.finalize for feature in features], final_native, native_messages, state
+        )
+
         # Convert provider-native finals to core messages once finalization completes
         final_core = provider.from_native_messages(final_native, state)
         # Apply extension and feature from-native transforms
-        for ext in enabled_extensions:
-            final_core = ext.from_native_messages(final_native, final_core)
-        for feature in features:
-            final_core = feature.from_native_messages(final_native, final_core)
-
+        pipe = pipeline(final_native)
+        final_core = pipe(
+            [ext.from_native_messages for ext in enabled_extensions]
+            + [feature.from_native_messages for feature in features],
+            final_core,
+        )
 
         # Build new session messages by appending new Message objects
         appended: List[Message] = [Message.from_dict(m) for m in final_core]
@@ -754,10 +735,10 @@ class AgentCore:
         # Persist full provider-native history for the turn (implementation detail)
         new_metadata["native_messages"] = native_messages
         all_messages_after = [*session.messages, *appended]
-        new_metadata["native_messages_integrity"] = self._compute_native_integrity(all_messages_after)
-        new_session = Session(
-            session.session_id, all_messages_after, new_metadata
+        new_metadata["native_messages_integrity"] = self._compute_native_integrity(
+            all_messages_after
         )
+        new_session = Session(session.session_id, all_messages_after, new_metadata)
 
         return new_session, final_core
 
@@ -765,19 +746,19 @@ class AgentCore:
         self, session: Session, config: Dict[str, Any]
     ) -> Iterator[Dict[str, Any]]:
         """Stream request and yield partial events, then the final session.
- 
+
         Uses provider streaming with optimized hot-path processing; features operate on the
         provider-native finals at finalize, then core converts once and appends to the session.
- 
+
         Args:
             session: Current session.
             config: Application-provided configuration for this request.
- 
+
         Yields:
             Event dictionaries:
             - {"type": "partial", "message": core-like partial dict}
             - {"type": "final", "session": new_session, "messages": final_core_messages}
- 
+
         Raises:
             RuntimeError: If no provider is registered.
         """
@@ -797,7 +778,7 @@ class AgentCore:
             tools,
         )
         aggregated_native_finals: List[Dict[str, Any]] = []
- 
+
         # Stream from provider using optimized streaming
         for event in provider.stream_messages(native_messages, state):
             if event["type"] == "partial":
@@ -805,38 +786,39 @@ class AgentCore:
             elif event["type"] == "final_messages":
                 # These are provider-native finals
                 aggregated_native_finals.extend(event["messages"])
- 
+
         # Finalize using the last accumulated native messages
         final_native, native_messages, state = provider.finalize(
             provider.get_last_native_messages(), provider.get_state()
         )
- 
+
         # Feature finalize chain (native)
-        for feature in features:
-            final_native, native_messages, state = feature.finalize(
-                final_native, native_messages, state
-            )
- 
+        pipe = pipeline()
+        final_native, native_messages, state = pipe(
+            [feature.finalize for feature in features], final_native, native_messages, state
+        )
+
         combined_native_finals = [*aggregated_native_finals, *final_native]
- 
+
         # Convert provider-native finals to core messages
         final_core = provider.from_native_messages(combined_native_finals, state)
- 
-        # Apply extension and feature from-native transforms
-        for ext in enabled_extensions:
-            final_core = ext.from_native_messages(combined_native_finals, final_core)
-        for feature in features:
-            final_core = feature.from_native_messages(combined_native_finals, final_core)
 
+        # Apply extension and feature from-native transforms
+        pipe = pipeline(combined_native_finals)
+        final_core = pipe(
+            [ext.from_native_messages for ext in enabled_extensions]
+            + [feature.from_native_messages for feature in features],
+            final_core,
+        )
 
         appended: List[Message] = [Message.from_dict(m) for m in final_core]
         new_metadata = dict(session.metadata)
         new_metadata["native_messages"] = native_messages
         all_messages_after = [*session.messages, *appended]
-        new_metadata["native_messages_integrity"] = self._compute_native_integrity(all_messages_after)
-        new_session = Session(
-            session.session_id, all_messages_after, new_metadata
+        new_metadata["native_messages_integrity"] = self._compute_native_integrity(
+            all_messages_after
         )
+        new_session = Session(session.session_id, all_messages_after, new_metadata)
 
         yield {"type": "final", "session": new_session, "messages": final_core}
 
@@ -844,14 +826,14 @@ class AgentCore:
         self, session: Session, config: Dict[str, Any]
     ) -> AsyncIterator[Dict[str, Any]]:
         """Async version of send_request_stream.
- 
+
         Args:
             session: Current session.
             config: Application-provided configuration for this request.
- 
+
         Yields:
             Event dictionaries analogous to send_request_stream, but from an async iterator.
- 
+
         Raises:
             RuntimeError: If no provider is registered.
         """
@@ -869,47 +851,47 @@ class AgentCore:
             features,
             tools,
         )
- 
+
         aggregated_native_finals: List[Dict[str, Any]] = []
 
- 
         # Stream from provider (async) using optimized streaming
         async for event in provider.stream_messages_async(native_messages, state):
             if event["type"] == "partial":
                 yield {"type": "partial", "message": event["message"]}
             elif event["type"] == "final_messages":
                 aggregated_native_finals.extend(event["messages"])  # native finals
- 
+
         final_native, native_messages, state = provider.finalize(
             provider.get_last_native_messages(), provider.get_state()
         )
- 
+
         # Feature finalize chain (native)
-        for feature in features:
-            final_native, native_messages, state = feature.finalize(
-                final_native, native_messages, state
-            )
- 
+        pipe = pipeline()
+        final_native, native_messages, state = pipe(
+            [feature.finalize for feature in features], final_native, native_messages, state
+        )
+
         combined_native_finals = [*aggregated_native_finals, *final_native]
- 
+
         # Convert provider-native finals to core messages
         final_core = provider.from_native_messages(combined_native_finals, state)
-         
-        # Apply extension and feature from-native transforms
-        for ext in enabled_extensions:
-            final_core = ext.from_native_messages(combined_native_finals, final_core)
-        for feature in features:
-            final_core = feature.from_native_messages(combined_native_finals, final_core)
 
+        # Apply extension and feature from-native transforms
+        pipe = pipeline(combined_native_finals)
+        final_core = pipe(
+            [ext.from_native_messages for ext in enabled_extensions]
+            + [feature.from_native_messages for feature in features],
+            final_core,
+        )
 
         appended: List[Message] = [Message.from_dict(m) for m in final_core]
         new_metadata = dict(session.metadata)
         new_metadata["native_messages"] = native_messages
         all_messages_after = [*session.messages, *appended]
-        new_metadata["native_messages_integrity"] = self._compute_native_integrity(all_messages_after)
-        new_session = Session(
-            session.session_id, all_messages_after, new_metadata
+        new_metadata["native_messages_integrity"] = self._compute_native_integrity(
+            all_messages_after
         )
+        new_session = Session(session.session_id, all_messages_after, new_metadata)
 
         yield {"type": "final", "session": new_session, "messages": final_core}
 
@@ -935,7 +917,6 @@ class AgentCore:
             schema[tool.name] = tool.get_config_schema()
         return schema
 
-
     def get_ui_schema(self) -> Dict[str, Any]:
         """Get combined UI schema from all registered plugins.
 
@@ -955,13 +936,12 @@ class AgentCore:
             ui[tool.name] = tool.get_ui_elements()
         return ui
 
-
     def get_tool_schemas(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Get tool schemas from enabled tool plugins for a config.
- 
+
         Args:
             config: Application configuration passed to each tool's init.
- 
+
         Returns:
             List of OpenAI-style function definitions across enabled tools.
         """
@@ -976,16 +956,15 @@ class AgentCore:
                 schemas.extend(tool.get_tool_schemas(state))
             return schemas
 
-        _provider, _exts, _features, tools, _tags = self._resolve_plugins_for_config(
-            config
-        )
+        _provider, _exts, _features, tools, _tags = self._resolve_plugins_for_config(config)
         for tool in tools:
             state = tool.init(config)
             schemas.extend(tool.get_tool_schemas(state))
         return schemas
 
-
-    def execute_tool_calls(self, tool_calls: List[Dict[str, Any]], config: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def execute_tool_calls(
+        self, tool_calls: List[Dict[str, Any]], config: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         """Execute a batch of tool calls and return core "tool" messages.
 
         Accepts OpenAI-style tool call objects. The method initializes tool state from the
@@ -1130,9 +1109,7 @@ class AgentCore:
             provider_name = getattr(provider_cls, "name", provider_cls.__name__)
             self.register_provider(provider_cls, extensions=extensions)
             summary["providers"].append(provider_name)
-            summary["extensions"].extend(
-                [getattr(ext, "name", ext.__name__) for ext in extensions]
-            )
+            summary["extensions"].extend([getattr(ext, "name", ext.__name__) for ext in extensions])
 
         # Register features and tools
         for feat in features:

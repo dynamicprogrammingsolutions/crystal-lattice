@@ -84,11 +84,14 @@ class FileWriterTool(ToolPlugin):
             data = content if isinstance(content, str) else str(content)
             max_size = int(state.get("config", {}).get("max_file_size", 5 * 1024 * 1024))
             if len(data.encode("utf-8")) > max_size:
-                return {"success": False, "error": f"Content too large"}
+                return {"success": False, "error": "Content too large"}
             os.makedirs(os.path.dirname(abs_path) or ".", exist_ok=True)
             with open(abs_path, "w", encoding="utf-8") as f:
                 f.write(data)
-            return {"success": True, "result": {"path": abs_path, "bytes_written": len(data.encode("utf-8"))}}
+            return {
+                "success": True,
+                "result": {"path": abs_path, "bytes_written": len(data.encode("utf-8"))},
+            }
         except Exception as e:
             return {"success": False, "error": f"Error writing file: {str(e)}"}
 
@@ -98,4 +101,3 @@ class FileWriterTool(ToolPlugin):
             if result.get("success")
             else f"Error: {result.get('error')}"
         )
-

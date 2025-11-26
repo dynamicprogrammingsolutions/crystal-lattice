@@ -43,9 +43,7 @@ class _BasePluginDefaults:
         except Exception:
             return []
 
-    def _get_impl_method(
-        self, name: str, protocol_cls: Optional[type] = None
-    ) -> Optional[Any]:
+    def _get_impl_method(self, name: str, protocol_cls: Optional[type] = None) -> Optional[Any]:
         """Return a concrete implementation for an optional hook.
 
         Treats Protocol stub methods (from the given protocol_cls) as "missing"
@@ -200,8 +198,8 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
             native_messages, state
         )
         return (
-            [m for m in self._safe_list(finals) if isinstance(m, dict)],
             [m for m in self._safe_list(partials) if isinstance(m, dict)],
+            [m for m in self._safe_list(finals) if isinstance(m, dict)],
             [m for m in self._safe_list(natives) if isinstance(m, dict)],
             new_state if isinstance(new_state, dict) else state,
         )
@@ -240,8 +238,8 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
             native_chunk, native_messages, state
         )
         return (
-            [m for m in self._safe_list(finals) if isinstance(m, dict)],
             [m for m in self._safe_list(partials) if isinstance(m, dict)],
+            [m for m in self._safe_list(finals) if isinstance(m, dict)],
             [m for m in self._safe_list(natives) if isinstance(m, dict)],
             new_state if isinstance(new_state, dict) else state,
         )
@@ -337,10 +335,10 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
     def process_chunk(  # type: ignore[override]
         self,
         native_chunk: Optional[Dict[str, Any]],
-        state: Dict[str, Any],
         partial_messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
     ) -> Tuple[
         List[Dict[str, Any]],
         List[Dict[str, Any]],
@@ -358,10 +356,10 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
                 ],
                 fn(
                     native_chunk,
-                    state,
                     partial_messages,
                     final_messages,
                     native_messages,
+                    state,
                 ),
             )
         return partial_messages, final_messages, native_messages, state
@@ -516,10 +514,14 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
         fn = getattr(self.impl, "execute_tool", None)
         if callable(fn):
             out = fn(tool_name, arguments, state)
-            return out if isinstance(out, dict) else {
-                "success": False,
-                "error": "invalid tool result",
-            }
+            return (
+                out
+                if isinstance(out, dict)
+                else {
+                    "success": False,
+                    "error": "invalid tool result",
+                }
+            )
         return {"success": False, "error": f"Unknown tool: {tool_name}"}
 
     def format_tool_result(  # type: ignore[override]

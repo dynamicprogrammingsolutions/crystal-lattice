@@ -90,4 +90,3 @@ class FileReaderTool(ToolPlugin):
             if result.get("success")
             else f"Error: {result.get('error')}"
         )
-

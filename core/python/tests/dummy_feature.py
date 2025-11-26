@@ -25,11 +25,8 @@ class DummyFeature(FeaturePlugin):
     def get_ui_elements(self) -> List[Dict[str, Any]]:
         return [{"type": "text", "key": "prefix", "label": "Response Prefix"}]
 
- 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         return {**state, "config": {**state.get("config", {}), **config}}
- 
- 
 
     def finalize(
         self,
