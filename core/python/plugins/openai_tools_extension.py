@@ -159,10 +159,10 @@ class OpenAIToolsExtension:
     def process_chunk(
         self,
         native_chunk: Optional[Dict[str, Any]],
-        state: Dict[str, Any],
         partial_messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         delta = self.extract_delta(native_chunk or {})
 

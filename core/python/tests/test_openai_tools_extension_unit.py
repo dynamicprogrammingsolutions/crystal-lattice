@@ -68,7 +68,7 @@ def test_process_chunk_accumulates_tool_calls_into_existing_final():
             }
         ]
     }
-    pm, fm, nm, state = ext.process_chunk(chunk, state, [], finals, natives)
+    pm, fm, nm, state = ext.process_chunk(chunk, [], finals, natives, state)
     assert fm and isinstance(fm[-1].get("tool_calls"), list)
     assert nm and nm[-1] == fm[-1]
 
