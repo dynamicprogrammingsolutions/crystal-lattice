@@ -7,12 +7,13 @@ Loads configuration only from the provided config dict (no environment variable 
 
 from __future__ import annotations
 
-from typing import List, Any, Dict, Iterator, List, Tuple, Optional
+from typing import Any, Dict, Iterator, List, Tuple
 import json
 
 import requests
 
 from agent_core.types import ProviderPlugin
+
 
 class OpenAICompatibleProvider(ProviderPlugin):
     name: str = "openai_compatible"
@@ -63,7 +64,7 @@ class OpenAICompatibleProvider(ProviderPlugin):
         tags.append("supports_tools")
         tags.append("supports_thinking")
         return tags
- 
+
     # ---------- State lifecycle ----------
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
 
@@ -77,16 +78,14 @@ class OpenAICompatibleProvider(ProviderPlugin):
     ) -> Dict[str, Any]:
 
         config = state["config"]
-        
+
         base_url = (config.get("base_url") or "https://api.openai.com/v1").rstrip("/")
         api_key = config.get("api_key")
         model = config.get("model")
         timeout = float(config.get("timeout", 60))
 
         url = f"{base_url}/chat/completions"
-        payload: Dict[str, Any] = {
-            "model": model
-        }
+        payload: Dict[str, Any] = {"model": model}
         headers = {"Content-Type": "application/json"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
@@ -99,7 +98,7 @@ class OpenAICompatibleProvider(ProviderPlugin):
                 "headers": headers,
                 "timeout": timeout,
             },
-            "partial": None
+            "partial": None,
         }
 
     # ---------- Message conversion ----------
@@ -138,7 +137,9 @@ class OpenAICompatibleProvider(ProviderPlugin):
         """
         for idx, item in enumerate(history):
             if not isinstance(item, dict):
-                raise RuntimeError(f"[openai_provider] invalid message at index {idx}: expected dict, got {type(item).__name__} -> {item}")
+                raise RuntimeError(
+                    f"[openai_provider] invalid message at index {idx}: expected dict, got {type(item).__name__} -> {item}"
+                )
             if "role" not in item or "content" not in item:
                 raise RuntimeError(
                     f"[openai_provider] invalid message at index {idx}: missing 'role' or 'content' -> {json.dumps(item, ensure_ascii=False)}"
@@ -148,9 +149,7 @@ class OpenAICompatibleProvider(ProviderPlugin):
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[
-        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
-    ]:        
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         request = state["request"]
         try:
             # Validate native_messages are proper message objects
@@ -171,13 +170,13 @@ class OpenAICompatibleProvider(ProviderPlugin):
         except requests.RequestException as e:  # pragma: no cover
             raise RuntimeError(f"OpenAI-compatible call failed: {e}") from e
 
-        message = obj.get("choices", [{}])[0].get("message", {})        
+        message = obj.get("choices", [{}])[0].get("message", {})
         return [message], [], [*native_messages, message], state
 
     def stream_api(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Iterator[Dict[str, Any]]:
-        
+
         request = state["request"]
         try:
             # Validate native_messages before sending stream request
@@ -185,7 +184,11 @@ class OpenAICompatibleProvider(ProviderPlugin):
             override = request.get("messages")
             messages_to_send = override if isinstance(override, list) else native_messages
             with requests.post(
-                request["url"], json={**request["payload"], "messages": messages_to_send, "stream": True}, headers=request["headers"], timeout=request["timeout"], stream=True
+                request["url"],
+                json={**request["payload"], "messages": messages_to_send, "stream": True},
+                headers=request["headers"],
+                timeout=request["timeout"],
+                stream=True,
             ) as r:
                 r.raise_for_status()
                 for line in r.iter_lines(decode_unicode=True):
@@ -214,12 +217,10 @@ class OpenAICompatibleProvider(ProviderPlugin):
         """
         if "choices" in native_chunk and native_chunk["choices"]:
             return dict(native_chunk["choices"][0])
-        
+
         return {}
 
-    def process_delta(
-        self, delta: Dict[str, Any], accumulated
-    ):
+    def process_delta(self, delta: Dict[str, Any], accumulated):
         """
         Reduce a delta dict into a new partial accumulator, and optionally a final.
         Returns (partial_message_or_none, final_message_or_none, new_accumulated).
@@ -253,13 +254,19 @@ class OpenAICompatibleProvider(ProviderPlugin):
         # Regular delta chunk -> partial
         return delta_content, None, accumulated
 
-    def _merge_delta_content(self, current: Dict[str, Any], delta: Dict[str, Any], override: List[str] = [], accumulate: List[str] = []) -> Dict[str, Any]:
+    def _merge_delta_content(
+        self,
+        current: Dict[str, Any],
+        delta: Dict[str, Any],
+        override: List[str] = [],
+        accumulate: List[str] = [],
+    ) -> Dict[str, Any]:
         return {
             **current,
             # For override keys, prefer the incoming delta value, falling back to current
             **{key: delta.get(key, current.get(key, "")) for key in override},
             # For accumulate keys, append incoming delta fragments to current value
-            **{key: (current.get(key, "") + delta.get(key, "")) for key in accumulate}
+            **{key: (current.get(key, "") + delta.get(key, "")) for key in accumulate},
         }
 
     def process_chunk(
@@ -267,10 +274,10 @@ class OpenAICompatibleProvider(ProviderPlugin):
         native_chunk: Dict[str, Any],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[
-        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
-    ]:
-        partial_msg, final_msg, accumulated = self.process_delta(delta=self.extract_delta(native_chunk), accumulated=state.get("partial", {}))
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        partial_msg, final_msg, accumulated = self.process_delta(
+            delta=self.extract_delta(native_chunk), accumulated=state.get("partial", {})
+        )
 
         # returns
         partials = [partial_msg] if partial_msg else []
@@ -279,9 +286,9 @@ class OpenAICompatibleProvider(ProviderPlugin):
             print("[openai_provider] WARNING: emitting empty final message from stream chunk")
         new_native_messages = [*native_messages, *finals]
         new_state = {**state, "partial": accumulated}
-    
-        #print(f"[openai_provider] partials: {partials}")
-        #print(f"[openai_provider] finals: {finals}, accumulated: {accumulated}")
+
+        # print(f"[openai_provider] partials: {partials}")
+        # print(f"[openai_provider] finals: {finals}, accumulated: {accumulated}")
         return finals, partials, new_native_messages, new_state
 
     def finalize(
@@ -289,19 +296,17 @@ class OpenAICompatibleProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        
+
         current_partial = state.get("partial", None)
         if isinstance(current_partial, dict) and (
-            current_partial.get("content") or current_partial.get("role") or current_partial.get("reasoning")
+            current_partial.get("content")
+            or current_partial.get("role")
+            or current_partial.get("reasoning")
         ):
             # Streaming path: finalize from accumulated partial message.
             return [current_partial], [*native_messages, current_partial], state
 
         return [], native_messages, state
 
-    def to_display_format(
-        self, message: Dict[str, Any], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def to_display_format(self, message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         return message
-
-

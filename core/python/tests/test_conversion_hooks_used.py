@@ -10,14 +10,18 @@ class ConversionProvider(ProviderPlugin):
     name: str = "conversion_provider"
     version: str = "1.0.0"
 
-    def to_native_messages(self, messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def to_native_messages(
+        self, messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         # Mark that to_native was used
         return [
             {"role": m.get("role", "user"), "content": m.get("content", ""), "ctn": True}
             for m in messages
         ]
 
-    def from_native_messages(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def from_native_messages(
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         # Mark that from_native was used on returned core finals
         return [
             {

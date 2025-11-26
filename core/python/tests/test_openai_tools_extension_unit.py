@@ -16,7 +16,19 @@ from plugins.openai_tools_extension import OpenAIToolsExtension as Ext
 def test_to_native_messages_maps_tool_call_id_and_tool_calls():
     ext = Ext()
     messages = [
-        {"role": "assistant", "content": "", "metadata": {"tool_calls": [{"id": "c1", "type": "function", "function": {"name": "read_file", "arguments": '{"file_path": "x"}'}}]}},
+        {
+            "role": "assistant",
+            "content": "",
+            "metadata": {
+                "tool_calls": [
+                    {
+                        "id": "c1",
+                        "type": "function",
+                        "function": {"name": "read_file", "arguments": '{"file_path": "x"}'},
+                    }
+                ]
+            },
+        },
         {"role": "tool", "content": "ok", "metadata": {"tool_call_id": "abc"}},
     ]
     native = [
@@ -24,7 +36,10 @@ def test_to_native_messages_maps_tool_call_id_and_tool_calls():
         {"role": "tool", "content": "ok"},
     ]
     out = ext.to_native_messages(messages, native)
-    assert isinstance(out[0].get("tool_calls"), list) and (out[0]["tool_calls"][0].get("function") or {}).get("name") == "read_file"
+    assert (
+        isinstance(out[0].get("tool_calls"), list)
+        and (out[0]["tool_calls"][0].get("function") or {}).get("name") == "read_file"
+    )
     assert out[1].get("tool_call_id") == "abc"
 
 
@@ -43,7 +58,10 @@ def test_process_chunk_accumulates_tool_calls_into_existing_final():
                         {
                             "id": "c1",
                             "type": "function",
-                            "function": {"name": "read_file", "arguments": '{"file_path": "bar.txt"}'}
+                            "function": {
+                                "name": "read_file",
+                                "arguments": '{"file_path": "bar.txt"}',
+                            },
                         }
                     ]
                 }
@@ -57,15 +75,17 @@ def test_process_chunk_accumulates_tool_calls_into_existing_final():
 
 def test_from_native_messages_attaches_metadata_tool_calls():
     ext = Ext()
-    messages = [
-        {"role": "assistant", "content": ""}
-    ]
+    messages = [{"role": "assistant", "content": ""}]
     native = [
         {
             "role": "assistant",
             "content": "",
             "tool_calls": [
-                {"id": "x1", "type": "function", "function": {"name": "read_file", "arguments": '{"file_path": "baz.txt"}'}}
+                {
+                    "id": "x1",
+                    "type": "function",
+                    "function": {"name": "read_file", "arguments": '{"file_path": "baz.txt"}'},
+                }
             ],
         }
     ]
@@ -74,6 +94,7 @@ def test_from_native_messages_attaches_metadata_tool_calls():
     tcs = md.get("tool_calls") or []
     assert tcs and (tcs[0].get("function") or {}).get("name") == "read_file"
     import json as _json
+
     args_raw = (tcs[0].get("function") or {}).get("arguments")
     if isinstance(args_raw, str):
         args = _json.loads(args_raw)

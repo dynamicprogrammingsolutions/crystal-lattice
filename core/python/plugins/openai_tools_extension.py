@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
-import json
 
 
 class OpenAIToolsExtension:
@@ -18,7 +17,6 @@ class OpenAIToolsExtension:
     name: str = "openai_tools"
     version: str = "0.2.0"
 
-
     # ---- Config/UI ----
     def get_config_schema(self) -> Dict[str, Any]:
         return {}
@@ -28,7 +26,6 @@ class OpenAIToolsExtension:
 
     # ---- Models / capabilities ----
     # Uses adapter default get_models (no-op on models)
-
 
     def get_tags(
         self,
@@ -41,7 +38,7 @@ class OpenAIToolsExtension:
     def required_tags(self) -> List[str]:
         """Require tool-calling support from the provider/models."""
         return ["supports_tools"]
- 
+
     # ---- Init/State ----
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
 
@@ -82,7 +79,7 @@ class OpenAIToolsExtension:
         for msg, native in zip(messages, native_messages):
             tool_calls = native.get("tool_calls") if isinstance(native, dict) else None
             if tool_calls:
-                #print("new tool calls:", tool_calls)
+                # print("new tool calls:", tool_calls)
                 metadata = dict(msg.get("metadata") or {})
                 metadata["tool_calls"] = tool_calls
                 enhanced.append({**msg, "metadata": metadata})
@@ -98,7 +95,11 @@ class OpenAIToolsExtension:
         payload = dict(request.get("payload", {}))
         tools: List[Dict[str, Any]] = state.get("_openai_tools") or []
         if tools:
-            payload = {**payload, "tools": tools, **({"tool_choice": payload.get("tool_choice", "auto")})}
+            payload = {
+                **payload,
+                "tools": tools,
+                **({"tool_choice": payload.get("tool_choice", "auto")}),
+            }
         return {**state, "request": {**request, "payload": payload}}
 
     # ---- Streaming helpers ----
@@ -117,10 +118,11 @@ class OpenAIToolsExtension:
         """Accumulate tool_calls across deltas; merge into current partial/final and accumulator.
         Returns (new_partial, new_final, new_accumulated).
         """
-        if (not delta.get("delta",{}).get("reasoning")): print("process delta:",delta)
+        if not delta.get("delta", {}).get("reasoning"):
+            print("process delta:", delta)
         accumulated = accumulated or {"tool_calls": []}
-        
-        #print(f"process_delta: {delta}, partial: {current_partial}, final: {current_final}, accumulated: {accumulated}")
+
+        # print(f"process_delta: {delta}, partial: {current_partial}, final: {current_final}, accumulated: {accumulated}")
 
         # Full message update (provider final). Replace tool_calls and stop accumulating to avoid duplicates.
         if "message" in delta and current_final is not None:
@@ -138,14 +140,15 @@ class OpenAIToolsExtension:
             if isinstance(d.get("tool_calls"), list) and d["tool_calls"]:
                 acc_tc = list(accumulated.get("tool_calls") or [])
                 acc_tc.extend(d["tool_calls"])
-                #print("accumulate:", accumulated, acc_tc)
+                # print("accumulate:", accumulated, acc_tc)
                 accumulated = {**accumulated, "tool_calls": acc_tc}
                 new_partial = current_partial
                 new_final = current_final
                 if current_final is not None:
                     merged_final = dict(current_final)
                     merged_final["tool_calls"] = [
-                        *(current_final.get("tool_calls") or []), *d["tool_calls"]
+                        *(current_final.get("tool_calls") or []),
+                        *d["tool_calls"],
                     ]
                     new_final = merged_final
                 return new_partial, new_final, accumulated
@@ -160,16 +163,14 @@ class OpenAIToolsExtension:
         partial_messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
-    ) -> Tuple[
-        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
-    ]:
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         delta = self.extract_delta(native_chunk or {})
 
         new_partial_messages = partial_messages
         new_final_messages = final_messages
         new_native_messages = native_messages
         accumulated = state.get("partial", {})
-        
+
         if len(final_messages) > 0:
             new_partial_message, new_final_message, accumulated = self.process_delta(
                 delta=delta, current_final=final_messages[-1], accumulated=accumulated
@@ -184,7 +185,12 @@ class OpenAIToolsExtension:
             # Do not write tool_calls into metadata for partial messages; emit native-only
             new_partial_messages = [*(partial_messages[:-1] or []), new_partial_message]
 
-        return new_partial_messages, new_final_messages, new_native_messages, {**state, "partial": accumulated}
+        return (
+            new_partial_messages,
+            new_final_messages,
+            new_native_messages,
+            {**state, "partial": accumulated},
+        )
 
     def finalize(
         self,
@@ -193,4 +199,3 @@ class OpenAIToolsExtension:
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         return final_messages, native_messages, state
-

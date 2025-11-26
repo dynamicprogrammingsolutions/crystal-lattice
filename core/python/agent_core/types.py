@@ -186,12 +186,12 @@ class ProviderPlugin(BasePlugin, Protocol):
             state: Current shared provider state.
 
         Returns:
-            Tuple of (final_messages, partial_messages, native_messages, new_state).
+            Tuple of (partial_messages, final_messages, native_messages, new_state).
             native_messages MUST be the full provider-native history (not a delta).
         """
         ...
 
-    # Returns: (final_messages, partial_messages, native_messages, new_state)
+    # Returns: (partial_messages, final_messages, native_messages, new_state)
 
     def finalize(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
@@ -256,11 +256,11 @@ class ProviderPlugin(BasePlugin, Protocol):
             state: Current shared provider state.
 
         Returns:
-            Tuple of (final_messages, partial_messages, native_messages, new_state).
+            Tuple of (partial_messages, final_messages, native_messages, new_state).
         """
         ...
 
-    # Returns: (final_messages, partial_messages, native_messages, new_state)
+    # Returns: (partial_messages, final_messages, native_messages, new_state)
 
     def stream_api(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
@@ -296,7 +296,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
                 return {"prefix": {"type": "string", "default": "[EXT]"}}
             def init(self, config, state):
                 return state
-            def process_chunk(self, native_chunk, state, partial_messages, final_messages, native_messages):
+            def process_chunk(self, native_chunk, partial_messages, final_messages, native_messages, state):
                 pfx = state.get("config", {}).get("prefix", "[EXT]")
                 finals = [{**m, "content": f"{pfx} {m['content']}"} for m in final_messages]
                 return partial_messages, finals, native_messages, state
@@ -391,10 +391,10 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
     def process_chunk(
         self,
         native_chunk: Optional[Dict[str, Any]],
-        state: Dict[str, Any],
         partial_messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Observe/modify provider outputs for a streaming chunk.
 
@@ -403,10 +403,10 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
 
         Args:
             native_chunk: Provider-native streaming chunk, or None during finalize.
-            state: Current shared provider state.
             partial_messages: Current list of partial provider-native messages.
             final_messages: Current list of final provider-native messages.
             native_messages: Current full provider-native message history.
+            state: Current shared provider state.
 
         Returns:
             Tuple of (updated_partial_messages, updated_final_messages, updated_native_messages, new_state).

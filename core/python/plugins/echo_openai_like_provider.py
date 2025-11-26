@@ -62,7 +62,13 @@ class EchoOpenAILikeProvider(ProviderPlugin):
                 continue
             if "role" not in m or "content" not in m:
                 continue
-            finals.append({"role": m.get("role", "assistant"), "content": m.get("content", ""), "metadata": {}})
+            finals.append(
+                {
+                    "role": m.get("role", "assistant"),
+                    "content": m.get("content", ""),
+                    "metadata": {},
+                }
+            )
         return finals
 
     # ---------- Request initialization ----------
@@ -139,7 +145,9 @@ class EchoOpenAILikeProvider(ProviderPlugin):
         native_chunk: Dict[str, Any],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:  # pragma: no cover
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:  # pragma: no cover
         return [native_chunk], [], [*native_messages, native_chunk], state
 
     def finalize(
@@ -150,5 +158,7 @@ class EchoOpenAILikeProvider(ProviderPlugin):
         # No additional finals; return native history as-is.
         return [], native_messages, state
 
-    def to_display_format(self, message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:  # pragma: no cover
+    def to_display_format(
+        self, message: Dict[str, Any], state: Dict[str, Any]
+    ) -> Dict[str, Any]:  # pragma: no cover
         return message

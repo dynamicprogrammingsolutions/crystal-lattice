@@ -62,9 +62,7 @@ def test_add_message_with_metadata():
     core = AgentCore()
     session = core.create_session()
 
-    session = core.add_message(
-        session, "assistant", "Response", metadata={"model": "gpt-4"}
-    )
+    session = core.add_message(session, "assistant", "Response", metadata={"model": "gpt-4"})
 
     assert session.messages[0].metadata
     assert session.messages[0].metadata["model"] == "gpt-4"

@@ -57,7 +57,6 @@ class BasicDependencyProvider:
         return tags
 
 
-
 # ---------------------------------------------------------------------------
 # Dummy extensions / features / tools for specific scenarios
 # ---------------------------------------------------------------------------
@@ -72,9 +71,7 @@ class StreamingExtension:
     name: str = "streaming_extension"
     version: str = "1.0.0"
 
-    def get_tags(
-        self, config: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> List[str]:
+    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
         return ["supports_streaming"]
 
     def required_tags(self) -> List[str]:
@@ -87,9 +84,7 @@ class StreamingFeature:
     name: str = "streaming_feature"
     version: str = "1.0.0"
 
-    def get_tags(
-        self, config: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> List[str]:
+    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
         return ["feature:streaming"]
 
     def required_tags(self) -> List[str]:
@@ -106,9 +101,7 @@ class ConditionalExtension:
     name: str = "conditional_extension"
     version: str = "1.0.0"
 
-    def get_tags(
-        self, config: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> List[str]:
+    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
         return ["ext:conditional"]
 
     def required_tags(self) -> List[str]:
@@ -121,9 +114,7 @@ class ConditionalFeature:
     name: str = "conditional_feature"
     version: str = "1.0.0"
 
-    def get_tags(
-        self, config: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> List[str]:
+    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
         return ["feature:conditional"]
 
     def required_tags(self) -> List[str]:
@@ -136,9 +127,7 @@ class ToolsFeature:
     name: str = "tools_feature"
     version: str = "1.0.0"
 
-    def get_tags(
-        self, config: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> List[str]:
+    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
         return ["feature:tools"]
 
     def required_tags(self) -> List[str]:
@@ -151,9 +140,7 @@ class DummyTool:
     name: str = "dummy_tool"
     version: str = "1.0.0"
 
-    def get_tags(
-        self, config: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> List[str]:
+    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
         return ["tool:dummy"]
 
     def required_tags(self) -> List[str]:
@@ -180,9 +167,7 @@ class RootFeatureC:
     name: str = "feature_c_root"
     version: str = "1.0.0"
 
-    def get_tags(
-        self, config: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> List[str]:
+    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
         # C provides the base capability for the chain.
         return ["tag:c"]
 
@@ -197,9 +182,7 @@ class MidFeatureB:
     name: str = "feature_b_mid"
     version: str = "1.0.0"
 
-    def get_tags(
-        self, config: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> List[str]:
+    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
         return ["tag:b"]
 
     def required_tags(self) -> List[str]:
@@ -215,9 +198,7 @@ class TopFeatureA:
     name: str = "feature_a_top"
     version: str = "1.0.0"
 
-    def get_tags(
-        self, config: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> List[str]:
+    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
         return ["tag:a"]
 
     def required_tags(self) -> List[str]:
@@ -231,9 +212,7 @@ class FeatureX:
     name: str = "feature_x"
     version: str = "1.0.0"
 
-    def get_tags(
-        self, config: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> List[str]:
+    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
         return ["tag:x"]
 
     def required_tags(self) -> List[str]:
@@ -244,9 +223,7 @@ class FeatureY:
     name: str = "feature_y"
     version: str = "1.0.0"
 
-    def get_tags(
-        self, config: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> List[str]:
+    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
         return ["tag:y"]
 
     def required_tags(self) -> List[str]:
@@ -303,7 +280,6 @@ class SharedNameProviderB(BasicDependencyProvider):
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
-
 
 
 def test_extension_tag_enables_dependent_feature() -> None:

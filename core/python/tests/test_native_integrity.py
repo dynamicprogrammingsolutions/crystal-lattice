@@ -18,7 +18,11 @@ def make_two_turn_session() -> Tuple[AgentCore, Dict, Session]:
 def test_integrity_violation_on_modified_messages():
     core, config, session = make_two_turn_session()
     # Tamper with messages directly without removing native history (delete last assistant message)
-    hacked = Session(session_id=session.session_id, messages=session.messages[:-1], metadata=dict(session.metadata))
+    hacked = Session(
+        session_id=session.session_id,
+        messages=session.messages[:-1],
+        metadata=dict(session.metadata),
+    )
     with pytest.raises(RuntimeError):
         core.add_message(hacked, "user", "Oops")
 

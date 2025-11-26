@@ -31,7 +31,6 @@ class DummyProvider(ProviderPlugin):
         """Return UI elements."""
         return [{"type": "text", "key": "model", "label": "Model Name"}]
 
-
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
         Initialize provider state.
@@ -41,16 +40,13 @@ class DummyProvider(ProviderPlugin):
             "runtime_state": {"accumulated_content": "", "native_chunks": []},
         }
 
-
     def from_native_messages(
-        self,
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         return native_messages
 
     def initialize_request(
-        self,
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         # Reset runtime accumulators
         return {
@@ -67,9 +63,7 @@ class DummyProvider(ProviderPlugin):
         native_chunk: Dict[str, Any],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[
-        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
-    ]:
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """
         Process streaming chunk and update state.
         Returns (final_messages, partial_messages, native_messages, new_state).
@@ -81,16 +75,14 @@ class DummyProvider(ProviderPlugin):
                 **state["runtime_state"],
                 "accumulated_content": state["runtime_state"]["accumulated_content"]
                 + partial_content,
-                "native_chunks": state["runtime_state"]["native_chunks"]
-                + [native_chunk],
+                "native_chunks": state["runtime_state"]["native_chunks"] + [native_chunk],
             },
         }
         partial_msg = {"role": "assistant", "content": partial_content, "metadata": {}}
         return [], ([partial_msg] if partial_content else []), [native_chunk], new_state
 
     def finalize(
-        self,
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """
         Finalize message from accumulated state.
@@ -107,11 +99,8 @@ class DummyProvider(ProviderPlugin):
         return [message], [], state
 
     def call_api(
-        self,
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Tuple[
-        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
-    ]:
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Make non-streaming API call (simulated). Returns finals, partials, natives, state."""
         last_message = native_messages[-1] if native_messages else {}
         user_content = last_message.get("content", "")
@@ -123,8 +112,7 @@ class DummyProvider(ProviderPlugin):
         return [final], [], [], state
 
     def stream_api(
-        self,
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Iterator[Dict[str, Any]]:
         """Make streaming API call (simulated)."""
         last_message = native_messages[-1] if native_messages else {}

@@ -28,9 +28,7 @@ def _which(cmd: str) -> Optional[str]:
 
 
 def _run(cmd: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout
-    )
+    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
 
 
 @pytest.fixture(scope="module")
@@ -102,13 +100,14 @@ def test_tools_flow_with_ollama(ensure_model):
         print("\n<== Assistant proposed tool call:")
         assert len(tool_calls) == 1, f"expected a single tool call, got {len(tool_calls)}"
         tc = tool_calls[0]
-        fn_info = (tc.get("function") or {})
+        fn_info = tc.get("function") or {}
         print(f"  [0] {fn_info.get('name')} args={fn_info.get('arguments')}")
         fn = fn_info
         assert fn.get("name") == "read_file"
         args = fn.get("arguments")
         if isinstance(args, str):
             import json as _json
+
             try:
                 args = _json.loads(args)
             except Exception:

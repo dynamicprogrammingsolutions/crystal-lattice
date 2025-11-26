@@ -703,7 +703,7 @@ class AgentCore:
             features,
             tools,
         )
-        final_native_1, _partials, native_messages, state = provider.call_api(
+        _partials, final_native_1, native_messages, state = provider.call_api(
             native_messages, state
         )
 

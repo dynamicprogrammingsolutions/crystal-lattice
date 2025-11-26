@@ -51,7 +51,7 @@ class ProviderStreamMixin:
         self._last_native_messages = list(native_messages)  # type: ignore[attr-defined]
         current_native = self._last_native_messages
         for native_chunk in self.plugin.stream_api(current_native, working_state):  # type: ignore[attr-defined]
-            finals, partials, current_native, working_state = self.process_chunk(  # type: ignore[misc]
+            partials, finals, current_native, working_state = self.process_chunk(  # type: ignore[misc]
                 native_chunk, current_native, working_state
             )
             # track latest native messages (full history)
@@ -91,7 +91,7 @@ class ProviderStreamMixin:
             async for native_chunk in self.plugin.stream_api_async(  # type: ignore[attr-defined]
                 current_native, working_state
             ):
-                finals, partials, current_native, working_state = self.process_chunk(  # type: ignore[misc]
+                partials, finals, current_native, working_state = self.process_chunk(  # type: ignore[misc]
                     native_chunk, current_native, working_state
                 )
                 self._last_native_messages = current_native  # type: ignore[attr-defined]
@@ -103,7 +103,7 @@ class ProviderStreamMixin:
 
         # Fallback to sync stream
         for native_chunk in self.plugin.stream_api(current_native, working_state):  # type: ignore[attr-defined]
-            finals, partials, current_native, working_state = self.process_chunk(  # type: ignore[misc]
+            partials, finals, current_native, working_state = self.process_chunk(  # type: ignore[misc]
                 native_chunk, current_native, working_state
             )
             self._last_native_messages = current_native  # type: ignore[attr-defined]
@@ -378,14 +378,14 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         working_state = state or self.state
         # Initialize history baseline
         self._last_native_messages = list(native_messages)
-        final_messages, partials, native_returned, new_state = self.plugin.call_api(
+        partials, final_messages, native_returned, new_state = self.plugin.call_api(
             self._last_native_messages, working_state
         )
         self.state = new_state
         # Merge to full history and track
         full_history = self._merge_history(self._last_native_messages, native_returned)
         self._last_native_messages = full_history
-        return final_messages, partials, full_history, self._get_state()
+        return partials, final_messages, full_history, self._get_state()
 
     def stream_api(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
@@ -450,32 +450,23 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
             state: Shared provider state (optional; wrapper state used if empty).
 
         Returns:
-            Tuple of (final_messages, partial_core_messages, full_native_history, new_state).
+            Tuple of (partial_core_messages, final_messages, full_native_history, new_state).
         """
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
         working_state = state or self.state
         # Use the provided full native history directly
         full_history = list(native_messages)
-        final_messages, partial_messages, returned_history, new_state = self.plugin.process_chunk(
+        partial_messages, final_messages, returned_history, new_state = self.plugin.process_chunk(
             native_chunk, full_history, working_state
         )
         # Replace history with provider-returned history
         full_history = returned_history
         # Let extensions transform partials/finals/native history in order
         ext_state = new_state
-        pipe = pipeline()
+        pipe = pipeline(native_chunk)
         partial_messages, final_messages, full_history, ext_state = pipe(
-            [
-                lambda p, f, h, s, ext=ext: ext.process_chunk(
-                    native_chunk=native_chunk,
-                    state=s,
-                    partial_messages=p,
-                    final_messages=f,
-                    native_messages=h,
-                )
-                for ext in self._iter_extensions()
-            ],
+            [ext.process_chunk for ext in self._iter_extensions()],
             partial_messages,
             final_messages,
             full_history,
@@ -498,7 +489,7 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         # Track latest full history
         self._last_native_messages = full_history
 
-        return final_messages, core_partials, full_history, self._get_state()
+        return core_partials, final_messages, full_history, self._get_state()
 
     def finalize(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
@@ -524,10 +515,7 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         full_history = self._merge_history(baseline, native_returned)
         pipe = pipeline()
         final_messages, full_history, new_state = pipe(
-            [
-                lambda f, h, s, ext=ext: ext.finalize(final_messages=f, native_messages=h, state=s)
-                for ext in self._iter_extensions()
-            ],
+            [ext.finalize for ext in self._iter_extensions()],
             final_messages,
             full_history,
             new_state,
