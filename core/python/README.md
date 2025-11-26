@@ -173,7 +173,7 @@ session2, resp2 = core.send_request(session2, config2)
 Plugins are plain classes with instance methods (functional style; pass state explicitly). Note: keep methods stateless and treat any object attributes as per‑request only; instances are short‑lived and should not retain durable state. Example provider:
 
 ```python
-from typing import Dict, Any, List, Tuple, Iterator
+from typing import Dict, Any, List, Tuple
 
 class MyProvider:
     name: str = "my_provider"
@@ -186,26 +186,28 @@ class MyProvider:
         # Provider state is an opaque dict; this minimal example keeps
         # configuration under a single "config" key and is free to add
         # any other per-request data it needs.
-        return {"config": config}
+        return {"config": dict(config)}
 
-
-    def to_native_messages(self, messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
-        return [{"role": m["role"], "content": m["content"]} for m in messages]
-
-    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
-        return state
-
-    def call_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    def call_api(
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        Dict[str, Any],
+    ]:
         # Return (final_messages, partial_messages, native_messages, new_state)
-        return ([{"role": "assistant", "content": "Response"}], [], [], state)
-
-    def finalize(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        # Return (final_messages, native_messages, new_state)
-        return ([], [], state)
-
-    def stream_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
-        yield from []
+        return (
+            [{"role": "assistant", "content": "Response", "metadata": {}}],
+            [],
+            native_messages,
+            state,
+        )
 ```
+
+In the Python SDK, adapter classes (for example `ProviderDefaultsAdapter`) supply default implementations for hooks like `to_native_messages`, `from_native_messages`, `initialize_request`, `finalize`, and `stream_api` when they are omitted, so most providers only need to implement configuration, `init`, and one of the I/O entry points (`call_api` or `stream_api`).
 
 ## Running Tests
 

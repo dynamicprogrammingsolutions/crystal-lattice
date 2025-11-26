@@ -39,12 +39,6 @@ class BasicDependencyProvider:
     name: str = "dep_provider"
     version: str = "1.0.0"
 
-    def get_config_schema(self) -> Dict[str, Any]:  # pragma: no cover - unused
-        return {}
-
-    def get_ui_elements(self) -> List[Dict[str, Any]]:  # pragma: no cover
-        return []
-
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         return {"config": dict(config)}
 
@@ -62,67 +56,6 @@ class BasicDependencyProvider:
             tags.append("supports_reasoning")
         return tags
 
-    # The remaining methods are not used by these tests but are provided to
-    # keep the provider structurally compatible with the protocol.
-
-    def to_native_messages(
-        self, messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover - unused
-        return list(messages)
-
-    def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover - unused
-        return list(native_messages)
-
-    def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:  # pragma: no cover - unused
-        return state
-
-    def process_chunk(
-        self,
-        native_chunk: Dict[str, Any],
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
-    ) -> Tuple[
-        List[Dict[str, Any]],
-        List[Dict[str, Any]],
-        List[Dict[str, Any]],
-        Dict[str, Any],
-    ]:  # pragma: no cover - unused
-        return [], [], native_messages, state
-
-    def finalize(
-        self,
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:  # pragma: no cover - unused
-        return [], native_messages, state
-
-    def to_display_format(
-        self, message: Dict[str, Any], state: Dict[str, Any]
-    ) -> Dict[str, Any]:  # pragma: no cover - unused
-        return message
-
-    def call_api(
-        self,
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
-    ) -> Tuple[
-        List[Dict[str, Any]],
-        List[Dict[str, Any]],
-        List[Dict[str, Any]],
-        Dict[str, Any],
-    ]:  # pragma: no cover - unused
-        return [], [], native_messages, state
-
-    def stream_api(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Iterator[Dict[str, Any]]:  # pragma: no cover - unused
-        if False:
-            yield {}
-        return
 
 
 # ---------------------------------------------------------------------------
@@ -139,20 +72,6 @@ class StreamingExtension:
     name: str = "streaming_extension"
     version: str = "1.0.0"
 
-    def get_config_schema(self) -> Dict[str, Any]:  # pragma: no cover - unused
-        return {}
-
-    def get_ui_elements(self) -> List[Dict[str, Any]]:  # pragma: no cover
-        return []
-
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        return state
-
-    def get_models(
-        self, config: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        return list(models)
-
     def get_tags(
         self, config: Dict[str, Any], models: List[Dict[str, Any]]
     ) -> List[str]:
@@ -160,44 +79,6 @@ class StreamingExtension:
 
     def required_tags(self) -> List[str]:
         return []
-
-    def to_native_messages(
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover - unused
-        return native_messages
-
-    def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover - unused
-        return messages
-
-    def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:  # pragma: no cover - unused
-        return state
-
-    def process_chunk(
-        self,
-        native_chunk,
-        state: Dict[str, Any],
-        partial_messages: List[Dict[str, Any]],
-        final_messages: List[Dict[str, Any]],
-        native_messages: List[Dict[str, Any]],
-    ) -> Tuple[
-        List[Dict[str, Any]],
-        List[Dict[str, Any]],
-        List[Dict[str, Any]],
-        Dict[str, Any],
-    ]:  # pragma: no cover - unused
-        return partial_messages, final_messages, native_messages, state
-
-    def finalize(
-        self,
-        final_messages: List[Dict[str, Any]],
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:  # pragma: no cover - unused
-        return final_messages, native_messages, state
 
 
 class StreamingFeature:
@@ -206,20 +87,6 @@ class StreamingFeature:
     name: str = "streaming_feature"
     version: str = "1.0.0"
 
-    def get_config_schema(self) -> Dict[str, Any]:  # pragma: no cover - unused
-        return {}
-
-    def get_ui_elements(self) -> List[Dict[str, Any]]:  # pragma: no cover
-        return []
-
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        return state
-
-    def get_models(
-        self, config: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        return list(models)
-
     def get_tags(
         self, config: Dict[str, Any], models: List[Dict[str, Any]]
     ) -> List[str]:
@@ -227,29 +94,6 @@ class StreamingFeature:
 
     def required_tags(self) -> List[str]:
         return ["supports_streaming"]
-
-    def to_native_messages(
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover - unused
-        return native_messages
-
-    def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover - unused
-        return messages
-
-    def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:  # pragma: no cover - unused
-        return state
-
-    def finalize(
-        self,
-        final_messages: List[Dict[str, Any]],
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:  # pragma: no cover - unused
-        return final_messages, native_messages, state
 
 
 class ConditionalExtension:
@@ -262,20 +106,6 @@ class ConditionalExtension:
     name: str = "conditional_extension"
     version: str = "1.0.0"
 
-    def get_config_schema(self) -> Dict[str, Any]:  # pragma: no cover - unused
-        return {}
-
-    def get_ui_elements(self) -> List[Dict[str, Any]]:  # pragma: no cover
-        return []
-
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        return state
-
-    def get_models(
-        self, config: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        return list(models)
-
     def get_tags(
         self, config: Dict[str, Any], models: List[Dict[str, Any]]
     ) -> List[str]:
@@ -284,64 +114,12 @@ class ConditionalExtension:
     def required_tags(self) -> List[str]:
         return ["enable_extension"]
 
-    def to_native_messages(
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover - unused
-        return native_messages
-
-    def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover - unused
-        return messages
-
-    def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:  # pragma: no cover - unused
-        return state
-
-    def process_chunk(
-        self,
-        native_chunk,
-        state: Dict[str, Any],
-        partial_messages: List[Dict[str, Any]],
-        final_messages: List[Dict[str, Any]],
-        native_messages: List[Dict[str, Any]],
-    ) -> Tuple[
-        List[Dict[str, Any]],
-        List[Dict[str, Any]],
-        List[Dict[str, Any]],
-        Dict[str, Any],
-    ]:  # pragma: no cover - unused
-        return partial_messages, final_messages, native_messages, state
-
-    def finalize(
-        self,
-        final_messages: List[Dict[str, Any]],
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:  # pragma: no cover - unused
-        return final_messages, native_messages, state
-
 
 class ConditionalFeature:
     """Feature that depends on ConditionalExtension's tag."""
 
     name: str = "conditional_feature"
     version: str = "1.0.0"
-
-    def get_config_schema(self) -> Dict[str, Any]:  # pragma: no cover - unused
-        return {}
-
-    def get_ui_elements(self) -> List[Dict[str, Any]]:  # pragma: no cover
-        return []
-
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        return state
-
-    def get_models(
-        self, config: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        return list(models)
 
     def get_tags(
         self, config: Dict[str, Any], models: List[Dict[str, Any]]
@@ -351,49 +129,12 @@ class ConditionalFeature:
     def required_tags(self) -> List[str]:
         return ["ext:conditional"]
 
-    def to_native_messages(
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover - unused
-        return native_messages
-
-    def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover - unused
-        return messages
-
-    def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:  # pragma: no cover - unused
-        return state
-
-    def finalize(
-        self,
-        final_messages: List[Dict[str, Any]],
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:  # pragma: no cover - unused
-        return final_messages, native_messages, state
-
 
 class ToolsFeature:
     """Feature that requires provider tool support and advertises its tag."""
 
     name: str = "tools_feature"
     version: str = "1.0.0"
-
-    def get_config_schema(self) -> Dict[str, Any]:  # pragma: no cover - unused
-        return {}
-
-    def get_ui_elements(self) -> List[Dict[str, Any]]:  # pragma: no cover
-        return []
-
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        return state
-
-    def get_models(
-        self, config: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        return list(models)
 
     def get_tags(
         self, config: Dict[str, Any], models: List[Dict[str, Any]]
@@ -403,44 +144,12 @@ class ToolsFeature:
     def required_tags(self) -> List[str]:
         return ["supports_tools"]
 
-    def to_native_messages(
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover - unused
-        return native_messages
-
-    def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover - unused
-        return messages
-
-    def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:  # pragma: no cover - unused
-        return state
-
-    def finalize(
-        self,
-        final_messages: List[Dict[str, Any]],
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:  # pragma: no cover - unused
-        return final_messages, native_messages, state
-
 
 class DummyTool:
     """Tool that requires provider/tool support via tags."""
 
     name: str = "dummy_tool"
     version: str = "1.0.0"
-
-    def get_config_schema(self) -> Dict[str, Any]:  # pragma: no cover - unused
-        return {}
-
-    def get_ui_elements(self) -> List[Dict[str, Any]]:  # pragma: no cover
-        return []
-
-    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        return {"config": dict(config)}
 
     def get_tags(
         self, config: Dict[str, Any], models: List[Dict[str, Any]]
@@ -461,16 +170,6 @@ class DummyTool:
             }
         ]
 
-    def execute_tool(
-        self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
-    ) -> Dict[str, Any]:  # pragma: no cover - unused
-        return {"success": True, "result": None}
-
-    def format_tool_result(
-        self, result: Dict[str, Any], state: Dict[str, Any]
-    ) -> str:  # pragma: no cover - unused
-        return "ok"
-
 
 # Complex dependency graph: A -> B -> C, where C provides the root tag.
 
@@ -480,20 +179,6 @@ class RootFeatureC:
 
     name: str = "feature_c_root"
     version: str = "1.0.0"
-
-    def get_config_schema(self) -> Dict[str, Any]:  # pragma: no cover
-        return {}
-
-    def get_ui_elements(self) -> List[Dict[str, Any]]:  # pragma: no cover
-        return []
-
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        return state
-
-    def get_models(
-        self, config: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        return list(models)
 
     def get_tags(
         self, config: Dict[str, Any], models: List[Dict[str, Any]]
@@ -505,49 +190,12 @@ class RootFeatureC:
         # No requirements; always eligible when registered.
         return []
 
-    def to_native_messages(
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover
-        return native_messages
-
-    def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover
-        return messages
-
-    def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:  # pragma: no cover
-        return state
-
-    def finalize(
-        self,
-        final_messages: List[Dict[str, Any]],
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:  # pragma: no cover
-        return final_messages, native_messages, state
-
 
 class MidFeatureB:
     """Intermediate feature B that depends on C and provides its own tag."""
 
     name: str = "feature_b_mid"
     version: str = "1.0.0"
-
-    def get_config_schema(self) -> Dict[str, Any]:  # pragma: no cover
-        return {}
-
-    def get_ui_elements(self) -> List[Dict[str, Any]]:  # pragma: no cover
-        return []
-
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        return state
-
-    def get_models(
-        self, config: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        return list(models)
 
     def get_tags(
         self, config: Dict[str, Any], models: List[Dict[str, Any]]
@@ -556,29 +204,6 @@ class MidFeatureB:
 
     def required_tags(self) -> List[str]:
         return ["tag:c"]
-
-    def to_native_messages(
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover
-        return native_messages
-
-    def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover
-        return messages
-
-    def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:  # pragma: no cover
-        return state
-
-    def finalize(
-        self,
-        final_messages: List[Dict[str, Any]],
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:  # pragma: no cover
-        return final_messages, native_messages, state
 
 
 class TopFeatureA:
@@ -590,20 +215,6 @@ class TopFeatureA:
     name: str = "feature_a_top"
     version: str = "1.0.0"
 
-    def get_config_schema(self) -> Dict[str, Any]:  # pragma: no cover
-        return {}
-
-    def get_ui_elements(self) -> List[Dict[str, Any]]:  # pragma: no cover
-        return []
-
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        return state
-
-    def get_models(
-        self, config: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        return list(models)
-
     def get_tags(
         self, config: Dict[str, Any], models: List[Dict[str, Any]]
     ) -> List[str]:
@@ -611,29 +222,6 @@ class TopFeatureA:
 
     def required_tags(self) -> List[str]:
         return ["tag:b"]
-
-    def to_native_messages(
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover
-        return native_messages
-
-    def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover
-        return messages
-
-    def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:  # pragma: no cover
-        return state
-
-    def finalize(
-        self,
-        final_messages: List[Dict[str, Any]],
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:  # pragma: no cover
-        return final_messages, native_messages, state
 
 
 # Circular-ish dependency example: X depends on Y, Y depends on X.
@@ -643,20 +231,6 @@ class FeatureX:
     name: str = "feature_x"
     version: str = "1.0.0"
 
-    def get_config_schema(self) -> Dict[str, Any]:  # pragma: no cover
-        return {}
-
-    def get_ui_elements(self) -> List[Dict[str, Any]]:  # pragma: no cover
-        return []
-
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        return state
-
-    def get_models(
-        self, config: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        return list(models)
-
     def get_tags(
         self, config: Dict[str, Any], models: List[Dict[str, Any]]
     ) -> List[str]:
@@ -664,49 +238,12 @@ class FeatureX:
 
     def required_tags(self) -> List[str]:
         return ["tag:y"]
-
-    def to_native_messages(
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover
-        return native_messages
-
-    def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover
-        return messages
-
-    def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:  # pragma: no cover
-        return state
-
-    def finalize(
-        self,
-        final_messages: List[Dict[str, Any]],
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:  # pragma: no cover
-        return final_messages, native_messages, state
 
 
 class FeatureY:
     name: str = "feature_y"
     version: str = "1.0.0"
 
-    def get_config_schema(self) -> Dict[str, Any]:  # pragma: no cover
-        return {}
-
-    def get_ui_elements(self) -> List[Dict[str, Any]]:  # pragma: no cover
-        return []
-
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        return state
-
-    def get_models(
-        self, config: Dict[str, Any], models: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        return list(models)
-
     def get_tags(
         self, config: Dict[str, Any], models: List[Dict[str, Any]]
     ) -> List[str]:
@@ -714,29 +251,6 @@ class FeatureY:
 
     def required_tags(self) -> List[str]:
         return ["tag:x"]
-
-    def to_native_messages(
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover
-        return native_messages
-
-    def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover
-        return messages
-
-    def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:  # pragma: no cover
-        return state
-
-    def finalize(
-        self,
-        final_messages: List[Dict[str, Any]],
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:  # pragma: no cover
-        return final_messages, native_messages, state
 
 
 # Provider with counters for caching tests
@@ -749,12 +263,6 @@ class CountingProvider:
     models_calls: int = 0
     tags_calls: int = 0
 
-    def get_config_schema(self) -> Dict[str, Any]:  # pragma: no cover
-        return {}
-
-    def get_ui_elements(self) -> List[Dict[str, Any]]:  # pragma: no cover
-        return []
-
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         return {"config": dict(config)}
 
@@ -766,65 +274,6 @@ class CountingProvider:
     def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
         type(self).tags_calls += 1
         return ["provider:counting"]
-
-    def to_native_messages(
-        self, messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover
-        return messages
-
-    def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:  # pragma: no cover
-        return native_messages
-
-    def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:  # pragma: no cover
-        return state
-
-    def process_chunk(
-        self,
-        native_chunk: Dict[str, Any],
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
-    ) -> Tuple[
-        List[Dict[str, Any]],
-        List[Dict[str, Any]],
-        List[Dict[str, Any]],
-        Dict[str, Any],
-    ]:  # pragma: no cover
-        return [], [], native_messages, state
-
-    def finalize(
-        self,
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:  # pragma: no cover
-        return [], native_messages, state
-
-    def to_display_format(
-        self, message: Dict[str, Any], state: Dict[str, Any]
-    ) -> Dict[str, Any]:  # pragma: no cover
-        return message
-
-    def call_api(
-        self,
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
-    ) -> Tuple[
-        List[Dict[str, Any]],
-        List[Dict[str, Any]],
-        List[Dict[str, Any]],
-        Dict[str, Any],
-    ]:  # pragma: no cover
-        return [], [], native_messages, state
-
-    def stream_api(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Iterator[Dict[str, Any]]:  # pragma: no cover
-        if False:
-            yield {}
-        return
 
 
 # Additional providers used for provider selection tests.

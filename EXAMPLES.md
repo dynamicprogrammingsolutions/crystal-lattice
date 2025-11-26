@@ -1,6 +1,6 @@
 # Examples
 
-Note: Plugins use instance methods but should remain stateless (pure) and operate on explicit state objects. Plugin instances are short‑lived and scoped to a single request, just like the shared provider state managed by the provider wrapper.
+Note: Plugins use instance methods but should remain stateless (pure) and operate on explicit state objects. Plugin instances are short‑lived and scoped to a single request, just like the shared provider state managed by the provider wrapper. In the Python SDK, defaulting adapters implement many message-conversion and lifecycle hooks when plugin classes omit them, so most examples only implement the small subset of methods they actually need.
 
 ## PROJECT_PLAN Example 6: FastAPI/WebSocket App (Ollama)
 
@@ -146,25 +146,22 @@ class EchoProvider(ProviderPlugin):
 
     def initialize_request(
         self,
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
     ) -> Dict[str, Any]:
         return {**state, "accumulated": ""}
 
-    def to_native_messages(
-        self,
-        messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
-        return list(messages)
-
     def from_native_messages(
         self,
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         return list(native_messages)
 
     def stream_api(
         self,
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
     ) -> Iterator[Dict[str, Any]]:
         last_user = next(
             (m for m in reversed(native_messages) if m.get("role") == "user"),
@@ -180,7 +177,10 @@ class EchoProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[
-        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        Dict[str, Any],
     ]:
         acc = state.get("accumulated", "") + native_chunk.get("content", "")
         new_state = {**state, "accumulated": acc}
@@ -213,7 +213,10 @@ class EchoProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[
-        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        Dict[str, Any],
     ]:
         last_user = next(
             (m for m in reversed(native_messages) if m.get("role") == "user"),
@@ -266,24 +269,6 @@ class PrefixExtension(ProviderExtensionPlugin):
             "extension_processed_chunks": 0,
         }
 
-    def to_native_messages(
-            self,
-            messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        return messages
-
-    def from_native_messages(
-            self,
-            native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        return messages
-
-    def initialize_request(
-            self,
-            native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        return state
-
     def process_chunk(
             self,
             native_chunk: Optional[Dict[str, Any]],
@@ -292,7 +277,10 @@ class PrefixExtension(ProviderExtensionPlugin):
             final_messages: List[Dict[str, Any]],
             native_messages: List[Dict[str, Any]],
     ) -> Tuple[
-        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        Dict[str, Any],
     ]:
         if not state.get("config", {}).get("enabled", True):
             return partial_messages, final_messages, native_messages, state
@@ -384,21 +372,6 @@ class WebSearchFeature:
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         return {**state, "config": {**state.get("config", {}), **config}}
-
-    def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        return state
-
-    def to_native_messages(
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        return messages
-
-    def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        return messages
 
     def finalize(
         self,

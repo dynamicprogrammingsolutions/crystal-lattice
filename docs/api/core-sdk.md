@@ -466,12 +466,14 @@ MessageRole = Literal["system", "user", "assistant", "tool"]
 
 ## Plugin Infrastructure
 
-Specialized wrappers provide typed, intuitive interfaces for each plugin type. These handle state and typed operations without generic adapter layers.
+Specialized wrappers and defaulting adapters provide typed, intuitive interfaces for each plugin type.
 
-- Provider: `ProviderWrapper` (owns shared state)
-- Feature: `FeatureWrapper` (no internal state; shared-state lifecycle)
-- Tool: `ToolWrapper`
-- Provider extension: `ExtensionWrapper` (no internal state; shared-state lifecycle, stateless transforms)
+- Provider: `ProviderWrapper` (owns shared state) + `ProviderDefaultsAdapter`
+- Feature: `FeatureWrapper` (shared-state lifecycle) + `FeatureDefaultsAdapter`
+- Tool: `ToolWrapper` + `ToolDefaultsAdapter`
+- Provider extension: `ExtensionWrapper` (shared-state lifecycle, stateless transforms) + `ProviderExtensionDefaultsAdapter`
+
+In the Python SDK these adapters supply sensible defaults for many conversion and lifecycle hooks when plugin classes omit them, so plugin authors can implement only the subset of methods they actually need.
 
 Note: Methods remain stateless (pure) and use explicit state parameters. Plugin instances are short‑lived (per request) and should not hold durable mutable state. The provider wrapper discards shared state after each request. Tools manage their own state dicts passed in/out explicitly.
 

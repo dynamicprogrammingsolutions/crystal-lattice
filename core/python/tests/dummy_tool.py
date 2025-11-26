@@ -19,40 +19,6 @@ class DummyCalculator:
     name: str = "dummy_calculator"
     version: str = "1.0.0"
 
-    def get_config_schema(self) -> Dict[str, Any]:
-        """Return configuration schema."""
-        return {}
-
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
-        """Return UI elements."""
-        return []
-
-    def get_tags(
-
-        self,
-        config: Dict[str, Any],
-        models: List[Dict[str, Any]],
-    ) -> List[str]:
-        """Identify the dummy calculator tool for dependency tests."""
-        return ["tool:dummy_calculator"]
-
-    def required_tags(self) -> List[str]:
-        """Dummy calculator has no hard tag requirements."""
-        return []
- 
-    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-
-        """
-        Initialize tool state.
-
-        Args:
-            config: Configuration dictionary
-
-        Returns:
-            Initial state dictionary
-        """
-        return {"config": dict(config)}
-
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return tool schemas."""

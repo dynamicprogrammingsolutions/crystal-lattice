@@ -30,24 +30,6 @@ class PrefixExtension(ProviderExtensionPlugin):
             "extension_processed_chunks": 0,
         }
 
-    def to_native_messages(
-            self,
-            messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        return messages
-
-    def from_native_messages(
-            self,
-            native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        return messages
-
-    def initialize_request(
-            self,
-            native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        return state
-
     def process_chunk(
             self,
             native_chunk: Optional[Dict[str, Any]],

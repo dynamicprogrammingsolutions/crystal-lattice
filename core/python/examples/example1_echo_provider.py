@@ -29,12 +29,6 @@ class EchoProvider(ProviderPlugin):
     ) -> Dict[str, Any]:
         return {**state, "accumulated": ""}
 
-    def to_native_messages(
-        self,
-        messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
-        return list(messages)
-
     def from_native_messages(
         self,
         native_messages: List[Dict[str, Any]], state: Dict[str, Any]

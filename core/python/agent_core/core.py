@@ -419,46 +419,7 @@ class AgentCore:
 
         return matches[0]
 
-    def _coerce_models_result(
-
-        self,
-        result: Any,
-        previous: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
-        """Normalize a plugin `get_models` result into a list.
-
-        Treats ``None`` as "no change" (returns ``previous``) and
-        attempts to coerce other iterables to a list. On type errors,
-        falls back to ``previous``.
-        """
-        if result is None:
-            return list(previous)
-        if isinstance(result, list):
-            return result
-        if isinstance(result, tuple):
-            return list(result)
-        try:
-            return list(result)
-        except TypeError:
-            return list(previous)
-
-    def _coerce_tags_result(self, result: Any) -> List[str]:
-        """Normalize a plugin `get_tags` result into a list of strings.
-
-        Treats ``None`` as an empty list and attempts to coerce other
-        iterables to a list. Non-iterable values result in an empty
-        list.
-        """
-        if result is None:
-            return []
-        if isinstance(result, (list, tuple, set)):
-            seq = result
-        else:
-            try:
-                seq = list(result)
-            except TypeError:
-                return []
-        return [str(tag) for tag in seq]
+    # Model and tag result normalization is handled by plugin adapters.
 
     def _get_models_for_config(
         self,
@@ -475,23 +436,13 @@ class AgentCore:
             return [dict(m) for m in cached]
 
         # Start with provider-declared models and let extensions and features
-        # participate in model discovery. Each contribution is normalized via
-        # _coerce_models_result so that `None` and non-list values do not
-        # break the pipeline.
-        models: List[Dict[str, Any]] = self._coerce_models_result(
-            provider.get_models(config),
-            [],
-        )
+        # participate in model discovery. Adapters normalize shapes so that
+        # `get_models` always returns a list of dicts.
+        models: List[Dict[str, Any]] = provider.get_models(config)
         for ext in provider.extensions:
-            models = self._coerce_models_result(
-                ext.get_models(config, models),
-                models,
-            )
+            models = ext.get_models(config, models)
         for feature in self._features:
-            models = self._coerce_models_result(
-                feature.get_models(config, models),
-                models,
-            )
+            models = feature.get_models(config, models)
 
         # Validate and normalize
         validated: List[Dict[str, Any]] = []
@@ -566,7 +517,6 @@ class AgentCore:
                     provider_tags = provider.get_tags(config, models)
                 except Exception:
                     provider_tags = []
-                provider_tags = self._coerce_tags_result(provider_tags)
                 self._tags_cache = {
                     **self._tags_cache,
                     provider_tag_key: provider_tags,
@@ -582,7 +532,6 @@ class AgentCore:
                         tags = ext.get_tags(config, models)
                     except Exception:
                         tags = []
-                    tags = self._coerce_tags_result(tags)
                     self._tags_cache = {**self._tags_cache, key: tags}
                 available_tags.update(tags)
 
@@ -595,7 +544,6 @@ class AgentCore:
                         tags = feat.get_tags(config, models)
                     except Exception:
                         tags = []
-                    tags = self._coerce_tags_result(tags)
                     self._tags_cache = {**self._tags_cache, key: tags}
                 available_tags.update(tags)
 
@@ -608,7 +556,6 @@ class AgentCore:
                         tags = tool.get_tags(config, models)
                     except Exception:
                         tags = []
-                    tags = self._coerce_tags_result(tags)
                     self._tags_cache = {**self._tags_cache, key: tags}
                 available_tags.update(tags)
 
@@ -616,23 +563,17 @@ class AgentCore:
             next_enabled_extensions = [
                 ext
                 for ext in enabled_extensions
-                if set(self._coerce_tags_result(ext.required_tags())).issubset(
-                    available_tags
-                )
+                if set(ext.required_tags()).issubset(available_tags)
             ]
             next_enabled_features = [
                 feat
                 for feat in enabled_features
-                if set(self._coerce_tags_result(feat.required_tags())).issubset(
-                    available_tags
-                )
+                if set(feat.required_tags()).issubset(available_tags)
             ]
             next_enabled_tools = [
                 tool
                 for tool in enabled_tools
-                if set(self._coerce_tags_result(tool.required_tags())).issubset(
-                    available_tags
-                )
+                if set(tool.required_tags()).issubset(available_tags)
             ]
 
             cur_ext_names = [ext.name for ext in enabled_extensions]

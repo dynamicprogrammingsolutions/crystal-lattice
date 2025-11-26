@@ -34,21 +34,6 @@ class WebSearchFeature:
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         return {**state, "config": {**state.get("config", {}), **config}}
 
-    def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        return state
-
-    def to_native_messages(
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        return messages
-
-    def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        return messages
-
     def finalize(
         self,
         final_messages: List[Dict[str, Any]],

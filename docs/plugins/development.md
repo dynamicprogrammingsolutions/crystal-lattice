@@ -18,18 +18,18 @@ See also
 Providers adapt LLM APIs and convert between core and provider-native messages. They can stream (hot path) and finalize (cold path).
 
 Key methods (subset):
-- `init(config) -> state`
-- `to_native_messages(messages, state) -> list`
-- `from_native_messages(native_messages, state) -> list`
-- `initialize_request(native_messages, state) -> state`
-- `call_api(native_messages, state) -> (final, partial, native, state)`
-- `stream_api(native_messages, state) -> Iterator[chunk]`
-- `process_chunk(native_chunk, native_messages, state) -> (final, partial, native, state)`
-- `finalize(native_messages, state) -> (final, native, state)`
+- `init(config) -> state` (required)
+- `call_api(native_messages, state) -> (final, partial, native, state)` (required, or `stream_api` for streaming providers)
+- `process_chunk(native_chunk, native_messages, state) -> (final, partial, native, state)` (required)
+- `finalize(native_messages, state) -> (final, native, state)` (required)
+- `to_native_messages(messages, state) -> list` (optional in Python; adapter defaults to identity mapping of `role` and `content`)
+- `from_native_messages(native_messages, state) -> list` (optional in Python; adapter maps to core messages with empty `metadata`)
+- `initialize_request(native_messages, state) -> state` (optional in Python; adapter returns state unchanged)
+- `stream_api(native_messages, state) -> Iterator[chunk]` (optional but recommended for streaming providers)
 
 Minimal example (echo):
 ```python
-from typing import Any, Dict, List, Tuple, Iterator
+from typing import Any, Dict, List, Tuple
 from agent_core.types import ProviderPlugin
 
 class EchoProvider(ProviderPlugin):
@@ -41,45 +41,42 @@ class EchoProvider(ProviderPlugin):
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         # Provider state is an opaque dict; this minimal example only
-        # needs configuration.
+        # stores configuration.
         return {"config": dict(config)}
 
-    def to_native_messages(self, messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
-        return list(messages)
-
-    def from_native_messages(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
-        return list(native_messages)
-
-    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
-        return state
-
-    def call_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        last_user = next((m for m in reversed(native_messages) if m.get("role") == "user"), {"content": ""})
+    def call_api(
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        Dict[str, Any],
+    ]:
+        last_user = next(
+            (m for m in reversed(native_messages) if m.get("role") == "user"),
+            {"content": ""},
+        )
         content = f"Echo: {last_user.get('content', '')}"
-        final = [{"role": "assistant", "content": content}]
-        return final, [], [*native_messages, *final], state
-
-    def stream_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
-        yield from []
-
-    def process_chunk(self, native_chunk: Dict[str, Any], native_messages: List[Dict[str, Any]], state: Dict[str, Any]):
-        return [], [], native_messages, state
-
-    def finalize(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]):
-        return [], native_messages, state
+        final = [{"role": "assistant", "content": content, "metadata": {}}]
+        # Return (final_messages, partial_messages, native_messages, new_state)
+        return final, [], native_messages, state
 ```
+
+In the Python SDK, adapter defaults handle `to_native_messages`, `from_native_messages`, `initialize_request`, `finalize`, and `stream_api` when they are omitted, so many providers only implement configuration, `init`, and one of the I/O entry points (`call_api` or `stream_api`).
 
 ## Provider Extension Plugin
 
 Provider extensions run beside the provider on the hot path and the cold path. They do not own separate state; they receive and update the shared provider state.
 
 Key methods (subset):
-- `init(config, state) -> state`
-- `to_native_messages(messages, native_messages) -> list` (stateless)
-- `from_native_messages(native_messages, messages) -> list` (stateless)
-- `initialize_request(native_messages, state) -> state`
-- `process_chunk(native_chunk|None, state, partial_messages, final_messages, native_messages) -> (partials, finals, native, state)`
-- `finalize(final_messages, native_messages, state) -> (finals, native, state)`
+- `init(config, state) -> state` (required)
+- `process_chunk(native_chunk|None, state, partial_messages, final_messages, native_messages) -> (partials, finals, native, state)` (required)
+- `finalize(final_messages, native_messages, state) -> (finals, native, state)` (required)
+- `to_native_messages(messages, native_messages) -> list` (optional in Python; adapter defaults to identity)
+- `from_native_messages(native_messages, messages) -> list` (optional in Python; adapter defaults to identity)
+- `initialize_request(native_messages, state) -> state` (optional in Python; adapter returns state unchanged)
 
 Minimal example (prefix finals):
 ```python
@@ -87,9 +84,8 @@ from typing import Any, Dict, List, Tuple, Optional
 from agent_core.types import ProviderExtensionPlugin
 
 class PrefixExtension(ProviderExtensionPlugin):
-     name = "prefix"
-     version = "1.0.0"
-
+    name = "prefix"
+    version = "1.0.0"
 
     def get_config_schema(self) -> Dict[str, Any]:
         return {"prefix": {"type": "string", "default": "[EXT]"}}
@@ -97,34 +93,36 @@ class PrefixExtension(ProviderExtensionPlugin):
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         return {**state, "config": {**state.get("config", {}), **config}}
 
-    def to_native_messages(self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        return native_messages
-
-    def from_native_messages(self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        return messages
-
-    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
-        return state
-
-    def process_chunk(self, native_chunk: Optional[Dict[str, Any]], state: Dict[str, Any], partial_messages: List[Dict[str, Any]], final_messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]):
+    def process_chunk(
+        self,
+        native_chunk: Optional[Dict[str, Any]],
+        state: Dict[str, Any],
+        partial_messages: List[Dict[str, Any]],
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+    ) -> Tuple[
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        Dict[str, Any],
+    ]:
         pfx = state.get("config", {}).get("prefix", "[EXT]")
         finals = [{**m, "content": f"{pfx} {m['content']}"} for m in final_messages]
         return partial_messages, finals, native_messages, state
-
-    def finalize(self, final_messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]], state: Dict[str, Any]):
-        return final_messages, native_messages, state
 ```
+
+As with providers, extension adapters supply default identity implementations for the stateless conversion and `initialize_request` hooks when they are not defined on the class.
 
 ## Feature Plugin
 
 Features operate on the cold path only. They see the shared provider state and can transform provider-native or core messages during finalize.
 
 Key methods (subset):
-- `init(config, state) -> state`
-- `to_native_messages(messages, native_messages) -> list` (stateless)
-- `from_native_messages(native_messages, messages) -> list` (stateless)
-- `initialize_request(native_messages, state) -> state`
-- `finalize(final_messages, native_messages, state) -> (finals, native, state)`
+- `init(config, state) -> state` (required)
+- `finalize(final_messages, native_messages, state) -> (finals, native, state)` (required)
+- `to_native_messages(messages, native_messages) -> list` (optional in Python; adapter defaults to identity)
+- `from_native_messages(native_messages, messages) -> list` (optional in Python; adapter defaults to identity)
+- `initialize_request(native_messages, state) -> state` (optional in Python; adapter returns state unchanged)
 
 Minimal example (add tag):
 ```python
@@ -141,19 +139,20 @@ class TagFeature(FeaturePlugin):
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         return state
 
-    def to_native_messages(self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        return native_messages
-
-    def from_native_messages(self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        return messages
-
-    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
-        return state
-
-    def finalize(self, final_messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]], state: Dict[str, Any]):
-        finals = [{**m, "metadata": {**m.get("metadata", {}), "tag": True}} for m in final_messages]
+    def finalize(
+        self,
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        finals = [
+            {**m, "metadata": {**m.get("metadata", {}), "tag": True}}
+            for m in final_messages
+        ]
         return finals, native_messages, state
 ```
+
+Feature adapters mirror extension adapters: if a feature omits the stateless conversion and `initialize_request` hooks, the Python SDK supplies identity/default behaviors.
 
 ## Tool Plugin
 
@@ -199,7 +198,7 @@ class Calculator(ToolPlugin):
 
 ```python
 from agent_core import AgentCore
-from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
+from plugins.openai_provider import OpenAICompatibleProvider
 
 core = AgentCore()
 core.register_provider(OpenAICompatibleProvider, extensions=[PrefixExtension])

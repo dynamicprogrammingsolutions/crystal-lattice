@@ -10,50 +10,23 @@ class ConversionProvider(ProviderPlugin):
     name: str = "conversion_provider"
     version: str = "1.0.0"
 
-    def get_config_schema(self) -> Dict[str, Any]:
-        return {}
-
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
-        return []
-
-    def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Return a minimal model descriptor list for conversion tests."""
-        model = config.get("model")
-        if isinstance(model, str) and model:
-            return [{"id": model}]
-        return []
-
-    def get_tags(
-        self,
-        config: Dict[str, Any],
-        models: List[Dict[str, Any]],
-    ) -> List[str]:
-        """Return simple capability tags for the conversion provider."""
-        return ["provider:conversion_provider"]
- 
-    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        return {"config": dict(config)}
-
-
-
     def to_native_messages(self, messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
         # Mark that to_native was used
-        return [{"role": m.get("role", "user"), "content": m.get("content", ""), "ctn": True} for m in messages]
+        return [
+            {"role": m.get("role", "user"), "content": m.get("content", ""), "ctn": True}
+            for m in messages
+        ]
 
     def from_native_messages(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
         # Mark that from_native was used on returned core finals
-        return [{"role": m.get("role", "assistant"), "content": m.get("content", ""), "metadata": {"from_native_used": True}} for m in native_messages]
-
-    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
-        return state
-
-    def process_chunk(
-        self,
-        native_chunk: Dict[str, Any],
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        return [], [], [], state
+        return [
+            {
+                "role": m.get("role", "assistant"),
+                "content": m.get("content", ""),
+                "metadata": {"from_native_used": True},
+            }
+            for m in native_messages
+        ]
 
     def finalize(
         self,
@@ -66,9 +39,6 @@ class ConversionProvider(ProviderPlugin):
         final = [{"role": "assistant", "content": "ok" + suffix}]
         return final, native_messages, state
 
-    def to_display_format(self, message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        return message
-
     def call_api(
         self,
         native_messages: List[Dict[str, Any]],
@@ -76,39 +46,11 @@ class ConversionProvider(ProviderPlugin):
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         return [], [], native_messages, state
 
-    def stream_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
-        if False:
-            yield {}
-        return
-
-    @staticmethod
-    def detect_capabilities(config: Dict[str, Any]) -> List[str]:
-        return []
-
 
 @dataclass
 class ConversionFeature(FeaturePlugin):
     name: str = "conversion_feature"
     version: str = "1.0.0"
-
-    def get_config_schema(self) -> Dict[str, Any]:
-        return {}
-
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
-        return []
-
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        return state
-
-
-    def to_native_messages(self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        return native_messages
-
-    def from_native_messages(self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        return messages
-
-    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
-        return state
 
     def finalize(
         self,

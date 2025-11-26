@@ -1,10 +1,14 @@
-"""
+"""\
 Provider plugin wrapper and streaming mixin.
 
 Manages provider plugin state and provides typed interface for provider operations.
 """
 
+from __future__ import annotations
+
 from typing import Dict, Any, List, Iterator, AsyncIterator, Tuple, Optional
+
+from .adapters import ProviderDefaultsAdapter
 from .extension import ExtensionWrapper
 from ..types import ProviderPlugin
 
@@ -125,7 +129,7 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
 
     def __init__(
         self, plugin_class: type, extension_classes: Optional[List[type]] = None
-    ):
+    ) -> None:
         """Initialize wrapper with provider plugin class and optional extensions.
 
         Args:
@@ -133,7 +137,7 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
             extension_classes: Optional list of provider extension classes
         """
         self.plugin_class = plugin_class
-        self.plugin = plugin_class()
+        self.plugin = ProviderDefaultsAdapter(plugin_class())
         self.state: Optional[Dict[str, Any]] = None
         self.name = getattr(plugin_class, "name", plugin_class.__name__)
         self.version = getattr(plugin_class, "version", "unknown")
@@ -147,7 +151,7 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
     @property
     def extensions(self) -> List[ExtensionWrapper]:
         """Get extension wrappers.
- 
+
         Returns:
             List of registered ExtensionWrapper instances.
         """
@@ -160,9 +164,8 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
     def set_active_extensions(self, extensions: List[ExtensionWrapper]) -> None:
         """Restrict active extensions for the current request."""
         self._active_extensions = list(extensions)
- 
-    def add_extensions(self, extension_classes: List[type]) -> None:
 
+    def add_extensions(self, extension_classes: List[type]) -> None:
         """Add provider extensions (same language).
 
         Args:
@@ -173,10 +176,10 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize provider and extensions using shared state owned by provider wrapper.
- 
+
         Args:
             config: Provider configuration
- 
+
         Returns:
             Shared provider state after extensions have updated it (if they do).
         """
@@ -185,7 +188,6 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         for ext in self._iter_extensions():
             self.state = ext.init(config, self._get_state())
         return self._get_state()
-
 
     def _get_state(self) -> Dict[str, Any]:
         """Internal helper to get non-optional state with validation.
@@ -200,16 +202,13 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
             raise RuntimeError(f"Provider {self.name} not initialized")
         return self.state
 
-
     def get_config_schema(self) -> Dict[str, Any]:
         """Get provider configuration schema.
 
         Returns:
             JSON schema mapping for the provider, or empty dict.
         """
-        if hasattr(self.plugin, "get_config_schema"):
-            return self.plugin.get_config_schema()
-        return {}
+        return self.plugin.get_config_schema()
 
     def get_ui_elements(self) -> List[Dict[str, Any]]:
         """Get provider UI elements.
@@ -217,25 +216,19 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         Returns:
             List of UI definitions, or empty list.
         """
-        if hasattr(self.plugin, "get_ui_elements"):
-            return self.plugin.get_ui_elements()
-        return []
+        return self.plugin.get_ui_elements()
 
     def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Delegate model discovery to the underlying provider if implemented."""
-        if hasattr(self.plugin, "get_models"):
-            return self.plugin.get_models(config)
-        return []
+        """Delegate model discovery to the underlying provider via adapter."""
+        return self.plugin.get_models(config)
 
     def get_tags(
         self,
         config: Dict[str, Any],
         models: List[Dict[str, Any]],
     ) -> List[str]:
-        """Delegate tag computation to the underlying provider if implemented."""
-        if hasattr(self.plugin, "get_tags"):
-            return self.plugin.get_tags(config, models)
-        return []
+        """Delegate tag computation to the underlying provider via adapter."""
+        return self.plugin.get_tags(config, models)
 
     def get_state(self) -> Dict[str, Any]:
         """Expose a copy of the current shared state for orchestration.
@@ -258,7 +251,9 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
             raise RuntimeError(f"Provider {self.name} not initialized")
         self.state = state
 
-    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
+    def initialize_request(
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Run provider and extensions initialize_request with native messages for a new turn.
 
         Args:
@@ -294,29 +289,28 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
         working_state = state or self.state
-        native = self.plugin.to_native_messages(messages, working_state)
-        return native
+        return self.plugin.to_native_messages(messages, working_state)
 
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        """Convert provider-native messages back to core messages if supported; otherwise empty list.
+        """Convert provider-native messages back to core messages.
 
         Args:
             native_messages: Provider-native messages to convert.
             state: Shared provider state (optional; wrapper state used if empty).
 
         Returns:
-            Core message dicts, or empty list if provider does not support conversion.
+            Core message dicts.
         """
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
         working_state = state or self.state
-        if hasattr(self.plugin, "from_native_messages"):
-            return self.plugin.from_native_messages(native_messages, working_state)
-        return []
+        return self.plugin.from_native_messages(native_messages, working_state)
 
-    def to_display_format(self, message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def to_display_format(
+        self, message: Dict[str, Any], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Format a message for display if supported; otherwise return as-is.
 
         Args:
@@ -329,14 +323,12 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
         working_state = state or self.state
-        if hasattr(self.plugin, "to_display_format"):
-            return self.plugin.to_display_format(message, working_state)
-        return message
+        return self.plugin.to_display_format(message, working_state)
 
     def apply_extension_transforms(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """Apply stateless extension transforms to provider-native messages with visibility of core messages.
+        """Apply stateless extension transforms to provider-native messages.
 
         Args:
             messages: Core messages (context).
@@ -350,8 +342,10 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
             transformed_native = ext.to_native_messages(messages, transformed_native)
         return transformed_native
 
-    def _merge_history(self, base: List[Dict[str, Any]], returned: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Merge plugin-returned native messages into base, ensuring full history without duplication.
+    def _merge_history(
+        self, base: List[Dict[str, Any]], returned: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Merge plugin-returned native messages into base, ensuring full history.
 
         Args:
             base: Baseline full provider-native history.
@@ -369,7 +363,10 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
     def call_api(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[
-        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        Dict[str, Any],
     ]:
         """Make non-streaming API call and allow extensions to finalize outputs.
 
@@ -430,7 +427,7 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
             raise RuntimeError(f"Provider {self.name} not initialized")
         working_state = state or self.state
         if hasattr(self.plugin, "stream_api_async"):
-            async for chunk in self.plugin.stream_api_async(
+            async for chunk in self.plugin.stream_api_async(  # type: ignore[attr-defined]
                 native_messages, working_state
             ):
                 yield chunk
@@ -440,8 +437,16 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
             yield chunk
 
     def process_chunk(
-        self, native_chunk: Dict[str, Any], native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        self,
+        native_chunk: Dict[str, Any],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        Dict[str, Any],
+    ]:
         """Process provider chunk and invoke extensions (hot path).
 
         Converts partial messages to core using provider + extensions when possible.
@@ -467,41 +472,27 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         # Let extensions transform partials/finals/native history in order
         ext_state = new_state
         for ext in self._iter_extensions():
-            partial_messages, final_messages, full_history, ext_state = (
-                ext.process_chunk(
-                    native_chunk=native_chunk,
-                    state=ext_state,
-                    partial_messages=partial_messages,
-                    final_messages=final_messages,
-                    native_messages=full_history,
-                )
+            partial_messages, final_messages, full_history, ext_state = ext.process_chunk(
+                native_chunk=native_chunk,
+                state=ext_state,
+                partial_messages=partial_messages,
+                final_messages=final_messages,
+                native_messages=full_history,
             )
         self.state = ext_state
-        
-        #print("\nchunk:",native_chunk,"\n","partial_messages:",partial_messages," final_messages:",final_messages, "accumulated:", (self.state or {}).get("partial",{}))
-        
-        if (len(final_messages) > 0):
-            print("\nfinal_messages:",final_messages, "accumulated:", (self.state or {}).get("partial",{}))
-            
-        # if (len(partial_messages) > 0):
-        #     print("partial_messages:",partial_messages)
-        
+
         # Convert partial messages (provider-native) to core using provider + extensions
         core_partials: List[Dict[str, Any]] = []
         if partial_messages:
             try:
-                core_partials = (
-                    self.plugin.from_native_messages(partial_messages, ext_state)  # type: ignore[attr-defined]
-                    if hasattr(self.plugin, "from_native_messages")  # type: ignore[attr-defined]
-                    else []
-                )
+                core_partials = self.plugin.from_native_messages(partial_messages, ext_state)
                 for ext in self._extensions:
                     core_partials = ext.from_native_messages(partial_messages, core_partials)
             except Exception:
                 core_partials = partial_messages
         # Track latest full history
         self._last_native_messages = full_history
-                
+
         return final_messages, core_partials, full_history, self._get_state()
 
     def finalize(
@@ -519,11 +510,7 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
         working_state = state or self.state
-        
-        print("(finalize) accumulated:", (self.state or {}).get("partial",{}))
-        
-        if not hasattr(self.plugin, "finalize"):
-            return [], self._last_native_messages, self._get_state()
+
         # Use full history baseline
         baseline = self._last_native_messages or list(native_messages)
         final_messages, native_returned, new_state = self.plugin.finalize(
@@ -542,9 +529,6 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         self.state = new_state
         # track latest full history
         self._last_native_messages = full_history
-
-        if (len(final_messages) > 0):
-            print("\n(finalize) final_messages:",final_messages)
 
         return final_messages, full_history, self._get_state()
 

@@ -31,26 +31,6 @@ class DummyProvider(ProviderPlugin):
         """Return UI elements."""
         return [{"type": "text", "key": "model", "label": "Model Name"}]
 
-    def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Return a minimal model descriptor list for tests."""
-        model = config.get("model")
-        if isinstance(model, str) and model:
-            return [{"id": model}]
-        return []
-
-    def get_tags(
-        self,
-        config: Dict[str, Any],
-        models: List[Dict[str, Any]],
-    ) -> List[str]:
-        """Return simple capability tags for the dummy provider."""
-        return ["provider:dummy", "supports_streaming"]
- 
-    @staticmethod
-    def get_capabilities() -> List[str]:
-
-        """Return provider capabilities."""
-        return ["text_generation", "streaming"]
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -61,13 +41,6 @@ class DummyProvider(ProviderPlugin):
             "runtime_state": {"accumulated_content": "", "native_chunks": []},
         }
 
-
-    def to_native_messages(
-        self,
-        messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
-        """Convert to native message format (passthrough for dummy)."""
-        return messages
 
     def from_native_messages(
         self,

@@ -30,25 +30,6 @@ class DummyExtension(ProviderExtensionPlugin):
             {"type": "text", "key": "prefix", "label": "Extension Prefix"},
         ]
 
-    def get_models(
-        self,
-        config: Dict[str, Any],
-        models: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
-        """Forward model descriptors without modification for tests."""
-        return list(models)
-
-    def get_tags(
-        self,
-        config: Dict[str, Any],
-        models: List[Dict[str, Any]],
-    ) -> List[str]:
-        """Identify the dummy extension for dependency tests."""
-        return ["ext:dummy_extension"]
-
-    def required_tags(self) -> List[str]:
-        """Dummy extension has no hard tag requirements."""
-        return []
  
     # New lifecycle: init accepts shared state
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
@@ -60,25 +41,6 @@ class DummyExtension(ProviderExtensionPlugin):
         rs = {**rs, "extension_processed_chunks": 0}
         return {**state, "config": new_config, "runtime_state": rs}
 
-
-    # Stateless transforms
-    def to_native_messages(
-        self,
-        messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        return messages
-
-    def from_native_messages(
-        self,
-        native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        return native_messages
-
-    def initialize_request(
-        self,
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        return state
 
     def process_chunk(
         self,

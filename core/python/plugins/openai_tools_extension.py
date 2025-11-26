@@ -27,16 +27,8 @@ class OpenAIToolsExtension:
         return []
 
     # ---- Models / capabilities ----
-    def get_models(
-        self,
-        config: Dict[str, Any],
-        models: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
-        """Forward model descriptors without modification.
+    # Uses adapter default get_models (no-op on models)
 
-        The tools extension does not currently influence model discovery.
-        """
-        return list(models)
 
     def get_tags(
         self,

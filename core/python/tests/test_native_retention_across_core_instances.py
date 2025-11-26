@@ -10,32 +10,7 @@ class RetentionProvider(ProviderPlugin):
     name: str = "retention_provider"
     version: str = "1.0.0"
 
-    # --- Schemas/UI ---
-    def get_config_schema(self) -> Dict[str, Any]:
-        return {}
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
-        return []
-
-    def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Return a minimal model descriptor list for retention tests."""
-        model = config.get("model")
-        if isinstance(model, str) and model:
-            return [{"id": model}]
-        return []
-
-    def get_tags(
-        self,
-        config: Dict[str, Any],
-        models: List[Dict[str, Any]],
-    ) -> List[str]:
-        """Return simple capability tags for the retention provider."""
-        return ["provider:retention_provider"]
- 
-    # --- State ---
-    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-
-        return {"config": dict(config), "runtime": {}}
 
 
     # --- Message conversion ---
@@ -56,18 +31,7 @@ class RetentionProvider(ProviderPlugin):
             cores.append({"role": m.get("role", "assistant"), "content": m.get("content", ""), "metadata": md})
         return cores
 
-    # --- Request lifecycle ---
-    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
-        return state
 
-    def process_chunk(
-        self,
-        native_chunk: Dict[str, Any],
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        # Not used in these tests
-        return [], [], [], state
 
     def finalize(
         self,
@@ -80,8 +44,6 @@ class RetentionProvider(ProviderPlugin):
         final = [{"role": "assistant", "content": content}]
         return final, native_messages, state
 
-    def to_display_format(self, message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        return message
 
     def call_api(
         self,
@@ -91,14 +53,6 @@ class RetentionProvider(ProviderPlugin):
         # Non-streaming path: rely on finalize to emit finals
         return [], [], native_messages, state
 
-    def stream_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
-        if False:
-            yield {}
-        return
-
-    @staticmethod
-    def detect_capabilities(config: Dict[str, Any]) -> List[str]:
-        return []
 
 
 @dataclass
@@ -106,35 +60,6 @@ class RetentionExtension(ProviderExtensionPlugin):
     name: str = "retention_extension"
     version: str = "1.0.0"
 
-    def get_config_schema(self) -> Dict[str, Any]:
-        return {}
-
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
-        return []
-
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        return state
-
-
-    def to_native_messages(self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        # No-op for stateless transform
-        return native_messages
-
-    def from_native_messages(self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        return messages
-
-    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
-        return state
-
-    def process_chunk(
-        self,
-        native_chunk: Optional[Dict[str, Any]],
-        state: Dict[str, Any],
-        partial_messages: List[Dict[str, Any]],
-        final_messages: List[Dict[str, Any]],
-        native_messages: List[Dict[str, Any]],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        return partial_messages, final_messages, native_messages, state
 
     def finalize(
         self,
@@ -162,7 +87,7 @@ def test_retains_native_history_across_core_instances():
 
     # Validate lossy round-trip property directly on the provider conversion functions
     prov = RetentionProvider()
-    st = prov.init(config)
+    st: Dict[str, Any] = {}
     sample_native = [{"role": "assistant", "content": "X", "preserved": True}]
     core_from_native = prov.from_native_messages(sample_native, st)
     roundtrip = prov.to_native_messages(core_from_native, st)

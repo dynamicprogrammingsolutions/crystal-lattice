@@ -166,13 +166,8 @@ class SystemMessageFeature(FeaturePlugin):
         # UI wiring is application-specific; keep this feature config-only.
         return []
 
-    def get_models(
-        self,
-        config: Dict[str, Any],
-        models: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
-        """Forward model descriptors without modification."""
-        return list(models)
+    # Uses adapter default get_models (no-op on models)
+
 
     def get_tags(
         self,

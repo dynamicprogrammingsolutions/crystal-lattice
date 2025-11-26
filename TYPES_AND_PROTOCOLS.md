@@ -119,6 +119,8 @@ All plugin methods follow these patterns:
 
 ## Plugin Protocols
 
+These protocol definitions describe the full logical surface area for each plugin type. Language implementations may provide their own default behaviors for some methods. In the Python SDK, adapters in `agent_core.plugin.adapters` implement identity/default behaviors for many conversion and lifecycle hooks when plugin classes omit them, so plugin authors can often implement only the small subset of methods they actually need.
+
 ### 1. Provider Plugin Protocol
 
 Handles communication with LLM APIs and message format conversion.
@@ -500,4 +502,4 @@ Notes on nomenclature:
 
 ## Plugin Examples
 
-For complete, runnable examples of each plugin type, see PLUGIN_EXAMPLES.md.
+For complete, runnable examples of each plugin type, see EXAMPLES.md and the code under `core/python/examples`.
