@@ -59,7 +59,7 @@ class BasePlugin(Protocol):
         Returns:
             JSON schema dictionary.
         """
-        ...
+        return {}
 
     def get_ui_elements(self) -> List[Dict[str, Any]]:
         """Return UI element definitions for configuring this plugin.
@@ -67,7 +67,7 @@ class BasePlugin(Protocol):
         Returns:
             List of UI element dictionaries.
         """
-        ...
+        return []
 
     # Common lifecycle across provider/extension/feature
     # No dedicated update_state lifecycle step is required; plugins are free
@@ -122,7 +122,7 @@ class ProviderPlugin(BasePlugin, Protocol):
         Returns:
             Initial shared provider state owned by the provider wrapper.
         """
-        ...
+        return {"config": dict(config)}
 
     # Message conversion
     def to_native_messages(
@@ -142,7 +142,11 @@ class ProviderPlugin(BasePlugin, Protocol):
         Returns:
             Provider-native messages suitable for API calls.
         """
-        ...
+        return [
+            {"role": m.get("role", "user"), "content": m.get("content", "")}
+            for m in messages
+            if isinstance(m, dict)
+        ]
 
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
@@ -156,7 +160,20 @@ class ProviderPlugin(BasePlugin, Protocol):
         Returns:
             Core messages derived from native messages.
         """
-        ...
+        finals: List[Dict[str, Any]] = []
+        for m in native_messages:
+            if not isinstance(m, dict):
+                continue
+            if not ("role" in m or "content" in m or "reasoning" in m):
+                continue
+            msg: Dict[str, Any] = {
+                "role": m.get("role", "assistant"),
+                "content": m.get("content", ""),
+            }
+            if "reasoning" in m:
+                msg["reasoning"] = m.get("reasoning")
+            finals.append({**msg, "metadata": {}})
+        return finals
 
     # New request lifecycle
     def initialize_request(
@@ -171,7 +188,7 @@ class ProviderPlugin(BasePlugin, Protocol):
         Returns:
             Updated shared provider state (or the same state).
         """
-        ...
+        return state
 
     def process_chunk(
         self,
@@ -192,7 +209,7 @@ class ProviderPlugin(BasePlugin, Protocol):
             Tuple of (final_messages, partial_messages, native_messages, new_state).
             native_messages MUST be the full provider-native history (not a delta).
         """
-        ...
+        return [], [], native_messages, state
 
     # Returns: (final_messages, partial_messages, native_messages, new_state)
 
@@ -213,7 +230,7 @@ class ProviderPlugin(BasePlugin, Protocol):
         Returns:
             Tuple of (final_messages, native_messages, new_state).
         """
-        ...
+        return [], native_messages, state
 
     # Returns: (final_messages, native_messages, new_state)
 
@@ -229,7 +246,7 @@ class ProviderPlugin(BasePlugin, Protocol):
         Returns:
             Display-friendly message dictionary.
         """
-        ...
+        return message
 
     def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return model descriptors available for this provider and config.
@@ -237,7 +254,7 @@ class ProviderPlugin(BasePlugin, Protocol):
         Optional; providers may return an empty list when model enumeration
         is not supported.
         """
-        ...
+        return []
 
     def get_tags(
         self,
@@ -249,7 +266,7 @@ class ProviderPlugin(BasePlugin, Protocol):
         Implementations must be pure and deterministic for a given
         (config, models) pair.
         """
-        ...
+        return []
 
     # I/O entry points now take native messages
     def call_api(
@@ -267,7 +284,7 @@ class ProviderPlugin(BasePlugin, Protocol):
         Returns:
             Tuple of (final_messages, partial_messages, native_messages, new_state).
         """
-        ...
+        return [], [], native_messages, state
 
     # Returns: (final_messages, partial_messages, native_messages, new_state)
 
@@ -283,7 +300,7 @@ class ProviderPlugin(BasePlugin, Protocol):
         Yields:
             Provider-native streaming chunks.
         """
-        ...
+        return iter([])
 
 
 
@@ -325,7 +342,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         Returns:
             Updated shared provider state (or the same state).
         """
-        ...
+        return state
  
     def get_models(
         self,
@@ -337,7 +354,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         Implementations must not mutate the incoming models list; they
         should instead return a new list.
         """
-        ...
+        return list(models)
  
     def get_tags(
         self,
@@ -345,11 +362,11 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         models: List[Dict[str, Any]],
     ) -> List[str]:
         """Return capability/environment tags contributed by this extension."""
-        ...
+        return []
  
     def required_tags(self) -> List[str]:
         """Tags that must be present for this extension to be enabled."""
-        ...
+        return []
  
     # Stateless transforms
     def to_native_messages(
@@ -369,7 +386,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         Returns:
             Updated provider-native messages.
         """
-        ...
+        return list(native_messages)
 
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
@@ -383,7 +400,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         Returns:
             Updated core messages.
         """
-        ...
+        return list(messages)
 
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
@@ -397,7 +414,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         Returns:
             Updated shared provider state (or the same state).
         """
-        ...
+        return state
 
     def process_chunk(
         self,
@@ -425,7 +442,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
             Tuple of (updated_partial_messages, updated_final_messages, updated_native_messages, new_state).
             updated_native_messages MUST be full history (not a delta).
         """
-        ...
+        return partial_messages, final_messages, native_messages, state
 
     def finalize(
         self,
@@ -443,7 +460,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         Returns:
             Tuple of (final_messages, native_messages, new_state), all provider-native.
         """
-        ...
+        return final_messages, native_messages, state
 
 
 class FeaturePlugin(BasePlugin, Protocol):
@@ -486,7 +503,7 @@ class FeaturePlugin(BasePlugin, Protocol):
         Returns:
             Updated shared provider state (or the same state).
         """
-        ...
+        return state
  
     def get_models(
         self,
@@ -494,7 +511,7 @@ class FeaturePlugin(BasePlugin, Protocol):
         models: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         """Statelessly transform or provide model descriptors."""
-        ...
+        return list(models)
  
     def get_tags(
         self,
@@ -502,11 +519,11 @@ class FeaturePlugin(BasePlugin, Protocol):
         models: List[Dict[str, Any]],
     ) -> List[str]:
         """Return capability/environment tags contributed by this feature."""
-        ...
+        return []
  
     def required_tags(self) -> List[str]:
         """Tags that must be present for this feature to be enabled."""
-        ...
+        return []
  
     # Stateless transforms
     def to_native_messages(
@@ -526,7 +543,7 @@ class FeaturePlugin(BasePlugin, Protocol):
         Returns:
             Updated provider-native messages.
         """
-        ...
+        return list(native_messages)
 
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
@@ -540,7 +557,7 @@ class FeaturePlugin(BasePlugin, Protocol):
         Returns:
             Updated core messages.
         """
-        ...
+        return list(messages)
 
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
@@ -554,7 +571,7 @@ class FeaturePlugin(BasePlugin, Protocol):
         Returns:
             Updated shared provider state (or the same state).
         """
-        ...
+        return state
 
     def finalize(
         self,
@@ -572,7 +589,7 @@ class FeaturePlugin(BasePlugin, Protocol):
         Returns:
             Tuple of (final_messages, native_messages, new_state), all provider-native.
         """
-        ...
+        return final_messages, native_messages, state
 
 
 class ToolPlugin(BasePlugin, Protocol):
@@ -610,7 +627,7 @@ class ToolPlugin(BasePlugin, Protocol):
         Returns:
             Initial tool state dictionary.
         """
-        ...
+        return {"config": dict(config)}
 
     def get_tags(
 
@@ -619,11 +636,11 @@ class ToolPlugin(BasePlugin, Protocol):
         models: List[Dict[str, Any]],
     ) -> List[str]:
         """Return capability/environment tags contributed by this tool."""
-        ...
+        return []
 
     def required_tags(self) -> List[str]:
         """Tags that must be present for this tool to be exposed."""
-        ...
+        return []
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return OpenAI-style function definitions provided by this tool.
@@ -634,7 +651,7 @@ class ToolPlugin(BasePlugin, Protocol):
         Returns:
             List of tool/function definition dictionaries.
         """
-        ...
+        return []
 
     def execute_tool(
         self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
@@ -649,7 +666,7 @@ class ToolPlugin(BasePlugin, Protocol):
         Returns:
             Result dictionary, e.g., {"success": bool, "result": any, "error": str}.
         """
-        ...
+        return {"success": False, "error": f"Unknown tool: {tool_name}"}
 
     def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
         """Format a tool result dictionary for LLM consumption/display.
@@ -661,7 +678,9 @@ class ToolPlugin(BasePlugin, Protocol):
         Returns:
             Human-readable string representation.
         """
-        ...
+        if result.get("success"):
+            return f"Result: {result.get('result')}"
+        return f"Error: {result.get('error')}"
 
 
 @dataclass(frozen=True)

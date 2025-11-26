@@ -13,7 +13,7 @@ instead of performing their own hasattr checks or defaulting logic.
 
 from __future__ import annotations
 
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Tuple
+from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Tuple, cast
 
 from ..types import FeaturePlugin, ProviderExtensionPlugin, ProviderPlugin, ToolPlugin
 
@@ -349,12 +349,20 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
     ]:
         fn = getattr(self.impl, "process_chunk", None)
         if callable(fn):
-            return fn(
-                native_chunk,
-                state,
-                partial_messages,
-                final_messages,
-                native_messages,
+            return cast(
+                Tuple[
+                    List[Dict[str, Any]],
+                    List[Dict[str, Any]],
+                    List[Dict[str, Any]],
+                    Dict[str, Any],
+                ],
+                fn(
+                    native_chunk,
+                    state,
+                    partial_messages,
+                    final_messages,
+                    native_messages,
+                ),
             )
         return partial_messages, final_messages, native_messages, state
 
@@ -366,7 +374,10 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         fn = getattr(self.impl, "finalize", None)
         if callable(fn):
-            return fn(final_messages, native_messages, state)
+            return cast(
+                Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]],
+                fn(final_messages, native_messages, state),
+            )
         return final_messages, native_messages, state
 
 
@@ -451,7 +462,10 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         fn = getattr(self.impl, "finalize", None)
         if callable(fn):
-            return fn(final_messages, native_messages, state)
+            return cast(
+                Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]],
+                fn(final_messages, native_messages, state),
+            )
         return final_messages, native_messages, state
 
 
