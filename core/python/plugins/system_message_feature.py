@@ -168,7 +168,6 @@ class SystemMessageFeature(FeaturePlugin):
 
     # Uses adapter default get_models (no-op on models)
 
-
     def get_tags(
         self,
         config: Dict[str, Any],
@@ -180,10 +179,9 @@ class SystemMessageFeature(FeaturePlugin):
     def required_tags(self) -> List[str]:
         """This feature does not currently require specific tags."""
         return []
- 
+
     # ---- Internal helpers (pure-ish) ----
     @staticmethod
-
     def _normalize_variable_value(raw: Any) -> Dict[str, Any] | None:
         """Normalize a single variable value description.
 

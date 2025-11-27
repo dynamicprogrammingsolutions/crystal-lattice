@@ -8,7 +8,6 @@ Asserts:
 """
 
 import os
-import sys
 import shutil
 import subprocess
 import tempfile
@@ -29,9 +28,7 @@ def _which(cmd: str) -> Optional[str]:
 
 
 def _run(cmd: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout
-    )
+    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
 
 
 @pytest.fixture(scope="module")

@@ -130,9 +130,7 @@ async def test_provider_stream_api_async_preferred(monkeypatch):
         for _ in range(3):
             yield {"content": "Z"}
 
-    monkeypatch.setattr(
-        DP, "stream_api_async", staticmethod(fake_async_stream), raising=False
-    )
+    monkeypatch.setattr(DP, "stream_api_async", staticmethod(fake_async_stream), raising=False)
 
     core = AgentCore()
     core.register_provider(DP)

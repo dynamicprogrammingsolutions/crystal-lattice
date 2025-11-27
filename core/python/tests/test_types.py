@@ -2,7 +2,6 @@
 Unit tests for core data types (functional architecture).
 """
 
-import pytest
 from agent_core.types import Message, Session
 
 
