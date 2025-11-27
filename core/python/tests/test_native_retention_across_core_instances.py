@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Tuple, Iterator, Optional
+from typing import Any, Dict, List, Tuple
 from dataclasses import dataclass
 
 from agent_core import AgentCore
@@ -10,28 +10,35 @@ class RetentionProvider(ProviderPlugin):
     name: str = "retention_provider"
     version: str = "1.0.0"
 
-
-
-
     # --- Message conversion ---
-    def to_native_messages(self, messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def to_native_messages(
+        self, messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         # Convert to native; intentionally do NOT emit 'preserved' marker from core messages
         natives: List[Dict[str, Any]] = []
         for m in messages:
-            natives.append({"role": m["role"], "content": m.get("content", ""), "converted_to_native": True})
+            natives.append(
+                {"role": m["role"], "content": m.get("content", ""), "converted_to_native": True}
+            )
         return natives
 
-    def from_native_messages(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def from_native_messages(
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         # Convert native to core and note that conversion happened
         cores: List[Dict[str, Any]] = []
         for m in native_messages:
             md = {"from_native_used": True}
             if m.get("preserved"):
                 md["saw_preserved"] = True
-            cores.append({"role": m.get("role", "assistant"), "content": m.get("content", ""), "metadata": md})
+            cores.append(
+                {
+                    "role": m.get("role", "assistant"),
+                    "content": m.get("content", ""),
+                    "metadata": md,
+                }
+            )
         return cores
-
-
 
     def finalize(
         self,
@@ -44,7 +51,6 @@ class RetentionProvider(ProviderPlugin):
         final = [{"role": "assistant", "content": content}]
         return final, native_messages, state
 
-
     def call_api(
         self,
         native_messages: List[Dict[str, Any]],
@@ -54,12 +60,10 @@ class RetentionProvider(ProviderPlugin):
         return [], [], native_messages, state
 
 
-
 @dataclass
 class RetentionExtension(ProviderExtensionPlugin):
     name: str = "retention_extension"
     version: str = "1.0.0"
-
 
     def finalize(
         self,

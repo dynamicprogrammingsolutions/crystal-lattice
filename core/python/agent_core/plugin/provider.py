@@ -11,6 +11,7 @@ from typing import Dict, Any, List, Iterator, AsyncIterator, Tuple, Optional
 from .adapters import ProviderDefaultsAdapter
 from .extension import ExtensionWrapper
 from ..types import ProviderPlugin
+from ..utils import pipeline
 
 
 class ProviderStreamMixin:
@@ -50,7 +51,7 @@ class ProviderStreamMixin:
         self._last_native_messages = list(native_messages)  # type: ignore[attr-defined]
         current_native = self._last_native_messages
         for native_chunk in self.plugin.stream_api(current_native, working_state):  # type: ignore[attr-defined]
-            finals, partials, current_native, working_state = self.process_chunk(  # type: ignore[misc]
+            partials, finals, current_native, working_state = self.process_chunk(  # type: ignore[misc]
                 native_chunk, current_native, working_state
             )
             # track latest native messages (full history)
@@ -90,7 +91,7 @@ class ProviderStreamMixin:
             async for native_chunk in self.plugin.stream_api_async(  # type: ignore[attr-defined]
                 current_native, working_state
             ):
-                finals, partials, current_native, working_state = self.process_chunk(  # type: ignore[misc]
+                partials, finals, current_native, working_state = self.process_chunk(  # type: ignore[misc]
                     native_chunk, current_native, working_state
                 )
                 self._last_native_messages = current_native  # type: ignore[attr-defined]
@@ -102,7 +103,7 @@ class ProviderStreamMixin:
 
         # Fallback to sync stream
         for native_chunk in self.plugin.stream_api(current_native, working_state):  # type: ignore[attr-defined]
-            finals, partials, current_native, working_state = self.process_chunk(  # type: ignore[misc]
+            partials, finals, current_native, working_state = self.process_chunk(  # type: ignore[misc]
                 native_chunk, current_native, working_state
             )
             self._last_native_messages = current_native  # type: ignore[attr-defined]
@@ -127,9 +128,7 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
     Holds provider state and manages provider extensions in the same language (hot path).
     """
 
-    def __init__(
-        self, plugin_class: type, extension_classes: Optional[List[type]] = None
-    ) -> None:
+    def __init__(self, plugin_class: type, extension_classes: Optional[List[type]] = None) -> None:
         """Initialize wrapper with provider plugin class and optional extensions.
 
         Args:
@@ -185,8 +184,8 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         """
         self.state = self.plugin.init(config)
         # Let extensions update shared state during init
-        for ext in self._iter_extensions():
-            self.state = ext.init(config, self._get_state())
+        pipe = pipeline(config)
+        self.state = pipe([ext.init for ext in self._iter_extensions()], self._get_state())
         return self._get_state()
 
     def _get_state(self) -> Dict[str, Any]:
@@ -269,8 +268,8 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         # Start full native history at request boundary
         self._last_native_messages = list(native_messages)
         new_state = self.plugin.initialize_request(native_messages, working_state)
-        for ext in self._iter_extensions():
-            new_state = ext.initialize_request(native_messages, new_state)
+        pipe = pipeline(native_messages)
+        new_state = pipe([ext.initialize_request for ext in self._iter_extensions()], new_state)
         self.state = new_state
         return self._get_state()
 
@@ -308,9 +307,7 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         working_state = state or self.state
         return self.plugin.from_native_messages(native_messages, working_state)
 
-    def to_display_format(
-        self, message: Dict[str, Any], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def to_display_format(self, message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """Format a message for display if supported; otherwise return as-is.
 
         Args:
@@ -337,10 +334,8 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         Returns:
             Transformed provider-native messages after applying each extension.
         """
-        transformed_native = list(native_messages)
-        for ext in self._iter_extensions():
-            transformed_native = ext.to_native_messages(messages, transformed_native)
-        return transformed_native
+        pipe = pipeline(messages)
+        return pipe([ext.to_native_messages for ext in self._iter_extensions()], native_messages)
 
     def _merge_history(
         self, base: List[Dict[str, Any]], returned: List[Dict[str, Any]]
@@ -360,9 +355,7 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
             return returned
         return [*base, *returned]
 
-    def call_api(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Tuple[
+    def call_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[
         List[Dict[str, Any]],
         List[Dict[str, Any]],
         List[Dict[str, Any]],
@@ -385,14 +378,14 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         working_state = state or self.state
         # Initialize history baseline
         self._last_native_messages = list(native_messages)
-        final_messages, partials, native_returned, new_state = self.plugin.call_api(
+        partials, final_messages, native_returned, new_state = self.plugin.call_api(
             self._last_native_messages, working_state
         )
         self.state = new_state
         # Merge to full history and track
         full_history = self._merge_history(self._last_native_messages, native_returned)
         self._last_native_messages = full_history
-        return final_messages, partials, full_history, self._get_state()
+        return partials, final_messages, full_history, self._get_state()
 
     def stream_api(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
@@ -457,43 +450,46 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
             state: Shared provider state (optional; wrapper state used if empty).
 
         Returns:
-            Tuple of (final_messages, partial_core_messages, full_native_history, new_state).
+            Tuple of (partial_core_messages, final_messages, full_native_history, new_state).
         """
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
         working_state = state or self.state
         # Use the provided full native history directly
         full_history = list(native_messages)
-        final_messages, partial_messages, returned_history, new_state = (
-            self.plugin.process_chunk(native_chunk, full_history, working_state)
+        partial_messages, final_messages, returned_history, new_state = self.plugin.process_chunk(
+            native_chunk, full_history, working_state
         )
         # Replace history with provider-returned history
         full_history = returned_history
         # Let extensions transform partials/finals/native history in order
         ext_state = new_state
-        for ext in self._iter_extensions():
-            partial_messages, final_messages, full_history, ext_state = ext.process_chunk(
-                native_chunk=native_chunk,
-                state=ext_state,
-                partial_messages=partial_messages,
-                final_messages=final_messages,
-                native_messages=full_history,
-            )
+        pipe = pipeline(native_chunk)
+        partial_messages, final_messages, full_history, ext_state = pipe(
+            [ext.process_chunk for ext in self._iter_extensions()],
+            partial_messages,
+            final_messages,
+            full_history,
+            ext_state,
+        )
         self.state = ext_state
 
         # Convert partial messages (provider-native) to core using provider + extensions
         core_partials: List[Dict[str, Any]] = []
         if partial_messages:
             try:
-                core_partials = self.plugin.from_native_messages(partial_messages, ext_state)
-                for ext in self._extensions:
-                    core_partials = ext.from_native_messages(partial_messages, core_partials)
+                pipe = pipeline(partial_messages)
+                core_partials = pipe(
+                    [self.plugin.from_native_messages]
+                    + [ext.from_native_messages for ext in self._extensions],
+                    ext_state,
+                )
             except Exception:
                 core_partials = partial_messages
         # Track latest full history
         self._last_native_messages = full_history
 
-        return final_messages, core_partials, full_history, self._get_state()
+        return core_partials, final_messages, full_history, self._get_state()
 
     def finalize(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
@@ -513,18 +509,17 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
 
         # Use full history baseline
         baseline = self._last_native_messages or list(native_messages)
-        final_messages, native_returned, new_state = self.plugin.finalize(
-            baseline, working_state
-        )
+        final_messages, native_returned, new_state = self.plugin.finalize(baseline, working_state)
 
         # Merge and allow extensions to modify full history
         full_history = self._merge_history(baseline, native_returned)
-        for ext in self._iter_extensions():
-            final_messages, full_history, new_state = ext.finalize(
-                final_messages=final_messages,
-                native_messages=full_history,
-                state=new_state,
-            )
+        pipe = pipeline()
+        final_messages, full_history, new_state = pipe(
+            [ext.finalize for ext in self._iter_extensions()],
+            final_messages,
+            full_history,
+            new_state,
+        )
 
         self.state = new_state
         # track latest full history

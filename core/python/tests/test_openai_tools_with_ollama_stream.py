@@ -12,7 +12,6 @@ Skips gracefully if Ollama/model unavailable.
 """
 
 import os
-import sys
 import shutil
 import subprocess
 import tempfile
@@ -33,9 +32,7 @@ def _which(cmd: str) -> Optional[str]:
 
 
 def _run(cmd: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout
-    )
+    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
 
 
 @pytest.fixture(scope="module")
@@ -106,9 +103,9 @@ def test_tools_flow_with_ollama_stream(ensure_model):
                 msg = ev["message"]
                 print((msg.get("content", "")), end="", flush=True)
                 print((msg.get("reasoning", "")), end="", flush=True)
-                tool_calls = (msg.get("metadata", {}).get("tool_calls", None))
+                tool_calls = msg.get("metadata", {}).get("tool_calls", None)
                 if tool_calls:
-                    print("(partial) tool call:",tool_calls, end="", flush=True)
+                    print("(partial) tool call:", tool_calls, end="", flush=True)
             if ev["type"] != "final":
                 continue
             session = ev["session"]
@@ -116,7 +113,7 @@ def test_tools_flow_with_ollama_stream(ensure_model):
             print("final messages:", final_messages)
         assert final_messages is not None
 
-        #print("messages: ", final_messages)
+        # print("messages: ", final_messages)
 
         # Aggregate tool calls
         all_tool_calls = []
@@ -128,27 +125,34 @@ def test_tools_flow_with_ollama_stream(ensure_model):
         # Deduplicate identical calls that may appear across finals
         _uniq = {}
         import json as _json
+
         for tc in all_tool_calls:
-            fn0 = (tc.get("function") or {})
+            fn0 = tc.get("function") or {}
             args0 = fn0.get("arguments")
             if isinstance(args0, str):
                 try:
                     args0 = _json.loads(args0)
                 except Exception:
                     args0 = args0
-            sig = (fn0.get("name"), _json.dumps(args0, sort_keys=True) if isinstance(args0, dict) else str(args0))
+            sig = (
+                fn0.get("name"),
+                _json.dumps(args0, sort_keys=True) if isinstance(args0, dict) else str(args0),
+            )
             _uniq[sig] = tc
         uniq_tool_calls = list(_uniq.values())
         print("<== Assistant proposed tool calls (unique):", len(uniq_tool_calls))
-        assert len(uniq_tool_calls) == 1, f"expected exactly one tool call, got {len(uniq_tool_calls)}"
+        assert (
+            len(uniq_tool_calls) == 1
+        ), f"expected exactly one tool call, got {len(uniq_tool_calls)}"
 
         # Validate tool call is write_file with expected args
         tc = uniq_tool_calls[0]
-        fn = (tc.get("function") or {})
+        fn = tc.get("function") or {}
         assert fn.get("name") == "write_file"
         args = fn.get("arguments")
         if isinstance(args, str):
             import json as _json
+
             try:
                 args = _json.loads(args)
             except Exception:
