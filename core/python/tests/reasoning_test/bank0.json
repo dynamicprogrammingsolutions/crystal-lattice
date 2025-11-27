@@ -1,0 +1,14 @@
+{
+  "items": [
+    {"id": 0, "payload": {"label": "Table"}},
+    {"id": 1, "payload": {"label": "Chair"}},
+    {"id": 2, "payload": {"label": "Lamp"}},
+    {"id": 3, "payload": {"label": "Window"}},
+    {"id": 4, "payload": {"label": "Door"}},
+    {"id": 5, "payload": {"label": "Book"}},
+    {"id": 6, "payload": {"label": "Pen"}},
+    {"id": 7, "payload": {"label": "Clock"}},
+    {"id": 8, "payload": {"label": "Plant"}},
+    {"id": 9, "payload": {"label": "Cup"}}
+  ]
+}
