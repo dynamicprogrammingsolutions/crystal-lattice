@@ -48,7 +48,7 @@ def ensure_model():
         pytest.skip(f"could not pull model {MODEL_TOOLS}: {e}")
 
 
-@pytest.mark.integration
+@pytest.mark.ollama
 def test_tools_flow_with_ollama(ensure_model):
     # Imports after sys.path adjustments
     from plugins.openai_provider import OpenAICompatibleProvider

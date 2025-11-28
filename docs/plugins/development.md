@@ -19,8 +19,8 @@ Providers adapt LLM APIs and convert between core and provider-native messages. 
 
 Key methods (subset):
 - `init(config) -> state` (required)
-- `call_api(native_messages, state) -> (final, partial, native, state)` (required, or `stream_api` for streaming providers)
-- `process_chunk(native_chunk, native_messages, state) -> (final, partial, native, state)` (required)
+- `call_api(native_messages, state) -> (partials, finals, natives, state)` (required, or `stream_api` for streaming providers)
+- `process_chunk(native_chunk, native_messages, state) -> (partials, finals, natives, state)` (required)
 - `finalize(native_messages, state) -> (final, native, state)` (required)
 - `to_native_messages(messages, state) -> list` (optional in Python; adapter defaults to identity mapping of `role` and `content`)
 - `from_native_messages(native_messages, state) -> list` (optional in Python; adapter maps to core messages with empty `metadata`)
@@ -72,7 +72,7 @@ Provider extensions run beside the provider on the hot path and the cold path. T
 
 Key methods (subset):
 - `init(config, state) -> state` (required)
-- `process_chunk(native_chunk|None, state, partial_messages, final_messages, native_messages) -> (partials, finals, native, state)` (required)
+- `process_chunk(native_chunk|None, partial_messages, final_messages, native_messages, state) -> (partials, finals, natives, state)` (required)
 - `finalize(final_messages, native_messages, state) -> (finals, native, state)` (required)
 - `to_native_messages(messages, native_messages) -> list` (optional in Python; adapter defaults to identity)
 - `from_native_messages(native_messages, messages) -> list` (optional in Python; adapter defaults to identity)

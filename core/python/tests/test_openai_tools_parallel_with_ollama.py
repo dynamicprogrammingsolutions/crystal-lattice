@@ -48,7 +48,7 @@ def ensure_model():
         pytest.skip(f"could not pull model {MODEL_TOOLS}: {e}")
 
 
-@pytest.mark.integration
+@pytest.mark.ollama
 def test_parallel_tools_read_multiple_files(ensure_model):
     from plugins.openai_provider import OpenAICompatibleProvider
     from plugins.openai_tools_extension import OpenAIToolsExtension

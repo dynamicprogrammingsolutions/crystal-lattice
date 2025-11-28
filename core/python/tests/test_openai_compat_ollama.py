@@ -53,7 +53,7 @@ def ensure_model():
         pytest.skip(f"could not pull model {MODEL}: {e}")
 
 
-@pytest.mark.integration
+@pytest.mark.ollama
 def test_openai_compat_non_streaming_with_ollama(ensure_model):
     core = AgentCore()
     # Discover and register provider from plugins directory structure
@@ -85,7 +85,7 @@ def test_openai_compat_non_streaming_with_ollama(ensure_model):
     assert isinstance(final.get("content"), str) and len(final.get("content", "")) > 0
 
 
-@pytest.mark.integration
+@pytest.mark.ollama
 def test_system_message_feature_with_ollama(ensure_model, tmp_path):
     from plugins.openai_provider import OpenAICompatibleProvider
     from plugins.system_message_feature import SystemMessageFeature
@@ -153,7 +153,7 @@ def test_system_message_feature_with_ollama(ensure_model, tmp_path):
     assert any(lang.lower() in lower_content for lang in uncommon_languages)
 
 
-@pytest.mark.integration
+@pytest.mark.ollama
 def test_request_options_feature_with_ollama(ensure_model):
     from plugins.openai_provider import OpenAICompatibleProvider
     from plugins.request_options_feature import RequestOptionsFeature

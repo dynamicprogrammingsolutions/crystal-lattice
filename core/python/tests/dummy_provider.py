@@ -66,7 +66,7 @@ class DummyProvider(ProviderPlugin):
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """
         Process streaming chunk and update state.
-        Returns (final_messages, partial_messages, native_messages, new_state).
+        Returns (partial_messages, final_messages, native_messages, new_state).
         """
         partial_content = native_chunk.get("content", "")
         new_state = {

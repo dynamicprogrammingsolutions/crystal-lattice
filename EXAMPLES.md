@@ -195,7 +195,7 @@ class EchoProvider(ProviderPlugin):
             if native_chunk.get("content")
             else []
         )
-        return [], partial, [], new_state
+        return partial, [], [], new_state
 
     def finalize(
         self,

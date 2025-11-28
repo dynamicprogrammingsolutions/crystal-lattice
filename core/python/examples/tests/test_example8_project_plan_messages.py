@@ -48,7 +48,7 @@ def ensure_model():
         pytest.skip(f"could not pull model {MODEL}: {e}")
 
 
-@pytest.mark.integration
+@pytest.mark.ollama
 def test_project_plan_example4_messages_runs(ensure_model):
     os.environ.setdefault("OLLAMA_HOST", OLLAMA_HOST)
     os.environ.setdefault("OLLAMA_MODEL", MODEL)

@@ -158,8 +158,9 @@ ProviderPlugin:
   
   # Hot Path Processing (pure)
   process_chunk(native_chunk: dict, native_messages: list, state: dict)
-    → (final_messages: list, partial_messages: list, native_messages: list, new_state: dict)
+    → (partial_messages: list, final_messages: list, native_messages: list, new_state: dict)
     # Process a streaming chunk; may emit new partials/finals and native outputs
+
   
   finalize(native_messages: list, state: dict) (optional)
     → (final_messages: list, native_messages: list, new_state: dict)
