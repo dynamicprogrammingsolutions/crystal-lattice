@@ -24,6 +24,7 @@ except ImportError:
 from agent_core import AgentCore
 from plugins.openrouter_provider import OpenRouterProvider
 from plugins.openrouter_reasoning_extension import OpenRouterReasoningExtension
+from plugins.request_options_feature import RequestOptionsFeature
 
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
@@ -102,9 +103,11 @@ def test_claude_haiku_streaming_vs_nonstreaming(ensure_api_key):
     """Test Claude Haiku reasoning_details: streaming vs non-streaming."""
     core = AgentCore()
     core.register_provider(OpenRouterProvider, extensions=[OpenRouterReasoningExtension])
+    core.register_feature(RequestOptionsFeature)
 
     config = {
         "model": MODELS["claude"],
+
         "api_key": OPENROUTER_API_KEY,
         "base_url": BASE_URL,
         "timeout": 60,
@@ -180,9 +183,11 @@ def test_grok_streaming_vs_nonstreaming(ensure_api_key):
     """Test Grok reasoning_details: streaming vs non-streaming."""
     core = AgentCore()
     core.register_provider(OpenRouterProvider, extensions=[OpenRouterReasoningExtension])
+    core.register_feature(RequestOptionsFeature)
 
     config = {
         "model": MODELS["grok"],
+
         "api_key": OPENROUTER_API_KEY,
         "base_url": BASE_URL,
         "timeout": 60,

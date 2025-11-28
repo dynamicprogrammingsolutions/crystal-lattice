@@ -289,7 +289,7 @@ class OpenAICompatibleProvider(ProviderPlugin):
 
         # print(f"[openai_provider] partials: {partials}")
         # print(f"[openai_provider] finals: {finals}, accumulated: {accumulated}")
-        return finals, partials, new_native_messages, new_state
+        return partials, finals, new_native_messages, new_state
 
     def finalize(
         self,

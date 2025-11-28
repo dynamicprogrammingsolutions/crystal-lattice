@@ -651,7 +651,13 @@ class AgentCore:
                 retained_native = rn
 
         if retained_native is not None:
-            native_messages = retained_native
+            # Reuse retained provider-native history as-is, including any
+            # reasoning or reasoning_details fields that were returned by
+            # the provider. Extensions such as the OpenRouter reasoning
+            # extension are responsible for treating these fields as opaque
+            # provider-native metadata and, when streaming, for accumulating
+            # them correctly across chunks.
+            native_messages = list(retained_native)
         else:
             # Provider-first conversion (native_base for stateless transforms)
             native_messages = provider.to_native_messages(messages, state)

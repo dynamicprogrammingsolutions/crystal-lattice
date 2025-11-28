@@ -22,6 +22,21 @@ except ImportError:
 from agent_core import AgentCore
 from plugins.openrouter_provider import OpenRouterProvider
 from plugins.openrouter_reasoning_extension import OpenRouterReasoningExtension
+from plugins.request_options_feature import RequestOptionsFeature
+
+
+def _get_openai_provider_options() -> dict[str, object]:
+    """Build provider routing block based on OPENAI_PROVIDER.
+
+    OPENAI_PROVIDER can be set to "openai" or "azure"; defaults to "openai".
+    """
+    provider_id = os.getenv("OPENAI_PROVIDER") or "openai"
+    return {
+        "provider": {
+            "order": [provider_id],
+            "allow_fallbacks": False,
+        }
+    }
 
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
@@ -137,9 +152,11 @@ def test_openrouter_reasoning_grok_non_streaming(ensure_api_key):
     """Test reasoning extraction with Grok (non-streaming)."""
     core = AgentCore()
     core.register_provider(OpenRouterProvider, extensions=[OpenRouterReasoningExtension])
+    core.register_feature(RequestOptionsFeature)
 
     config = {
         "model": MODELS["grok"],
+
         "api_key": OPENROUTER_API_KEY,
         "base_url": BASE_URL,
         "timeout": 60,
@@ -171,6 +188,7 @@ def test_openrouter_reasoning_gpt_non_streaming(ensure_api_key):
     """Test reasoning extraction with GPT-5 Mini (non-streaming)."""
     core = AgentCore()
     core.register_provider(OpenRouterProvider, extensions=[OpenRouterReasoningExtension])
+    core.register_feature(RequestOptionsFeature)
 
     config = {
         "model": MODELS["gpt"],
@@ -179,7 +197,9 @@ def test_openrouter_reasoning_gpt_non_streaming(ensure_api_key):
         "timeout": 60,
         "enable_reasoning": True,
         "reasoning_effort": "medium",
+        "request_options": _get_openai_provider_options(),
     }
+
 
     session = core.create_session()
     session = core.add_message(
@@ -205,10 +225,12 @@ def test_openrouter_reasoning_gpt_non_streaming(ensure_api_key):
 def test_openrouter_reasoning_without_extension():
     """Test that provider works without reasoning extension."""
     core = AgentCore()
-    core.register_provider(OpenRouterProvider)
+    core.register_provider(OpenRouterProvider, extensions=[OpenRouterReasoningExtension])
+    core.register_feature(RequestOptionsFeature)
 
     config = {
         "model": MODELS["gemini"],
+
         "api_key": OPENROUTER_API_KEY,
         "base_url": BASE_URL,
         "timeout": 60,

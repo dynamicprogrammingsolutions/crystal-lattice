@@ -72,14 +72,14 @@ def test_openrouter_basic_streaming(ensure_api_key):
     core.register_provider(OpenRouterProvider)
 
     config = {
-        "model": MODEL_GEMINI_FLASH_LITE,
+        "model": "openai/gpt-5-mini",
         "api_key": OPENROUTER_API_KEY,
         "base_url": BASE_URL,
         "timeout": 60,
     }
 
     session = core.create_session()
-    session = core.add_message(session, "user", "Count from 1 to 3.")
+    session = core.add_message(session, "user", "Write a poem about programming.")
 
     partial_count = 0
     final_message = None

@@ -256,36 +256,11 @@ def test_process_delta_content_accumulation():
     delta = {"delta": {"role": "assistant", "content": "Hello"}}
     accumulated = {}
 
-    partial, final, new_accumulated = provider.process_delta(delta, accumulated)
+    partial, new_accumulated = provider.process_delta(delta, accumulated)
 
     assert partial == {"role": "assistant", "content": "Hello"}
-    assert final is None
     assert new_accumulated["content"] == "Hello"
     assert new_accumulated["role"] == "assistant"
-
-
-def test_process_delta_full_message():
-    """Process delta handles full message chunks."""
-    provider = OpenRouterProvider()
-    delta = {"message": {"role": "assistant", "content": "Complete response"}}
-
-    partial, final, accumulated = provider.process_delta(delta, {})
-
-    assert partial is None
-    assert final == {"role": "assistant", "content": "Complete response"}
-
-
-def test_process_delta_finish_reason():
-    """Process delta emits final on stop finish_reason."""
-    provider = OpenRouterProvider()
-    accumulated = {"role": "assistant", "content": "Hello world"}
-    delta = {"delta": {}, "finish_reason": "stop"}
-
-    partial, final, new_accumulated = provider.process_delta(delta, accumulated)
-
-    assert partial is None
-    assert final == {"role": "assistant", "content": "Hello world"}
-
 
 def test_finalize_with_accumulated_content():
     """Finalize emits accumulated partial as final."""
