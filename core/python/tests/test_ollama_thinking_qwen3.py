@@ -51,7 +51,7 @@ def ensure_model():
         pytest.skip(f"could not pull model {MODEL_QWEN3}: {e}")
 
 
-@pytest.mark.integration
+@pytest.mark.ollama
 def test_ollama_thinking_non_streaming_with_qwen3(ensure_model):
     core = AgentCore()
     core.discover_and_register(

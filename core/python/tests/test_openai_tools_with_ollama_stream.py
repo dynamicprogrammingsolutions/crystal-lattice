@@ -52,7 +52,7 @@ def ensure_model():
         pytest.skip(f"could not pull model {MODEL_TOOLS}: {e}")
 
 
-@pytest.mark.integration
+@pytest.mark.ollama
 def test_tools_flow_with_ollama_stream(ensure_model):
     from plugins.openai_provider import OpenAICompatibleProvider
     from plugins.openai_tools_extension import OpenAIToolsExtension

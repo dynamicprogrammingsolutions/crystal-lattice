@@ -54,7 +54,7 @@ def ensure_model():
         pytest.skip(f"could not pull model {MODEL_TOOLS}: {e}")
 
 
-@pytest.mark.integration
+@pytest.mark.ollama
 def test_example11_openai_tools_file_reader(ensure_model):
     mod = __import__(
         "examples.example11_openai_tools_file_reader", fromlist=["run_example"]
