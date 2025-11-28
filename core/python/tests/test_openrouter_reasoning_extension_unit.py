@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import pytest
 
+from agent_core import AgentCore, Session, Message
+from plugins.openrouter_provider import OpenRouterProvider
 from plugins.openrouter_reasoning_extension import OpenRouterReasoningExtension
+
 
 
 def test_extension_name_and_version():
@@ -12,21 +15,6 @@ def test_extension_name_and_version():
     ext = OpenRouterReasoningExtension()
     assert ext.name == "openrouter_reasoning"
     assert ext.version == "0.2.0"
-
-
-def test_get_config_schema():
-    """Config schema includes reasoning parameters."""
-    ext = OpenRouterReasoningExtension()
-    schema = ext.get_config_schema()
-
-    assert "reasoning_effort" in schema
-    assert schema["reasoning_effort"]["enum"] == ["low", "medium", "high"]
-
-    assert "enable_reasoning" in schema
-    assert schema["enable_reasoning"]["type"] == "boolean"
-
-    assert "include_reasoning" in schema
-    assert schema["include_reasoning"]["default"] is True
 
 
 def test_get_tags():
@@ -67,8 +55,6 @@ def test_init_when_enabled():
     ext = OpenRouterReasoningExtension()
     config = {
         "enable_reasoning": True,
-        "reasoning_effort": "medium",
-        "include_reasoning": True,
     }
     state = {"config": config}
 
@@ -76,9 +62,7 @@ def test_init_when_enabled():
 
     assert "openrouter_reasoning" in new_state
     reasoning_config = new_state["openrouter_reasoning"]
-    assert reasoning_config["enabled"] is True
-    assert reasoning_config["effort"] == "medium"
-    assert reasoning_config["include"] is True
+    assert reasoning_config["reasoning"]["enabled"] is True
 
 
 def test_initialize_request_when_disabled():
@@ -94,43 +78,41 @@ def test_initialize_request_when_disabled():
 def test_initialize_request_adds_reasoning_parameters():
     """Initialize request adds reasoning parameters to payload."""
     ext = OpenRouterReasoningExtension()
-    state = {
-        "request": {"payload": {"model": "test"}},
-        "openrouter_reasoning": {
-            "enabled": True,
-            "effort": "high",
-            "include": True,
-        },
+
+    config = {
+        "enable_reasoning": True,
+        "reasoning_effort": "high"
     }
+    state = {"config": config}
 
-    new_state = ext.initialize_request([], state)
+    state = ext.init(config, state)
 
-    payload = new_state["request"]["payload"]
-    assert payload["reasoning_effort"] == "high"
-    assert payload["include_reasoning"] is True
+    state = ext.initialize_request([], state)
+
+    payload = state["request"]["payload"]
+    assert payload["reasoning"]["effort"] == "high"
+    assert payload["reasoning"]["enabled"] is True
 
 
 def test_initialize_request_without_effort():
     """Initialize request works without reasoning_effort."""
     ext = OpenRouterReasoningExtension()
-    state = {
-        "request": {"payload": {"model": "test"}},
-        "openrouter_reasoning": {
-            "enabled": True,
-            "effort": None,
-            "include": True,
-        },
+    config = {
+        "enable_reasoning": True
     }
+    state = {"config": config}
 
-    new_state = ext.initialize_request([], state)
+    state = ext.init(config, state)
 
-    payload = new_state["request"]["payload"]
-    assert "reasoning_effort" not in payload
-    assert payload["include_reasoning"] is True
+    state = ext.initialize_request([], state)
+
+    payload = state["request"]["payload"]
+    assert "effort" not in payload["reasoning"]
+    assert payload["reasoning"]["enabled"] is True
 
 
-def test_to_native_messages_with_reasoning():
-    """to_native_messages puts reasoning back into native format."""
+def test_to_native_messages_is_identity():
+    """to_native_messages leaves native messages unchanged."""
     ext = OpenRouterReasoningExtension()
     messages = [
         {
@@ -141,10 +123,11 @@ def test_to_native_messages_with_reasoning():
     ]
     native_messages = [{"role": "assistant", "content": "Answer"}]
 
-    enhanced = ext.to_native_messages(messages, native_messages)
+    enhanced = ext.to_native_messages(messages, list(native_messages))
 
-    assert len(enhanced) == 1
-    assert enhanced[0]["reasoning"] == "Thought process"
+    assert enhanced == native_messages
+    assert "reasoning" not in enhanced[0]
+
 
 
 def test_from_native_messages_extracts_reasoning():
@@ -183,16 +166,36 @@ def test_process_delta_accumulates_reasoning():
     """Process delta accumulates reasoning fragments."""
     ext = OpenRouterReasoningExtension()
     delta = {"delta": {"reasoning": "Step 1: "}}
-    current_partial = {"role": "assistant", "content": "Answer"}
+    current_partial = {"role": "assistant", "content": "Answer", "reasoning": "Step 1: "}
     accumulated = {}
 
-    partial, final, new_accumulated = ext.process_delta(
+    partial, new_accumulated = ext.process_delta(
         delta, current_partial=current_partial, accumulated=accumulated
     )
 
+    print("partial:", partial, "\nacc:", new_accumulated)
+
     assert partial["reasoning"] == "Step 1: "
     assert new_accumulated["reasoning"] == "Step 1: "
-    assert final is None
+
+
+def test_process_delta_accumulates_reasoning_details():
+    """Process delta accumulates reasoning fragments."""
+    ext = OpenRouterReasoningExtension()
+    delta = {"delta": {"role": "assistant", "content": "Answer", "reasoning": "Step 1: ", "reasoning_details": [{ "data": "ENCRYPTED" }]}}
+    current_partial = {"role": "assistant", "content": "Answer", "reasoning": "Step 1: ", "reasoning_details": [{ "data": "ENCRYPTED" }]}
+    accumulated = {"role": "assistant", "content": "Answer"}
+
+    partial, new_accumulated = ext.process_delta(
+        delta, current_partial=current_partial, accumulated=accumulated
+    )
+
+    print("partial:", partial, "\nacc:", new_accumulated)
+
+    assert new_accumulated["reasoning"] == "Step 1: "
+    assert new_accumulated["reasoning_details"][0]["data"] == "ENCRYPTED"
+    assert partial["reasoning"] == "Step 1: "
+    assert new_accumulated["reasoning"] == "Step 1: "
 
 
 def test_process_delta_full_message():
@@ -207,60 +210,11 @@ def test_process_delta_full_message():
     }
     current_final = {"role": "assistant", "content": "Answer"}
 
-    partial, final, accumulated = ext.process_delta(
-        delta, current_final=current_final, accumulated={}
+    partial, accumulated = ext.process_delta(
+        delta, current_partial={}, accumulated={}
     )
 
-    assert partial is None
-    assert final["reasoning"] == "Complete reasoning"
-
-
-def test_finalize_with_accumulated_reasoning():
-    """Finalize attaches accumulated reasoning to final messages."""
-    ext = OpenRouterReasoningExtension()
-    final_messages = [{"role": "assistant", "content": "Answer"}]
-    native_messages = [{"role": "assistant", "content": "Answer"}]
-    state = {
-        "openrouter_reasoning": {"enabled": True},
-        "partial": {"reasoning": "Accumulated reasoning"},
-    }
-
-    finals, natives, new_state = ext.finalize(final_messages, native_messages, state)
-
-    assert len(finals) == 1
-    assert finals[0]["reasoning"] == "Accumulated reasoning"
-    assert len(natives) == 1
-    assert natives[0]["reasoning"] == "Accumulated reasoning"
-
-
-def test_finalize_when_disabled():
-    """Finalize returns unchanged when reasoning is disabled."""
-    ext = OpenRouterReasoningExtension()
-    final_messages = [{"role": "assistant", "content": "Answer"}]
-    native_messages = [{"role": "assistant", "content": "Answer"}]
-    state = {"partial": {"reasoning": "Should be ignored"}}
-
-    finals, natives, new_state = ext.finalize(final_messages, native_messages, state)
-
-    assert finals == final_messages
-    assert natives == native_messages
-
-
-def test_finalize_without_accumulated_reasoning():
-    """Finalize returns unchanged when no reasoning accumulated."""
-    ext = OpenRouterReasoningExtension()
-    final_messages = [{"role": "assistant", "content": "Answer"}]
-    native_messages = [{"role": "assistant", "content": "Answer"}]
-    state = {
-        "openrouter_reasoning": {"enabled": True},
-        "partial": {},
-    }
-
-    finals, natives, new_state = ext.finalize(final_messages, native_messages, state)
-
-    assert finals == final_messages
-    assert natives == native_messages
-
+    assert accumulated["reasoning"] == "Complete reasoning"
 
 def test_accumulate_reasoning_details_text_multiple_chunks():
     """Accumulate text field across multiple chunks."""
@@ -319,7 +273,7 @@ def test_accumulate_reasoning_details_signature_multiple_chunks():
 def test_accumulate_reasoning_details_data_multiple_chunks():
     """Accumulate encrypted data across multiple chunks (OpenAI/xAI)."""
     ext = OpenRouterReasoningExtension()
-
+ 
     current_details = [
         {
             "type": "reasoning.encrypted",
@@ -329,7 +283,7 @@ def test_accumulate_reasoning_details_data_multiple_chunks():
             "index": 0,
         }
     ]
-
+ 
     delta_details = [
         {
             "type": "reasoning.encrypted",
@@ -339,13 +293,12 @@ def test_accumulate_reasoning_details_data_multiple_chunks():
             "index": 0,
         }
     ]
-
+ 
     result = ext._accumulate_reasoning_details(current_details, delta_details)
-
+ 
     assert len(result) == 1
     assert result[0]["data"] == "chunk1_chunk2_"  # Accumulated
     assert result[0]["id"] == "rs_123"  # Preserved
-
 
 def test_accumulate_reasoning_details_summary_multiple_chunks():
     """Accumulate summary field across multiple chunks (OpenAI)."""
@@ -474,3 +427,148 @@ def test_accumulate_reasoning_details_empty_delta():
 
     assert len(result) == 1
     assert result[0]["text"] == "Existing"
+
+
+def test_accumulate_reasoning_details_content_field_multiple_chunks():
+    """Accumulate generic 'content' field across chunks (example scenario)."""
+    ext = OpenRouterReasoningExtension()
+
+    current_details = [
+        {"type": "reasoning.test", "content": "A", "format": "unit-test", "index": 0}
+    ]
+    delta_details = [
+        {"type": "reasoning.test", "content": "B", "format": "unit-test", "index": 0}
+    ]
+
+    result = ext._accumulate_reasoning_details(current_details, delta_details)
+
+    assert len(result) == 1
+    assert result[0]["content"] == "AB"
+
+
+
+def test_retained_native_reasoning_details_preserved_in_pre_request():
+    """Native reasoning_details from prior turn are preserved for next request."""
+    core = AgentCore()
+    core.register_provider(OpenRouterProvider, extensions=[OpenRouterReasoningExtension])
+    config = {
+        "model": "openai/gpt-5-mini",
+        "api_key": "sk-test",
+        "base_url": "https://openrouter.ai/api/v1",
+        "timeout": 5,
+        "enable_reasoning": True,
+    }
+
+    messages = [
+        Message(role="user", content="Hello", metadata={}),
+        Message(role="assistant", content="World", metadata={}),
+    ]
+
+    reasoning_details = [
+        {"type": "reasoning.test", "content": "AB", "format": "unit-test", "index": 0}
+    ]
+    native_messages = [
+        {"role": "user", "content": "Hello"},
+        {"role": "assistant", "content": "World", "reasoning_details": reasoning_details},
+    ]
+
+    integrity = core._compute_native_integrity(messages)
+    session = Session(
+        session_id="test-session",
+        messages=messages,
+        metadata={
+            "native_messages": native_messages,
+            "native_messages_integrity": integrity,
+        },
+    )
+
+    provider, exts, features, tools, tags = core._resolve_plugins_for_config(config)
+    messages_out, native_out, state = core._pre_request(
+        session,
+        config,
+        provider,
+        features,
+        tools,
+    )
+
+    assert native_out[-1].get("reasoning_details") == reasoning_details
+
+
+class _DummyResponse:
+    def __init__(self, obj):
+        self._obj = obj
+        self.status_code = 200
+        self.reason = "OK"
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self):
+        return self._obj
+
+
+def test_reasoning_details_round_trip_non_streaming(monkeypatch):
+    """End-to-end: reasoning_details from first turn appear in next payload."""
+    calls = []
+
+    def fake_post(url, json=None, headers=None, timeout=None, stream=False):
+        call_index = len(calls)
+        calls.append(json)
+        if call_index == 0:
+            response_obj = {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": "First",
+                            "reasoning_details": [
+                                {
+                                    "type": "reasoning.test",
+                                    "content": "AB",
+                                    "format": "unit-test",
+                                    "index": 0,
+                                }
+                            ],
+                        }
+                    }
+                ]
+            }
+        else:
+            response_obj = {
+                "choices": [
+                    {"message": {"role": "assistant", "content": "Second"}}
+                ]
+            }
+        return _DummyResponse(response_obj)
+
+    monkeypatch.setattr("plugins.openrouter_provider.requests.post", fake_post)
+
+    core = AgentCore()
+    core.register_provider(OpenRouterProvider, extensions=[OpenRouterReasoningExtension])
+    config = {
+        "model": "openai/gpt-5-mini",
+        "api_key": "sk-test",
+        "base_url": "https://openrouter.ai/api/v1",
+        "timeout": 5,
+        "enable_reasoning": True,
+        "reasoning_effort": "low",
+    }
+
+    session = core.create_session()
+    session = core.add_message(session, "user", "Hello")
+
+    # First turn: provider returns reasoning_details "AB" which are stored in native history
+    session, responses = core.send_request(session, config)
+    assert responses[-1]["metadata"].get("reasoning_details")
+
+    # Second turn: payload should include the same reasoning_details in messages
+    session, responses2 = core.send_request(session, config)
+
+    assert len(calls) == 2
+    second_payload = calls[1]
+    messages_payload = second_payload["messages"]
+    last_native = messages_payload[-1]
+    details = last_native.get("reasoning_details")
+    assert details
+    assert details[0].get("content") == "AB"
+

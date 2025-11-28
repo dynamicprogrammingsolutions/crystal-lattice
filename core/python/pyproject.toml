@@ -7,7 +7,7 @@ name = "agent-core"
 version = "0.3.0"
 description = "Core SDK for the AI Agent Platform"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "AI Agent Platform Team"}
@@ -17,7 +17,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -44,6 +43,10 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --cov=agent_core --cov-report=term-missing"
+markers = [
+    "integration: integration tests that may hit real services",
+    "openrouter: tests exercising the OpenRouter provider",
+]
 
 [tool.black]
 line-length = 100

@@ -234,7 +234,7 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
         List[Dict[str, Any]],
         Dict[str, Any],
     ]:
-        finals, partials, natives, new_state = self.impl.process_chunk(  # type: ignore[attr-defined]
+        partials, finals, natives, new_state = self.impl.process_chunk(  # type: ignore[attr-defined]
             native_chunk, native_messages, state
         )
         return (

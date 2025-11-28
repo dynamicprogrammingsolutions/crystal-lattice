@@ -457,6 +457,15 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         working_state = state or self.state
         # Use the provided full native history directly
         full_history = list(native_messages)
+
+        match native_chunk:
+            case {'choices':[{"delta":{"reasoning_details": [
+                {"type": "reasoning.encrypted", "data": data},
+                *_, ], }}]}:
+                pass #print("chunk containing encrypted data:", data)
+            case _:
+                pass #print("Not the expected shape")
+
         partial_messages, final_messages, returned_history, new_state = self.plugin.process_chunk(
             native_chunk, full_history, working_state
         )
@@ -473,6 +482,8 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
             ext_state,
         )
         self.state = ext_state
+
+        #print("processed chunk:", partial_messages, "chunk:", native_chunk, self._iter_extensions())
 
         # Convert partial messages (provider-native) to core using provider + extensions
         core_partials: List[Dict[str, Any]] = []

@@ -159,46 +159,106 @@ class OpenRouterProvider(ProviderPlugin):
                     f"[openrouter_provider] invalid message at index {idx}: missing 'role' or 'content' -> {json.dumps(item, ensure_ascii=False)}"
                 )
 
+    def _sanitize_history(self, history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Normalize provider-native history before sending to OpenRouter.
+
+        - Drop top-level ``refusal`` fields when they are ``None`` (they are
+          response-only metadata and not meaningful when replayed as history).
+        - Drop ``index`` fields from ``tool_calls`` entries so streaming and
+          non-streaming payloads share the same tool_calls shape.
+        """
+        sanitized: List[Dict[str, Any]] = []
+        for msg in history:
+            if not isinstance(msg, dict):
+                sanitized.append(msg)
+                continue
+            m = dict(msg)
+            if m.get("refusal") is None:
+                m.pop("refusal", None)
+            tool_calls = m.get("tool_calls")
+            if isinstance(tool_calls, list):
+                cleaned_tcs = []
+                for tc in tool_calls:
+                    if not isinstance(tc, dict):
+                        cleaned_tcs.append(tc)
+                        continue
+                    cleaned_tcs.append({k: v for k, v in tc.items() if k != "index"})
+                m["tool_calls"] = cleaned_tcs
+            sanitized.append(m)
+        return sanitized
+
     def call_api(
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         request = state["request"]
+        payload: Dict[str, Any] = {}
         try:
             self._validate_message_list(native_messages)
             override = request.get("messages")
-            messages_to_send = override if isinstance(override, list) else native_messages
+            base_history = override if isinstance(override, list) else native_messages
+            messages_to_send = self._sanitize_history(base_history)
+            payload = {**request["payload"], "messages": messages_to_send, "stream": False}
+            print("payload (non-streaming):", payload)
             r = requests.post(
                 request["url"],
-                json={**request["payload"], "messages": messages_to_send, "stream": False},
+                json=payload,
                 headers=request["headers"],
                 timeout=request["timeout"],
             )
             r.raise_for_status()
             obj = r.json()
+            print("response (non-streaming):", obj)
         except requests.RequestException as e:
+            # Debug payload and error details for investigation (no auth headers included)
+            try:  # pragma: no cover - debug aid
+                debug_payload = json.dumps(payload, ensure_ascii=False)[:2000]
+                print("[openrouter_provider] call_api error payload:", debug_payload)
+            except Exception:
+                print("[openrouter_provider] call_api error payload: <unserializable>")
+            resp = getattr(e, "response", None)
+            if resp is not None:
+                try:
+                    err_detail = resp.json()
+                except Exception:
+                    err_detail = resp.text
+                print("[openrouter_provider] call_api error response:", err_detail)
             raise RuntimeError(f"OpenRouter API call failed: {e}") from e
 
         message = obj.get("choices", [{}])[0].get("message", {})
         return [message], [], [*native_messages, message], state
 
+
     def stream_api(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Iterator[Dict[str, Any]]:
         request = state["request"]
+        payload: Dict[str, Any] = {}
         try:
             self._validate_message_list(native_messages)
             override = request.get("messages")
-            messages_to_send = override if isinstance(override, list) else native_messages
+            base_history = override if isinstance(override, list) else native_messages
+            messages_to_send = self._sanitize_history(base_history)
+            payload = {**request["payload"], "messages": messages_to_send, "stream": True}
+            print("payload (stream):", payload)
             with requests.post(
                 request["url"],
-                json={**request["payload"], "messages": messages_to_send, "stream": True},
+                json=payload,
                 headers=request["headers"],
                 timeout=request["timeout"],
                 stream=True,
             ) as r:
-                r.raise_for_status()
+                if r.status_code != 200:
+                    # Get error details before raising
+                    try:
+                        error_detail = r.json()
+                    except Exception:
+                        error_detail = r.text
+                    raise RuntimeError(
+                        f"OpenRouter stream failed: {r.status_code} {r.reason}. "
+                        f"Error: {error_detail}"
+                    )
                 for line in r.iter_lines(decode_unicode=True):
                     if not line:
                         continue
@@ -217,6 +277,7 @@ class OpenRouterProvider(ProviderPlugin):
         except requests.RequestException as e:
             raise RuntimeError(f"OpenRouter stream failed: {e}") from e
 
+
     # ---------- Helpers (default/general implementations) ----------
     def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -228,36 +289,15 @@ class OpenRouterProvider(ProviderPlugin):
 
         return {}
 
-    def process_delta(self, delta: Dict[str, Any], accumulated):
+    def process_delta(self, delta: Dict[str, Any], accumulated) -> Tuple[Dict[str, Any],Dict[str, Any]]:
         """
         Reduce a delta dict into a new partial accumulator, and optionally a final.
         Returns (partial_message_or_none, final_message_or_none, new_accumulated).
         """
-        accumulated = accumulated or {}
-
-        if "message" in delta:
-            full_msg = delta.get("message") or None
-            return None, full_msg, accumulated
-
-        delta_content = delta.get("delta")
-        if delta_content is None:
-            return None, None, accumulated
-
-        accumulated = self._merge_delta_content(
-            accumulated, delta_content, override=["role"], accumulate=["content"]
+        content = delta.get("message") or delta.get("delta") or None
+        return content, self._merge_delta_content(
+            accumulated or {}, content, override=["role"], accumulate=["content"]
         )
-
-        if delta.get("finish_reason") == "stop":
-            has_meaning = bool((accumulated.get("content") or accumulated.get("role")))
-            if has_meaning:
-                return None, accumulated, accumulated
-            else:
-                return None, None, accumulated
-
-        if delta_content:
-            return delta_content, None, accumulated
-
-        return None, None, accumulated
 
     def _merge_delta_content(
         self,
@@ -269,7 +309,7 @@ class OpenRouterProvider(ProviderPlugin):
         return {
             **current,
             **{key: delta.get(key, current.get(key, "")) for key in override},
-            **{key: (current.get(key, "") + delta.get(key, "")) for key in accumulate},
+            **{key: ((current.get(key) or "") + (delta.get(key) or "")) for key in accumulate},
         }
 
     def process_chunk(
@@ -278,18 +318,13 @@ class OpenRouterProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        partial_msg, final_msg, accumulated = self.process_delta(
+        #print("chunk:", native_chunk)
+        partial, accumulated = self.process_delta(
             delta=self.extract_delta(native_chunk), accumulated=state.get("partial", {})
         )
-
-        partials = [partial_msg] if partial_msg else []
-        finals = [final_msg] if final_msg else []
-        if any(isinstance(f, dict) and not f for f in finals):
-            print("[openrouter_provider] WARNING: emitting empty final message from stream chunk")
-        new_native_messages = [*native_messages, *finals]
         new_state = {**state, "partial": accumulated}
-
-        return finals, partials, new_native_messages, new_state
+        return_values = [partial] if partial else [], [], native_messages, new_state
+        return  return_values
 
     def finalize(
         self,
@@ -297,14 +332,7 @@ class OpenRouterProvider(ProviderPlugin):
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         current_partial = state.get("partial", None)
-        if isinstance(current_partial, dict) and (
-            current_partial.get("content")
-            or current_partial.get("role")
-            or current_partial.get("reasoning")
-        ):
-            return [current_partial], [*native_messages, current_partial], state
-
-        return [], native_messages, state
+        return [current_partial] if current_partial else [], [*native_messages, current_partial] if current_partial else native_messages, state
 
     def to_display_format(self, message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         return message

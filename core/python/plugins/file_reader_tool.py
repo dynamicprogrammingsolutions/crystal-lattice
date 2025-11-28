@@ -27,6 +27,11 @@ class FileReaderTool(ToolPlugin):
                 "default": 1048576,
                 "description": "Maximum file size in bytes",
             },
+            "working_directory": {
+                "type": "string",
+                "default": ".",
+                "description": "Working directory for resolving relative paths",
+            },
         }
 
     def get_ui_elements(self) -> List[Dict[str, Any]]:
@@ -38,18 +43,19 @@ class FileReaderTool(ToolPlugin):
         return {"config": config}
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        working_dir = state.get("config", {}).get("working_directory", ".")
         return [
             {
                 "type": "function",
                 "function": {
                     "name": "read_file",
-                    "description": "Read contents of a text file",
+                    "description": f"Read contents of a text file. Relative paths are resolved from working directory: {working_dir}",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "file_path": {
                                 "type": "string",
-                                "description": "Path to the file to read",
+                                "description": "Path to the file to read (absolute or relative to working directory)",
                             }
                         },
                         "required": ["file_path"],
@@ -64,10 +70,18 @@ class FileReaderTool(ToolPlugin):
         if tool_name != "read_file":
             return {"success": False, "error": f"Unknown tool: {tool_name}"}
         file_path = arguments.get("file_path", "")
+        
+        # Get working directory from config
+        working_dir = state.get("config", {}).get("working_directory", ".")
+        
         try:
+            # If path is relative, resolve it relative to working_directory
+            if not os.path.isabs(file_path):
+                file_path = os.path.join(working_dir, file_path)
             abs_path = os.path.abspath(file_path)
         except Exception:
             return {"success": False, "error": f"Invalid path: {file_path}"}
+        
         allowed = state.get("config", {}).get("allowed_paths", ["."])
         if not any(abs_path.startswith(os.path.abspath(base)) for base in allowed):
             return {

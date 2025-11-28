@@ -26,6 +26,18 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
     name: str = "openrouter_reasoning"
     version: str = "0.2.0"
 
+    def get_tags(
+            self,
+            config: Dict[str, Any],
+            models: List[Dict[str, Any]],
+    ) -> List[str]:
+        """Identify this extension for dependency resolution."""
+        return ["ext:openrouter_reasoning"]
+
+    def required_tags(self) -> List[str]:
+        """Require OpenRouter provider and reasoning support."""
+        return ["openrouter", "supports_reasoning"]
+
     def get_config_schema(self) -> Dict[str, Any]:
         return {
             "reasoning_effort": {
@@ -37,15 +49,13 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
             "enable_reasoning": {
                 "type": "boolean",
                 "required": False,
-                "default": False,
                 "description": "Enable reasoning/thinking for models that support it",
             },
-            "include_reasoning": {
+            "reasoning_max_tokens": {
                 "type": "boolean",
                 "required": False,
-                "default": True,
-                "description": "Include reasoning tokens in response",
-            },
+                "description": "Specific token limit (Anthropic-style)",
+            }
         }
 
     def get_ui_elements(self) -> List[Dict[str, Any]]:
@@ -67,29 +77,28 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
             },
         ]
 
-    def get_tags(
-        self,
-        config: Dict[str, Any],
-        models: List[Dict[str, Any]],
-    ) -> List[str]:
-        """Identify this extension for dependency resolution."""
-        return ["ext:openrouter_reasoning"]
-
-    def required_tags(self) -> List[str]:
-        """Require OpenRouter provider and reasoning support."""
-        return ["openrouter", "supports_reasoning"]
-
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        enabled = bool(config.get("enable_reasoning"))
-        if not enabled:
+        # Check if any reasoning-related config is present
+        has_reasoning_config = any([
+            config.get("enable_reasoning"),
+            config.get("reasoning_effort"),
+            config.get("reasoning_max_tokens")
+        ])
+
+        if not has_reasoning_config:
             return state
 
         reasoning_config = {
-            "enabled": True,
-            "effort": config.get("reasoning_effort"),
-            "include": config.get("include_reasoning", True),
+            "reasoning": {}
         }
 
+        if "enable_reasoning" in config:
+            reasoning_config["reasoning"]["enabled"] = config["enable_reasoning"]
+        if "reasoning_effort" in config:
+            reasoning_config["reasoning"]["effort"] = config["reasoning_effort"]
+        if "reasoning_max_tokens" in config:
+            reasoning_config["reasoning"]["max_tokens"] = config["reasoning_max_tokens"]
+    
         return {
             **state,
             "openrouter_reasoning": reasoning_config,
@@ -98,30 +107,16 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
     def to_native_messages(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """Pass through reasoning and reasoning_details to native format.
+        """Return native messages unchanged.
 
-        reasoning_details must be preserved exactly as returned from the API
-        for tool calling continuity.
+        Reasoning and reasoning_details are treated as opaque provider-native
+        metadata. This extension does not synthesize, strip, or otherwise
+        transform these fields; they are preserved exactly as returned by the
+        provider and carried across turns via AgentCore's native history
+        retention.
         """
-        if len(messages) != len(native_messages):
-            return native_messages
+        return native_messages
 
-        enhanced_native_messages = []
-        for message, native_msg in zip(messages, native_messages):
-            enhanced = dict(native_msg)
-            metadata = message.get("metadata", {})
-
-            # Pass through reasoning text if present
-            if "reasoning" in metadata:
-                enhanced["reasoning"] = metadata["reasoning"]
-
-            # Pass through reasoning_details unchanged if present
-            if "reasoning_details" in metadata:
-                enhanced["reasoning_details"] = metadata["reasoning_details"]
-
-            enhanced_native_messages.append(enhanced)
-
-        return enhanced_native_messages
 
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
@@ -150,23 +145,17 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
         return enhanced_messages
 
     def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+            self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         reasoning_config = state.get("openrouter_reasoning")
-        if not reasoning_config or not reasoning_config.get("enabled"):
+        if not reasoning_config:
             return state
 
         request = state.get("request") or {}
         payload = dict(request.get("payload", {}))
 
-        # Add reasoning parameters based on configuration
-        reasoning_effort = reasoning_config.get("effort")
-        if reasoning_effort:
-            payload["reasoning_effort"] = reasoning_effort
-
-        # Include reasoning in response
-        if reasoning_config.get("include"):
-            payload["include_reasoning"] = True
+        # Add reasoning configuration to payload
+        payload["reasoning"] = reasoning_config["reasoning"]
 
         return {
             **state,
@@ -177,9 +166,13 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
         }
 
     def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract a provider-native delta dictionary from a streaming chunk."""
+        """
+        Extract a provider-native delta dictionary from a streaming chunk.
+        Return the first choice if present.
+        """
         if "choices" in native_chunk and native_chunk["choices"]:
             return dict(native_chunk["choices"][0])
+
         return {}
 
     def _accumulate_reasoning_details(
@@ -191,7 +184,8 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
 
         Handles all provider formats uniformly:
         - Metadata fields (type, format, index, id): use latest value
-        - Content fields (text, data, summary, signature): accumulate by concatenation
+        - Content fields (text, data, summary, signature): accumulate by
+          concatenation, with a special case for Gemini encrypted blobs.
 
         This ensures that any content field that arrives incrementally across
         multiple chunks is properly accumulated, not overridden.
@@ -253,72 +247,37 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
 
         return accumulated
 
+
     def process_delta(
         self,
         delta: Dict[str, Any],
         current_partial: Optional[Dict[str, Any]] = None,
-        current_final: Optional[Dict[str, Any]] = None,
         accumulated: Optional[Dict[str, Any]] = None,
     ):
         """
         Enhance the partial or final message with reasoning information from delta.
         Accumulates reasoning_details correctly for all supported providers.
-        Returns (partial_message, final_message, accumulated).
+        Returns (partial_message, accumulated).
         """
-        if accumulated is None:
-            accumulated = {}
 
-        # Full message chunk
-        if "message" in delta and current_final is not None:
-            message = delta.get("message") or {}
-            new_final = dict(current_final)
-
-            if message.get("reasoning"):
-                new_final["reasoning"] = message["reasoning"]
-
-            if message.get("reasoning_details"):
-                # Replace reasoning_details in full message mode
-                new_final["reasoning_details"] = list(message["reasoning_details"])
-
-            return current_partial, new_final, accumulated
-
-        # Delta chunk
-        if "delta" in delta:
-            delta_content = delta.get("delta", {})
-            new_partial = current_partial
-            new_accumulated = dict(accumulated)
-
-            # Handle reasoning text
-            if delta_content.get("reasoning"):
-                if current_partial:
-                    new_partial = dict(current_partial)
-                    new_partial["reasoning"] = (
-                        new_partial.get("reasoning", "") + delta_content["reasoning"]
+        match delta, accumulated:
+            case ({"delta": {"reasoning": reasoning, "reasoning_details": list(reasoning_details)}}, dict(acc)) | ({"message": {"reasoning": reasoning, "reasoning_details": list(reasoning_details)}}, dict(acc)):
+                return current_partial, {
+                    **acc,
+                    "reasoning": acc.get("reasoning", "") + (reasoning or ""),
+                    "reasoning_details": self._accumulate_reasoning_details(
+                        acc.get("reasoning_details", []), reasoning_details
                     )
+                }
+            case ({"delta": {"reasoning": reasoning}}, dict(acc)) | ({"message": {"reasoning": reasoning}}, dict(acc)):
+                return current_partial, {
+                    **acc,
+                    "reasoning": acc.get("reasoning", "") + (reasoning or "")
+                }
+            case _:
+                return current_partial, accumulated
 
-                new_accumulated["reasoning"] = (
-                    new_accumulated.get("reasoning", "") + delta_content["reasoning"]
-                )
 
-            # Handle reasoning_details
-            if delta_content.get("reasoning_details"):
-                current_details = new_partial.get("reasoning_details") if new_partial else None
-                new_details = self._accumulate_reasoning_details(
-                    current_details, delta_content["reasoning_details"]
-                )
-
-                if new_partial:
-                    new_partial["reasoning_details"] = new_details
-
-                # Also accumulate in state
-                acc_details = new_accumulated.get("reasoning_details")
-                new_accumulated["reasoning_details"] = self._accumulate_reasoning_details(
-                    acc_details, delta_content["reasoning_details"]
-                )
-
-            return new_partial, current_final, new_accumulated
-
-        return current_partial, current_final, accumulated
 
     def process_chunk(
         self,
@@ -328,34 +287,12 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        delta = self.extract_delta(native_chunk or {})
-
-        new_partial_messages = partial_messages
-        new_final_messages = final_messages
-        new_native_messages = native_messages
-        accumulated = state.get("partial", {})
-
-        if len(final_messages) > 0:
-            new_partial_message, new_final_message, accumulated = self.process_delta(
-                delta=delta, current_final=final_messages[-1], accumulated=accumulated
-            )
-            new_final_messages = [*(final_messages[:-1] or []), new_final_message]
-            new_native_messages = [*(native_messages[:-1] or []), new_final_message]
-
-        if len(partial_messages) > 0:
-            new_partial_message, new_final_message, accumulated = self.process_delta(
-                delta=delta,
-                current_partial=partial_messages[-1],
-                accumulated=accumulated,
-            )
-            new_partial_messages = [*(partial_messages[:-1] or []), new_partial_message]
-
-        return (
-            new_partial_messages,
-            new_final_messages,
-            new_native_messages,
-            {**state, "partial": accumulated},
+        accumulated=state.get("partial", {})
+        partial, accumulated = self.process_delta(
+            delta=self.extract_delta(native_chunk), current_partial=partial_messages[-1] if len(partial_messages) > 0 else None, accumulated=state.get("partial", {})
         )
+        new_state = {**state, "partial": accumulated}
+        return  [partial] if partial else [], [], native_messages, new_state
 
     def finalize(
         self,
@@ -363,30 +300,4 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        reasoning_config = state.get("openrouter_reasoning")
-        if not reasoning_config or not reasoning_config.get("enabled"):
-            return final_messages, native_messages, state
-
-        # If we accumulated reasoning during streaming, attach it to the last final
-        accumulated = state.get("partial") or {}
-        reasoning_text = accumulated.get("reasoning") if isinstance(accumulated, dict) else None
-        reasoning_details = accumulated.get("reasoning_details")
-
-        if reasoning_text or reasoning_details:
-            if final_messages:
-                last_final = dict(final_messages[-1])
-                if reasoning_text:
-                    last_final["reasoning"] = last_final.get("reasoning", "") + reasoning_text
-                if reasoning_details:
-                    last_final["reasoning_details"] = reasoning_details
-                final_messages = [*final_messages[:-1], last_final]
-
-            if native_messages:
-                last_native = dict(native_messages[-1])
-                if reasoning_text:
-                    last_native["reasoning"] = last_native.get("reasoning", "") + reasoning_text
-                if reasoning_details:
-                    last_native["reasoning_details"] = reasoning_details
-                native_messages = [*native_messages[:-1], last_native]
-
         return final_messages, native_messages, state

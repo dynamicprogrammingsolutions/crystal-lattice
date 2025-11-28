@@ -229,13 +229,18 @@ pytest core/python/tests -m "integration and not openrouter" -q
 5. Write integration tests for Grok, Claude, Gemini, GPT-5 (with cheap models)
 6. Verify reasoning in streaming and non-streaming modes
 
-### Phase 3: Tool Calling Extension
+### Phase 3: Tool Calling Extension ✅
 
-1. Create `plugins/openrouter_tools_extension.py`
-2. Copy/adapt from `openai_tools_extension.py`
-3. Write unit tests
-4. Write integration tests for all 4 model families
-5. Test parallel tool calls and tool chains
+1. ✅ Create `plugins/openrouter_tools_extension.py` (v0.1.0)
+2. ✅ Copy/adapt from `openai_tools_extension.py`
+3. ✅ Write unit tests (9 tests in `test_openrouter_tools_extension_unit.py`)
+4. ✅ Write integration tests for all 4 model families:
+   - `test_openrouter_tools_reasoning_integration.py` (8 tests with reasoning_test scenario)
+   - `test_openrouter_tools_comprehensive.py` (28 tests covering all scenarios)
+5. ✅ Test single tool calls (8 tests: 2 scenarios × 4 models)
+6. ✅ Test parallel tool calls (8 tests: 2 scenarios × 4 models)
+7. ✅ Test tool chains/multiple rounds (12 tests: 3 scenarios × 4 models)
+8. ✅ Create `plugins/math_tools.py` for computation testing
 
 ### Phase 4: Test Markers
 

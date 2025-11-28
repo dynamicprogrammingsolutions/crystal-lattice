@@ -118,8 +118,6 @@ class OpenAIToolsExtension:
         """Accumulate tool_calls across deltas; merge into current partial/final and accumulator.
         Returns (new_partial, new_final, new_accumulated).
         """
-        if not delta.get("delta", {}).get("reasoning"):
-            print("process delta:", delta)
         accumulated = accumulated or {"tool_calls": []}
 
         # print(f"process_delta: {delta}, partial: {current_partial}, final: {current_final}, accumulated: {accumulated}")

@@ -79,7 +79,7 @@ class DummyProvider(ProviderPlugin):
             },
         }
         partial_msg = {"role": "assistant", "content": partial_content, "metadata": {}}
-        return [], ([partial_msg] if partial_content else []), [native_chunk], new_state
+        return ([partial_msg] if partial_content else []), [], [native_chunk], new_state
 
     def finalize(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
