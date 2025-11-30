@@ -216,6 +216,12 @@ cd core/python
 pytest
 ```
 
+By default pytest is configured with `-m 'not integration'`, so remote integration tests (OpenRouter, etc.) are skipped unless explicitly selected. Useful commands:
+
+- `pytest tests -m openrouter -q` – run OpenRouter integration tests
+- `pytest tests -m integration -q` – run all integration tests
+- `pytest tests -m ollama -q` – run only Ollama tests
+
 ### Run with Coverage
 
 ```bash

@@ -111,8 +111,14 @@ OpenAI-compatible provider (works with OpenAI, Ollama, etc.)
 cd core/python
 pip install -e ".[dev]"
 
-# Run tests
+# Run tests (unit + ollama; integration skipped by default)
 pytest
+
+# Run OpenRouter integration tests
+pytest core/python/tests -m openrouter -q
+
+# Run all integration tests
+pytest core/python/tests -m integration -q
 
 # Run specific test file
 pytest core/python/tests/test_core.py -v
@@ -169,5 +175,5 @@ See [PROJECT_PLAN.md](PROJECT_PLAN.md) for complete roadmap, implementation stag
 **Tests**: `core/python/tests/`
 **Plugins**: `core/python/plugins/`
 
-**Test Command**: `pytest core/python/tests -q`
+**Test Command**: `pytest core/python/tests -q` (integration tests are skipped by default; use `-m integration` or `-m openrouter` to include remote suites)
 **Test Example Command**: `pytest -qs core/python/examples/tests/test_example1_echo_provider.py`  

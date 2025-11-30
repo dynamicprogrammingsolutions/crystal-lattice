@@ -160,19 +160,18 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --cov=agent_core --cov-report=term-missing"
+addopts = "-v --cov=agent_core --cov-report=term-missing -m 'not integration'"
 markers = [
-    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
-    "ollama: marks tests requiring Ollama service (deselect with '-m \"not ollama\"')",
-    "openrouter: marks tests requiring OpenRouter API key (deselect with '-m \"not openrouter\"')",
+    "integration: integration tests that may hit real services",
+    "ollama: tests exercising local Ollama integration",
+    "openrouter: tests exercising the OpenRouter provider",
 ]
 ```
 
 ### Mark existing Ollama tests
 
-- Add `@pytest.mark.ollama` to all ollama test files
-- Keep existing `@pytest.mark.integration` marker
-- Tests will have both markers: `@pytest.mark.integration` and `@pytest.mark.ollama`
+- Add `@pytest.mark.ollama` to all Ollama test files
+- Remove any `@pytest.mark.integration` markers from Ollama tests so they run by default
 
 ### Mark OpenRouter tests
 
@@ -181,8 +180,8 @@ markers = [
 ### Run commands
 
 ```bash
-# Run all tests except integration
-pytest core/python/tests -m "not integration" -q
+# Run default test suite (unit + ollama; integration tests skipped)
+pytest core/python/tests -q
 
 # Run only OpenRouter tests
 pytest core/python/tests -m "openrouter" -q
