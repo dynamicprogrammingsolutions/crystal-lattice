@@ -112,47 +112,51 @@ class OpenAIToolsExtension:
         self,
         delta: Dict[str, Any],
         current_partial: Dict[str, Any] | None = None,
-        current_final: Dict[str, Any] | None = None,
         accumulated: Dict[str, Any] | None = None,
     ):
-        """Accumulate tool_calls across deltas; merge into current partial/final and accumulator.
-        Returns (new_partial, new_final, new_accumulated).
+        """Accumulate tool_calls across deltas into the shared accumulator.
+
+        Updates only the accumulator (``state["partial"]``) and leaves
+        partial/final messages to the provider.
         """
         accumulated = accumulated or {"tool_calls": []}
 
-        # print(f"process_delta: {delta}, partial: {current_partial}, final: {current_final}, accumulated: {accumulated}")
+        d = delta.get("message") or delta.get("delta") or {}
 
-        # Full message update (provider final). Replace tool_calls and stop accumulating to avoid duplicates.
-        if "message" in delta and current_final is not None:
-            msg = delta.get("message") or {}
-            if isinstance(msg.get("tool_calls"), list) and msg["tool_calls"]:
-                merged_final = dict(current_final)
-                # Replace any previously accumulated tool_calls with the provider's final list
-                merged_final["tool_calls"] = list(msg["tool_calls"])  # replace-mode
-                return current_partial, merged_final, accumulated
-            return current_partial, current_final, accumulated
+        if isinstance(d.get("tool_calls"), list) and d["tool_calls"]:
+            acc_tc = list(accumulated.get("tool_calls") or [])
 
-        # Delta fragment: merge into partial and/or final when present
-        if "delta" in delta:
-            d = delta.get("delta") or {}
-            if isinstance(d.get("tool_calls"), list) and d["tool_calls"]:
-                acc_tc = list(accumulated.get("tool_calls") or [])
-                acc_tc.extend(d["tool_calls"])
-                # print("accumulate:", accumulated, acc_tc)
-                accumulated = {**accumulated, "tool_calls": acc_tc}
-                new_partial = current_partial
-                new_final = current_final
-                if current_final is not None:
-                    merged_final = dict(current_final)
-                    merged_final["tool_calls"] = [
-                        *(current_final.get("tool_calls") or []),
-                        *d["tool_calls"],
-                    ]
-                    new_final = merged_final
-                return new_partial, new_final, accumulated
-            return current_partial, current_final, accumulated
+            # Merge tool_calls by index (streaming sends fragments with index field)
+            for tc_delta in d["tool_calls"]:
+                index = tc_delta.get("index", len(acc_tc))
+                # Ensure list is long enough
+                while len(acc_tc) <= index:
+                    acc_tc.append({})
+                # Merge this delta into the tool_call at the given index
+                existing = acc_tc[index]
+                # Merge top-level fields
+                for key in ["id", "type"]:
+                    if key in tc_delta:
+                        existing[key] = tc_delta[key]
+                # Merge function object
+                if "function" in tc_delta:
+                    if "function" not in existing:
+                        existing["function"] = {}
+                    func_delta = tc_delta["function"]
+                    if "name" in func_delta:
+                        existing["function"]["name"] = func_delta["name"]
+                    if "arguments" in func_delta:
+                        # Accumulate arguments (they're sent as string fragments)
+                        existing["function"]["arguments"] = (
+                            existing["function"].get("arguments", "")
+                            + func_delta["arguments"]
+                        )
+                acc_tc[index] = existing
 
-        return current_partial, current_final, accumulated
+            new_accumulated = {**accumulated, "tool_calls": acc_tc}
+            return current_partial, new_accumulated
+
+        return current_partial, accumulated
 
     def process_chunk(
         self,
@@ -162,31 +166,29 @@ class OpenAIToolsExtension:
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        """Update the accumulator with tool_calls for each streaming chunk.
+
+        This extension does not emit its own finals or mutate history; it only
+        enriches the shared accumulator so that the provider's final message
+        (built from state["partial"]) carries the full tool_calls list.
+        """
         delta = self.extract_delta(native_chunk or {})
 
         new_partial_messages = partial_messages
-        new_final_messages = final_messages
-        new_native_messages = native_messages
         accumulated = state.get("partial", {})
 
-        if len(final_messages) > 0:
-            new_partial_message, new_final_message, accumulated = self.process_delta(
-                delta=delta, current_final=final_messages[-1], accumulated=accumulated
+        if partial_messages:
+            _current_partial = partial_messages[-1]
+            _unused_partial, accumulated = self.process_delta(
+                delta=delta,
+                current_partial=_current_partial,
+                accumulated=accumulated,
             )
-            new_final_messages = [*(final_messages[:-1] or []), new_final_message]
-            new_native_messages = [*(native_messages[:-1] or []), new_final_message]
-
-        if len(partial_messages) > 0:
-            new_partial_message, new_final_message, accumulated = self.process_delta(
-                delta=delta, current_partial=partial_messages[-1], accumulated=accumulated
-            )
-            # Do not write tool_calls into metadata for partial messages; emit native-only
-            new_partial_messages = [*(partial_messages[:-1] or []), new_partial_message]
 
         return (
             new_partial_messages,
-            new_final_messages,
-            new_native_messages,
+            final_messages,
+            native_messages,
             {**state, "partial": accumulated},
         )
 

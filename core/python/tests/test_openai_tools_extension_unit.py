@@ -43,12 +43,13 @@ def test_to_native_messages_maps_tool_call_id_and_tool_calls():
     assert out[1].get("tool_call_id") == "abc"
 
 
-def test_process_chunk_accumulates_tool_calls_into_existing_final():
+def test_process_chunk_accumulates_tool_calls_in_state_partial():
     ext = Ext()
     state = {}
-    # existing final message (as provider would produce)
-    finals = [{"role": "assistant", "content": ""}]
-    natives = [{"role": "assistant", "content": ""}]
+
+    # No partials/finals yet – extension should still accumulate into state
+    finals: list[dict] = []
+    natives: list[dict] = []
 
     chunk = {
         "choices": [
@@ -68,9 +69,18 @@ def test_process_chunk_accumulates_tool_calls_into_existing_final():
             }
         ]
     }
-    pm, fm, nm, state = ext.process_chunk(chunk, [], finals, natives, state)
-    assert fm and isinstance(fm[-1].get("tool_calls"), list)
-    assert nm and nm[-1] == fm[-1]
+    # Simulate provider emitting a native partial message for this chunk
+    partials = [{"role": "assistant", "content": ""}]
+
+    pm, fm, nm, state = ext.process_chunk(chunk, partials, finals, natives, state)
+
+    # Extension follows OpenRouter-style semantics: it records tool_calls in
+    # state["partial"] but does not mutate finals or history during streaming.
+    assert fm == []
+    assert nm == natives
+    partial = state.get("partial") or {}
+    tool_calls = partial.get("tool_calls") or []
+    assert tool_calls and tool_calls[0].get("id") == "c1"
 
 
 def test_from_native_messages_attaches_metadata_tool_calls():
