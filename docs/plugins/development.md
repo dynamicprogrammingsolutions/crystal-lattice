@@ -66,6 +66,85 @@ class EchoProvider(ProviderPlugin):
 
 In the Python SDK, adapter defaults handle `to_native_messages`, `from_native_messages`, `initialize_request`, `finalize`, and `stream_api` when they are omitted, so many providers only implement configuration, `init`, and one of the I/O entry points (`call_api` or `stream_api`).
 
+### Recommended streaming pattern (accumulator-based)
+
+Streaming providers are expected to follow a simple accumulator-based pattern for
+`process_chunk` and `finalize`:
+
+- `stream_api` yields raw provider-native chunks (as returned by the HTTP client).
+- `process_chunk(native_chunk, native_messages, state)` is called for each
+  chunk and must:
+  - Extract a *delta* from the chunk (for example, the first entry in
+    `choices[0]`).
+  - Reduce that delta into:
+    - A provider-native **partial** message for this chunk (or `None`).
+    - An updated **accumulator** stored in `state["partial"]`.
+  - Return `(partials, finals, native_messages, new_state)`, where:
+    - `partials` is a list of provider-native partial messages (often at most
+      one item per chunk).
+    - `finals` is usually empty during streaming; the final message is produced
+      in `finalize`.
+    - `native_messages` is typically left unchanged during streaming; the full
+      history is updated when finalization completes.
+    - `new_state` is `state` with the updated accumulator under
+      `state["partial"]`.
+- `finalize(native_messages, state)` is called once after streaming completes
+  and must:
+  - Read the accumulated partial from `state["partial"]`.
+  - If present, emit it as the single final provider-native assistant message.
+  - Append that final to `native_messages` when returning.
+
+A minimal accumulator-based `process_chunk`/`finalize` pair looks like this
+(simplified from the OpenAI-compatible provider):
+
+```python
+class MyProvider(ProviderPlugin):
+    ...
+
+    def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:
+        if "choices" in native_chunk and native_chunk["choices"]:
+            return dict(native_chunk["choices"][0])
+        return {}
+
+    def process_delta(self, delta: Dict[str, Any], accumulated: Dict[str, Any] | None):
+        base = accumulated or {}
+        content = delta.get("message") or delta.get("delta") or None
+        if content is None:
+            return None, base
+        new_accumulated = {
+            **base,
+            "role": content.get("role", base.get("role", "assistant")),
+            "content": (base.get("content", "") + content.get("content", "")),
+        }
+        return content, new_accumulated
+
+    def process_chunk(
+        self,
+        native_chunk: Dict[str, Any],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        partial, accumulated = self.process_delta(
+            self.extract_delta(native_chunk), state.get("partial", {}),
+        )
+        partials = [partial] if partial else []
+        finals: List[Dict[str, Any]] = []
+        return partials, finals, native_messages, {**state, "partial": accumulated}
+
+    def finalize(
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        partial = state.get("partial")
+        if partial:
+            return [partial], [*native_messages, partial], state
+        return [], native_messages, state
+```
+
+This pattern keeps all accumulation in `state["partial"]` and makes it easy for
+extensions to collaborate by reading and updating the same accumulator.
+
 ## Provider Extension Plugin
 
 Provider extensions run beside the provider on the hot path and the cold path. They do not own separate state; they receive and update the shared provider state.
@@ -112,6 +191,90 @@ class PrefixExtension(ProviderExtensionPlugin):
 ```
 
 As with providers, extension adapters supply default identity implementations for the stateless conversion and `initialize_request` hooks when they are not defined on the class.
+
+### Recommended streaming pattern (extensions)
+
+For streaming providers that use an accumulator in `state["partial"]`,
+extensions are encouraged to follow a similar pattern:
+
+- Treat `partial_messages` as provider-native partials for the current chunk.
+- Use `state["partial"]` as the shared accumulator for extension-specific
+  fields (for example, `tool_calls`, `reasoning`, or provider-native metadata).
+- Prefer updating only:
+  - The last entry in `partial_messages` (to enrich the current partial), and
+  - The accumulator in `state["partial"]`.
+- Avoid mutating `final_messages` or `native_messages` during streaming unless
+  there is a very strong reason; use `finalize` for cold-path adjustments.
+
+A minimal accumulator-based extension looks like this:
+
+```python
+from typing import Any, Dict, List, Tuple, Optional
+from agent_core.types import ProviderExtensionPlugin
+
+
+class MyStreamingExtension(ProviderExtensionPlugin):
+    name = "my_ext"
+    version = "1.0.0"
+
+    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        return state
+
+    def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:
+        if "choices" in native_chunk and native_chunk["choices"]:
+            return dict(native_chunk["choices"][0])
+        return {}
+
+    def process_delta(
+        self,
+        delta: Dict[str, Any],
+        current_partial: Dict[str, Any] | None,
+        accumulated: Dict[str, Any] | None,
+    ) -> Tuple[Dict[str, Any] | None, Dict[str, Any]]:
+        base = accumulated or {}
+        d = delta.get("message") or delta.get("delta") or {}
+        if not isinstance(d, dict):
+            return current_partial, base
+        # Example: accumulate a "reasoning" field
+        new_partial = dict(current_partial or {})
+        if "reasoning" in d:
+            new_partial["reasoning"] = (new_partial.get("reasoning", "") + d["reasoning"])
+            base["reasoning"] = base.get("reasoning", "") + d["reasoning"]
+        return new_partial, base
+
+    def process_chunk(
+        self,
+        native_chunk: Optional[Dict[str, Any]],
+        partial_messages: List[Dict[str, Any]],
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        delta = self.extract_delta(native_chunk or {})
+        accumulated = state.get("partial", {})
+
+        new_partials = list(partial_messages)
+        if new_partials:
+            last = new_partials[-1]
+            updated_last, accumulated = self.process_delta(delta, last, accumulated)
+            new_partials[-1] = updated_last or last
+
+        return new_partials, final_messages, native_messages, {**state, "partial": accumulated}
+
+    def finalize(
+        self,
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        # Most extensions can simply return finals/native unchanged; the provider
+        # already baked accumulator state into the final provider-native message.
+        return final_messages, native_messages, state
+```
+
+This keeps streaming logic simple and predictable: the provider owns the final
+message shape, and extensions collaborate by enriching partials and the shared
+accumulator.
 
 ## Feature Plugin
 

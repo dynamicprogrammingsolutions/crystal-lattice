@@ -109,9 +109,9 @@ class OllamaThinkingExtension(ProviderExtensionPlugin):
         }
 
     def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Extract a provider-native delta dictionary from a streaming chunk.
-        Return the first choice if present.
+        """Extract a provider-native delta dictionary from a streaming chunk.
+
+        Returns the first choice object when present, or an empty dict.
         """
         if "choices" in native_chunk and native_chunk["choices"]:
             return dict(native_chunk["choices"][0])
@@ -122,32 +122,35 @@ class OllamaThinkingExtension(ProviderExtensionPlugin):
         self,
         delta: Dict[str, Any],
         current_partial: Dict[str, Any] | None = None,
-        current_final: Dict[str, Any] | None = None,
-        accumulated={},
+        accumulated: Dict[str, Any] | None = None,
     ):
-        """
-        Enhance the partial or final message with additional information from delta.
-        Returns (partial_message, final_message).
-        """
-        if "message" in delta and current_final is not None:
-            # This is a full message, not a delta. example: {'index': 0, 'message': {'role': 'assistant', 'content': "Here's a short poem:\n\nSilent stars shine bright and far,\nA midnight sky, with dreams afar.\nThe moon glows soft, like silver hue,\nAs
-            new_final = self._merge_delta_content(
-                current_final, delta.get("message") or {}, override=["reasoning"]
-            )
-            return current_partial, new_final, accumulated
+        """Accumulate reasoning text from streaming deltas.
 
-        if "delta" in delta and current_partial is not None:
-            # This is a delta. example: {'index': 0, 'delta': {'role': 'assistant', 'content': 'Sil'}, 'finish_reason': None}
-            delta_content = delta.get("delta", {})
-            new_partial = self._merge_delta_content(
-                current_partial, delta_content, accumulate=["reasoning"]
-            )
-            accumulated = self._merge_delta_content(
-                accumulated, delta_content, accumulate=["reasoning"]
-            )
-            return new_partial, current_final, accumulated
+        Updates both the current partial message (when present) and the shared
+        accumulator (state["partial"]) with incremental reasoning fragments.
+        """
+        base = accumulated or {}
+        d = delta.get("message") or delta.get("delta") or {}
 
-        return current_partial, current_final, accumulated
+        if not isinstance(d, dict) or "reasoning" not in d:
+            return current_partial, base
+
+        # Merge reasoning into the current partial, if any
+        new_partial = current_partial or {}
+        new_partial = self._merge_delta_content(
+            new_partial,
+            {"reasoning": d.get("reasoning")},
+            accumulate=["reasoning"],
+        )
+
+        # And into the accumulator used by the provider's finalize()
+        new_accumulated = self._merge_delta_content(
+            base,
+            {"reasoning": d.get("reasoning")},
+            accumulate=["reasoning"],
+        )
+
+        return new_partial, new_accumulated
 
     def _merge_delta_content(
         self,
@@ -161,7 +164,10 @@ class OllamaThinkingExtension(ProviderExtensionPlugin):
             # For override keys, prefer the incoming delta value, falling back to current
             **{key: delta.get(key, current.get(key, "")) for key in override},
             # For accumulate keys, append incoming delta fragments to current value
-            **{key: (current.get(key, "") + delta.get(key, "")) for key in accumulate},
+            **{
+                key: ((current.get(key) or "") + (delta.get(key) or ""))
+                for key in accumulate
+            },
         }
 
     def process_chunk(
@@ -172,31 +178,31 @@ class OllamaThinkingExtension(ProviderExtensionPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        """Update partial messages and accumulator with reasoning for each chunk.
+
+        This extension no longer mutates finals or history during streaming; it
+        only enriches provider-native partials and the shared accumulator. The
+        provider's finalize() step then emits the full assistant message with
+        accumulated reasoning.
+        """
         delta = self.extract_delta(native_chunk or {})
 
         new_partial_messages = partial_messages
-        new_final_messages = final_messages
-        new_native_messages = native_messages
         accumulated = state.get("partial", {})
 
-        if len(final_messages) > 0:
-            new_partial_message, new_final_message, accumulated = self.process_delta(
-                delta=delta, current_final=final_messages[-1], accumulated=accumulated
+        if partial_messages:
+            current_partial = partial_messages[-1]
+            new_partial, accumulated = self.process_delta(
+                delta=delta,
+                current_partial=current_partial,
+                accumulated=accumulated,
             )
-            new_final_messages = [*(final_messages[:-1] or []), new_final_message]
-            new_native_messages = [*(native_messages[:-1] or []), new_final_message]
-
-        if len(partial_messages) > 0:
-            new_partial_message, new_final_message, accumulated = self.process_delta(
-                delta=delta, current_partial=partial_messages[-1], accumulated=accumulated
-            )
-            # Do not write reasoning into metadata for partial messages; emit native-only
-            new_partial_messages = [*(partial_messages[:-1] or []), new_partial_message]
+            new_partial_messages = [*partial_messages[:-1], new_partial]
 
         return (
             new_partial_messages,
-            new_final_messages,
-            new_native_messages,
+            final_messages,
+            native_messages,
             {**state, "partial": accumulated},
         )
 

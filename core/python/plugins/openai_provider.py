@@ -211,9 +211,9 @@ class OpenAICompatibleProvider(ProviderPlugin):
 
     # ---------- Helpers (default/general implementations) ----------
     def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Extract a provider-native delta dictionary from a streaming chunk.
-        Return the first choice if present.
+        """Extract a provider-native delta dictionary from a streaming chunk.
+
+        Returns the first choice object when present, or an empty dict.
         """
         if "choices" in native_chunk and native_chunk["choices"]:
             return dict(native_chunk["choices"][0])
@@ -221,38 +221,26 @@ class OpenAICompatibleProvider(ProviderPlugin):
         return {}
 
     def process_delta(self, delta: Dict[str, Any], accumulated):
+        """Reduce a delta dict into a new partial and accumulator.
+
+        Returns the current partial fragment from this chunk and an updated
+        accumulator used later by :meth:`finalize` to build the final message.
         """
-        Reduce a delta dict into a new partial accumulator, and optionally a final.
-        Returns (partial_message_or_none, final_message_or_none, new_accumulated).
-        """
-        accumulated = accumulated or {}
+        # Normalize accumulator once
+        base = accumulated or {}
 
-        # Full message chunk
-        if "message" in delta:
-            full_msg = delta.get("message") or None
-            return None, full_msg, accumulated
+        # Prefer full message objects, then deltas
+        content = delta.get("message") or delta.get("delta") or None
+        if content is None:
+            return None, base
 
-        # Delta chunk
-        delta_content = delta.get("delta")
-        if not delta_content:
-            return None, None, accumulated
-
-        # Merge role/content fragments
-        accumulated = self._merge_delta_content(
-            accumulated, delta_content, override=["role"], accumulate=["content"]
+        new_accumulated = self._merge_delta_content(
+            base,
+            content,
+            override=["role"],
+            accumulate=["content"],
         )
-
-        if delta.get("finish_reason") == "stop":
-            # Only emit a final if we have something meaningful accumulated
-            has_meaning = bool((accumulated.get("content") or accumulated.get("role")))
-            if has_meaning:
-                return None, accumulated, accumulated
-            else:
-                # Keep accumulated as-is for potential finalize step
-                return None, None, accumulated
-
-        # Regular delta chunk -> partial
-        return delta_content, None, accumulated
+        return content, new_accumulated
 
     def _merge_delta_content(
         self,
@@ -266,7 +254,10 @@ class OpenAICompatibleProvider(ProviderPlugin):
             # For override keys, prefer the incoming delta value, falling back to current
             **{key: delta.get(key, current.get(key, "")) for key in override},
             # For accumulate keys, append incoming delta fragments to current value
-            **{key: (current.get(key, "") + delta.get(key, "")) for key in accumulate},
+            **{
+                key: ((current.get(key) or "") + (delta.get(key) or ""))
+                for key in accumulate
+            },
         }
 
     def process_chunk(
@@ -275,35 +266,39 @@ class OpenAICompatibleProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        partial_msg, final_msg, accumulated = self.process_delta(
+        """Process a streaming chunk into provider-native partials.
+
+        Pattern:
+        - Extract a delta from the chunk
+        - Reduce it into a partial fragment and update the accumulator
+        - Do not emit finals or modify history; :meth:`finalize` is responsible
+          for producing the final message from the accumulated partial.
+        """
+        partial_msg, accumulated = self.process_delta(
             delta=self.extract_delta(native_chunk), accumulated=state.get("partial", {})
         )
 
-        # returns
         partials = [partial_msg] if partial_msg else []
-        finals = [final_msg] if final_msg else []
-        if any(isinstance(f, dict) and not f for f in finals):
-            print("[openai_provider] WARNING: emitting empty final message from stream chunk")
-        new_native_messages = [*native_messages, *finals]
+        finals: List[Dict[str, Any]] = []
         new_state = {**state, "partial": accumulated}
 
-        # print(f"[openai_provider] partials: {partials}")
-        # print(f"[openai_provider] finals: {finals}, accumulated: {accumulated}")
-        return partials, finals, new_native_messages, new_state
+        return partials, finals, native_messages, new_state
 
     def finalize(
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        """Finalize streaming by emitting the accumulated partial as a final.
 
+        When streaming was used, `state["partial"]` holds the merged assistant
+        message (content, role, reasoning, tool_calls, etc.) built up across
+        chunks by the provider and any extensions. Non-streaming calls leave it
+        as ``None``.
+        """
         current_partial = state.get("partial", None)
-        if isinstance(current_partial, dict) and (
-            current_partial.get("content")
-            or current_partial.get("role")
-            or current_partial.get("reasoning")
-        ):
-            # Streaming path: finalize from accumulated partial message.
+
+        if current_partial:
             return [current_partial], [*native_messages, current_partial], state
 
         return [], native_messages, state
