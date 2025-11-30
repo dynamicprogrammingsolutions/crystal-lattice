@@ -1,9 +1,14 @@
 # Application Layer MVP Plan
 
 ## Goal
-- Introduce a minimal **Python Application Layer** that sits above `AgentCore`, owns configuration and session persistence, and exposes a simple class-based API that future HTTP/WebSocket servers can call.
-- Ensure **stateless per-call behavior** at the application level: no in-memory session storage; all conversations are loaded from and saved to disk on each call. The only in-memory state across moments is within an ongoing streaming request.
-- Keep the design aligned with **functional core, imperative shell**: `AgentCore` and `Session` remain pure/immutable; the Application Layer performs orchestration, I/O, and tool loops.
+- Introduce a minimal **Python Application Layer** that sits above `AgentCore`, owns configuration and session persistence, and exposes a simple dict-based API that future HTTP/WebSocket/JSON‑RPC servers can call.
+- Ensure **stateless per-call behavior** for consumers:
+  - Every call uses a `session_id` and/or `request_id`.
+  - Sessions are always loaded from disk at the start and saved back at the end.
+  - No long‑lived in‑memory session map; only in‑flight streaming requests keep ephemeral state.
+- Keep the design aligned with **functional core, imperative shell**:
+  - `AgentCore` + `Session` remain pure/immutable.
+  - Application Layer performs orchestration, I/O, tool loops, plugin registration, and event emission.
 
 ## Context (Current Core Architecture)
 - `agent_core.core.AgentCore`:
@@ -12,53 +17,73 @@
   - Uses immutable `Session` and `Message` dataclasses from `agent_core.types`.
   - Handles provider-native history retention in `session.metadata.native_messages` with integrity verification.
 - Configuration model (architecture docs):
-  - Application loads JSON config, resolves `${env:...}` and `${file:...}`, and merges provider defaults with agent-specific overrides.
+  - Application loads JSON config, resolves `${env:...}` and `${file:...}`.
   - Core receives a **flat dict per request** (no nested plugin structure required) and does not manage config itself.
 - Tool execution:
   - Core exposes `execute_tool_calls(tool_calls, config) -> list["tool" messages]` but **does not own the tool loop**.
   - Application is expected to detect tool calls in assistant messages, call `execute_tool_calls`, append tool results as messages, and then call `send_request` / `send_request_stream` again.
 
 ## Scope of This MVP
-- **In scope**
-  - A Python package for the Application Layer (exact package name can be finalized later, e.g. `agent_app`).
-  - A main `Application` class that:
-    - Lives for the lifetime of the process.
-    - Owns a configured `AgentCore` instance.
-    - Exposes high-level methods to run agent "turns" using session IDs and agent IDs.
-    - Never keeps session state in memory across calls (loads from disk at the start of a call, writes back at the end).
-  - A simple **configuration module** that:
-    - Loads JSON configuration.
-    - Resolves `${env:...}` and `${file:...}` placeholders.
-    - Provides an `agents` mapping with a provider name per agent.
-    - Produces **flat per-request config dicts** for `AgentCore` by merging provider defaults, plugin defaults, and agent-specific overrides.
-  - A **session persistence layer** that:
-    - Persists `Session` objects to disk using `AgentCore.export_session` / `import_session`.
-    - Stores a mapping from `session_id` to serialized `Session` (e.g. one JSON file per session).
-    - Preserves `session.metadata` (including provider-native history and agent identifier).
-  - A minimal **tool execution loop** inside the Application Layer for non-streaming requests.
-  - A thin **streaming wrapper** over `send_request_stream` that respects the stateless-per-call requirement while allowing an in-memory streaming iterator for the duration of the request.
-  - Tests under `core/python/tests/` that simulate real API usage patterns without introducing an HTTP server.
 
-- **Out of scope for this MVP**
-  - HTTP or WebSocket servers (FastAPI/Express).
-  - Frontend integration.
-  - Database-backed session stores (filesystem only for now).
-  - Cross-language Application Layer (Python only).
+### In scope
+
+- A Python package for the Application Layer at `core/python/agent_app`.
+- A main `AgentApplication` class that:
+  - Lives for the life of the application process.
+  - Owns a configured `AgentCore` instance.
+  - Exposes **separate actions**:
+    - `create_session` (explicitly required before any usage).
+    - `add_message` (append messages to a session).
+    - `send_request` (execute LLM + tool loop, non‑streaming or streaming based on a flag in the request dict).
+    - `get_events` (poll events for streaming requests).
+  - Never keeps complete sessions in memory across calls (sessions are always reloaded from disk).
+- A **configuration module** that:
+  - Loads JSON configuration.
+  - Resolves `${env:...}` and `${file:...}` placeholders.
+  - Provides an `agents` mapping with a provider name per agent.
+  - Provides a `plugins` section listing which plugin classes to register (providers, features, tools, extensions).
+  - Produces **flat per-request config dicts** for `AgentCore` by merging provider defaults and agent-specific overrides (plugin defaults are deferred).
+- A **session persistence layer** that:
+  - Persists `Session` objects to disk using `AgentCore.export_session` / `import_session`.
+  - Stores each session as one JSON file at `<session_root>/<session_id>.json`.
+  - Preserves `session.metadata` (including provider-native history and `agent_id`).
+- A **tool execution loop** inside the Application Layer that runs for **both non‑streaming and streaming** requests.
+- A **background streaming execution model**:
+  - `send_request` with `{"stream": true}` returns immediately with a `request_id`.
+  - Streaming work runs in the background using `AgentCore.send_request_stream` and the tool loop.
+  - Results are emitted as discrete **events** and retrievable via polling (`get_events`) or pluggable listeners.
+- Tests under `core/python/tests/` that simulate how API consumers would interact with this layer.
+
+### Explicitly not included / deferred
+
+These items are **not** part of this MVP plan. They may be implemented later or refined during development:
+
+- HTTP or WebSocket servers (FastAPI/Express) and routing.
+- Frontend/UI integration.
+- Database-backed session or event storage (filesystem + in‑memory events only).
+- Cross-language Application Layer (Python only).
+- Configuration‑driven plugin defaults and advanced config validation.
+- Multi-tenant or multi-environment session namespacing beyond flat `session_id` → JSON mapping.
+- Backpressure, rate limiting, or complex scheduling for background streaming tasks.
+- Persistent event logs across process restarts.
+- Automatic schema generation for the application API (OpenAPI/JSON Schema).
+- Multi-agent orchestration in one call (only single agent per session).
 
 ## Proposed Module Structure (Python)
-> Exact package and file names can be adjusted; this is a concrete starting point.
+
+> Exact file names can be adjusted; this is a concrete starting point.
 
 - `core/python/agent_app/`
   - `__init__.py`
-    - Expose `AgentApplication` (or similar) and public types.
+    - Expose `AgentApplication` and any public helper functions.
   - `application.py`
     - Implementation of the main `AgentApplication` class.
   - `config.py`
-    - Configuration loading, resolution, and per-agent config derivation.
+    - Configuration loading, placeholder resolution, plugin registration lists, per-agent config derivation.
   - `sessions.py`
     - Session persistence abstractions (filesystem-backed `SessionStore`).
-  - `types.py`
-    - Light-weight request/response types for application-level operations (if needed; can be plain dicts initially).
+  - `events.py`
+    - Event store abstraction and in‑memory implementation for streaming events.
 
 - Tests
   - `core/python/tests/test_application_layer_basic.py`
@@ -66,16 +91,16 @@
   - `core/python/tests/test_application_layer_tools.py`
   - `core/python/tests/test_application_layer_config.py`
 
-## Configuration Module Design
+## Configuration Module Design (`agent_app.config`)
 
 ### 1) Config file shape (on disk)
 
-MVP JSON structure, consistent with ARCHITECTURE.md and your notes:
+MVP JSON structure reflecting your requirements:
 
 ```jsonc
 {
   "core": {
-    // Optional core-level settings (e.g. plugin discovery later)
+    // Optional core-level settings (e.g. log level)
   },
   "providers": {
     "openrouter": {
@@ -86,78 +111,99 @@ MVP JSON structure, consistent with ARCHITECTURE.md and your notes:
     }
   },
   "plugins": {
-    // Optional global defaults per plugin (feature/extension/tool)
-    "system_message_feature": {
-      "system_files": ["${file:./AGENTS.md}"]
-    },
-    "request_options_feature": {
-      "request_options": {"temperature": 0.3}
-    }
+    // Which plugin classes to load and register
+    "providers": [
+      "plugins.openrouter_provider.OpenRouterProvider"
+    ],
+    "features": [
+      "plugins.system_message_feature.SystemMessageFeature",
+      "plugins.request_options_feature.RequestOptionsFeature"
+    ],
+    "tools": [
+      "plugins.file_reader_tool.FileReaderTool",
+      "plugins.math_tools.CalculatorTool"
+    ],
+    "extensions": [
+      "plugins.ollama_thinking_extension.OllamaThinkingExtension"
+    ]
   },
   "agents": {
     "default": {
-      "provider": "openrouter",      // Provider name; used to pick provider config
+      "provider": "openrouter",          // Key into providers{} above
       // Agent-level overrides (flattened keys used by provider + plugins)
       "model": "openrouter/anthropic/claude-3.5",
       "temperature": 0.2,
-      "system_message_feature.enabled": true,
-      "request_options_feature.max_tokens": 4096
+      "system_message_feature.enabled": true
     }
   }
 }
 ```
 
 Key ideas:
-- **Agents list with provider name**: `agents[agent_id]["provider"]` selects a provider from `providers`.
-- **Provider and plugin config as top-level keys** in the *resolved* per-request dict:
-  - Disk config is structured for readability.
-  - The configuration module resolves and flattens the nested structure into a flat dict for each agent, where provider and plugin-related keys all sit at the top level (matching core expectations).
+- `agents[agent_id]["provider"]` selects a provider from `providers`.
+- `plugins` lists **which plugin classes** to import and register with `AgentCore`.
+- Plugin defaults (e.g. `system_message_feature.system_files`) are **not** handled in this MVP; all effective config used by plugins will come from provider + agent config as flat keys.
 
-### 2) Config loading & resolution API
+### 2) Config loading & placeholder resolution
 
-Module: `agent_app.config`
+Functions:
 
 - `load_raw_config(path: str | Path) -> dict`
-  - Read JSON file from disk.
-  - No environment or file resolution yet.
+  - Read JSON from disk without modification.
 
-- `resolve_placeholders(raw: dict, env: Mapping[str, str] = os.environ) -> dict`
+- `resolve_placeholders(raw: dict, env: Mapping[str, str] = os.environ) -> tuple[dict, list[dict]]`
   - Recursively walk the config and replace:
-    - `${env:VAR_NAME}` with `env[VAR_NAME]` (or fail/leave empty – see open questions).
-    - `${file:path/to/file}` with the contents of the file (text).
+    - `${env:VAR_NAME}` with `env.get(VAR_NAME, "")`.
+    - `${file:path/to/file}` with file contents (or `""` on error).
+  - Collect **non-fatal errors** instead of raising:
+    - Each error entry could be: `{ "path": "providers.openrouter.api_key", "type": "env_missing", "detail": "OPENROUTER_API_KEY not set" }`.
+  - Return `(resolved_config, errors)` so the caller (server/CLI/tests) can decide whether to fail fast or just warn the user.
 
-- `build_agent_config(raw_config: dict, agent_id: str) -> dict`
+### 3) Per-agent config derivation
+
+- `build_agent_config(resolved_config: dict, agent_id: str) -> dict`
   - Steps:
-    1. Look up `agent = raw_config["agents"][agent_id]`.
-    2. Look up `provider_name = agent["provider"]`.
-    3. Get `provider_defaults = raw_config["providers"][provider_name]`.
-    4. Optionally gather plugin defaults from `raw_config["plugins"]`.
-    5. Merge into a **flat dict**:
-       - Start from `provider_defaults` (minus nested identifiers like `name` if present).
-       - Overlay plugin defaults (flattened key space, e.g. `system_message_feature.system_files`).
-       - Overlay `agent` overrides.
-    6. Ensure **`provider` key** is present and correctly names the provider for `AgentCore`.
-  - Return value is the per-agent base config used for all requests for that agent.
+    1. Fetch `agent = resolved_config["agents"][agent_id]`.
+    2. Fetch `provider_name = agent["provider"]`.
+    3. Fetch `provider_defaults = resolved_config["providers"][provider_name]`.
+    4. Merge into a **flat dict**:
+       - Start from `provider_defaults`.
+       - Overlay agent-level keys (agent overrides provider defaults).
+    5. Ensure a top-level `"provider"` key is present for `AgentCore` selection:
+       - Use `provider_defaults["provider"]` if present, else fall back to `provider_name`.
+  - Returns the per-agent base config used for all requests in that session.
 
 - `resolve_request_config(base_agent_config: dict, overrides: dict | None) -> dict`
-  - Merge request-specific overrides into the resolved agent config.
-  - Used when a UI/API wants to change temperature, model, etc. for a single call.
+  - Merge per-request overrides into the base agent config.
+  - Used when a client wants to change temperature/model/etc. for a single `send_request` call.
 
-### 3) Agent registry / lookup in sessions
+### 4) Plugin registration from config
 
-- When creating a session via the Application Layer, the chosen `agent_id` is stored into `session.metadata["agent_id"]`.
-- On subsequent calls, the Application Layer:
-  - Loads the `Session` from disk.
+- `load_plugins(plugin_config: dict) -> dict`
+  - Import plugin classes from dotted paths listed under `plugin_config["providers"]`, `"features"`, `"tools"`, `"extensions"`.
+  - Returns a summary dict:
+    - `{ "providers": [ProviderClass, ...], "features": [...], "tools": [...], "extensions": [...] }`.
+  - Import errors should be collected and surfaced similarly to placeholder resolution errors (non-fatal, caller decides what to do).
+
+The `AgentApplication` constructor will then:
+- Call `load_plugins`.
+- For each provider, call `AgentCore.register_provider(provider_cls, extensions=[...])`.
+- For each feature and tool, call `AgentCore.register_feature` / `AgentCore.register_tool`.
+- Additionally expose helper methods (`register_provider`, `register_feature`, `register_tool`, `register_extension`) that delegate to the underlying `AgentCore` for test convenience or manual overrides.
+
+### 5) Agent registry / lookup in sessions
+
+- When creating a session via the Application Layer, store `session.metadata["agent_id"] = agent_id`.
+- On `add_message` and `send_request`, the Application Layer:
+  - Loads the `Session` from disk by `session_id`.
   - Reads `agent_id` from `session.metadata`.
-  - Builds or reuses the resolved base config for that agent.
+  - Builds (or reuses cached) base config for that agent.
 
-This means each application call only needs the `session_id` (plus new messages); the Application can infer which agent to use from persisted session metadata.
+This ensures every call is scoped by `session_id`, and agent selection is stable for the session.
 
-## Session Persistence Design
+## Session Persistence Design (`agent_app.sessions`)
 
 ### 1) Abstraction
-
-Module: `agent_app.sessions`
 
 - `class SessionStore(Protocol)`
   - `def load(self, session_id: str) -> Session | None`
@@ -166,31 +212,104 @@ Module: `agent_app.sessions`
 
 - `class FilesystemSessionStore(SessionStore)`
   - Constructor: `__init__(self, root_dir: Path)`.
-  - Layout: one file per session, e.g. `<root_dir>/<session_id>.json`.
-  - Uses `AgentCore.export_session` / `import_session` for serialization/deserialization.
-  - Writes atomically (e.g. write to temp file then rename) to avoid corruption on crash.
+  - Layout: `<root_dir>/<session_id>.json`.
+  - Uses `AgentCore.export_session` / `import_session` for (de)serialization.
+  - Writes atomically (temp file + rename) to avoid corruption.
 
 ### 2) Behavior
 
-- **Create session**:
+- **Create session**
   - Application calls `AgentCore.create_session()`.
   - Sets `session.metadata["agent_id"] = agent_id`.
-  - Saves to disk immediately via `SessionStore.save`.
+  - Saves immediately via `SessionStore.save`.
 
-- **Load session**:
-  - For each public Application call that takes a `session_id`, the first step is `SessionStore.load(session_id)`.
-  - If not found, raise a clear error (or optionally auto-create, see open questions).
+- **Load session**
+  - For any call that takes `session_id`, first call `SessionStore.load(session_id)`.
+  - If not found, raise a clear error (no auto-creation; `create_session` is mandatory).
 
-- **Update session**:
-  - Every time `AgentCore` returns a new `Session` (non-streaming or streaming final event), the Application Layer overwrites the stored file via `save`.
+- **Update session**
+  - Whenever `AgentCore` returns a new `Session` (end of non-streaming request or streaming phase), the Application overwrites the stored file with `save`.
 
-- **Statelessness guarantee**:
-  - Application instances hold **no mapping** of `session_id` → `Session` in memory.
-  - All state between calls is persisted via the filesystem, except for ephemeral state during an active streaming iterator.
+- **Statelessness guarantee**
+  - The `AgentApplication` does **not** keep a process-wide `dict[session_id, Session]`.
+  - Between calls, only the serialized JSON files represent session state.
+  - The only exception is **in-flight streaming requests**, which may temporarily hold the current `Session` and partial outputs until the request completes.
 
-## Application Class Design
+## Event Model and Streaming (`agent_app.events`)
 
-Module: `agent_app.application`
+### 1) Event store abstraction
+
+- `class EventStore(Protocol)`
+  - `def publish(self, event: dict) -> None`
+  - `def list(self, *, since_id: str | None = None, request_id: str | None = None, session_id: str | None = None, limit: int = 100) -> list[dict]`
+
+- `class InMemoryEventStore(EventStore)` (MVP)
+  - Stores events in an in-memory list with monotonically increasing `event_id`.
+  - Does **not** persist events across restarts.
+  - May prune events after a request finishes or when exceeding a max size.
+
+### 2) Event shapes
+
+Events are plain dicts that always include at least:
+
+- `"event_id"`: unique identifier within the process.
+- `"request_id"`: ID of the logical request (one `send_request` call).
+- `"session_id"`: session this event belongs to.
+- `"type"`: e.g. `"partial"`, `"final"`, `"tool_calls"`, `"tool_results"`, `"session_updated"`, `"error"`.
+
+Examples:
+
+- Partial LLM output:
+
+```jsonc
+{
+  "event_id": "e1",
+  "type": "partial",
+  "session_id": "s1",
+  "request_id": "r1",
+  "message": {"role": "assistant", "content": "Hello", "metadata": {}}
+}
+```
+
+- Final LLM messages for a request:
+
+```jsonc
+{
+  "event_id": "e2",
+  "type": "final",
+  "session_id": "s1",
+  "request_id": "r1",
+  "messages": [ {"role": "assistant", "content": "Hello!", "metadata": {}} ],
+  "session": { /* serialized Session.to_dict() */ }
+}
+```
+
+- Tool calls and results:
+
+```jsonc
+{
+  "event_id": "e3",
+  "type": "tool_calls",
+  "session_id": "s1",
+  "request_id": "r1",
+  "tool_calls": [ /* normalized OpenAI-style tool call dicts */ ]
+}
+
+{
+  "event_id": "e4",
+  "type": "tool_results",
+  "session_id": "s1",
+  "request_id": "r1",
+  "messages": [ /* tool messages added to session */ ]
+}
+```
+
+Servers built on top of the Application Layer can:
+- Use **long-polling** (`get_events` with `since_id`),
+- Attach to a WebSocket and push events downstream, or
+- Stream events over a single HTTP response (SSE, chunked encoding).
+
+## Application Class Design (`agent_app.application`)
 
 ### 1) Construction
 
@@ -202,208 +321,251 @@ class AgentApplication:
         session_root: str | Path,
         core_factory: Callable[[], AgentCore] = AgentCore,
         *,
-        auto_discover_plugins: bool = False,
-        plugin_modules: Sequence[str] | None = None,
+        event_store: EventStore | None = None,
     ) -> None:
         ...
 ```
 
 Responsibilities:
-- Load & resolve configuration from `config_path` once at startup.
-- Instantiate a single `AgentCore` via `core_factory` and register providers/features/tools.
-  - For MVP tests, we can manually register test plugins.
-  - For later, optionally use `AgentCore.discover_and_register(plugin_modules)` if `auto_discover_plugins` is enabled.
-- Create a `FilesystemSessionStore` rooted at `session_root`.
-- Precompute and cache **per-agent base configs** (flattened dicts) derived from the loaded config.
+- Load raw config and call `resolve_placeholders`, surfacing any non-fatal errors to the caller.
+- Build per-agent base configs via `build_agent_config`.
+- Load plugin classes from `config["plugins"]` and register them on a single `AgentCore` instance.
+- Initialize `FilesystemSessionStore` at `session_root`.
+- Initialize an `EventStore` (in-memory by default) for streaming events.
+- Expose helper registration methods for tests:
+  - `register_provider`, `register_feature`, `register_tool`, `register_extension` → delegate to underlying `AgentCore`.
 
-### 2) Public API (non-streaming)
-
-#### `create_session`
-
-```python
-def create_session(self, agent_id: str) -> Session:
-    """Create a new session for a given agent and persist it."""
-```
-
-- Steps:
-  1. Get base config for `agent_id` (validate agent exists).
-  2. Use `self._core.create_session()` to create a `Session`.
-  3. Attach `agent_id` into `session.metadata["agent_id"]`.
-  4. Persist to disk via `SessionStore.save`.
-  5. Return the new `Session` (for immediate use by caller/tests).
-
-#### `run_turn`
+### 2) Public API: create_session (dict-based)
 
 ```python
-@dataclass
-class TurnRequest:
-    session_id: str
-    # New messages to append for this turn
-    messages: list[dict]  # {"role": str, "content": str, "metadata"?: dict}
-    overrides: dict | None = None  # Per-call config overrides
+def create_session(self, payload: dict) -> dict:
+    """Create a new session for a given agent and persist it.
 
-@dataclass
-class TurnResult:
-    session: Session
-    final_messages: list[dict]  # assistant/tool messages added this turn
-
-
-def run_turn(self, request: TurnRequest) -> TurnResult:
-    """Run a full non-streaming turn, including tool loop."""
-```
-
-- Steps:
-  1. Load `Session` from disk using `request.session_id`.
-  2. Read `agent_id` from `session.metadata` and fetch base config.
-  3. Merge `overrides` into config via `resolve_request_config`.
-  4. For each new message in `request.messages`, call `AgentCore.add_message` to get an updated `Session`.
-  5. Enter a **tool loop**:
-     - Call `AgentCore.send_request(session, config)`.
-     - Inspect the returned `final_messages` for tool calls (using a helper that understands the OpenAI-style structure in `metadata`).
-     - If there are no tool calls, break.
-     - Normalize tool calls and call `AgentCore.execute_tool_calls(tool_calls, config)`.
-     - For each returned "tool" message, append to session via `add_message`.
-     - Repeat until no tool calls or a `max_tool_loops` limit is reached.
-  6. After loop termination, persist the final `Session` to disk.
-  7. Return `TurnResult(session=final_session, final_messages=messages_from_last_llm_call)`.
-
-This mirrors the tool execution responsibilities described in `ARCHITECTURE.md` while keeping all state transitions explicit and testable.
-
-### 3) Public API (streaming)
-
-#### `run_turn_stream`
-
-```python
-@dataclass
-class StreamTurnRequest:
-    session_id: str
-    messages: list[dict]
-    overrides: dict | None = None
-
-# Event format is intentionally similar to core stream events
-StreamEvent = dict  # {"type": "partial"|"final"|"tool_progress", ...}
-
-
-def run_turn_stream(
-    self, request: StreamTurnRequest
-) -> Iterator[StreamEvent]:
-    """Run a streaming turn for a session.
-
-    - Adds messages, then delegates to AgentCore.send_request_stream.
-    - Yields partial events as they arrive.
-    - On final event, persists the new Session and yields a final event
-      with `session` and `messages`.
-    - Tool-loop integration for streaming can be incremental (see notes).
+    Expected payload keys:
+      - "agent_id": str
+    Returns:
+      - {"session": Session.to_dict(), "errors": [...]}  # errors from config resolution/imports, if any
     """
 ```
 
-- Initial MVP behavior:
-  - Load and update the session as in `run_turn` (steps 1–4 above).
-  - Call `send_request_stream(session, config)` on the core.
-  - For each `"partial"` chunk, yield an application-level partial event.
-  - On the core `"final"` chunk:
-    - Get the `new_session` from the chunk.
-    - Persist `new_session` to disk.
-    - Yield an application-level final event with `session` and `messages`.
-  - The iterator is the **only place** where in-memory state about this turn lives; once the iterator terminates, only the on-disk session remains.
+- Steps:
+  1. Read `agent_id` from `payload`.
+  2. Validate that `agent_id` exists in config.
+  3. Use `core.create_session()` to create a `Session`.
+  4. Set `session.metadata["agent_id"] = agent_id`.
+  5. Persist via `SessionStore.save`.
+  6. Return the serialized session dict (and any accumulated config/plugin errors, if we choose to surface them here).
 
-- Tool loop interaction (MVP):
-  - For the first iteration, we can support tools only for **non-streaming** calls to keep complexity low.
-  - We can then extend `run_turn_stream` to:
-    - Yield final events for each LLM phase.
-    - Detect tool calls at the end of each phase.
-    - Emit `"tool_progress"` events while executing tools.
-    - Start a new streaming request from the updated session and continue yielding events.
-  - This extension can be a follow-up task once the non-streaming tool loop is validated.
+### 3) Public API: add_message (dict-based)
+
+```python
+def add_message(self, payload: dict) -> dict:
+    """Append a message to an existing session and persist it.
+
+    Expected payload keys:
+      - "session_id": str
+      - "message": {"role": str, "content": str, "metadata"?: dict}
+
+    Returns:
+      - {"session": Session.to_dict()}
+    """
+```
+
+- Steps:
+  1. Load the session from disk by `session_id`.
+  2. Call `core.add_message` with the provided message.
+  3. Persist the new session via `SessionStore.save`.
+  4. Return serialized session.
+
+No automatic `send_request` happens here; the consumer must explicitly call `send_request` after adding messages.
+
+### 4) Public API: send_request (non-streaming and streaming)
+
+```python
+def send_request(self, payload: dict) -> dict:
+    """Send a request using the current session state.
+
+    Expected payload keys:
+      - "session_id": str
+      - "config_overrides"?: dict   # per-call config overrides
+      - "stream"?: bool             # default False; True for streaming
+
+    Non-streaming (stream=False):
+      - Runs tool loop to completion and returns final messages.
+    Streaming (stream=True):
+      - Starts background streaming + tool loop and returns immediately
+        with a request_id; results are available via get_events.
+    """
+```
+
+#### 4a) Non-streaming path (`stream` is False or absent)
+
+Steps:
+1. Load session from disk and derive `agent_id` and base agent config.
+2. Merge any `config_overrides` into the base config.
+3. Enter tool loop with `AgentCore.send_request`:
+   - Call `session, final_messages = core.send_request(session, config)`.
+   - Inspect `final_messages` for tool calls (OpenAI-style) via a helper.
+   - If no tool calls, break.
+   - Normalize tool calls and call `core.execute_tool_calls(tool_calls, config)`.
+   - Emit a `tool_calls` and `tool_results` event (optional but consistent with streaming).
+   - Append tool result messages to the session via `core.add_message`.
+   - Repeat until no tool calls or hitting a `max_tool_loops` limit.
+4. Persist final session via `SessionStore.save`.
+5. Return a dict like:
+
+```jsonc
+{
+  "session": { /* Session.to_dict() */ },
+  "messages": final_messages  // last assistant messages from final LLM call
+}
+```
+
+#### 4b) Streaming path (`stream` is True)
+
+High-level behavior:
+- `send_request` starts a background task and returns immediately with a `request_id`.
+- The background task:
+  - Uses `AgentCore.send_request_stream` for each LLM phase.
+  - Runs the **same tool loop** as the non-streaming path, but interleaves events:
+    - Partial events for LLM output.
+    - Tool call/result events.
+    - Final events after each LLM phase.
+- All intermediate and final outputs are **published as events** with `session_id` and `request_id`.
+
+Steps in the background task for one `send_request` call:
+1. Load session, derive agent config as above.
+2. Create a fresh `request_id` and publish an initial `{"type": "request_started", ...}` event.
+3. Define a helper `stream_llm_phase(session, config) -> (session, final_messages)`:
+   - Call `core.send_request_stream(session, config)`.
+   - For each `"partial"` chunk from core:
+     - Publish a `{"type": "partial", "message": chunk["message"], ...}` event.
+   - On the core `"final"` chunk:
+     - Extract `new_session` and `final_core_messages`.
+     - Persist `new_session` to disk.
+     - Publish a `{"type": "final", "messages": final_core_messages, "session": new_session.to_dict(), ...}` event.
+     - Return `new_session, final_core_messages`.
+4. Call `stream_llm_phase` once.
+5. Inspect the returned `final_messages` for tool calls.
+6. While there are tool calls (and under `max_tool_loops`):
+   - Publish a `tool_calls` event.
+   - Compute tool results via `core.execute_tool_calls`.
+   - Append each tool message to the session via `core.add_message`.
+   - Persist updated session and publish a `tool_results` event.
+   - Call `stream_llm_phase` again for the follow-up LLM call.
+7. When no more tool calls, publish a `{"type": "request_completed", ...}` event.
+
+Return value of `send_request` for streaming path:
+
+```jsonc
+{
+  "session_id": "s1",
+  "request_id": "r1",
+  "stream": true,
+  "status": "started"
+}
+```
+
+The consumer then polls `get_events` (or another transport-specific mechanism) to receive partials, tool progress, and finals.
+
+### 5) Public API: get_events (polling)
+
+```python
+def get_events(self, payload: dict) -> dict:
+    """List events for polling-based consumers.
+
+    Expected payload keys (all optional):
+      - "since_id"?: str
+      - "request_id"?: str
+      - "session_id"?: str
+      - "limit"?: int
+
+    Returns:
+      - {"events": [ ... ]}
+    """
+```
+
+- Simply delegates to `event_store.list(...)` and packages the result.
+- Supports polling-based transports (REST + polling), while also being usable behind WebSockets/SSE.
 
 ## Testing Strategy
 
-All tests live under `core/python/tests` and use dummy plugins already present in the test suite (e.g., `DummyProvider`, `DummyFeature`, `DummyCalculator`) plus temporary directories for session files.
+All tests live under `core/python/tests` and use dummy plugins already present in the test suite (`DummyProvider`, `DummyFeature`, `DummyCalculator`, etc.) plus temporary directories for session files.
 
 ### 1) Basic non-streaming flows (`test_application_layer_basic.py`)
+
 - `test_create_session_persists_to_disk`
-  - Use a temp directory for `session_root`.
-  - Construct `AgentApplication` with a small config and manually registered `DummyProvider`.
-  - Call `create_session(agent_id="default")`.
-  - Assert that a corresponding JSON file exists.
+  - Temp directory for `session_root`.
+  - Minimal config with 1 provider and 1 agent.
+  - Manually register `DummyProvider` via Application helper or config.
+  - Call `create_session({"agent_id": "default"})`.
+  - Assert JSON file exists and contains correct `agent_id` metadata.
 
-- `test_run_turn_updates_session_and_persists`
-  - Create a session, then call `run_turn` with a single user message.
-  - Assert that:
-    - The returned session has one more message than before.
-    - The session file on disk reflects the new message (via `AgentCore.import_session`).
+- `test_add_message_updates_session_and_persists`
+  - Create a session, then call `add_message` once.
+  - Assert the session JSON reflects the new message via `AgentCore.import_session`.
 
-- `test_session_can_be_reused_across_application_instances`
-  - Create a session and run one turn with `app1`.
-  - Construct a new `AgentApplication` instance pointing at the same config and session root.
-  - Use `app2` to run another turn on the same `session_id`.
-  - Assert appended messages and that there is no in-memory coupling between instances.
+- `test_send_request_non_streaming_updates_session`
+  - Set up `DummyProvider` only.
+  - Create a session, add a user message, then call `send_request({"session_id": ..., "stream": false})`.
+  - Assert returned `messages` contain the assistant echo.
+  - Assert the persisted session contains both user and assistant messages.
+
+- `test_sessions_are_reusable_across_application_instances`
+  - Use `app1` to create a session and perform one `send_request`.
+  - Construct `app2` with the same config + session root.
+  - Use `app2` to add a message and run another `send_request`.
+  - Assert that behavior is correct and independent of `app1`'s in-memory state.
 
 ### 2) Config behavior (`test_application_layer_config.py`)
-- `test_agent_config_merges_provider_and_agent`
-  - Config file with one provider and one agent with overrides.
-  - Assert that `build_agent_config` produces a flat dict with expected keys and overrides.
 
-- `test_env_and_file_placeholders_are_resolved`
-  - Temp file + temp env var.
-  - Ensure `${env:...}` and `${file:...}` placeholders are resolved correctly.
+- `test_build_agent_config_merges_provider_and_agent`
+  - Simple config with one provider and one agent override.
+  - Assert that `build_agent_config` returns a flat dict with expected keys and that agent values override provider defaults.
+
+- `test_resolve_placeholders_collects_errors`
+  - Config referencing a missing env var and a missing file.
+  - Assert resolved config has empty strings for these values.
+  - Assert returned errors list contains descriptive entries; application does not crash.
 
 - `test_agent_id_stored_in_session_metadata`
-  - After `create_session`, assert `session.metadata["agent_id"] == agent_id`.
+  - After `create_session`, assert `session["metadata"]["agent_id"] == agent_id`.
 
 ### 3) Tool loop behavior (`test_application_layer_tools.py`)
-- Use a dummy provider that emits OpenAI-style tool calls in assistant message metadata, plus `DummyCalculator` as a tool.
 
-- `test_run_turn_executes_tool_calls_and_appends_tool_messages`
-  - run a turn where the model requests a tool call.
-  - Assert that:
-    - Application calls `execute_tool_calls` and appends a tool message.
-    - A second request is made and returns a final assistant message that references the tool result.
-    - The persisted session on disk contains both tool and assistant messages.
+- Use a dummy provider that emits OpenAI-style tool calls in assistant metadata, plus `DummyCalculator` as a tool.
+
+- `test_send_request_non_streaming_executes_tool_calls`
+  - Scenario where first LLM response requests a tool call.
+  - Assert Application:
+    - Publishes `tool_calls` and `tool_results` events (using in-memory EventStore).
+    - Appends tool messages to the session.
+    - Performs a follow-up LLM call that uses the tool result.
+    - Persisted session contains both tool and assistant messages.
+
+- `test_send_request_streaming_executes_tool_calls`
+  - Same scenario, but with `{"stream": true}`.
+  - Call `send_request`, get `request_id`.
+  - Poll `get_events` until a `request_completed` event.
+  - Assert that events include partials, tool calls/results, and final messages.
 
 - `test_tool_loop_max_depth`
-  - Ensure we enforce a reasonable maximum number of tool loops to prevent infinite cycles.
+  - Use a provider that intentionally always returns a tool call (or loop after a certain number).
+  - Assert that the Application stops after `max_tool_loops` and publishes an `error` or `request_completed` with a clear reason.
 
 ### 4) Streaming behavior (`test_application_layer_streaming.py`)
-- `test_run_turn_stream_yields_partials_and_final`
-  - Use `DummyProvider` with streaming enabled (as in existing tests).
-  - Assert that `run_turn_stream` yields multiple `"partial"` events and a final event.
-  - Verify that after iteration, the session file on disk reflects the final session state.
+
+- `test_send_request_streaming_emits_partials_and_final`
+  - With `DummyProvider` and streaming enabled.
+  - Start a streaming request, then poll `get_events` until completion.
+  - Assert multiple `partial` events and a final event are present.
+  - Assert final persisted session matches the last `final` event.
 
 - `test_streaming_is_stateless_between_calls`
-  - Run two separate streaming turns and ensure that between them only disk state is used (e.g., create a new Application instance between turns).
+  - Run a streaming request, allow it to complete, and discard Application instance.
+  - Create a new Application instance and start another streaming request on the same session.
+  - Assert behavior is correct based solely on session JSON on disk.
 
-## Open Questions / Design Decisions to Confirm
+---
 
-1. **Package name and location**
-   - Should the Application Layer live under `core/python/agent_app` (library-style), or should we align with the future `applications/` directory from ARCHITECTURE.md and put a reusable library module there?
-
-2. **Exact config structure for plugin settings**
-   - The plan assumes a structured `plugins` section plus flattened agent configs.
-   - Alternative: for MVP, keep everything inside `agents[agent_id]` (i.e., only `providers` + `agents` sections) and treat all keys in the agent as final flat config.
-   - Which direction should we take for the first iteration?
-
-3. **How strict should placeholder resolution be?**
-   - On missing `${env:VAR}` or `${file:path}`:
-     - Fail fast with a clear error?
-     - Or allow empty strings / leave the placeholder unresolved?
-
-4. **Session auto-creation vs. explicit creation**
-   - Should `run_turn` auto-create a new session if `session_id` is unknown?
-   - Or should callers always call `create_session` first and treat unknown `session_id` as an error?
-
-5. **Tool loop behavior for streaming**
-   - For MVP, is it acceptable to support tools only in non-streaming flows, and add streaming+tools as a follow-up?
-   - Or do we want an integrated streaming+tool loop from the start (more complex but more capable)?
-
-6. **Config-driven plugin registration**
-   - Should the Application Layer automatically call `AgentCore.discover_and_register` based on config (e.g. a `core.plugin_modules` list), or should plugin registration be left entirely to the host application and tests for now?
-
-7. **Session storage root and naming**
-   - Is a simple `root_dir/<session_id>.json` layout acceptable for now?
-   - Do we need namespacing by agent or environment in the path (e.g. `root_dir/<agent_id>/<session_id>.json`)?
-
-8. **Public API types**
-   - Do we want lightweight dataclasses like `TurnRequest`/`TurnResult`, or keep the Application API purely dict-based to more closely mirror an eventual HTTP JSON API?
-
-Once these questions are clarified, the next step would be to tighten this plan into concrete interfaces (signatures + minimal docstrings), then implement the Application Layer and tests iteratively.
+This updated plan incorporates your decisions: explicit `create_session`/`add_message`/`send_request` actions, config-driven plugin lists with manual registration, non-fatal placeholder resolution, flat JSON session files, dict-based APIs, and a background streaming model with event polling that works for both LLM responses and tool calls.
