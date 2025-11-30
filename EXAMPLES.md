@@ -1,6 +1,8 @@
 # Examples
 
-Note: Plugins use instance methods but should remain stateless (pure) and operate on explicit state objects. Plugin instances are short‑lived and scoped to a single request, just like the shared provider state managed by the provider wrapper. In the Python SDK, defaulting adapters implement many message-conversion and lifecycle hooks when plugin classes omit them, so most examples only implement the small subset of methods they actually need.
+Note: Plugins use instance methods but should remain stateless (pure) and operate on explicit state objects. Plugin instances are short5lived and scoped to a single request, just like the shared provider state managed by the provider wrapper.
+
+Note: pytest is configured with `-m 'not integration'` by default, so remote OpenRouter integration tests are skipped unless you explicitly run them with `-m openrouter` or `-m integration`. The example tests listed below all run with a plain pytest invocation.
 
 ## PROJECT_PLAN Example 6: FastAPI/WebSocket App (Ollama)
 

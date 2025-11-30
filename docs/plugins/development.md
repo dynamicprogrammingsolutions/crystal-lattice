@@ -381,7 +381,9 @@ session, finals = core.send_request(session, config)
 
 ## Testing & Validation
 
-- Run unit tests: `pytest core/python/tests -q`
+- Run unit tests (unit + ollama; integration skipped by default): `pytest core/python/tests -q`
+- Run OpenRouter integration tests: `pytest core/python/tests -m openrouter -q`
+- Run all integration tests: `pytest core/python/tests -m integration -q`
 - Run example tests: `pytest core/python/examples/tests -qs`
 - Lint/format/typecheck: `ruff`, `black`, `pyright` per AGENTS.md
 

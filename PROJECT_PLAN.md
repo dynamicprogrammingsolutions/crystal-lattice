@@ -264,7 +264,8 @@ All runnable examples have moved to `EXAMPLES.md` (contains full code, tests, an
 - [x] Openrouter provider plugin
 - [x] Support for thinking and tool calling
 - [ ] Web search feature plugin (basic version)
-- [ ] Plugin development quick start guide (tutorial showing how to create each type)
+- [x] Plugin development quick start guide (tutorial showing how to create each type)
+- [ ] Configuration guide for openrouter provider with plugins
 
 **Application Layer:**
 - [ ] Configuration loading with ${env:...} and ${file:...} resolution
@@ -272,8 +273,6 @@ All runnable examples have moved to `EXAMPLES.md` (contains full code, tests, an
 - [ ] WebSocket handler for streaming
 - [ ] Tool execution loop (application-level)
 - [ ] Session management
-- [ ] Integration tests for WebSocket streaming
-- [ ] Configuration guide with example config files
 
 **Frontend:**
 - [ ] Basic React UI
@@ -283,7 +282,6 @@ All runnable examples have moved to `EXAMPLES.md` (contains full code, tests, an
 - [ ] Replace with final message
 - [ ] Show tool calls in progress
 - [ ] Basic styling
-- [ ] Component tests for message handling
 
 **Configuration:**
 - [ ] JSON config file support
@@ -306,7 +304,7 @@ All runnable examples have moved to `EXAMPLES.md` (contains full code, tests, an
 - [ ] Docstring format guide for contributors
 
 **Testing:**
-- [ ] CI/CD pipeline setup (run on Python 3.9+, test coverage reporting)
+- [ ] CI/CD pipeline setup (run on Python 3.10+, test coverage reporting)
 - [ ] End-to-end test: user message → streaming → tool call → response
 - [ ] Manual testing checklist
 
