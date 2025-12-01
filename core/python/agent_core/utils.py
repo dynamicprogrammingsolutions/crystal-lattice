@@ -2,10 +2,12 @@
 
 import os
 import sys
+import logging
 from typing import Any, Callable, List, Tuple, Dict
 from functools import reduce
 import structlog
 from structlog.types import EventDict, WrappedLogger
+from jsonpath_ng import parse as jsonpath_parse
 
 
 def pipeline(*fixed_params: Any) -> Callable:
@@ -54,15 +56,36 @@ def pipeline(*fixed_params: Any) -> Callable:
 
 
 def get_nested_value(data: Dict[str, Any], path: str) -> Any:
-    """Get nested value from dict using dot notation.
+    """Get nested value from dict using dot notation or JSONPath.
+    
+    Supports both simple dot notation and JSONPath expressions:
+    - Simple: "chunk.reasoning" 
+    - Array index: "messages[0].content"
+    - JSONPath: "$.messages[?(@.role=='user')]"
     
     Args:
         data: Dictionary to search
-        path: Dot-separated path (e.g., "chunk.reasoning")
+        path: Dot-separated path or JSONPath expression
         
     Returns:
-        Value at path or None if not found
+        Value at path or None if not found. For JSONPath queries returning
+        multiple matches, returns the first match.
     """
+    # If path contains brackets, use JSONPath
+    if '[' in path:
+        try:
+            # Ensure path starts with $ for JSONPath
+            jsonpath_expr = path if path.startswith('$') else f'$.{path}'
+            jsonpath = jsonpath_parse(jsonpath_expr)
+            matches = jsonpath.find(data)
+            if matches:
+                return matches[0].value
+            return None
+        except Exception:
+            # Fall back to dot notation if JSONPath parsing fails
+            pass
+    
+    # Simple dot notation
     parts = path.split(".")
     current = data
     for part in parts:
@@ -119,30 +142,31 @@ def check_filter_condition(value: Any, condition: str) -> bool:
     return False
 
 
-def make_scope_filter(scope_filter: str) -> Callable:
-    """Create a processor to filter logs by scope field.
+def make_logger_filter(logger_filter: str) -> Callable:
+    """Create a processor to filter logs by logger name.
     
     Args:
-        scope_filter: Scope substring to filter by
+        logger_filter: Logger name substring to filter by
         
     Returns:
         Processor function
     """
-    scope_lower = scope_filter.lower()
+    filter_lower = logger_filter.lower()
     
-    def filter_by_scope(
+    def filter_by_logger(
         logger: WrappedLogger, method_name: str, event_dict: EventDict
     ) -> EventDict:
-        if not scope_filter:
+        if not logger_filter:
             return event_dict
         
-        scope = event_dict.get("scope", "")
-        if scope_lower not in scope.lower():
+        # Logger name is added by add_logger_name processor
+        logger_name = event_dict.get("logger", "")
+        if filter_lower not in logger_name.lower():
             raise structlog.DropEvent
         
         return event_dict
     
-    return filter_by_scope
+    return filter_by_logger
 
 
 def make_field_filter(filter_expressions: List[str]) -> Callable:
@@ -173,23 +197,36 @@ def make_field_filter(filter_expressions: List[str]) -> Callable:
     return filter_by_field
 
 
-def make_data_dropper(drop_fields: List[str]) -> Callable:
-    """Create a processor to drop data fields.
+def make_data_filter(allowed_fields: List[str]) -> Callable:
+    """Create a processor to filter data fields (whitelist approach).
     
     Args:
-        drop_fields: List of field names to drop
+        allowed_fields: List of field names to keep. If empty, drop all extra fields.
+                       If None, keep all fields (no filtering).
         
     Returns:
         Processor function
     """
-    def drop_data_fields(
+    # Standard fields that should always be preserved
+    standard_fields = {"event", "timestamp", "level", "logger"}
+    
+    def filter_data_fields(
         logger: WrappedLogger, method_name: str, event_dict: EventDict
     ) -> EventDict:
-        for field in drop_fields:
-            event_dict.pop(field, None)
+        if allowed_fields is None:
+            # No filtering - keep everything
+            return event_dict
+        
+        # Whitelist: keep only standard fields + allowed fields
+        allowed_set = standard_fields | set(allowed_fields)
+        keys_to_drop = [k for k in event_dict.keys() if k not in allowed_set]
+        
+        for key in keys_to_drop:
+            event_dict.pop(key)
+        
         return event_dict
     
-    return drop_data_fields
+    return filter_data_fields
 
 
 def configure_logging() -> None:
@@ -197,8 +234,11 @@ def configure_logging() -> None:
     
     Environment variables:
         LOG_LEVEL: Set log level (DEBUG, INFO, WARNING, ERROR). Default: INFO
-        LOG_SCOPE: Filter logs by scope/module (e.g., "core", "provider"). Default: all
-        LOG_DATA: Show full data in logs (true/false). Default: false
+        LOG_SCOPE: Filter logs by logger name (e.g., "core", "provider"). Default: all
+        LOG_DATA: Comma-separated list of data fields to show. Default: show all
+            - Not set or empty string: Show all data fields
+            - "": Drop all extra fields (only show standard fields)
+            - "chunk,partials": Only show chunk and partials fields
         LOG_FILTER: Custom filter expressions (comma-separated). Examples:
             - "chunk.reasoning:nonempty" - Only logs where chunk.reasoning exists and is non-empty
             - "chunk:exists,message:contains:processing" - Multiple filters (AND logic)
@@ -206,38 +246,50 @@ def configure_logging() -> None:
     Examples:
         LOG_LEVEL=DEBUG python script.py
         LOG_LEVEL=DEBUG LOG_SCOPE=provider python script.py
-        LOG_LEVEL=DEBUG LOG_DATA=true python script.py
+        LOG_LEVEL=DEBUG LOG_DATA="chunk,partials" python script.py
+        LOG_LEVEL=DEBUG LOG_DATA="" python script.py  # Drop all extra fields
         LOG_LEVEL=DEBUG LOG_FILTER="chunk.reasoning:nonempty" python script.py
     """
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     log_scope = os.getenv("LOG_SCOPE", "")
-    log_data = os.getenv("LOG_DATA", "false").lower() in ("true", "1", "yes")
+    log_data_env = os.getenv("LOG_DATA")
     log_filter = os.getenv("LOG_FILTER", "")
+    
+    # Parse LOG_DATA
+    # - None (not set): Show all fields (no filtering)
+    # - Empty string "": Drop all extra fields
+    # - "field1,field2": Only show these fields
+    if log_data_env is None:
+        allowed_fields = None  # Show everything
+    elif log_data_env.strip() == "":
+        allowed_fields = []  # Drop all extra fields
+    else:
+        allowed_fields = [f.strip() for f in log_data_env.split(",") if f.strip()]
     
     # Parse filter expressions
     filter_expressions = [f.strip() for f in log_filter.split(",") if f.strip()]
     
-    # Data fields that should be hidden when LOG_DATA=false
-    data_fields = ["chunk", "partials", "finals", "core_partials", "messages", 
-                   "native_messages", "final_native", "final_core"]
-    
-    # Build processor chain using structlog's built-in processors where possible
+    # Build processor chain starting with structlog defaults
     processors: List[Any] = [
+        structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
-        structlog.processors.TimeStamper(fmt="%H:%M:%S.%f", utc=False),
+        structlog.processors.StackInfoRenderer(),
+        structlog.dev.set_exc_info,
+        structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M:%S", utc=False),
     ]
     
-    # Add scope filter if specified
+    # Add logger name filter if specified
     if log_scope:
-        processors.append(make_scope_filter(log_scope))
+        processors.append(make_logger_filter(log_scope))
     
     # Add custom field filters if specified
     if filter_expressions:
         processors.append(make_field_filter(filter_expressions))
     
-    # Drop data fields if LOG_DATA is false
-    if not log_data:
-        processors.append(make_data_dropper(data_fields))
+    # Apply data field filtering (whitelist approach)
+    # None = show all, [] = drop all extra, ['chunk'] = only show chunk
+    if allowed_fields is not None:
+        processors.append(make_data_filter(allowed_fields))
     
     # Use structlog's built-in ConsoleRenderer for colored output
     processors.append(
@@ -247,40 +299,33 @@ def configure_logging() -> None:
         )
     )
     
-    # Map log level string to structlog level
-    level_map = {
-        "DEBUG": 10,
-        "INFO": 20,
-        "WARNING": 30,
-        "ERROR": 40,
-        "CRITICAL": 50,
-    }
-    min_level = level_map.get(log_level, 20)
+    # Convert log level string to logging constant
+    min_level = getattr(logging, log_level, logging.INFO)
     
-    # Configure structlog
+    # Configure structlog (preserving defaults where possible)
     structlog.configure(
         processors=processors,
         wrapper_class=structlog.make_filtering_bound_logger(min_level),
         context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(file=sys.stderr),
-        cache_logger_on_first_use=True,
+        logger_factory=structlog.PrintLoggerFactory(),
+        cache_logger_on_first_use=False,
     )
 
 
 _logging_configured = False
 
 
-def get_logger(scope: str):
-    """Get a logger instance bound to a specific scope.
+def get_logger(name: str):
+    """Get a logger instance with a specific name.
     
     Args:
-        scope: Scope identifier (e.g., "core", "provider", "extension")
+        name: Logger name (e.g., "core", "provider", "extension")
         
     Returns:
-        Logger instance bound to the specified scope.
+        Logger instance bound with the specified name.
     """
     global _logging_configured
     if not _logging_configured:
         configure_logging()
         _logging_configured = True
-    return structlog.get_logger().bind(scope=scope)
+    return structlog.get_logger().bind(logger=name)
