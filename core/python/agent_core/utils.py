@@ -119,58 +119,77 @@ def check_filter_condition(value: Any, condition: str) -> bool:
     return False
 
 
-class FilterByScope:
-    """Processor to filter logs by scope field."""
+def make_scope_filter(scope_filter: str) -> Callable:
+    """Create a processor to filter logs by scope field.
     
-    def __init__(self, scope_filter: str):
-        self.scope_filter = scope_filter.lower()
+    Args:
+        scope_filter: Scope substring to filter by
+        
+    Returns:
+        Processor function
+    """
+    scope_lower = scope_filter.lower()
     
-    def __call__(
-        self, logger: WrappedLogger, method_name: str, event_dict: EventDict
+    def filter_by_scope(
+        logger: WrappedLogger, method_name: str, event_dict: EventDict
     ) -> EventDict:
-        if not self.scope_filter:
+        if not scope_filter:
             return event_dict
         
         scope = event_dict.get("scope", "")
-        if self.scope_filter not in scope.lower():
+        if scope_lower not in scope.lower():
             raise structlog.DropEvent
         
         return event_dict
+    
+    return filter_by_scope
 
 
-class FilterByField:
-    """Processor to filter logs by custom field expressions."""
+def make_field_filter(filter_expressions: List[str]) -> Callable:
+    """Create a processor to filter logs by custom field expressions.
     
-    def __init__(self, filter_expressions: List[str]):
-        self.filters = [parse_filter_expression(expr) for expr in filter_expressions]
+    Args:
+        filter_expressions: List of filter expressions (field:condition)
+        
+    Returns:
+        Processor function
+    """
+    filters = [parse_filter_expression(expr) for expr in filter_expressions]
     
-    def __call__(
-        self, logger: WrappedLogger, method_name: str, event_dict: EventDict
+    def filter_by_field(
+        logger: WrappedLogger, method_name: str, event_dict: EventDict
     ) -> EventDict:
-        if not self.filters:
+        if not filters:
             return event_dict
         
         # All filters must match (AND logic)
-        for field_path, condition in self.filters:
+        for field_path, condition in filters:
             value = get_nested_value(event_dict, field_path)
             if not check_filter_condition(value, condition):
                 raise structlog.DropEvent
         
         return event_dict
+    
+    return filter_by_field
 
 
-class DropDataFields:
-    """Processor to drop data fields when LOG_DATA is false."""
+def make_data_dropper(drop_fields: List[str]) -> Callable:
+    """Create a processor to drop data fields.
     
-    def __init__(self, drop_fields: List[str]):
-        self.drop_fields = drop_fields
-    
-    def __call__(
-        self, logger: WrappedLogger, method_name: str, event_dict: EventDict
+    Args:
+        drop_fields: List of field names to drop
+        
+    Returns:
+        Processor function
+    """
+    def drop_data_fields(
+        logger: WrappedLogger, method_name: str, event_dict: EventDict
     ) -> EventDict:
-        for field in self.drop_fields:
+        for field in drop_fields:
             event_dict.pop(field, None)
         return event_dict
+    
+    return drop_data_fields
 
 
 def configure_logging() -> None:
@@ -210,15 +229,15 @@ def configure_logging() -> None:
     
     # Add scope filter if specified
     if log_scope:
-        processors.append(FilterByScope(log_scope))
+        processors.append(make_scope_filter(log_scope))
     
     # Add custom field filters if specified
     if filter_expressions:
-        processors.append(FilterByField(filter_expressions))
+        processors.append(make_field_filter(filter_expressions))
     
     # Drop data fields if LOG_DATA is false
     if not log_data:
-        processors.append(DropDataFields(data_fields))
+        processors.append(make_data_dropper(data_fields))
     
     # Use structlog's built-in ConsoleRenderer for colored output
     processors.append(
