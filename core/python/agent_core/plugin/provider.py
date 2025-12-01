@@ -11,7 +11,9 @@ from typing import Dict, Any, List, Iterator, AsyncIterator, Tuple, Optional
 from .adapters import ProviderDefaultsAdapter
 from .extension import ExtensionWrapper
 from ..types import ProviderPlugin
-from ..utils import pipeline
+from ..utils import pipeline, get_logger
+
+logger = get_logger("provider")
 
 class ProviderWrapper(ProviderPlugin):
     """Wrapper for provider plugin managing state during streaming.
@@ -348,10 +350,21 @@ class ProviderWrapper(ProviderPlugin):
         working_state = state or self.state
         # Use the provided full native history directly
         full_history = list(native_messages)
+        
+        logger.debug("processing chunk",
+                    provider=self.name,
+                    chunk=native_chunk)
 
         partial_messages, final_messages, full_history, new_state = self.plugin.process_chunk(
             native_chunk, full_history, working_state
         )
+        
+        logger.debug("provider processed chunk",
+                    partial_count=len(partial_messages),
+                    final_count=len(final_messages),
+                    partials=partial_messages,
+                    finals=final_messages)
+        
         # Let extensions transform partials/finals/native history in order
         ext_state = new_state
         pipe = pipeline(native_chunk)
@@ -363,8 +376,15 @@ class ProviderWrapper(ProviderPlugin):
             ext_state,
         )
         self.state = ext_state
-
-        #print("processed chunk:", partial_messages, "chunk:", native_chunk, self._iter_extensions())
+        
+        active_ext_names = [ext.name for ext in self._iter_extensions()]
+        if active_ext_names:
+            logger.debug("extensions processed chunk",
+                        extensions=active_ext_names,
+                        partial_count=len(partial_messages),
+                        final_count=len(final_messages),
+                        partials=partial_messages,
+                        finals=final_messages)
 
         # Convert partial messages (provider-native) to core using the same
         # from_native pipeline as final messages (provider first, then active
@@ -378,7 +398,11 @@ class ProviderWrapper(ProviderPlugin):
                     + [ext.from_native_messages for ext in self._iter_extensions()],
                     ext_state,
                 )
-            except Exception:
+                logger.debug("converted partials to core",
+                            core_partial_count=len(core_partials),
+                            core_partials=core_partials)
+            except Exception as e:
+                logger.warning("failed to convert partials to core, using as-is", error=str(e))
                 core_partials = partial_messages
         # Track latest full history
         self._last_native_messages = full_history
@@ -472,10 +496,17 @@ class ProviderWrapper(ProviderPlugin):
             working_state = state or self._get_state()  # type: ignore[attr-defined]
         except Exception:
             raise RuntimeError(f"Provider {self.name} not initialized")  # type: ignore[attr-defined]
+        
+        logger.debug("starting stream_messages",
+                    provider=self.name,
+                    native_message_count=len(native_messages))
+        
         # Initialize full native history for this turn
         self._last_native_messages = list(native_messages)  # type: ignore[attr-defined]
         current_native = self._last_native_messages
+        chunk_count = 0
         for native_chunk in self.plugin.stream_api(current_native, working_state):  # type: ignore[attr-defined]
+            chunk_count += 1
             partials, finals, current_native, working_state = self.process_chunk(  # type: ignore[misc]
                 native_chunk, current_native, working_state
             )
@@ -486,6 +517,10 @@ class ProviderWrapper(ProviderPlugin):
                 yield {"type": "partial", "message": p}
             if finals:
                 yield {"type": "final_messages", "messages": finals}
+        
+        logger.debug("stream_messages complete",
+                    provider=self.name,
+                    total_chunks=chunk_count)
 
     async def stream_messages_async(
             self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
