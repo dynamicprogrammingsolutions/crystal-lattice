@@ -372,6 +372,72 @@ black agent_core tests
 ruff check agent_core tests
 ```
 
+### Debug Logging
+
+The SDK includes structured logging using [loguru](https://github.com/Delgan/loguru) that can be enabled via environment variables:
+
+```bash
+# Enable debug logging
+LOG_LEVEL=DEBUG pytest tests/
+
+# Filter logs by scope (core, provider, extension, etc.)
+LOG_LEVEL=DEBUG LOG_SCOPE=provider pytest tests/
+LOG_LEVEL=DEBUG LOG_SCOPE=core pytest tests/
+
+# Show full data (chunks, messages, etc.) in logs
+LOG_LEVEL=DEBUG LOG_DATA=true pytest tests/
+
+# Use in your application
+LOG_LEVEL=DEBUG python your_app.py
+```
+
+**Environment Variables:**
+- `LOG_LEVEL`: Set log level - `DEBUG`, `INFO`, `WARNING`, `ERROR` (default: `INFO`)
+- `LOG_SCOPE`: Filter logs by scope/module name (default: all scopes)
+- `LOG_DATA`: Show full structured data in logs - `true` or `false` (default: `false`)
+
+**Available Scopes:**
+- `core`: Core SDK streaming and request processing
+- `provider`: Provider wrapper chunk processing and transformations
+- `extension`: Extension-specific operations
+- `feature`: Feature plugin operations
+
+**Example Output (compact):**
+```
+11:45:46.410 | DEBUG    | core         | starting stream request
+11:45:46.410 | DEBUG    | provider     | starting stream_messages
+11:45:47.981 | DEBUG    | provider     | processing chunk
+11:45:47.982 | DEBUG    | provider     | converted partials to core
+```
+
+**Example Output (with LOG_DATA=true):**
+```
+11:53:26.322 | DEBUG    | provider     | processing chunk
+  provider=openai_compatible
+  chunk={
+    "id": "chatcmpl-817",
+    "object": "chat.completion.chunk",
+    "choices": [
+      {
+        "delta": {
+          "role": "assistant",
+          "content": "",
+          "reasoning": "Okay"
+        }
+      }
+    ]
+  }
+11:53:26.322 | DEBUG    | provider     | provider processed chunk
+  partial_count=1
+  partials=[
+    {
+      "role": "assistant",
+      "content": "",
+      "reasoning": "Okay"
+    }
+  ]
+```
+
 ## Functional vs Object-Oriented
 
 ### Before (OOP - Old)
