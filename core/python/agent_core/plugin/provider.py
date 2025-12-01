@@ -485,14 +485,16 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
 
         #print("processed chunk:", partial_messages, "chunk:", native_chunk, self._iter_extensions())
 
-        # Convert partial messages (provider-native) to core using provider + extensions
+        # Convert partial messages (provider-native) to core using the same
+        # from_native pipeline as final messages (provider first, then active
+        # extensions). Features are cold-path only and are not applied here.
         core_partials: List[Dict[str, Any]] = []
         if partial_messages:
             try:
                 pipe = pipeline(partial_messages)
                 core_partials = pipe(
                     [self.plugin.from_native_messages]
-                    + [ext.from_native_messages for ext in self._extensions],
+                    + [ext.from_native_messages for ext in self._iter_extensions()],
                     ext_state,
                 )
             except Exception:

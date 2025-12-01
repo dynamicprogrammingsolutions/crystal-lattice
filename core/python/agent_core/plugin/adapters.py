@@ -137,14 +137,12 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
         for m in native_messages:
             if not isinstance(m, dict):
                 continue
-            if not ("role" in m or "content" in m or "reasoning" in m):
+            if not ("role" in m or "content" in m):
                 continue
             msg: Dict[str, Any] = {
                 "role": m.get("role", "assistant"),
                 "content": m.get("content", ""),
             }
-            if "reasoning" in m:
-                msg["reasoning"] = m.get("reasoning")
             finals.append({**msg, "metadata": {}})
         return finals
 

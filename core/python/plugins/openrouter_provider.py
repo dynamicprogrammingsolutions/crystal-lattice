@@ -125,22 +125,22 @@ class OpenRouterProvider(ProviderPlugin):
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        """
-        Convert provider-native finals to core messages. Expects message-like dicts
-        (e.g., {"role": ..., "content": ...}). Non-message shapes are ignored.
+        """Convert provider-native finals to core messages.
+
+        Reasoning fields are intentionally ignored here; the
+        OpenRouterReasoningExtension is responsible for exposing
+        reasoning and reasoning_details via message metadata.
         """
         normalized: List[Dict[str, Any]] = []
         for m in native_messages:
             if not isinstance(m, dict):
                 continue
-            if not ("role" in m or "content" in m or "reasoning" in m):
+            if not ("role" in m or "content" in m):
                 continue
             msg = {
                 "role": m.get("role", "assistant"),
                 "content": m.get("content", ""),
             }
-            if "reasoning" in m:
-                msg["reasoning"] = m.get("reasoning")
             normalized.append({**msg, "metadata": {}})
         return normalized
 

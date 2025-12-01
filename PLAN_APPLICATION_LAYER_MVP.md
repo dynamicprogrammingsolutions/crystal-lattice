@@ -131,9 +131,8 @@ MVP JSON structure reflecting your requirements:
     "default": {
       "provider": "openrouter",          // Key into providers{} above
       // Agent-level overrides (flattened keys used by provider + plugins)
-      "model": "openrouter/anthropic/claude-3.5",
-      "temperature": 0.2,
-      "system_message_feature.enabled": true
+      "model": "anthropic/claude-3.5",
+      "request_options": {"temperature": 0.3}
     }
   }
 }

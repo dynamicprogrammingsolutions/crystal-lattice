@@ -153,6 +153,12 @@ class ProviderPlugin(BasePlugin, Protocol):
     ) -> List[Dict[str, Any]]:
         """Convert provider-native messages into core message dictionaries.
 
+        This base implementation intentionally ignores provider-specific
+        reasoning fields. Providers and extensions that work with
+        reasoning/thinking should surface that information via metadata
+        (e.g., in a provider extension), not as a top-level field on the
+        core message.
+
         Args:
             native_messages: Provider-native messages to convert.
             state: Current shared provider state.
@@ -164,14 +170,12 @@ class ProviderPlugin(BasePlugin, Protocol):
         for m in native_messages:
             if not isinstance(m, dict):
                 continue
-            if not ("role" in m or "content" in m or "reasoning" in m):
+            if not ("role" in m or "content" in m):
                 continue
             msg: Dict[str, Any] = {
                 "role": m.get("role", "assistant"),
                 "content": m.get("content", ""),
             }
-            if "reasoning" in m:
-                msg["reasoning"] = m.get("reasoning")
             finals.append({**msg, "metadata": {}})
         return finals
 

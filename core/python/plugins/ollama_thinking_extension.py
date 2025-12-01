@@ -64,15 +64,15 @@ class OllamaThinkingExtension(ProviderExtensionPlugin):
     def to_native_messages(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        # Put back reasoning from metadata if they exist
-        if len(messages) == len(native_messages):
-            enhanced_native_messages = [
-                {**native_msg, "reasoning": message.get("metadata", {}).get("reasoning")}
-                for message, native_msg in zip(messages, native_messages)
-            ]
-            return enhanced_native_messages
-        else:
-            return native_messages
+        """Leave provider-native messages unchanged.
+
+        Reasoning text is treated as provider-native metadata that is
+        accumulated during streaming and exposed via
+        :meth:`from_native_messages` into message metadata. It should
+        not be written back into new provider-native requests from core
+        messages.
+        """
+        return native_messages
 
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
@@ -135,22 +135,13 @@ class OllamaThinkingExtension(ProviderExtensionPlugin):
         if not isinstance(d, dict) or "reasoning" not in d:
             return current_partial, base
 
-        # Merge reasoning into the current partial, if any
-        new_partial = current_partial or {}
-        new_partial = self._merge_delta_content(
-            new_partial,
-            {"reasoning": d.get("reasoning")},
-            accumulate=["reasoning"],
-        )
-
         # And into the accumulator used by the provider's finalize()
         new_accumulated = self._merge_delta_content(
             base,
             {"reasoning": d.get("reasoning")},
             accumulate=["reasoning"],
         )
-
-        return new_partial, new_accumulated
+        return current_partial, new_accumulated
 
     def _merge_delta_content(
         self,
