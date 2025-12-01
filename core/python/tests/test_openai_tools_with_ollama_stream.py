@@ -102,7 +102,7 @@ def test_tools_flow_with_ollama_stream(ensure_model):
             if ev["type"] == "partial":
                 msg = ev["message"]
                 print((msg.get("content", "")), end="", flush=True)
-                print((msg.get("reasoning", "")), end="", flush=True)
+                print((msg.get("metadata", {}).get("reasoning", "")), end="", flush=True)
                 tool_calls = msg.get("metadata", {}).get("tool_calls", None)
                 if tool_calls:
                     print("(partial) tool call:", tool_calls, end="", flush=True)
@@ -180,7 +180,7 @@ def test_tools_flow_with_ollama_stream(ensure_model):
             if ev["type"] == "partial":
                 msg = ev["message"]
                 print((msg.get("content", "")), end="", flush=True)
-                print((msg.get("reasoning", "")), end="", flush=True)
+                print((msg.get("metadata", {}).get("reasoning", "")), end="", flush=True)
                 print((msg.get("metadata", {}).get("tool_calls", "")), end="", flush=True)
             if ev["type"] != "final":
                 continue

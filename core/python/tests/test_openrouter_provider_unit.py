@@ -174,8 +174,8 @@ def test_from_native_messages():
     assert messages[1]["content"] == "Response"
 
 
-def test_from_native_messages_with_reasoning():
-    """Convert native messages preserves reasoning field."""
+def test_from_native_messages_ignores_reasoning_field():
+    """Base provider conversion ignores reasoning; extensions handle it."""
     provider = OpenRouterProvider()
     native_messages = [
         {"role": "assistant", "content": "Answer", "reasoning": "Thought process"},
@@ -187,7 +187,8 @@ def test_from_native_messages_with_reasoning():
     assert len(messages) == 1
     assert messages[0]["role"] == "assistant"
     assert messages[0]["content"] == "Answer"
-    assert messages[0]["reasoning"] == "Thought process"
+    # Base provider should not surface reasoning directly
+    assert "reasoning" not in messages[0]
 
 
 def test_validate_message_list_valid():

@@ -110,23 +110,24 @@ class OpenAICompatibleProvider(ProviderPlugin):
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        """
-        Convert provider-native finals to core messages. Expects message-like dicts
-        (e.g., {"role": ..., "content": ...}). Non-message shapes are ignored.
+        """Convert provider-native finals to core messages.
+
+        This provider-level conversion intentionally ignores any
+        provider-specific reasoning fields. Reasoning content should be
+        surfaced by dedicated extensions (e.g., thinking extensions)
+        via message metadata rather than as a top-level field.
         """
         normalized: List[Dict[str, Any]] = []
         for m in native_messages:
             if not isinstance(m, dict):
                 continue
-            if not ("role" in m or "content" in m or "reasoning" in m):
+            if not ("role" in m or "content" in m):
                 # Ignore non-message shapes (like full completion objects)
                 continue
             msg = {
                 "role": m.get("role", "assistant"),
                 "content": m.get("content", ""),
             }
-            if "reasoning" in m:
-                msg["reasoning"] = m.get("reasoning")
             normalized.append({**msg, "metadata": {}})
         return normalized
 
