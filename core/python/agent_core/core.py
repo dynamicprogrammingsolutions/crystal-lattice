@@ -776,12 +776,6 @@ class AgentCore:
         provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
             config
         )
-        
-        logger.debug("starting stream request", 
-                    provider=provider.name,
-                    extensions=[e.name for e in enabled_extensions],
-                    features=[f.name for f in features],
-                    tools=[t.name for t in tools])
 
         provider.set_active_extensions(enabled_extensions)
         messages, native_messages, state = self._pre_request(
@@ -792,41 +786,27 @@ class AgentCore:
             tools,
         )
         
-        logger.debug("pre-request complete",
-                    message_count=len(messages),
-                    native_message_count=len(native_messages),
-                    messages=messages,
-                    native_messages=native_messages)
+        logger.debug("starting stream request", native_messages=native_messages, state=state.get("request",None))
         
         aggregated_native_finals: List[Dict[str, Any]] = []
 
         # Stream from provider using optimized streaming
         partial_count = 0
         for event in provider.stream_messages(native_messages, state):
+            logger.debug("streaming event received", _event=event) # the first positional argument is also named 'event', we cannot use that name
             if event["type"] == "partial":
                 partial_count += 1
                 yield {"type": "partial", "message": event["message"]}
             elif event["type"] == "final_messages":
                 # These are provider-native finals
                 aggregated_native_finals.extend(event["messages"])
-                logger.debug("received final_messages from provider",
-                            count=len(event["messages"]),
-                            messages=event["messages"])
-        
-        logger.debug("streaming complete",
-                    partial_count=partial_count,
-                    native_finals_count=len(aggregated_native_finals))
+
+        logger.debug("streaming complete")
 
         # Finalize using the last accumulated native messages
         final_native, native_messages, state = provider.finalize(
             provider.get_last_native_messages(), provider.get_state()
         )
-        
-        logger.debug("provider finalize complete",
-                    final_native_count=len(final_native),
-                    native_messages_count=len(native_messages),
-                    final_native=final_native,
-                    native_messages=native_messages)
 
         # Feature finalize chain (native)
         pipe = pipeline()
@@ -834,9 +814,9 @@ class AgentCore:
             [feature.finalize for feature in features], final_native, native_messages, state
         )
 
+        logger.info("finalize complete", final_native=final_native)
+
         combined_native_finals = [*aggregated_native_finals, *final_native]
-        
-        logger.debug("combining finals", combined_count=len(combined_native_finals))
 
         # Convert provider-native finals to core messages
         final_core = provider.from_native_messages(combined_native_finals, state)
@@ -849,9 +829,7 @@ class AgentCore:
             final_core,
         )
         
-        logger.debug("converted to core messages",
-                    final_core_count=len(final_core),
-                    final_core=final_core)
+        logger.info("converted to core messages", final_core=final_core)
 
         appended: List[Message] = [Message.from_dict(m) for m in final_core]
         new_metadata = dict(session.metadata)
@@ -862,8 +840,7 @@ class AgentCore:
         )
         new_session = Session(session.session_id, all_messages_after, new_metadata)
         
-        logger.debug("stream request complete", 
-                    total_messages=len(all_messages_after))
+        logger.info("stream request complete")
 
         yield {"type": "final", "session": new_session, "messages": final_core}
 
