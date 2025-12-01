@@ -374,102 +374,167 @@ ruff check agent_core tests
 
 ### Debug Logging
 
-The SDK includes structured logging using [structlog](https://www.structlog.org/) that can be enabled via environment variables:
+The SDK includes structured logging using [structlog](https://www.structlog.org/) with powerful filtering capabilities via environment variables.
+
+#### Quick Start
 
 ```bash
 # Enable debug logging
 LOG_LEVEL=DEBUG pytest tests/
 
-# Filter logs by scope (core, provider, extension, etc.)
+# Filter logs by logger name (core, provider, etc.)
 LOG_LEVEL=DEBUG LOG_SCOPE=provider pytest tests/
-LOG_LEVEL=DEBUG LOG_SCOPE=core pytest tests/
 
-# Show full data (chunks, messages, etc.) in logs
-LOG_LEVEL=DEBUG LOG_DATA=true pytest tests/
+# Show only specific data fields
+LOG_LEVEL=DEBUG LOG_DATA="chunk,partials" pytest tests/
 
-# Custom filtering by data fields
-LOG_LEVEL=DEBUG LOG_FILTER="chunk:exists" pytest tests/
-LOG_LEVEL=DEBUG LOG_FILTER="chunk.reasoning:nonempty" pytest tests/
-LOG_LEVEL=DEBUG LOG_FILTER="partials:exists,chunk:exists" pytest tests/
+# Hide all extra fields (show only standard fields)
+LOG_LEVEL=DEBUG LOG_DATA="" pytest tests/
+
+# Custom filtering with JSONPath support
+LOG_LEVEL=DEBUG LOG_FILTER="messages[0].role:equals:system" pytest tests/
 
 # Use in your application
 LOG_LEVEL=DEBUG python your_app.py
 ```
 
-**Environment Variables:**
-- `LOG_LEVEL`: Set log level - `DEBUG`, `INFO`, `WARNING`, `ERROR` (default: `INFO`)
-- `LOG_SCOPE`: Filter logs by scope/module name (default: all scopes)
-- `LOG_DATA`: Show full structured data in logs - `true` or `false` (default: `false`)
-- `LOG_FILTER`: Custom filter expressions (comma-separated, AND logic)
+#### Environment Variables
 
-**Custom Filter Expressions:**
-- `field:exists` - Field must exist in the log event
-- `field:nonempty` - Field must exist and be non-empty (for strings, lists, dicts)
-- `field:equals:value` - Field must equal the specified value
-- `field:contains:substring` - Field must contain the substring
-- `field.nested.path:condition` - Use dot notation for nested fields
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `LOG_LEVEL` | Log level: `DEBUG`, `INFO`, `WARNING`, `ERROR` | `INFO` |
+| `LOG_SCOPE` | Filter by logger name (e.g., `core`, `provider`) | All |
+| `LOG_DATA` | Comma-separated whitelist of fields to show | All fields |
+| `LOG_FILTER` | Filter expressions (comma-separated, AND logic) | None |
 
-**Filter Examples:**
+#### LOG_DATA Field Whitelist
+
+Controls which data fields are displayed:
+
 ```bash
-# Only logs where chunk field exists
+# Not set - show ALL fields (default)
+LOG_LEVEL=DEBUG pytest tests/
+
+# Empty string - show ONLY standard fields (event, timestamp, level, logger)
+LOG_DATA="" LOG_LEVEL=DEBUG pytest tests/
+
+# Whitelist - show ONLY specified fields + standard fields
+LOG_DATA="chunk,partials" LOG_LEVEL=DEBUG pytest tests/
+LOG_DATA="messages,native_messages" LOG_LEVEL=DEBUG pytest tests/
+```
+
+**Available data fields:**
+- `chunk` - Raw streaming chunk from provider
+- `partials` - Partial messages extracted from chunk
+- `finals` - Final messages from provider
+- `core_partials` - Partials converted to core format
+- `messages` - Core message list
+- `native_messages` - Provider-native message list
+- `final_native` - Final provider-native messages
+- `final_core` - Final core messages
+
+#### LOG_FILTER Custom Expressions
+
+**Condition Types:**
+- `field:exists` - Field must exist
+- `field:nonempty` - Field must be non-empty (strings, lists, dicts)
+- `field:equals:value` - Field must equal value
+- `field:contains:substring` - Field must contain substring
+
+**Path Types:**
+- Simple: `chunk.reasoning`
+- Array index: `messages[0].content` (JSONPath)
+- Nested: `chunk.choices[0].delta.role`
+
+**Examples:**
+
+```bash
+# Simple field check
 LOG_FILTER="chunk:exists"
 
-# Only logs where chunk has a reasoning field that's not empty
+# Nested field
 LOG_FILTER="chunk.reasoning:nonempty"
 
-# Multiple filters (AND logic) - chunk exists AND partials is not empty
+# Array indexing with JSONPath
+LOG_FILTER="messages[0].role:equals:system"
+LOG_FILTER="messages[1].content:contains:file"
+
+# Multiple conditions (AND logic)
 LOG_FILTER="chunk:exists,partials:nonempty"
-
-# Only logs containing "processing" in the event message
-LOG_FILTER="event:contains:processing"
+LOG_FILTER="messages[0].role:equals:system,messages[1].content:exists"
 ```
 
-**Available Scopes:**
-- `core`: Core SDK streaming and request processing
-- `provider`: Provider wrapper chunk processing and transformations
-- `extension`: Extension-specific operations
-- `feature`: Feature plugin operations
+#### Logger Scopes
 
-**Example Output (compact):**
-```
-11:45:46.410 | DEBUG    | core         | starting stream request
-11:45:46.410 | DEBUG    | provider     | starting stream_messages
-11:45:47.981 | DEBUG    | provider     | processing chunk
-11:45:47.982 | DEBUG    | provider     | converted partials to core
-```
+Available logger names for `LOG_SCOPE`:
+- `core` - Core SDK streaming and request processing
+- `provider` - Provider wrapper chunk processing
+- `extension` - Extension-specific operations
+- `feature` - Feature plugin operations
 
-**Example Output (with LOG_DATA=true):**
+#### Example Output
+
+**Compact (default):**
 ```
-11:53:26.322 | DEBUG    | provider     | processing chunk
-  provider=openai_compatible
-  chunk={
-    "id": "chatcmpl-817",
-    "object": "chat.completion.chunk",
-    "choices": [
-      {
-        "delta": {
-          "role": "assistant",
-          "content": "",
-          "reasoning": "Okay"
-        }
-      }
-    ]
-  }
-11:53:26.322 | DEBUG    | provider     | provider processed chunk
-  partial_count=1
-  partials=[
-    {
-      "role": "assistant",
-      "content": "",
-      "reasoning": "Okay"
-    }
-  ]
+2025-12-01 14:56:36 [debug    ] starting stream request       [core] extensions=[] features=[] provider=dummy_provider
+2025-12-01 14:56:36 [debug    ] processing chunk              [provider] chunk={'content': 'E'} provider=dummy_provider
 ```
 
-**Example: Filter for reasoning chunks only:**
+**With LOG_DATA whitelist:**
 ```bash
-# Show only logs where chunk contains reasoning data
-LOG_LEVEL=DEBUG LOG_DATA=true LOG_FILTER="chunk.choices:exists" pytest tests/
+LOG_DATA="chunk,partials" LOG_LEVEL=DEBUG pytest tests/
+```
+```
+2025-12-01 14:56:52 [debug    ] processing chunk              [provider] chunk={'content': 'E'} 
+2025-12-01 14:56:52 [debug    ] provider processed chunk      [provider] partials=[{'role': 'assistant', 'content': 'E'}]
+```
+
+**Clean output (no extra fields):**
+```bash
+LOG_DATA="" LOG_LEVEL=DEBUG pytest tests/
+```
+```
+2025-12-01 14:56:44 [debug    ] starting stream request       [core]
+2025-12-01 14:56:44 [debug    ] processing chunk              [provider]
+```
+
+#### Advanced Examples
+
+**Debug specific message content:**
+```bash
+# Show logs where first message is from system
+LOG_FILTER="messages[0].role:equals:system" \
+LOG_DATA="messages" \
+LOG_LEVEL=DEBUG \
+pytest tests/
+```
+
+**Debug reasoning in chunks:**
+```bash
+# Only show chunks with non-empty reasoning
+LOG_FILTER="chunk.reasoning:nonempty" \
+LOG_DATA="chunk" \
+LOG_LEVEL=DEBUG \
+pytest tests/
+```
+
+**Track tool calls:**
+```bash
+# Show logs with tool calls in messages
+LOG_FILTER="messages[2].metadata:exists" \
+LOG_DATA="messages" \
+LOG_LEVEL=DEBUG \
+pytest tests/
+```
+
+**Combine multiple filters:**
+```bash
+# Provider scope + specific message + show only relevant fields
+LOG_SCOPE=provider \
+LOG_FILTER="chunk:exists,partials:nonempty" \
+LOG_DATA="chunk,partials,provider" \
+LOG_LEVEL=DEBUG \
+pytest tests/
 ```
 
 ## Functional vs Object-Oriented
