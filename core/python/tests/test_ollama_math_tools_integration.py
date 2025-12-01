@@ -38,11 +38,13 @@ from typing import Any, Dict, List, Optional
 import pytest
 
 from agent_app import AgentApplication
-
+from agent_core.utils import get_logger
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OPENAI_BASE_URL = f"{OLLAMA_HOST}/v1"
 MODEL_TOOLS = os.getenv("OLLAMA_MODEL_TOOLS", "qwen3:0.6b")
+
+logger = get_logger("test")
 
 _SYSTEM_MESSAGE = (
     "You are a helpful assistant. Always use the read_file tool when asked about file contents; "
@@ -129,6 +131,8 @@ def _collect_events(
     start = time.time()
     events: List[Dict[str, Any]] = []
 
+    logger.info("start streaming events")
+
     for ev in app.stream_events({"request_id": request_id, "follow": True, "poll_interval": 0.05}):
         events.append(ev)
         if print_stream:
@@ -161,6 +165,8 @@ def _collect_events(
             break
         if time.time() - start >= timeout:
             break
+
+    logger.info("finished streaming events")
 
     return events
 

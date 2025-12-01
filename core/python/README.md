@@ -398,6 +398,8 @@ LOG_LEVEL=DEBUG LOG_FILTER="messages[0].role:equals:system" pytest tests/
 LOG_LEVEL=DEBUG python your_app.py
 ```
 
+**Structlog note:** The SDK uses structlog's bound logger API, where the first positional argument to methods like `logger.debug()` is already the `event` field. Do not also pass an `event=...` keyword argument (for example, `logger.debug("message", event="partial")`), as this will raise a `TypeError` about multiple values for `event`. Use a different key such as `event_type` or `kind` instead.
+
 #### Environment Variables
 
 | Variable | Description | Default |

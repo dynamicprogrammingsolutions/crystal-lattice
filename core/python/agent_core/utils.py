@@ -7,7 +7,13 @@ from typing import Any, Callable, List, Tuple, Dict
 from functools import reduce
 import structlog
 from structlog.types import EventDict, WrappedLogger
+from structlog.processors import CallsiteParameterAdder, CallsiteParameter
 from jsonpath_ng import parse as jsonpath_parse
+
+# Repository root (used for relative paths in logging)
+REPO_ROOT = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..")
+)
 
 
 def pipeline(*fixed_params: Any) -> Callable:
@@ -229,6 +235,39 @@ def make_data_filter(allowed_fields: List[str]) -> Callable:
     return filter_data_fields
 
 
+def make_position_processor() -> Callable:
+    """Create a processor that adds 'pos' field as "file:line" when enabled.
+    
+    Uses structlog's CallsiteParameterAdder to capture pathname and lineno and
+    then formats them into a compact "file:line" string stored in the "pos"
+    field of the event_dict.
+    """
+    callsite_adder = CallsiteParameterAdder(
+        additional_ignores=[__name__],
+        parameters=[CallsiteParameter.PATHNAME, CallsiteParameter.LINENO],
+    )
+    
+    def add_position(
+        logger: WrappedLogger, method_name: str, event_dict: EventDict
+    ) -> EventDict:
+        event_dict = callsite_adder(logger, method_name, event_dict)
+        pathname = event_dict.get("pathname")
+        lineno = event_dict.get("lineno")
+        if pathname and lineno:
+            # Compute path relative to repository root for stable, concise output
+            try:
+                rel_path = os.path.relpath(str(pathname), REPO_ROOT)
+            except Exception:
+                rel_path = os.path.basename(str(pathname))
+            event_dict["pos"] = f"{rel_path}:{lineno}"
+        # Drop raw callsite details to avoid noisy output
+        event_dict.pop("pathname", None)
+        event_dict.pop("lineno", None)
+        return event_dict
+    
+    return add_position
+
+
 def configure_logging() -> None:
     """Configure logging based on environment variables.
     
@@ -236,12 +275,14 @@ def configure_logging() -> None:
         LOG_LEVEL: Set log level (DEBUG, INFO, WARNING, ERROR). Default: INFO
         LOG_SCOPE: Filter logs by logger name (e.g., "core", "provider"). Default: all
         LOG_DATA: Comma-separated list of data fields to show. Default: show all
-            - Not set or empty string: Show all data fields
+            - Not set: Show all data fields
             - "": Drop all extra fields (only show standard fields)
             - "chunk,partials": Only show chunk and partials fields
         LOG_FILTER: Custom filter expressions (comma-separated). Examples:
             - "chunk.reasoning:nonempty" - Only logs where chunk.reasoning exists and is non-empty
             - "chunk:exists,message:contains:processing" - Multiple filters (AND logic)
+        LOG_POS: When set to a truthy value, include source position as
+            "file:line" in the "pos" field (e.g., "provider.py:354").
     
     Examples:
         LOG_LEVEL=DEBUG python script.py
@@ -249,11 +290,13 @@ def configure_logging() -> None:
         LOG_LEVEL=DEBUG LOG_DATA="chunk,partials" python script.py
         LOG_LEVEL=DEBUG LOG_DATA="" python script.py  # Drop all extra fields
         LOG_LEVEL=DEBUG LOG_FILTER="chunk.reasoning:nonempty" python script.py
+        LOG_LEVEL=DEBUG LOG_POS=true python script.py  # Include file:line
     """
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     log_scope = os.getenv("LOG_SCOPE", "")
     log_data_env = os.getenv("LOG_DATA")
     log_filter = os.getenv("LOG_FILTER", "")
+    log_pos_env = os.getenv("LOG_POS", "")
     
     # Parse LOG_DATA
     # - None (not set): Show all fields (no filtering)
@@ -290,6 +333,10 @@ def configure_logging() -> None:
     # None = show all, [] = drop all extra, ['chunk'] = only show chunk
     if allowed_fields is not None:
         processors.append(make_data_filter(allowed_fields))
+
+    # Add source position (file:line) when LOG_POS is truthy
+    if log_pos_env.lower() in ("1", "true", "yes", "y", "on"):
+        processors.append(make_position_processor())
     
     # Use structlog's built-in ConsoleRenderer for colored output
     processors.append(

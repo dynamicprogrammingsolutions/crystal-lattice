@@ -351,20 +351,12 @@ class ProviderWrapper(ProviderPlugin):
         # Use the provided full native history directly
         full_history = list(native_messages)
         
-        logger.debug("processing chunk",
-                    provider=self.name,
-                    chunk=native_chunk)
+        logger.debug("processing chunk",chunk=native_chunk)
 
         partial_messages, final_messages, full_history, new_state = self.plugin.process_chunk(
             native_chunk, full_history, working_state
         )
-        
-        logger.debug("provider processed chunk",
-                    partial_count=len(partial_messages),
-                    final_count=len(final_messages),
-                    partials=partial_messages,
-                    finals=final_messages)
-        
+
         # Let extensions transform partials/finals/native history in order
         ext_state = new_state
         pipe = pipeline(native_chunk)
@@ -377,14 +369,7 @@ class ProviderWrapper(ProviderPlugin):
         )
         self.state = ext_state
         
-        active_ext_names = [ext.name for ext in self._iter_extensions()]
-        if active_ext_names:
-            logger.debug("extensions processed chunk",
-                        extensions=active_ext_names,
-                        partial_count=len(partial_messages),
-                        final_count=len(final_messages),
-                        partials=partial_messages,
-                        finals=final_messages)
+        logger.debug("processed chunk", partials=partial_messages)
 
         # Convert partial messages (provider-native) to core using the same
         # from_native pipeline as final messages (provider first, then active
@@ -398,14 +383,13 @@ class ProviderWrapper(ProviderPlugin):
                     + [ext.from_native_messages for ext in self._iter_extensions()],
                     ext_state,
                 )
-                logger.debug("converted partials to core",
-                            core_partial_count=len(core_partials),
-                            core_partials=core_partials)
             except Exception as e:
                 logger.warning("failed to convert partials to core, using as-is", error=str(e))
                 core_partials = partial_messages
         # Track latest full history
         self._last_native_messages = full_history
+
+        logger.debug("converted partials to core", core_partials=core_partials)
 
         return core_partials, final_messages, full_history, self._get_state()
 
@@ -497,10 +481,6 @@ class ProviderWrapper(ProviderPlugin):
         except Exception:
             raise RuntimeError(f"Provider {self.name} not initialized")  # type: ignore[attr-defined]
         
-        logger.debug("starting stream_messages",
-                    provider=self.name,
-                    native_message_count=len(native_messages))
-        
         # Initialize full native history for this turn
         self._last_native_messages = list(native_messages)  # type: ignore[attr-defined]
         current_native = self._last_native_messages
@@ -518,9 +498,7 @@ class ProviderWrapper(ProviderPlugin):
             if finals:
                 yield {"type": "final_messages", "messages": finals}
         
-        logger.debug("stream_messages complete",
-                    provider=self.name,
-                    total_chunks=chunk_count)
+        logger.debug("stream_messages complete")
 
     async def stream_messages_async(
             self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
