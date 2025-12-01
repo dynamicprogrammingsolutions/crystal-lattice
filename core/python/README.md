@@ -374,7 +374,7 @@ ruff check agent_core tests
 
 ### Debug Logging
 
-The SDK includes structured logging using [loguru](https://github.com/Delgan/loguru) that can be enabled via environment variables:
+The SDK includes structured logging using [structlog](https://www.structlog.org/) that can be enabled via environment variables:
 
 ```bash
 # Enable debug logging
@@ -387,6 +387,11 @@ LOG_LEVEL=DEBUG LOG_SCOPE=core pytest tests/
 # Show full data (chunks, messages, etc.) in logs
 LOG_LEVEL=DEBUG LOG_DATA=true pytest tests/
 
+# Custom filtering by data fields
+LOG_LEVEL=DEBUG LOG_FILTER="chunk:exists" pytest tests/
+LOG_LEVEL=DEBUG LOG_FILTER="chunk.reasoning:nonempty" pytest tests/
+LOG_LEVEL=DEBUG LOG_FILTER="partials:exists,chunk:exists" pytest tests/
+
 # Use in your application
 LOG_LEVEL=DEBUG python your_app.py
 ```
@@ -395,6 +400,29 @@ LOG_LEVEL=DEBUG python your_app.py
 - `LOG_LEVEL`: Set log level - `DEBUG`, `INFO`, `WARNING`, `ERROR` (default: `INFO`)
 - `LOG_SCOPE`: Filter logs by scope/module name (default: all scopes)
 - `LOG_DATA`: Show full structured data in logs - `true` or `false` (default: `false`)
+- `LOG_FILTER`: Custom filter expressions (comma-separated, AND logic)
+
+**Custom Filter Expressions:**
+- `field:exists` - Field must exist in the log event
+- `field:nonempty` - Field must exist and be non-empty (for strings, lists, dicts)
+- `field:equals:value` - Field must equal the specified value
+- `field:contains:substring` - Field must contain the substring
+- `field.nested.path:condition` - Use dot notation for nested fields
+
+**Filter Examples:**
+```bash
+# Only logs where chunk field exists
+LOG_FILTER="chunk:exists"
+
+# Only logs where chunk has a reasoning field that's not empty
+LOG_FILTER="chunk.reasoning:nonempty"
+
+# Multiple filters (AND logic) - chunk exists AND partials is not empty
+LOG_FILTER="chunk:exists,partials:nonempty"
+
+# Only logs containing "processing" in the event message
+LOG_FILTER="event:contains:processing"
+```
 
 **Available Scopes:**
 - `core`: Core SDK streaming and request processing
@@ -436,6 +464,12 @@ LOG_LEVEL=DEBUG python your_app.py
       "reasoning": "Okay"
     }
   ]
+```
+
+**Example: Filter for reasoning chunks only:**
+```bash
+# Show only logs where chunk contains reasoning data
+LOG_LEVEL=DEBUG LOG_DATA=true LOG_FILTER="chunk.choices:exists" pytest tests/
 ```
 
 ## Functional vs Object-Oriented

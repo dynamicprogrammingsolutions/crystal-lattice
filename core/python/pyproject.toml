@@ -22,7 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "loguru>=0.7.0",
+    "structlog>=24.1.0",
 ]
 
 [project.optional-dependencies]

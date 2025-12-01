@@ -16,4 +16,4 @@
 - Tests: core/python/tests; pytest config in core/python/pyproject.toml
 - After updating examples (core/python/examples): pytest core/python/examples/tests -qs; python scripts/generate_examples_md.py
 - Documentation: PROJECT_PLAN.md, ARCHITECTURE.md, TYPES_AND_PROTOCOLS.md, EXAMPLES.md, docs/api/core-sdk.md
-- Logging: `LOG_LEVEL=DEBUG pytest ...` (levels: DEBUG, INFO, WARNING, ERROR); `LOG_SCOPE=core` or `LOG_SCOPE=provider` to filter by scope; `LOG_DATA=true` to show full data in logs
+- Logging: `LOG_LEVEL=DEBUG pytest ...` (levels: DEBUG, INFO, WARNING, ERROR); `LOG_SCOPE=core` or `LOG_SCOPE=provider` to filter by scope; `LOG_DATA=true` to show full data in logs; `LOG_FILTER="chunk:exists,partials:nonempty"` for custom field filtering
