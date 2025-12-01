@@ -13,116 +13,7 @@ from .extension import ExtensionWrapper
 from ..types import ProviderPlugin
 from ..utils import pipeline
 
-
-class ProviderStreamMixin:
-    """Optimized streaming helpers for provider wrappers.
-
-    This mixin consumes provider-native chunks internally and yields processed
-    partial/final events, avoiding raw chunk plumbing in the core hot path.
-    """
-
-    _last_native_messages: List[Dict[str, Any]]
-
-    def stream_messages(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Iterator[Dict[str, Any]]:
-        """Stream provider results while processing chunks internally.
-
-        Events yielded:
-            - {"type": "partial", "message": <partial_message_like_core>}
-            - {"type": "final_messages", "messages": <list_of_provider_native_finals>}
-
-        Args:
-            native_messages: Provider-native input messages for this request.
-            state: Current shared provider state (or wrapper state if empty).
-
-        Yields:
-            Dict events representing partials and batches of final provider-native messages.
-
-        Raises:
-            RuntimeError: If the wrapper is not initialized (missing state).
-        """
-        # Resolve initial state via wrapper; error if uninitialized
-        try:
-            working_state = state or self._get_state()  # type: ignore[attr-defined]
-        except Exception:
-            raise RuntimeError(f"Provider {self.name} not initialized")  # type: ignore[attr-defined]
-        # Initialize full native history for this turn
-        self._last_native_messages = list(native_messages)  # type: ignore[attr-defined]
-        current_native = self._last_native_messages
-        for native_chunk in self.plugin.stream_api(current_native, working_state):  # type: ignore[attr-defined]
-            partials, finals, current_native, working_state = self.process_chunk(  # type: ignore[misc]
-                native_chunk, current_native, working_state
-            )
-            # track latest native messages (full history)
-            self._last_native_messages = current_native  # type: ignore[attr-defined]
-            # yield partials first
-            for p in partials:
-                yield {"type": "partial", "message": p}
-            if finals:
-                yield {"type": "final_messages", "messages": finals}
-
-    async def stream_messages_async(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> AsyncIterator[Dict[str, Any]]:
-        """Async variant of stream_messages.
-
-        Prefers the provider's native async streaming when available, falling back
-        to sync streaming otherwise.
-
-        Args:
-            native_messages: Provider-native input messages for this request.
-            state: Current shared provider state (or wrapper state if empty).
-
-        Yields:
-            Dict events representing partials and batches of final provider-native messages.
-
-        Raises:
-            RuntimeError: If the wrapper is not initialized (missing state).
-        """
-        # Resolve initial state via wrapper; error if uninitialized
-        try:
-            working_state = state or self._get_state()  # type: ignore[attr-defined]
-        except Exception:
-            raise RuntimeError(f"Provider {self.name} not initialized")  # type: ignore[attr-defined]
-        current_native = list(native_messages)
-
-        if hasattr(self.plugin, "stream_api_async"):  # type: ignore[attr-defined]
-            async for native_chunk in self.plugin.stream_api_async(  # type: ignore[attr-defined]
-                current_native, working_state
-            ):
-                partials, finals, current_native, working_state = self.process_chunk(  # type: ignore[misc]
-                    native_chunk, current_native, working_state
-                )
-                self._last_native_messages = current_native  # type: ignore[attr-defined]
-                for p in partials:
-                    yield {"type": "partial", "message": p}
-                if finals:
-                    yield {"type": "final_messages", "messages": finals}
-            return
-
-        # Fallback to sync stream
-        for native_chunk in self.plugin.stream_api(current_native, working_state):  # type: ignore[attr-defined]
-            partials, finals, current_native, working_state = self.process_chunk(  # type: ignore[misc]
-                native_chunk, current_native, working_state
-            )
-            self._last_native_messages = current_native  # type: ignore[attr-defined]
-            for p in partials:
-                yield {"type": "partial", "message": p}
-            if finals:
-                yield {"type": "final_messages", "messages": finals}
-
-    def get_last_native_messages(self) -> List[Dict[str, Any]]:
-        """Return the latest accumulated provider-native messages tracked during streaming.
-
-        Returns:
-            Full provider-native history after the most recent chunk or finalize step.
-        """
-        # type: ignore[attr-defined]
-        return getattr(self, "_last_native_messages", [])
-
-
-class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
+class ProviderWrapper(ProviderPlugin):
     """Wrapper for provider plugin managing state during streaming.
 
     Holds provider state and manages provider extensions in the same language (hot path).
@@ -458,19 +349,9 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         # Use the provided full native history directly
         full_history = list(native_messages)
 
-        match native_chunk:
-            case {'choices':[{"delta":{"reasoning_details": [
-                {"type": "reasoning.encrypted", "data": data},
-                *_, ], }}]}:
-                pass #print("chunk containing encrypted data:", data)
-            case _:
-                pass #print("Not the expected shape")
-
-        partial_messages, final_messages, returned_history, new_state = self.plugin.process_chunk(
+        partial_messages, final_messages, full_history, new_state = self.plugin.process_chunk(
             native_chunk, full_history, working_state
         )
-        # Replace history with provider-returned history
-        full_history = returned_history
         # Let extensions transform partials/finals/native history in order
         ext_state = new_state
         pipe = pipeline(native_chunk)
@@ -561,3 +442,106 @@ class ProviderWrapper(ProviderStreamMixin, ProviderPlugin):
         self.state = None
         self._last_native_messages = []
         self._active_extensions = None
+
+
+    # Optimized streaming helpers for provider wrappers.
+
+    _last_native_messages: List[Dict[str, Any]]
+
+    def stream_messages(
+            self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Iterator[Dict[str, Any]]:
+        """Stream provider results while processing chunks internally.
+
+        Events yielded:
+            - {"type": "partial", "message": <partial_message_like_core>}
+            - {"type": "final_messages", "messages": <list_of_provider_native_finals>}
+
+        Args:
+            native_messages: Provider-native input messages for this request.
+            state: Current shared provider state (or wrapper state if empty).
+
+        Yields:
+            Dict events representing partials and batches of final provider-native messages.
+
+        Raises:
+            RuntimeError: If the wrapper is not initialized (missing state).
+        """
+        # Resolve initial state via wrapper; error if uninitialized
+        try:
+            working_state = state or self._get_state()  # type: ignore[attr-defined]
+        except Exception:
+            raise RuntimeError(f"Provider {self.name} not initialized")  # type: ignore[attr-defined]
+        # Initialize full native history for this turn
+        self._last_native_messages = list(native_messages)  # type: ignore[attr-defined]
+        current_native = self._last_native_messages
+        for native_chunk in self.plugin.stream_api(current_native, working_state):  # type: ignore[attr-defined]
+            partials, finals, current_native, working_state = self.process_chunk(  # type: ignore[misc]
+                native_chunk, current_native, working_state
+            )
+            # track latest native messages (full history)
+            self._last_native_messages = current_native  # type: ignore[attr-defined]
+            # yield partials first
+            for p in partials:
+                yield {"type": "partial", "message": p}
+            if finals:
+                yield {"type": "final_messages", "messages": finals}
+
+    async def stream_messages_async(
+            self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """Async variant of stream_messages.
+
+        Prefers the provider's native async streaming when available, falling back
+        to sync streaming otherwise.
+
+        Args:
+            native_messages: Provider-native input messages for this request.
+            state: Current shared provider state (or wrapper state if empty).
+
+        Yields:
+            Dict events representing partials and batches of final provider-native messages.
+
+        Raises:
+            RuntimeError: If the wrapper is not initialized (missing state).
+        """
+        # Resolve initial state via wrapper; error if uninitialized
+        try:
+            working_state = state or self._get_state()  # type: ignore[attr-defined]
+        except Exception:
+            raise RuntimeError(f"Provider {self.name} not initialized")  # type: ignore[attr-defined]
+        current_native = list(native_messages)
+
+        if hasattr(self.plugin, "stream_api_async"):  # type: ignore[attr-defined]
+            async for native_chunk in self.plugin.stream_api_async(  # type: ignore[attr-defined]
+                    current_native, working_state
+            ):
+                partials, finals, current_native, working_state = self.process_chunk(  # type: ignore[misc]
+                    native_chunk, current_native, working_state
+                )
+                self._last_native_messages = current_native  # type: ignore[attr-defined]
+                for p in partials:
+                    yield {"type": "partial", "message": p}
+                if finals:
+                    yield {"type": "final_messages", "messages": finals}
+            return
+
+        # Fallback to sync stream
+        for native_chunk in self.plugin.stream_api(current_native, working_state):  # type: ignore[attr-defined]
+            partials, finals, current_native, working_state = self.process_chunk(  # type: ignore[misc]
+                native_chunk, current_native, working_state
+            )
+            self._last_native_messages = current_native  # type: ignore[attr-defined]
+            for p in partials:
+                yield {"type": "partial", "message": p}
+            if finals:
+                yield {"type": "final_messages", "messages": finals}
+
+    def get_last_native_messages(self) -> List[Dict[str, Any]]:
+        """Return the latest accumulated provider-native messages tracked during streaming.
+
+        Returns:
+            Full provider-native history after the most recent chunk or finalize step.
+        """
+        # type: ignore[attr-defined]
+        return getattr(self, "_last_native_messages", [])
