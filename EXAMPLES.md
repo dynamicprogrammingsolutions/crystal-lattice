@@ -1,18 +1,36 @@
 # Examples
 
 Note: Plugins use instance methods but should remain stateless (pure) and operate on explicit state objects. Plugin instances are short5lived and scoped to a single request, just like the shared provider state managed by the provider wrapper.
+Note: pytest is configured with -m 'not integration' by default, so remote OpenRouter integration tests are skipped unless you explicitly run them with -m openrouter or -m integration. The example tests listed below all run with a plain pytest invocation.
 
-Note: pytest is configured with `-m 'not integration'` by default, so remote OpenRouter integration tests are skipped unless you explicitly run them with `-m openrouter` or `-m integration`. The example tests listed below all run with a plain pytest invocation.
+## PROJECT_PLAN Example 10: Minimal FastAPI/JSON App (Echo Provider)
 
-## PROJECT_PLAN Example 6: FastAPI/WebSocket App (Ollama)
+PROJECT_PLAN Example 10: Minimal FastAPI/JSON App (Echo Provider)
 
-PROJECT_PLAN Example 6: FastAPI/WebSocket App (Ollama)
-Runs a simple WS endpoint using the core and plugins.
+This example shows how to wrap ``agent_core.AgentCore`` in a small
+HTTP JSON application. It mirrors the responsibilities of the
+``agent_app.AgentApplication`` class in a simplified way, but stays
+entirely on the core API level:
+
+- the application owns a single AgentCore instance
+- the application owns provider configuration
+- the application owns session storage (in memory here)
+- HTTP handlers translate HTTP JSON  core ``Session`` / messages
+
+The app uses ``plugins.echo_openai_like_provider.EchoOpenAILikeProvider``
+so it does not make any network calls or require API keys.
 
 Usage (run_example)
 
 ```python
-return app
+
+def run_example() -> FastAPI:  # pragma: no cover
+    """Return the FastAPI app instance.
+
+    Intended usage:
+
+        uvicorn examples.example10_project_plan_app:app --reload
+    """
 ```
 
 - Code: `core/python/examples/example10_project_plan_app.py`
@@ -148,22 +166,19 @@ class EchoProvider(ProviderPlugin):
 
     def initialize_request(
         self,
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
+        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         return {**state, "accumulated": ""}
 
     def from_native_messages(
         self,
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
+        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         return list(native_messages)
 
     def stream_api(
         self,
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
+        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Iterator[Dict[str, Any]]:
         last_user = next(
             (m for m in reversed(native_messages) if m.get("role") == "user"),
@@ -179,10 +194,7 @@ class EchoProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[
-        List[Dict[str, Any]],
-        List[Dict[str, Any]],
-        List[Dict[str, Any]],
-        Dict[str, Any],
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
     ]:
         acc = state.get("accumulated", "") + native_chunk.get("content", "")
         new_state = {**state, "accumulated": acc}
@@ -215,10 +227,7 @@ class EchoProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[
-        List[Dict[str, Any]],
-        List[Dict[str, Any]],
-        List[Dict[str, Any]],
-        Dict[str, Any],
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
     ]:
         last_user = next(
             (m for m in reversed(native_messages) if m.get("role") == "user"),
@@ -274,15 +283,12 @@ class PrefixExtension(ProviderExtensionPlugin):
     def process_chunk(
             self,
             native_chunk: Optional[Dict[str, Any]],
-            state: Dict[str, Any],
             partial_messages: List[Dict[str, Any]],
             final_messages: List[Dict[str, Any]],
             native_messages: List[Dict[str, Any]],
+            state: Dict[str, Any],
     ) -> Tuple[
-        List[Dict[str, Any]],
-        List[Dict[str, Any]],
-        List[Dict[str, Any]],
-        Dict[str, Any],
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
     ]:
         if not state.get("config", {}).get("enabled", True):
             return partial_messages, final_messages, native_messages, state
