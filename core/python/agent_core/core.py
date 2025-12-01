@@ -62,7 +62,7 @@ import uuid
 import json
 
 logger = get_logger("core")
-
+log_chunk_processing = get_logger("chunk_processing")
 
 class AgentCore:
     """Stateless processing pipeline for AI Agent Platform.
@@ -786,22 +786,22 @@ class AgentCore:
             tools,
         )
         
-        logger.debug("starting stream request", native_messages=native_messages, state=state.get("request",None))
+        logger.debug("start streaming request", native_messages=native_messages, requrest=state.get("request",None))
         
         aggregated_native_finals: List[Dict[str, Any]] = []
 
         # Stream from provider using optimized streaming
         partial_count = 0
         for event in provider.stream_messages(native_messages, state):
-            logger.debug("streaming event received", _event=event) # the first positional argument is also named 'event', we cannot use that name
+            #logger.debug("streaming event received", _event=event) # the first positional argument is also named 'event', we cannot use that name
             if event["type"] == "partial":
                 partial_count += 1
+                log_chunk_processing.debug("partial message received", partial=event["message"])
                 yield {"type": "partial", "message": event["message"]}
             elif event["type"] == "final_messages":
                 # These are provider-native finals
+                log_chunk_processing.debug("final message received", final=event["message"])
                 aggregated_native_finals.extend(event["messages"])
-
-        logger.debug("streaming complete")
 
         # Finalize using the last accumulated native messages
         final_native, native_messages, state = provider.finalize(
@@ -814,7 +814,7 @@ class AgentCore:
             [feature.finalize for feature in features], final_native, native_messages, state
         )
 
-        logger.info("finalize complete", final_native=final_native)
+        logger.debug("streaming complete", final_native=final_native)
 
         combined_native_finals = [*aggregated_native_finals, *final_native]
 
@@ -828,8 +828,6 @@ class AgentCore:
             + [feature.from_native_messages for feature in features],
             final_core,
         )
-        
-        logger.info("converted to core messages", final_core=final_core)
 
         appended: List[Message] = [Message.from_dict(m) for m in final_core]
         new_metadata = dict(session.metadata)
@@ -839,8 +837,8 @@ class AgentCore:
             all_messages_after
         )
         new_session = Session(session.session_id, all_messages_after, new_metadata)
-        
-        logger.info("stream request complete")
+
+        logger.info("streaming request complete", final_message=final_core)
 
         yield {"type": "final", "session": new_session, "messages": final_core}
 

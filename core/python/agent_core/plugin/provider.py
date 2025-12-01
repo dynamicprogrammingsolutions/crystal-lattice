@@ -14,6 +14,7 @@ from ..types import ProviderPlugin
 from ..utils import pipeline, get_logger
 
 logger = get_logger("provider")
+log_chunk_processing = get_logger("chunk_processing")
 
 class ProviderWrapper(ProviderPlugin):
     """Wrapper for provider plugin managing state during streaming.
@@ -350,8 +351,8 @@ class ProviderWrapper(ProviderPlugin):
         working_state = state or self.state
         # Use the provided full native history directly
         full_history = list(native_messages)
-        
-        logger.debug("processing chunk",chunk=native_chunk)
+
+        log_chunk_processing.debug("processing chunk", chunk=native_chunk)
 
         partial_messages, final_messages, full_history, new_state = self.plugin.process_chunk(
             native_chunk, full_history, working_state
@@ -368,8 +369,8 @@ class ProviderWrapper(ProviderPlugin):
             ext_state,
         )
         self.state = ext_state
-        
-        logger.debug("processed chunk", partials=partial_messages)
+
+        log_chunk_processing.debug("processed chunk", partials=partial_messages)
 
         # Convert partial messages (provider-native) to core using the same
         # from_native pipeline as final messages (provider first, then active
@@ -389,7 +390,7 @@ class ProviderWrapper(ProviderPlugin):
         # Track latest full history
         self._last_native_messages = full_history
 
-        logger.debug("converted partials to core", core_partials=core_partials)
+        log_chunk_processing.debug("converted partials to core", core_partials=core_partials)
 
         return core_partials, final_messages, full_history, self._get_state()
 
