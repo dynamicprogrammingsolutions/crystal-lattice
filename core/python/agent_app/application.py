@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Callable, Tuple
+from typing import Any, Dict, List, Optional, Callable, Tuple, Iterator
 import threading
+import time
 import uuid
 
-from agent_core import AgentCore, Session, Message, MessageRole
+
+from agent_core import AgentCore, Session, MessageRole
 
 from .config import (
     load_raw_config,
@@ -318,6 +320,63 @@ class AgentApplication:
                 limit=int(limit),
             )
         }
+
+    def stream_events(self, payload: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
+        """Stream events from the store, optionally following new ones.
+
+        This is a convenience wrapper around :meth:`get_events` that turns the
+        polling API into a streaming-style iterator for consumers.
+
+        Payload keys:
+            - "since_id"?: str
+            - "request_id"?: str
+            - "session_id"?: str
+            - "limit"?: int (per batch, default 100)
+            - "follow"?: bool (default False). When True, the iterator will
+              continue polling for new events until the caller breaks.
+            - "poll_interval"?: float (seconds between polls when following,
+              default 0.05).
+        """
+
+        since_id = payload.get("since_id")
+        request_id = payload.get("request_id")
+        session_id = payload.get("session_id")
+        limit = payload.get("limit")
+        follow = bool(payload.get("follow"))
+        poll_interval = float(payload.get("poll_interval", 0.05))
+
+        if limit is None:
+            limit = 100
+
+        def _next_batch(current_since: Optional[str]) -> tuple[Optional[str], List[Dict[str, Any]]]:
+            batch = self.get_events(
+                {
+                    "since_id": current_since,
+                    "request_id": request_id,
+                    "session_id": session_id,
+                    "limit": limit,
+                }
+            )["events"]
+            if not batch:
+                return current_since, []
+            return batch[-1]["event_id"], batch
+
+        # Single-shot mode: fetch one batch and yield it.
+        if not follow:
+            _new_since, batch = _next_batch(since_id)
+            for ev in batch:
+                yield ev
+            return
+
+        # Follow mode: keep polling until caller stops iteration.
+        current_since = since_id
+        while True:
+            current_since, batch = _next_batch(current_since)
+            if batch:
+                for ev in batch:
+                    yield ev
+            else:
+                time.sleep(poll_interval)
 
     # ------------------------------------------------------------------
     # Internal request runners

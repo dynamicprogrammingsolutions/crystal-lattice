@@ -118,53 +118,49 @@ def _collect_events(
     print_stream: bool = False,
     timeout: float = 60.0,
 ) -> List[Dict[str, Any]]:
-    """Poll application events for a request until completion or timeout.
+    """Iterate application events for a request until completion or timeout.
 
-    When ``print_stream`` is True, partials, tool events, and finals are echoed
-    to stdout so streaming behaviour is visible while tests run.
+    Uses :meth:`AgentApplication.stream_events` with ``follow=True`` to provide a
+    streaming-style interface over the underlying event store. When
+    ``print_stream`` is True, partials, tool events, and finals are echoed to
+    stdout so streaming behaviour is visible while tests run.
     """
 
-    since_id: Optional[str] = None
     start = time.time()
     events: List[Dict[str, Any]] = []
 
-    while time.time() - start < timeout:
-        batch = app.get_events(
-            {
-                "since_id": since_id,
-                "request_id": request_id,
-            }
-        )["events"]
-        if not batch:
-            time.sleep(0.05)
-            continue
+    for ev in app.stream_events({"request_id": request_id, "follow": True, "poll_interval": 0.05}):
+        events.append(ev)
+        if print_stream:
+            if ev["type"] == "partial":
+                msg = ev.get("message", {})
+                content = msg.get("content", "")
+                reasoning = msg.get("metadata", {}).get("reasoning", "") or msg.get(
+                    "reasoning", ""
+                )
+                if content:
+                    print(content, end="", flush=True)
+                if reasoning:
+                    print(reasoning, end="", flush=True)
+            elif ev["type"] == "tool_calls":
+                print("\n[tool_calls event]", ev.get("tool_calls"), flush=True)
+            elif ev["type"] == "tool_results":
+                print("\n[tool_results event]", ev.get("messages"), flush=True)
+            elif ev["type"] == "final":
+                messages = ev.get("messages") or []
+                if messages:
+                    last = messages[-1]
+                    print(
+                        "\n[final reasoning]",
+                        last.get("metadata", {}).get("reasoning", ""),
+                        flush=True,
+                    )
+                    print("\n[final message]", last.get("content", ""), flush=True)
 
-        since_id = batch[-1]["event_id"]
-
-        for ev in batch:
-            events.append(ev)
-            if print_stream:
-                if ev["type"] == "partial":
-                    msg = ev.get("message", {})
-                    content = msg.get("content", "")
-                    reasoning = msg.get("metadata", {}).get("reasoning", "")
-                    if content:
-                        print(content, end="", flush=True)
-                    if reasoning:
-                        print(reasoning, end="", flush=True)
-                elif ev["type"] == "tool_calls":
-                    print("\n[tool_calls event]", ev.get("tool_calls"), flush=True)
-                elif ev["type"] == "tool_results":
-                    print("\n[tool_results event]", ev.get("messages"), flush=True)
-                elif ev["type"] == "final":
-                    messages = ev.get("messages") or []
-                    if messages:
-                        last = messages[-1]
-                        print("\n[final reasoning]", last.get("metadata", {}).get("reasoning", ""), flush=True)
-                        print("\n[final message]", last.get("content", ""), flush=True)
-
-            if ev["type"] == "request_completed":
-                return events
+        if ev["type"] == "request_completed":
+            break
+        if time.time() - start >= timeout:
+            break
 
     return events
 
