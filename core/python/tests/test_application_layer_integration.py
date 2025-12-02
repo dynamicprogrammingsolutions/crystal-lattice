@@ -121,10 +121,10 @@ def _collect_events(
     overrides: Optional[Dict[str, Any]] = None,
     print_stream: bool = False,
 ) -> List[Dict[str, Any]]:
-    """Run a request via ``send_request_v2`` and collect events.
+    """Run a request via ``send_request`` and collect events.
 
     This replaces the legacy ``stream_events`` + event-store polling logic
-    with a direct iteration over :meth:`AgentApplication.send_request_v2`.
+    with a direct iteration over :meth:`AgentApplication.send_request`.
     When ``print_stream`` is True, partials, tool events, and finals are
     echoed to stdout so streaming behaviour is visible while tests run.
     """
@@ -137,9 +137,9 @@ def _collect_events(
 
     events: List[Dict[str, Any]] = []
 
-    logger.info("start send_request_v2", extra={"stream": stream})
+    logger.info("start send_request", extra={"stream": stream})
 
-    for ev in app.send_request_v2(core, session, base_config, overrides or {}, stream=stream):
+    for ev in app.send_request(core, session, base_config, overrides or {}, stream=stream):
         events.append(ev)
         if print_stream:
             if ev["type"] == "partial":
@@ -167,7 +167,7 @@ def _collect_events(
                     )
                     print("\n[final message]", last.get("content", ""), flush=True)
 
-    logger.info("finished send_request_v2", extra={"stream": stream})
+    logger.info("finished send_request", extra={"stream": stream})
 
     return events
 
@@ -193,7 +193,7 @@ def test_application_layer_ollama_file_reader_non_streaming(
         file_path = tf.name
 
     try:
-        core, base_config, session = app.create_agent_session("default")
+        core, base_config, session = app.create_session("default")
         session_id = session.session_id
 
         session = core.add_message(session, "system", _SYSTEM_MESSAGE)
@@ -290,7 +290,7 @@ def test_application_layer_ollama_file_reader_streaming(
         file_path = tf.name
 
     try:
-        core, base_config, session = app.create_agent_session("default")
+        core, base_config, session = app.create_session("default")
         session_id = session.session_id
 
         session = core.add_message(session, "system", _SYSTEM_MESSAGE)

@@ -21,7 +21,7 @@ from .sessions import FilesystemSessionStore
 class _ToolLoopConfig:
     """Configuration for the built-in tool loop.
 
-    Kept identical to :mod:`agent_app.application` so that the two
+    Kept aligned with the original application-layer behaviour so that
     implementations can be compared side-by-side with a diff.
     """
 
@@ -33,16 +33,15 @@ class AgentApplication:
 
     This variant focuses on the *core-first* architecture used by
     Example 13. It exposes only the typed helpers and the
-    :meth:`send_request_v2` event generator.
+    :meth:`send_request` event generator.
 
-    The original dict-based HTTP-style API (``create_session``,
-    ``add_message``, ``send_request``, ``get_events``, ``stream_events``)
-    remains in :mod:`agent_app.application` for backwards compatibility
-    and to keep existing tests unchanged.
+    The original dict-based HTTP-style API
+    (``create_session``, ``add_message``, ``send_request``,
+    ``get_events``, ``stream_events``) has been replaced by this
+    implementation.
 
-    Structure and helper method names intentionally mirror
-    :class:`agent_app.application.AgentApplication` so the two files can
-    be diffed easily to see architectural differences.
+    Structure and helper method names intentionally mirror the original
+    application-layer implementation so it can be compared easily.
     """
 
     def __init__(
@@ -108,9 +107,9 @@ class AgentApplication:
     def _new_core(self) -> AgentCore:
         """Construct a fresh :class:`AgentCore` instance with all plugins.
 
-        This mirrors the implementation in ``application.AgentApplication``
-        but is used exclusively by the typed helpers and the new request
-        API in this module.
+        This mirrors the original application-layer implementation but is
+        used exclusively by the typed helpers and the new request API in
+        this module.
         """
 
         core = self._core_factory()
@@ -227,7 +226,7 @@ class AgentApplication:
 
         self._session_store.delete(session_id)
 
-    def create_agent_session(self, agent_id: str) -> Tuple[AgentCore, Dict[str, Any], Session]:
+    def create_session(self, agent_id: str) -> Tuple[AgentCore, Dict[str, Any], Session]:
         """Create and persist a new empty session for the given agent.
 
         Returns a tuple of ``(core, base_config, session)`` where ``core`` is a
@@ -254,7 +253,7 @@ class AgentApplication:
     # Core-first request API (new architecture)
     # ------------------------------------------------------------------
 
-    def send_request_v2(
+    def send_request(
         self,
         core: AgentCore,
         session: Session,
@@ -268,7 +267,7 @@ class AgentApplication:
 
         This method is the *new* request entry point, corresponding to the
         original :meth:`send_request` method in
-        :class:`agent_app.application.AgentApplication` but implemented as a
+        the original application-layer ``send_request`` implementation but implemented as a
         generator over typed events instead of a dict-based one-shot call.
 
         Key differences from the legacy API:

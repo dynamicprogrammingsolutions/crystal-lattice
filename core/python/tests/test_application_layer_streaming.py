@@ -1,7 +1,7 @@
 """Streaming tests for the future application layer wrapper.
 
 These tests exercise :mod:`agent_app.application_future` using the
-``send_request_v2`` streaming event iterator instead of the original
+``send_request`` streaming event iterator instead of the original
 background-thread + event-store architecture.
 """
 
@@ -37,10 +37,10 @@ def test_send_request_streaming_emits_events(tmp_path: Path) -> None:
 
     app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
 
-    core, base_config, session = app.create_agent_session("default")
+    core, base_config, session = app.create_session("default")
     session = core.add_message(session, "user", "Hello")
 
-    events = list(app.send_request_v2(core, session, base_config, overrides=None, stream=True))
+    events = list(app.send_request(core, session, base_config, overrides=None, stream=True))
 
     assert any(ev["type"] == "partial" for ev in events)
     assert any(ev["type"] == "final" for ev in events)

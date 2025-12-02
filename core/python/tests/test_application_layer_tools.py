@@ -1,7 +1,7 @@
 """Tool loop behaviour tests for the future application layer.
 
 These tests exercise :mod:`agent_app.application_future` and its
-``send_request_v2`` helper instead of the legacy dict-based API.
+``send_request`` helper instead of the legacy dict-based API.
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ def test_execute_tool_calls_non_streaming(tmp_path: Path) -> None:
 
     app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
 
-    core, base_config, session = app.create_agent_session("default")
+    core, base_config, session = app.create_session("default")
 
     # Simulate a tool call by adding an assistant message with tool_calls metadata.
     tool_call: Dict[str, object] = {
@@ -55,7 +55,7 @@ def test_execute_tool_calls_non_streaming(tmp_path: Path) -> None:
         {"tool_calls": [tool_call]},
     )
 
-    events = list(app.send_request_v2(core, session, base_config, overrides=None, stream=False))
+    events = list(app.send_request(core, session, base_config, overrides=None, stream=False))
 
     # Find the latest session snapshot from events.
     final_session_dict: Dict[str, object] | None = None
@@ -77,7 +77,7 @@ def test_execute_tool_calls_streaming(tmp_path: Path) -> None:
 
     app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
 
-    core, base_config, session = app.create_agent_session("default")
+    core, base_config, session = app.create_session("default")
 
     tool_call: Dict[str, object] = {
         "id": "call_1",
@@ -91,6 +91,6 @@ def test_execute_tool_calls_streaming(tmp_path: Path) -> None:
         {"tool_calls": [tool_call]},
     )
 
-    events = list(app.send_request_v2(core, session, base_config, overrides=None, stream=True))
+    events = list(app.send_request(core, session, base_config, overrides=None, stream=True))
 
     assert any(ev["type"] == "tool_results" for ev in events)
