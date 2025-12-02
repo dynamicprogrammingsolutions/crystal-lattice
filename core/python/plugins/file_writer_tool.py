@@ -27,6 +27,11 @@ class FileWriterTool(ToolPlugin):
                 "default": 5 * 1024 * 1024,
                 "description": "Maximum content size to write in bytes",
             },
+            "working_directory": {
+                "type": "string",
+                "default": ".",
+                "description": "Working directory for resolving relative paths",
+            },
         }
 
     def get_ui_elements(self) -> List[Dict[str, Any]]:
@@ -71,6 +76,11 @@ class FileWriterTool(ToolPlugin):
         file_path = str(raw_path).strip()
         content = arguments.get("content", "")
         try:
+            working_dir = state.get("config", {}).get("working_directory", ".")
+            # Resolve relative paths against working directory for consistency
+            # with FileReaderTool behaviour.
+            if not os.path.isabs(file_path):
+                file_path = os.path.join(working_dir, file_path)
             abs_path = os.path.abspath(file_path)
         except Exception:
             return {"success": False, "error": f"Invalid path: {file_path}"}
