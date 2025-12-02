@@ -109,7 +109,7 @@ def create_session(payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     agent_id = data.get("agent_id") or "default"
 
     try:
-        core, base_config, session = _app.create_agent_session(agent_id)
+        core, base_config, session = _app.create_session(agent_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except KeyError as exc:
@@ -196,7 +196,7 @@ def send_request(session_id: str, payload: Optional[Dict[str, Any]] = None) -> D
     final_messages: list[Dict[str, Any]] = []
     request_id: Optional[str] = None
 
-    for ev in _app.send_request_v2(core, session, base_config, overrides, stream=False):
+    for ev in _app.send_request(core, session, base_config, overrides, stream=False):
         if ev.get("type") == "final":
             final_session_dict = ev.get("session")
             final_messages = list(ev.get("messages") or [])

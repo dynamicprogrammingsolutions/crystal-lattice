@@ -2,7 +2,7 @@
 
 These tests exercise :mod:`agent_app.application_future` instead of the
 original, dict-based application layer. They use the typed
-``create_agent_session`` helper and the ``send_request_v2`` event
+``create_session`` helper and the ``send_request`` event
 iterator.
 """
 
@@ -38,7 +38,7 @@ def test_create_session_and_persist(tmp_path: Path) -> None:
 
     app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
 
-    core, base_config, session = app.create_agent_session("default")
+    core, base_config, session = app.create_session("default")
     session_id = session.session_id
 
     # Session file should exist on disk
@@ -52,7 +52,7 @@ def test_add_message_updates_session(tmp_path: Path) -> None:
 
     app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
 
-    core, base_config, session = app.create_agent_session("default")
+    core, base_config, session = app.create_session("default")
 
     # Add a user message via the core-first API.
     new_session = core.add_message(session, "user", "Hello")
@@ -70,14 +70,14 @@ def test_send_request_non_streaming(tmp_path: Path) -> None:
 
     app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
 
-    core, base_config, session = app.create_agent_session("default")
+    core, base_config, session = app.create_session("default")
     session = core.add_message(session, "user", "Hi")
 
     final_messages: list[dict] = []
 
     # Use the new core-first event iterator instead of the legacy
     # dict-based send_request API.
-    for ev in app.send_request_v2(core, session, base_config, overrides=None, stream=False):
+    for ev in app.send_request(core, session, base_config, overrides=None, stream=False):
         if ev.get("type") == "final":
             final_messages = list(ev.get("messages") or [])
 
