@@ -200,7 +200,6 @@ class OpenRouterProvider(ProviderPlugin):
             base_history = override if isinstance(override, list) else native_messages
             messages_to_send = self._sanitize_history(base_history)
             payload = {**request["payload"], "messages": messages_to_send, "stream": False}
-            print("payload (non-streaming):", payload)
             r = requests.post(
                 request["url"],
                 json=payload,
@@ -209,7 +208,6 @@ class OpenRouterProvider(ProviderPlugin):
             )
             r.raise_for_status()
             obj = r.json()
-            print("response (non-streaming):", obj)
         except requests.RequestException as e:
             # Debug payload and error details for investigation (no auth headers included)
             try:  # pragma: no cover - debug aid

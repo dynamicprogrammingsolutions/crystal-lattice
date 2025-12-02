@@ -711,6 +711,13 @@ class AgentCore:
             features,
             tools,
         )
+        
+        logger.info(
+            "sending request",
+            native_messages=native_messages,
+            request=state["request"]
+        )
+        
         _partials, final_native_1, native_messages, state = provider.call_api(
             native_messages, state
         )
@@ -748,7 +755,13 @@ class AgentCore:
         )
         new_session = Session(session.session_id, all_messages_after, new_metadata)
 
+        logger.info(
+            "send_request_complete",
+            final_core=final_core,
+        )
+
         return new_session, final_core
+
 
     def send_request_stream(
         self, session: Session, config: Dict[str, Any]
@@ -1004,8 +1017,14 @@ class AgentCore:
         if not tool_calls:
             return results
 
+        logger.debug(
+            "execute_tool_calls_start",
+            count=len(tool_calls),
+        )
+
         # Initialize tool states once per call set
         tool_states = [(tool, tool.init(config)) for tool in self._tools]
+
 
         for call in tool_calls:
             call_id = call.get("id") or call.get("tool_call_id")
@@ -1033,7 +1052,14 @@ class AgentCore:
             if not executed:
                 formatted_content = f"Error: no tool handled '{name}'"
 
+            logger.debug(
+                "execute_tool_call_complete",
+                tool_name=str(name),
+                executed=executed,
+            )
+
             results.append(
+
                 {
                     "role": "tool",
                     "content": formatted_content or "",

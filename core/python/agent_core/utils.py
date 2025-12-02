@@ -297,6 +297,7 @@ def configure_logging() -> None:
     log_data_env = os.getenv("LOG_DATA")
     log_filter = os.getenv("LOG_FILTER", "")
     log_pos_env = os.getenv("LOG_POS", "")
+    log_file_path = os.getenv("LOG_FILE")
     
     # Parse LOG_DATA
     # - None (not set): Show all fields (no filtering)
@@ -349,12 +350,23 @@ def configure_logging() -> None:
     # Convert log level string to logging constant
     min_level = getattr(logging, log_level, logging.INFO)
     
+    # Determine output stream (stdout by default, optional log file)
+    log_stream = sys.stdout
+    if log_file_path:
+        try:
+            base_dir = os.path.dirname(log_file_path) or "."
+            os.makedirs(base_dir, exist_ok=True)
+            log_stream = open(log_file_path, "a", encoding="utf-8")
+        except Exception:
+            # Fall back to stdout on any file error
+            log_stream = sys.stdout
+
     # Configure structlog (preserving defaults where possible)
     structlog.configure(
         processors=processors,
         wrapper_class=structlog.make_filtering_bound_logger(min_level),
         context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
+        logger_factory=structlog.PrintLoggerFactory(file=log_stream),
         cache_logger_on_first_use=False,
     )
 
