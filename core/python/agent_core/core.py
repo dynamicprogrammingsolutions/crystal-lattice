@@ -715,9 +715,9 @@ class AgentCore:
         logger.info(
             "sending request",
             native_messages=native_messages,
-            request=state["request"]
+            request=state.get("request"),
         )
-        
+
         _partials, final_native_1, native_messages, state = provider.call_api(
             native_messages, state
         )
