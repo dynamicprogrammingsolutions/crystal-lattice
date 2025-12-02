@@ -1,17 +1,22 @@
-"""Tool loop behaviour tests for the application layer."""
+"""Tool loop behaviour tests for the future application layer.
+
+These tests exercise :mod:`agent_app.application_future` and its
+``send_request_v2`` helper instead of the legacy dict-based API.
+"""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Dict, List
 
-from agent_app import AgentApplication
+from agent_app.application_future import AgentApplication
 from agent_core import AgentCore
-from .dummy_tool import DummyCalculator
+from .dummy_tool import DummyCalculator  # noqa: F401  (imported for side effects)
 
 
 def _make_tool_config(tmp_path: Path) -> Path:
-    # Use DummyProvider plus the OpenAI tools extension to surface tool_calls
+    # Use DummyProvider plus DummyCalculator tool to surface tool_calls.
     cfg = {
         "providers": {
             "dummy": {"provider": "dummy_provider", "model": "test-model"}
@@ -29,84 +34,63 @@ def _make_tool_config(tmp_path: Path) -> Path:
     return path
 
 
-def test_execute_tool_calls_non_streaming(tmp_path):
+def test_execute_tool_calls_non_streaming(tmp_path: Path) -> None:
     config_path = _make_tool_config(tmp_path)
     session_root = tmp_path / "sessions"
 
     app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
 
-    created = app.create_session({"agent_id": "default"})
-    session_id = created["session"]["session_id"]
+    core, base_config, session = app.create_agent_session("default")
 
-    # Simulate a tool call by adding an assistant message with tool_calls metadata
-    tool_call = {
+    # Simulate a tool call by adding an assistant message with tool_calls metadata.
+    tool_call: Dict[str, object] = {
         "id": "call_1",
         "type": "function",
         "function": {"name": "add", "arguments": json.dumps({"a": 2, "b": 3})},
     }
-    app.add_message(
-        {
-            "session_id": session_id,
-            "message": {
-                "role": "assistant",
-                "content": "",
-                "metadata": {"tool_calls": [tool_call]},
-            },
-        }
+    session = core.add_message(
+        session,
+        "assistant",
+        "",
+        {"tool_calls": [tool_call]},
     )
 
-    result = app.send_request({"session_id": session_id, "stream": False})
+    events = list(app.send_request_v2(core, session, base_config, overrides=None, stream=False))
 
-    # Tool result should have been appended as a tool message in the session
-    new_session = result["session"]
-    tool_messages = [m for m in new_session["messages"] if m["role"] == "tool"]
+    # Find the latest session snapshot from events.
+    final_session_dict: Dict[str, object] | None = None
+    for ev in events:
+        sess = ev.get("session")  # type: ignore[assignment]
+        if isinstance(sess, dict):
+            final_session_dict = sess  # type: ignore[assignment]
+
+    assert final_session_dict is not None
+    messages: List[Dict[str, object]] = list(final_session_dict["messages"])  # type: ignore[index]
+    tool_messages = [m for m in messages if m.get("role") == "tool"]
     assert tool_messages
-    assert "Result:" in tool_messages[-1]["content"]
+    assert "Result:" in str(tool_messages[-1].get("content", ""))
 
 
-def test_execute_tool_calls_streaming(tmp_path):
+def test_execute_tool_calls_streaming(tmp_path: Path) -> None:
     config_path = _make_tool_config(tmp_path)
     session_root = tmp_path / "sessions"
 
     app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
 
-    created = app.create_session({"agent_id": "default"})
-    session_id = created["session"]["session_id"]
+    core, base_config, session = app.create_agent_session("default")
 
-    tool_call = {
+    tool_call: Dict[str, object] = {
         "id": "call_1",
         "type": "function",
         "function": {"name": "add", "arguments": json.dumps({"a": 1, "b": 4})},
     }
-    app.add_message(
-        {
-            "session_id": session_id,
-            "message": {
-                "role": "assistant",
-                "content": "",
-                "metadata": {"tool_calls": [tool_call]},
-            },
-        }
+    session = core.add_message(
+        session,
+        "assistant",
+        "",
+        {"tool_calls": [tool_call]},
     )
 
-    started = app.send_request({"session_id": session_id, "stream": True})
-    request_id = started["request_id"]
+    events = list(app.send_request_v2(core, session, base_config, overrides=None, stream=True))
 
-    # Poll events until request_completed
-    since_id = None
-    import time
-
-    tool_results_seen = False
-    start = time.time()
-    while time.time() - start < 5.0:
-        batch = app.get_events({"since_id": since_id, "request_id": request_id})["events"]
-        if batch:
-            since_id = batch[-1]["event_id"]
-        for ev in batch:
-            if ev["type"] == "tool_results":
-                tool_results_seen = True
-        if any(ev["type"] == "request_completed" for ev in batch):
-            break
-        time.sleep(0.01)
-
-    assert tool_results_seen
+    assert any(ev["type"] == "tool_results" for ev in events)
