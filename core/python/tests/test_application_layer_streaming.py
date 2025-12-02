@@ -1,11 +1,16 @@
-"""Streaming tests for the application layer wrapper."""
+"""Streaming tests for the future application layer wrapper.
+
+These tests exercise :mod:`agent_app.application_future` using the
+``send_request_v2`` streaming event iterator instead of the original
+background-thread + event-store architecture.
+"""
 
 from __future__ import annotations
 
 import time
 from pathlib import Path
 
-from agent_app import AgentApplication
+from agent_app.application_future import AgentApplication
 from agent_core import AgentCore
 
 
@@ -26,45 +31,16 @@ def _make_config(tmp_path: Path) -> Path:
     return path
 
 
-def _poll_events(app: AgentApplication, request_id: str, timeout: float = 5.0):
-    """Poll events until request_completed or timeout."""
-
-    since_id = None
-    start = time.time()
-    final_events = []
-    while time.time() - start < timeout:
-        batch = app.get_events(
-            {
-                "since_id": since_id,
-                "request_id": request_id,
-            }
-        )["events"]
-        if not batch:
-            time.sleep(0.01)
-            continue
-        since_id = batch[-1]["event_id"]
-        final_events.extend(batch)
-        if any(ev["type"] == "request_completed" for ev in batch):
-            break
-    return final_events
-
-
-def test_send_request_streaming_emits_events(tmp_path):
+def test_send_request_streaming_emits_events(tmp_path: Path) -> None:
     config_path = _make_config(tmp_path)
     session_root = tmp_path / "sessions"
 
     app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
 
-    created = app.create_session({"agent_id": "default"})
-    session_id = created["session"]["session_id"]
-    app.add_message(
-        {"session_id": session_id, "message": {"role": "user", "content": "Hello"}}
-    )
+    core, base_config, session = app.create_agent_session("default")
+    session = core.add_message(session, "user", "Hello")
 
-    started = app.send_request({"session_id": session_id, "stream": True})
-    request_id = started["request_id"]
-
-    events = _poll_events(app, request_id)
+    events = list(app.send_request_v2(core, session, base_config, overrides=None, stream=True))
 
     assert any(ev["type"] == "partial" for ev in events)
     assert any(ev["type"] == "final" for ev in events)
