@@ -71,7 +71,6 @@ except Exception:  # pragma: no cover - optional dependency
 from fastapi import FastAPI, HTTPException  # type: ignore[reportMissingImports]
 
 from agent_app import AgentApplication
-from agent_app.application import _ToolLoopConfig
 
 
 # ---------------------------------------------------------------------------
@@ -109,27 +108,18 @@ def create_session(payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     agent_id = data.get("agent_id") or "default"
 
     try:
-        created = _app.create_session({"agent_id": agent_id})
+        core, base_config, session = _app.create_agent_session(agent_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    session = created.get("session") or {}
-    session_id = session.get("session_id")
-
     system_message = data.get("system_message")
-    if isinstance(system_message, str) and system_message and isinstance(session_id, str):
-        # Append system message via application layer
-        added = _app.add_message(
-            {
-                "session_id": session_id,
-                "message": {"role": "system", "content": system_message},
-            }
-        )
-        session = added.get("session") or session
+    if isinstance(system_message, str) and system_message:
+        session = core.add_message(session, "system", system_message)
+        _app.save_session(session)
 
-    return {"session": session, "errors": created.get("errors") or []}
+    return {"session": session.to_dict(), "errors": _app.get_config_errors()}
 
 
 @app.post("/sessions/{session_id}/messages")
@@ -145,23 +135,34 @@ def add_message(session_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         {"session": Session-as-dict}
     """
 
-    message = {
-        "role": payload.get("role"),
-        "content": payload.get("content"),
-        "metadata": payload.get("metadata"),
-    }
+    role = payload.get("role")
+    content = payload.get("content")
+    metadata = payload.get("metadata")
+
+    if not isinstance(role, str) or not isinstance(content, str):
+        raise HTTPException(status_code=400, detail="role and content must be strings")
+
+    if role not in ("system", "user", "assistant", "tool"):
+        role = "user"
+
+    ctx = _app.load_session(session_id)
+    if ctx is None:
+        raise HTTPException(status_code=404, detail="session not found")
+
+    core, base_config, session = ctx
 
     try:
-        result = _app.add_message({"session_id": session_id, "message": message})
-    except ValueError as exc:
+        new_session = core.add_message(session, role, content, metadata)
+        _app.save_session(new_session)
+    except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return {"session": result.get("session")}
+    return {"session": new_session.to_dict()}
 
 
 @app.post("/sessions/{session_id}/send")
 def send_request(session_id: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """Run the model for the current session using application-layer tool loop.
+    """Run the model for the current session using a non-streaming tool loop.
 
     Request JSON body (all fields optional):
 
@@ -207,42 +208,61 @@ def send_request(session_id: str, payload: Optional[Dict[str, Any]] = None) -> D
 
     stream = bool(data.get("stream"))
 
-    # Temporarily override tool loop config for this request when max_loops is
-    # provided. Note: this is not thread-safe across concurrent requests with
-    # different max_loops values, but is sufficient for example usage.
-    original_cfg = _app._tool_loop_cfg  # type: ignore[attr-defined]
-    if max_loops is not None:
-        _app._tool_loop_cfg = _ToolLoopConfig(max_loops=max_loops)  # type: ignore[attr-defined]
+    if stream:
+        raise HTTPException(status_code=400, detail="streaming is not implemented in this example")
+
+    ctx = _app.load_session(session_id)
+    if ctx is None:
+        raise HTTPException(status_code=404, detail="session not found")
+
+    core, base_config, session = ctx
 
     try:
-        result = _app.send_request(
-            {
-                "session_id": session_id,
-                "config_overrides": overrides,
-                "stream": stream,
-            }
-        )
-    except ValueError as exc:
+        config = {**base_config, **(overrides or {})}
+    except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    finally:
-        _app._tool_loop_cfg = original_cfg  # type: ignore[attr-defined]
 
-    if stream:
-        # For streaming requests we return the application-layer envelope as-is.
-        return result
-
-    # For non-streaming, we mirror Example 12 by adding a simple "loops" count
-    # based on how many tool_results events were emitted for this request.
-    request_id = result.get("request_id")
     loops = 0
-    if isinstance(request_id, str):
-        events = _app.get_events({"request_id": request_id}).get("events", [])
-        loops = sum(1 for ev in events if ev.get("type") == "tool_results")
+    final_messages: list[Dict[str, Any]] = []
+
+    while True:
+        session, responses = core.send_request(session, config)
+        _app.save_session(session)
+        final_messages = list(responses)
+
+        if not responses:
+            break
+
+        last = responses[-1]
+        if last.get("role") != "assistant":
+            break
+
+        metadata = last.get("metadata") or {}
+        tool_calls = metadata.get("tool_calls") or []
+        if not tool_calls:
+            break
+
+        loops += 1
+        if max_loops is not None and loops > max_loops:
+            break
+
+        tool_messages = core.execute_tool_calls(tool_calls, config)
+        if not tool_messages:
+            break
+
+        for tm in tool_messages:
+            session = core.add_message(
+                session,
+                role=tm.get("role", "tool"),
+                content=tm.get("content", ""),
+                metadata=tm.get("metadata"),
+            )
+        _app.save_session(session)
 
     return {
-        "session": result.get("session"),
-        "messages": result.get("messages"),
-        "request_id": request_id,
+        "session": session.to_dict(),
+        "messages": final_messages,
+        "request_id": None,
         "loops": loops,
     }
 

@@ -43,6 +43,7 @@ class AgentApplication:
         *,
         event_store: Optional[EventStore] = None,
     ) -> None:
+        self._core_factory = core_factory
         self._core = core_factory()
 
         raw_config = load_raw_config(config_path)
@@ -52,6 +53,7 @@ class AgentApplication:
 
         plugins_cfg = resolved_config.get("plugins") or {}
         plugin_classes, plugin_errors = load_plugins(plugins_cfg)
+        self._plugin_classes: Dict[str, List[type[Any]]] = plugin_classes
         self._config_errors.extend(plugin_errors)
 
         # Manual registration from config: providers with shared extensions,
@@ -90,6 +92,23 @@ class AgentApplication:
             cfg = build_agent_config(self._config, agent_id)
             self._agent_base_configs[agent_id] = cfg
         return cfg
+
+    def _new_core(self) -> AgentCore:
+        """Construct a fresh AgentCore instance with all configured plugins.
+
+        This is used by typed helpers so that consumers can obtain a
+        session-specific core without sharing state across sessions.
+        """
+
+        core = self._core_factory()
+        provider_exts = self._plugin_classes.get("extensions") or []
+        for provider_cls in self._plugin_classes.get("providers") or []:
+            core.register_provider(provider_cls, extensions=provider_exts)
+        for feature_cls in self._plugin_classes.get("features") or []:
+            core.register_feature(feature_cls)
+        for tool_cls in self._plugin_classes.get("tools") or []:
+            core.register_tool(tool_cls)
+        return core
 
     def _load_session_required(self, session_id: str) -> Session:
         session = self._session_store.load(session_id)
@@ -165,6 +184,73 @@ class AgentApplication:
 
     def register_tool(self, plugin_class: type) -> None:
         self._core.register_tool(plugin_class)
+
+    # ------------------------------------------------------------------
+    # Typed helpers for applications (core-first API)
+    # ------------------------------------------------------------------
+
+    def get_config_errors(self) -> List[Dict[str, Any]]:
+        """Return a copy of configuration and plugin loading errors."""
+
+        return list(self._config_errors)
+
+    def load_session(
+        self, session_id: str
+    ) -> Optional[Tuple[AgentCore, Dict[str, Any], Session]]:
+        """Load a session and return (core, base_config, session) or None.
+
+        A fresh :class:`AgentCore` instance is constructed for each call so
+        that future per-agent plugin configuration can be applied cleanly.
+        """
+
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("session_id must be a non-empty string")
+
+        session = self._session_store.load(session_id)
+        if session is None:
+            return None
+
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        agent_id = metadata.get("agent_id")
+        if not isinstance(agent_id, str) or not agent_id:
+            raise RuntimeError("session.metadata must contain non-empty 'agent_id'")
+
+        base_cfg = self._get_agent_base_config(agent_id)
+        core = self._new_core()
+        return core, base_cfg, session
+
+    def save_session(self, session: Session) -> None:
+        """Persist a session using the configured session store."""
+
+        self._session_store.save(session)
+
+    def delete_session(self, session_id: str) -> None:
+        """Delete a session from the store (no-op if missing)."""
+
+        self._session_store.delete(session_id)
+
+    def create_agent_session(self, agent_id: str) -> Tuple[AgentCore, Dict[str, Any], Session]:
+        """Create and persist a new empty session for the given agent.
+
+        Returns a tuple of ``(core, base_config, session)`` where ``core`` is a
+        freshly configured :class:`AgentCore` instance and ``base_config`` is
+        the provider configuration for the agent before per-request overrides.
+        """
+
+        if not isinstance(agent_id, str) or not agent_id:
+            raise ValueError("agent_id must be a non-empty string")
+
+        base_cfg = self._get_agent_base_config(agent_id)
+        core = self._new_core()
+
+        base = core.create_session()
+        session = Session(
+            session_id=base.session_id,
+            messages=list(base.messages),
+            metadata={"agent_id": agent_id},
+        )
+        self._session_store.save(session)
+        return core, base_cfg, session
 
     # ------------------------------------------------------------------
     # Public API
