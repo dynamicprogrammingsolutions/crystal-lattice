@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
 from prompt_toolkit import PromptSession
+from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.patch_stdout import patch_stdout
 
@@ -288,8 +289,38 @@ def iter_shortcuts() -> List[Shortcut]:
     return sorted(_SHORTCUTS.values(), key=lambda s: s.keys)
 
 
+class SlashCommandCompleter(Completer):
+    """Autocomplete for registered slash commands.
+
+    This completer activates when the input starts with ``/`` and the
+    cursor is still within the command name (before any space). It
+    suggests the registered slash commands by name.
+    """
+
+    def get_completions(self, document, complete_event):  # type: ignore[override]
+        text = document.text_before_cursor
+        if not isinstance(text, str) or not text.startswith("/"):
+            return
+
+        # Only complete the command name (before the first space).
+        name_part = text[1:]
+        if " " in name_part:
+            return
+
+        prefix = name_part
+        for cmd in iter_slash_commands():
+            if not prefix or cmd.name.startswith(prefix):
+                yield Completion(
+                    cmd.name,
+                    start_position=-len(prefix),
+                    display=f"/{cmd.name}",
+                    display_meta=cmd.description,
+                )
+
+
 @slash_command("help", "Show commands and shortcuts")
 async def _cmd_help(ctx: TerminalContext, arg: str) -> None:
+
     ctx.write("\nCommands:")
     for cmd in iter_slash_commands():
         ctx.write(f"  /{cmd.name:10s} - {cmd.description}")
@@ -364,6 +395,11 @@ async def _handle_user_message(ctx: TerminalContext, text: str) -> None:
 def _build_key_bindings(ctx: TerminalContext) -> KeyBindings:
     kb = KeyBindings()
 
+    # Ctrl-J inserts a newline without submitting the buffer.
+    @kb.add("c-j")
+    def _insert_newline(event: Any) -> None:  # type: ignore[no-redef]
+        event.current_buffer.insert_text("\n")
+
     for sc in iter_shortcuts():
 
         @kb.add(sc.keys)
@@ -388,10 +424,16 @@ async def _run_terminal(
     )
     ctx = TerminalContext(app=app, session_id=session.session_id, logger=logger)
 
-    prompt_session = PromptSession(multiline=True)
+    completer = SlashCommandCompleter()
+    prompt_session = PromptSession(
+        multiline=False,
+        completer=completer,
+        complete_while_typing=True,
+    )
     key_bindings = _build_key_bindings(ctx)
 
     event_task = asyncio.create_task(_poll_events(ctx))
+
 
     ctx.write("Session started. Type /help for commands. Press Ctrl-Q to exit.")
 
