@@ -5,8 +5,10 @@ import logging
 import threading
 from typing import Optional
 
-from .server import run_api
-from .terminal import run_terminal
+from agent_app.events import InMemoryEventStore
+
+from .server import ServerApplication, run_api, _DEFAULT_CONFIG_PATH as SERVER_CONFIG, _DEFAULT_SESSION_ROOT as SERVER_SESSIONS
+from .terminal import TerminalApplication, run_terminal, _DEFAULT_CONFIG_PATH as TERM_CONFIG, _DEFAULT_SESSION_ROOT as TERM_SESSIONS
 
 
 def _configure_logging(log_file: Optional[str]) -> None:
@@ -68,10 +70,27 @@ def main() -> None:  # pragma: no cover - manual execution only
     # - --console: console only
     # - --console --server: server in background + console in foreground
     if run_console and run_server:
-        thread = threading.Thread(target=run_api, kwargs={"host": args.host, "port": args.port})
+        shared_events = InMemoryEventStore()
+
+        server_app = ServerApplication(
+            config_path=SERVER_CONFIG,
+            session_root=SERVER_SESSIONS,
+            event_store=shared_events,
+        )
+        terminal_app = TerminalApplication(
+            config_path=TERM_CONFIG,
+            session_root=TERM_SESSIONS,
+            event_store=shared_events,
+        )
+
+        thread = threading.Thread(
+            target=run_api,
+            kwargs={"host": args.host, "port": args.port, "app_instance": server_app},
+        )
         thread.daemon = True
         thread.start()
-        run_terminal(logger=console_logger)
+
+        run_terminal(logger=console_logger, app_instance=terminal_app)
     elif run_console:
         run_terminal(logger=console_logger)
     else:

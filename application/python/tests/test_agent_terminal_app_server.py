@@ -1,13 +1,8 @@
-"""Tests for the agent_terminal_app FastAPI/JSON application.
+"""Tests for the agent_terminal_app server application.
 
 These tests mirror the style of the example application tests under
-``core/python/examples/tests``. They import the route handler functions
-from :mod:`agent_terminal_app.server` directly and call them as regular
-Python functions instead of going through an HTTP client.
-
-The application is configured to use the in-process
-``EchoOpenAILikeProvider`` by default via ``config_echo_app.json`` so no
-network access is required.
+``core/python/examples/tests`` but exercise the ServerApplication class
+instead of the FastAPI routes.
 """
 
 from __future__ import annotations
@@ -17,8 +12,6 @@ import sys
 from pathlib import Path
 
 
-# Make the application and core packages importable when running tests
-# from the repository root.
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
@@ -30,45 +23,31 @@ if CORE_PY not in sys.path:
     sys.path.insert(0, CORE_PY)
 
 
-def _import_server_module():
-    """Import the agent_terminal_app server module."""
+def test_server_application_flow_with_echo_provider(tmp_path: Path) -> None:
+    from agent_terminal_app import server as server_mod
+    from agent_terminal_app.server import ServerApplication
 
-    return __import__("agent_terminal_app.server", fromlist=["app"])
-
-
-def test_agent_terminal_app_flow_with_echo_provider(tmp_path: Path) -> None:
-    """End-to-end flow through agent_terminal_app using the echo provider."""
-
-    mod = _import_server_module()
-
-    from agent_terminal_app.app_core import init_shared_app, get_shared_event_store
-
-    create_session = getattr(mod, "create_session")
-    add_message = getattr(mod, "add_message")
-    send_request = getattr(mod, "send_request")
-
-    # Reconfigure the shared application to use a temporary session root.
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
     session_root = tmp_path / "sessions"
-    config_path = Path(mod.__file__).resolve().parent / "config_echo_app.json"
-    init_shared_app(config_path=config_path, session_root=session_root, reset=True)
+
+    app = ServerApplication(config_path=config_path, session_root=session_root)
 
     system_message = "You are a helpful echo assistant."
     user_message = "hello from the agent_terminal_app test"
 
     # 1) Create a new session with a system message.
-    created = create_session({"agent_id": "default", "system_message": system_message})
-    session = created["session"]
-    session_id = session["session_id"]
+    session = app.create_session(agent_id="default", system_message=system_message)
+    session_id = session.session_id
     assert isinstance(session_id, str) and session_id
 
     # 2) Add a user message.
-    updated = add_message(session_id, {"role": "user", "content": user_message})
-    assert updated["session"]["session_id"] == session_id
+    updated = app.add_message(session_id, role="user", content=user_message, metadata=None)
+    assert updated.session_id == session_id
 
     # 3) Send a request and verify the echo provider behaviour.
-    result = send_request(session_id, {})
+    final_session_dict, messages, request_id = app.send_request(session_id, overrides={}, stream=True)
 
-    messages = result.get("messages") or []
     assert messages, "expected at least one final message"
     last = messages[-1]
     content = last.get("content", "")
@@ -80,8 +59,7 @@ def test_agent_terminal_app_flow_with_echo_provider(tmp_path: Path) -> None:
     assert user_message in content
 
     # 4) Basic check that events were recorded for this session.
-    events_store = get_shared_event_store()
-    events = events_store.list(session_id=session_id, limit=100)
+    events = app.list_events(session_id=session_id, limit=100)
     kinds = {ev.get("type") for ev in events}
     assert "session_created" in kinds
     assert "message_appended" in kinds
