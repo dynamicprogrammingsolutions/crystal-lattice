@@ -13,8 +13,8 @@ from .extension import ExtensionWrapper
 from ..types import ProviderPlugin
 from ..utils import pipeline, get_logger
 
-logger = get_logger("provider")
-log_chunk_processing = get_logger("chunk_processing")
+logger = None
+log_chunk_processing = None
 
 class ProviderWrapper(ProviderPlugin):
     """Wrapper for provider plugin managing state during streaming.
@@ -22,13 +22,21 @@ class ProviderWrapper(ProviderPlugin):
     Holds provider state and manages provider extensions in the same language (hot path).
     """
 
-    def __init__(self, plugin_class: type, extension_classes: Optional[List[type]] = None) -> None:
+    def __init__(
+        self,
+        plugin_class: type,
+        extension_classes: Optional[List[type]] = None,
+    ) -> None:
         """Initialize wrapper with provider plugin class and optional extensions.
 
         Args:
             plugin_class: Provider plugin class (instance methods; stateless behavior)
             extension_classes: Optional list of provider extension classes
         """
+        global logger, log_chunk_processing
+        logger = get_logger("provider")
+        log_chunk_processing = get_logger("chunk_processing")
+
         self.plugin_class = plugin_class
         self.plugin = ProviderDefaultsAdapter(plugin_class())
         self.state: Optional[Dict[str, Any]] = None
@@ -452,13 +460,12 @@ class ProviderWrapper(ProviderPlugin):
         self._last_native_messages = []
         self._active_extensions = None
 
-
     # Optimized streaming helpers for provider wrappers.
 
     _last_native_messages: List[Dict[str, Any]]
 
     def stream_messages(
-            self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Iterator[Dict[str, Any]]:
         """Stream provider results while processing chunks internally.
 
@@ -481,7 +488,7 @@ class ProviderWrapper(ProviderPlugin):
             working_state = state or self._get_state()  # type: ignore[attr-defined]
         except Exception:
             raise RuntimeError(f"Provider {self.name} not initialized")  # type: ignore[attr-defined]
-        
+
         # Initialize full native history for this turn
         self._last_native_messages = list(native_messages)  # type: ignore[attr-defined]
         current_native = self._last_native_messages
@@ -498,11 +505,11 @@ class ProviderWrapper(ProviderPlugin):
                 yield {"type": "partial", "message": p}
             if finals:
                 yield {"type": "final_messages", "messages": finals}
-        
+
         logger.debug("stream_messages complete")
 
     async def stream_messages_async(
-            self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> AsyncIterator[Dict[str, Any]]:
         """Async variant of stream_messages.
 
@@ -528,7 +535,7 @@ class ProviderWrapper(ProviderPlugin):
 
         if hasattr(self.plugin, "stream_api_async"):  # type: ignore[attr-defined]
             async for native_chunk in self.plugin.stream_api_async(  # type: ignore[attr-defined]
-                    current_native, working_state
+                current_native, working_state
             ):
                 partials, finals, current_native, working_state = self.process_chunk(  # type: ignore[misc]
                     native_chunk, current_native, working_state

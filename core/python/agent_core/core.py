@@ -61,8 +61,8 @@ from .utils import pipeline, get_logger
 import uuid
 import json
 
-logger = get_logger("core")
-log_chunk_processing = get_logger("chunk_processing")
+logger = None
+log_chunk_processing = None
 
 class AgentCore:
     """Stateless processing pipeline for AI Agent Platform.
@@ -128,7 +128,15 @@ class AgentCore:
             )
 
     def __init__(self):
-        """Initialize core with empty plugin pipeline."""
+        """Initialize core with empty plugin pipeline.
+
+        Loggers are initialized lazily so that structlog configuration can
+        be customized by applications before any loggers are created.
+        """
+        global logger, log_chunk_processing
+        logger = get_logger("core")
+        log_chunk_processing = get_logger("chunk_processing")
+
         self._providers: List[ProviderWrapper] = []
         self._features: List[FeatureWrapper] = []
         self._tools: List[ToolWrapper] = []

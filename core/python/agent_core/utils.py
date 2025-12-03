@@ -3,7 +3,7 @@
 import os
 import sys
 import logging
-from typing import Any, Callable, List, Tuple, Dict
+from typing import Any, Callable, List, Tuple, Dict, Optional
 from functools import reduce
 import structlog
 from structlog.types import EventDict, WrappedLogger
@@ -268,14 +268,18 @@ def make_position_processor() -> Callable:
     return add_position
 
 
-def configure_logging() -> None:
-    """Configure logging based on environment variables.
+def configure_logging(
+    *,
+    colors: Optional[bool] = None,
+    log_file_path: Optional[str] = None,
+) -> None:
+    """Configure logging based on environment variables and optional overrides.
     
     Environment variables:
         LOG_LEVEL: Set log level (DEBUG, INFO, WARNING, ERROR). Default: INFO
         LOG_SCOPE: Filter logs by logger name (e.g., "core", "provider"). Default: all
         LOG_DATA: Comma-separated list of data fields to show. Default: show all
-            - Not set: Show all data fields
+            - Not set: Show all data fields (no filtering)
             - "": Drop all extra fields (only show standard fields)
             - "chunk,partials": Only show chunk and partials fields
         LOG_FILTER: Custom filter expressions (comma-separated). Examples:
@@ -283,6 +287,17 @@ def configure_logging() -> None:
             - "chunk:exists,message:contains:processing" - Multiple filters (AND logic)
         LOG_POS: When set to a truthy value, include source position as
             "file:line" in the "pos" field (e.g., "provider.py:354").
+        LOG_COLORS: When set, enable or disable ANSI colors in the
+            console renderer. Truthy values: 1,true,yes,y,on. Falsy
+            values: 0,false,no,n,off.
+        LOG_FILE: When set, path to a log file where structlog output is
+            written instead of stdout (overridden by ``log_file_path``).
+    
+    Keyword arguments allow applications to override defaults:
+        colors: When True/False, force enabling or disabling ANSI colors in
+            the ConsoleRenderer. When None (default), colors are enabled.
+        log_file_path: Optional path to a log file. When provided, takes
+            precedence over the LOG_FILE environment variable.
     
     Examples:
         LOG_LEVEL=DEBUG python script.py
@@ -297,7 +312,13 @@ def configure_logging() -> None:
     log_data_env = os.getenv("LOG_DATA")
     log_filter = os.getenv("LOG_FILTER", "")
     log_pos_env = os.getenv("LOG_POS", "")
-    log_file_path = os.getenv("LOG_FILE")
+    log_colors_env = os.getenv("LOG_COLORS")
+    env_log_file = os.getenv("LOG_FILE")
+
+
+    # CLI or application-provided path takes precedence over environment.
+    if log_file_path is None:
+        log_file_path = env_log_file
     
     # Parse LOG_DATA
     # - None (not set): Show all fields (no filtering)
@@ -339,10 +360,23 @@ def configure_logging() -> None:
     if log_pos_env.lower() in ("1", "true", "yes", "y", "on"):
         processors.append(make_position_processor())
     
-    # Use structlog's built-in ConsoleRenderer for colored output
+    # Decide whether to use ANSI colors in the ConsoleRenderer.
+    # Precedence: explicit ``colors`` arg > LOG_COLORS > default True.
+    if colors is not None:
+        use_colors = bool(colors)
+    else:
+        env_val = (log_colors_env or "").strip().lower()
+        if env_val in ("1", "true", "yes", "y", "on"):
+            use_colors = True
+        elif env_val in ("0", "false", "no", "n", "off"):
+            use_colors = False
+        else:
+            use_colors = True
+
+    # Use structlog's built-in ConsoleRenderer for (optionally colored) output
     processors.append(
         structlog.dev.ConsoleRenderer(
-            colors=True,
+            colors=use_colors,
             pad_event_to=30,
         )
     )
@@ -361,6 +395,8 @@ def configure_logging() -> None:
             # Fall back to stdout on any file error
             log_stream = sys.stdout
 
+    print("Configuring logging")
+
     # Configure structlog (preserving defaults where possible)
     structlog.configure(
         processors=processors,
@@ -369,6 +405,10 @@ def configure_logging() -> None:
         logger_factory=structlog.PrintLoggerFactory(file=log_stream),
         cache_logger_on_first_use=False,
     )
+
+    # Mark logging as configured so get_logger() does not reconfigure.
+    global _logging_configured
+    _logging_configured = True
 
 
 _logging_configured = False
