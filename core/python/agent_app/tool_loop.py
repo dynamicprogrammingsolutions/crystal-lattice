@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, Iterator, List, Tuple
 
 from agent_core import AgentCore, MessageRole, Session
 
@@ -26,6 +26,10 @@ class ToolLoopRunner:
         self._config = config
         self._request_id = request_id
         self._tool_loop_cfg = tool_loop_cfg
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
 
     def _extract_tool_calls(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         tool_calls: List[Dict[str, Any]] = []
@@ -68,250 +72,180 @@ class ToolLoopRunner:
 
         return last_tc_calls
 
+    def _run_llm_phase(
+        self,
+        session: Session,
+        *,
+        stream: bool,
+    ) -> Tuple[Session, List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """Run a single LLM phase and return (session, messages, events).
 
-    def run(self, session: Session, *, stream: bool) -> Iterator[Dict[str, Any]]:
-        """Execute the full tool loop, yielding application-layer events.
-
-        The logic here is a direct extraction of the previous
-        :meth:`AgentApplication.send_request` implementation so that the
-        behaviour remains unchanged while being factored into a dedicated
-        helper class.
+        The outer tool loop is shared for streaming and non-streaming; this
+        helper handles the per-phase differences in how events are produced.
         """
 
         core = self._core
         config = self._config
         rid = self._request_id
 
-        if stream:
-            # Streaming tool loop using core.send_request_stream
-            current_session = session
-            loops = 0
+        if not stream:
+            next_session, final_messages = core.send_request(session, config)
+            events = [
+                {
+                    "type": "final",
+                    "session_id": next_session.session_id,
+                    "request_id": rid,
+                    "messages": list(final_messages),
+                    "session": next_session.to_dict(),
+                }
+            ]
+            return next_session, list(final_messages), events
 
-            # Handle any pending tool_calls already in the session before
-            # initiating streaming.
-            pending = self._extract_pending_tool_calls_from_session(current_session)
-            if pending:
-                loops += 1
-                if loops > self._tool_loop_cfg.max_loops:
-                    yield {
-                        "type": "error",
+        # Streaming: accumulate partial and final events from send_request_stream
+        current_session = session
+        final_session = session
+        final_messages: List[Dict[str, Any]] = []
+        events: List[Dict[str, Any]] = []
+
+        for chunk in core.send_request_stream(session, config):
+            if chunk.get("type") == "partial":
+                events.append(
+                    {
+                        "type": "partial",
                         "session_id": current_session.session_id,
                         "request_id": rid,
-                        "detail": "Max tool loop depth exceeded",
+                        "message": chunk["message"],
                     }
-                    yield {
-                        "type": "request_completed",
-                        "session_id": current_session.session_id,
+                )
+            elif chunk.get("type") == "final":
+                final_session = chunk["session"]
+                final_messages = list(chunk.get("messages") or [])
+                events.append(
+                    {
+                        "type": "final",
+                        "session_id": final_session.session_id,
                         "request_id": rid,
+                        "messages": list(final_messages),
+                        "session": final_session.to_dict(),
                     }
-                    return
+                )
 
-                yield {
-                    "type": "tool_calls",
-                    "session_id": current_session.session_id,
-                    "request_id": rid,
-                    "tool_calls": list(pending),
-                }
-                tool_messages = core.execute_tool_calls(pending, config)
-                # Append tool messages to the session and emit tool_results with
-                # the updated session snapshot.
-                for msg in tool_messages:
-                    raw_role = msg.get("role", "tool")
-                    role: MessageRole
-                    if raw_role in ("system", "user", "assistant", "tool"):
-                        role = raw_role  # type: ignore[assignment]
-                    else:
-                        role = "tool"  # type: ignore[assignment]
-                    content = msg.get("content", "")
-                    metadata = msg.get("metadata")
-                    current_session = core.add_message(current_session, role, content, metadata)
+        return final_session, final_messages, events
 
-                yield {
-                    "type": "tool_results",
-                    "session_id": current_session.session_id,
-                    "request_id": rid,
-                    "messages": list(tool_messages),
-                    "session": current_session.to_dict(),
-                }
+    def _apply_tool_calls(
+        self,
+        session: Session,
+        tool_calls: List[Dict[str, Any]],
+    ) -> Tuple[Session, List[Dict[str, Any]]]:
+        """Execute tool calls and return (new_session, events)."""
 
-            while True:
-                # One streaming LLM phase
-                final_session = current_session
-                final_messages: List[Dict[str, Any]] = []
+        core = self._core
+        config = self._config
+        rid = self._request_id
 
-                for chunk in core.send_request_stream(current_session, config):
-                    if chunk.get("type") == "partial":
-                        yield {
-                            "type": "partial",
-                            "session_id": current_session.session_id,
-                            "request_id": rid,
-                            "message": chunk["message"],
-                        }
-                    elif chunk.get("type") == "final":
-                        final_session = chunk["session"]
-                        final_messages = list(chunk.get("messages") or [])
-                        yield {
-                            "type": "final",
-                            "session_id": final_session.session_id,
-                            "request_id": rid,
-                            "messages": list(final_messages),
-                            "session": final_session.to_dict(),
-                        }
+        # Record the tool_calls event first
+        events: List[Dict[str, Any]] = [
+            {
+                "type": "tool_calls",
+                "session_id": session.session_id,
+                "request_id": rid,
+                "tool_calls": list(tool_calls),
+            }
+        ]
 
-                current_session = final_session
+        tool_messages = core.execute_tool_calls(tool_calls, config)
+        current_session = session
+        for msg in tool_messages:
+            raw_role = msg.get("role", "tool")
+            role: MessageRole
+            if raw_role in ("system", "user", "assistant", "tool"):
+                role = raw_role  # type: ignore[assignment]
+            else:
+                role = "tool"  # type: ignore[assignment]
+            content = msg.get("content", "")
+            metadata = msg.get("metadata")
+            current_session = core.add_message(current_session, role, content, metadata)
 
-                tool_calls = self._extract_tool_calls(final_messages)
-                if not tool_calls:
-                    break
-
-                loops += 1
-                if loops > self._tool_loop_cfg.max_loops:
-                    yield {
-                        "type": "error",
-                        "session_id": current_session.session_id,
-                        "request_id": rid,
-                        "detail": "Max tool loop depth exceeded",
-                    }
-                    break
-
-                yield {
-                    "type": "tool_calls",
-                    "session_id": current_session.session_id,
-                    "request_id": rid,
-                    "tool_calls": list(tool_calls),
-                }
-
-                tool_messages = core.execute_tool_calls(tool_calls, config)
-                for msg in tool_messages:
-                    raw_role = msg.get("role", "tool")
-                    role: MessageRole
-                    if raw_role in ("system", "user", "assistant", "tool"):
-                        role = raw_role  # type: ignore[assignment]
-                    else:
-                        role = "tool"  # type: ignore[assignment]
-                    content = msg.get("content", "")
-                    metadata = msg.get("metadata")
-                    current_session = core.add_message(current_session, role, content, metadata)
-
-                yield {
-                    "type": "tool_results",
-                    "session_id": current_session.session_id,
-                    "request_id": rid,
-                    "messages": list(tool_messages),
-                    "session": current_session.to_dict(),
-                }
-
-            yield {
-                "type": "request_completed",
+        events.append(
+            {
+                "type": "tool_results",
                 "session_id": current_session.session_id,
                 "request_id": rid,
+                "messages": list(tool_messages),
+                "session": current_session.to_dict(),
             }
-            return
+        )
 
-        # Non-streaming tool loop
+        return current_session, events
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def run(self, session: Session, *, stream: bool) -> Iterator[Dict[str, Any]]:
+        """Execute the full tool loop, yielding application-layer events.
+
+        Streaming and non-streaming follow the same outer control flow; the
+        per-phase differences are handled by :meth:`_run_llm_phase`.
+        """
+
         current_session = session
-        final_messages: List[Dict[str, Any]] = []
         loops = 0
+        max_loops = int(getattr(self._tool_loop_cfg, "max_loops", 8))
 
         # Handle any pending tool_calls already present in the session history
         # before issuing the first LLM call.
         pending = self._extract_pending_tool_calls_from_session(current_session)
         if pending:
             loops += 1
-            if loops > self._tool_loop_cfg.max_loops:
+            if loops > max_loops:
                 yield {
                     "type": "error",
                     "session_id": current_session.session_id,
-                    "request_id": rid,
+                    "request_id": self._request_id,
                     "detail": "Max tool loop depth exceeded",
                 }
                 yield {
                     "type": "request_completed",
                     "session_id": current_session.session_id,
-                    "request_id": rid,
+                    "request_id": self._request_id,
                 }
                 return
 
-            yield {
-                "type": "tool_calls",
-                "session_id": current_session.session_id,
-                "request_id": rid,
-                "tool_calls": list(pending),
-            }
-            tool_messages = core.execute_tool_calls(pending, config)
-            for msg in tool_messages:
-                raw_role = msg.get("role", "tool")
-                role: MessageRole
-                if raw_role in ("system", "user", "assistant", "tool"):
-                    role = raw_role  # type: ignore[assignment]
-                else:
-                    role = "tool"  # type: ignore[assignment]
-                content = msg.get("content", "")
-                metadata = msg.get("metadata")
-                current_session = core.add_message(current_session, role, content, metadata)
+            current_session, events = self._apply_tool_calls(current_session, pending)
+            for ev in events:
+                yield ev
 
-            yield {
-                "type": "tool_results",
-                "session_id": current_session.session_id,
-                "request_id": rid,
-                "messages": list(tool_messages),
-                "session": current_session.to_dict(),
-            }
-
+        # Main LLM + tool loop
         while True:
-            current_session, final_messages = core.send_request(current_session, config)
+            final_session, final_messages, phase_events = self._run_llm_phase(
+                current_session, stream=stream
+            )
+            for ev in phase_events:
+                yield ev
 
-            yield {
-                "type": "final",
-                "session_id": current_session.session_id,
-                "request_id": rid,
-                "messages": list(final_messages),
-                "session": current_session.to_dict(),
-            }
+            current_session = final_session
 
             tool_calls = self._extract_tool_calls(final_messages)
             if not tool_calls:
                 break
 
             loops += 1
-            if loops > self._tool_loop_cfg.max_loops:
+            if loops > max_loops:
                 yield {
                     "type": "error",
                     "session_id": current_session.session_id,
-                    "request_id": rid,
+                    "request_id": self._request_id,
                     "detail": "Max tool loop depth exceeded",
                 }
                 break
 
-            yield {
-                "type": "tool_calls",
-                "session_id": current_session.session_id,
-                "request_id": rid,
-                "tool_calls": list(tool_calls),
-            }
-
-            tool_messages = core.execute_tool_calls(tool_calls, config)
-            for msg in tool_messages:
-                raw_role = msg.get("role", "tool")
-                role: MessageRole
-                if raw_role in ("system", "user", "assistant", "tool"):
-                    role = raw_role  # type: ignore[assignment]
-                else:
-                    role = "tool"  # type: ignore[assignment]
-                content = msg.get("content", "")
-                metadata = msg.get("metadata")
-                current_session = core.add_message(current_session, role, content, metadata)
-
-            yield {
-                "type": "tool_results",
-                "session_id": current_session.session_id,
-                "request_id": rid,
-                "messages": list(tool_messages),
-                "session": current_session.to_dict(),
-            }
+            current_session, events = self._apply_tool_calls(current_session, tool_calls)
+            for ev in events:
+                yield ev
 
         yield {
             "type": "request_completed",
             "session_id": current_session.session_id,
-            "request_id": rid,
+            "request_id": self._request_id,
         }
