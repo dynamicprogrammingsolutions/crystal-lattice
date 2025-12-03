@@ -1,0 +1,22 @@
+{
+  "providers": {
+    "echo_openai_like_default": {
+      "provider": "echo_openai_like",
+      "model": "echo-test-1",
+      "timeout": 60
+    }
+  },
+  "plugins": {
+    "providers": [
+      "plugins.echo_openai_like_provider.EchoOpenAILikeProvider"
+    ],
+    "extensions": [],
+    "features": [],
+    "tools": []
+  },
+  "agents": {
+    "default": {
+      "provider": "echo_openai_like_default"
+    }
+  }
+}
