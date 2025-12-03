@@ -11,6 +11,7 @@ import os
 import sys
 from pathlib import Path
 
+from prompt_toolkit.document import Document
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 if ROOT not in sys.path:
@@ -73,3 +74,24 @@ def test_terminal_flow_with_echo_provider(tmp_path: Path) -> None:
     assert "session_created" in kinds
     assert "message_appended" in kinds
     assert "request_started" in kinds or "final" in kinds
+
+
+def _collect_completion_texts(completer, text: str) -> set[str]:
+    doc = Document(text=text, cursor_position=len(text))
+    return {c.text for c in completer.get_completions(doc, None)}
+
+
+def test_slash_command_completer_basic() -> None:
+    from agent_terminal_app import terminal as term_mod
+
+    completer = term_mod.SlashCommandCompleter()
+
+    # Basic prefix completion.
+    texts = _collect_completion_texts(completer, "/he")
+    assert "help" in texts
+
+    # Non-slash input should not offer completions.
+    assert _collect_completion_texts(completer, "hello") == set()
+
+    # After a space (arguments), no completion is offered.
+    assert _collect_completion_texts(completer, "/help more") == set()
