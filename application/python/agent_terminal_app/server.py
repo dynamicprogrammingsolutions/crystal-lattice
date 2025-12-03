@@ -10,10 +10,9 @@ try:  # Optional convenience in local usage
 except Exception:  # pragma: no cover - optional dependency
     pass
 
-from fastapi import FastAPI, HTTPException  # type: ignore[reportMissingImports]
+from fastapi import Depends, FastAPI, HTTPException  # type: ignore[reportMissingImports]
 
 from agent_app.application_future import AgentApplication
-from agent_app.events import InMemoryEventStore
 from agent_core import Session
 
 
@@ -21,47 +20,65 @@ _DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "config_openrouter_app_
 _DEFAULT_SESSION_ROOT = Path(__file__).resolve().parent / "sessions"
 
 
-class ServerApplication:
-    """Server-side application wrapping AgentApplication and event store.
+# ---------------------------------------------------------------------------
+# FastAPI application and dependency wiring
+# ---------------------------------------------------------------------------
 
-    This class owns its own :class:`AgentApplication` instance and an
-    :class:`InMemoryEventStore`. FastAPI routes call methods on this
-    class instead of sharing helpers with the terminal application.
+
+app = FastAPI(title="Agent Terminal App - Echo provider (AgentApplication)")
+
+
+def _build_default_agent_app() -> AgentApplication:
+    cfg = _DEFAULT_CONFIG_PATH
+    root = _DEFAULT_SESSION_ROOT
+    root.mkdir(parents=True, exist_ok=True)
+    return AgentApplication(str(cfg), str(root))
+
+
+_agent_app: AgentApplication = _build_default_agent_app()
+
+
+def get_agent_app() -> AgentApplication:
+    """Return the process-wide AgentApplication instance.
+
+    FastAPI uses this via dependency injection; tests can call the
+    route functions directly and pass a custom ``AgentApplication``
+    instance for isolation.
     """
 
-    def __init__(
-        self,
-        *,
-        config_path: str | Path,
-        session_root: str | Path,
-        agent_app: Optional[AgentApplication] = None,
-        event_store: Optional[InMemoryEventStore] = None,
-    ) -> None:
-        cfg = Path(config_path)
-        root = Path(session_root)
-        root.mkdir(parents=True, exist_ok=True)
+    return _agent_app
 
-        self._agent_app = agent_app or AgentApplication(str(cfg), str(root))
-        self._events = event_store or InMemoryEventStore()
 
-    @property
-    def agent_app(self) -> AgentApplication:
-        return self._agent_app
+# ---------------------------------------------------------------------------
+# Route handlers (single implementation per operation)
+# ---------------------------------------------------------------------------
 
-    @property
-    def event_store(self) -> InMemoryEventStore:
-        return self._events
 
-    def create_session(self, agent_id: str, system_message: Optional[str]) -> Session:
-        """Create and persist a session, publishing ``session_created``."""
+@app.post("/sessions")
+def create_session(
+    payload: Optional[Dict[str, Any]] = None,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Create a session and publish a ``session_created`` event.
 
-        core, base_config, session = self._agent_app.create_session(agent_id)
+    The same function serves as both the FastAPI route handler and the
+    core implementation: when called directly in tests, a custom
+    ``AgentApplication`` can be injected via ``app_instance``.
+    """
+
+    data = payload or {}
+    agent_id = data.get("agent_id") or "default"
+    system_message = data.get("system_message")
+
+    try:
+        core, _base_config, session = app_instance.create_session(agent_id)
 
         if isinstance(system_message, str) and system_message:
             session = core.add_message(session, "system", system_message)
-            self._agent_app.save_session(session)
+            app_instance.save_session(session)
 
-        self._events.publish(
+        store = app_instance.get_event_store()
+        store.publish(
             {
                 "type": "session_created",
                 "session_id": session.session_id,
@@ -70,32 +87,45 @@ class ServerApplication:
             }
         )
 
-        return session
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    def add_message(
-        self,
-        session_id: str,
-        *,
-        role: str,
-        content: str,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Session:
-        """Append a message and publish ``message_appended``."""
+    return {"session": session.to_dict(), "errors": app_instance.get_config_errors()}
 
-        ctx = self._agent_app.load_session(session_id)
+
+@app.post("/sessions/{session_id}/messages")
+def add_message(
+    session_id: str,
+    payload: Dict[str, Any],
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Append a message and publish a ``message_appended`` event."""
+
+    role = payload.get("role")
+    content = payload.get("content")
+    metadata = payload.get("metadata")
+
+    if not isinstance(role, str) or not isinstance(content, str):
+        raise HTTPException(status_code=400, detail="role and content must be strings")
+
+    try:
+        ctx = app_instance.load_session(session_id)
         if ctx is None:
             raise KeyError(f"Session {session_id!r} not found")
 
-        core, base_config, session = ctx
+        core, _base_config, session = ctx
 
         normalized_role = role if role in {"system", "user", "assistant", "tool"} else "user"
 
         new_session = core.add_message(session, normalized_role, content, metadata)
-        self._agent_app.save_session(new_session)
+        app_instance.save_session(new_session)
 
         last_message = new_session.messages[-1] if new_session.messages else None
 
-        self._events.publish(
+        store = app_instance.get_event_store()
+        store.publish(
             {
                 "type": "message_appended",
                 "session_id": new_session.session_id,
@@ -107,21 +137,28 @@ class ServerApplication:
             }
         )
 
-        return new_session
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    def send_request(
-        self,
-        session_id: str,
-        *,
-        overrides: Optional[Dict[str, Any]] = None,
-        stream: bool = True,
-    ) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], Optional[str]]:
-        """Run AgentApplication.send_request and publish all events."""
+    return {"session": new_session.to_dict()}
 
-        if overrides is not None and not isinstance(overrides, dict):
-            raise ValueError("config_overrides must be a mapping if provided")
 
-        ctx = self._agent_app.load_session(session_id)
+@app.post("/sessions/{session_id}/send")
+def send_request(
+    session_id: str,
+    payload: Optional[Dict[str, Any]] = None,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Run ``AgentApplication.send_request`` and publish all events."""
+
+    data = payload or {}
+    overrides = data.get("config_overrides") or {}
+
+    if overrides is not None and not isinstance(overrides, dict):
+        raise HTTPException(status_code=400, detail="config_overrides must be a mapping if provided")
+
+    try:
+        ctx = app_instance.load_session(session_id)
         if ctx is None:
             raise KeyError(f"Session {session_id!r} not found")
 
@@ -131,8 +168,10 @@ class ServerApplication:
         final_messages: List[Dict[str, Any]] = []
         request_id: Optional[str] = None
 
-        for ev in self._agent_app.send_request(core, session, base_config, overrides, stream=stream):
-            stored = self._events.publish(ev)
+        store = app_instance.get_event_store()
+
+        for ev in app_instance.send_request(core, session, base_config, overrides, stream=True):
+            stored = store.publish(ev)
 
             if stored.get("type") == "final":
                 final_session_dict = stored.get("session") or final_session_dict
@@ -144,93 +183,10 @@ class ServerApplication:
         if final_session_dict is not None:
             try:
                 final_session = Session.from_dict(final_session_dict)
-                self._agent_app.save_session(final_session)
+                app_instance.save_session(final_session)
             except Exception:  # pragma: no cover - defensive
                 pass
 
-        return final_session_dict, final_messages, request_id
-
-    def list_events(
-        self,
-        *,
-        since_id: Optional[str] = None,
-        request_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        limit: int = 100,
-    ) -> List[Dict[str, Any]]:
-        return self._events.list(
-            since_id=since_id,
-            request_id=request_id,
-            session_id=session_id,
-            limit=limit,
-        )
-
-    def get_config_errors(self) -> List[Dict[str, Any]]:
-        return self._agent_app.get_config_errors()
-
-
-# ---------------------------------------------------------------------------
-# FastAPI wiring
-# ---------------------------------------------------------------------------
-
-
-app = FastAPI(title="Agent Terminal App - Echo provider (AgentApplication)")
-
-_server_app = ServerApplication(config_path=_DEFAULT_CONFIG_PATH, session_root=_DEFAULT_SESSION_ROOT)
-
-
-def get_server_app() -> ServerApplication:
-    return _server_app
-
-
-@app.post("/sessions")
-def create_session(payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    data = payload or {}
-    agent_id = data.get("agent_id") or "default"
-    system_message = data.get("system_message")
-
-    app_instance = get_server_app()
-
-    try:
-        session = app_instance.create_session(agent_id=agent_id, system_message=system_message)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-    return {"session": session.to_dict(), "errors": app_instance.get_config_errors()}
-
-
-@app.post("/sessions/{session_id}/messages")
-def add_message(session_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-    role = payload.get("role")
-    content = payload.get("content")
-    metadata = payload.get("metadata")
-
-    if not isinstance(role, str) or not isinstance(content, str):
-        raise HTTPException(status_code=400, detail="role and content must be strings")
-
-    app_instance = get_server_app()
-
-    try:
-        new_session = app_instance.add_message(session_id, role=role, content=content, metadata=metadata)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-    return {"session": new_session.to_dict()}
-
-
-@app.post("/sessions/{session_id}/send")
-def send_request(session_id: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    data = payload or {}
-    overrides = data.get("config_overrides") or {}
-
-    app_instance = get_server_app()
-
-    try:
-        final_session_dict, final_messages, request_id = app_instance.send_request(
-            session_id, overrides=overrides, stream=True
-        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -249,9 +205,12 @@ def list_events(
     request_id: Optional[str] = None,
     session_id: Optional[str] = None,
     limit: int = 100,
+    app_instance: AgentApplication = Depends(get_agent_app),
 ) -> Dict[str, Any]:
-    app_instance = get_server_app()
-    events = app_instance.list_events(
+    """List events from the application's event store."""
+
+    store = app_instance.get_event_store()
+    events = store.list(
         since_id=since_id,
         request_id=request_id,
         session_id=session_id,
@@ -268,7 +227,7 @@ def list_events(
 def run_api(
     host: str = "127.0.0.1",
     port: int = 8000,
-    app_instance: Optional[ServerApplication] = None,
+    app_instance: Optional[AgentApplication] = None,
 ) -> None:  # pragma: no cover
     """Run the FastAPI app with uvicorn on the given host/port."""
 
@@ -285,8 +244,8 @@ def run_api(
         )
         return
 
-    global _server_app
+    global _agent_app
     if app_instance is not None:
-        _server_app = app_instance
+        _agent_app = app_instance
 
     uvicorn.run("agent_terminal_app.server:app", host=host, port=port, reload=False)

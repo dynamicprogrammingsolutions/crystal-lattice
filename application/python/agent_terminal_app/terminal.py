@@ -11,7 +11,6 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.patch_stdout import patch_stdout
 
 from agent_app.application_future import AgentApplication
-from agent_app.events import InMemoryEventStore
 from agent_core import Session
 
 
@@ -19,143 +18,140 @@ _DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "config_openrouter_app_
 _DEFAULT_SESSION_ROOT = Path(__file__).resolve().parent / "sessions"
 
 
-class TerminalApplication:
-    """Terminal-side application wrapping AgentApplication and event store.
+# ---------------------------------------------------------------------------
+# Application helpers built on AgentApplication + event store
+# ---------------------------------------------------------------------------
 
-    This class owns its own :class:`AgentApplication` and
-    :class:`InMemoryEventStore`. The prompt_toolkit UI calls methods on
-    this class; behaviour is separate from the HTTP server.
-    """
 
-    def __init__(
-        self,
-        *,
-        config_path: str | Path,
-        session_root: str | Path,
-        agent_app: Optional[AgentApplication] = None,
-        event_store: Optional[InMemoryEventStore] = None,
-    ) -> None:
-        cfg = Path(config_path)
-        root = Path(session_root)
-        root.mkdir(parents=True, exist_ok=True)
+def _build_default_agent_app() -> AgentApplication:
+    cfg = _DEFAULT_CONFIG_PATH
+    root = _DEFAULT_SESSION_ROOT
+    root.mkdir(parents=True, exist_ok=True)
+    return AgentApplication(str(cfg), str(root))
 
-        self._agent_app = agent_app or AgentApplication(str(cfg), str(root))
-        self._events = event_store or InMemoryEventStore()
 
-    @property
-    def agent_app(self) -> AgentApplication:
-        return self._agent_app
+def create_session(app: AgentApplication, agent_id: str, system_message: Optional[str]) -> Session:
+    """Create and persist a session, publishing ``session_created``."""
 
-    @property
-    def event_store(self) -> InMemoryEventStore:
-        return self._events
+    core, _base_config, base_session = app.create_session(agent_id)
+    session = base_session
 
-    def create_session(self, agent_id: str, system_message: Optional[str]) -> Session:
-        core, base_config, base_session = self._agent_app.create_session(agent_id)
-        session = base_session
+    if isinstance(system_message, str) and system_message:
+        session = core.add_message(session, "system", system_message)
+        app.save_session(session)
 
-        if isinstance(system_message, str) and system_message:
-            session = core.add_message(session, "system", system_message)
-            self._agent_app.save_session(session)
+    store = app.get_event_store()
+    store.publish(
+        {
+            "type": "session_created",
+            "session_id": session.session_id,
+            "agent_id": agent_id,
+            "session": session.to_dict(),
+        }
+    )
 
-        self._events.publish(
-            {
-                "type": "session_created",
-                "session_id": session.session_id,
-                "agent_id": agent_id,
-                "session": session.to_dict(),
-            }
-        )
+    return session
 
-        return session
 
-    def add_message(
-        self,
-        session_id: str,
-        *,
-        role: str,
-        content: str,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Session:
-        ctx = self._agent_app.load_session(session_id)
-        if ctx is None:
-            raise KeyError(f"Session {session_id!r} not found")
+def add_message(
+    app: AgentApplication,
+    session_id: str,
+    *,
+    role: str,
+    content: str,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Session:
+    """Append a message and publish ``message_appended``."""
 
-        core, base_config, session = ctx
+    ctx = app.load_session(session_id)
+    if ctx is None:
+        raise KeyError(f"Session {session_id!r} not found")
 
-        normalized_role = role if role in {"system", "user", "assistant", "tool"} else "user"
+    core, _base_config, session = ctx
 
-        new_session = core.add_message(session, normalized_role, content, metadata)
-        self._agent_app.save_session(new_session)
+    normalized_role = role if role in {"system", "user", "assistant", "tool"} else "user"
 
-        last_message = new_session.messages[-1] if new_session.messages else None
+    new_session = core.add_message(session, normalized_role, content, metadata)
+    app.save_session(new_session)
 
-        self._events.publish(
-            {
-                "type": "message_appended",
-                "session_id": new_session.session_id,
-                "role": normalized_role,
-                "content": content,
-                "metadata": metadata or {},
-                "message": last_message.to_dict() if last_message is not None else None,
-                "session": new_session.to_dict(),
-            }
-        )
+    last_message = new_session.messages[-1] if new_session.messages else None
 
-        return new_session
+    store = app.get_event_store()
+    store.publish(
+        {
+            "type": "message_appended",
+            "session_id": new_session.session_id,
+            "role": normalized_role,
+            "content": content,
+            "metadata": metadata or {},
+            "message": last_message.to_dict() if last_message is not None else None,
+            "session": new_session.to_dict(),
+        }
+    )
 
-    def send_request(
-        self,
-        session_id: str,
-        *,
-        overrides: Optional[Dict[str, Any]] = None,
-        stream: bool = True,
-    ) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], Optional[str]]:
-        if overrides is not None and not isinstance(overrides, dict):
-            raise ValueError("config_overrides must be a mapping if provided")
+    return new_session
 
-        ctx = self._agent_app.load_session(session_id)
-        if ctx is None:
-            raise KeyError(f"Session {session_id!r} not found")
 
-        core, base_config, session = ctx
+def send_request(
+    app: AgentApplication,
+    session_id: str,
+    *,
+    overrides: Optional[Dict[str, Any]] = None,
+    stream: bool = True,
+) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], Optional[str]]:
+    """Run ``AgentApplication.send_request`` and publish all events."""
 
-        final_session_dict: Optional[Dict[str, Any]] = session.to_dict()
-        final_messages: List[Dict[str, Any]] = []
-        request_id: Optional[str] = None
+    if overrides is not None and not isinstance(overrides, dict):
+        raise ValueError("config_overrides must be a mapping if provided")
 
-        for ev in self._agent_app.send_request(core, session, base_config, overrides, stream=stream):
-            stored = self._events.publish(ev)
+    ctx = app.load_session(session_id)
+    if ctx is None:
+        raise KeyError(f"Session {session_id!r} not found")
 
-            if stored.get("type") == "final":
-                final_session_dict = stored.get("session") or final_session_dict
-                final_messages = list(stored.get("messages") or [])
-                request_id = stored.get("request_id")
-            elif "session" in stored and isinstance(stored.get("session"), dict):
-                final_session_dict = stored["session"]
+    core, base_config, session = ctx
 
-        if final_session_dict is not None:
-            try:
-                final_session = Session.from_dict(final_session_dict)
-                self._agent_app.save_session(final_session)
-            except Exception:
-                pass
+    final_session_dict: Optional[Dict[str, Any]] = session.to_dict()
+    final_messages: List[Dict[str, Any]] = []
+    request_id: Optional[str] = None
 
-        return final_session_dict, final_messages, request_id
+    store = app.get_event_store()
 
-    def list_events(
-        self,
-        *,
-        since_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        limit: int = 100,
-    ) -> List[Dict[str, Any]]:
-        return self._events.list(
-            since_id=since_id,
-            request_id=None,
-            session_id=session_id,
-            limit=limit,
-        )
+    for ev in app.send_request(core, session, base_config, overrides, stream=stream):
+        stored = store.publish(ev)
+
+        if stored.get("type") == "final":
+            final_session_dict = stored.get("session") or final_session_dict
+            final_messages = list(stored.get("messages") or [])
+            request_id = stored.get("request_id")
+        elif "session" in stored and isinstance(stored.get("session"), dict):
+            final_session_dict = stored["session"]
+
+    if final_session_dict is not None:
+        try:
+            final_session = Session.from_dict(final_session_dict)
+            app.save_session(final_session)
+        except Exception:  # pragma: no cover - defensive
+            pass
+
+    return final_session_dict, final_messages, request_id
+
+
+def list_events(
+    app: AgentApplication,
+    *,
+    since_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    limit: int = 100,
+) -> List[Dict[str, Any]]:
+    """List events for a given session from the application's store."""
+
+    store = app.get_event_store()
+    return store.list(
+        since_id=since_id,
+        request_id=None,
+        session_id=session_id,
+        limit=limit,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -168,7 +164,7 @@ CommandFn = Callable[["TerminalContext", str], Awaitable[None] | None]
 
 @dataclass
 class TerminalContext:
-    app: TerminalApplication
+    app: AgentApplication
     session_id: str
     last_event_id: Optional[str] = None
     running: bool = True
@@ -225,7 +221,7 @@ def _render_event(ctx: TerminalContext, event: Dict[str, Any]) -> None:
 
 
 async def _poll_events(ctx: TerminalContext, poll_interval: float = 0.1) -> None:
-    store = ctx.app.event_store
+    store = ctx.app.get_event_store()
 
     while ctx.running:
         events = store.list(
@@ -307,7 +303,7 @@ async def _cmd_help(ctx: TerminalContext, arg: str) -> None:
 @slash_command("new", "Start a new session")
 @shortcut("c-n", "Start a new session")
 async def _cmd_new_session(ctx: TerminalContext, arg: str) -> None:
-    session = ctx.app.create_session(agent_id="default", system_message=None)
+    session = create_session(ctx.app, agent_id="default", system_message=None)
     ctx.session_id = session.session_id
     ctx.last_event_id = None
     ctx.write(f"[session] switched to {ctx.session_id}")
@@ -344,18 +340,18 @@ async def _handle_user_message(ctx: TerminalContext, text: str) -> None:
     app = ctx.app
 
     try:
-        app.add_message(ctx.session_id, role="user", content=text, metadata=None)
+        add_message(app, ctx.session_id, role="user", content=text, metadata=None)
     except KeyError:
         ctx.write("[error] session not found; starting a new one")
-        session = app.create_session(agent_id="default", system_message=None)
+        session = create_session(app, agent_id="default", system_message=None)
         ctx.session_id = session.session_id
         ctx.last_event_id = None
-        app.add_message(ctx.session_id, role="user", content=text, metadata=None)
+        add_message(app, ctx.session_id, role="user", content=text, metadata=None)
 
     async def _run_request() -> None:
         def _worker() -> None:
             try:
-                app.send_request(ctx.session_id, overrides=None, stream=True)
+                send_request(app, ctx.session_id, overrides=None, stream=True)
             except Exception:
                 # Background errors are logged via events; keep UI responsive.
                 pass
@@ -369,6 +365,7 @@ def _build_key_bindings(ctx: TerminalContext) -> KeyBindings:
     kb = KeyBindings()
 
     for sc in iter_shortcuts():
+
         @kb.add(sc.keys)
         def _(event: Any, _shortcut: Shortcut = sc) -> None:  # type: ignore[no-redef]
             result = _shortcut.handler(ctx, "")
@@ -379,11 +376,12 @@ def _build_key_bindings(ctx: TerminalContext) -> KeyBindings:
 
 
 async def _run_terminal(
-    app: TerminalApplication,
+    app: AgentApplication,
     system_message: Optional[str] = None,
     logger: Optional[Logger] = None,
 ) -> None:
-    session = app.create_session(
+    session = create_session(
+        app,
         agent_id="default",
         system_message=system_message
         or "You are a helpful coding assistant. Respond concisely.",
@@ -428,18 +426,15 @@ async def _run_terminal(
 def run_terminal(
     system_message: Optional[str] = None,
     logger: Optional[Logger] = None,
-    app_instance: Optional[TerminalApplication] = None,
+    app_instance: Optional[AgentApplication] = None,
 ) -> None:  # pragma: no cover - manual usage
     """Entry point for running the terminal client.
 
     If ``app_instance`` is provided, it is used; otherwise a default
-    :class:`TerminalApplication` is constructed with the package's
-    config and session root.
+    :class:`AgentApplication` is constructed with the package's config
+    and session root.
     """
 
-    app = app_instance or TerminalApplication(
-        config_path=_DEFAULT_CONFIG_PATH,
-        session_root=_DEFAULT_SESSION_ROOT,
-    )
+    app = app_instance or _build_default_agent_app()
 
     asyncio.run(_run_terminal(app, system_message=system_message, logger=logger))

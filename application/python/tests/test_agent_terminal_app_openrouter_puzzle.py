@@ -79,15 +79,18 @@ def test_agent_terminal_app_openrouter_puzzle(ensure_api_key: None, puzzle_dir: 
     sys.path.insert(0, str(puzzle_dir))
 
     try:
+        from agent_app.application_future import AgentApplication
+        from agent_app.events import InMemoryEventStore
         from agent_terminal_app import server as app_mod
-        from agent_terminal_app.server import ServerApplication
     except Exception as exc:  # pragma: no cover - import failure
-        pytest.skip(f"Could not import agent_terminal_app.server: {exc}")
+        pytest.skip(f"Could not import agent_terminal_app dependencies: {exc}")
 
     base_dir = Path(app_mod.__file__).resolve().parent
     config_path = base_dir / "config_openrouter_app_layer.json"
     session_root = puzzle_dir / "sessions"
-    app = ServerApplication(config_path=config_path, session_root=session_root)
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
     system_message = (
         "You are a coding assistant. Use the read_file and write_file tools "
@@ -102,18 +105,30 @@ def test_agent_terminal_app_openrouter_puzzle(ensure_api_key: None, puzzle_dir: 
         "run_tests() passes. When you are done, reply with exactly 'READY'."
     )
 
-    session = app.create_session(agent_id="default", system_message=system_message)
-    session_id = session.session_id
+    from agent_terminal_app import server as server_mod
 
-    app.add_message(session_id, role="user", content=user_message, metadata=None)
+    create_resp = server_mod.create_session(
+        {"agent_id": "default", "system_message": system_message},
+        app_instance=app,
+    )
+    session_dict = create_resp["session"]
+    session_id = session_dict["session_id"]
 
-    final_session_dict, messages, request_id = app.send_request(
+    server_mod.add_message(
         session_id,
-        overrides={
-            "allowed_paths": [str(puzzle_dir)],
-            "working_directory": str(puzzle_dir),
+        {"role": "user", "content": user_message, "metadata": None},
+        app_instance=app,
+    )
+
+    server_mod.send_request(
+        session_id,
+        {
+            "config_overrides": {
+                "allowed_paths": [str(puzzle_dir)],
+                "working_directory": str(puzzle_dir),
+            }
         },
-        stream=True,
+        app_instance=app,
     )
 
     # Regardless of what the model replied, the puzzle is considered
