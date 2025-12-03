@@ -9,7 +9,9 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.patch_stdout import patch_stdout
 
-from .server import append_message_core, create_session_core, get_event_store, run_request_for_session
+from agent_core import Session
+
+from .app_core import get_shared_agent_app, get_shared_event_store
 
 
 # ---------------------------------------------------------------------------
@@ -22,7 +24,7 @@ class TerminalContext:
     """Mutable state for the terminal client.
 
     The application keeps state minimal and focuses on delegating work to
-    the shared AgentApplication helpers in :mod:`agent_terminal_app.server`.
+    the shared AgentApplication and InMemoryEventStore.
     """
 
     session_id: str
@@ -39,11 +41,7 @@ class TerminalContext:
 
 
 def _render_event(ctx: TerminalContext, event: Dict[str, Any]) -> None:
-    """Render a single event from the shared event store.
-
-    The goal is to keep output simple and readable rather than fully
-    covering every possible event type.
-    """
+    """Render a single event from the shared event store."""
 
     etype = event.get("type")
 
@@ -97,12 +95,9 @@ def _render_event(ctx: TerminalContext, event: Dict[str, Any]) -> None:
 
 
 async def _poll_events(ctx: TerminalContext, poll_interval: float = 0.1) -> None:
-    """Background task that polls the shared event store.
+    """Background task that polls the shared event store."""
 
-    Events are rendered as they arrive while the prompt remains active.
-    """
-
-    store = get_event_store()
+    store = get_shared_event_store()
 
     while ctx.running:
         events = store.list(
@@ -146,14 +141,7 @@ _SHORTCUTS: Dict[str, Shortcut] = {}
 
 
 def slash_command(name: str, description: str = "") -> Callable[[CommandFn], CommandFn]:
-    """Register a slash command using a decorator.
-
-    Example::
-
-        @slash_command("help", "Show available commands")
-        async def cmd_help(ctx: TerminalContext, arg: str) -> None:
-            ...
-    """
+    """Register a slash command using a decorator."""
 
     cmd_name = name.lstrip("/")
 
@@ -166,13 +154,7 @@ def slash_command(name: str, description: str = "") -> Callable[[CommandFn], Com
 
 
 def shortcut(keys: str, description: str = "") -> Callable[[CommandFn], CommandFn]:
-    """Register a keyboard shortcut using a decorator.
-
-    The decorated function must accept ``(ctx, arg)`` where ``arg`` is
-    a string. When invoked via a shortcut, ``arg`` is the empty string.
-    The same function may be decorated as both a slash command and a
-    shortcut if desired.
-    """
+    """Register a keyboard shortcut using a decorator."""
 
     def decorator(func: CommandFn) -> CommandFn:
         text = description or (func.__doc__ or "").strip() or keys
@@ -214,7 +196,19 @@ async def _cmd_help(ctx: TerminalContext, arg: str) -> None:
 @slash_command("new", "Start a new session")
 @shortcut("c-n", "Start a new session")
 async def _cmd_new_session(ctx: TerminalContext, arg: str) -> None:
-    session = create_session_core(agent_id="default")
+    agent_app = get_shared_agent_app()
+    events = get_shared_event_store()
+
+    core, base_config, session = agent_app.create_session("default")
+    events.publish(
+        {
+            "type": "session_created",
+            "session_id": session.session_id,
+            "agent_id": "default",
+            "session": session.to_dict(),
+        }
+    )
+
     ctx.session_id = session.session_id
     ctx.last_event_id = None
     ctx.write(f"[session] switched to {ctx.session_id}")
@@ -253,21 +247,73 @@ async def _handle_slash_command(ctx: TerminalContext, raw: str) -> None:
 
 
 async def _handle_user_message(ctx: TerminalContext, text: str) -> None:
+    agent_app = get_shared_agent_app()
+    events = get_shared_event_store()
+
+    def _append_user_message(session_id: str, content: str) -> Session:
+        ctx_tuple = agent_app.load_session(session_id)
+        if ctx_tuple is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        core, base_config, session = ctx_tuple
+        new_session = core.add_message(session, "user", content, None)
+        agent_app.save_session(new_session)
+        last_message = new_session.messages[-1] if new_session.messages else None
+        events.publish(
+            {
+                "type": "message_appended",
+                "session_id": new_session.session_id,
+                "role": "user",
+                "content": content,
+                "metadata": {},
+                "message": last_message.to_dict() if last_message is not None else None,
+                "session": new_session.to_dict(),
+            }
+        )
+        return new_session
+
     try:
-        append_message_core(ctx.session_id, role="user", content=text, metadata=None)
+        _append_user_message(ctx.session_id, text)
     except KeyError:
         ctx.write("[error] session not found; starting a new one")
-        session = create_session_core(agent_id="default")
+        core, base_config, session = agent_app.create_session("default")
         ctx.session_id = session.session_id
         ctx.last_event_id = None
-        append_message_core(ctx.session_id, role="user", content=text, metadata=None)
+        events.publish(
+            {
+                "type": "session_created",
+                "session_id": session.session_id,
+                "agent_id": "default",
+                "session": session.to_dict(),
+            }
+        )
+        _append_user_message(ctx.session_id, text)
 
     async def _run_request() -> None:
         def _worker() -> None:
-            # Run in a background thread so that the event loop remains
-            # responsive and key bindings stay active while the request
-            # is in progress.
-            run_request_for_session(ctx.session_id, overrides=None, stream=True)
+            final_session_dict: Optional[Dict[str, Any]] = None
+            final_messages: List[Dict[str, Any]] = []
+            request_id: Optional[str] = None
+
+            ctx_tuple = agent_app.load_session(ctx.session_id)
+            if ctx_tuple is None:
+                return
+            core, base_config, session = ctx_tuple
+
+            for ev in agent_app.send_request(core, session, base_config, overrides=None, stream=True):
+                stored = events.publish(ev)
+                if stored.get("type") == "final":
+                    final_session_dict = stored.get("session") or final_session_dict
+                    final_messages = list(stored.get("messages") or [])
+                    request_id = stored.get("request_id")
+                elif "session" in stored and isinstance(stored.get("session"), dict):
+                    final_session_dict = stored["session"]
+
+            if final_session_dict is not None:
+                try:
+                    final_session = Session.from_dict(final_session_dict)
+                    agent_app.save_session(final_session)
+                except Exception:
+                    pass
 
         await asyncio.to_thread(_worker)
 
@@ -288,11 +334,25 @@ def _build_key_bindings(ctx: TerminalContext) -> KeyBindings:
 
 
 async def _run_terminal(system_message: Optional[str] = None, logger: Optional[Logger] = None) -> None:
-    session = create_session_core(
-        agent_id="default",
-        system_message=system_message
-        or "You are a helpful coding assistant. Respond concisely.",
+    agent_app = get_shared_agent_app()
+    events = get_shared_event_store()
+
+    core, base_config, base_session = agent_app.create_session("default")
+    session = base_session
+
+    if isinstance(system_message, str) and system_message:
+        session = core.add_message(session, "system", system_message)
+        agent_app.save_session(session)
+
+    events.publish(
+        {
+            "type": "session_created",
+            "session_id": session.session_id,
+            "agent_id": "default",
+            "session": session.to_dict(),
+        }
     )
+
     ctx = TerminalContext(session_id=session.session_id, logger=logger)
 
     prompt_session = PromptSession(multiline=True)
@@ -331,11 +391,6 @@ async def _run_terminal(system_message: Optional[str] = None, logger: Optional[L
 
 
 def run_terminal(system_message: Optional[str] = None, logger: Optional[Logger] = None) -> None:  # pragma: no cover - manual usage
-    """Entry point for running the terminal client.
-
-    This function is intended for manual usage, for example::
-
-        python -m agent_terminal_app.terminal
-    """
+    """Entry point for running the terminal client."""
 
     asyncio.run(_run_terminal(system_message=system_message, logger=logger))
