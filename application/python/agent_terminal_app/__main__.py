@@ -6,29 +6,40 @@ import threading
 from typing import Optional
 
 from agent_app.events import InMemoryEventStore
+from agent_core.utils import configure_logging as configure_structlog
 
-from .server import ServerApplication, run_api, _DEFAULT_CONFIG_PATH as SERVER_CONFIG, _DEFAULT_SESSION_ROOT as SERVER_SESSIONS
-from .terminal import TerminalApplication, run_terminal, _DEFAULT_CONFIG_PATH as TERM_CONFIG, _DEFAULT_SESSION_ROOT as TERM_SESSIONS
+def _configure_logging(log_file: Optional[str], *, disable_structlog_colors: bool) -> None:
+    """Configure logging for the terminal application.
 
-
-def _configure_logging(log_file: Optional[str]) -> None:
-    """Configure basic logging to also write to a file.
-
-    Stdout logging remains enabled by default; this helper only adds a
-    file handler when ``log_file`` is provided so that server and
-    terminal output can be captured in a separate file.
+    Stdout logging remains enabled by default; when ``log_file`` is
+    provided, a file handler is added so that server and terminal
+    output can be captured in a separate file. Structlog (used by the
+    core SDK) is configured so that its output can also be routed to
+    this file, and ANSI colors can be disabled when sharing a terminal
+    with the interactive console.
     """
 
-    if not log_file:
-        return
+    # Standard library logging: always keep stdout; optionally add file.
+    if log_file:
+        handler = logging.FileHandler(log_file)
+        handler.setLevel(logging.INFO)
+        formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s - %(message)s")
+        handler.setFormatter(formatter)
 
-    handler = logging.FileHandler(log_file)
-    handler.setLevel(logging.INFO)
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s - %(message)s")
-    handler.setFormatter(formatter)
+        root = logging.getLogger()
+        root.addHandler(handler)
 
-    root = logging.getLogger()
-    root.addHandler(handler)
+    # Structlog / core logging:
+    # - For console runs, disable colors to avoid raw ANSI codes being
+    #   rendered literally by prompt_toolkit's patched stdout.
+    # - When log_file is provided, route structlog output to that file.
+    try:
+        if disable_structlog_colors or log_file:
+            structlog_colors = not disable_structlog_colors
+            configure_structlog(colors=structlog_colors, log_file_path=log_file)
+    except Exception:
+        # Defensive: never let logging configuration prevent startup.
+        pass
 
 
 def main() -> None:  # pragma: no cover - manual execution only
@@ -56,14 +67,18 @@ def main() -> None:  # pragma: no cover - manual execution only
 
     args = parser.parse_args()
 
-    _configure_logging(args.log_file)
+    run_server = args.server or not args.console
+    run_console = args.console
+
+    _configure_logging(args.log_file, disable_structlog_colors=run_console)
 
     console_logger: Optional[logging.Logger] = None
     if args.log_file:
         console_logger = logging.getLogger("agent_terminal_app.console")
 
-    run_server = args.server or not args.console
-    run_console = args.console
+    from .server import ServerApplication, run_api, _DEFAULT_CONFIG_PATH as SERVER_CONFIG, _DEFAULT_SESSION_ROOT as SERVER_SESSIONS
+    from .terminal import TerminalApplication, run_terminal, _DEFAULT_CONFIG_PATH as TERM_CONFIG, _DEFAULT_SESSION_ROOT as TERM_SESSIONS
+
 
     # Modes:
     # - default (no flags): server only

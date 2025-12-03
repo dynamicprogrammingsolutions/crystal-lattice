@@ -408,6 +408,7 @@ LOG_LEVEL=DEBUG python your_app.py
 | `LOG_SCOPE` | Filter by logger name (e.g., `core`, `provider`) | All |
 | `LOG_DATA` | Comma-separated whitelist of fields to show | All fields |
 | `LOG_FILTER` | Filter expressions (comma-separated, AND logic) | None |
+| `LOG_COLORS` | Enable/disable ANSI colors in structlog output | Enabled |
 
 #### LOG_DATA Field Whitelist
 
