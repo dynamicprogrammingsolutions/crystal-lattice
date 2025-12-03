@@ -15,7 +15,7 @@ from agent_app.events import InMemoryEventStore
 from agent_core import Session
 
 
-_DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "config_echo_app.json"
+_DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "config_openrouter_app_layer.json"
 _DEFAULT_SESSION_ROOT = Path(__file__).resolve().parent / "sessions"
 
 
