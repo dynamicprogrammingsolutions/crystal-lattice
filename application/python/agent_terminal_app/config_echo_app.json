@@ -17,6 +17,9 @@
   "agents": {
     "default": {
       "provider": "echo_openai_like_default"
+    },
+    "alt": {
+      "provider": "echo_openai_like_default"
     }
   }
 }

@@ -29,6 +29,10 @@
   "agents": {
     "default": {
       "provider": "openrouter_tools"
+    },
+    "reasoning": {
+      "provider": "openrouter_tools",
+      "reasoning_effort": "medium"
     }
   }
 }

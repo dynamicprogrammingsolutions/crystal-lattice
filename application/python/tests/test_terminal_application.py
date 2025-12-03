@@ -11,6 +11,7 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
 from prompt_toolkit.document import Document
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
@@ -95,3 +96,53 @@ def test_slash_command_completer_basic() -> None:
 
     # After a space (arguments), no completion is offered.
     assert _collect_completion_texts(completer, "/help more") == set()
+
+
+@pytest.mark.asyncio
+async def test_agent_switch_slash_command(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    agents = app.list_agents()
+    assert "default" in agents
+    assert len(agents) >= 2
+
+    # Create an initial session using the default agent.
+    session = term_mod.create_session(app, agent_id="default", system_message=None)
+    metadata = session.metadata or {}
+    initial_agent = metadata.get("agent_id")
+    assert initial_agent == "default"
+
+    ctx = term_mod.TerminalContext(
+        app=app,
+        session_id=session.session_id,
+        agent_id=initial_agent,
+    )
+
+    # Trigger the /agent dialog.
+    await term_mod._cmd_agent(ctx, "")
+    assert ctx.pending_agent_choices is not None
+    available = ctx.pending_agent_choices
+    assert isinstance(available, list)
+    assert set(available) >= {"default"}
+
+    # Choose a non-default agent if available.
+    target = next(a for a in available if a != "default")
+
+    # Simulate user entering the chosen agent name.
+    term_mod._handle_agent_selection(ctx, target)
+
+    assert ctx.agent_id == target
+
+    loaded = app.load_session(session.session_id)
+    assert loaded is not None
+    _core2, _base_config2, updated_session = loaded
+    assert updated_session.metadata.get("agent_id") == target
