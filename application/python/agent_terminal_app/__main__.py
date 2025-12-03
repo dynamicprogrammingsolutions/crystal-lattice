@@ -5,8 +5,10 @@ import logging
 import threading
 from typing import Optional
 
+from agent_app.application_future import AgentApplication
 from agent_app.events import InMemoryEventStore
 from agent_core.utils import configure_logging as configure_structlog
+
 
 def _configure_logging(log_file: Optional[str], *, disable_structlog_colors: bool) -> None:
     """Configure logging for the terminal application.
@@ -76,9 +78,16 @@ def main() -> None:  # pragma: no cover - manual execution only
     if args.log_file:
         console_logger = logging.getLogger("agent_terminal_app.console")
 
-    from .server import ServerApplication, run_api, _DEFAULT_CONFIG_PATH as SERVER_CONFIG, _DEFAULT_SESSION_ROOT as SERVER_SESSIONS
-    from .terminal import TerminalApplication, run_terminal, _DEFAULT_CONFIG_PATH as TERM_CONFIG, _DEFAULT_SESSION_ROOT as TERM_SESSIONS
-
+    from .server import (
+        _DEFAULT_CONFIG_PATH as SERVER_CONFIG,
+        _DEFAULT_SESSION_ROOT as SERVER_SESSIONS,
+        run_api,
+    )
+    from .terminal import (
+        _DEFAULT_CONFIG_PATH as TERM_CONFIG,
+        _DEFAULT_SESSION_ROOT as TERM_SESSIONS,
+        run_terminal,
+    )
 
     # Modes:
     # - default (no flags): server only
@@ -87,16 +96,8 @@ def main() -> None:  # pragma: no cover - manual execution only
     if run_console and run_server:
         shared_events = InMemoryEventStore()
 
-        server_app = ServerApplication(
-            config_path=SERVER_CONFIG,
-            session_root=SERVER_SESSIONS,
-            event_store=shared_events,
-        )
-        terminal_app = TerminalApplication(
-            config_path=TERM_CONFIG,
-            session_root=TERM_SESSIONS,
-            event_store=shared_events,
-        )
+        server_app = AgentApplication(str(SERVER_CONFIG), str(SERVER_SESSIONS), event_store=shared_events)
+        terminal_app = AgentApplication(str(TERM_CONFIG), str(TERM_SESSIONS), event_store=shared_events)
 
         thread = threading.Thread(
             target=run_api,

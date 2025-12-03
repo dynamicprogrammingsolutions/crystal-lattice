@@ -14,6 +14,7 @@ from .config import (
     resolve_placeholders,
     resolve_request_config,
 )
+from .events import EventStore, InMemoryEventStore
 from .sessions import FilesystemSessionStore
 from .tool_loop import ToolLoopRunner
 
@@ -50,10 +51,12 @@ class AgentApplication:
         config_path: str | Path,
         session_root: str | Path,
         core_factory: Callable[[], AgentCore] = AgentCore,
+        event_store: Optional[EventStore] = None,
     ) -> None:
         # Core factory is stored so that per-session cores can be created
         # without sharing state across requests.
         self._core_factory = core_factory
+        self._event_store: EventStore = event_store or InMemoryEventStore()
 
         # A single core instance is still used for import/export with the
         # filesystem session store; inference uses fresh cores created via
@@ -191,6 +194,11 @@ class AgentApplication:
         """Return a copy of configuration and plugin loading errors."""
 
         return list(self._config_errors)
+
+    def get_event_store(self) -> EventStore:
+        """Return the configured event store for this application."""
+
+        return self._event_store
 
     def load_session(
         self, session_id: str
