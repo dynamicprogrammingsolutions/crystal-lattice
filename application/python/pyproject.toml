@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-terminal-app"
+version = "0.1.0"
+description = "Minimal FastAPI + prompt_toolkit frontend for agent-core"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "AI Agent Platform Team"}
+]
+dependencies = [
+    "agent-core>=0.3.0",
+    "fastapi",
+    "uvicorn[standard]",
+    "prompt_toolkit>=3.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["agent_terminal_app*"]
