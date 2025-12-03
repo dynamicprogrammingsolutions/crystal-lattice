@@ -239,7 +239,6 @@ class OpenRouterProvider(ProviderPlugin):
             base_history = override if isinstance(override, list) else native_messages
             messages_to_send = self._sanitize_history(base_history)
             payload = {**request["payload"], "messages": messages_to_send, "stream": True}
-            print("payload (stream):", payload)
             with requests.post(
                 request["url"],
                 json=payload,

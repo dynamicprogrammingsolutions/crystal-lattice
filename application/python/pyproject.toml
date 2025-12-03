@@ -21,3 +21,8 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 include = ["agent_terminal_app*"]
+
+[tool.pytest.ini_options]
+markers = [
+    "openrouter: OpenRouter integration tests",
+]
