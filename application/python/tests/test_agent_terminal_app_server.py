@@ -31,37 +31,26 @@ if CORE_PY not in sys.path:
 
 
 def _import_server_module():
-    """Import the agent_terminal_app server module.
-
-    This helper mirrors the pattern used by the example tests so that
-    the import remains robust when tests are run from different working
-    directories.
-    """
+    """Import the agent_terminal_app server module."""
 
     return __import__("agent_terminal_app.server", fromlist=["app"])
 
 
 def test_agent_terminal_app_flow_with_echo_provider(tmp_path: Path) -> None:
-    """End-to-end flow through agent_terminal_app using the echo provider.
-
-    The test reconfigures the application to use a temporary session
-    root so that no files are written into the source tree, then calls
-    ``create_session``, ``add_message``, and ``send_request`` directly
-    and asserts the echo-style response and basic event emission.
-    """
+    """End-to-end flow through agent_terminal_app using the echo provider."""
 
     mod = _import_server_module()
 
-    configure_application = getattr(mod, "configure_application")
+    from agent_terminal_app.app_core import init_shared_app, get_shared_event_store
+
     create_session = getattr(mod, "create_session")
     add_message = getattr(mod, "add_message")
     send_request = getattr(mod, "send_request")
-    get_event_store = getattr(mod, "get_event_store")
 
-    # Reconfigure application to use a temporary session root.
+    # Reconfigure the shared application to use a temporary session root.
     session_root = tmp_path / "sessions"
     config_path = Path(mod.__file__).resolve().parent / "config_echo_app.json"
-    configure_application(config_path=config_path, session_root=session_root, reset=True)
+    init_shared_app(config_path=config_path, session_root=session_root, reset=True)
 
     system_message = "You are a helpful echo assistant."
     user_message = "hello from the agent_terminal_app test"
@@ -91,8 +80,8 @@ def test_agent_terminal_app_flow_with_echo_provider(tmp_path: Path) -> None:
     assert user_message in content
 
     # 4) Basic check that events were recorded for this session.
-    store = get_event_store()
-    events = store.list(session_id=session_id, limit=100)
+    events_store = get_shared_event_store()
+    events = events_store.list(session_id=session_id, limit=100)
     kinds = {ev.get("type") for ev in events}
     assert "session_created" in kinds
     assert "message_appended" in kinds
