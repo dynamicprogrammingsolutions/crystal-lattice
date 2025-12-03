@@ -167,14 +167,21 @@ CommandFn = Callable[["TerminalContext", str], Awaitable[None] | None]
 class TerminalContext:
     app: AgentApplication
     session_id: str
+    agent_id: str
     last_event_id: Optional[str] = None
     running: bool = True
     logger: Optional[Logger] = None
+    pending_agent_choices: Optional[List[str]] = None
 
     def write(self, text: str) -> None:
         print(text, flush=True)
         if self.logger is not None:
             self.logger.info(text)
+
+
+def _status_bar_text(ctx: TerminalContext) -> str:
+    agent = ctx.agent_id or "default"
+    return f"Agent: {agent}  Session: {ctx.session_id}"
 
 
 def _render_event(ctx: TerminalContext, event: Dict[str, Any]) -> None:
@@ -318,6 +325,29 @@ class SlashCommandCompleter(Completer):
                 )
 
 
+@slash_command("agent", "Switch the active agent for this session")
+async def _cmd_agent(ctx: TerminalContext, arg: str) -> None:
+    app = ctx.app
+    try:
+        agents = app.list_agents()
+    except Exception:
+        agents = ["default"]
+
+    agents = [a for a in agents if isinstance(a, str) and a]
+    if not agents:
+        ctx.write("[agent] no agents configured")
+        return
+
+    agents = sorted(dict.fromkeys(agents))
+    ctx.pending_agent_choices = agents
+
+    ctx.write("\n[agent] Available agents:")
+    for index, agent in enumerate(agents, 1):
+        marker = "*" if agent == ctx.agent_id else " "
+        ctx.write(f"  {index}. [{marker}] {agent}")
+    ctx.write("[agent] Enter agent name or number (empty to cancel):")
+
+
 @slash_command("help", "Show commands and shortcuts")
 async def _cmd_help(ctx: TerminalContext, arg: str) -> None:
 
@@ -334,9 +364,13 @@ async def _cmd_help(ctx: TerminalContext, arg: str) -> None:
 @slash_command("new", "Start a new session")
 @shortcut("c-n", "Start a new session")
 async def _cmd_new_session(ctx: TerminalContext, arg: str) -> None:
-    session = create_session(ctx.app, agent_id="default", system_message=None)
+    session = create_session(ctx.app, agent_id=ctx.agent_id, system_message=None)
     ctx.session_id = session.session_id
     ctx.last_event_id = None
+    metadata = session.metadata or {}
+    agent = metadata.get("agent_id")
+    if isinstance(agent, str) and agent:
+        ctx.agent_id = agent
     ctx.write(f"[session] switched to {ctx.session_id}")
 
 
@@ -346,6 +380,58 @@ async def _cmd_new_session(ctx: TerminalContext, arg: str) -> None:
 async def _cmd_exit(ctx: TerminalContext, arg: str) -> None:
     ctx.write("Exiting...")
     ctx.running = False
+
+
+def _switch_session_agent(ctx: TerminalContext, agent_id: str) -> None:
+    app = ctx.app
+    loaded = app.load_session(ctx.session_id)
+    if loaded is None:
+        raise KeyError(f"Session {ctx.session_id!r} not found")
+    _core, _base_config, session = loaded
+
+    metadata = session.metadata or {}
+    new_metadata = {**metadata, "agent_id": agent_id}
+    new_session = Session(
+        session_id=session.session_id,
+        messages=list(session.messages),
+        metadata=new_metadata,
+    )
+    app.save_session(new_session)
+
+    ctx.agent_id = agent_id
+    ctx.last_event_id = None
+    ctx.write(f"[agent] switched to {agent_id!r}")
+
+
+def _handle_agent_selection(ctx: TerminalContext, text: str) -> None:
+    choices = ctx.pending_agent_choices or []
+    ctx.pending_agent_choices = None
+
+    selection = text.strip()
+    if not selection:
+        ctx.write("[agent] selection cancelled")
+        return
+
+    target: Optional[str] = None
+    if selection.isdigit():
+        index = int(selection)
+        if 1 <= index <= len(choices):
+            target = choices[index - 1]
+    if target is None and selection in choices:
+        target = selection
+
+    if target is None:
+        ctx.write(f"[agent] invalid selection: {selection!r}")
+        return
+
+    if target == ctx.agent_id:
+        ctx.write(f"[agent] already using agent {target!r}")
+        return
+
+    try:
+        _switch_session_agent(ctx, target)
+    except Exception as exc:  # pragma: no cover - defensive
+        ctx.write(f"[agent] failed to switch agent: {exc}")
 
 
 async def _handle_slash_command(ctx: TerminalContext, raw: str) -> None:
@@ -374,9 +460,13 @@ async def _handle_user_message(ctx: TerminalContext, text: str) -> None:
         add_message(app, ctx.session_id, role="user", content=text, metadata=None)
     except KeyError:
         ctx.write("[error] session not found; starting a new one")
-        session = create_session(app, agent_id="default", system_message=None)
+        session = create_session(app, agent_id=ctx.agent_id, system_message=None)
         ctx.session_id = session.session_id
         ctx.last_event_id = None
+        metadata = session.metadata or {}
+        agent = metadata.get("agent_id")
+        if isinstance(agent, str) and agent:
+            ctx.agent_id = agent
         add_message(app, ctx.session_id, role="user", content=text, metadata=None)
 
     async def _run_request() -> None:
@@ -422,13 +512,17 @@ async def _run_terminal(
         system_message=system_message
         or "You are a helpful coding assistant. Respond concisely.",
     )
-    ctx = TerminalContext(app=app, session_id=session.session_id, logger=logger)
+    metadata = session.metadata or {}
+    agent = metadata.get("agent_id") if isinstance(metadata, dict) else None
+    agent_id = agent if isinstance(agent, str) and agent else "default"
+    ctx = TerminalContext(app=app, session_id=session.session_id, agent_id=agent_id, logger=logger)
 
     completer = SlashCommandCompleter()
     prompt_session = PromptSession(
         multiline=False,
         completer=completer,
         complete_while_typing=True,
+        bottom_toolbar=lambda: _status_bar_text(ctx),
     )
     key_bindings = _build_key_bindings(ctx)
 
@@ -450,6 +544,10 @@ async def _run_terminal(
 
             text = user_input.strip()
             if not text:
+                continue
+
+            if ctx.pending_agent_choices is not None:
+                _handle_agent_selection(ctx, text)
                 continue
 
             if text.startswith("/"):

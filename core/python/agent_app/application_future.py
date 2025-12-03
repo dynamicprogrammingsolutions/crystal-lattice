@@ -200,6 +200,15 @@ class AgentApplication:
 
         return self._event_store
 
+    def list_agents(self) -> List[str]:
+        """Return the configured agent identifiers.
+
+        The list is derived from the resolved configuration and sorted
+        for stable ordering.
+        """
+
+        return sorted(self._agent_base_configs.keys())
+
     def load_session(
         self, session_id: str
     ) -> Optional[Tuple[AgentCore, Dict[str, Any], Session]]:
