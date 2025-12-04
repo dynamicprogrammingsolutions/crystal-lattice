@@ -85,7 +85,11 @@ def _collect_completion_texts(completer, text: str) -> set[str]:
 def test_slash_command_completer_basic() -> None:
     from agent_terminal_app import terminal as term_mod
 
-    completer = term_mod.SlashCommandCompleter()
+    # Simple context stub; not used for basic command-name completion.
+    class _Ctx:
+        pass
+
+    completer = term_mod.SlashCommandCompleter(lambda: _Ctx())
 
     # Basic prefix completion.
     texts = _collect_completion_texts(completer, "/he")
@@ -102,10 +106,16 @@ def test_slash_command_completer_basic() -> None:
 def test_agent_id_completion() -> None:
     from agent_terminal_app import terminal as term_mod
 
-    def _get_agents() -> list[str]:
-        return ["default", "alt"]
+    class _DummyApp:
+        def list_agents(self) -> list[str]:
+            return ["default", "alt"]
 
-    completer = term_mod.SlashCommandCompleter(get_agent_ids=_get_agents)
+    class _Ctx:
+        def __init__(self) -> None:
+            self.app = _DummyApp()
+            self.session_id = "s1"
+
+    completer = term_mod.SlashCommandCompleter(lambda: _Ctx())
 
     # Completing agent id after "/agent ".
     texts = _collect_completion_texts(completer, "/agent a")
@@ -121,17 +131,36 @@ def test_agent_id_completion() -> None:
 def test_set_completion() -> None:
     from agent_terminal_app import terminal as term_mod
 
-    def _get_elements() -> list[dict]:
-        return [
-            {"key": "enable_reasoning", "type": "checkbox", "options": []},
-            {
-                "key": "reasoning_effort",
-                "type": "select",
-                "options": ["low", "medium", "high"],
-            },
-        ]
+    class _DummyApp:
+        def __init__(self, elements: list[dict]) -> None:
+            self._elements = elements
 
-    completer = term_mod.SlashCommandCompleter(get_ui_elements=_get_elements)
+        def list_agents(self) -> list[str]:  # unused here
+            return []
+
+    class _Ctx:
+        def __init__(self, elements: list[dict]) -> None:
+            self.app = _DummyApp(elements)
+            self.session_id = "s1"
+
+    # Monkeypatch _get_session_ui_elements to return our synthetic elements.
+    elements = [
+        {"key": "enable_reasoning", "type": "checkbox", "options": []},
+        {
+            "key": "reasoning_effort",
+            "type": "select",
+            "options": ["low", "medium", "high"],
+        },
+    ]
+
+    ctx = _Ctx(elements)
+
+    def _fake_get_session_ui_elements(_ctx: _Ctx) -> list[dict]:  # type: ignore[override]
+        return elements
+
+    term_mod._get_session_ui_elements = _fake_get_session_ui_elements  # type: ignore[assignment]
+
+    completer = term_mod.SlashCommandCompleter(lambda: ctx)
 
     # Key completion after /set
     key_texts = _collect_completion_texts(completer, "/set r")

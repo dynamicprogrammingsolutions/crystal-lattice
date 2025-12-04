@@ -961,24 +961,39 @@ class AgentCore:
             schema[tool.name] = tool.get_config_schema()
         return schema
 
-    def get_ui_schema(self) -> Dict[str, Any]:
-        """Get combined UI schema from all registered plugins.
+    def get_ui_schema(self) -> List[Dict[str, Any]]:
+        """Get flattened UI schema from all registered plugins.
 
-        Returns:
-            Mapping from plugin name to UI element definitions. Includes provider,
-            provider extensions, features, and tools when registered.
+        Each element is a dictionary describing a UI element contributed by a
+        provider, extension, feature, or tool. Plugins may optionally include
+        a "ui_type" field to classify elements as "config" (default),
+        "action", or "info". Callers that are only interested in
+        configuration inputs should filter for elements with
+        ``element.get("ui_type", "config") == "config"``.
         """
-        ui: Dict[str, Any] = {}
+
+        elements: List[Dict[str, Any]] = []
+
+        def _extend(raw_elements: List[Dict[str, Any]]) -> None:
+            for el in raw_elements or []:
+                if not isinstance(el, dict):
+                    continue
+                entry: Dict[str, Any] = dict(el)
+                ui_type = entry.get("ui_type")
+                if not isinstance(ui_type, str) or not ui_type:
+                    entry["ui_type"] = "config"
+                elements.append(entry)
+
         for provider in self._providers:
-            ui[provider.name] = provider.get_ui_elements()
+            _extend(provider.get_ui_elements())
             # Include provider extension UI schemas
-            for name, ext_ui in provider.get_extension_ui_elements().items():
-                ui[name] = ext_ui
+            for _name, ext_ui in provider.get_extension_ui_elements().items():
+                _extend(ext_ui)
         for feature in self._features:
-            ui[feature.name] = feature.get_ui_elements()
+            _extend(feature.get_ui_elements())
         for tool in self._tools:
-            ui[tool.name] = tool.get_ui_elements()
-        return ui
+            _extend(tool.get_ui_elements())
+        return elements
 
     def get_tool_schemas(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Get tool schemas from enabled tool plugins for a config.
