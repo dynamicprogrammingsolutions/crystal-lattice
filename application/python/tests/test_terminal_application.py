@@ -45,17 +45,16 @@ def test_terminal_flow_with_echo_provider(tmp_path: Path) -> None:
     system_message = "You are a helpful echo assistant."
     user_message = "hello from the terminal test"
 
-    # 1) Create a new session with a system message.
-    session = term_app.create_session(agent_id="default", system_message=system_message)
+    # 1) Create a new active session with a system message.
+    session = term_app.start_new_session(system_message=system_message, agent_id="default")
     session_id = session.session_id
 
-    # 2) Add a user message.
-    updated = term_app.add_message(session_id, role="user", content=user_message, metadata=None)
+    # 2) Add a user message to the active session.
+    updated = term_app.append_user_message(user_message)
     assert updated.session_id == session_id
 
     # 3) Send a request and verify the echo provider behaviour.
     final_session_dict, messages, request_id = term_app.send_request(
-        session_id,
         overrides={},
         stream=True,
     )
@@ -74,7 +73,7 @@ def test_terminal_flow_with_echo_provider(tmp_path: Path) -> None:
     # the exact assistant content here.
 
     # 4) Basic check that events were recorded for this session.
-    events_list = term_app.list_events(session_id=session_id, limit=100)
+    events_list = term_app.poll_new_events(limit=100)
     kinds = {ev.get("type") for ev in events_list}
     assert "session_created" in kinds
     assert "message_appended" in kinds
@@ -114,12 +113,11 @@ def test_agent_id_completion() -> None:
         def list_agents(self) -> list[str]:
             return ["default", "alt"]
 
-    class _Ctx:
-        def __init__(self) -> None:
-            self.app = _DummyApp()
-            self.session_id = "s1"
+    class _DummyTerminalApp:
+        def list_agents(self) -> list[str]:
+            return ["default", "alt"]
 
-    completer = term_mod.SlashCommandCompleter(lambda: _Ctx())
+    completer = term_mod.SlashCommandCompleter(lambda: _DummyTerminalApp())
 
     # Completing agent id after "/agent ".
     texts = _collect_completion_texts(completer, "/agent a")
@@ -135,20 +133,15 @@ def test_agent_id_completion() -> None:
 def test_set_completion() -> None:
     from agent_terminal_app import terminal as term_mod
 
-    class _DummyApp:
+    class _DummyTerminalApp:
         def __init__(self, elements: list[dict]) -> None:
             self._elements = elements
 
         def list_agents(self) -> list[str]:  # unused here
             return []
 
-        def get_session_ui_elements(self, session_id: str) -> list[dict]:
+        def session_ui_elements(self) -> list[dict]:
             return self._elements
-
-    class _Ctx:
-        def __init__(self, elements: list[dict]) -> None:
-            self.app = _DummyApp(elements)
-            self.session_id = "s1"
 
     elements = [
         {"key": "enable_reasoning", "type": "checkbox", "options": []},
@@ -159,8 +152,8 @@ def test_set_completion() -> None:
         },
     ]
 
-    ctx = _Ctx(elements)
-    completer = term_mod.SlashCommandCompleter(lambda: ctx)
+    app = _DummyTerminalApp(elements)
+    completer = term_mod.SlashCommandCompleter(lambda: app)
 
     # Key completion after /set
     key_texts = _collect_completion_texts(completer, "/set r")
@@ -195,7 +188,7 @@ def test_switch_session_agent_application_logic(tmp_path: Path) -> None:
     assert len(agents) >= 2
 
     # Create an initial session using the default agent.
-    session = term_app.create_session(agent_id="default", system_message=None)
+    session = term_app.start_new_session(system_message=None, agent_id="default")
     metadata = session.metadata or {}
     initial_agent = metadata.get("agent_id")
     assert initial_agent == "default"
@@ -203,7 +196,7 @@ def test_switch_session_agent_application_logic(tmp_path: Path) -> None:
     # Decide on a non-default target agent and switch via the application.
     target = next(a for a in agents if a != "default")
 
-    updated_session = term_app.switch_session_agent(session.session_id, target)
+    updated_session = term_app.switch_agent(target)
     assert updated_session.metadata.get("agent_id") == target
 
     loaded = agent_app.load_session(session.session_id)
@@ -230,8 +223,8 @@ def test_set_overrides_and_send_request_uses_them(tmp_path: Path, monkeypatch: p
     )
 
     # Create a session and update an override via the application.
-    session = term_app.create_session(agent_id="default", system_message=None)
-    updated = term_app.update_session_overrides(session.session_id, "reasoning_effort", "high")
+    session = term_app.start_new_session(system_message=None, agent_id="default")
+    updated = term_app.update_override("reasoning_effort", "high")
 
     overrides = updated.metadata.get("overrides") or {}
     assert overrides.get("reasoning_effort") == "high"
@@ -254,7 +247,6 @@ def test_set_overrides_and_send_request_uses_them(tmp_path: Path, monkeypatch: p
     # Invoke TerminalApplication.send_request without explicit overrides; it should
     # pull from session.metadata["overrides"].
     final_session_dict, messages, request_id = term_app.send_request(
-        session.session_id,
         overrides=None,
         stream=True,
     )
