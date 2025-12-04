@@ -100,7 +100,12 @@ def send_request(
     overrides: Optional[Dict[str, Any]] = None,
     stream: bool = True,
 ) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], Optional[str]]:
-    """Run ``AgentApplication.send_request`` and publish all events."""
+    """Run ``AgentApplication.send_request`` and publish all events.
+
+    Configuration overrides are loaded from the session's metadata under
+    ``overrides`` and merged with any explicit ``overrides`` mapping
+    provided to this function (explicit values winning).
+    """
 
     if overrides is not None and not isinstance(overrides, dict):
         raise ValueError("config_overrides must be a mapping if provided")
@@ -111,13 +116,26 @@ def send_request(
 
     core, base_config, session = ctx
 
+    # Merge stored overrides from session.metadata with explicit overrides.
+    metadata = session.metadata if isinstance(session.metadata, dict) else {}
+    stored_overrides = metadata.get("overrides") if isinstance(metadata.get("overrides"), dict) else {}
+
+    effective_overrides: Optional[Dict[str, Any]]
+    if overrides is None:
+        effective_overrides = dict(stored_overrides) if stored_overrides else None
+    else:
+        base = dict(stored_overrides) if stored_overrides else {}
+        effective_overrides = {**base, **overrides}
+
+
     final_session_dict: Optional[Dict[str, Any]] = session.to_dict()
     final_messages: List[Dict[str, Any]] = []
     request_id: Optional[str] = None
 
     store = app.get_event_store()
 
-    for ev in app.send_request(core, session, base_config, overrides, stream=stream):
+    for ev in app.send_request(core, session, base_config, effective_overrides, stream=stream):
+
         stored = store.publish(ev)
 
         if stored.get("type") == "final":
@@ -297,32 +315,183 @@ def iter_shortcuts() -> List[Shortcut]:
 
 
 class SlashCommandCompleter(Completer):
-    """Autocomplete for registered slash commands.
+    """Autocomplete for slash commands and their arguments.
 
-    This completer activates when the input starts with ``/`` and the
-    cursor is still within the command name (before any space). It
-    suggests the registered slash commands by name.
+    - When typing ``/`` and a command name (no space yet), this
+      completer suggests registered slash commands by name.
+    - When typing ``/agent `` followed by an optional prefix, this
+      completer suggests configured agent identifiers if a
+      ``get_agent_ids`` callback was provided.
+    - When typing ``/set `` and a configuration key or value, this
+      completer suggests UI element keys and, when available, their
+      option values based on the core UI schema.
     """
+
+    def __init__(
+        self,
+        get_agent_ids: Optional[Callable[[], List[str]]] = None,
+        get_ui_elements: Optional[Callable[[], List[Dict[str, Any]]]] = None,
+    ) -> None:
+        self._get_agent_ids = get_agent_ids
+        self._get_ui_elements = get_ui_elements
 
     def get_completions(self, document, complete_event):  # type: ignore[override]
         text = document.text_before_cursor
         if not isinstance(text, str) or not text.startswith("/"):
             return
 
-        # Only complete the command name (before the first space).
-        name_part = text[1:]
-        if " " in name_part:
+        body = text[1:]
+
+        # No space yet: complete command names.
+        if " " not in body:
+            prefix = body
+            for cmd in iter_slash_commands():
+                if not prefix or cmd.name.startswith(prefix):
+                    yield Completion(
+                        cmd.name,
+                        start_position=-len(prefix),
+                        display=f"/{cmd.name}",
+                        display_meta=cmd.description,
+                    )
             return
 
-        prefix = name_part
-        for cmd in iter_slash_commands():
-            if not prefix or cmd.name.startswith(prefix):
-                yield Completion(
-                    cmd.name,
-                    start_position=-len(prefix),
-                    display=f"/{cmd.name}",
-                    display_meta=cmd.description,
-                )
+        cmd_name, _, rest = body.partition(" ")
+        rest = rest.lstrip()
+
+        # /agent argument completion.
+        if cmd_name == "agent" and self._get_agent_ids is not None:
+            # Only complete the first argument token (no further spaces).
+            agent_prefix = rest
+            if " " in agent_prefix:
+                return
+
+            try:
+                agents = self._get_agent_ids() or []
+            except Exception:
+                agents = []
+
+            for agent in agents:
+                if not isinstance(agent, str) or not agent:
+                    continue
+                if not agent_prefix or agent.startswith(agent_prefix):
+                    yield Completion(
+                        agent,
+                        start_position=-len(agent_prefix),
+                        display=agent,
+                        display_meta="agent",
+                    )
+            return
+
+        # /set argument completion (keys and option values).
+        if cmd_name == "set" and self._get_ui_elements is not None:
+            try:
+                elements = self._get_ui_elements() or []
+            except Exception:
+                elements = []
+
+            # No or single token after /set: complete keys.
+            if " " not in rest:
+                key_prefix = rest
+                seen: set[str] = set()
+                for el in elements:
+                    key = el.get("key")
+                    if not isinstance(key, str) or not key or key in seen:
+                        continue
+                    if not key_prefix or key.startswith(key_prefix):
+                        seen.add(key)
+                        yield Completion(
+                            key,
+                            start_position=-len(key_prefix),
+                            display=key,
+                            display_meta="setting",
+                        )
+                return
+
+            # Complete option values for a specific key.
+            key_token, _, value_prefix = rest.partition(" ")
+            value_prefix = value_prefix.lstrip()
+
+            target_el: Optional[Dict[str, Any]] = None
+            for el in elements:
+                if el.get("key") == key_token:
+                    target_el = el
+                    break
+
+            if target_el is None:
+                return
+
+            options = target_el.get("options") or []
+            for opt in options:
+                if not isinstance(opt, str) or not opt:
+                    continue
+                if not value_prefix or opt.startswith(value_prefix):
+                    yield Completion(
+                        opt,
+                        start_position=-len(value_prefix),
+                        display=opt,
+                        display_meta=key_token,
+                    )
+            return
+
+@slash_command("ui_schema", "Get schema for UI configuration")
+async def _cmd_ui_schema(ctx: TerminalContext, arg: str) -> None:
+    app = ctx.app
+
+    try:
+        core, base_config, session = app.load_session(ctx.session_id)
+        print(core.get_ui_schema())
+    except Exception as exc:
+        ctx.write(f"[ui_schema] failed to get schema: {exc}")
+        return
+
+
+def _flatten_ui_schema(ui_schema: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Flatten core UI schema into elements with keys and options.
+
+    Returns a list of dicts with at least ``{"key": str, "type": str | None,
+    "options": List[str]}`` describing configuration elements.
+    """
+
+    flat: Dict[str, Dict[str, Any]] = {}
+
+    for _section, elements in (ui_schema or {}).items():
+        if not isinstance(elements, list):
+            continue
+        for el in elements:
+            if not isinstance(el, dict):
+                continue
+            key = el.get("key")
+            if not isinstance(key, str) or not key:
+                continue
+
+            entry = flat.get(key)
+            if entry is None:
+                entry = {"key": key, "type": el.get("type"), "options": []}
+                flat[key] = entry
+
+            opts = el.get("options") or []
+            if isinstance(opts, list):
+                for opt in opts:
+                    if not isinstance(opt, dict):
+                        continue
+                    val = opt.get("value")
+                    if isinstance(val, str) and val not in entry["options"]:
+                        entry["options"].append(val)
+
+    return sorted(flat.values(), key=lambda e: e["key"])
+
+
+def _get_session_ui_elements(ctx: TerminalContext) -> List[Dict[str, Any]]:
+    app = ctx.app
+    loaded = app.load_session(ctx.session_id)
+    if loaded is None:
+        return []
+    core, _base_config, _session = loaded
+    try:
+        ui_schema = core.get_ui_schema()
+    except Exception:
+        return []
+    return _flatten_ui_schema(ui_schema)
 
 
 @slash_command("agent", "Switch the active agent for this session")
@@ -339,6 +508,34 @@ async def _cmd_agent(ctx: TerminalContext, arg: str) -> None:
         return
 
     agents = sorted(dict.fromkeys(agents))
+
+    selection = (arg or "").strip()
+
+    # If an agent identifier (or index) is provided, switch immediately.
+    if selection:
+        target: Optional[str] = None
+        if selection.isdigit():
+            index = int(selection)
+            if 1 <= index <= len(agents):
+                target = agents[index - 1]
+        if target is None and selection in agents:
+            target = selection
+
+        if target is None:
+            ctx.write(f"[agent] unknown agent: {selection!r}")
+            return
+
+        if target == ctx.agent_id:
+            ctx.write(f"[agent] already using agent {target!r}")
+            return
+
+        try:
+            _switch_session_agent(ctx, target)
+        except Exception as exc:  # pragma: no cover - defensive
+            ctx.write(f"[agent] failed to switch agent: {exc}")
+        return
+
+    # No argument: fall back to a simple text-based selection.
     ctx.pending_agent_choices = agents
 
     ctx.write("\n[agent] Available agents:")
@@ -403,7 +600,31 @@ def _switch_session_agent(ctx: TerminalContext, agent_id: str) -> None:
     ctx.write(f"[agent] switched to {agent_id!r}")
 
 
+def _update_session_overrides(ctx: TerminalContext, key: str, value: Any) -> None:
+    app = ctx.app
+    loaded = app.load_session(ctx.session_id)
+    if loaded is None:
+        raise KeyError(f"Session {ctx.session_id!r} not found")
+    _core, _base_config, session = loaded
+
+    metadata = session.metadata if isinstance(session.metadata, dict) else {}
+    overrides = metadata.get("overrides") if isinstance(metadata.get("overrides"), dict) else {}
+
+    new_overrides = {**overrides, key: value}
+    new_metadata = {**metadata, "overrides": new_overrides}
+
+    new_session = Session(
+        session_id=session.session_id,
+        messages=list(session.messages),
+        metadata=new_metadata,
+    )
+    app.save_session(new_session)
+
+    ctx.write(f"[set] {key}={value!r} saved for this session")
+ 
+ 
 def _handle_agent_selection(ctx: TerminalContext, text: str) -> None:
+
     choices = ctx.pending_agent_choices or []
     ctx.pending_agent_choices = None
 
@@ -434,6 +655,67 @@ def _handle_agent_selection(ctx: TerminalContext, text: str) -> None:
         ctx.write(f"[agent] failed to switch agent: {exc}")
 
 
+@slash_command("set", "Set a configuration override for this session")
+async def _cmd_set(ctx: TerminalContext, arg: str) -> None:
+    elements = _get_session_ui_elements(ctx)
+    if not elements:
+        ctx.write("[set] no configurable UI elements available")
+        return
+
+    by_key: Dict[str, Dict[str, Any]] = {}
+    for el in elements:
+        key = el.get("key")
+        if isinstance(key, str) and key:
+            by_key[key] = el
+
+    text = (arg or "").strip()
+    if not text:
+        ctx.write("[set] usage: /set <key> <value>")
+        ctx.write("[set] Available keys:")
+        for key in sorted(by_key.keys()):
+            options = by_key[key].get("options") or []
+            if options:
+                ctx.write(f"  {key} (options: {', '.join(options)})")
+            else:
+                ctx.write(f"  {key}")
+        return
+
+    name_and_val = text.split(" ", 1)
+    key = name_and_val[0]
+    value = name_and_val[1].strip() if len(name_and_val) > 1 else ""
+
+    el = by_key.get(key)
+    if el is None:
+        ctx.write(f"[set] unknown key: {key!r}")
+        return
+
+    if not value:
+        ctx.write(f"[set] missing value for {key!r}")
+        return
+
+    options = el.get("options") or []
+    if options and value not in options:
+        ctx.write(f"[set] invalid value for {key!r}. Allowed: {', '.join(options)}")
+        return
+
+    el_type = el.get("type")
+    coerced: Any = value
+    if el_type == "checkbox":
+        lowered = value.lower()
+        if lowered in {"true", "1", "yes", "on"}:
+            coerced = True
+        elif lowered in {"false", "0", "no", "off"}:
+            coerced = False
+        else:
+            ctx.write(f"[set] invalid boolean for {key!r}: {value!r}")
+            return
+
+    try:
+        _update_session_overrides(ctx, key, coerced)
+    except Exception as exc:  # pragma: no cover - defensive
+        ctx.write(f"[set] failed to update overrides: {exc}")
+
+
 async def _handle_slash_command(ctx: TerminalContext, raw: str) -> None:
     name_and_arg = raw[1:].strip().split(" ", 1)
     name = name_and_arg[0] if name_and_arg else ""
@@ -451,6 +733,7 @@ async def _handle_slash_command(ctx: TerminalContext, raw: str) -> None:
     result = cmd.handler(ctx, arg)
     if asyncio.iscoroutine(result):
         await result
+
 
 
 async def _handle_user_message(ctx: TerminalContext, text: str) -> None:
@@ -517,7 +800,10 @@ async def _run_terminal(
     agent_id = agent if isinstance(agent, str) and agent else "default"
     ctx = TerminalContext(app=app, session_id=session.session_id, agent_id=agent_id, logger=logger)
 
-    completer = SlashCommandCompleter()
+    completer = SlashCommandCompleter(
+        get_agent_ids=lambda: ctx.app.list_agents(),
+        get_ui_elements=lambda: _get_session_ui_elements(ctx),
+    )
     prompt_session = PromptSession(
         multiline=False,
         completer=completer,
