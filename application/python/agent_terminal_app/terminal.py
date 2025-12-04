@@ -536,7 +536,7 @@ async def _handle_user_message(
     async def _run_request() -> None:
         def _worker() -> None:
             try:
-                app.send_request(overrides=None, stream=True)
+                app.send_request(stream=True)
             except Exception:
                 # Background errors are logged via events; keep UI responsive.
                 pass
