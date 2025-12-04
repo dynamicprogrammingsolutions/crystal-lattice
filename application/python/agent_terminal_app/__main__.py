@@ -86,6 +86,7 @@ def main() -> None:  # pragma: no cover - manual execution only
     from .terminal import (
         _DEFAULT_CONFIG_PATH as TERM_CONFIG,
         _DEFAULT_SESSION_ROOT as TERM_SESSIONS,
+        TerminalApplication,
         run_terminal,
     )
 
@@ -97,7 +98,12 @@ def main() -> None:  # pragma: no cover - manual execution only
         shared_events = InMemoryEventStore()
 
         server_app = AgentApplication(str(SERVER_CONFIG), str(SERVER_SESSIONS), event_store=shared_events)
-        terminal_app = AgentApplication(str(TERM_CONFIG), str(TERM_SESSIONS), event_store=shared_events)
+        terminal_agent_app = AgentApplication(str(TERM_CONFIG), str(TERM_SESSIONS), event_store=shared_events)
+        terminal_app = TerminalApplication(
+            config_path=str(TERM_CONFIG),
+            session_root=str(TERM_SESSIONS),
+            agent_app=terminal_agent_app,
+        )
 
         thread = threading.Thread(
             target=run_api,
