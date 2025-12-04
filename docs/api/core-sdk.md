@@ -287,18 +287,26 @@ schema = core.get_config_schema()
 #### get_ui_schema
 
 ```python
-get_ui_schema() -> Dict[str, Any]
+get_ui_schema() -> List[Dict[str, Any]]
 ```
 
-Get combined UI schema from all registered plugins.
+Get combined (flattened) UI schema from all registered plugins.
+
+Each element in the returned list is a dictionary that describes a UI
+configuration element contributed by a provider, extension, feature, or
+tool. Plugins may optionally include a `ui_type` field to classify
+elements as `"config"` (default), `"action"`, or `"info"`.
 
 **Returns:**
-- `dict`: Mapping of plugin names to their UI element definitions (includes provider, provider extensions, features, and tools)
+- `list[dict]`: Flattened list of UI element definitions.
 
 **Example:**
 ```python
 schema = core.get_ui_schema()
-# {"openai": [{"type": "text", ...}], "web_search": [...], "file_reader": [...], ...}
+# [
+#   {"key": "model", "type": "text", "label": "Model"},
+#   {"key": "reasoning_effort", "type": "select", "options": [...]},
+# ]
 ```
 
 #### get_tool_schemas

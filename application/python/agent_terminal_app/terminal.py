@@ -179,10 +179,12 @@ def list_events(
 
 
 CommandFn = Callable[["TerminalContext", str], Awaitable[None] | None]
+SlashCompletionFn = Callable[["TerminalContext", str], List[Completion]]
 
 
 @dataclass
 class TerminalContext:
+
     app: AgentApplication
     session_id: str
     agent_id: str
@@ -269,6 +271,7 @@ class SlashCommand:
     name: str
     description: str
     handler: CommandFn
+    completer: Optional[SlashCompletionFn] = None
 
 
 @dataclass(frozen=True)
@@ -282,15 +285,25 @@ _SLASH_COMMANDS: Dict[str, SlashCommand] = {}
 _SHORTCUTS: Dict[str, Shortcut] = {}
 
 
-def slash_command(name: str, description: str = "") -> Callable[[CommandFn], CommandFn]:
+def slash_command(
+    name: str,
+    description: str = "",
+    completer: Optional[SlashCompletionFn] = None,
+) -> Callable[[CommandFn], CommandFn]:
     cmd_name = name.lstrip("/")
 
     def decorator(func: CommandFn) -> CommandFn:
         text = description or (func.__doc__ or "").strip() or cmd_name
-        _SLASH_COMMANDS[cmd_name] = SlashCommand(name=cmd_name, description=text, handler=func)
+        _SLASH_COMMANDS[cmd_name] = SlashCommand(
+            name=cmd_name,
+            description=text,
+            handler=func,
+            completer=completer,
+        )
         return func
 
     return decorator
+
 
 
 def shortcut(keys: str, description: str = "") -> Callable[[CommandFn], CommandFn]:
@@ -317,23 +330,14 @@ def iter_shortcuts() -> List[Shortcut]:
 class SlashCommandCompleter(Completer):
     """Autocomplete for slash commands and their arguments.
 
-    - When typing ``/`` and a command name (no space yet), this
-      completer suggests registered slash commands by name.
-    - When typing ``/agent `` followed by an optional prefix, this
-      completer suggests configured agent identifiers if a
-      ``get_agent_ids`` callback was provided.
-    - When typing ``/set `` and a configuration key or value, this
-      completer suggests UI element keys and, when available, their
-      option values based on the core UI schema.
+    This completer is generic: it knows how to complete command names
+    and delegates per-command argument completion to the ``completer``
+    callback registered with each :class:`SlashCommand` via the
+    :func:`slash_command` decorator.
     """
 
-    def __init__(
-        self,
-        get_agent_ids: Optional[Callable[[], List[str]]] = None,
-        get_ui_elements: Optional[Callable[[], List[Dict[str, Any]]]] = None,
-    ) -> None:
-        self._get_agent_ids = get_agent_ids
-        self._get_ui_elements = get_ui_elements
+    def __init__(self, get_context: Callable[[], "TerminalContext"]) -> None:
+        self._get_context = get_context
 
     def get_completions(self, document, complete_event):  # type: ignore[override]
         text = document.text_before_cursor
@@ -358,80 +362,18 @@ class SlashCommandCompleter(Completer):
         cmd_name, _, rest = body.partition(" ")
         rest = rest.lstrip()
 
-        # /agent argument completion.
-        if cmd_name == "agent" and self._get_agent_ids is not None:
-            # Only complete the first argument token (no further spaces).
-            agent_prefix = rest
-            if " " in agent_prefix:
-                return
-
-            try:
-                agents = self._get_agent_ids() or []
-            except Exception:
-                agents = []
-
-            for agent in agents:
-                if not isinstance(agent, str) or not agent:
-                    continue
-                if not agent_prefix or agent.startswith(agent_prefix):
-                    yield Completion(
-                        agent,
-                        start_position=-len(agent_prefix),
-                        display=agent,
-                        display_meta="agent",
-                    )
+        cmd = get_slash_command(cmd_name)
+        if cmd is None or cmd.completer is None:
             return
 
-        # /set argument completion (keys and option values).
-        if cmd_name == "set" and self._get_ui_elements is not None:
-            try:
-                elements = self._get_ui_elements() or []
-            except Exception:
-                elements = []
+        ctx = self._get_context()
+        try:
+            completions = cmd.completer(ctx, rest) or []
+        except Exception:
+            completions = []
 
-            # No or single token after /set: complete keys.
-            if " " not in rest:
-                key_prefix = rest
-                seen: set[str] = set()
-                for el in elements:
-                    key = el.get("key")
-                    if not isinstance(key, str) or not key or key in seen:
-                        continue
-                    if not key_prefix or key.startswith(key_prefix):
-                        seen.add(key)
-                        yield Completion(
-                            key,
-                            start_position=-len(key_prefix),
-                            display=key,
-                            display_meta="setting",
-                        )
-                return
-
-            # Complete option values for a specific key.
-            key_token, _, value_prefix = rest.partition(" ")
-            value_prefix = value_prefix.lstrip()
-
-            target_el: Optional[Dict[str, Any]] = None
-            for el in elements:
-                if el.get("key") == key_token:
-                    target_el = el
-                    break
-
-            if target_el is None:
-                return
-
-            options = target_el.get("options") or []
-            for opt in options:
-                if not isinstance(opt, str) or not opt:
-                    continue
-                if not value_prefix or opt.startswith(value_prefix):
-                    yield Completion(
-                        opt,
-                        start_position=-len(value_prefix),
-                        display=opt,
-                        display_meta=key_token,
-                    )
-            return
+        for comp in completions:
+            yield comp
 
 @slash_command("ui_schema", "Get schema for UI configuration")
 async def _cmd_ui_schema(ctx: TerminalContext, arg: str) -> None:
@@ -445,38 +387,45 @@ async def _cmd_ui_schema(ctx: TerminalContext, arg: str) -> None:
         return
 
 
-def _flatten_ui_schema(ui_schema: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Flatten core UI schema into elements with keys and options.
+def _flatten_ui_schema(ui_schema: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Normalize UI schema elements for configuration-focused usage.
 
-    Returns a list of dicts with at least ``{"key": str, "type": str | None,
-    "options": List[str]}`` describing configuration elements.
+    The core returns a flattened list of UI elements from all plugins.
+    This helper filters to elements with ``ui_type == "config"`` (or
+    unset), de-duplicates by key, and normalizes options to a list of
+    string values for convenience in the terminal UI.
     """
 
     flat: Dict[str, Dict[str, Any]] = {}
 
-    for _section, elements in (ui_schema or {}).items():
-        if not isinstance(elements, list):
+    for el in ui_schema or []:
+        if not isinstance(el, dict):
             continue
-        for el in elements:
-            if not isinstance(el, dict):
-                continue
-            key = el.get("key")
-            if not isinstance(key, str) or not key:
-                continue
+        key = el.get("key")
+        if not isinstance(key, str) or not key:
+            continue
 
-            entry = flat.get(key)
-            if entry is None:
-                entry = {"key": key, "type": el.get("type"), "options": []}
-                flat[key] = entry
+        ui_type = el.get("ui_type", "config")
+        if ui_type != "config":
+            continue
 
-            opts = el.get("options") or []
-            if isinstance(opts, list):
-                for opt in opts:
-                    if not isinstance(opt, dict):
-                        continue
+        entry = flat.get(key)
+        if entry is None:
+            entry = {"key": key, "type": el.get("type"), "options": []}
+            flat[key] = entry
+
+        opts = el.get("options") or []
+        if isinstance(opts, list):
+            for opt in opts:
+                # Core UI elements typically store options as
+                # {"value": <str>, "label": <str>}. We only need the
+                # value for completion and /set overrides.
+                if isinstance(opt, dict):
                     val = opt.get("value")
                     if isinstance(val, str) and val not in entry["options"]:
                         entry["options"].append(val)
+                elif isinstance(opt, str) and opt not in entry["options"]:
+                    entry["options"].append(opt)
 
     return sorted(flat.values(), key=lambda e: e["key"])
 
@@ -494,8 +443,38 @@ def _get_session_ui_elements(ctx: TerminalContext) -> List[Dict[str, Any]]:
     return _flatten_ui_schema(ui_schema)
 
 
-@slash_command("agent", "Switch the active agent for this session")
+def _agent_completion(ctx: TerminalContext, text: str) -> List[Completion]:
+    app = ctx.app
+    try:
+        agents = app.list_agents()
+    except Exception:
+        agents = ["default"]
+
+    agents = [a for a in agents if isinstance(a, str) and a]
+    agents = sorted(dict.fromkeys(agents))
+
+    prefix = text
+    # Only complete a single token after /agent
+    if " " in prefix:
+        return []
+
+    completions: List[Completion] = []
+    for agent in agents:
+        if not prefix or agent.startswith(prefix):
+            completions.append(
+                Completion(
+                    agent,
+                    start_position=-len(prefix),
+                    display=agent,
+                    display_meta="agent",
+                )
+            )
+    return completions
+
+
+@slash_command("agent", "Switch the active agent for this session", completer=_agent_completion)
 async def _cmd_agent(ctx: TerminalContext, arg: str) -> None:
+
     app = ctx.app
     try:
         agents = app.list_agents()
@@ -655,7 +634,61 @@ def _handle_agent_selection(ctx: TerminalContext, text: str) -> None:
         ctx.write(f"[agent] failed to switch agent: {exc}")
 
 
-@slash_command("set", "Set a configuration override for this session")
+def _set_completion(ctx: TerminalContext, text: str) -> List[Completion]:
+    elements = _get_session_ui_elements(ctx)
+    rest = text.lstrip()
+    completions: List[Completion] = []
+
+    # No or single token after /set: complete keys.
+    if " " not in rest:
+        key_prefix = rest
+        seen: set[str] = set()
+        for el in elements:
+            key = el.get("key")
+            if not isinstance(key, str) or not key or key in seen:
+                continue
+            if not key_prefix or key.startswith(key_prefix):
+                seen.add(key)
+                completions.append(
+                    Completion(
+                        key,
+                        start_position=-len(key_prefix),
+                        display=key,
+                        display_meta="setting",
+                    )
+                )
+        return completions
+
+    # Complete option values for a specific key.
+    key_token, _, value_prefix = rest.partition(" ")
+    value_prefix = value_prefix.lstrip()
+
+    target_el: Optional[Dict[str, Any]] = None
+    for el in elements:
+        if el.get("key") == key_token:
+            target_el = el
+            break
+
+    if target_el is None:
+        return completions
+
+    options = target_el.get("options") or []
+    for opt in options:
+        if not isinstance(opt, str) or not opt:
+            continue
+        if not value_prefix or opt.startswith(value_prefix):
+            completions.append(
+                Completion(
+                    opt,
+                    start_position=-len(value_prefix),
+                    display=opt,
+                    display_meta=key_token,
+                )
+            )
+    return completions
+
+
+@slash_command("set", "Set a configuration override for this session", completer=_set_completion)
 async def _cmd_set(ctx: TerminalContext, arg: str) -> None:
     elements = _get_session_ui_elements(ctx)
     if not elements:
@@ -800,10 +833,7 @@ async def _run_terminal(
     agent_id = agent if isinstance(agent, str) and agent else "default"
     ctx = TerminalContext(app=app, session_id=session.session_id, agent_id=agent_id, logger=logger)
 
-    completer = SlashCommandCompleter(
-        get_agent_ids=lambda: ctx.app.list_agents(),
-        get_ui_elements=lambda: _get_session_ui_elements(ctx),
-    )
+    completer = SlashCommandCompleter(lambda: ctx)
     prompt_session = PromptSession(
         multiline=False,
         completer=completer,
