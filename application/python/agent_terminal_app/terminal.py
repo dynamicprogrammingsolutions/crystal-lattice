@@ -20,157 +20,306 @@ _DEFAULT_SESSION_ROOT = Path(__file__).resolve().parent / "sessions"
 
 
 # ---------------------------------------------------------------------------
-# Application helpers built on AgentApplication + event store
+# Application layer: TerminalApplication
 # ---------------------------------------------------------------------------
 
 
-def _build_default_agent_app() -> AgentApplication:
-    cfg = _DEFAULT_CONFIG_PATH
-    root = _DEFAULT_SESSION_ROOT
-    root.mkdir(parents=True, exist_ok=True)
-    return AgentApplication(str(cfg), str(root))
+class TerminalApplication:
+    """Application logic for the terminal frontend.
 
-
-def create_session(app: AgentApplication, agent_id: str, system_message: Optional[str]) -> Session:
-    """Create and persist a session, publishing ``session_created``."""
-
-    core, _base_config, base_session = app.create_session(agent_id)
-    session = base_session
-
-    if isinstance(system_message, str) and system_message:
-        session = core.add_message(session, "system", system_message)
-        app.save_session(session)
-
-    store = app.get_event_store()
-    store.publish(
-        {
-            "type": "session_created",
-            "session_id": session.session_id,
-            "agent_id": agent_id,
-            "session": session.to_dict(),
-        }
-    )
-
-    return session
-
-
-def add_message(
-    app: AgentApplication,
-    session_id: str,
-    *,
-    role: str,
-    content: str,
-    metadata: Optional[Dict[str, Any]] = None,
-) -> Session:
-    """Append a message and publish ``message_appended``."""
-
-    ctx = app.load_session(session_id)
-    if ctx is None:
-        raise KeyError(f"Session {session_id!r} not found")
-
-    core, _base_config, session = ctx
-
-    normalized_role = role if role in {"system", "user", "assistant", "tool"} else "user"
-
-    new_session = core.add_message(session, normalized_role, content, metadata)
-    app.save_session(new_session)
-
-    last_message = new_session.messages[-1] if new_session.messages else None
-
-    store = app.get_event_store()
-    store.publish(
-        {
-            "type": "message_appended",
-            "session_id": new_session.session_id,
-            "role": normalized_role,
-            "content": content,
-            "metadata": metadata or {},
-            "message": last_message.to_dict() if last_message is not None else None,
-            "session": new_session.to_dict(),
-        }
-    )
-
-    return new_session
-
-
-def send_request(
-    app: AgentApplication,
-    session_id: str,
-    *,
-    overrides: Optional[Dict[str, Any]] = None,
-    stream: bool = True,
-) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], Optional[str]]:
-    """Run ``AgentApplication.send_request`` and publish all events.
-
-    Configuration overrides are loaded from the session's metadata under
-    ``overrides`` and merged with any explicit ``overrides`` mapping
-    provided to this function (explicit values winning).
+    Wraps an :class:`AgentApplication` instance and exposes helpers for
+    session management, event publishing, agent switching, and
+    per-session configuration overrides. The terminal UI layer is
+    expected to hold the current ``session_id`` and call these helpers
+    with it explicitly.
     """
 
-    if overrides is not None and not isinstance(overrides, dict):
-        raise ValueError("config_overrides must be a mapping if provided")
+    def __init__(
+        self,
+        *,
+        config_path: str | Path,
+        session_root: str | Path,
+        agent_app: AgentApplication | None = None,
+    ) -> None:
+        if agent_app is not None:
+            self._app = agent_app
+        else:
+            root = Path(session_root)
+            root.mkdir(parents=True, exist_ok=True)
+            self._app = AgentApplication(str(config_path), str(root))
 
-    ctx = app.load_session(session_id)
-    if ctx is None:
-        raise KeyError(f"Session {session_id!r} not found")
+    @property
+    def agent_app(self) -> AgentApplication:
+        """Return the underlying :class:`AgentApplication` instance."""
 
-    core, base_config, session = ctx
+        return self._app
 
-    # Merge stored overrides from session.metadata with explicit overrides.
-    metadata = session.metadata if isinstance(session.metadata, dict) else {}
-    stored_overrides = metadata.get("overrides") if isinstance(metadata.get("overrides"), dict) else {}
+    # --- Sessions and messages -------------------------------------------------
 
-    effective_overrides: Optional[Dict[str, Any]]
-    if overrides is None:
-        effective_overrides = dict(stored_overrides) if stored_overrides else None
-    else:
-        base = dict(stored_overrides) if stored_overrides else {}
-        effective_overrides = {**base, **overrides}
+    def create_session(self, agent_id: str, system_message: Optional[str]) -> Session:
+        """Create and persist a session, publishing ``session_created``."""
 
+        core, _base_config, base_session = self._app.create_session(agent_id)
+        session = base_session
 
-    final_session_dict: Optional[Dict[str, Any]] = session.to_dict()
-    final_messages: List[Dict[str, Any]] = []
-    request_id: Optional[str] = None
+        if isinstance(system_message, str) and system_message:
+            session = core.add_message(session, "system", system_message)
+            self._app.save_session(session)
 
-    store = app.get_event_store()
+        store = self._app.get_event_store()
+        store.publish(
+            {
+                "type": "session_created",
+                "session_id": session.session_id,
+                "agent_id": agent_id,
+                "session": session.to_dict(),
+            }
+        )
 
-    for ev in app.send_request(core, session, base_config, effective_overrides, stream=stream):
+        return session
 
-        stored = store.publish(ev)
+    def add_message(
+        self,
+        session_id: str,
+        *,
+        role: str,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Session:
+        """Append a message to a session and publish ``message_appended``."""
 
-        if stored.get("type") == "final":
-            final_session_dict = stored.get("session") or final_session_dict
-            final_messages = list(stored.get("messages") or [])
-            request_id = stored.get("request_id")
-        elif "session" in stored and isinstance(stored.get("session"), dict):
-            final_session_dict = stored["session"]
+        ctx = self._app.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
 
-    if final_session_dict is not None:
+        core, _base_config, session = ctx
+
+        normalized_role = role if role in {"system", "user", "assistant", "tool"} else "user"
+
+        new_session = core.add_message(session, normalized_role, content, metadata)
+        self._app.save_session(new_session)
+
+        last_message = new_session.messages[-1] if new_session.messages else None
+
+        store = self._app.get_event_store()
+        store.publish(
+            {
+                "type": "message_appended",
+                "session_id": new_session.session_id,
+                "role": normalized_role,
+                "content": content,
+                "metadata": metadata or {},
+                "message": last_message.to_dict() if last_message is not None else None,
+                "session": new_session.to_dict(),
+            }
+        )
+
+        return new_session
+
+    # --- Requests and events ---------------------------------------------------
+
+    def send_request(
+        self,
+        session_id: str,
+        *,
+        overrides: Optional[Dict[str, Any]] = None,
+        stream: bool = True,
+    ) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], Optional[str]]:
+        """Run ``AgentApplication.send_request`` and publish all events.
+
+        Configuration overrides are loaded from the session's metadata
+        under ``overrides`` and merged with any explicit ``overrides``
+        mapping provided to this function (explicit values winning).
+        """
+
+        if overrides is not None and not isinstance(overrides, dict):
+            raise ValueError("config_overrides must be a mapping if provided")
+
+        ctx = self._app.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+
+        core, base_config, session = ctx
+
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        stored_val = metadata.get("overrides")
+        stored_overrides: Dict[str, Any] = dict(stored_val) if isinstance(stored_val, dict) else {}
+
+        if overrides is None:
+            effective_overrides: Optional[Dict[str, Any]] = dict(stored_overrides) if stored_overrides else None
+        else:
+            base = dict(stored_overrides) if stored_overrides else {}
+            effective_overrides = {**base, **overrides}
+
+        final_session_dict: Optional[Dict[str, Any]] = session.to_dict()
+        final_messages: List[Dict[str, Any]] = []
+        request_id: Optional[str] = None
+
+        store = self._app.get_event_store()
+
+        for ev in self._app.send_request(core, session, base_config, effective_overrides, stream=stream):
+            stored = store.publish(ev)
+
+            if stored.get("type") == "final":
+                final_session_dict = stored.get("session") or final_session_dict
+                final_messages = list(stored.get("messages") or [])
+                request_id = stored.get("request_id")
+            elif "session" in stored and isinstance(stored.get("session"), dict):
+                final_session_dict = stored["session"]
+
+        if final_session_dict is not None:
+            try:
+                final_session = Session.from_dict(final_session_dict)
+                self._app.save_session(final_session)
+            except Exception:  # pragma: no cover - defensive
+                pass
+
+        return final_session_dict, final_messages, request_id
+
+    def list_events(
+        self,
+        *,
+        since_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """List events for a given session from the application's store."""
+
+        store = self._app.get_event_store()
+        return store.list(
+            since_id=since_id,
+            request_id=None,
+            session_id=session_id,
+            limit=limit,
+        )
+
+    # --- Agents and configuration ---------------------------------------------
+
+    def list_agents(self) -> List[str]:
+        """Return a normalized, sorted list of agent identifiers."""
+
         try:
-            final_session = Session.from_dict(final_session_dict)
-            app.save_session(final_session)
-        except Exception:  # pragma: no cover - defensive
-            pass
+            agents = self._app.list_agents()
+        except Exception:
+            agents = ["default"]
 
-    return final_session_dict, final_messages, request_id
+        agents = [a for a in agents if isinstance(a, str) and a]
+        # Deduplicate while preserving insertion order, then sort for
+        # predictable completion ordering.
+        unique: Dict[str, None] = {}
+        for agent in agents:
+            if agent not in unique:
+                unique[agent] = None
+        return sorted(unique.keys())
 
+    def get_session_agent_id(self, session_id: str) -> str:
+        """Return the agent identifier for the given session.
 
-def list_events(
-    app: AgentApplication,
-    *,
-    since_id: Optional[str] = None,
-    session_id: Optional[str] = None,
-    limit: int = 100,
-) -> List[Dict[str, Any]]:
-    """List events for a given session from the application's store."""
+        Falls back to ``"default"`` if the session does not exist or does
+        not have an ``agent_id`` metadata entry.
+        """
 
-    store = app.get_event_store()
-    return store.list(
-        since_id=since_id,
-        request_id=None,
-        session_id=session_id,
-        limit=limit,
-    )
+        loaded = self._app.load_session(session_id)
+        if loaded is None:
+            return "default"
+        _core, _cfg, session = loaded
+        metadata = session.metadata or {}
+        agent = metadata.get("agent_id")
+        return agent if isinstance(agent, str) and agent else "default"
+
+    def _flatten_ui_schema(self, ui_schema: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Normalize UI schema elements for configuration-focused usage."""
+
+        flat: Dict[str, Dict[str, Any]] = {}
+
+        for el in ui_schema or []:
+            if not isinstance(el, dict):
+                continue
+            key = el.get("key")
+            if not isinstance(key, str) or not key:
+                continue
+
+            ui_type = el.get("ui_type", "config")
+            if ui_type != "config":
+                continue
+
+            entry = flat.get(key)
+            if entry is None:
+                entry = {"key": key, "type": el.get("type"), "options": []}
+                flat[key] = entry
+
+            opts = el.get("options") or []
+            if isinstance(opts, list):
+                for opt in opts:
+                    # Core UI elements typically store options as
+                    # {"value": <str>, "label": <str>}. We only need the
+                    # value for completion and /set overrides.
+                    if isinstance(opt, dict):
+                        val = opt.get("value")
+                        if isinstance(val, str) and val not in entry["options"]:
+                            entry["options"].append(val)
+                    elif isinstance(opt, str) and opt not in entry["options"]:
+                        entry["options"].append(opt)
+
+        return sorted(flat.values(), key=lambda e: e["key"])
+
+    def get_session_ui_elements(self, session_id: str) -> List[Dict[str, Any]]:
+        """Return flattened, config-focused UI schema for a session."""
+
+        loaded = self._app.load_session(session_id)
+        if loaded is None:
+            return []
+        core, _base_config, _session = loaded
+        try:
+            ui_schema = core.get_ui_schema()
+        except Exception:
+            return []
+        return self._flatten_ui_schema(ui_schema)
+
+    def switch_session_agent(self, session_id: str, agent_id: str) -> Session:
+        """Update the session's ``agent_id`` metadata and persist it."""
+
+        loaded = self._app.load_session(session_id)
+        if loaded is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        _core, _base_config, session = loaded
+
+        metadata = session.metadata or {}
+        new_metadata = {**metadata, "agent_id": agent_id}
+        new_session = Session(
+            session_id=session.session_id,
+            messages=list(session.messages),
+            metadata=new_metadata,
+        )
+        self._app.save_session(new_session)
+        return new_session
+
+    def update_session_overrides(self, session_id: str, key: str, value: Any) -> Session:
+        """Update a single configuration override for the session.
+
+        The override is stored under ``session.metadata["overrides"]`` and
+        persisted. The updated :class:`Session` object is returned.
+        """
+
+        loaded = self._app.load_session(session_id)
+        if loaded is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        _core, _base_config, session = loaded
+
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides_val = metadata.get("overrides")
+        overrides: Dict[str, Any] = dict(overrides_val) if isinstance(overrides_val, dict) else {}
+
+        new_overrides = {**overrides, key: value}
+        new_metadata = {**metadata, "overrides": new_overrides}
+
+        new_session = Session(
+            session_id=session.session_id,
+            messages=list(session.messages),
+            metadata=new_metadata,
+        )
+        self._app.save_session(new_session)
+        return new_session
 
 
 # ---------------------------------------------------------------------------
@@ -185,9 +334,8 @@ SlashCompletionFn = Callable[["TerminalContext", str], List[Completion]]
 @dataclass
 class TerminalContext:
 
-    app: AgentApplication
+    app: TerminalApplication
     session_id: str
-    agent_id: str
     last_event_id: Optional[str] = None
     running: bool = True
     logger: Optional[Logger] = None
@@ -200,7 +348,7 @@ class TerminalContext:
 
 
 def _status_bar_text(ctx: TerminalContext) -> str:
-    agent = ctx.agent_id or "default"
+    agent = ctx.app.get_session_agent_id(ctx.session_id)
     return f"Agent: {agent}  Session: {ctx.session_id}"
 
 
@@ -249,10 +397,8 @@ def _render_event(ctx: TerminalContext, event: Dict[str, Any]) -> None:
 
 
 async def _poll_events(ctx: TerminalContext, poll_interval: float = 0.1) -> None:
-    store = ctx.app.get_event_store()
-
     while ctx.running:
-        events = store.list(
+        events = ctx.app.list_events(
             since_id=ctx.last_event_id,
             session_id=ctx.session_id,
             limit=50,
@@ -303,7 +449,6 @@ def slash_command(
         return func
 
     return decorator
-
 
 
 def shortcut(keys: str, description: str = "") -> Callable[[CommandFn], CommandFn]:
@@ -375,9 +520,10 @@ class SlashCommandCompleter(Completer):
         for comp in completions:
             yield comp
 
+
 @slash_command("ui_schema", "Get schema for UI configuration")
 async def _cmd_ui_schema(ctx: TerminalContext, arg: str) -> None:
-    app = ctx.app
+    app = ctx.app.agent_app
 
     try:
         core, base_config, session = app.load_session(ctx.session_id)
@@ -387,71 +533,8 @@ async def _cmd_ui_schema(ctx: TerminalContext, arg: str) -> None:
         return
 
 
-def _flatten_ui_schema(ui_schema: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Normalize UI schema elements for configuration-focused usage.
-
-    The core returns a flattened list of UI elements from all plugins.
-    This helper filters to elements with ``ui_type == "config"`` (or
-    unset), de-duplicates by key, and normalizes options to a list of
-    string values for convenience in the terminal UI.
-    """
-
-    flat: Dict[str, Dict[str, Any]] = {}
-
-    for el in ui_schema or []:
-        if not isinstance(el, dict):
-            continue
-        key = el.get("key")
-        if not isinstance(key, str) or not key:
-            continue
-
-        ui_type = el.get("ui_type", "config")
-        if ui_type != "config":
-            continue
-
-        entry = flat.get(key)
-        if entry is None:
-            entry = {"key": key, "type": el.get("type"), "options": []}
-            flat[key] = entry
-
-        opts = el.get("options") or []
-        if isinstance(opts, list):
-            for opt in opts:
-                # Core UI elements typically store options as
-                # {"value": <str>, "label": <str>}. We only need the
-                # value for completion and /set overrides.
-                if isinstance(opt, dict):
-                    val = opt.get("value")
-                    if isinstance(val, str) and val not in entry["options"]:
-                        entry["options"].append(val)
-                elif isinstance(opt, str) and opt not in entry["options"]:
-                    entry["options"].append(opt)
-
-    return sorted(flat.values(), key=lambda e: e["key"])
-
-
-def _get_session_ui_elements(ctx: TerminalContext) -> List[Dict[str, Any]]:
-    app = ctx.app
-    loaded = app.load_session(ctx.session_id)
-    if loaded is None:
-        return []
-    core, _base_config, _session = loaded
-    try:
-        ui_schema = core.get_ui_schema()
-    except Exception:
-        return []
-    return _flatten_ui_schema(ui_schema)
-
-
 def _agent_completion(ctx: TerminalContext, text: str) -> List[Completion]:
-    app = ctx.app
-    try:
-        agents = app.list_agents()
-    except Exception:
-        agents = ["default"]
-
-    agents = [a for a in agents if isinstance(a, str) and a]
-    agents = sorted(dict.fromkeys(agents))
+    agents = ctx.app.list_agents()
 
     prefix = text
     # Only complete a single token after /agent
@@ -475,20 +558,13 @@ def _agent_completion(ctx: TerminalContext, text: str) -> List[Completion]:
 @slash_command("agent", "Switch the active agent for this session", completer=_agent_completion)
 async def _cmd_agent(ctx: TerminalContext, arg: str) -> None:
 
-    app = ctx.app
-    try:
-        agents = app.list_agents()
-    except Exception:
-        agents = ["default"]
-
-    agents = [a for a in agents if isinstance(a, str) and a]
+    agents = ctx.app.list_agents()
     if not agents:
         ctx.write("[agent] no agents configured")
         return
 
-    agents = sorted(dict.fromkeys(agents))
-
     selection = (arg or "").strip()
+    current_agent = ctx.app.get_session_agent_id(ctx.session_id)
 
     # If an agent identifier (or index) is provided, switch immediately.
     if selection:
@@ -504,14 +580,18 @@ async def _cmd_agent(ctx: TerminalContext, arg: str) -> None:
             ctx.write(f"[agent] unknown agent: {selection!r}")
             return
 
-        if target == ctx.agent_id:
+        if target == current_agent:
             ctx.write(f"[agent] already using agent {target!r}")
             return
 
         try:
-            _switch_session_agent(ctx, target)
+            ctx.app.switch_session_agent(ctx.session_id, target)
         except Exception as exc:  # pragma: no cover - defensive
             ctx.write(f"[agent] failed to switch agent: {exc}")
+            return
+
+        ctx.last_event_id = None
+        ctx.write(f"[agent] switched to {target!r}")
         return
 
     # No argument: fall back to a simple text-based selection.
@@ -519,7 +599,7 @@ async def _cmd_agent(ctx: TerminalContext, arg: str) -> None:
 
     ctx.write("\n[agent] Available agents:")
     for index, agent in enumerate(agents, 1):
-        marker = "*" if agent == ctx.agent_id else " "
+        marker = "*" if agent == current_agent else " "
         ctx.write(f"  {index}. [{marker}] {agent}")
     ctx.write("[agent] Enter agent name or number (empty to cancel):")
 
@@ -540,13 +620,10 @@ async def _cmd_help(ctx: TerminalContext, arg: str) -> None:
 @slash_command("new", "Start a new session")
 @shortcut("c-n", "Start a new session")
 async def _cmd_new_session(ctx: TerminalContext, arg: str) -> None:
-    session = create_session(ctx.app, agent_id=ctx.agent_id, system_message=None)
+    current_agent = ctx.app.get_session_agent_id(ctx.session_id)
+    session = ctx.app.create_session(agent_id=current_agent, system_message=None)
     ctx.session_id = session.session_id
     ctx.last_event_id = None
-    metadata = session.metadata or {}
-    agent = metadata.get("agent_id")
-    if isinstance(agent, str) and agent:
-        ctx.agent_id = agent
     ctx.write(f"[session] switched to {ctx.session_id}")
 
 
@@ -558,50 +635,6 @@ async def _cmd_exit(ctx: TerminalContext, arg: str) -> None:
     ctx.running = False
 
 
-def _switch_session_agent(ctx: TerminalContext, agent_id: str) -> None:
-    app = ctx.app
-    loaded = app.load_session(ctx.session_id)
-    if loaded is None:
-        raise KeyError(f"Session {ctx.session_id!r} not found")
-    _core, _base_config, session = loaded
-
-    metadata = session.metadata or {}
-    new_metadata = {**metadata, "agent_id": agent_id}
-    new_session = Session(
-        session_id=session.session_id,
-        messages=list(session.messages),
-        metadata=new_metadata,
-    )
-    app.save_session(new_session)
-
-    ctx.agent_id = agent_id
-    ctx.last_event_id = None
-    ctx.write(f"[agent] switched to {agent_id!r}")
-
-
-def _update_session_overrides(ctx: TerminalContext, key: str, value: Any) -> None:
-    app = ctx.app
-    loaded = app.load_session(ctx.session_id)
-    if loaded is None:
-        raise KeyError(f"Session {ctx.session_id!r} not found")
-    _core, _base_config, session = loaded
-
-    metadata = session.metadata if isinstance(session.metadata, dict) else {}
-    overrides = metadata.get("overrides") if isinstance(metadata.get("overrides"), dict) else {}
-
-    new_overrides = {**overrides, key: value}
-    new_metadata = {**metadata, "overrides": new_overrides}
-
-    new_session = Session(
-        session_id=session.session_id,
-        messages=list(session.messages),
-        metadata=new_metadata,
-    )
-    app.save_session(new_session)
-
-    ctx.write(f"[set] {key}={value!r} saved for this session")
- 
- 
 def _handle_agent_selection(ctx: TerminalContext, text: str) -> None:
 
     choices = ctx.pending_agent_choices or []
@@ -624,18 +657,23 @@ def _handle_agent_selection(ctx: TerminalContext, text: str) -> None:
         ctx.write(f"[agent] invalid selection: {selection!r}")
         return
 
-    if target == ctx.agent_id:
+    current_agent = ctx.app.get_session_agent_id(ctx.session_id)
+    if target == current_agent:
         ctx.write(f"[agent] already using agent {target!r}")
         return
 
     try:
-        _switch_session_agent(ctx, target)
+        ctx.app.switch_session_agent(ctx.session_id, target)
     except Exception as exc:  # pragma: no cover - defensive
         ctx.write(f"[agent] failed to switch agent: {exc}")
+        return
+
+    ctx.last_event_id = None
+    ctx.write(f"[agent] switched to {target!r}")
 
 
 def _set_completion(ctx: TerminalContext, text: str) -> List[Completion]:
-    elements = _get_session_ui_elements(ctx)
+    elements = ctx.app.get_session_ui_elements(ctx.session_id)
     rest = text.lstrip()
     completions: List[Completion] = []
 
@@ -690,7 +728,7 @@ def _set_completion(ctx: TerminalContext, text: str) -> List[Completion]:
 
 @slash_command("set", "Set a configuration override for this session", completer=_set_completion)
 async def _cmd_set(ctx: TerminalContext, arg: str) -> None:
-    elements = _get_session_ui_elements(ctx)
+    elements = ctx.app.get_session_ui_elements(ctx.session_id)
     if not elements:
         ctx.write("[set] no configurable UI elements available")
         return
@@ -744,9 +782,12 @@ async def _cmd_set(ctx: TerminalContext, arg: str) -> None:
             return
 
     try:
-        _update_session_overrides(ctx, key, coerced)
+        ctx.app.update_session_overrides(ctx.session_id, key, coerced)
     except Exception as exc:  # pragma: no cover - defensive
         ctx.write(f"[set] failed to update overrides: {exc}")
+        return
+
+    ctx.write(f"[set] {key}={coerced!r} saved for this session")
 
 
 async def _handle_slash_command(ctx: TerminalContext, raw: str) -> None:
@@ -768,27 +809,22 @@ async def _handle_slash_command(ctx: TerminalContext, raw: str) -> None:
         await result
 
 
-
 async def _handle_user_message(ctx: TerminalContext, text: str) -> None:
     app = ctx.app
 
     try:
-        add_message(app, ctx.session_id, role="user", content=text, metadata=None)
+        app.add_message(ctx.session_id, role="user", content=text, metadata=None)
     except KeyError:
         ctx.write("[error] session not found; starting a new one")
-        session = create_session(app, agent_id=ctx.agent_id, system_message=None)
+        session = app.create_session(agent_id="default", system_message=None)
         ctx.session_id = session.session_id
         ctx.last_event_id = None
-        metadata = session.metadata or {}
-        agent = metadata.get("agent_id")
-        if isinstance(agent, str) and agent:
-            ctx.agent_id = agent
-        add_message(app, ctx.session_id, role="user", content=text, metadata=None)
+        app.add_message(ctx.session_id, role="user", content=text, metadata=None)
 
     async def _run_request() -> None:
         def _worker() -> None:
             try:
-                send_request(app, ctx.session_id, overrides=None, stream=True)
+                app.send_request(ctx.session_id, overrides=None, stream=True)
             except Exception:
                 # Background errors are logged via events; keep UI responsive.
                 pass
@@ -818,20 +854,16 @@ def _build_key_bindings(ctx: TerminalContext) -> KeyBindings:
 
 
 async def _run_terminal(
-    app: AgentApplication,
+    app: TerminalApplication,
     system_message: Optional[str] = None,
     logger: Optional[Logger] = None,
 ) -> None:
-    session = create_session(
-        app,
+    session = app.create_session(
         agent_id="default",
         system_message=system_message
         or "You are a helpful coding assistant. Respond concisely.",
     )
-    metadata = session.metadata or {}
-    agent = metadata.get("agent_id") if isinstance(metadata, dict) else None
-    agent_id = agent if isinstance(agent, str) and agent else "default"
-    ctx = TerminalContext(app=app, session_id=session.session_id, agent_id=agent_id, logger=logger)
+    ctx = TerminalContext(app=app, session_id=session.session_id, logger=logger)
 
     completer = SlashCommandCompleter(lambda: ctx)
     prompt_session = PromptSession(
@@ -843,7 +875,6 @@ async def _run_terminal(
     key_bindings = _build_key_bindings(ctx)
 
     event_task = asyncio.create_task(_poll_events(ctx))
-
 
     ctx.write("Session started. Type /help for commands. Press Ctrl-Q to exit.")
 
@@ -882,15 +913,18 @@ async def _run_terminal(
 def run_terminal(
     system_message: Optional[str] = None,
     logger: Optional[Logger] = None,
-    app_instance: Optional[AgentApplication] = None,
+    app_instance: Optional[TerminalApplication] = None,
 ) -> None:  # pragma: no cover - manual usage
     """Entry point for running the terminal client.
 
     If ``app_instance`` is provided, it is used; otherwise a default
-    :class:`AgentApplication` is constructed with the package's config
-    and session root.
+    :class:`TerminalApplication` is constructed with the package's
+    config and session root.
     """
 
-    app = app_instance or _build_default_agent_app()
+    app = app_instance or TerminalApplication(
+        config_path=_DEFAULT_CONFIG_PATH,
+        session_root=_DEFAULT_SESSION_ROOT,
+    )
 
     asyncio.run(_run_terminal(app, system_message=system_message, logger=logger))
