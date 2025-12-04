@@ -683,6 +683,9 @@ class AgentCore:
         for feature in features:
             state = feature.initialize_request(native_messages, state)
             provider.set_state(state)
+
+        logger.info("request init complete", request=state.get("request"))
+
         return messages, native_messages, state
 
     def send_request(

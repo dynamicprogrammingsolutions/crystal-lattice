@@ -94,8 +94,54 @@ def test_slash_command_completer_basic() -> None:
     # Non-slash input should not offer completions.
     assert _collect_completion_texts(completer, "hello") == set()
 
-    # After a space (arguments), no completion is offered.
+    # After a space (arguments), no completion is offered for commands
+    # without argument completers.
     assert _collect_completion_texts(completer, "/help more") == set()
+
+
+def test_agent_id_completion() -> None:
+    from agent_terminal_app import terminal as term_mod
+
+    def _get_agents() -> list[str]:
+        return ["default", "alt"]
+
+    completer = term_mod.SlashCommandCompleter(get_agent_ids=_get_agents)
+
+    # Completing agent id after "/agent ".
+    texts = _collect_completion_texts(completer, "/agent a")
+    assert "alt" in texts
+    assert "default" not in texts
+
+    # With no prefix, all agents are suggested.
+    texts_all = _collect_completion_texts(completer, "/agent ")
+    assert "default" in texts_all
+    assert "alt" in texts_all
+
+
+def test_set_completion() -> None:
+    from agent_terminal_app import terminal as term_mod
+
+    def _get_elements() -> list[dict]:
+        return [
+            {"key": "enable_reasoning", "type": "checkbox", "options": []},
+            {
+                "key": "reasoning_effort",
+                "type": "select",
+                "options": ["low", "medium", "high"],
+            },
+        ]
+
+    completer = term_mod.SlashCommandCompleter(get_ui_elements=_get_elements)
+
+    # Key completion after /set
+    key_texts = _collect_completion_texts(completer, "/set r")
+    assert "reasoning_effort" in key_texts
+    assert "enable_reasoning" not in key_texts
+
+    # Value completion after specific key
+    val_texts = _collect_completion_texts(completer, "/set reasoning_effort h")
+    assert "high" in val_texts
+    assert "low" not in val_texts
 
 
 @pytest.mark.asyncio
@@ -127,18 +173,10 @@ async def test_agent_switch_slash_command(tmp_path: Path) -> None:
         agent_id=initial_agent,
     )
 
-    # Trigger the /agent dialog.
-    await term_mod._cmd_agent(ctx, "")
-    assert ctx.pending_agent_choices is not None
-    available = ctx.pending_agent_choices
-    assert isinstance(available, list)
-    assert set(available) >= {"default"}
+    # Decide on a non-default target agent and switch via /agent {agent_id}.
+    target = next(a for a in agents if a != "default")
 
-    # Choose a non-default agent if available.
-    target = next(a for a in available if a != "default")
-
-    # Simulate user entering the chosen agent name.
-    term_mod._handle_agent_selection(ctx, target)
+    await term_mod._cmd_agent(ctx, target)
 
     assert ctx.agent_id == target
 
@@ -146,3 +184,75 @@ async def test_agent_switch_slash_command(tmp_path: Path) -> None:
     assert loaded is not None
     _core2, _base_config2, updated_session = loaded
     assert updated_session.metadata.get("agent_id") == target
+
+
+@pytest.mark.asyncio
+async def test_set_overrides_and_send_request_uses_them(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_core import AgentCore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    # Monkeypatch AgentCore.get_ui_schema to expose a reasoning_effort select.
+    def _fake_get_ui_schema(self) -> dict:  # type: ignore[override]
+        return {
+            "openrouter_reasoning": [
+                {
+                    "type": "select",
+                    "key": "reasoning_effort",
+                    "options": [
+                        {"value": "low", "label": "Low"},
+                        {"value": "high", "label": "High"},
+                    ],
+                }
+            ]
+        }
+
+    monkeypatch.setattr(AgentCore, "get_ui_schema", _fake_get_ui_schema, raising=False)
+
+    # Create a session and context.
+    session = term_mod.create_session(app, agent_id="default", system_message=None)
+    ctx = term_mod.TerminalContext(app=app, session_id=session.session_id, agent_id="default")
+
+    # Use /set to update an override in session metadata.
+    await term_mod._cmd_set(ctx, "reasoning_effort high")
+
+    loaded = app.load_session(session.session_id)
+    assert loaded is not None
+    _core2, _base_config2, updated_session = loaded
+    overrides = updated_session.metadata.get("overrides") or {}
+    assert overrides.get("reasoning_effort") == "high"
+
+    # Patch AgentApplication.send_request to capture overrides passed in.
+    captured: dict = {}
+
+    def _fake_send_request(self, core, session_obj, base_cfg, overrides_arg, *, stream=False, request_id=None):  # type: ignore[override]
+        captured["overrides"] = overrides_arg
+        # Minimal final event structure for terminal.send_request.
+        yield {
+            "type": "final",
+            "session": session_obj.to_dict(),
+            "messages": [],
+            "request_id": "req-1",
+        }
+
+    monkeypatch.setattr(AgentApplication, "send_request", _fake_send_request, raising=True)
+
+    # Invoke terminal.send_request without explicit overrides; it should
+    # pull from session.metadata["overrides"].
+    final_session_dict, messages, request_id = term_mod.send_request(
+        app,
+        session.session_id,
+        overrides=None,
+        stream=True,
+    )
+
+    assert captured["overrides"] == {"reasoning_effort": "high"}
+    assert final_session_dict is not None
