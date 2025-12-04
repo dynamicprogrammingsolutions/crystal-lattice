@@ -33,6 +33,8 @@ class TerminalApplication:
             self._app = AgentApplication(str(config_path), str(root))
 
         self._session: Session | None = None
+        self._core: Any | None = None
+        self._base_config: Any | None = None
         self._last_event_id: str | None = None
 
     # ------------------------------------------------------------------
@@ -53,10 +55,22 @@ class TerminalApplication:
     def session_id(self) -> str:
         return self.session.session_id
 
+    def require_session(self) -> Tuple[Any, Any, Session]:
+        """Return (core, base_config, session) for the active session.
+
+        Raises ``RuntimeError`` if no session (or core/config) is loaded.
+        """
+
+        session = self.session
+        core = self._core
+        base_config = self._base_config
+        if core is None or base_config is None:
+            raise RuntimeError("No active core; create a session first")
+        return core, base_config, session
+
     # ------------------------------------------------------------------
     # Session lifecycle
     # ------------------------------------------------------------------
-
 
     def start_new_session(self, system_message: Optional[str] = None, agent_id: Optional[str] = None) -> Session:
         """Start a new active session, replacing any previous one."""
@@ -68,7 +82,7 @@ class TerminalApplication:
         elif agent_id is None:
             agent_id = "default"
 
-        core, _base_config, base_session = self._app.create_session(agent_id)
+        core, base_config, base_session = self._app.create_session(agent_id)
         session = base_session
 
         if isinstance(system_message, str) and system_message:
@@ -86,6 +100,8 @@ class TerminalApplication:
         )
 
         self._session = session
+        self._core = core
+        self._base_config = base_config
         self._last_event_id = None
         return session
 
@@ -96,14 +112,8 @@ class TerminalApplication:
     def append_user_message(self, content: str, metadata: Optional[Dict[str, Any]] = None) -> Session:
         """Append a user message to the active session."""
 
-        if self._session is None:
-            raise RuntimeError("No active session; cannot append message")
+        core, _base_config, session = self.require_session()
 
-        ctx = self._app.load_session(self._session.session_id)
-        if ctx is None:
-            raise KeyError(f"Session {self._session.session_id!r} not found")
-
-        core, _base_config, session = ctx
         new_session = core.add_message(session, "user", content, metadata)
         self._app.save_session(new_session)
 
@@ -125,7 +135,6 @@ class TerminalApplication:
         self._session = new_session
         return new_session
 
-
     # ------------------------------------------------------------------
     # Requests and events
     # ------------------------------------------------------------------
@@ -133,37 +142,18 @@ class TerminalApplication:
     def send_request(
         self,
         *,
-        overrides: Optional[Dict[str, Any]] = None,
         stream: bool = True,
     ) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], Optional[str]]:
         """Run the core send_request loop for the active session.
 
         Configuration overrides are loaded from the session's metadata
-        under ``overrides`` and merged with any explicit ``overrides``
-        mapping provided to this function (explicit values winning).
+        under ``overrides`` and passed to the core. Explicit overrides
+        are not supported at the terminal level.
         """
 
-        if self._session is None:
-            raise RuntimeError("No active session; cannot send request")
+        core, base_config, session = self.require_session()
 
-        if overrides is not None and not isinstance(overrides, dict):
-            raise ValueError("config_overrides must be a mapping if provided")
-
-        ctx = self._app.load_session(self._session.session_id)
-        if ctx is None:
-            raise KeyError(f"Session {self._session.session_id!r} not found")
-
-        core, base_config, session = ctx
-
-        metadata = session.metadata if isinstance(session.metadata, dict) else {}
-        stored_val = metadata.get("overrides")
-        stored_overrides: Dict[str, Any] = dict(stored_val) if isinstance(stored_val, dict) else {}
-
-        if overrides is None:
-            effective_overrides: Optional[Dict[str, Any]] = dict(stored_overrides) if stored_overrides else None
-        else:
-            base = dict(stored_overrides) if stored_overrides else {}
-            effective_overrides = {**base, **overrides}
+        overrides = session.metadata.get("overrides")
 
         final_session_dict: Optional[Dict[str, Any]] = session.to_dict()
         final_messages: List[Dict[str, Any]] = []
@@ -171,7 +161,7 @@ class TerminalApplication:
 
         store = self._app.get_event_store()
 
-        for ev in self._app.send_request(core, session, base_config, effective_overrides, stream=stream):
+        for ev in self._app.send_request(core, session, base_config, overrides, stream=stream):
             stored = store.publish(ev)
 
             if stored.get("type") == "final":
@@ -191,18 +181,19 @@ class TerminalApplication:
 
         return final_session_dict, final_messages, request_id
 
-
     def poll_new_events(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Return events for the active session since the last poll."""
 
-        if self._session is None:
+        try:
+            session = self.session
+        except RuntimeError:
             return []
 
         store = self._app.get_event_store()
         events = store.list(
             since_id=self._last_event_id,
             request_id=None,
-            session_id=self._session.session_id,
+            session_id=session.session_id,
             limit=limit,
         )
         if events:
@@ -210,7 +201,6 @@ class TerminalApplication:
             if isinstance(last, str):
                 self._last_event_id = last
         return events
-
 
     def reset_event_cursor(self) -> None:
         self._last_event_id = None
@@ -220,17 +210,13 @@ class TerminalApplication:
     # ------------------------------------------------------------------
 
     def current_agent_id(self) -> str:
-        if self._session is None:
-            return "default"
-        metadata = self._session.metadata or {}
+        session = self.session
+        metadata = session.metadata or {}
         agent = metadata.get("agent_id")
         return agent if isinstance(agent, str) and agent else "default"
 
     def available_agents(self) -> List[str]:
-        try:
-            agents = self._app.list_agents()
-        except Exception:
-            agents = ["default"]
+        agents = self._app.list_agents()
 
         agents = [a for a in agents if isinstance(a, str) and a]
         # Deduplicate while preserving insertion order, then sort.
@@ -241,17 +227,16 @@ class TerminalApplication:
         return sorted(unique.keys())
 
     def switch_agent(self, target_agent_id: str) -> Session:
-        if self._session is None:
-            raise RuntimeError("No active session; cannot switch agent")
+        session = self.session
 
         if target_agent_id not in self.available_agents():
             raise KeyError(f"Unknown agent: {target_agent_id!r}")
 
-        metadata = self._session.metadata or {}
+        metadata = session.metadata or {}
         new_metadata = {**metadata, "agent_id": target_agent_id}
         new_session = Session(
-            session_id=self._session.session_id,
-            messages=list(self._session.messages),
+            session_id=session.session_id,
+            messages=list(session.messages),
             metadata=new_metadata,
         )
         self._app.save_session(new_session)
@@ -259,59 +244,29 @@ class TerminalApplication:
         self._last_event_id = None
         return new_session
 
-
-
-    def _flatten_ui_schema(self, ui_schema: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        flat: Dict[str, Dict[str, Any]] = {}
-
-        for el in ui_schema or []:
-            if not isinstance(el, dict):
-                continue
-            key = el.get("key")
-            if not isinstance(key, str) or not key:
-                continue
-
-            ui_type = el.get("ui_type", "config")
-            if ui_type != "config":
-                continue
-
-            entry = flat.get(key)
-            if entry is None:
-                entry = {"key": key, "type": el.get("type"), "options": []}
-                flat[key] = entry
-
-            opts = el.get("options") or []
-            if isinstance(opts, list):
-                for opt in opts:
-                    if isinstance(opt, dict):
-                        val = opt.get("value")
-                        if isinstance(val, str) and val not in entry["options"]:
-                            entry["options"].append(val)
-                    elif isinstance(opt, str) and opt not in entry["options"]:
-                        entry["options"].append(opt)
-
-        return sorted(flat.values(), key=lambda e: e["key"])
-
     def session_ui_elements(self) -> List[Dict[str, Any]]:
-        if self._session is None:
-            return []
+        core, _base_config, _session = self.require_session()
 
-        ctx = self._app.load_session(self._session.session_id)
-        if ctx is None:
-            return []
-        core, _base_config, _session = ctx
         try:
             ui_schema = core.get_ui_schema()
         except Exception:
             return []
-        return self._flatten_ui_schema(ui_schema)
 
+        def _is_config_element(el: Any) -> bool:
+            match el:
+                case {"ui_type": "config", "key": str(key)} if key:
+                    return True
+                case {"key": str(key)} if key and "ui_type" not in el:
+                    return True
+                case _:
+                    return False
+
+        return [el for el in ui_schema or [] if _is_config_element(el)]
 
     def update_override(self, key: str, value: Any) -> Session:
-        if self._session is None:
-            raise RuntimeError("No active session; cannot update overrides")
+        session = self.session
 
-        metadata = self._session.metadata if isinstance(self._session.metadata, dict) else {}
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
         overrides_val = metadata.get("overrides")
         overrides: Dict[str, Any] = dict(overrides_val) if isinstance(overrides_val, dict) else {}
 
@@ -319,14 +274,13 @@ class TerminalApplication:
         new_metadata = {**metadata, "overrides": new_overrides}
 
         new_session = Session(
-            session_id=self._session.session_id,
-            messages=list(self._session.messages),
+            session_id=session.session_id,
+            messages=list(session.messages),
             metadata=new_metadata,
         )
         self._app.save_session(new_session)
         self._session = new_session
         return new_session
-
 
     def list_agents(self) -> List[str]:
         """Legacy alias returning the available agents."""

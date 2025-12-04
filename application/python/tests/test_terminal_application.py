@@ -55,7 +55,6 @@ def test_terminal_flow_with_echo_provider(tmp_path: Path) -> None:
 
     # 3) Send a request and verify the echo provider behaviour.
     final_session_dict, messages, request_id = term_app.send_request(
-        overrides={},
         stream=True,
     )
 
@@ -244,10 +243,9 @@ def test_set_overrides_and_send_request_uses_them(tmp_path: Path, monkeypatch: p
 
     monkeypatch.setattr(AgentApplication, "send_request", _fake_send_request, raising=True)
 
-    # Invoke TerminalApplication.send_request without explicit overrides; it should
-    # pull from session.metadata["overrides"].
+    # Invoke TerminalApplication.send_request; it should
+    # pull overrides from session.metadata["overrides"].
     final_session_dict, messages, request_id = term_app.send_request(
-        overrides=None,
         stream=True,
     )
 
