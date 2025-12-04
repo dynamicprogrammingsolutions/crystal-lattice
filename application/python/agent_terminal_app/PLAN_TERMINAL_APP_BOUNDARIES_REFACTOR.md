@@ -1,97 +1,27 @@
-# Plan: Refactor `terminal.py` with clearer application/UI boundaries
+**Goals**
 
-## 1. Context and problems
+- Treat the **stateful terminal “application”** as the main abstraction, specialized for the terminal frontend.
+- Remove `TerminalContext` and `session_id` from UI state; the **TerminalApplication** instance itself holds the active session and related state.
+- Keep **all application logic** (session lifecycle, overrides, agent switching, event polling) inside `TerminalApplication`.
+- Keep **all representation / UX logic** (prompt_toolkit, printing, slash commands) in `terminal.py`.
+- Avoid repeated `load_session` calls by keeping a **loaded `Session` object** inside `TerminalApplication`, updating it as operations occur.
+- As we discover truly generic behaviour, move it down into `AgentApplication`, not into a generic “frontend-agnostic” terminal app.
 
-`application/python/agent_terminal_app/terminal.py` currently mixes two distinct concerns:
+---
 
-- **Application logic** built on `AgentApplication` + event store:
-  - `create_session`, `add_message`, `send_request`, `list_events`.
-  - Session metadata structure, including `metadata["agent_id"]` and `metadata["overrides"]`.
-  - Logic for merging stored overrides with explicit overrides before calling `AgentApplication.send_request`.
-  - Logic for flattening `core.get_ui_schema()` into a configuration-oriented schema.
-- **Terminal UI logic** based on `prompt_toolkit`:
-  - `TerminalContext` with `session_id`, `agent_id`, `last_event_id`, etc.
-  - Slash commands (`/agent`, `/set`, `/new`, `/help`, `/exit`) and their argument completers.
-  - Keyboard shortcuts, event polling, status bar text, and event rendering.
+**1. New module and class structure**
 
-This coupling causes two concrete issues:
+1. **Create a new module** `application/python/agent_terminal_app/terminal_app.py` containing `TerminalApplication`.
+2. **Keep `terminal.py` focused on UI wiring**:
+   - `PromptSession`, key bindings, event rendering, slash commands, completions.
+   - It imports and uses `TerminalApplication` as its only “application” dependency.
+3. Optionally **re-export** `TerminalApplication` from `terminal.py` and/or `agent_terminal_app.__init__` for backwards compatibility.
 
-1. **Application-level tests depend on terminal UI constructs.**
-   - `application/python/tests/test_terminal_application.py` has tests like
-     `test_agent_switch_slash_command` and
-     `test_set_overrides_and_send_request_uses_them` that:
-       - Construct a real `TerminalContext`.
-       - Invoke slash command handlers (`_cmd_agent`, `_cmd_set`).
-       - Exercise session metadata updates and `send_request` behaviour.
-   - These tests are really about application semantics (sessions, agents,
-     overrides), but they must go through prompt_toolkit-specific wiring.
+---
 
-2. **Application logic is embedded in terminal helpers.**
-   - `_switch_session_agent` and `_update_session_overrides` are
-     application-layer operations that:
-       - Load sessions.
-       - Construct updated `Session` instances with modified metadata.
-       - Persist those sessions.
-     but they:
-       - Take a `TerminalContext` argument.
-       - Live alongside pure UI helpers.
-       - Write directly to the terminal via `ctx.write`.
-   - `_get_session_ui_elements` and `_flatten_ui_schema` are about turning
-     `core.get_ui_schema()` into a flat config schema, but they also
-     currently sit in the UI module and depend on `TerminalContext`.
+**2. Stateful `TerminalApplication` design**
 
-The net effect: the boundary between "application layer" and "terminal
-frontend layer" is blurry, and tests that should be application-focused
-are forced to go through the UI.
-
-
-## 2. Design principles
-
-- **Application layer (Terminal application):**
-  - Owns an `AgentApplication` instance.
-  - Knows how to:
-    - Create, load, and save sessions.
-    - Append messages.
-    - Manage and persist agent selection in session metadata.
-    - Manage and persist configuration overrides in session metadata.
-    - Merge stored overrides with explicit overrides for requests.
-    - Expose UI schema elements in a frontend-agnostic format.
-    - List events from the event store.
-  - Does **not** know about prompt_toolkit, slash commands, key bindings,
-    or terminal rendering.
-
-- **Frontend layer (Terminal UI):**
-  - Owns the *current UI state* for this terminal instance:
-    - Which session the user is currently working with.
-    - Last seen event ID for polling.
-    - Pending agent-selection choices, etc.
-  - Deals with:
-    - `prompt_toolkit` (PromptSession, KeyBindings, Completion).
-    - Slash command parsing and completions.
-    - Keyboard shortcuts.
-    - Textual rendering of events and status.
-  - Delegates all persistence and business rules to the application layer.
-
-- **State ownership:**
-  - The *application* should not own a hidden "current session" pointer;
-    that is a UI concern.
-  - The *UI* holds the current `session_id` and uses explicit `session_id`
-    parameters when calling the application.
-
-- **`agent_id` as a derived concept:**
-  - The current agent is a property of the current session (stored in
-    `session.metadata["agent_id"]`).
-  - The UI should treat `agent_id` as derived from the current session,
-    not as its own separate source of truth.
-
-
-## 3. Introduce `TerminalApplication`
-
-Add a dedicated application-layer class in `terminal.py` (or in a new
-module under the same package) that wraps `AgentApplication` and exposes
-terminal-specific business operations.
-
-### 3.1 Construction API
+`terminal_app.py`:
 
 ```python
 class TerminalApplication:
@@ -102,363 +32,269 @@ class TerminalApplication:
         session_root: str | Path,
         agent_app: AgentApplication | None = None,
     ) -> None:
-        # If agent_app is None, construct a new
-        # AgentApplication(config_path, session_root).
-        # Store it on self (e.g. self._app).
+        ...
+        self._app: AgentApplication
+        self._session: Session | None = None
+        self._last_event_id: str | None = None
 ```
 
-`_DEFAULT_CONFIG_PATH` and `_DEFAULT_SESSION_ROOT` in `terminal.py`
-continue to provide defaults for `config_path` and `session_root`.
-
-### 3.2 Methods
-
-The following methods encapsulate the current module-level application
-helpers and embedded logic:
-
-- **`create_session(agent_id: str, system_message: str | None) -> Session`**
-  - Moves logic from the current free `create_session` function.
-  - Uses `self._app.create_session(agent_id)`.
-  - Optionally adds a system message via `core.add_message`.
-  - Saves the resulting session.
-  - Publishes a `"session_created"` event via `self._app.get_event_store()`.
-
-- **`add_message(session_id: str, *, role: str, content: str, metadata: dict[str, Any] | None) -> Session`**
-  - Moves logic from the current free `add_message` function.
-  - Loads the session, normalizes `role`, calls `core.add_message`,
-    persists the session, and publishes `"message_appended"`.
-
-- **`send_request(session_id: str, *, overrides: dict[str, Any] | None, stream: bool) -> tuple[dict[str, Any] | None, list[dict[str, Any]], str | None]`**
-  - Moves logic from the current free `send_request` function.
-  - Behaviour is preserved:
-    - Load session.
-    - Read stored overrides from `session.metadata["overrides"]`.
-    - Merge stored overrides with explicit `overrides` (explicit wins).
-    - Iterate `self._app.send_request(core, session, base_config, effective_overrides, stream=stream)`.
-    - Publish each event to the event store, track final session + messages
-      + request ID, and save the final session reconstructed from dict.
-
-- **`list_events(*, since_id: str | None, session_id: str | None, limit: int) -> list[dict[str, Any]]`**
-  - Wrap `self._app.get_event_store().list(...)` with the same semantics
-    as the current `list_events` helper.
-
-- **`get_session_ui_elements(session_id: str) -> list[dict[str, Any]]`**
-  - Move `_get_session_ui_elements` and `_flatten_ui_schema` logic into
-    the class.
-  - Implementation sketch:
-
-    ```python
-    def get_session_ui_elements(self, session_id: str) -> list[dict[str, Any]]:
-        loaded = self._app.load_session(session_id)
-        if loaded is None:
-            return []
-        core, _cfg, _session = loaded
-        try:
-            ui_schema = core.get_ui_schema()
-        except Exception:
-            return []
-        return self._flatten_ui_schema(ui_schema)
-    ```
-
-  - `_flatten_ui_schema` becomes a private helper:
-    - Filters to `ui_type == "config"` (or unset).
-    - Normalizes options to a list of string values.
-    - De-duplicates by key.
-
-- **`switch_session_agent(session_id: str, agent_id: str) -> Session`**
-  - Moves the session/metadata mutation from `_switch_session_agent` into
-    a pure application method:
-    - Load the session.
-    - Build new metadata with `{"agent_id": agent_id}` merged in.
-    - Create a new `Session` instance with the same messages but updated
-      metadata.
-    - Save the session.
-    - Return the updated `Session`.
-
-- **`update_session_overrides(session_id: str, key: str, value: Any) -> Session`**
-  - Moves the logic from `_update_session_overrides` into the class:
-    - Load the session.
-    - Normalize `metadata` and `overrides` to dicts.
-    - Compute a new `overrides` dict with the updated key.
-    - Construct new metadata and a new `Session` with the same messages.
-    - Save and return the new `Session`.
-  - Does **not** print; printing remains a UI responsibility.
-
-- **`list_agents() -> list[str]`**
-  - Simple wrapper for `self._app.list_agents()` with normalization (e.g.
-    strings only, deduplicated and sorted).
-
-- **`get_session_agent_id(session_id: str) -> str`**
-  - Convenience helper to retrieve the agent identifier for a session:
-
-    ```python
-    def get_session_agent_id(self, session_id: str) -> str:
-        loaded = self._app.load_session(session_id)
-        if loaded is None:
-            return "default"
-        _core, _cfg, session = loaded
-        metadata = session.metadata or {}
-        agent = metadata.get("agent_id")
-        return agent if isinstance(agent, str) and agent else "default"
-    ```
-
-  - Used by the UI to display the current agent and check whether an
-    agent switch actually changes anything.
-
-
-## 4. Simplify `TerminalContext` and keep `session_id` in the UI
-
-`TerminalContext` stays as a UI-layer state container but becomes
-lighter and more clearly scoped:
-
-```python
-@dataclass
-class TerminalContext:
-    app: TerminalApplication
-    session_id: str
-    last_event_id: str | None = None
-    running: bool = True
-    logger: Logger | None = None
-    pending_agent_choices: list[str] | None = None
-
-    def write(self, text: str) -> None:
-        print(text, flush=True)
-        if self.logger is not None:
-            self.logger.info(text)
-```
-
-Key points:
-
-- **`session_id` remains in the UI context.**
-  - `TerminalApplication` stays stateless with respect to "which
-    session"; methods always take `session_id` explicitly.
-  - The UI is responsible for updating `ctx.session_id` when the user
-    starts or switches sessions.
-
-- **`agent_id` is removed as primary state.**
-  - The current agent is derived from the session via
-    `TerminalApplication.get_session_agent_id(ctx.session_id)`.
-  - If needed, an `agent_id` cache on `TerminalContext` can be kept as a
-    pure UI optimization, but the source of truth lives in the
-    application layer.
-
-
-## 5. Updating UI helpers to use `TerminalApplication`
-
-With `TerminalApplication` in place and `TerminalContext` simplified,
-UI helpers are updated to delegate all business logic to the
-application.
-
-### 5.1 Status bar and event polling
-
-- **Status bar text**
-
-  ```python
-  def _status_bar_text(ctx: TerminalContext) -> str:
-      agent = ctx.app.get_session_agent_id(ctx.session_id)
-      return f"Agent: {agent}  Session: {ctx.session_id}"
-  ```
-
-- **Event polling**
-
-  `_poll_events` no longer calls `ctx.app.get_event_store()` directly:
-
-  ```python
-  async def _poll_events(ctx: TerminalContext, poll_interval: float = 0.1) -> None:
-      while ctx.running:
-          events = ctx.app.list_events(
-              since_id=ctx.last_event_id,
-              session_id=ctx.session_id,
-              limit=50,
-          )
-          if events:
-              last = events[-1].get("event_id")
-              if isinstance(last, str):
-                  ctx.last_event_id = last
-              for ev in events:
-                  _render_event(ctx, ev)
-          await asyncio.sleep(poll_interval)
-  ```
-
-### 5.2 Slash commands and shortcuts
-
-- **`/agent` command**
-  - Uses `ctx.app.list_agents()` for available agents.
-  - Uses `ctx.app.get_session_agent_id(ctx.session_id)` to determine the
-    currently active agent.
-  - When switching, calls
-    `ctx.app.switch_session_agent(ctx.session_id, target)` and then:
-    - Updates any UI-level cache if present.
-    - Resets `ctx.last_event_id` and writes informative messages.
-
-- **`/set` command**
-  - Uses `ctx.app.get_session_ui_elements(ctx.session_id)` instead of
-    `_get_session_ui_elements(ctx)`.
-  - Performs parsing and coercion of the value (including boolean
-    handling for checkbox types).
-  - On success, calls
-    `ctx.app.update_session_overrides(ctx.session_id, key, coerced)` and
-    prints the success message.
-  - On failure, prints appropriate errors but does not touch the
-    application state directly.
-
-- **`/new` command and shortcuts**
-  - Calls `app.create_session(agent_id=..., system_message=None)`.
-  - Updates `ctx.session_id` to the new session ID.
-  - Resets `ctx.last_event_id`.
-  - The active agent is then derived via
-    `app.get_session_agent_id(ctx.session_id)` when needed.
-
-### 5.3 User message handling
-
-`_handle_user_message` becomes a thin UI wrapper:
-
-```python
-async def _handle_user_message(ctx: TerminalContext, text: str) -> None:
-    app = ctx.app
-
-    try:
-        app.add_message(ctx.session_id, role="user", content=text, metadata=None)
-    except KeyError:
-        ctx.write("[error] session not found; starting a new one")
-        session = app.create_session(agent_id="default", system_message=None)
-        ctx.session_id = session.session_id
-        ctx.last_event_id = None
-        app.add_message(ctx.session_id, role="user", content=text, metadata=None)
-
-    async def _run_request() -> None:
-        def _worker() -> None:
-            try:
-                app.send_request(ctx.session_id, overrides=None, stream=True)
-            except Exception:
-                pass
-
-        await asyncio.to_thread(_worker)
-
-    asyncio.create_task(_run_request())
-```
-
-The UI no longer manipulates sessions or overrides directly; it only
-coordinates user input and background request execution.
-
-
-## 6. Terminal startup and `run_terminal`
-
-`_run_terminal` and `run_terminal` are updated to construct and use a
-`TerminalApplication`:
-
-```python
-async def _run_terminal(
-    app: TerminalApplication,
-    system_message: str | None = None,
-    logger: Logger | None = None,
-) -> None:
-    session = app.create_session(
-        agent_id="default",
-        system_message=system_message
-        or "You are a helpful coding assistant. Respond concisely.",
-    )
-    ctx = TerminalContext(app=app, session_id=session.session_id, logger=logger)
-    # ... build PromptSession, key bindings, event task, main loop ...
-
-
-def run_terminal(
-    system_message: str | None = None,
-    logger: Logger | None = None,
-    app_instance: TerminalApplication | None = None,
-) -> None:  # pragma: no cover
-    if app_instance is None:
-        app_instance = TerminalApplication(
-            config_path=_DEFAULT_CONFIG_PATH,
-            session_root=_DEFAULT_SESSION_ROOT,
-        )
-
-    asyncio.run(_run_terminal(app_instance, system_message=system_message, logger=logger))
-```
-
-`agent_terminal_app.__init__` can optionally export `TerminalApplication`
-for advanced usage and tests.
-
-
-## 7. Testing strategy after the refactor
-
-### 7.1 Application-focused tests (no `TerminalContext`)
-
-Introduce or update tests to exercise `TerminalApplication` directly,
-without any terminal UI constructs:
-
-- **Echo flow:**
-  - Instantiate `TerminalApplication` using `config_echo_app.json` and a
-    temporary session root.
-  - Call `create_session`, `add_message`, and `send_request`.
-  - Reload the final session from `AgentApplication` and assert that the
-    message history is intact.
-  - Use `list_events` to assert presence of `"session_created"`,
-    `"message_appended"`, and `"request_started"`/`"final"` events.
-
-- **Agent switching:**
-  - Create a session via `TerminalApplication`.
-  - Call `switch_session_agent(session_id, target_agent)`.
-  - Reload the session via `AgentApplication.load_session` and assert
-    that `metadata["agent_id"]` matches.
-
-- **Overrides behaviour:**
-  - Monkeypatch `AgentCore.get_ui_schema` to expose a `reasoning_effort`
-    select.
-  - Create a session via `TerminalApplication`.
-  - Call `update_session_overrides(session_id, "reasoning_effort", "high")`.
-  - Monkeypatch `AgentApplication.send_request` to capture the
-    `overrides` argument.
-  - Call `send_request(session_id, overrides=None, stream=True)` and
-    assert `{"reasoning_effort": "high"}` is passed through.
-
-These tests validate application semantics without needing
-`TerminalContext`, slash commands, or prompt_toolkit.
-
-### 7.2 UI-focused tests (`TerminalContext` + commands/completions)
-
-Retain and narrow tests in `test_terminal_application.py` to focus on
-UI behaviour:
-
-- **Slash command completion tests** remain, but use a lightweight
-  context:
-  - `ctx.app` can be a fake `TerminalApplication` (or stub object)
-    exposing only the methods needed for completions (`list_agents`,
-    `get_session_ui_elements`).
-  - Tests assert which completions are suggested for given inputs.
-
-- **Command wiring tests** (optional, small number):
-  - Verify `/agent`:
-    - Delegates to `TerminalApplication.switch_session_agent`.
-    - Writes appropriate messages to the UI.
-  - Verify `/set`:
-    - Delegates to `TerminalApplication.update_session_overrides` on
-      valid input.
-    - Prints user-facing error messages on invalid input.
-
-Deep persistence and override-merging behaviour is covered by
-`TerminalApplication` tests, so UI tests can stay shallow.
-
-
-## 8. Relationship to `PLAN_SHARED_EVENT_STORE_REFACTOR.md`
-
-This plan complements `PLAN_SHARED_EVENT_STORE_REFACTOR.md`:
-
-- That document defines the overall architecture with per-frontend
-  application classes (`ServerApplication` and `TerminalApplication`)
-  and a shared `InMemoryEventStore`.
-- This document focuses specifically on:
-  - Keeping `TerminalApplication` stateless with respect to
-    "current session".
-  - Keeping `session_id` and other UI concerns in `TerminalContext`.
-  - Treating `agent_id` as derived from the current session via
-    `get_session_agent_id`.
-  - Moving all session mutation and override logic out of UI helpers and
-    into `TerminalApplication`.
-
-Together, these plans give a clear end state:
-
-- Application layer: `ServerApplication` + `TerminalApplication`, each
-  owning an `AgentApplication` and defining all session/event logic.
-- Frontend layer: FastAPI routes and terminal UI code that are thin
-  wrappers around the application layer, with no embedded business
-  rules.
+Key aspects:
+
+- `self._app`: the underlying `AgentApplication`.
+- `self._session`: the **current active session object**, or `None` before initialization.
+- `self._last_event_id`: tracks the last-seen event for polling; avoids passing this around externally.
+- No `TerminalContext` or separate `session_id` field; `session_id` is always `self._session.session_id`.
+
+**Invariants and behaviour:**
+
+- There is exactly one “current” session at a time in `TerminalApplication`.
+- Public methods that require a session either:
+  - Assert `self._session` is present (raise a clear error if not), or
+  - Create a session implicitly if the design warrants it (e.g. `ensure_session`).
+
+---
+
+**3. Application-layer methods & avoided `load_session` calls**
+
+All methods currently on `TerminalApplication` in `terminal.py` will move and be **adapted to stateful usage**:
+
+1. **Session lifecycle**
+
+   - `create_initial_session(system_message: str | None, agent_id: str = "default") -> Session`
+     - Calls `self._app.create_session(agent_id)`.
+     - Appends system message if provided.
+     - Saves the session.
+     - Publishes `session_created`.
+     - Sets `self._session` and resets `self._last_event_id`.
+   - `start_new_session(system_message: str | None = None, agent_id: str | None = None) -> Session`
+     - Like `create_initial_session`, but callable at any time to replace `self._session`.
+     - If `agent_id` is `None`, it may use the current session’s agent as default.
+
+2. **Message handling**
+
+   - `append_user_message(text: str, metadata: dict[str, Any] | None = None) -> Session`
+     - Requires `self._session` to be set.
+     - Uses **in-memory** `self._session` with `core.add_message(...)`, not `load_session`.
+     - Saves via `self._app.save_session`.
+     - Publishes `message_appended`.
+     - Updates `self._session` to the new `Session`.
+
+   - Optionally a more generic:
+     - `add_message(role: str, content: str, metadata: dict | None) -> Session`
+       used by `append_user_message` and any future slash commands.
+
+3. **Request execution**
+
+   - `send_request(overrides: dict[str, Any] | None, stream: bool) -> tuple[dict | None, list[dict], str | None]`
+     - Requires `self._session`.
+     - Reads/merges overrides from `self._session.metadata["overrides"]` and explicit `overrides`.
+     - Calls `self._app.send_request(core, self._session, base_config, merged_overrides, stream=stream)`.
+     - Publishes events into the event store.
+     - When a `final` event is received, reconstructs the final session and:
+       - Saves it via `self._app.save_session`.
+       - Updates `self._session` to that final session.
+     - Returns `(final_session_dict, messages, request_id)` as today.
+
+   - For performance, no `load_session` is used; the `Session` passed into `send_request` is always `self._session`.
+
+4. **Events**
+
+   - `poll_new_events(limit: int = 50) -> list[dict[str, Any]]`
+     - Uses `self._app.get_event_store().list(...)` with:
+       - `since_id=self._last_event_id`,
+       - `session_id=self._session.session_id` (if set),
+       - `limit`.
+     - Updates `self._last_event_id` based on the last event returned.
+     - Returns the new events only.
+   - `reset_event_cursor() -> None` to allow UI to restart from scratch (e.g. when switching sessions).
+
+5. **Agents and configuration**
+
+   - `current_agent_id() -> str`
+     - Reads from `self._session.metadata["agent_id"]` if present; else `"default"`.
+
+   - `available_agents() -> list[str]`
+     - Thin wrapper over `self._app.list_agents()`, with normalization / sorting.
+
+   - `switch_agent(target_agent_id: str) -> Session`
+     - Requires `self._session`.
+     - Validates that `target_agent_id` is in `available_agents`.
+     - If equal to `current_agent_id`, it can either be a no-op or raise; the UI decides what to show.
+     - Writes updated metadata with new `agent_id`.
+     - Saves and updates `self._session`.
+     - Resets `self._last_event_id`.
+
+   - `session_ui_elements() -> list[dict[str, Any]]`
+     - Reuses and internalizes the `_flatten_ui_schema` logic.
+     - Uses `self._session`’s associated core (or loads if necessary once) to call `core.get_ui_schema()` and cache/flatten it.
+
+   - `update_override(key: str, value: Any) -> Session`
+     - Mutates only `metadata["overrides"][key]`.
+     - Creates a new `Session` value (if we keep immutability semantics) and updates `self._session`.
+     - Saves via `self._app.save_session`.
+
+6. **Small generic helpers**
+
+   - `get_agent_app()` (or `.agent_app` property) to expose the wrapped `AgentApplication` to the UI where absolutely necessary (e.g. for the `/ui_schema` debug command).
+
+
+**Load vs. save behaviour**
+
+- **Never call `load_session` on each operation**; treat `self._session` as the canonical in-memory session for this terminal instance.
+- After operations that might touch the session from outside (e.g. after a full request run), refresh `self._session` from the final event, not via `load_session`.
+- If a background operation or error might have desynchronized state, we can provide an explicit `reload_session()` helper for the UI to call when needed.
+
+---
+
+**4. Terminal UI functions using stateful `TerminalApplication`**
+
+`terminal.py` will:
+
+1. **Change command function types** to operate on `TerminalApplication` directly:
+
+   ```python
+   CommandFn = Callable[[TerminalApplication, str], Awaitable[None] | None]
+   SlashCompletionFn = Callable[[TerminalApplication, str], List[Completion]]
+   ```
+
+2. **`SlashCommandCompleter`** will hold a `get_app: Callable[[], TerminalApplication]` and hand that into completion functions:
+
+   ```python
+   class SlashCommandCompleter(Completer):
+       def __init__(self, get_app: Callable[[], TerminalApplication]) -> None:
+           self._get_app = get_app
+       ...
+       app = self._get_app()
+       completions = cmd.completer(app, rest) or []
+   ```
+
+3. **Status bar and rendering**:
+
+   - `_status_bar_text(app: TerminalApplication) -> str` will use `app.current_agent_id()` and `app.current_session_id` to build the status line.
+   - `_render_event(app, event)` will stay mostly the same but be parameterized by the app and a `write` callback (see below).
+
+4. **Printing / logging abstraction**:
+
+   - Instead of `TerminalContext.write`, we’ll pass a `write: Callable[[str], None]` into relevant helpers (or keep it local in `_run_terminal`), so they can print and log without carrying a context object.
+
+   Example:
+
+   ```python
+   def _render_event(app: TerminalApplication, event: dict, write: Callable[[str], None]) -> None:
+       ...
+       write("Assistant: ...")
+   ```
+
+5. **Event polling loop**:
+
+   - `_poll_events(app: TerminalApplication, write: Callable[[str], None], poll_interval: float = 0.1)`:
+     - Calls `events = app.poll_new_events(limit=50)`.
+     - Loops through events and calls `_render_event(app, ev, write)`.
+     - Respects a `running` flag owned by the outer UI loop (not by the application), e.g. a local `running: bool` captured in a closure.
+
+6. **Slash commands as pure UI orchestrators**:
+
+   - `/new`:
+     - Calls `app.start_new_session(system_message=None, agent_id=app.current_agent_id())`.
+     - Calls `app.reset_event_cursor()`.
+     - Uses `write` to inform the user of the new session ID.
+
+   - `/agent`:
+     - Uses `app.available_agents()` and `app.current_agent_id()` for listing.
+     - On selection, calls `app.switch_agent(target_agent_id)`.
+     - Uses `write` for messages like “already using …” or “switched to …”.
+
+   - `/set`:
+     - Uses `app.session_ui_elements()` to discover valid keys + options.
+     - Validates & coerces values from arguments.
+     - Calls `app.update_override(key, coerced)`.
+     - Uses `write` to display success or error messages.
+
+   - `/ui_schema`, `/help`, `/exit`:
+     - Continue to operate on `TerminalApplication` and `write`, but do not need any extra state containers.
+
+7. **User message input**:
+
+   - `_handle_user_message(app, text, write)`:
+     - Calls `app.append_user_message(text)`.
+     - Starts a background task that calls `app.send_request(overrides=None, stream=True)` via `asyncio.to_thread` to keep the UI responsive.
+
+8. **Key bindings and main loop**:
+
+   - `_build_key_bindings(app, write)` attaches shortcuts that call slash command handlers with `app` and UI state.
+   - `_run_terminal(app, system_message, logger)`:
+     - Calls `app.create_initial_session(system_message, agent_id="default")`.
+     - Maintains a local `running` flag and passes it into `_poll_events` or as a closure variable.
+   - `run_terminal(...)`:
+     - Constructs a `TerminalApplication` (or uses injected one), then runs `_run_terminal`.
+
+No `TerminalContext` dataclass is needed anymore; UI state is either:
+
+- In `TerminalApplication` for application data (session, last_event_id).
+- In local variables/closures in `terminal.py` for pure UI-concerns like `running` and `pending_agent_choices`.
+
+---
+
+**5. Shared logic and possible moves into `AgentApplication`**
+
+As part of this refactor, identify logic that is both:
+
+- Not terminal-specific, and
+- Useful for other frontends.
+
+Examples that might be good candidates:
+
+- Override merging logic (stored vs explicit) used by both server and terminal.
+- UI schema flattening if other frontends need a similar normalized representation.
+
+Plan:
+
+1. Implement them first as private helpers on `TerminalApplication` (`_merge_overrides`, `_flatten_ui_schema`).
+2. Once stabilized and shared with server or other app layers, lift into `AgentApplication` (or a small utility module) with an explicit API, e.g.:
+
+   - `AgentApplication.merge_overrides(session: Session, overrides: dict | None) -> dict | None`
+   - `AgentApplication.get_config_ui_elements(session: Session) -> list[dict]`
+
+This keeps `TerminalApplication` flexible but doesn’t force it to be multi-frontend from day one.
+
+---
+
+**6. Tests and migration**
+
+1. **Update `test_terminal_application.py` to the new API:**
+
+   - Replace uses of `TerminalContext` with direct `TerminalApplication` calls.
+   - Adapt tests for:
+     - `create_initial_session` / `start_new_session`.
+     - `append_user_message`.
+     - `send_request` (confirm overrides behaviour via metadata + send_request patching).
+     - `available_agents` / `current_agent_id` / `switch_agent`.
+     - `session_ui_elements` / `update_override`.
+     - `poll_new_events` (if needed).
+
+2. **Completion tests:**
+
+   - Update `SlashCommandCompleter` tests to use a stub `TerminalApplication` or a minimal mock object with the required methods (`available_agents`, `session_ui_elements`, etc.), passed in via the new API (e.g. `SlashCommandCompleter(lambda: fake_app)`).
+
+3. **Backwards compatibility:**
+
+   - Optionally:
+     - Keep a thin `TerminalContext` shim (deprecated) during migration that wraps `TerminalApplication` for any external code relying on it.
+     - Or just expose `TerminalApplication` from `terminal.py` and adjust local examples/tests to use the new pattern.
+
+4. **Server-side consideration (optional):**
+
+   - For consistency, consider a later pass that introduces a `ServerApplication` class with its own state model and shared helper methods with `TerminalApplication`, possibly reusing any new `AgentApplication` helpers.
+
+---
+
+**7. Implementation order**
+
+1. Introduce `terminal_app.py` with the stateful `TerminalApplication` and its methods, but keep existing `terminal.py` intact initially.
+2. Incrementally migrate `terminal.py`:
+   - Update `CommandFn` / `SlashCommandCompleter` signatures to use `TerminalApplication`.
+   - Replace `TerminalContext` usage with `TerminalApplication` + local UI state.
+   - Remove `TerminalContext` once no references remain.
+3. Update `__main__.py` to import `TerminalApplication` from `terminal_app.py` and pass it into `run_terminal`.
+4. Update tests in `test_terminal_application.py` to use the new API.
+5. Remove any now-dead code in `terminal.py` and, if desired, add a brief docstring in `terminal_app.py` explaining that this class is terminal-specific and not intended as a generic frontend adapter.
