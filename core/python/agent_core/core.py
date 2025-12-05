@@ -127,7 +127,158 @@ class AgentCore:
                 "Session messages changed without updating native history; remove 'native_messages' from session.metadata to modify history."
             )
 
+    def _normalize_final_core_with_native_indices(
+        self,
+        final_core: list[dict[str, Any]],
+        finals_native: list[dict[str, Any]],
+        baseline_offset: int,
+    ) -> list[dict[str, Any]]:
+        if not final_core or not finals_native:
+            # Nothing to normalize; return shallow copies to avoid mutation.
+            return [dict(m) for m in final_core]
+
+        local_count = len(finals_native)
+
+        def _normalize_message(
+            msg: dict[str, Any],
+            default_local_indices: list[int] | None = None,
+        ) -> dict[str, Any]:
+            raw_md = msg.get("metadata") or {}
+            md = dict(raw_md) if isinstance(raw_md, dict) else {}
+            native_indices = md.get("native_indices")
+
+            if isinstance(native_indices, list) and all(isinstance(i, int) for i in native_indices):
+                local_indices = [i for i in native_indices if 0 <= i < local_count]
+            elif default_local_indices is not None:
+                local_indices = [i for i in default_local_indices if 0 <= i < local_count]
+            else:
+                raise RuntimeError(
+                    "from_native_messages changed message count without providing native_indices mapping"
+                )
+
+            global_indices = [baseline_offset + i for i in local_indices]
+            if global_indices:
+                md["native_indices"] = global_indices
+            else:
+                md.pop("native_indices", None)
+            return {**msg, "metadata": md}
+
+        if len(final_core) == local_count:
+            return [
+                _normalize_message(msg, default_local_indices=[idx])
+                for idx, msg in enumerate(final_core)
+            ]
+
+        normalized: list[dict[str, Any]] = []
+        for msg in final_core:
+            normalized.append(_normalize_message(msg, default_local_indices=None))
+        return normalized
+
+    def _append_single_message_with_native(
+        self,
+        session,
+        message_dict,
+        config,
+    ):
+        base_metadata = dict(session.metadata)
+
+        role_value = message_dict.get("role", "user")
+        role = role_value
+        content = message_dict.get("content", "")
+        raw_md = message_dict.get("metadata") or {}
+        md = dict(raw_md) if isinstance(raw_md, dict) else {}
+
+        from agent_core.types import Message  # local import to avoid cycles
+
+        def _core_only_session(clean_metadata):
+            cleaned = dict(clean_metadata)
+            cleaned.pop("native_indices", None)
+            new_message = Message(role=role, content=content, metadata=cleaned)
+            new_messages = [*session.messages, new_message]
+            new_session_metadata = dict(base_metadata)
+            new_session_metadata.pop("native_messages", None)
+            new_session_metadata.pop("native_messages_integrity", None)
+            return type(session)(
+                session_id=session.session_id,
+                messages=new_messages,
+                metadata=new_session_metadata,
+            )
+
+        retained_native = None
+        if isinstance(session.metadata, dict):
+            rn = session.metadata.get("native_messages")
+            if isinstance(rn, list):
+                retained_native = rn
+
+        if retained_native is None:
+            return _core_only_session(md), None
+
+        self._verify_native_integrity(session)
+
+        try:
+            provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
+                config
+            )
+        except Exception:
+            return _core_only_session(md), None
+
+        from agent_core.utils import pipeline
+
+        tool_schemas = []
+        for tool in tools:
+            tool_state = tool.init(config)
+            tool_schemas.extend(tool.get_tool_schemas(tool_state))
+        provider_config = {**config, **({"tools": tool_schemas} if tool_schemas else {})}
+
+        state = provider.init(provider_config)
+        for feature in features:
+            state = feature.init(provider_config, state)
+            provider.set_state(state)
+
+        core_suffix = [
+            {
+                "role": role,
+                "content": content,
+                "metadata": md,
+            }
+        ]
+
+        suffix_native = provider.to_native_messages(core_suffix, state)
+        suffix_native = provider.apply_extension_transforms(core_suffix, suffix_native)
+        pipe = pipeline(core_suffix)
+        suffix_native = pipe(
+            [feature.to_native_messages for feature in features],
+            suffix_native,
+        )
+
+        base_len = len(retained_native)
+        global_indices = list(range(base_len, base_len + len(suffix_native)))
+
+        new_md = dict(md)
+        if global_indices:
+            new_md["native_indices"] = global_indices
+        else:
+            new_md.pop("native_indices", None)
+
+        new_message = Message(role=role, content=content, metadata=new_md)
+        new_messages = [*session.messages, new_message]
+        new_native_messages = [*retained_native, *suffix_native]
+        new_session_metadata = {
+            **base_metadata,
+            "native_messages": new_native_messages,
+            "native_messages_integrity": self._compute_native_integrity(new_messages),
+        }
+
+        return (
+            type(session)(
+                session_id=session.session_id,
+                messages=new_messages,
+                metadata=new_session_metadata,
+            ),
+            global_indices,
+        )
     def __init__(self):
+
         """Initialize core with empty plugin pipeline.
 
         Loggers are initialized lazily so that structlog configuration can
@@ -205,71 +356,313 @@ class AgentCore:
         return Session(session_id=session_id, messages=[])
 
     def add_message(
+         self,
+         session: Session,
+         role: MessageRole,
+         content: str,
+         metadata: Optional[Dict[str, Any]] = None,
+         config: Optional[Dict[str, Any]] = None,
+     ) -> Session:
+         """Add a message to the session (pure function).
+ 
+         When session.metadata contains provider-native history (native_messages)
+         and a provider is registered, converts the newly added message to
+         provider-native format and appends it to the stored native history.
+         Updates verification data for integrity checks.
+ 
+         When ``config`` is provided, native history is updated using the same
+         provider/feature pipeline as regular requests. When ``config`` is
+         omitted, legacy best-effort behavior is preserved.
+ 
+         Args:
+             session: Current session.
+             role: Message role ("system", "user", "assistant", or "tool").
+             content: Message content.
+             metadata: Optional per-message metadata.
+             config: Optional configuration used to resolve provider and plugins.
+ 
+         Returns:
+             New Session with the message appended (immutable update).
+         """
+         if config is not None:
+             # Config-aware path: delegate to helper that preserves native history
+             msg_md = dict(metadata) if isinstance(metadata, dict) else {}
+             message_dict: Dict[str, Any] = {
+                 "role": role,
+                 "content": content,
+                 "metadata": msg_md,
+             }
+             new_session, _ = self._append_single_message_with_native(
+                 session,
+                 message_dict,
+                 config,
+             )
+             return new_session
+ 
+         # Legacy behavior when no config is provided.
+         message = Message(role=role, content=content, metadata=metadata)
+         new_messages: List[Message] = [*session.messages, message]
+ 
+         # Default metadata passthrough
+         new_metadata: Dict[str, Any] = dict(session.metadata)
+ 
+         # If native history exists, verify integrity before modification
+         if isinstance(session.metadata, dict) and "native_messages" in session.metadata:
+             self._verify_native_integrity(session)
+ 
+         # Attempt to append native for the new message if a single provider is
+         # available and native history exists. When multiple providers are
+         # registered, this method does not attempt to infer which provider was
+         # used; native history is left unchanged.
+         if self._providers and isinstance(session.metadata, dict):
+             retained_native = session.metadata.get("native_messages")
+             if isinstance(retained_native, list) and len(self._providers) == 1:
+                 provider = self._providers[0]
+                 # Initialize minimal state for stateless transforms
+                 state = provider.init({})
+                 for feature in self._features:
+                     state = feature.init({}, state)
+                     provider.set_state(state)
+                 # Build core dict for the single new message only
+                 core_new_msg = [message.to_dict()]
+                 # Convert single message to provider-native and apply stateless
+                 # transforms (single-message context)
+                 suffix_native = provider.to_native_messages(core_new_msg, state)
+                 suffix_native = provider.apply_extension_transforms(core_new_msg, suffix_native)
+                 pipe = pipeline(core_new_msg)
+                 suffix_native = pipe(
+                     [feature.to_native_messages for feature in self._features],
+                     suffix_native,
+                 )
+                 new_metadata["native_messages"] = [*retained_native, *suffix_native]
+ 
+         # Always update integrity data when we have native history
+         if "native_messages" in new_metadata:
+             new_metadata["native_messages_integrity"] = self._compute_native_integrity(
+                 new_messages
+             )
+
+         return Session(
+             session_id=session.session_id,
+             messages=new_messages,
+             metadata=new_metadata,
+         )
+
+    def _slice_session_core_only(
         self,
         session: Session,
-        role: MessageRole,
-        content: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        keep_indices: Set[int],
     ) -> Session:
-        """Add a message to the session (pure function).
+        """Core-only slice/remove that drops native history and indices."""
+        messages = list(session.messages)
+        message_count = len(messages)
+        all_indices: Set[int] = set(range(message_count))
+        valid_keep: Set[int] = {i for i in keep_indices if 0 <= i < message_count}
 
-        When session.metadata contains provider-native history (native_messages), and a provider is
-        registered, converts the newly added message to provider-native format via the provider and
-        stateless transforms, and appends it to the stored native history. Updates verification data
-        for integrity checks.
+        if valid_keep == all_indices:
+            # No change in indices; preserve session and native history as-is.
+            return session
 
-        Args:
-            session: Current session.
-            role: Message role ("system", "user", "assistant", or "tool").
-            content: Message content.
-            metadata: Optional per-message metadata.
-
-        Returns:
-            New Session with the message appended (immutable update).
-        """
-        message = Message(role=role, content=content, metadata=metadata)
-        new_messages: List[Message] = [*session.messages, message]
-
-        # Default metadata passthrough
-        new_metadata: Dict[str, Any] = dict(session.metadata)
-
-        # If native history exists, verify integrity before modification
-        if isinstance(session.metadata, dict) and "native_messages" in session.metadata:
-            self._verify_native_integrity(session)
-
-        # Attempt to append native for the new message if a single provider is
-        # available and native history exists. When multiple providers are
-        # registered, this method does not attempt to infer which provider was
-        # used; native history is left unchanged.
-        if self._providers and isinstance(session.metadata, dict):
-            retained_native = session.metadata.get("native_messages")
-            if isinstance(retained_native, list) and len(self._providers) == 1:
-                provider = self._providers[0]
-                # Initialize minimal state for stateless transforms
-                state = provider.init({})
-                for feature in self._features:
-                    state = feature.init({}, state)
-                    provider.set_state(state)
-                # Build core dict for the single new message only
-                core_new_msg = [message.to_dict()]
-                # Convert single message to provider-native and apply stateless
-                # transforms (single-message context)
-                suffix_native = provider.to_native_messages(core_new_msg, state)
-                suffix_native = provider.apply_extension_transforms(core_new_msg, suffix_native)
-                pipe = pipeline(core_new_msg)
-                suffix_native = pipe(
-                    [feature.to_native_messages for feature in self._features], suffix_native
+        kept_messages: List[Message] = []
+        for idx in sorted(valid_keep):
+            msg = messages[idx]
+            data = msg.to_dict()
+            md = dict(data.get("metadata") or {})
+            md.pop("native_indices", None)
+            if md:
+                kept_messages.append(
+                    Message(
+                        role=data["role"],
+                        content=data["content"],
+                        metadata=md,
+                    )
                 )
-                new_metadata["native_messages"] = [*retained_native, *suffix_native]
+            else:
+                kept_messages.append(
+                    Message(
+                        role=data["role"],
+                        content=data["content"],
+                        metadata=None,
+                    )
+                )
 
-        # Always update integrity data when we have native history
-        if "native_messages" in new_metadata:
-            new_metadata["native_messages_integrity"] = self._compute_native_integrity(new_messages)
+        new_metadata: Dict[str, Any] = (
+            dict(session.metadata) if isinstance(session.metadata, dict) else {}
+        )
+        new_metadata.pop("native_messages", None)
+        new_metadata.pop("native_messages_integrity", None)
+
+        return Session(
+            session_id=session.session_id,
+            messages=kept_messages,
+            metadata=new_metadata,
+        )
+
+    def slice_session(
+        self,
+        session: Session,
+        config: Optional[Dict[str, Any]] = None,
+        *,
+        start: Optional[int] = None,
+        end: Optional[int] = None,
+        remove_indices: Optional[List[int]] = None,
+    ) -> Session:
+        """Return a new session with messages sliced/removed.
+
+        Operations are expressed in core message indices but, when possible,
+        provider-native history is adjusted consistently and preserved.
+        """
+        messages = list(session.messages)
+        message_count = len(messages)
+        all_indices: Set[int] = set(range(message_count))
+
+        def _normalize_bound(bound: Optional[int], default: int) -> int:
+            if bound is None:
+                return default
+            value = bound
+            if value < 0:
+                value = message_count + value
+            if value < 0:
+                return 0
+            if value > message_count:
+                return message_count
+            return value
+
+        start_idx = _normalize_bound(start, 0)
+        end_idx = _normalize_bound(end, message_count)
+
+        range_indices: Optional[Set[int]] = None
+        if start is not None or end is not None:
+            if start_idx >= end_idx:
+                range_indices = set()
+            else:
+                range_indices = set(range(start_idx, end_idx))
+
+        remove_set: Set[int] = set()
+        if remove_indices:
+            for idx in remove_indices:
+                if not isinstance(idx, int):
+                    continue
+                value = idx
+                if value < 0:
+                    value = message_count + value
+                if 0 <= value < message_count:
+                    remove_set.add(value)
+
+        if range_indices is not None:
+            keep_set: Set[int] = range_indices.difference(remove_set)
+        else:
+            keep_set = all_indices.difference(remove_set)
+
+        if keep_set == all_indices:
+            return session
+
+        if config is None:
+            return self._slice_session_core_only(session, keep_set)
+
+        if not isinstance(session.metadata, dict):
+            return self._slice_session_core_only(session, keep_set)
+
+        if len(self._providers) != 1:
+            return self._slice_session_core_only(session, keep_set)
+
+        original_native = session.metadata.get("native_messages")
+        if not isinstance(original_native, list):
+            return self._slice_session_core_only(session, keep_set)
+
+        try:
+            self._verify_native_integrity(session)
+        except Exception:
+            return self._slice_session_core_only(session, keep_set)
+
+        native_len = len(original_native)
+
+        core_to_native: Dict[int, List[int]] = {}
+        native_to_core: Dict[int, Set[int]] = {}
+
+        for idx, msg in enumerate(messages):
+            md = msg.metadata if isinstance(msg.metadata, dict) else {}
+            native_indices = md.get("native_indices")
+            if native_indices is None:
+                continue
+            if not isinstance(native_indices, list) or not all(
+                isinstance(j, int) for j in native_indices
+            ):
+                return self._slice_session_core_only(session, keep_set)
+            normalized_indices: List[int] = []
+            for j in native_indices:
+                if j < 0 or j >= native_len:
+                    return self._slice_session_core_only(session, keep_set)
+                if j not in normalized_indices:
+                    normalized_indices.append(j)
+            if not normalized_indices:
+                continue
+            core_to_native[idx] = normalized_indices
+            for j in normalized_indices:
+                owners = native_to_core.get(j)
+                if owners is None:
+                    native_to_core[j] = {idx}
+                else:
+                    owners.add(idx)
+
+        for idx in keep_set:
+            if idx not in core_to_native:
+                return self._slice_session_core_only(session, keep_set)
+
+        native_candidates: Set[int] = set()
+        for idx in keep_set:
+            for j in core_to_native.get(idx, []):
+                native_candidates.add(j)
+
+        if not native_candidates:
+            new_native: List[Dict[str, Any]] = []
+        else:
+            final_native_indices = {
+                j
+                for j in native_candidates
+                if native_to_core.get(j, set()).issubset(keep_set)
+            }
+            sorted_indices = sorted(final_native_indices)
+            new_native = [original_native[j] for j in sorted_indices]
+
+        try:
+            new_messages = self._rebuild_core_from_native(new_native, config)
+        except Exception:
+            return self._slice_session_core_only(session, keep_set)
+
+        new_metadata = dict(session.metadata)
+        new_metadata["native_messages"] = new_native
+        new_metadata["native_messages_integrity"] = self._compute_native_integrity(
+            new_messages
+        )
 
         return Session(
             session_id=session.session_id,
             messages=new_messages,
             metadata=new_metadata,
+        )
+
+    def fork_session(
+        self,
+        session: Session,
+        config: Optional[Dict[str, Any]] = None,
+        *,
+        upto_index: int,
+        new_session_id: Optional[str] = None,
+    ) -> Session:
+        """Convenience helper to fork a session up to upto_index."""
+        sliced = self.slice_session(
+            session,
+            config,
+            start=0,
+            end=upto_index + 1,
+        )
+        if new_session_id is None or new_session_id == sliced.session_id:
+            return sliced
+        return Session(
+            session_id=new_session_id,
+            messages=list(sliced.messages),
+            metadata=dict(sliced.metadata),
         )
 
     def _normalize_config(self, config: Dict[str, Any]) -> str:
@@ -607,86 +1000,142 @@ class AgentCore:
 
         return provider, enabled_extensions, enabled_features, enabled_tools, final_tags
 
-    def _pre_request(
+    def _rebuild_core_from_native(
         self,
-        session: Session,
+        native_messages: List[Dict[str, Any]],
         config: Dict[str, Any],
-        provider: ProviderWrapper,
-        features: List[FeatureWrapper],
-        tools: List[ToolWrapper],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        """Prepare shared state and inputs for a request.
+    ) -> List[Message]:
+        """Rebuild full core messages from provider-native history.
 
-        Integrity is verified if native history is present. When native
-        history exists, it is trusted as the full provider-native history
-        for the session. Otherwise, native is reconstructed from core
-        messages.
-
-        Args:
-            session: Current session.
-            config: Application-provided configuration for this request.
-            provider: Provider wrapper selected for this request.
-            features: Enabled feature wrappers for this request.
-            tools: Enabled tool wrappers for this request.
-
-        Returns:
-            A tuple of (messages, native_messages, state):
-            - messages: Core message dicts for the session.
-            - native_messages: Provider-native full history (either retained or reconstructed).
-            - state: Shared provider state after init/update/initialize_request for features as well.
+        Uses the same provider, extensions, features, and tools that would
+        be active for a normal request with this config, but skips
+        core-to-native conversion and starts from the given native history.
         """
-        # Collect tool schemas from enabled tools and inject into config
+        (
+            provider,
+            enabled_extensions,
+            features,
+            tools,
+            _tags,
+        ) = self._resolve_plugins_for_config(config)
+
+        # Collect tool schemas as in _pre_request so that features that
+        # depend on tool metadata see the same configuration.
         tool_schemas: List[Dict[str, Any]] = []
         for tool in tools:
             tool_state = tool.init(config)
             tool_schemas.extend(tool.get_tool_schemas(tool_state))
         provider_config = {**config, **({"tools": tool_schemas} if tool_schemas else {})}
 
-        # Init chain: Provider  Extensions (inside provider)  Features
-        # Configuration (including any UI-driven values) is passed directly via
-        # provider_config; there is no separate update_state step.
         state = provider.init(provider_config)
         for feature in features:
             state = feature.init(provider_config, state)
             provider.set_state(state)
-        # Build messages (core shape)
-        messages = [msg.to_dict() for msg in session.messages]
 
-        # If native history exists, verify integrity and trust it
-        retained_native: Optional[List[Dict[str, Any]]] = None
-        if isinstance(session.metadata, dict) and "native_messages" in session.metadata:
-            self._verify_native_integrity(session)
-            rn = session.metadata.get("native_messages")
-            if isinstance(rn, list):
-                retained_native = rn
-
-        if retained_native is not None:
-            # Reuse retained provider-native history as-is, including any
-            # reasoning or reasoning_details fields that were returned by
-            # the provider. Extensions such as the OpenRouter reasoning
-            # extension are responsible for treating these fields as opaque
-            # provider-native metadata and, when streaming, for accumulating
-            # them correctly across chunks.
-            native_messages = list(retained_native)
-        else:
-            # Provider-first conversion (native_base for stateless transforms)
-            native_messages = provider.to_native_messages(messages, state)
-            # Apply stateless transforms: Extensions then Features
-            native_messages = provider.apply_extension_transforms(messages, native_messages)
-            pipe = pipeline(messages)
-            native_messages = pipe(
-                [feature.to_native_messages for feature in features], native_messages
-            )
-
-        # Initialize request chains
+        # Initialize request chains using the adjusted native history.
         state = provider.initialize_request(native_messages, state)
         for feature in features:
             state = feature.initialize_request(native_messages, state)
             provider.set_state(state)
 
-        logger.info("request init complete", request=state.get("request"))
+        # Convert native messages back into core messages through the full
+        # from-native pipeline.
+        core_from_provider = provider.from_native_messages(native_messages, state)
+        pipe = pipeline(native_messages)
+        core_full = pipe(
+            [ext.from_native_messages for ext in enabled_extensions]
+            + [feature.from_native_messages for feature in features],
+            core_from_provider,
+        )
 
-        return messages, native_messages, state
+        normalized_core = self._normalize_final_core_with_native_indices(
+            core_full,
+            native_messages,
+            baseline_offset=0,
+        )
+        return [Message.from_dict(m) for m in normalized_core]
+ 
+    def _pre_request(
+         self,
+         session: Session,
+         config: Dict[str, Any],
+         provider: ProviderWrapper,
+         features: List[FeatureWrapper],
+         tools: List[ToolWrapper],
+     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+         """Prepare shared state and inputs for a request.
+ 
+         Integrity is verified if native history is present. When native
+         history exists, it is trusted as the full provider-native history
+         for the session. Otherwise, native is reconstructed from core
+         messages.
+ 
+         Args:
+             session: Current session.
+             config: Application-provided configuration for this request.
+             provider: Provider wrapper selected for this request.
+             features: Enabled feature wrappers for this request.
+             tools: Enabled tool wrappers for this request.
+ 
+         Returns:
+             A tuple of (messages, native_messages, state):
+             - messages: Core message dicts for the session.
+             - native_messages: Provider-native full history (either retained or reconstructed).
+             - state: Shared provider state after init/update/initialize_request for features as well.
+         """
+         # Collect tool schemas from enabled tools and inject into config
+         tool_schemas: List[Dict[str, Any]] = []
+         for tool in tools:
+             tool_state = tool.init(config)
+             tool_schemas.extend(tool.get_tool_schemas(tool_state))
+         provider_config = {**config, **({"tools": tool_schemas} if tool_schemas else {})}
+ 
+         # Init chain: Provider  Extensions (inside provider)  Features
+         # Configuration (including any UI-driven values) is passed directly via
+         # provider_config; there is no separate update_state step.
+         state = provider.init(provider_config)
+         for feature in features:
+             state = feature.init(provider_config, state)
+             provider.set_state(state)
+         # Build messages (core shape)
+         messages = [msg.to_dict() for msg in session.messages]
+ 
+         # If native history exists, verify integrity and trust it
+         retained_native: Optional[List[Dict[str, Any]]] = None
+         if isinstance(session.metadata, dict) and "native_messages" in session.metadata:
+             self._verify_native_integrity(session)
+             rn = session.metadata.get("native_messages")
+             if isinstance(rn, list):
+                 retained_native = rn
+ 
+         if retained_native is not None:
+             # Reuse retained provider-native history as-is, including any
+             # reasoning or reasoning_details fields that were returned by
+             # the provider. Extensions such as the OpenRouter reasoning
+             # extension are responsible for treating these fields as opaque
+             # provider-native metadata and, when streaming, for accumulating
+             # them correctly across chunks.
+             native_messages = list(retained_native)
+         else:
+             # Provider-first conversion (native_base for stateless transforms)
+             native_messages = provider.to_native_messages(messages, state)
+             # Apply stateless transforms: Extensions then Features
+             native_messages = provider.apply_extension_transforms(messages, native_messages)
+             pipe = pipeline(messages)
+             native_messages = pipe(
+                 [feature.to_native_messages for feature in features], native_messages
+             )
+ 
+         # Initialize request chains
+         state = provider.initialize_request(native_messages, state)
+         for feature in features:
+             state = feature.initialize_request(native_messages, state)
+             provider.set_state(state)
+ 
+         logger.info("request init complete", request=state.get("request"))
+ 
+         return messages, native_messages, state
+
 
     def send_request(
         self, session: Session, config: Dict[str, Any]
@@ -722,7 +1171,8 @@ class AgentCore:
             features,
             tools,
         )
-        
+        baseline_native_len = len(native_messages)
+
         logger.info(
             "sending request",
             native_messages=native_messages,
@@ -755,8 +1205,16 @@ class AgentCore:
             final_core,
         )
 
+        # Attach global native_indices for final core messages
+        final_core = self._normalize_final_core_with_native_indices(
+            final_core,
+            final_native,
+            baseline_native_len,
+        )
+
         # Build new session messages by appending new Message objects
         appended: List[Message] = [Message.from_dict(m) for m in final_core]
+
         new_metadata = dict(session.metadata)
         # Persist full provider-native history for the turn (implementation detail)
         new_metadata["native_messages"] = native_messages
@@ -809,9 +1267,14 @@ class AgentCore:
             features,
             tools,
         )
-        
-        logger.debug("start streaming request", native_messages=native_messages, requrest=state.get("request",None))
-        
+        baseline_native_len = len(native_messages)
+
+        logger.debug(
+            "start streaming request",
+            native_messages=native_messages,
+            requrest=state.get("request", None),
+        )
+
         aggregated_native_finals: List[Dict[str, Any]] = []
 
         # Stream from provider using optimized streaming
@@ -851,6 +1314,13 @@ class AgentCore:
             [ext.from_native_messages for ext in enabled_extensions]
             + [feature.from_native_messages for feature in features],
             final_core,
+        )
+
+        # Attach global native_indices for final core messages
+        final_core = self._normalize_final_core_with_native_indices(
+            final_core,
+            combined_native_finals,
+            baseline_native_len,
         )
 
         appended: List[Message] = [Message.from_dict(m) for m in final_core]
@@ -895,8 +1365,10 @@ class AgentCore:
             features,
             tools,
         )
+        baseline_native_len = len(native_messages)
 
         aggregated_native_finals: List[Dict[str, Any]] = []
+
 
         # Stream from provider (async) using optimized streaming
         async for event in provider.stream_messages_async(native_messages, state):
@@ -926,6 +1398,13 @@ class AgentCore:
             [ext.from_native_messages for ext in enabled_extensions]
             + [feature.from_native_messages for feature in features],
             final_core,
+        )
+
+        # Attach global native_indices for final core messages
+        final_core = self._normalize_final_core_with_native_indices(
+            final_core,
+            combined_native_finals,
+            baseline_native_len,
         )
 
         appended: List[Message] = [Message.from_dict(m) for m in final_core]

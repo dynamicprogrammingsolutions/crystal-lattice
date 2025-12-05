@@ -3,7 +3,7 @@ Unit tests for AgentCore (functional architecture).
 """
 
 import pytest
-from agent_core import AgentCore, Session
+from agent_core import AgentCore, Session, Message
 from .dummy_provider import DummyProvider
 from .dummy_feature import DummyFeature
 from .dummy_tool import DummyCalculator
@@ -203,3 +203,242 @@ def test_discover_and_register_plugins():
     assert "Echo: Hello" in final_message["content"]
     # Extension may add metadata
     assert "metadata" in final_message
+
+
+def test_normalize_final_core_infers_indices_for_1_to_1():
+    core = AgentCore()
+    final_core = [
+        {"role": "assistant", "content": "a", "metadata": {}},
+        {"role": "assistant", "content": "b"},
+    ]
+    finals_native = [
+        {"role": "assistant", "content": "na"},
+        {"role": "assistant", "content": "nb"},
+    ]
+
+    normalized = core._normalize_final_core_with_native_indices(
+        final_core,
+        finals_native,
+        baseline_offset=3,
+    )
+
+    indices_lists = [m.get("metadata", {}).get("native_indices") for m in normalized]
+    assert indices_lists == [[3], [4]]
+
+
+def test_normalize_final_core_raises_on_mismatch_without_indices():
+    core = AgentCore()
+    final_core = [
+        {"role": "assistant", "content": "a"},
+        {"role": "assistant", "content": "b"},
+    ]
+    finals_native = [{"role": "assistant", "content": "only-native"}]
+
+    with pytest.raises(RuntimeError):
+        core._normalize_final_core_with_native_indices(
+            final_core,
+            finals_native,
+            baseline_offset=0,
+        )
+
+
+def test_normalize_final_core_respects_existing_indices():
+    core = AgentCore()
+    final_core = [
+        {
+            "role": "assistant",
+            "content": "grouped",
+            "metadata": {"native_indices": [0, 2]},
+        }
+    ]
+    finals_native = [
+        {"role": "assistant", "content": "n0"},
+        {"role": "assistant", "content": "n1"},
+        {"role": "assistant", "content": "n2"},
+    ]
+
+    normalized = core._normalize_final_core_with_native_indices(
+        final_core,
+        finals_native,
+        baseline_offset=10,
+    )
+
+    assert normalized[0]["metadata"]["native_indices"] == [10, 12]
+
+
+def test_slice_drops_native_without_indices():
+    core = AgentCore()
+    core.register_provider(DummyProvider)
+    config = {"model": "test"}
+
+    session = core.create_session()
+    session = core.add_message(session, "user", "Hello")
+    session, _ = core.send_request(session, config)
+
+    cleaned_messages = []
+    for msg in session.messages:
+        data = msg.to_dict()
+        md = dict(data.get("metadata") or {})
+        md.pop("native_indices", None)
+        cleaned_messages.append(
+            Message(
+                role=data["role"],
+                content=data["content"],
+                metadata=md or None,
+            )
+        )
+
+    legacy = Session(
+        session_id=session.session_id,
+        messages=cleaned_messages,
+        metadata=dict(session.metadata),
+    )
+
+    assert "native_messages" in legacy.metadata
+    assert all("native_indices" not in (m.metadata or {}) for m in legacy.messages)
+
+    sliced = core.slice_session(legacy, config, remove_indices=[1])
+
+    assert len(sliced.messages) == 1
+    assert sliced.messages[0].content == "Hello"
+    assert "native_messages" not in sliced.metadata
+    assert "native_messages_integrity" not in sliced.metadata
+    assert "native_indices" not in (sliced.messages[0].metadata or {})
+
+
+def test_slice_preserves_native_with_indices_simple():
+    core = AgentCore()
+    core.register_provider(DummyProvider)
+    config = {"model": "test"}
+
+    native_messages = [
+        {"role": "assistant", "content": "n0"},
+        {"role": "assistant", "content": "n1"},
+        {"role": "assistant", "content": "n2"},
+    ]
+
+    messages = [
+        Message(role="assistant", content="m0", metadata={"native_indices": [0]}),
+        Message(role="assistant", content="m1", metadata={"native_indices": [1]}),
+        Message(role="assistant", content="m2", metadata={"native_indices": [2]}),
+    ]
+
+    session = Session(
+        session_id="s-simple",
+        messages=messages,
+        metadata={
+            "native_messages": native_messages,
+            "native_messages_integrity": core._compute_native_integrity(messages),
+        },
+    )
+
+    sliced = core.slice_session(session, config, start=0, end=2)
+
+    new_native = sliced.metadata.get("native_messages")
+    assert isinstance(new_native, list)
+    assert [m["content"] for m in new_native] == ["n0", "n1"]
+
+    assert len(sliced.messages) == len(new_native)
+    indices_lists = [
+        (msg.metadata or {}).get("native_indices") for msg in sliced.messages
+    ]
+    assert indices_lists == [[0], [1]]
+
+
+def test_slice_forward_reverse_mapping_on_chain():
+    core = AgentCore()
+    core.register_provider(DummyProvider)
+    config = {"model": "test"}
+
+    native_messages = [
+        {"role": "assistant", "content": "n0", "id": "n0"},
+        {"role": "assistant", "content": "n1", "id": "n1"},
+        {"role": "assistant", "content": "n2", "id": "n2"},
+        {"role": "assistant", "content": "n3", "id": "n3"},
+    ]
+
+    messages = [
+        Message(role="assistant", content="m0", metadata={"native_indices": [0, 1]}),
+        Message(role="assistant", content="m1", metadata={"native_indices": [1, 2]}),
+        Message(role="assistant", content="m2", metadata={"native_indices": [2, 3]}),
+    ]
+
+    session = Session(
+        session_id="s-chain",
+        messages=messages,
+        metadata={
+            "native_messages": native_messages,
+            "native_messages_integrity": core._compute_native_integrity(messages),
+        },
+    )
+
+    sliced = core.slice_session(session, config, remove_indices=[1])
+
+    new_native = sliced.metadata.get("native_messages")
+    assert isinstance(new_native, list)
+    ids = [m.get("id") for m in new_native]
+    assert ids == ["n0", "n3"]
+
+
+def test_fork_session_convenience():
+    core = AgentCore()
+    core.register_provider(DummyProvider)
+    config = {"model": "test"}
+
+    native_messages = [
+        {"role": "assistant", "content": "n0"},
+        {"role": "assistant", "content": "n1"},
+        {"role": "assistant", "content": "n2"},
+    ]
+
+    messages = [
+        Message(role="assistant", content="m0", metadata={"native_indices": [0]}),
+        Message(role="assistant", content="m1", metadata={"native_indices": [1]}),
+        Message(role="assistant", content="m2", metadata={"native_indices": [2]}),
+    ]
+
+    session = Session(
+        session_id="s-fork",
+        messages=messages,
+        metadata={
+            "native_messages": native_messages,
+            "native_messages_integrity": core._compute_native_integrity(messages),
+        },
+    )
+
+    prefix = core.slice_session(session, config, start=0, end=2)
+    forked = core.fork_session(session, config, upto_index=1, new_session_id="forked")
+
+    assert forked.session_id == "forked"
+    assert forked.messages == prefix.messages
+    assert forked.metadata == prefix.metadata
+
+
+def test_add_message_config_aware_suffix_native():
+    core = AgentCore()
+    core.register_provider(DummyProvider)
+    config = {"model": "test"}
+
+    session = core.create_session()
+    session = core.add_message(session, "user", "Hello")
+    session, _ = core.send_request(session, config)
+
+    assert "native_messages" in session.metadata
+    base_len = len(session.metadata["native_messages"])
+
+    legacy = core.add_message(session, "user", "Legacy path")
+    assert len(legacy.metadata.get("native_messages", [])) >= base_len
+    legacy_last_md = legacy.messages[-1].metadata or {}
+    assert "native_indices" not in legacy_last_md
+
+    config_aware = core.add_message(session, "user", "Config path", config=config)
+    new_native = config_aware.metadata.get("native_messages")
+    assert isinstance(new_native, list)
+    assert len(new_native) >= base_len
+
+    last_msg = config_aware.messages[-1]
+    indices = (last_msg.metadata or {}).get("native_indices")
+    assert isinstance(indices, list)
+    assert indices
+    assert indices[0] == base_len
+    assert indices == list(range(indices[0], indices[0] + len(indices)))
