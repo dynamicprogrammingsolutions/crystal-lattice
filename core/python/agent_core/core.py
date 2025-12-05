@@ -216,40 +216,17 @@ class AgentCore:
         self._verify_native_integrity(session)
 
         try:
-            provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
-                config
-            )
+            core_suffix = [
+                {
+                    "role": role,
+                    "content": content,
+                    "metadata": md,
+                }
+            ]
+            suffix_native = self._core_messages_to_native_for_config(core_suffix, config)
         except Exception:
             return _core_only_session(md), None
 
-        from agent_core.utils import pipeline
-
-        tool_schemas = []
-        for tool in tools:
-            tool_state = tool.init(config)
-            tool_schemas.extend(tool.get_tool_schemas(tool_state))
-        provider_config = {**config, **({"tools": tool_schemas} if tool_schemas else {})}
-
-        state = provider.init(provider_config)
-        for feature in features:
-            state = feature.init(provider_config, state)
-            provider.set_state(state)
-
-        core_suffix = [
-            {
-                "role": role,
-                "content": content,
-                "metadata": md,
-            }
-        ]
-
-        suffix_native = provider.to_native_messages(core_suffix, state)
-        suffix_native = provider.apply_extension_transforms(core_suffix, suffix_native)
-        pipe = pipeline(core_suffix)
-        suffix_native = pipe(
-            [feature.to_native_messages for feature in features],
-            suffix_native,
-        )
 
         base_len = len(retained_native)
         global_indices = list(range(base_len, base_len + len(suffix_native)))
@@ -1000,6 +977,55 @@ class AgentCore:
 
         return provider, enabled_extensions, enabled_features, enabled_tools, final_tags
 
+    def _init_provider_and_features_for_config(
+        self,
+        provider: ProviderWrapper,
+        features: List[FeatureWrapper],
+        tools: List[ToolWrapper],
+        config: Dict[str, Any],
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Initialize provider and features for the given config.
+
+        Builds a provider_config including tool schemas, runs provider.init
+        and feature.init, and returns (provider_config, state).
+        """
+        tool_schemas: List[Dict[str, Any]] = []
+        for tool in tools:
+            tool_state = tool.init(config)
+            tool_schemas.extend(tool.get_tool_schemas(tool_state))
+        provider_config = {**config, **({"tools": tool_schemas} if tool_schemas else {})}
+
+        state = provider.init(provider_config)
+        for feature in features:
+            state = feature.init(provider_config, state)
+            provider.set_state(state)
+        return provider_config, state
+
+    def _core_messages_to_native_for_config(
+        self,
+        core_messages: List[Dict[str, Any]],
+        config: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        """Convert core messages to provider-native messages for this config."""
+        provider, _enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
+            config
+        )
+        _provider_config, state = self._init_provider_and_features_for_config(
+            provider,
+            features,
+            tools,
+            config,
+        )
+
+        native_messages = provider.to_native_messages(core_messages, state)
+        native_messages = provider.apply_extension_transforms(core_messages, native_messages)
+        pipe = pipeline(core_messages)
+        native_messages = pipe(
+            [feature.to_native_messages for feature in features],
+            native_messages,
+        )
+        return native_messages
+
     def _rebuild_core_from_native(
         self,
         native_messages: List[Dict[str, Any]],
@@ -1019,18 +1045,12 @@ class AgentCore:
             _tags,
         ) = self._resolve_plugins_for_config(config)
 
-        # Collect tool schemas as in _pre_request so that features that
-        # depend on tool metadata see the same configuration.
-        tool_schemas: List[Dict[str, Any]] = []
-        for tool in tools:
-            tool_state = tool.init(config)
-            tool_schemas.extend(tool.get_tool_schemas(tool_state))
-        provider_config = {**config, **({"tools": tool_schemas} if tool_schemas else {})}
-
-        state = provider.init(provider_config)
-        for feature in features:
-            state = feature.init(provider_config, state)
-            provider.set_state(state)
+        _provider_config, state = self._init_provider_and_features_for_config(
+            provider,
+            features,
+            tools,
+            config,
+        )
 
         # Initialize request chains using the adjusted native history.
         state = provider.initialize_request(native_messages, state)
@@ -1054,88 +1074,81 @@ class AgentCore:
             baseline_offset=0,
         )
         return [Message.from_dict(m) for m in normalized_core]
+
  
     def _pre_request(
-         self,
-         session: Session,
-         config: Dict[str, Any],
-         provider: ProviderWrapper,
-         features: List[FeatureWrapper],
-         tools: List[ToolWrapper],
-     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-         """Prepare shared state and inputs for a request.
- 
-         Integrity is verified if native history is present. When native
-         history exists, it is trusted as the full provider-native history
-         for the session. Otherwise, native is reconstructed from core
-         messages.
- 
-         Args:
-             session: Current session.
-             config: Application-provided configuration for this request.
-             provider: Provider wrapper selected for this request.
-             features: Enabled feature wrappers for this request.
-             tools: Enabled tool wrappers for this request.
- 
-         Returns:
-             A tuple of (messages, native_messages, state):
-             - messages: Core message dicts for the session.
-             - native_messages: Provider-native full history (either retained or reconstructed).
-             - state: Shared provider state after init/update/initialize_request for features as well.
-         """
-         # Collect tool schemas from enabled tools and inject into config
-         tool_schemas: List[Dict[str, Any]] = []
-         for tool in tools:
-             tool_state = tool.init(config)
-             tool_schemas.extend(tool.get_tool_schemas(tool_state))
-         provider_config = {**config, **({"tools": tool_schemas} if tool_schemas else {})}
- 
-         # Init chain: Provider  Extensions (inside provider)  Features
-         # Configuration (including any UI-driven values) is passed directly via
-         # provider_config; there is no separate update_state step.
-         state = provider.init(provider_config)
-         for feature in features:
-             state = feature.init(provider_config, state)
-             provider.set_state(state)
-         # Build messages (core shape)
-         messages = [msg.to_dict() for msg in session.messages]
- 
-         # If native history exists, verify integrity and trust it
-         retained_native: Optional[List[Dict[str, Any]]] = None
-         if isinstance(session.metadata, dict) and "native_messages" in session.metadata:
-             self._verify_native_integrity(session)
-             rn = session.metadata.get("native_messages")
-             if isinstance(rn, list):
-                 retained_native = rn
- 
-         if retained_native is not None:
-             # Reuse retained provider-native history as-is, including any
-             # reasoning or reasoning_details fields that were returned by
-             # the provider. Extensions such as the OpenRouter reasoning
-             # extension are responsible for treating these fields as opaque
-             # provider-native metadata and, when streaming, for accumulating
-             # them correctly across chunks.
-             native_messages = list(retained_native)
-         else:
-             # Provider-first conversion (native_base for stateless transforms)
-             native_messages = provider.to_native_messages(messages, state)
-             # Apply stateless transforms: Extensions then Features
-             native_messages = provider.apply_extension_transforms(messages, native_messages)
-             pipe = pipeline(messages)
-             native_messages = pipe(
-                 [feature.to_native_messages for feature in features], native_messages
-             )
- 
-         # Initialize request chains
-         state = provider.initialize_request(native_messages, state)
-         for feature in features:
-             state = feature.initialize_request(native_messages, state)
-             provider.set_state(state)
- 
-         logger.info("request init complete", request=state.get("request"))
- 
-         return messages, native_messages, state
+        self,
+        session: Session,
+        config: Dict[str, Any],
+        provider: ProviderWrapper,
+        features: List[FeatureWrapper],
+        tools: List[ToolWrapper],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        """Prepare shared state and inputs for a request.
 
+        Integrity is verified if native history is present. When native
+        history exists, it is trusted as the full provider-native history
+        for the session. Otherwise, native is reconstructed from core
+        messages.
+
+        Args:
+            session: Current session.
+            config: Application-provided configuration for this request.
+            provider: Provider wrapper selected for this request.
+            features: Enabled feature wrappers for this request.
+            tools: Enabled tool wrappers for this request.
+
+        Returns:
+            A tuple of (messages, native_messages, state):
+            - messages: Core message dicts for the session.
+            - native_messages: Provider-native full history (either retained or reconstructed).
+            - state: Shared provider state after init/update/initialize_request for features as well.
+        """
+        _provider_config, state = self._init_provider_and_features_for_config(
+            provider,
+            features,
+            tools,
+            config,
+        )
+        # Build messages (core shape)
+        messages = [msg.to_dict() for msg in session.messages]
+
+        # If native history exists, verify integrity and trust it
+        retained_native: Optional[List[Dict[str, Any]]] = None
+        if isinstance(session.metadata, dict) and "native_messages" in session.metadata:
+            self._verify_native_integrity(session)
+            rn = session.metadata.get("native_messages")
+            if isinstance(rn, list):
+                retained_native = rn
+
+        if retained_native is not None:
+            # Reuse retained provider-native history as-is, including any
+            # reasoning or reasoning_details fields that were returned by
+            # the provider. Extensions such as the OpenRouter reasoning
+            # extension are responsible for treating these fields as opaque
+            # provider-native metadata and, when streaming, for accumulating
+            # them correctly across chunks.
+            native_messages = list(retained_native)
+        else:
+            # Provider-first conversion (native_base for stateless transforms)
+            native_messages = provider.to_native_messages(messages, state)
+            # Apply stateless transforms: Extensions then Features
+            native_messages = provider.apply_extension_transforms(messages, native_messages)
+            pipe = pipeline(messages)
+            native_messages = pipe(
+                [feature.to_native_messages for feature in features],
+                native_messages,
+            )
+
+        # Initialize request chains
+        state = provider.initialize_request(native_messages, state)
+        for feature in features:
+            state = feature.initialize_request(native_messages, state)
+            provider.set_state(state)
+
+        logger.info("request init complete", request=state.get("request"))
+
+        return messages, native_messages, state
 
     def send_request(
         self, session: Session, config: Dict[str, Any]
