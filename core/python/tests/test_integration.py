@@ -55,6 +55,11 @@ def test_streaming_request_response():
     assert final_message is not None
     assert "Echo: Test" in final_message["content"]
 
+    # Normalized native indices should be attached in metadata
+    native_indices = final_message.get("metadata", {}).get("native_indices")
+    assert isinstance(native_indices, list)
+    assert all(isinstance(i, int) for i in native_indices)
+
     # Original session unchanged
     assert len(session.messages) == 1
     # Final session has response
