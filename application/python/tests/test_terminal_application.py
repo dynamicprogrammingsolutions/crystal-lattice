@@ -251,3 +251,124 @@ def test_set_overrides_and_send_request_uses_them(tmp_path: Path, monkeypatch: p
 
     assert captured["overrides"] == {"reasoning_effort": "high"}
     assert final_session_dict is not None
+
+
+def test_delete_messages_by_index_and_range(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    # Create a session with a system message and three user messages.
+    session = term_app.start_new_session(system_message="system", agent_id="default")
+    term_app.append_user_message("one")
+    term_app.append_user_message("two")
+    term_app.append_user_message("three")
+
+    contents = [m.content for m in term_app.session.messages]
+    assert contents == ["system", "one", "two", "three"]
+
+    # Delete a single message by index (remove "two").
+    updated = term_app.delete_messages([2])
+    contents_single = [m.content for m in updated.messages]
+    assert contents_single == ["system", "one", "three"]
+
+    # Delete a range using positive indices (remove "one" and "three").
+    updated_range = term_app.delete_messages([1, 2])
+    contents_range = [m.content for m in updated_range.messages]
+    assert contents_range == ["system"]
+
+    # Check that a messages_deleted event was recorded.
+    events_list = term_app.poll_new_events(limit=100)
+    kinds = {ev.get("type") for ev in events_list}
+    assert "messages_deleted" in kinds
+
+
+@pytest.mark.asyncio
+async def test_delete_slash_command_negative_range(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    # Session with a system message and three user messages.
+    session = term_app.start_new_session(system_message="system", agent_id="default")
+    term_app.append_user_message("one")
+    term_app.append_user_message("two")
+    term_app.append_user_message("three")
+
+    contents_before = [m.content for m in term_app.session.messages]
+    assert contents_before == ["system", "one", "two", "three"]
+
+    outputs: list[str] = []
+    ui_state: dict = {}
+
+    # /delete -3:-1 should delete the messages at indices 1 and 2
+    # when there are 4 messages in total.
+    await term_mod._cmd_delete(term_app, "-3:-1", outputs.append, ui_state)
+
+    contents_after = [m.content for m in term_app.session.messages]
+    assert contents_after == ["system", "three"]
+
+    # The command should report the deleted indices.
+    joined = "\n".join(outputs)
+    assert "deleted messages at indices: 1, 2" in joined
+
+
+@pytest.mark.asyncio
+async def test_delete_slash_command_count_last_two(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    # Session with a system message and three user messages.
+    session = term_app.start_new_session(system_message="system", agent_id="default")
+    term_app.append_user_message("one")
+    term_app.append_user_message("two")
+    term_app.append_user_message("three")
+
+    outputs: list[str] = []
+    ui_state: dict = {}
+
+    # /delete 2 should delete the last two messages: indices 2 and 3
+    await term_mod._cmd_delete(term_app, "2", outputs.append, ui_state)
+
+    contents_after = [m.content for m in term_app.session.messages]
+    assert contents_after == ["system", "one"]
+
+    joined = "\n".join(outputs)
+    assert "deleted messages at indices: 2, 3" in joined

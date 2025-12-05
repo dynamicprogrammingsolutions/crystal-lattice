@@ -159,6 +159,17 @@ def _render_event(event: Dict[str, Any], write: Callable[[str], None]) -> None:
         elif role == "assistant":
             write(f"Assistant: {content}")
         return
+    if etype == "messages_deleted":
+        indices = event.get("indices")
+        if isinstance(indices, list):
+            try:
+                text_indices = ", ".join(str(i) for i in indices)
+            except Exception:
+                text_indices = str(indices)
+        else:
+            text_indices = str(indices)
+        write(f"[session] deleted messages at indices: {text_indices}")
+        return
     if etype == "request_started":
         write(f"[request] started ({event.get('request_id')})")
         return
@@ -494,6 +505,69 @@ async def _cmd_set(
         return
 
     write(f"[set] {key}={coerced!r} saved for this session")
+
+
+@slash_command("delete", "Delete messages by index or range")
+async def _cmd_delete(
+    app: TerminalApplication,
+    arg: str,
+    write: Callable[[str], None],
+    ui_state: Dict[str, Any],
+) -> None:
+    text = (arg or "").strip()
+    if not text:
+        write("[delete] usage: /delete <count> or /delete <start>:<end>")
+        return
+
+    # Parse arguments; delegate deletion semantics to TerminalApplication.
+    if ":" in text:
+        start_str, _, end_str = text.partition(":")
+        try:
+            start_val = int(start_str) if start_str.strip() else None
+        except ValueError:
+            write("[delete] invalid start index; expected an integer")
+            return
+        try:
+            end_val = int(end_str) if end_str.strip() else None
+        except ValueError:
+            write("[delete] invalid end index; expected an integer")
+            return
+
+        try:
+            _session, deleted = app.delete_messages_by_range(start_val, end_val)
+        except RuntimeError as exc:
+            write(f"[delete] no active session: {exc}")
+            return
+        except ValueError as exc:
+            write(f"[delete] {exc}")
+            return
+        except Exception as exc:  # pragma: no cover - defensive
+            write(f"[delete] failed to delete messages: {exc}")
+            return
+    else:
+        try:
+            count = int(text)
+        except ValueError:
+            write("[delete] invalid value; expected an integer or range")
+            return
+
+        try:
+            _session, deleted = app.delete_last_messages(count)
+        except RuntimeError as exc:
+            write(f"[delete] no active session: {exc}")
+            return
+        except ValueError as exc:
+            write(f"[delete] {exc}")
+            return
+        except Exception as exc:  # pragma: no cover - defensive
+            write(f"[delete] failed to delete messages: {exc}")
+            return
+
+    if deleted:
+        write("[delete] deleted messages at indices: " + ", ".join(str(i) for i in deleted))
+    else:
+        write("[delete] no messages deleted")
+
 
 
 async def _handle_slash_command(
