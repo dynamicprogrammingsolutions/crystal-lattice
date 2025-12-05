@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from agent_app.application_future import AgentApplication
+from agent_app.config import resolve_request_config
 from agent_core import Session
 
 
@@ -135,6 +136,118 @@ class TerminalApplication:
         self._session = new_session
         return new_session
 
+    def delete_messages(self, indices: List[int]) -> Session:
+        """Delete one or more messages by core index.
+
+        Indices are 0-based; negative values follow Python semantics
+        relative to the current message list length. Deletion uses the
+        core's config-aware slice_session helper so that provider-native
+        history is preserved when possible.
+        """
+
+        if not indices:
+            return self.session
+
+        core, base_config, session = self.require_session()
+
+        message_count = len(session.messages)
+        normalized: List[int] = []
+        for raw in indices:
+            if not isinstance(raw, int):
+                continue
+            idx = raw
+            if idx < 0:
+                idx = message_count + idx
+            if 0 <= idx < message_count:
+                normalized.append(idx)
+
+        if not normalized:
+            return session
+
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides_val = metadata.get("overrides")
+        overrides: Dict[str, Any] = (
+            dict(overrides_val) if isinstance(overrides_val, dict) else {}
+        )
+        config = resolve_request_config(base_config, overrides)
+
+        new_session = core.slice_session(session, config, remove_indices=normalized)
+        self._app.save_session(new_session)
+
+        store = self._app.get_event_store()
+        store.publish(
+            {
+                "type": "messages_deleted",
+                "session_id": new_session.session_id,
+                "indices": sorted(normalized),
+                "session": new_session.to_dict(),
+            }
+        )
+
+        self._session = new_session
+        return new_session
+
+    def delete_messages_by_range(
+        self,
+        start: Optional[int],
+        end: Optional[int],
+    ) -> Tuple[Session, List[int]]:
+        """Delete messages using Python-style slice semantics.
+
+        ``start`` and ``end`` are interpreted like slice bounds, including
+        support for negative indices. Returns the updated session and the
+        concrete indices that were removed.
+        """
+
+        core, _base_config, session = self.require_session()
+        message_count = len(session.messages)
+
+        def _normalize_bound(value: Optional[int], default: int) -> int:
+            if value is None:
+                return default
+            idx = value
+            if idx < 0:
+                idx = message_count + idx
+            if idx < 0:
+                return 0
+            if idx > message_count:
+                return message_count
+            return idx
+
+        start_idx = _normalize_bound(start, 0)
+        end_idx = _normalize_bound(end, message_count)
+
+        if start_idx >= end_idx:
+            raise ValueError("range selects no messages")
+
+        indices = list(range(start_idx, end_idx))
+        new_session = self.delete_messages(indices)
+        return new_session, sorted(set(indices))
+
+    def delete_last_messages(self, count: int) -> Tuple[Session, List[int]]:
+        """Delete the last ``count`` messages in the active session.
+
+        Returns the updated session and the concrete indices that were
+        removed.
+        """
+
+        if count <= 0:
+            raise ValueError("count must be a positive integer")
+
+        core, _base_config, session = self.require_session()
+        message_count = len(session.messages)
+
+        if message_count == 0:
+            raise ValueError("no messages to delete")
+
+        if count > message_count:
+            count = message_count
+
+        start_idx = message_count - count
+        indices = list(range(start_idx, message_count))
+        new_session = self.delete_messages(indices)
+        return new_session, sorted(set(indices))
+
     # ------------------------------------------------------------------
     # Requests and events
     # ------------------------------------------------------------------
@@ -201,6 +314,66 @@ class TerminalApplication:
             if isinstance(last, str):
                 self._last_event_id = last
         return events
+
+    def list_events(
+        self,
+        *,
+        session_id: Optional[str] = None,
+        limit: int = 100,
+        since_id: Optional[str] = None,
+        request_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """List events from the shared event store.
+
+        If ``session_id`` is not provided, uses the current session id.
+        """
+        sid = session_id or self.session.session_id
+        store = self._app.get_event_store()
+        return store.list(
+            since_id=since_id,
+            request_id=request_id,
+            session_id=sid,
+            limit=limit,
+        )
+
+    def add_message(
+        self,
+        session_id: str,
+        *,
+        role: str,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Append a message to an arbitrary session and publish an event.
+
+        Returns a dict with the updated session under the "session" key.
+        """
+        ctx = self._app.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+
+        core, _base_config, session = ctx
+        normalized_role = role if role in {"system", "user", "assistant", "tool"} else "user"
+
+        new_session: Session = core.add_message(session, normalized_role, content, metadata)
+        self._app.save_session(new_session)
+
+        last_message = new_session.messages[-1] if new_session.messages else None
+
+        store = self._app.get_event_store()
+        store.publish(
+            {
+                "type": "message_appended",
+                "session_id": new_session.session_id,
+                "role": normalized_role,
+                "content": content,
+                "metadata": metadata or {},
+                "message": last_message.to_dict() if last_message is not None else None,
+                "session": new_session.to_dict(),
+            }
+        )
+
+        return {"session": new_session.to_dict()}
 
     def reset_event_cursor(self) -> None:
         self._last_event_id = None
