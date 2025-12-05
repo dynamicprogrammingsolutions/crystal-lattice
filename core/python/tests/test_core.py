@@ -414,7 +414,7 @@ def test_fork_session_convenience():
     assert forked.metadata == prefix.metadata
 
 
-def test_add_message_config_aware_suffix_native():
+def test_add_message_suffix_native_indices_with_and_without_config():
     core = AgentCore()
     core.register_provider(DummyProvider)
     config = {"model": "test"}
@@ -426,19 +426,27 @@ def test_add_message_config_aware_suffix_native():
     assert "native_messages" in session.metadata
     base_len = len(session.metadata["native_messages"])
 
-    legacy = core.add_message(session, "user", "Legacy path")
-    assert len(legacy.metadata.get("native_messages", [])) >= base_len
-    legacy_last_md = legacy.messages[-1].metadata or {}
-    assert "native_indices" not in legacy_last_md
+    # Without explicit config, add_message still uses the provider pipeline
+    # and assigns native_indices for the appended message when native
+    # history is present and a single provider is registered.
+    no_config = core.add_message(session, "user", "No config path")
+    native_no_config = no_config.metadata.get("native_messages")
+    assert isinstance(native_no_config, list)
+    assert len(native_no_config) >= base_len
+    last_no_cfg = no_config.messages[-1]
+    idx_no_cfg = (last_no_cfg.metadata or {}).get("native_indices")
+    assert isinstance(idx_no_cfg, list) and idx_no_cfg
+    assert idx_no_cfg[0] == base_len
 
-    config_aware = core.add_message(session, "user", "Config path", config=config)
-    new_native = config_aware.metadata.get("native_messages")
-    assert isinstance(new_native, list)
-    assert len(new_native) >= base_len
+    # With explicit config, behavior is consistent: the new suffix is mapped
+    # to a contiguous range at the tail of native history.
+    with_config = core.add_message(session, "user", "Config path", config=config)
+    native_with_config = with_config.metadata.get("native_messages")
+    assert isinstance(native_with_config, list)
+    assert len(native_with_config) >= base_len
 
-    last_msg = config_aware.messages[-1]
-    indices = (last_msg.metadata or {}).get("native_indices")
-    assert isinstance(indices, list)
-    assert indices
-    assert indices[0] == base_len
-    assert indices == list(range(indices[0], indices[0] + len(indices)))
+    last_with_cfg = with_config.messages[-1]
+    idx_with_cfg = (last_with_cfg.metadata or {}).get("native_indices")
+    assert isinstance(idx_with_cfg, list) and idx_with_cfg
+    assert idx_with_cfg[0] == base_len
+    assert idx_with_cfg == list(range(idx_with_cfg[0], idx_with_cfg[0] + len(idx_with_cfg)))

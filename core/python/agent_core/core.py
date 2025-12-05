@@ -223,7 +223,7 @@ class AgentCore:
                     "metadata": md,
                 }
             ]
-            suffix_native = self._core_messages_to_native_for_config(core_suffix, config)
+            suffix_native = self._core_messages_to_native_for_config(core_suffix, config or {})
         except Exception:
             return _core_only_session(md), None
 
@@ -333,97 +333,44 @@ class AgentCore:
         return Session(session_id=session_id, messages=[])
 
     def add_message(
-         self,
-         session: Session,
-         role: MessageRole,
-         content: str,
-         metadata: Optional[Dict[str, Any]] = None,
-         config: Optional[Dict[str, Any]] = None,
-     ) -> Session:
-         """Add a message to the session (pure function).
- 
-         When session.metadata contains provider-native history (native_messages)
-         and a provider is registered, converts the newly added message to
-         provider-native format and appends it to the stored native history.
-         Updates verification data for integrity checks.
- 
-         When ``config`` is provided, native history is updated using the same
-         provider/feature pipeline as regular requests. When ``config`` is
-         omitted, legacy best-effort behavior is preserved.
- 
-         Args:
-             session: Current session.
-             role: Message role ("system", "user", "assistant", or "tool").
-             content: Message content.
-             metadata: Optional per-message metadata.
-             config: Optional configuration used to resolve provider and plugins.
- 
-         Returns:
-             New Session with the message appended (immutable update).
-         """
-         if config is not None:
-             # Config-aware path: delegate to helper that preserves native history
-             msg_md = dict(metadata) if isinstance(metadata, dict) else {}
-             message_dict: Dict[str, Any] = {
-                 "role": role,
-                 "content": content,
-                 "metadata": msg_md,
-             }
-             new_session, _ = self._append_single_message_with_native(
-                 session,
-                 message_dict,
-                 config,
-             )
-             return new_session
- 
-         # Legacy behavior when no config is provided.
-         message = Message(role=role, content=content, metadata=metadata)
-         new_messages: List[Message] = [*session.messages, message]
- 
-         # Default metadata passthrough
-         new_metadata: Dict[str, Any] = dict(session.metadata)
- 
-         # If native history exists, verify integrity before modification
-         if isinstance(session.metadata, dict) and "native_messages" in session.metadata:
-             self._verify_native_integrity(session)
- 
-         # Attempt to append native for the new message if a single provider is
-         # available and native history exists. When multiple providers are
-         # registered, this method does not attempt to infer which provider was
-         # used; native history is left unchanged.
-         if self._providers and isinstance(session.metadata, dict):
-             retained_native = session.metadata.get("native_messages")
-             if isinstance(retained_native, list) and len(self._providers) == 1:
-                 provider = self._providers[0]
-                 # Initialize minimal state for stateless transforms
-                 state = provider.init({})
-                 for feature in self._features:
-                     state = feature.init({}, state)
-                     provider.set_state(state)
-                 # Build core dict for the single new message only
-                 core_new_msg = [message.to_dict()]
-                 # Convert single message to provider-native and apply stateless
-                 # transforms (single-message context)
-                 suffix_native = provider.to_native_messages(core_new_msg, state)
-                 suffix_native = provider.apply_extension_transforms(core_new_msg, suffix_native)
-                 pipe = pipeline(core_new_msg)
-                 suffix_native = pipe(
-                     [feature.to_native_messages for feature in self._features],
-                     suffix_native,
-                 )
-                 new_metadata["native_messages"] = [*retained_native, *suffix_native]
- 
-         # Always update integrity data when we have native history
-         if "native_messages" in new_metadata:
-             new_metadata["native_messages_integrity"] = self._compute_native_integrity(
-                 new_messages
-             )
+        self,
+        session: Session,
+        role: MessageRole,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        config: Optional[Dict[str, Any]] = None,
+    ) -> Session:
+        """Add a message to the session (pure function).
 
-         return Session(
-             session_id=session.session_id,
-             messages=new_messages,
-             metadata=new_metadata,
-         )
+        When session.metadata contains provider-native history (native_messages)
+        and a provider is registered, converts the newly added message to
+        provider-native format and appends it to the stored native history.
+        Updates verification data for integrity checks.
+
+        Args:
+            session: Current session.
+            role: Message role ("system", "user", "assistant", or "tool").
+            content: Message content.
+            metadata: Optional per-message metadata.
+            config: Optional configuration used to resolve provider and plugins.
+
+        Returns:
+            New Session with the message appended (immutable update).
+        """
+        msg_md = dict(metadata) if isinstance(metadata, dict) else {}
+        message_dict: Dict[str, Any] = {
+            "role": role,
+            "content": content,
+            "metadata": msg_md,
+        }
+        # Always prefer the native-preserving helper; when native history
+        # cannot be safely updated, it falls back to a core-only append.
+        new_session, _ = self._append_single_message_with_native(
+            session,
+            message_dict,
+            config or {},
+        )
+        return new_session
 
     def _slice_session_core_only(
         self,
@@ -982,24 +929,30 @@ class AgentCore:
         provider: ProviderWrapper,
         features: List[FeatureWrapper],
         tools: List[ToolWrapper],
-        config: Dict[str, Any],
+        config: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """Initialize provider and features for the given config.
 
-        Builds a provider_config including tool schemas, runs provider.init
-        and feature.init, and returns (provider_config, state).
+        Treats a missing config as an empty dict. Builds a provider_config
+        including tool schemas, runs provider.init and feature.init, and
+        returns (provider_config, state).
         """
+        base_config: Dict[str, Any] = dict(config) if isinstance(config, dict) else {}
+
+        base_config: Dict[str, Any] = dict(config) if isinstance(config, dict) else {}
+
         tool_schemas: List[Dict[str, Any]] = []
         for tool in tools:
-            tool_state = tool.init(config)
+            tool_state = tool.init(base_config)
             tool_schemas.extend(tool.get_tool_schemas(tool_state))
-        provider_config = {**config, **({"tools": tool_schemas} if tool_schemas else {})}
+        provider_config = {**base_config, **({"tools": tool_schemas} if tool_schemas else {})}
 
         state = provider.init(provider_config)
         for feature in features:
             state = feature.init(provider_config, state)
             provider.set_state(state)
         return provider_config, state
+
 
     def _core_messages_to_native_for_config(
         self,
