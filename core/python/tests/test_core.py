@@ -414,6 +414,111 @@ def test_fork_session_convenience():
     assert forked.metadata == prefix.metadata
 
 
+def test_modify_message_core_only_no_provider():
+    core = AgentCore()
+    session = core.create_session()
+    session = core.add_message(session, "user", "Hello")
+ 
+    modified = core.modify_message(session, 0, "Changed")
+ 
+    assert len(modified.messages) == 1
+    assert modified.messages[0].content == "Changed"
+    assert session.messages[0].content == "Hello"
+    assert "native_messages" not in modified.metadata
+    assert "native_messages_integrity" not in modified.metadata
+ 
+ 
+def test_modify_message_preserves_native_simple_1_to_1():
+    core = AgentCore()
+    core.register_provider(DummyProvider)
+    config = {"model": "test"}
+ 
+    native_messages = [
+        {"role": "assistant", "content": "n0"},
+        {"role": "assistant", "content": "n1"},
+        {"role": "assistant", "content": "n2"},
+    ]
+ 
+    messages = [
+        Message(role="assistant", content="m0", metadata={"native_indices": [0]}),
+        Message(role="assistant", content="m1", metadata={"native_indices": [1]}),
+        Message(role="assistant", content="m2", metadata={"native_indices": [2]}),
+    ]
+ 
+    session = Session(
+        session_id="s-mod",
+        messages=messages,
+        metadata={
+            "native_messages": native_messages,
+            "native_messages_integrity": core._compute_native_integrity(messages),
+        },
+    )
+ 
+    modified = core.modify_message(session, 1, "m1-updated", config=config)
+ 
+    assert modified.messages[1].content == "m1-updated"
+    assert session.messages[1].content == "m1"
+ 
+    new_native = modified.metadata.get("native_messages")
+    assert isinstance(new_native, list)
+    assert len(new_native) == len(native_messages)
+    assert new_native[0] is native_messages[0]
+    assert new_native[2] is native_messages[2]
+    assert new_native[1]["content"] == "m1-updated"
+ 
+    indices_lists = [
+        (msg.metadata or {}).get("native_indices") for msg in modified.messages
+    ]
+    assert indices_lists == [[0], [1], [2]]
+ 
+ 
+def test_modify_message_shared_indices_with_provider_rebuild():
+    core = AgentCore()
+    core.register_provider(DummyProvider)
+    config = {"model": "test"}
+
+    native_messages = [
+        {"role": "assistant", "content": "n0", "id": "n0"},
+        {"role": "assistant", "content": "n1", "id": "n1"},
+        {"role": "assistant", "content": "n2", "id": "n2"},
+        {"role": "assistant", "content": "n3", "id": "n3"},
+    ]
+
+    messages = [
+        Message(role="assistant", content="m0", metadata={"native_indices": [0, 1]}),
+        Message(role="assistant", content="m1", metadata={"native_indices": [1, 2]}),
+        Message(role="assistant", content="m2", metadata={"native_indices": [2, 3]}),
+    ]
+
+    session = Session(
+        session_id="s-mod-shared",
+        messages=messages,
+        metadata={
+            "native_messages": native_messages,
+            "native_messages_integrity": core._compute_native_integrity(messages),
+        },
+    )
+
+    modified = core.modify_message(session, 1, "m1-updated", config=config)
+
+    # We no longer drop native history on shared indices; instead, we
+    # patch native history and let the provider + features rebuild the
+    # full core message sequence. This test only asserts that native
+    # history is still present and integrity is updated.
+    assert "native_messages" in modified.metadata
+    assert "native_messages_integrity" in modified.metadata
+    assert isinstance(modified.metadata["native_messages"], list)
+ 
+ 
+def test_modify_message_rejects_tool_role():
+    core = AgentCore()
+    session = core.create_session()
+    session = core.add_message(session, "tool", "Tool output", metadata={"k": "v"})
+ 
+    with pytest.raises(ValueError):
+        core.modify_message(session, 0, "Updated")
+ 
+ 
 def test_add_message_suffix_native_indices_with_and_without_config():
     core = AgentCore()
     core.register_provider(DummyProvider)
@@ -450,3 +555,66 @@ def test_add_message_suffix_native_indices_with_and_without_config():
     assert isinstance(idx_with_cfg, list) and idx_with_cfg
     assert idx_with_cfg[0] == base_len
     assert idx_with_cfg == list(range(idx_with_cfg[0], idx_with_cfg[0] + len(idx_with_cfg)))
+
+
+
+def test_modify_message_shared_indices_cardinality_change_removes_first():
+    core = AgentCore()
+
+    # Monkeypatch conversion helpers to control cardinality.
+    original_to_native = core._core_messages_to_native_for_config
+    original_rebuild = core._rebuild_core_from_native
+
+    def fake_core_to_native(core_messages, config):  # type: ignore[override]
+        msg = core_messages[0]
+        return [
+            {"role": msg["role"], "content": f"n:{msg['content']}", "metadata": {}},
+        ]
+
+    def fake_rebuild(native_messages, config):  # type: ignore[override]
+        return [
+            Message(
+                role=nm["role"],
+                content=nm["content"],
+                metadata={"native_indices": [i]},
+            )
+            for i, nm in enumerate(native_messages)
+        ]
+
+    try:
+        core._core_messages_to_native_for_config = fake_core_to_native  # type: ignore[assignment]
+        core._rebuild_core_from_native = fake_rebuild  # type: ignore[assignment]
+
+        native_messages = [
+            {"role": "assistant", "content": "n0"},
+            {"role": "assistant", "content": "n1"},
+        ]
+
+        messages = [
+            Message(role="assistant", content="m0", metadata={"native_indices": [0, 1]}),
+            Message(role="assistant", content="m1", metadata={"native_indices": [0, 1]}),
+        ]
+
+        session = Session(
+            session_id="s-shared",
+            messages=messages,
+            metadata={
+                "native_messages": native_messages,
+                "native_messages_integrity": core._compute_native_integrity(messages),
+            },
+        )
+
+        modified = core.modify_message(session, 1, "m1-updated")
+
+        new_native = modified.metadata.get("native_messages")
+        assert isinstance(new_native, list)
+        # Two native messages [0, 1] are replaced by a single one.
+        assert [m["content"] for m in new_native] == ["n:m1-updated"]
+
+        # Rebuilt core should now have a single message, effectively removing the first.
+        assert [m.content for m in modified.messages] == ["n:m1-updated"]
+
+    finally:
+        core._core_messages_to_native_for_config = original_to_native  # type: ignore[assignment]
+        core._rebuild_core_from_native = original_rebuild  # type: ignore[assignment]
+
