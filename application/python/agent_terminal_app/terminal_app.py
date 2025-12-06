@@ -528,6 +528,9 @@ class TerminalApplication:
         new_session: Session = core.add_message(session, normalized_role, content, metadata)
         self._app.save_session(new_session)
 
+        if self._session is not None and self._session.session_id == new_session.session_id:
+            self._session = new_session
+
         last_message = new_session.messages[-1] if new_session.messages else None
 
         store = self._app.get_event_store()

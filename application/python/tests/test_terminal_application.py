@@ -609,3 +609,119 @@ async def test_modify_slash_command_and_handler_flow(tmp_path: Path) -> None:
     joined = "\n".join(outputs)
     assert "loaded message at index 1 for editing" in joined
     assert "updated message at index 1" in joined
+
+
+@pytest.mark.asyncio
+async def test_append_slash_command_appends_with_roles(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    session = term_app.start_new_session(system_message="system", agent_id="default")
+
+    outputs: list[str] = []
+    ui_state: dict = {}
+
+    # Explicit user, system, assistant roles plus default user role.
+    await term_mod._cmd_append(term_app, "user first", outputs.append, ui_state)
+    await term_mod._cmd_append(term_app, "system sys-msg", outputs.append, ui_state)
+    await term_mod._cmd_append(term_app, "assistant reply", outputs.append, ui_state)
+    await term_mod._cmd_append(term_app, "plain-user", outputs.append, ui_state)
+
+    contents = [m.content for m in term_app.session.messages]
+    roles = [m.role for m in term_app.session.messages]
+
+    assert contents == ["system", "first", "sys-msg", "reply", "plain-user"]
+    assert roles == ["system", "user", "system", "assistant", "user"]
+
+    events_list = term_app.list_events(session_id=session.session_id, limit=50)
+    kinds = {ev.get("type") for ev in events_list}
+    assert "message_appended" in kinds
+
+
+@pytest.mark.asyncio
+async def test_append_shortcut_appends_user_message(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    term_app.start_new_session(system_message="system", agent_id="default")
+
+    outputs: list[str] = []
+    ui_state: dict = {}
+
+    await term_mod._shortcut_append_current_input(
+        term_app,
+        "shortcut message",
+        outputs.append,
+        ui_state,
+    )
+
+    contents = [m.content for m in term_app.session.messages]
+    roles = [m.role for m in term_app.session.messages]
+
+    assert contents == ["system", "shortcut message"]
+    assert roles == ["system", "user"]
+
+
+@pytest.mark.asyncio
+async def test_send_slash_command_resends_with_current_history(tmp_path: Path) -> None:
+    import asyncio
+
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    session = term_app.start_new_session(system_message="system", agent_id="default")
+    term_app.append_user_message("hello")
+
+    outputs: list[str] = []
+    ui_state: dict = {}
+
+    await term_mod._cmd_send(term_app, "", outputs.append, ui_state)
+
+    # Allow background request to run.
+    await asyncio.sleep(0.1)
+
+    events_list = term_app.list_events(session_id=session.session_id, limit=100)
+    kinds = {ev.get("type") for ev in events_list}
+    assert "request_started" in kinds or "final" in kinds
+
+    joined = "\n".join(outputs)
+    assert "[send] request started for current session" in joined

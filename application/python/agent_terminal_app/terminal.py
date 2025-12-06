@@ -699,6 +699,88 @@ async def _cmd_set(
     write(f"[set] {key}={coerced!r} saved for this session")
 
 
+@slash_command("send", "Send a request with the current history")
+@shortcut("c-x s", "Send a request with the current history")
+async def _cmd_send(
+    app: TerminalApplication,
+    arg: str,
+    write: Callable[[str], None],
+    ui_state: Dict[str, Any],
+) -> None:
+    try:
+        _ = app.session
+    except RuntimeError as exc:
+        write(f"[send] no active session: {exc}")
+        return
+
+    await _start_background_request(app)
+    write("[send] request started for current session")
+
+
+@slash_command("append", "Append a message without sending")
+async def _cmd_append(
+    app: TerminalApplication,
+    arg: str,
+    write: Callable[[str], None],
+    ui_state: Dict[str, Any],
+) -> None:
+    text = (arg or "").strip()
+    if not text:
+        write("[append] usage: /append [user|system|assistant] <content>")
+        return
+
+    role = "user"
+    content = text
+
+    first, sep, rest = text.partition(" ")
+    if first in {"user", "system", "assistant"} and sep:
+        role = first
+        content = rest.strip()
+        if not content:
+            write("[append] missing content for message")
+            return
+
+    try:
+        session_id = app.session_id
+    except RuntimeError as exc:
+        write(f"[append] no active session: {exc}")
+        return
+
+    try:
+        app.add_message(session_id, role=role, content=content, metadata=None)
+    except Exception as exc:  # pragma: no cover - defensive
+        write(f"[append] failed to append message: {exc}")
+        return
+
+    write(f"[append] appended {role} message without sending")
+
+
+@shortcut("c-x a", "Append current input as user message without sending")
+async def _shortcut_append_current_input(
+    app: TerminalApplication,
+    text: str,
+    write: Callable[[str], None],
+    ui_state: Dict[str, Any],
+) -> None:
+    message = (text or "").strip()
+    if not message:
+        return
+
+    try:
+        session_id = app.session_id
+    except RuntimeError as exc:
+        write(f"[append] no active session: {exc}")
+        return
+
+    try:
+        app.add_message(session_id, role="user", content=message, metadata=None)
+    except Exception as exc:  # pragma: no cover - defensive
+        write(f"[append] failed to append message: {exc}")
+        return
+
+    write("[append] appended user message without sending")
+
+
 @slash_command("delete", "Delete messages by index or range")
 async def _cmd_delete(
     app: TerminalApplication,
@@ -907,6 +989,20 @@ async def _handle_slash_command(
         await result
 
 
+async def _start_background_request(app: TerminalApplication) -> None:
+    async def _run_request() -> None:
+        def _worker() -> None:
+            try:
+                app.send_request(stream=True)
+            except Exception:
+                # Background errors are logged via events; keep UI responsive.
+                pass
+
+        await asyncio.to_thread(_worker)
+
+    asyncio.create_task(_run_request())
+
+
 async def _handle_user_message(
     app: TerminalApplication,
     text: str,
@@ -920,17 +1016,7 @@ async def _handle_user_message(
         app.start_new_session(system_message=None, agent_id="default")
         app.append_user_message(text)
 
-    async def _run_request() -> None:
-        def _worker() -> None:
-            try:
-                app.send_request(stream=True)
-            except Exception:
-                # Background errors are logged via events; keep UI responsive.
-                pass
-
-        await asyncio.to_thread(_worker)
-
-    asyncio.create_task(_run_request())
+    await _start_background_request(app)
 
 
 async def _handle_modify_message(
@@ -969,10 +1055,15 @@ def _build_key_bindings(
         event.current_buffer.insert_text("\n")
 
     for sc in iter_shortcuts():
+        key_parts = tuple(sc.keys.split()) if sc.keys else ()
+        if not key_parts:
+            continue
 
-        @kb.add(sc.keys)
+        @kb.add(*key_parts)
         def _(event: Any, _shortcut: Shortcut = sc) -> None:  # type: ignore[no-redef]
-            result = _shortcut.handler(app, "", write, ui_state)
+            buffer_text = event.current_buffer.text
+            event.current_buffer.reset()
+            result = _shortcut.handler(app, buffer_text, write, ui_state)
             if asyncio.iscoroutine(result):
                 asyncio.create_task(result)
 
