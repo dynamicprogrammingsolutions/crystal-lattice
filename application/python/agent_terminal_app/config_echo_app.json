@@ -10,7 +10,10 @@
     "providers": [
       "plugins.echo_openai_like_provider.EchoOpenAILikeProvider"
     ],
-    "extensions": [],
+    "extensions": [
+      "plugins.delay_extension.DelayExtension",
+      "plugins.random_failure_extension.RandomFailureExtension"
+    ],
     "features": [],
     "tools": []
   },

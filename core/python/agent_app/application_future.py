@@ -87,6 +87,7 @@ class AgentApplication:
 
         self._session_store = FilesystemSessionStore(Path(session_root), core)
         self._tool_loop_cfg = _ToolLoopConfig()
+        self._cancelled_requests: set[str] = set()
 
         # Cache per-agent base configs to avoid recomputing on every call.
         agents = resolved_config.get("agents") or {}
@@ -200,6 +201,20 @@ class AgentApplication:
 
         return self._event_store
 
+    def cancel_request(self, request_id: str) -> None:
+        """Request cooperative cancellation for an in-flight request.
+
+        Cancellation is best-effort and affects only send_request calls that
+        observe this ``request_id``. Providers and tool loops must periodically
+        check for cancellation; long-running non-streaming calls may not stop
+        immediately.
+        """
+
+        if not isinstance(request_id, str) or not request_id:
+            raise ValueError("request_id must be a non-empty string")
+
+        self._cancelled_requests.add(request_id)
+
     def list_agents(self) -> List[str]:
         """Return the configured agent identifiers.
 
@@ -299,6 +314,9 @@ class AgentApplication:
         config = resolve_request_config(base_config, overrides or {})
         rid = request_id or self._new_request_id()
 
+        def _is_cancelled() -> bool:
+            return rid in self._cancelled_requests
+
         # Initial request_started event
         yield {
             "type": "request_started",
@@ -312,6 +330,10 @@ class AgentApplication:
             config=config,
             request_id=rid,
             tool_loop_cfg=self._tool_loop_cfg,
+            cancel_callback=_is_cancelled,
         )
 
-        yield from loop_runner.run(session=session, stream=stream)
+        try:
+            yield from loop_runner.run(session=session, stream=stream)
+        finally:
+            self._cancelled_requests.discard(rid)

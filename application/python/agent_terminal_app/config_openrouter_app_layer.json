@@ -14,12 +14,12 @@
     }
   },
   "plugins": {
-    "providers": [
-      "plugins.openrouter_provider.OpenRouterProvider"
-    ],
+    "providers": ["plugins.openrouter_provider.OpenRouterProvider"],
     "extensions": [
       "plugins.openrouter_reasoning_extension.OpenRouterReasoningExtension",
-      "plugins.openrouter_tools_extension.OpenRouterToolsExtension"
+      "plugins.openrouter_tools_extension.OpenRouterToolsExtension",
+      "plugins.delay_extension.DelayExtension",
+      "plugins.random_failure_extension.RandomFailureExtension"
     ],
     "tools": [
       "plugins.file_reader_tool.FileReaderTool",
@@ -28,7 +28,11 @@
   },
   "agents": {
     "default": {
-      "provider": "openrouter_tools"
+      "provider": "openrouter_tools",
+      "enable_delay_extension": false,
+      "delay_seconds": 10,
+      "enable_random_failure": false,
+      "random_failure_every": 3
     },
     "reasoning": {
       "provider": "openrouter_tools",

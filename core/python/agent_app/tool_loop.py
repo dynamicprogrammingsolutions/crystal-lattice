@@ -21,11 +21,14 @@ class ToolLoopRunner:
         config: Dict[str, Any],
         request_id: str,
         tool_loop_cfg: Any,
+        cancel_callback: Any | None = None,
     ) -> None:
         self._core = core
         self._config = config
         self._request_id = request_id
         self._tool_loop_cfg = tool_loop_cfg
+        self._cancel_callback = cancel_callback
+
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -72,6 +75,15 @@ class ToolLoopRunner:
 
         return last_tc_calls
 
+    def _is_cancelled(self) -> bool:
+        cb = getattr(self, "_cancel_callback", None)
+        if cb is None:
+            return False
+        try:
+            return bool(cb())
+        except Exception:
+            return False
+
     def _run_llm_phase(
         self,
         session: Session,
@@ -89,6 +101,16 @@ class ToolLoopRunner:
         rid = self._request_id
 
         if not stream:
+            if self._is_cancelled():
+                events = [
+                    {
+                        "type": "request_cancelled",
+                        "session_id": session.session_id,
+                        "request_id": rid,
+                    }
+                ]
+                return session, [], events
+
             next_session, final_messages = core.send_request(session, config)
             events = [
                 {
@@ -108,6 +130,16 @@ class ToolLoopRunner:
         events: List[Dict[str, Any]] = []
 
         for chunk in core.send_request_stream(session, config):
+            if self._is_cancelled():
+                events.append(
+                    {
+                        "type": "request_cancelled",
+                        "session_id": current_session.session_id,
+                        "request_id": rid,
+                    }
+                )
+                return current_session, [], events
+
             if chunk.get("type") == "partial":
                 events.append(
                     {
@@ -193,56 +225,76 @@ class ToolLoopRunner:
         loops = 0
         max_loops = int(getattr(self._tool_loop_cfg, "max_loops", 8))
 
-        # Handle any pending tool_calls already present in the session history
-        # before issuing the first LLM call.
-        pending = self._extract_pending_tool_calls_from_session(current_session)
-        if pending:
-            loops += 1
-            if loops > max_loops:
+        try:
+            if self._is_cancelled():
                 yield {
-                    "type": "error",
-                    "session_id": current_session.session_id,
-                    "request_id": self._request_id,
-                    "detail": "Max tool loop depth exceeded",
-                }
-                yield {
-                    "type": "request_completed",
+                    "type": "request_cancelled",
                     "session_id": current_session.session_id,
                     "request_id": self._request_id,
                 }
                 return
 
-            current_session, events = self._apply_tool_calls(current_session, pending)
-            for ev in events:
-                yield ev
+            # Handle any pending tool_calls already present in the session history
+            # before issuing the first LLM call.
+            pending = self._extract_pending_tool_calls_from_session(current_session)
+            if pending:
+                loops += 1
+                if loops > max_loops:
+                    yield {
+                        "type": "error",
+                        "session_id": current_session.session_id,
+                        "request_id": self._request_id,
+                        "detail": "Max tool loop depth exceeded",
+                    }
+                    return
 
-        # Main LLM + tool loop
-        while True:
-            final_session, final_messages, phase_events = self._run_llm_phase(
-                current_session, stream=stream
-            )
-            for ev in phase_events:
-                yield ev
+                current_session, events = self._apply_tool_calls(current_session, pending)
+                for ev in events:
+                    yield ev
 
-            current_session = final_session
+            # Main LLM + tool loop
+            while True:
+                if self._is_cancelled():
+                    yield {
+                        "type": "request_cancelled",
+                        "session_id": current_session.session_id,
+                        "request_id": self._request_id,
+                    }
+                    break
 
-            tool_calls = self._extract_tool_calls(final_messages)
-            if not tool_calls:
-                break
+                final_session, final_messages, phase_events = self._run_llm_phase(
+                    current_session, stream=stream
+                )
+                for ev in phase_events:
+                    yield ev
 
-            loops += 1
-            if loops > max_loops:
-                yield {
-                    "type": "error",
-                    "session_id": current_session.session_id,
-                    "request_id": self._request_id,
-                    "detail": "Max tool loop depth exceeded",
-                }
-                break
+                current_session = final_session
 
-            current_session, events = self._apply_tool_calls(current_session, tool_calls)
-            for ev in events:
-                yield ev
+                tool_calls = self._extract_tool_calls(final_messages)
+                if not tool_calls:
+                    break
+
+                loops += 1
+                if loops > max_loops:
+                    yield {
+                        "type": "error",
+                        "session_id": current_session.session_id,
+                        "request_id": self._request_id,
+                        "detail": "Max tool loop depth exceeded",
+                    }
+                    break
+
+                current_session, events = self._apply_tool_calls(current_session, tool_calls)
+                for ev in events:
+                    yield ev
+
+        except Exception as exc:
+            yield {
+                "type": "error",
+                "session_id": current_session.session_id,
+                "request_id": self._request_id,
+                "detail": str(exc),
+            }
 
         yield {
             "type": "request_completed",
