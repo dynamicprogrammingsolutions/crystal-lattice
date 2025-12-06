@@ -198,6 +198,9 @@ def _render_event(event: Dict[str, Any], write: Callable[[str], None]) -> None:
     if etype == "request_completed":
         write("[request] completed")
         return
+    if etype == "request_cancelled":
+        write("[request] cancelled")
+        return
 
 
 def _format_message_for_list(index: int, message: Any) -> List[str]:
@@ -276,6 +279,18 @@ async def _poll_events(
         events = app.poll_new_events(limit=50)
         for ev in events:
             _render_event(ev, write)
+
+            etype = ev.get("type")
+            if etype == "request_started":
+                rid = ev.get("request_id")
+                if isinstance(rid, str):
+                    ui_state["active_request_id"] = rid
+            elif etype in {"request_completed", "request_cancelled"}:
+                rid = ev.get("request_id")
+                active = ui_state.get("active_request_id")
+                if active is None or active == rid:
+                    ui_state["active_request_id"] = None
+
         await asyncio.sleep(poll_interval)
 
 
@@ -779,6 +794,28 @@ async def _shortcut_append_current_input(
         return
 
     write("[append] appended user message without sending")
+
+
+@shortcut("c-x c", "Cancel the active request (if any)")
+@slash_command("cancel", "Cancel the active request (if any)")
+async def _shortcut_cancel_request(
+    app: TerminalApplication,
+    text: str,
+    write: Callable[[str], None],
+    ui_state: Dict[str, Any],
+) -> None:
+    request_id = ui_state.get("active_request_id")
+    if not isinstance(request_id, str) or not request_id:
+        write("[cancel] no active request to cancel")
+        return
+
+    try:
+        app.agent_app.cancel_request(request_id)
+    except Exception as exc:  # pragma: no cover - defensive
+        write(f"[cancel] failed to cancel request: {exc}")
+        return
+
+    write("[cancel] cancellation requested for active request")
 
 
 @slash_command("delete", "Delete messages by index or range")
