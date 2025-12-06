@@ -535,3 +535,77 @@ def test_list_sessions_metadata_and_session_completion(tmp_path: Path) -> None:
     # And its description (display_meta) should contain the first user message.
     assert "second session message" in completions[0].display_meta_text
 
+def test_modify_message_application_emits_event(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    session = term_app.start_new_session(system_message="system", agent_id="default")
+    term_app.append_user_message("one")
+    term_app.append_user_message("two")
+
+    updated = term_app.modify_message(1, "one-edited")
+    contents = [m.content for m in updated.messages]
+    assert contents == ["system", "one-edited", "two"]
+
+    events_list = term_app.list_events(session_id=session.session_id, limit=50)
+    kinds = {ev.get("type") for ev in events_list}
+    assert "message_modified" in kinds
+    modified_events = [ev for ev in events_list if ev.get("type") == "message_modified"]
+    assert any(ev.get("index") == 1 and ev.get("content") == "one-edited" for ev in modified_events)
+
+
+@pytest.mark.asyncio
+async def test_modify_slash_command_and_handler_flow(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    term_app.start_new_session(system_message="system", agent_id="default")
+    term_app.append_user_message("first")
+    term_app.append_user_message("second")
+
+    outputs: list[str] = []
+    ui_state: dict = {}
+
+    # Load message at index 1 (the first user message) for editing.
+    await term_mod._cmd_modify(term_app, "1", outputs.append, ui_state)
+
+    assert ui_state.get("pending_modify_index") == 1
+    assert ui_state.get("input_prefill") == "first"
+
+    # Apply the modification via the modify handler.
+    await term_mod._handle_modify_message(term_app, "first-edited", outputs.append, ui_state)
+
+    contents = [m.content for m in term_app.session.messages]
+    assert contents == ["system", "first-edited", "second"]
+    assert ui_state.get("pending_modify_index") is None
+    assert ui_state.get("input_prefill") in (None, "")
+
+    joined = "\n".join(outputs)
+    assert "loaded message at index 1 for editing" in joined
+    assert "updated message at index 1" in joined

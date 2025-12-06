@@ -210,10 +210,21 @@ class AgentCore:
             if isinstance(rn, list):
                 retained_native = rn
 
-        if retained_native is None:
+        message_count = len(session.messages)
+
+        # When native history is absent but there are already messages in the
+        # session, we cannot safely retrofit native history incrementally, so
+        # we fall back to a core-only append. For the very first message,
+        # however, we allow creating native history from scratch.
+        if retained_native is None and message_count > 0:
             return _core_only_session(md), None
 
-        self._verify_native_integrity(session)
+        if retained_native is not None:
+            self._verify_native_integrity(session)
+            base_len = len(retained_native)
+        else:
+            base_len = 0
+            retained_native = []
 
         try:
             core_suffix = [
@@ -227,7 +238,6 @@ class AgentCore:
         except Exception:
             return _core_only_session(md), None
 
-        base_len = len(retained_native)
         normalized_suffix = self._normalize_final_core_with_native_indices(
             core_suffix,
             suffix_native,

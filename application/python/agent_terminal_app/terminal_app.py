@@ -362,19 +362,65 @@ class TerminalApplication:
             if idx > message_count:
                 return message_count
             return idx
-
         start_idx = _normalize_bound(start, 0)
         end_idx = _normalize_bound(end, message_count)
-
+ 
         if start_idx >= end_idx:
-            raise ValueError("range selects no messages")
-
+             raise ValueError("range selects no messages")
+ 
         indices = range(start_idx, end_idx)
         return [(i, session.messages[i]) for i in indices]
+ 
+    def modify_message(self, index: int, content: str) -> Session:
+         """Modify the content of a message in the active session.
+ 
+         Index semantics follow Python list indexing (0-based, negatives
+         allowed). The underlying core enforces supported roles and
+         native-history behaviour.
+         """
+ 
+         core, base_config, session = self.require_session()
+ 
+         if not isinstance(index, int):
+             raise TypeError("index must be an integer")
+         if not isinstance(content, str):
+             raise TypeError("content must be a string")
+ 
+         message_count = len(session.messages)
+         target_index = index
+         if target_index < 0:
+             target_index = message_count + target_index
+         if target_index < 0 or target_index >= message_count:
+             raise IndexError("message index out of range")
+ 
+         metadata = session.metadata if isinstance(session.metadata, dict) else {}
+         overrides_val = metadata.get("overrides")
+         overrides: Dict[str, Any] = (
+             dict(overrides_val) if isinstance(overrides_val, dict) else {}
+         )
+         config = resolve_request_config(base_config, overrides)
+ 
+         new_session = core.modify_message(session, target_index, content, config)
+         self._app.save_session(new_session)
+ 
+         store = self._app.get_event_store()
+         store.publish(
+             {
+                 "type": "message_modified",
+                 "session_id": new_session.session_id,
+                 "index": target_index,
+                 "content": content,
+                 "session": new_session.to_dict(),
+             }
+         )
+ 
+         self._session = new_session
+         return new_session
 
     # ------------------------------------------------------------------
     # Requests and events
     # ------------------------------------------------------------------
+
 
     def send_request(
         self,
