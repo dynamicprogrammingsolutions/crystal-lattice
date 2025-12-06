@@ -248,6 +248,53 @@ class TerminalApplication:
         new_session = self.delete_messages(indices)
         return new_session, sorted(set(indices))
 
+    def list_messages_by_range(
+        self,
+        start: Optional[int],
+        end: Optional[int],
+    ) -> List[Tuple[int, Any]]:
+        """List messages for the active session using Python-style slice bounds.
+
+        The active session is reloaded from the application before listing so
+        that external modifications are reflected.
+        """
+
+        sid = self.session_id
+
+        ctx = self._app.load_session(sid)
+        if ctx is None:
+            raise RuntimeError(f"Session {sid!r} not found")
+
+        core, base_config, session = ctx
+        self._core = core
+        self._base_config = base_config
+        self._session = session
+
+        message_count = len(session.messages)
+        if message_count == 0:
+            raise ValueError("no messages to list")
+
+        def _normalize_bound(value: Optional[int], default: int) -> int:
+            if value is None:
+                return default
+            idx = value
+            if idx < 0:
+                idx = message_count + idx
+            if idx < 0:
+                return 0
+            if idx > message_count:
+                return message_count
+            return idx
+
+        start_idx = _normalize_bound(start, 0)
+        end_idx = _normalize_bound(end, message_count)
+
+        if start_idx >= end_idx:
+            raise ValueError("range selects no messages")
+
+        indices = range(start_idx, end_idx)
+        return [(i, session.messages[i]) for i in indices]
+
     # ------------------------------------------------------------------
     # Requests and events
     # ------------------------------------------------------------------

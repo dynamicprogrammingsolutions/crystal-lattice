@@ -200,6 +200,72 @@ def _render_event(event: Dict[str, Any], write: Callable[[str], None]) -> None:
         return
 
 
+def _format_message_for_list(index: int, message: Any) -> List[str]:
+    """Return display lines for a session message.
+
+    Shows the role, content/result, thinking, and a minimal summary of any
+    tool calls or tool results attached to the message.
+    """
+
+    role = getattr(message, "role", None)
+    if role is None and isinstance(message, dict):
+        role = message.get("role")
+
+    content = getattr(message, "content", None)
+    if content is None and isinstance(message, dict):
+        content = message.get("content")
+
+    metadata = getattr(message, "metadata", None)
+    if metadata is None and isinstance(message, dict):
+        metadata = message.get("metadata")
+
+    lines: List[str] = []
+    role_text = str(role) if role is not None else "unknown"
+    lines.append(f"[{index}] {role_text}")
+
+    def _shorten(text: str, limit: int = 200) -> str:
+        single = " ".join((text or "").split())
+        if len(single) <= limit:
+            return single
+        return single[: limit - 3] + "..."
+
+    if isinstance(content, str) and content:
+        label = "result" if role_text == "tool" else "content"
+        lines.append(f"  {label}: {_shorten(content)}")
+
+    md = metadata if isinstance(metadata, dict) else {}
+
+    reasoning = md.get("reasoning")
+    if isinstance(reasoning, str) and reasoning:
+        lines.append(f"  thinking: {_shorten(reasoning)}")
+    else:
+        thinking_blocks = md.get("thinking_blocks")
+        if thinking_blocks:
+            lines.append(f"  thinking: {_shorten(str(thinking_blocks))}")
+
+    tool_calls = md.get("tool_calls")
+    if isinstance(tool_calls, list) and tool_calls:
+        names: List[str] = []
+        for tc in tool_calls:
+            if not isinstance(tc, dict):
+                continue
+            func = tc.get("function") or {}
+            name = func.get("name") if isinstance(func, dict) else None
+            if not isinstance(name, str) or not name:
+                name = str(tc.get("type") or "tool")
+            names.append(name)
+        if names:
+            summary = ", ".join(names)
+            summary = _shorten(summary, limit=80)
+            lines.append(f"  tools: {len(names)} call(s): {summary}")
+
+    tool_call_id = md.get("tool_call_id")
+    if tool_call_id:
+        lines.append(f"  tool_call_id: {tool_call_id}")
+
+    return lines
+
+
 async def _poll_events(
     app: TerminalApplication,
     write: Callable[[str], None],
@@ -569,8 +635,70 @@ async def _cmd_delete(
         write("[delete] no messages deleted")
 
 
+@slash_command("list", "List messages by count or range")
+async def _cmd_list(
+    app: TerminalApplication,
+    arg: str,
+    write: Callable[[str], None],
+    ui_state: Dict[str, Any],
+) -> None:
+    text = (arg or "").strip()
+    if not text:
+        write("[list] usage: /list <count> or /list <start>:<end>")
+        return
+
+    # Parse arguments; delegate bounds validation and session handling to
+    # TerminalApplication.list_messages_by_range.
+    start_val: Optional[int]
+    end_val: Optional[int]
+
+    if ":" in text:
+        start_str, _, end_str = text.partition(":")
+        try:
+            start_val = int(start_str) if start_str.strip() else None
+        except ValueError:
+            write("[list] invalid start index; expected an integer")
+            return
+        try:
+            end_val = int(end_str) if end_str.strip() else None
+        except ValueError:
+            write("[list] invalid end index; expected an integer")
+            return
+    else:
+        try:
+            count = int(text)
+        except ValueError:
+            write("[list] invalid value; expected an integer or range")
+            return
+        if count <= 0:
+            write("[list] count must be a positive integer")
+            return
+        start_val = -count
+        end_val = None
+
+    try:
+        items = app.list_messages_by_range(start_val, end_val)
+    except RuntimeError as exc:
+        write(f"[list] no active session: {exc}")
+        return
+    except ValueError as exc:
+        write(f"[list] {exc}")
+        return
+    except Exception as exc:  # pragma: no cover - defensive
+        write(f"[list] failed to list messages: {exc}")
+        return
+
+    if not items:
+        write("[list] no messages to show")
+        return
+
+    for idx, message in items:
+        for line in _format_message_for_list(idx, message):
+            write(line)
+
 
 async def _handle_slash_command(
+
     app: TerminalApplication,
     raw: str,
     write: Callable[[str], None],
