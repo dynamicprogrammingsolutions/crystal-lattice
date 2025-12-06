@@ -761,6 +761,65 @@ async def _cmd_delete(
         write("[delete] no messages deleted")
 
 
+@slash_command("modify", "Load a message by index for editing")
+async def _cmd_modify(
+    app: TerminalApplication,
+    arg: str,
+    write: Callable[[str], None],
+    ui_state: Dict[str, Any],
+) -> None:
+    text = (arg or "").strip()
+    if not text:
+        write("[modify] usage: /modify <index>")
+        return
+
+    try:
+        raw_index = int(text)
+    except ValueError:
+        write("[modify] invalid index; expected an integer")
+        return
+
+    try:
+        session = app.session
+    except RuntimeError as exc:
+        write(f"[modify] no active session: {exc}")
+        return
+
+    message_count = len(session.messages)
+    if message_count == 0:
+        write("[modify] no messages to modify")
+        return
+
+    target_index = raw_index
+    if target_index < 0:
+        target_index = message_count + target_index
+    if target_index < 0 or target_index >= message_count:
+        write("[modify] index out of range")
+        return
+
+    try:
+        items = app.list_messages_by_range(target_index, target_index + 1)
+    except Exception as exc:  # pragma: no cover - defensive
+        write(f"[modify] failed to load message: {exc}")
+        return
+
+    if not items:
+        write("[modify] no message found at that index")
+        return
+
+    _idx, message = items[0]
+    content = getattr(message, "content", None)
+    if content is None and isinstance(message, dict):
+        content = message.get("content")
+    if not isinstance(content, str):
+        write("[modify] target message has no string content")
+        return
+
+    ui_state["pending_modify_index"] = target_index
+    ui_state["input_prefill"] = content
+    write(f"[modify] loaded message at index {target_index} for editing")
+
+
 @slash_command("list", "List messages by count or range")
 async def _cmd_list(
     app: TerminalApplication,
@@ -874,6 +933,29 @@ async def _handle_user_message(
     asyncio.create_task(_run_request())
 
 
+async def _handle_modify_message(
+    app: TerminalApplication,
+    text: str,
+    write: Callable[[str], None],
+    ui_state: Dict[str, Any],
+) -> None:
+    index = ui_state.get("pending_modify_index")
+    ui_state["pending_modify_index"] = None
+    ui_state["input_prefill"] = ""
+
+    if index is None:
+        await _handle_user_message(app, text, write, ui_state)
+        return
+
+    try:
+        app.modify_message(index, text)
+    except Exception as exc:  # pragma: no cover - defensive
+        write(f"[modify] failed to update message at index {index}: {exc}")
+        return
+
+    write(f"[modify] updated message at index {index}")
+
+
 def _build_key_bindings(
     app: TerminalApplication,
     write: Callable[[str], None],
@@ -912,6 +994,8 @@ async def _run_terminal(
         "running": True,
         "pending_agent_choices": None,
         "pending_session_choices": None,
+        "pending_modify_index": None,
+        "input_prefill": "",
     }
 
     def write(text: str) -> None:
@@ -935,9 +1019,12 @@ async def _run_terminal(
     with patch_stdout():
         while ui_state.get("running", True):
             try:
+                default_text = ui_state.get("input_prefill") or ""
+                ui_state["input_prefill"] = ""
                 user_input = await prompt_session.prompt_async(
                     "You> ",
                     key_bindings=key_bindings,
+                    default=default_text,
                 )
             except (EOFError, KeyboardInterrupt):  # pragma: no cover - console UX
                 write("")
@@ -953,6 +1040,10 @@ async def _run_terminal(
 
             if ui_state.get("pending_session_choices") is not None:
                 _handle_session_selection(app, text, write, ui_state)
+                continue
+
+            if ui_state.get("pending_modify_index") is not None and not text.startswith("/"):
+                await _handle_modify_message(app, text, write, ui_state)
                 continue
 
             if text.startswith("/"):
