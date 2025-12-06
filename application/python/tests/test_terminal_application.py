@@ -372,3 +372,103 @@ async def test_delete_slash_command_count_last_two(tmp_path: Path) -> None:
 
     joined = "\n".join(outputs)
     assert "deleted messages at indices: 2, 3" in joined
+
+
+def test_list_messages_by_range_reload_session(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    session = term_app.start_new_session(system_message="system", agent_id="default")
+    session_id = session.session_id
+
+    term_app.append_user_message("one")
+
+    # Modify the session externally via the shared AgentApplication.
+    ctx = agent_app.load_session(session_id)
+    assert ctx is not None
+    _core, _base_config, loaded_session = ctx
+    updated_session = _core.add_message(loaded_session, "user", "external")
+    agent_app.save_session(updated_session)
+
+    # Listing should reload the latest session and include the external message.
+    items = term_app.list_messages_by_range(0, None)
+    contents = [msg.content for _idx, msg in items]
+    assert contents[-2:] == ["one", "external"]
+
+
+@pytest.mark.asyncio
+async def test_list_slash_command_shows_thinking_and_tools(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    session = term_app.start_new_session(system_message="system", agent_id="default")
+    session_id = session.session_id
+
+    term_app.append_user_message("one")
+    term_app.append_user_message("two")
+    term_app.append_user_message("three")
+
+    # Add assistant and tool messages with metadata so list formatting can be exercised.
+    term_app.add_message(
+        session_id,
+        role="assistant",
+        content="with reasoning",
+        metadata={"reasoning": "step1; step2"},
+    )
+    term_app.add_message(
+        session_id,
+        role="assistant",
+        content="with tools",
+        metadata={
+            "tool_calls": [
+                {
+                    "type": "function",
+                    "function": {"name": "read_file", "arguments": '{"path": "x"}'},
+                }
+            ]
+        },
+    )
+    term_app.add_message(
+        session_id,
+        role="tool",
+        content="ok",
+        metadata={"tool_call_id": "tc1"},
+    )
+
+    outputs: list[str] = []
+    ui_state: dict = {}
+
+    # /list 3 should show the last three messages: assistant with reasoning,
+    # assistant with tools, and tool result.
+    await term_mod._cmd_list(term_app, "3", outputs.append, ui_state)
+
+    joined = "\n".join(outputs)
+    assert "thinking: step1; step2" in joined
+    assert "tools: 1 call(s): read_file" in joined
+    assert "tool_call_id: tc1" in joined
