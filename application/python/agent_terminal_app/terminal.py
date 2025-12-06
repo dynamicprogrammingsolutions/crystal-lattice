@@ -315,6 +315,34 @@ def _agent_completion(app: TerminalApplication, text: str) -> List[Completion]:
     return completions
 
 
+def _session_completion(app: TerminalApplication, text: str) -> List[Completion]:
+    sessions = app.list_sessions_metadata()
+
+    prefix = text
+    # Only complete a single token after /session
+    if " " in prefix:
+        return []
+
+    completions: List[Completion] = []
+    for entry in sessions:
+        sid = entry.get("session_id")
+        if not isinstance(sid, str) or not sid:
+            continue
+        if prefix and not sid.startswith(prefix):
+            continue
+        preview = entry.get("preview")
+        meta = preview if isinstance(preview, str) else ""
+        completions.append(
+            Completion(
+                sid,
+                start_position=-len(prefix),
+                display=sid,
+                display_meta=meta,
+            )
+        )
+    return completions
+
+
 @slash_command("agent", "Switch the active agent for this session", completer=_agent_completion)
 async def _cmd_agent(
     app: TerminalApplication,
@@ -365,6 +393,69 @@ async def _cmd_agent(
         marker = "*" if agent == current_agent else " "
         write(f"  {index}. [{marker}] {agent}")
     write("[agent] Enter agent name or number (empty to cancel):")
+
+
+@slash_command("session", "Switch to an existing session", completer=_session_completion)
+async def _cmd_session(
+    app: TerminalApplication,
+    arg: str,
+    write: Callable[[str], None],
+    ui_state: Dict[str, Any],
+) -> None:
+    sessions = app.list_sessions_metadata()
+    if not sessions:
+        write("[session] no saved sessions found")
+        return
+
+    selection = (arg or "").strip()
+
+    # If a session identifier (or index) is provided, switch immediately.
+    if selection:
+        target: Optional[str] = None
+        ids = [entry.get("session_id") for entry in sessions]
+        ids = [sid for sid in ids if isinstance(sid, str) and sid]
+        if selection.isdigit():
+            index = int(selection)
+            if 1 <= index <= len(ids):
+                target = ids[index - 1]
+        if target is None and selection in ids:
+            target = selection
+
+        if target is None:
+            write(f"[session] unknown session: {selection!r}")
+            return
+
+        try:
+            session = app.switch_session(target)
+        except Exception as exc:  # pragma: no cover - defensive
+            write(f"[session] failed to switch session: {exc}")
+            return
+
+        write(f"[session] switched to {session.session_id!r}")
+        return
+
+    # No argument: show a simple text-based selection.
+    ui_state["pending_session_choices"] = [
+        entry.get("session_id") for entry in sessions if isinstance(entry.get("session_id"), str) and entry.get("session_id")
+    ]
+
+    try:
+        current_session_id = app.session_id
+    except RuntimeError:
+        current_session_id = None
+
+    write("\n[session] Available sessions (most recent first):")
+    for index, entry in enumerate(sessions, 1):
+        sid = entry.get("session_id")
+        if not isinstance(sid, str) or not sid:
+            continue
+        marker = "*" if sid == current_session_id else " "
+        preview = entry.get("preview") if isinstance(entry.get("preview"), str) else ""
+        if preview:
+            write(f"  {index}. [{marker}] {sid} - {preview}")
+        else:
+            write(f"  {index}. [{marker}] {sid}")
+    write("[session] Enter session id or number (empty to cancel):")
 
 
 @slash_command("help", "Show commands and shortcuts")
@@ -448,6 +539,41 @@ def _handle_agent_selection(
         return
 
     write(f"[agent] switched to {target!r}")
+
+
+def _handle_session_selection(
+    app: TerminalApplication,
+    text: str,
+    write: Callable[[str], None],
+    ui_state: Dict[str, Any],
+) -> None:
+    choices = ui_state.get("pending_session_choices") or []
+    ui_state["pending_session_choices"] = None
+
+    selection = text.strip()
+    if not selection:
+        write("[session] selection cancelled")
+        return
+
+    target: Optional[str] = None
+    if selection.isdigit():
+        index = int(selection)
+        if 1 <= index <= len(choices):
+            target = choices[index - 1]
+    if target is None and selection in choices:
+        target = selection
+
+    if target is None:
+        write(f"[session] invalid selection: {selection!r}")
+        return
+
+    try:
+        session = app.switch_session(target)
+    except Exception as exc:  # pragma: no cover - defensive
+        write(f"[session] failed to switch session: {exc}")
+        return
+
+    write(f"[session] switched to {session.session_id!r}")
 
 
 def _set_completion(app: TerminalApplication, text: str) -> List[Completion]:
@@ -782,7 +908,11 @@ async def _run_terminal(
         agent_id="default",
     )
 
-    ui_state: Dict[str, Any] = {"running": True, "pending_agent_choices": None}
+    ui_state: Dict[str, Any] = {
+        "running": True,
+        "pending_agent_choices": None,
+        "pending_session_choices": None,
+    }
 
     def write(text: str) -> None:
         print(text, flush=True)
@@ -819,6 +949,10 @@ async def _run_terminal(
 
             if ui_state.get("pending_agent_choices") is not None:
                 _handle_agent_selection(app, text, write, ui_state)
+                continue
+
+            if ui_state.get("pending_session_choices") is not None:
+                _handle_session_selection(app, text, write, ui_state)
                 continue
 
             if text.startswith("/"):
