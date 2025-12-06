@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 from prompt_toolkit.document import Document
+from prompt_toolkit.completion import Completer
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 if ROOT not in sys.path:
@@ -472,3 +473,65 @@ async def test_list_slash_command_shows_thinking_and_tools(tmp_path: Path) -> No
     assert "thinking: step1; step2" in joined
     assert "tools: 1 call(s): read_file" in joined
     assert "tool_call_id: tc1" in joined
+
+def test_list_sessions_metadata_and_session_completion(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    # Create two sessions with distinct first user messages.
+    s1 = term_app.start_new_session(system_message="system1", agent_id="default")
+    term_app.append_user_message("first session message")
+
+    s2 = term_app.start_new_session(system_message="system2", agent_id="default")
+    term_app.append_user_message("second session message that is longer")
+
+    # Force modification times so that s2 is the most recent.
+    path1 = session_root / f"{s1.session_id}.json"
+    path2 = session_root / f"{s2.session_id}.json"
+    assert path1.exists() and path2.exists()
+
+    import os
+    import time
+
+    now = time.time()
+    os.utime(path1, (now - 10, now - 10))
+    os.utime(path2, (now, now))
+
+    # list_sessions_metadata should return sessions ordered by mtime desc.
+    meta = term_app.list_sessions_metadata()
+    ids = [entry["session_id"] for entry in meta]
+    assert ids[0] == s2.session_id
+    assert set(ids) == {s1.session_id, s2.session_id}
+
+    # The preview should contain the first user message content.
+    previews = {entry["session_id"]: entry["preview"] for entry in meta}
+    assert "first session message" in previews[s1.session_id]
+    assert "second session message" in previews[s2.session_id]
+
+    # SlashCommandCompleter should suggest sessions without a typed prefix.
+    completer = term_mod.SlashCommandCompleter(lambda: term_app)
+    doc = Document(text="/session ", cursor_position=len("/session "))
+    completions = list(completer.get_completions(doc, None))
+
+    suggested_ids = [c.text for c in completions]
+    assert s2.session_id in suggested_ids
+    assert s1.session_id in suggested_ids
+
+    # The first completion should correspond to the most recently modified session.
+    assert completions[0].text == s2.session_id
+    # And its description (display_meta) should contain the first user message.
+    assert "second session message" in completions[0].display_meta_text
+

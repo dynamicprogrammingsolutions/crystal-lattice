@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+import json
 
 from agent_app.application_future import AgentApplication
 from agent_app.config import resolve_request_config
@@ -26,12 +27,13 @@ class TerminalApplication:
         session_root: str | Path,
         agent_app: AgentApplication | None = None,
     ) -> None:
+        self._session_root: Path = Path(session_root)
+
         if agent_app is not None:
             self._app = agent_app
         else:
-            root = Path(session_root)
-            root.mkdir(parents=True, exist_ok=True)
-            self._app = AgentApplication(str(config_path), str(root))
+            self._session_root.mkdir(parents=True, exist_ok=True)
+            self._app = AgentApplication(str(config_path), str(self._session_root))
 
         self._session: Session | None = None
         self._core: Any | None = None
@@ -103,6 +105,81 @@ class TerminalApplication:
         self._session = session
         self._core = core
         self._base_config = base_config
+        self._last_event_id = None
+        return session
+
+    def list_sessions_metadata(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Return metadata for stored sessions ordered by modification time.
+
+        Each entry contains ``session_id``, ``modified`` (float timestamp),
+        and ``preview`` (first user message snippet).
+        """
+
+        root = self._session_root
+        try:
+            exists = root.exists()
+        except Exception:
+            return []
+        if not exists:
+            return []
+
+        items: List[Dict[str, Any]] = []
+        for path in root.glob("*.json"):
+            try:
+                stat = path.stat()
+            except OSError:
+                continue
+
+            session_id = path.stem
+            preview = ""
+
+            try:
+                data = path.read_text(encoding="utf-8")
+                raw = json.loads(data)
+                messages = raw.get("messages") or []
+                for msg in messages:
+                    if not isinstance(msg, dict):
+                        continue
+                    if msg.get("role") != "user":
+                        continue
+                    content = msg.get("content")
+                    if isinstance(content, str) and content:
+                        single = " ".join(content.split())
+                        if len(single) > 80:
+                            preview = single[:77] + "..."
+                        else:
+                            preview = single
+                        break
+            except Exception:
+                preview = ""
+
+            items.append(
+                {
+                    "session_id": session_id,
+                    "modified": float(stat.st_mtime),
+                    "preview": preview,
+                }
+            )
+
+        items.sort(key=lambda entry: entry["modified"], reverse=True)
+        if limit is not None and limit >= 0:
+            items = items[:limit]
+        return items
+
+    def switch_session(self, session_id: str) -> Session:
+        """Load an existing session by id and make it active."""
+
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("session_id must be a non-empty string")
+
+        ctx = self._app.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+
+        core, base_config, session = ctx
+        self._core = core
+        self._base_config = base_config
+        self._session = session
         self._last_event_id = None
         return session
 
