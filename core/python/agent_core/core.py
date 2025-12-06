@@ -180,7 +180,7 @@ class AgentCore:
         message_dict,
         config,
     ):
-        base_metadata = dict(session.metadata)
+        base_metadata = dict(session.metadata) if isinstance(session.metadata, dict) else {}
 
         role_value = message_dict.get("role", "user")
         role = role_value
@@ -193,7 +193,7 @@ class AgentCore:
         def _core_only_session(clean_metadata):
             cleaned = dict(clean_metadata)
             cleaned.pop("native_indices", None)
-            new_message = Message(role=role, content=content, metadata=cleaned)
+            new_message = Message(role=role, content=content, metadata=cleaned or None)
             new_messages = [*session.messages, new_message]
             new_session_metadata = dict(base_metadata)
             new_session_metadata.pop("native_messages", None)
@@ -227,17 +227,16 @@ class AgentCore:
         except Exception:
             return _core_only_session(md), None
 
-
         base_len = len(retained_native)
-        global_indices = list(range(base_len, base_len + len(suffix_native)))
+        normalized_suffix = self._normalize_final_core_with_native_indices(
+            core_suffix,
+            suffix_native,
+            baseline_offset=base_len,
+        )
+        normalized_msg = normalized_suffix[0] if normalized_suffix else core_suffix[0]
+        new_md = dict(normalized_msg.get("metadata") or {})
 
-        new_md = dict(md)
-        if global_indices:
-            new_md["native_indices"] = global_indices
-        else:
-            new_md.pop("native_indices", None)
-
-        new_message = Message(role=role, content=content, metadata=new_md)
+        new_message = Message(role=role, content=content, metadata=new_md or None)
         new_messages = [*session.messages, new_message]
         new_native_messages = [*retained_native, *suffix_native]
         new_session_metadata = {
@@ -245,6 +244,8 @@ class AgentCore:
             "native_messages": new_native_messages,
             "native_messages_integrity": self._compute_native_integrity(new_messages),
         }
+
+        global_indices = list(new_md.get("native_indices") or [])
 
         return (
             type(session)(
@@ -254,7 +255,131 @@ class AgentCore:
             ),
             global_indices,
         )
+
+    def _modify_single_message_with_native(self, session, index, content, config):
+        from agent_core.types import Message  # local import to avoid cycles
+
+        messages = list(session.messages)
+        message_count = len(messages)
+
+        # Normalize and validate index (supports negative indices).
+        if not isinstance(index, int):
+            raise TypeError("index must be an integer")
+
+        target_index = index
+        if target_index < 0:
+            target_index = message_count + target_index
+        if target_index < 0 or target_index >= message_count:
+            raise IndexError("message index out of range")
+
+        target = messages[target_index]
+
+        # Only core conversation roles are supported.
+        if target.role not in ("system", "user", "assistant"):
+            raise ValueError(
+                "modify_message only supports system, user, and assistant roles"
+            )
+
+        base_metadata = dict(session.metadata) if isinstance(session.metadata, dict) else {}
+
+        # Core-only path: drop native history and indices, update content only.
+        def _core_only_session() -> Session:
+            new_messages: List[Message] = []
+            for idx, msg in enumerate(messages):
+                data = msg.to_dict()
+                md = dict(data.get("metadata") or {})
+                md.pop("native_indices", None)
+                if idx == target_index:
+                    new_messages.append(
+                        Message(
+                            role=data["role"],
+                            content=content,
+                            metadata=md or None,
+                        )
+                    )
+                else:
+                    new_messages.append(
+                        Message(
+                            role=data["role"],
+                            content=data["content"],
+                            metadata=md or None,
+                        )
+                    )
+
+            new_session_metadata: Dict[str, Any] = dict(base_metadata)
+            new_session_metadata.pop("native_messages", None)
+            new_session_metadata.pop("native_messages_integrity", None)
+
+            return type(session)(
+                session_id=session.session_id,
+                messages=new_messages,
+                metadata=new_session_metadata,
+            )
+
+        # If there is no retained native history, fall back immediately.
+        retained_native = None
+        if isinstance(session.metadata, dict):
+            rn = session.metadata.get("native_messages")
+            if isinstance(rn, list):
+                retained_native = rn
+
+        if retained_native is None:
+            return _core_only_session()
+
+        # Verify integrity before attempting any native-preserving update.
+        self._verify_native_integrity(session)
+
+        original_native = list(retained_native)
+
+        # Determine which native indices belong to the target message.
+        target_md = target.metadata if isinstance(target.metadata, dict) else {}
+        native_indices = target_md.get("native_indices")
+        if not native_indices:
+            raise RuntimeError("modify_message requires non-empty native_indices for target message")
+
+        # Use a set to de-duplicate indices; order is irrelevant for the slice
+        # bounds, so we sort after collecting unique values.
+        indices = sorted(set(native_indices))
+
+        start_idx = min(indices)
+        end_idx = max(indices)
+
+
+        # Convert the modified core message to native using the provider pipeline.
+        target_dict = target.to_dict()
+        core_msg = {
+            "role": target_dict["role"],
+            "content": content,
+            "metadata": dict(target_dict.get("metadata") or {}),
+        }
+
+        native_suffix = self._core_messages_to_native_for_config(
+            [core_msg], config or {}
+        )
+
+        # Best-effort patch: replace the native slice [start_idx, end_idx] with the
+        # newly converted native messages, allowing cardinality to change.
+        before = original_native[:start_idx]
+        after = original_native[end_idx + 1 :]
+        new_native = [*before, *native_suffix, *after]
+
+        # Rebuild core messages from the updated native history.
+        new_messages = self._rebuild_core_from_native(new_native, config or {})
+
+        new_metadata = {
+            **base_metadata,
+            "native_messages": new_native,
+            "native_messages_integrity": self._compute_native_integrity(new_messages),
+        }
+
+        return type(session)(
+            session_id=session.session_id,
+            messages=new_messages,
+            metadata=new_metadata,
+        )
+
     def __init__(self):
+
 
         """Initialize core with empty plugin pipeline.
 
@@ -372,7 +497,35 @@ class AgentCore:
         )
         return new_session
 
+    def modify_message(
+        self,
+        session: Session,
+        index: int,
+        content: str,
+        config: Optional[Dict[str, Any]] = None,
+    ) -> Session:
+        """Modify the content of an existing message (pure function).
+
+        Only `system`, `user`, and `assistant` messages are supported. The
+        message role and metadata remain unchanged. When provider-native
+        history is present and safely mappable via `native_indices`, the
+        corresponding native messages are updated. Otherwise, native history
+        is dropped and will be reconstructed on the next request.
+
+        Args:
+            session: Current session.
+            index: Message index to modify (0-based; negative indices supported).
+            content: New message content.
+            config: Optional configuration used to resolve provider and plugins
+                when updating native history.
+
+        Returns:
+            New Session with the modified message (immutable update).
+        """
+        return self._modify_single_message_with_native(session, index, content, config or {})
+
     def _slice_session_core_only(
+
         self,
         session: Session,
         keep_indices: Set[int],

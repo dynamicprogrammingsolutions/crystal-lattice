@@ -161,6 +161,44 @@ print(summary)
 # {"providers": ["openai_compatible"], "features": ["web_search"], "tools": ["file_reader"], "extensions": []}
 ```
 
+#### modify_message
+
+```python
+modify_message(
+    session: Session,
+    index: int,
+    content: str,
+    config: Dict[str, Any] | None = None,
+) -> Session
+```
+
+Modify the content of an existing message and return a new session.
+
+- Supports only `"system"`, `"user"`, and `"assistant"` roles; attempting to
+  modify `"tool"` messages raises `ValueError`.
+- Keeps the message role and metadata unchanged; only `content` is updated.
+- When provider-native history (`native_messages`) and per-message
+  `metadata["native_indices"]` are present and form a 1:1 mapping for the
+  targeted message, the corresponding native messages are updated using the
+  provider + feature pipeline for the supplied `config` (or the single
+  registered provider when `config` omits `provider`).
+- When native history cannot be safely preserved (for example, missing or
+  shared `native_indices`, multiple providers without a resolvable
+  configuration, or conversion errors), the core falls back to a
+  **core-only** modification:
+  - All `native_messages`, `native_messages_integrity`, and per-message
+    `native_indices` are removed.
+  - Future requests will reconstruct provider-native history from core
+    messages as needed.
+
+**Example:**
+
+```python
+session = core.add_message(session, "user", "Original question")
+# ... after one or more turns ...
+session = core.modify_message(session, 1, "Edited question", config)
+```
+
 #### create_session
 
 ```python

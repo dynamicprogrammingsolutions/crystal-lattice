@@ -240,7 +240,8 @@ Stateless processing pipeline.
 - `register_feature(plugin_class)` - Register feature plugin class
 - `register_tool(plugin_class)` - Register tool plugin class
 - `create_session(session_id=None)` - Create new empty session
-- `add_message(session, role, content, metadata=None)` - Add message (returns new session)
+- `add_message(session, role, content, metadata=None, config=None)` - Add message (returns new session)
+- `modify_message(session, index, content, config=None)` - Modify existing message content (returns new session)
 - `send_request(session, config)` - Send request (returns new session + response)
 - `send_request_stream(session, config)` - Stream request (yields partials, then final session)
 - `send_request_stream_async(session, config)` - Async streaming
