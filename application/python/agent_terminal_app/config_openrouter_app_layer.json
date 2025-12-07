@@ -22,8 +22,8 @@
       "plugins.random_failure_extension.RandomFailureExtension"
     ],
     "tools": [
-      "plugins.file_reader_tool.FileReaderTool",
-      "plugins.file_writer_tool.FileWriterTool"
+      "plugins.shell_tool.ShellTool",
+      "plugins.apply_patch_tool.ApplyPatchTool"
     ]
   },
   "agents": {
