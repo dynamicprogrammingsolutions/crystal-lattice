@@ -56,3 +56,25 @@ class DummyCalculator:
             return f"Result: {result['result']}"
         else:
             return f"Error: {result['error']}"
+
+    def stream_tool(
+        self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
+    ):
+        """Streaming variant of the add tool used in tests.
+
+        Emits a single partial display chunk followed by a final RESULT dict.
+        """
+        if tool_name != "add":
+            return
+        a = arguments.get("a", 0)
+        b = arguments.get("b", 0)
+        try:
+            result = a + b
+        except Exception:
+            yield {"success": False, "error": "invalid arguments"}
+            return
+        # Partial display payload
+        yield {"part": {"type": "text", "content": f"partial: {result}"}}
+        # Final RESULT dict
+        yield {"success": True, "result": result}
+

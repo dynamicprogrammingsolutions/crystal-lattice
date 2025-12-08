@@ -168,47 +168,90 @@ class ToolLoopRunner:
         self,
         session: Session,
         tool_calls: List[Dict[str, Any]],
-    ) -> Tuple[Session, List[Dict[str, Any]]]:
-        """Execute tool calls and return (new_session, events)."""
+        *,
+        stream_tools: bool,
+    ) -> Iterator[Dict[str, Any]]:
+        """Execute tool calls and yield events.
+
+        Uses :meth:`AgentCore.iter_tool_messages` as the underlying API.
+        When ``stream_tools`` is True, partial payloads are emitted as
+        ``tool_partial`` events before the final ``tool_results`` summary.
+        The updated session is returned via ``StopIteration.value``.
+        """
 
         core = self._core
         config = self._config
         rid = self._request_id
 
-        # Record the tool_calls event first
-        events: List[Dict[str, Any]] = [
-            {
-                "type": "tool_calls",
-                "session_id": session.session_id,
-                "request_id": rid,
-                "tool_calls": list(tool_calls),
-            }
-        ]
-
-        tool_messages = core.execute_tool_calls(tool_calls, config)
         current_session = session
-        for msg in tool_messages:
-            raw_role = msg.get("role", "tool")
+
+        # Record the tool_calls event first
+        yield {
+            "type": "tool_calls",
+            "session_id": current_session.session_id,
+            "request_id": rid,
+            "tool_calls": list(tool_calls),
+        }
+
+        tool_messages: List[Dict[str, Any]] = []
+
+        for call in tool_calls:
+            call_id = call.get("id") or call.get("tool_call_id")
+            last_final: Dict[str, Any] | None = None
+
+            for item in core.iter_tool_messages([call], config):
+                if not isinstance(item, dict):
+                    continue
+                if "part" in item:
+                    if stream_tools:
+                        yield {
+                            "type": "tool_partial",
+                            "session_id": current_session.session_id,
+                            "request_id": rid,
+                            "tool_call_id": call_id,
+                            "payload": item,
+                        }
+                    continue
+                last_final = item
+
+            if last_final is None:
+                # iter_tool_messages already synthesizes errors for missing tools,
+                # but guard defensively in case it yields nothing.
+                func = call.get("function") or {}
+                name = call.get("name") or (
+                    func.get("name") if isinstance(func, dict) else None
+                )
+                metadata: Dict[str, Any] = {
+                    "tool_call_id": call_id,
+                    "tool_name": name,
+                }
+                last_final = {
+                    "role": "tool",
+                    "content": f"Error: no tool handled '{name}'",
+                    "metadata": metadata,
+                }
+
+            tool_messages.append(last_final)
+
+            raw_role = last_final.get("role", "tool")
             role: MessageRole
             if raw_role in ("system", "user", "assistant", "tool"):
                 role = raw_role  # type: ignore[assignment]
             else:
                 role = "tool"  # type: ignore[assignment]
-            content = msg.get("content", "")
-            metadata = msg.get("metadata")
+            content = last_final.get("content", "")
+            metadata = last_final.get("metadata")
             current_session = core.add_message(current_session, role, content, metadata)
 
-        events.append(
-            {
-                "type": "tool_results",
-                "session_id": current_session.session_id,
-                "request_id": rid,
-                "messages": list(tool_messages),
-                "session": current_session.to_dict(),
-            }
-        )
+        yield {
+            "type": "tool_results",
+            "session_id": current_session.session_id,
+            "request_id": rid,
+            "messages": list(tool_messages),
+            "session": current_session.to_dict(),
+        }
 
-        return current_session, events
+        return current_session
 
     # ------------------------------------------------------------------
     # Public API
@@ -248,9 +291,18 @@ class ToolLoopRunner:
                     }
                     return
 
-                current_session, events = self._apply_tool_calls(current_session, pending)
-                for ev in events:
+                gen = self._apply_tool_calls(
+                    current_session, pending, stream_tools=stream
+                )
+                while True:
+                    try:
+                        ev = next(gen)
+                    except StopIteration as stop:
+                        current_session = stop.value
+                        break
                     yield ev
+
+
 
             # Main LLM + tool loop
             while True:
@@ -284,8 +336,15 @@ class ToolLoopRunner:
                     }
                     break
 
-                current_session, events = self._apply_tool_calls(current_session, tool_calls)
-                for ev in events:
+                gen = self._apply_tool_calls(
+                    current_session, tool_calls, stream_tools=stream
+                )
+                while True:
+                    try:
+                        ev = next(gen)
+                    except StopIteration as stop:
+                        current_session = stop.value
+                        break
                     yield ev
 
         except Exception as exc:

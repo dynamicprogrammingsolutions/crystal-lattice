@@ -686,6 +686,33 @@ class ToolPlugin(BasePlugin, Protocol):
             return f"Result: {result.get('result')}"
         return f"Error: {result.get('error')}"
 
+    def stream_tool(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Iterator[Dict[str, Any]]:
+        """Optional streaming execution hook for tools.
+
+        Default implementation yields nothing. Concrete tools may override this
+        to provide incremental, display-oriented results for long-running
+        operations.
+        """
+        return iter(())
+
+    def to_display_format(
+        self,
+        text: str,
+        result: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Optional display conversion hook for tool results.
+
+        Default implementation wraps the formatted text in a simple
+        ``{"type": "text", "content": text}`` payload suitable for UIs.
+        """
+        return {"type": "text", "content": text}
+
 
 @dataclass(frozen=True)
 class Message:

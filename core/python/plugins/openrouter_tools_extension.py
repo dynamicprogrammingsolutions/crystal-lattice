@@ -54,7 +54,9 @@ class OpenRouterToolsExtension(ProviderExtensionPlugin):
     def to_native_messages(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        # Copy assistant metadata.tool_calls to native.tool_calls as-is and map tool.tool_call_id
+        # Copy assistant metadata.tool_calls to native.tool_calls as-is and map tool.tool_call_id.
+        # Also propagate tool-related metadata (tool_plugin, tool_name, display) into
+        # provider-native _metadata so that it can be preserved in native history.
         if len(messages) != len(native_messages):
             return native_messages
         out: List[Dict[str, Any]] = []
@@ -69,6 +71,21 @@ class OpenRouterToolsExtension(ProviderExtensionPlugin):
                     # Generate a placeholder if missing to avoid API errors
                     tcid = f"call_{hash(str(msg)) % 1000000:06d}"
                 nm["tool_call_id"] = tcid
+                # Optional tool metadata for display and reconstruction
+                extra: Dict[str, Any] = {}
+                tool_plugin = md.get("tool_plugin")
+                tool_name = md.get("tool_name")
+                display = md.get("display")
+                if tool_plugin is not None:
+                    extra["tool_plugin"] = tool_plugin
+                if tool_name is not None:
+                    extra["tool_name"] = tool_name
+                if display is not None:
+                    extra["display"] = display
+                if extra:
+                    base_meta = nm.get("_metadata") or {}
+                    merged = {**base_meta, **extra} if isinstance(base_meta, dict) else extra
+                    nm["_metadata"] = merged
             elif role == "assistant":
                 tcs = md.get("tool_calls")
                 if isinstance(tcs, list) and tcs:
@@ -79,16 +96,20 @@ class OpenRouterToolsExtension(ProviderExtensionPlugin):
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """Copy provider-native tool_calls directly into core metadata when aligned (no transformation)."""
+        """Copy provider-native tool_calls and _metadata into core metadata when aligned."""
         if len(messages) != len(native_messages):
             return messages
 
         enhanced: List[Dict[str, Any]] = []
         for msg, native in zip(messages, native_messages):
+            metadata = dict(msg.get("metadata") or {})
             tool_calls = native.get("tool_calls") if isinstance(native, dict) else None
             if tool_calls:
-                metadata = dict(msg.get("metadata") or {})
                 metadata["tool_calls"] = tool_calls
+            extra = native.get("_metadata") if isinstance(native, dict) else None
+            if isinstance(extra, dict) and extra:
+                metadata.update(extra)
+            if metadata:
                 enhanced.append({**msg, "metadata": metadata})
             else:
                 enhanced.append(msg)

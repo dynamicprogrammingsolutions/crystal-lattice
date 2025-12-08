@@ -6,7 +6,7 @@ Manages tool plugin state (if any) and provides typed interface.
 
 from __future__ import annotations
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Iterator
 
 from ..types import ToolPlugin
 from .adapters import ToolDefaultsAdapter
@@ -82,3 +82,32 @@ class ToolWrapper(ToolPlugin):
             raise RuntimeError(f"Tool {self.name} not initialized")
         working_state = state or self.state
         return self.plugin.format_tool_result(result, working_state)
+
+    def stream_tool(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Iterator[Dict[str, Any]]:
+        """Stream tool results via plugin; requires initialized state.
+
+        Returns an iterator of display-oriented payload dictionaries; when the
+        underlying tool does not implement streaming, the iterator yields
+        nothing.
+        """
+        if self.state is None:
+            raise RuntimeError(f"Tool {self.name} not initialized")
+        working_state = state or self.state
+        return self.plugin.stream_tool(tool_name, arguments, working_state)
+
+    def to_display_format(
+        self,
+        text: str,
+        result: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Convert a tool result into a UI display payload."""
+        if self.state is None:
+            raise RuntimeError(f"Tool {self.name} not initialized")
+        working_state = state or self.state
+        return self.plugin.to_display_format(text, result, working_state)

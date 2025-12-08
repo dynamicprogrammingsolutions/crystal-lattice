@@ -159,7 +159,13 @@ class OpenAICompatibleProvider(ProviderPlugin):
             # request by placing a rendered list under
             # state["request"]["messages"].
             override = request.get("messages")
-            messages_to_send = override if isinstance(override, list) else native_messages
+            base_history = override if isinstance(override, list) else native_messages
+            # Strip any internal _metadata field before sending to the provider.
+            messages_to_send = [
+                {k: v for k, v in m.items() if k != "_metadata"}
+                for m in base_history
+                if isinstance(m, dict)
+            ]
             r = requests.post(
                 request["url"],
                 json={**request["payload"], "messages": messages_to_send, "stream": False},
@@ -183,7 +189,13 @@ class OpenAICompatibleProvider(ProviderPlugin):
             # Validate native_messages before sending stream request
             self._validate_message_list(native_messages)
             override = request.get("messages")
-            messages_to_send = override if isinstance(override, list) else native_messages
+            base_history = override if isinstance(override, list) else native_messages
+            # Strip any internal _metadata field before sending to the provider.
+            messages_to_send = [
+                {k: v for k, v in m.items() if k != "_metadata"}
+                for m in base_history
+                if isinstance(m, dict)
+            ]
             with requests.post(
                 request["url"],
                 json={**request["payload"], "messages": messages_to_send, "stream": True},

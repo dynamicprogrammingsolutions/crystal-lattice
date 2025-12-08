@@ -173,6 +173,8 @@ class OpenRouterProvider(ProviderPlugin):
                 sanitized.append(msg)
                 continue
             m = dict(msg)
+            # Drop any internal _metadata field before sending to the provider.
+            m.pop("_metadata", None)
             if m.get("refusal") is None:
                 m.pop("refusal", None)
             tool_calls = m.get("tool_calls")

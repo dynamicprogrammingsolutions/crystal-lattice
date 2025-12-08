@@ -532,3 +532,45 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
         if result.get("success"):
             return f"Result: {result.get('result')}"
         return f"Error: {result.get('error')}"
+
+    def stream_tool(  # type: ignore[override]
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Iterator[Dict[str, Any]]:
+        """Default streaming hook.
+
+        When the underlying implementation provides ``stream_tool``, delegate to
+        it and forward any dictionary chunks. Otherwise, wrap ``execute_tool``
+        so that non-streaming tools yield a single RESULT dict (no partials).
+        """
+        fn = self._get_impl_method("stream_tool", ToolPlugin)
+        if fn is None:
+            # No partials; yield only the final result dict.
+            result = self.execute_tool(tool_name, arguments, state)
+            if isinstance(result, dict):
+                yield result
+            return
+        out = fn(tool_name, arguments, state)
+        try:
+            iterator = iter(out)
+        except TypeError:
+            return
+        for chunk in iterator:
+            if isinstance(chunk, dict):
+                yield chunk
+
+    def to_display_format(  # type: ignore[override]
+        self,
+        text: str,
+        result: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Default display hook: delegate when implemented, else wrap as text payload."""
+        fn = self._get_impl_method("to_display_format", ToolPlugin)
+        if fn is not None:
+            out = fn(text, result, state)
+            if isinstance(out, dict):
+                return out
+        return {"type": "text", "content": str(text)}
