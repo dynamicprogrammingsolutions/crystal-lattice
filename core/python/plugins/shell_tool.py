@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import os
 import subprocess
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Iterator
 
 from agent_core.types import ToolPlugin
 
@@ -250,6 +250,160 @@ class ShellTool(ToolPlugin):
             parts.append(f"STDERR:\n{stderr}")
 
         return "\n\n".join(parts)
+
+    def stream_tool(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Iterator[Dict[str, Any]]:
+        """Stream shell command output as partials plus a final result.
+
+        This uses the same sandboxing rules as :meth:`execute_tool` but yields
+        stdout lines incrementally as ``{"part": {"type": "text", "content": ...}}``
+        payloads and finally a RESULT dict containing the full stdout/stderr and
+        exit information.
+        """
+        if tool_name != "shell":
+            return
+
+        config = state.get("config", {})
+        raw_command = arguments.get("command", "")
+
+        if not isinstance(raw_command, str) or not raw_command.strip():
+            # Validation error: yield a final RESULT dict only.
+            yield {"success": False, "error": "command must be a non-empty string"}
+            return
+
+        raw_workdir = arguments.get("workdir")
+        base_workdir = config.get("working_directory", ".")
+        workdir = (
+            str(raw_workdir).strip()
+            if isinstance(raw_workdir, str) and raw_workdir.strip()
+            else str(base_workdir)
+        )
+
+        try:
+            if not os.path.isabs(workdir):
+                workdir = os.path.join(base_workdir, workdir)
+            abs_workdir = os.path.abspath(workdir)
+        except Exception:
+            yield {"success": False, "error": f"Invalid workdir: {workdir}"}
+            return
+
+        if not os.path.isdir(abs_workdir):
+            yield {
+                "success": False,
+                "error": f"Working directory does not exist: {abs_workdir}",
+            }
+            return
+
+        allowed_config = config.get("allowed_paths")
+        allowed = allowed_config if allowed_config is not None else [base_workdir]
+        abs_allowed = [os.path.abspath(p) for p in allowed]
+        if not any(abs_workdir.startswith(p) for p in abs_allowed):
+            yield {
+                "success": False,
+                "error": f"Working directory {abs_workdir} is not in allowed paths",
+            }
+            return
+
+        timeout_default = config.get("timeout_seconds", 300)
+        timeout_arg = arguments.get("timeout_seconds")
+        try:
+            timeout_seconds = int(timeout_arg) if timeout_arg is not None else int(timeout_default)
+            if timeout_seconds <= 0:
+                timeout_seconds = int(timeout_default) if timeout_default else 300
+        except Exception:
+            timeout_seconds = 300
+
+        env_arg = arguments.get("env")
+        exec_env = os.environ.copy()
+        if isinstance(env_arg, dict):
+            for key, value in env_arg.items():
+                if isinstance(key, str):
+                    exec_env[key] = str(value)
+
+        max_output_chars = int(config.get("max_output_chars", 8000) or 8000)
+
+        try:
+            proc = subprocess.Popen(
+                ["bash", "-lc", raw_command],
+                cwd=abs_workdir,
+                env=exec_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+            )
+        except Exception as exc:
+            yield {"success": False, "error": f"Failed to execute command: {exc}"}
+            return
+
+        stdout_chunks: List[str] = []
+        stderr_text = ""
+        timed_out = False
+
+        try:
+            if proc.stdout is not None:
+                for line in proc.stdout:
+                    if not line:
+                        break
+                    stdout_chunks.append(line)
+                    chunk = line.rstrip("\n")
+                    if chunk:
+                        yield {"part": {"type": "text", "content": chunk}}
+            try:
+                proc.wait(timeout=timeout_seconds)
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                proc.kill()
+                try:
+                    proc.wait(timeout=1)
+                except Exception:
+                    pass
+            except Exception:
+                proc.kill()
+        finally:
+            if proc.stderr is not None:
+                try:
+                    stderr_text = proc.stderr.read() or ""
+                except Exception:
+                    stderr_text = ""
+            if proc.stdout is not None and not proc.stdout.closed:
+                proc.stdout.close()
+            if proc.stderr is not None and not proc.stderr.closed:
+                proc.stderr.close()
+
+        stdout_text = "".join(stdout_chunks)
+        truncated_stdout = self._truncate(stdout_text, max_output_chars)
+        truncated_stderr = self._truncate(stderr_text, max_output_chars)
+
+        if timed_out:
+            success = False
+            return_code = None
+            error_msg = f"Command timed out after {timeout_seconds} seconds"
+        else:
+            return_code = proc.returncode
+            success = return_code == 0
+            if not success:
+                error_msg = f"Command exited with code {return_code}"
+            else:
+                error_msg = ""
+
+        result: Dict[str, Any] = {
+            "success": success,
+            "returncode": return_code,
+            "stdout": truncated_stdout,
+            "stderr": truncated_stderr,
+            "workdir": abs_workdir,
+            "command": raw_command,
+            "timeout_seconds": timeout_seconds,
+        }
+        if not success:
+            result["error"] = error_msg or result.get("error", "Command failed.")
+
+        yield result
 
     @staticmethod
     def _truncate(text: str, max_chars: int) -> str:

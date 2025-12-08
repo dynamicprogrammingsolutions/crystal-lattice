@@ -1629,23 +1629,177 @@ class AgentCore:
             schemas.extend(tool.get_tool_schemas(state))
         return schemas
 
+    def iter_tool_messages(
+        self,
+        tool_calls: List[Dict[str, Any]],
+        config: Dict[str, Any],
+    ) -> Iterator[Dict[str, Any]]:
+        """Yield a mixed stream of partial payloads and final core ``tool`` messages.
+
+        Tools stream via ``ToolPlugin.stream_tool``. Partial display payloads are
+        yielded as-is when they contain a ``"part"`` key. Result dictionaries are
+        detected via the presence of a ``"success"`` key and transformed into final
+        core ``tool`` messages at the end of each tool call.
+        """
+        if not tool_calls:
+            return
+
+        logger.debug(
+            "iter_tool_messages_start",
+            count=len(tool_calls),
+        )
+
+        # Resolve enabled tools for this config and build a mapping from
+        # function name -> (tool_wrapper, state).
+        if not self._tools:
+            enabled_tools: List[ToolWrapper] = []
+        elif not self._providers:
+            enabled_tools = list(self._tools)
+        else:
+            try:
+                _provider, _exts, _features, tools, _tags = self._resolve_plugins_for_config(
+                    config
+                )
+                enabled_tools = list(tools)
+            except Exception:
+                enabled_tools = list(self._tools)
+
+        name_to_tool: Dict[str, Tuple[ToolWrapper, Dict[str, Any]]] = {}
+
+        for tool in enabled_tools:
+            state = tool.init(config)
+            try:
+                schemas = tool.get_tool_schemas(state)
+            except Exception:
+                schemas = []
+            for schema in schemas or []:
+                if not isinstance(schema, dict):
+                    continue
+                fn = schema.get("function") or {}
+                name = None
+                if isinstance(fn, dict):
+                    name = fn.get("name")
+                if not isinstance(name, str) or not name:
+                    # Fallback: allow top-level "name" on the schema.
+                    name = schema.get("name") if isinstance(schema, dict) else None
+                if isinstance(name, str) and name and name not in name_to_tool:
+                    name_to_tool[name] = (tool, state)
+
+        for call in tool_calls:
+            call_id = call.get("id") or call.get("tool_call_id")
+            func = call.get("function") or {}
+            name = call.get("name") or (func.get("name") if isinstance(func, dict) else None)
+            args = call.get("arguments") or (
+                func.get("arguments") if isinstance(func, dict) else {}
+            ) or {}
+            # Accept OpenAI-style string arguments; parse JSON when needed.
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except Exception:
+                    args = {}
+
+            if not isinstance(name, str) or not name or name not in name_to_tool:
+                # No matching tool found; synthesize an error message.
+                metadata: Dict[str, Any] = {
+                    "tool_call_id": call_id,
+                    "tool_name": name,
+                }
+                yield {
+                    "role": "tool",
+                    "content": f"Error: no tool handled '{name}'",
+                    "metadata": metadata,
+                }
+                continue
+
+            tool, state = name_to_tool[name]
+            last_result: Dict[str, Any] | None = None
+            had_result = False
+            stream_error: str | None = None
+
+            try:
+                iterator = tool.stream_tool(str(name), args, state)
+                iterator = iter(iterator)
+            except Exception as exc:
+                iterator = None
+                stream_error = f"Tool error: {exc}"
+
+            if iterator is not None:
+                for chunk in iterator:
+                    if not isinstance(chunk, dict):
+                        continue
+                    if "success" in chunk:
+                        last_result = chunk
+                        had_result = True
+                    elif "part" in chunk:
+                        # Partial display payload; forward as-is.
+                        yield chunk
+                    else:
+                        # Backwards-compatible: treat any other dict as a partial payload.
+                        yield {"part": chunk}
+
+            if not had_result:
+                # No RESULT dict was produced; synthesize an error message.
+                content = stream_error or f"Error: no tool handled '{name}'"
+                metadata = {
+                    "tool_call_id": call_id,
+                    "tool_name": name,
+                }
+                plugin_name = getattr(tool, "name", None)
+                if isinstance(plugin_name, str) and plugin_name:
+                    metadata["tool_plugin"] = plugin_name
+                yield {
+                    "role": "tool",
+                    "content": content,
+                    "metadata": metadata,
+                }
+                continue
+
+            assert last_result is not None
+            try:
+                formatted_content = tool.format_tool_result(last_result, state)
+            except Exception as exc:
+                formatted_content = f"Tool formatting error: {exc}"
+
+            display_payload: Dict[str, Any] | None = None
+            try:
+                display_candidate = tool.to_display_format(
+                    formatted_content or "",
+                    last_result,
+                    state,
+                )
+                if isinstance(display_candidate, dict):
+                    display_payload = display_candidate
+            except Exception:
+                display_payload = None
+
+            metadata = {
+                "tool_call_id": call_id,
+                "tool_name": name,
+            }
+            plugin_name = getattr(tool, "name", None)
+            if isinstance(plugin_name, str) and plugin_name:
+                metadata["tool_plugin"] = plugin_name
+            if display_payload is not None:
+                metadata["display"] = display_payload
+
+            yield {
+                "role": "tool",
+                "content": formatted_content or "",
+                "metadata": metadata,
+            }
+
     def execute_tool_calls(
-        self, tool_calls: List[Dict[str, Any]], config: Dict[str, Any]
+        self,
+        tool_calls: List[Dict[str, Any]],
+        config: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
-        """Execute a batch of tool calls and return core "tool" messages.
+        """Return only the final core ``tool`` message per tool call.
 
-        Accepts OpenAI-style tool call objects. The method initializes tool state from the
-        provided config once per batch and invokes each registered tool to handle the call by name.
-        If no tool handles a given call, an error tool message is returned.
-
-        Args:
-            tool_calls: List of tool call dictionaries normalized as
-                {"id": str, "name": str, "arguments": dict | str} or OpenAI {"function": {"name", "arguments"}}.
-            config: Application configuration passed to initialize tool plugins.
-
-        Returns:
-            List of core message dicts with role "tool". content contains formatted tool output; metadata
-            includes tool_call_id and tool_name.
+        This is a compatibility wrapper around :meth:`iter_tool_messages`
+        that ignores partial payloads and keeps only the last final tool
+        message for each call. When a streaming tool yields no items for a
+        call, a synthetic error message is returned.
         """
         results: List[Dict[str, Any]] = []
         if not tool_calls:
@@ -1656,52 +1810,92 @@ class AgentCore:
             count=len(tool_calls),
         )
 
-        # Initialize tool states once per call set
-        tool_states = [(tool, tool.init(config)) for tool in self._tools]
-
-
         for call in tool_calls:
-            call_id = call.get("id") or call.get("tool_call_id")
-            name = call.get("name") or (call.get("function") or {}).get("name")
-            args = call.get("arguments") or (call.get("function") or {}).get("arguments") or {}
-            # Accept OpenAI-style string arguments; parse JSON when needed
-            if isinstance(args, str):
-                try:
-                    args = json.loads(args)
-                except Exception:
-                    args = {}
+            last_final: Dict[str, Any] | None = None
             executed = False
-            formatted_content = None
 
-            for tool, state in tool_states:
-                try:
-                    result = tool.execute_tool(str(name), args, state)
-                except Exception as e:
-                    result = {"success": False, "error": f"Tool error: {e}"}
-                # Consider success if plugin reports success True
-                if result.get("success"):
-                    formatted_content = tool.format_tool_result(result, state)
-                    executed = True
-                    break
-            if not executed:
-                formatted_content = f"Error: no tool handled '{name}'"
+            for item in self.iter_tool_messages([call], config):
+                if not isinstance(item, dict):
+                    continue
+                if "part" in item:
+                    # Streaming partial; ignored in final-only API.
+                    continue
+                last_final = item
+                executed = True
 
+            if last_final is None:
+                call_id = call.get("id") or call.get("tool_call_id")
+                func = call.get("function") or {}
+                name = call.get("name") or (
+                    func.get("name") if isinstance(func, dict) else None
+                )
+                metadata: Dict[str, Any] = {
+                    "tool_call_id": call_id,
+                    "tool_name": name,
+                }
+                last_final = {
+                    "role": "tool",
+                    "content": f"Error: no tool handled '{name}'",
+                    "metadata": metadata,
+                }
+                executed = False
+
+            md = last_final.get("metadata") or {}
             logger.debug(
                 "execute_tool_call_complete",
-                tool_name=str(name),
+                tool_name=str(md.get("tool_name")),
                 executed=executed,
             )
-
-            results.append(
-
-                {
-                    "role": "tool",
-                    "content": formatted_content or "",
-                    "metadata": {"tool_call_id": call_id, "tool_name": name},
-                }
-            )
+            results.append(last_final)
 
         return results
+
+    def stream_tool_call(
+        self,
+        tool_call: Dict[str, Any],
+        config: Dict[str, Any],
+    ) -> Iterator[Dict[str, Any]]:
+        """Stream partial results for a single tool call.
+
+        Uses the same tool resolution logic as :meth:`execute_tool_calls` but
+        invokes the optional :meth:`ToolPlugin.stream_tool` hook instead of the
+        synchronous execute/format path. If no tool provides streaming for the
+        given call, yields nothing.
+        """
+        if not self._tools:
+            return
+
+        # Initialize tool states for this call
+        tool_states = [(tool, tool.init(config)) for tool in self._tools]
+
+        name = tool_call.get("name") or (tool_call.get("function") or {}).get("name")
+        args = (
+            tool_call.get("arguments")
+            or (tool_call.get("function") or {}).get("arguments")
+            or {}
+        )
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except Exception:
+                args = {}
+
+        handled = False
+        for tool, state in tool_states:
+            try:
+                iterator = tool.stream_tool(str(name), args, state)
+            except Exception:
+                continue
+            try:
+                iterator = iter(iterator)
+            except TypeError:
+                continue
+            for chunk in iterator:
+                handled = True
+                if isinstance(chunk, dict):
+                    yield chunk
+            if handled:
+                break
 
     def export_session(self, session: Session, format: str = "json") -> str:
         """Export session to a serialized string.

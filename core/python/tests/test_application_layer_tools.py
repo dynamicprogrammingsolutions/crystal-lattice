@@ -57,6 +57,9 @@ def test_execute_tool_calls_non_streaming(tmp_path: Path) -> None:
 
     events = list(app.send_request(core, session, base_config, overrides=None, stream=False))
 
+    # Ensure no streaming tool events were produced in non-streaming mode.
+    assert not any(ev["type"] == "tool_partial" for ev in events)
+
     # Find the latest session snapshot from events.
     final_session_dict: Dict[str, object] | None = None
     for ev in events:
@@ -93,4 +96,12 @@ def test_execute_tool_calls_streaming(tmp_path: Path) -> None:
 
     events = list(app.send_request(core, session, base_config, overrides=None, stream=True))
 
-    assert any(ev["type"] == "tool_results" for ev in events)
+    # Streaming path should surface both partials and final tool_results.
+    partial_events = [ev for ev in events if ev.get("type") == "tool_partial"]
+    assert partial_events
+    assert any(
+        isinstance(ev.get("payload"), dict)
+        and "part" in (ev.get("payload") or {})
+        for ev in partial_events
+    )
+    assert any(ev.get("type") == "tool_results" for ev in events)

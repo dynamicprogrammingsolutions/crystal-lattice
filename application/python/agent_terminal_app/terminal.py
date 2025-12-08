@@ -189,8 +189,47 @@ def _render_event(event: Dict[str, Any], write: Callable[[str], None]) -> None:
     if etype == "tool_calls":
         write("[tools] tool calls requested")
         return
+    if etype == "tool_partial":
+        payload = event.get("payload") or {}
+        if isinstance(payload, dict):
+            if "partial" in payload:
+                payload = payload.get("partial") or {}
+            elif "part" in payload:
+                payload = payload.get("part") or {}
+        if isinstance(payload, dict):
+            ptype = payload.get("type")
+            content = payload.get("content", "") or ""
+            if ptype == "text" and content:
+                call_id = event.get("tool_call_id")
+                prefix = f"[tool:{call_id}] " if call_id else "[tool] "
+                write(prefix + content)
+        return
     if etype == "tool_results":
         write("[tools] tool results applied")
+        messages = event.get("messages") or []
+        if not isinstance(messages, list) or not messages:
+            write("[tools] tool results applied")
+            return
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+            metadata = msg.get("metadata") or {}
+            if not isinstance(metadata, dict):
+                metadata = {}
+            display = metadata.get("display") or {}
+            text: str | None = None
+            if isinstance(display, dict) and display.get("type") == "text":
+                raw = display.get("content", "")
+                if isinstance(raw, str) and raw:
+                    text = raw
+            if not isinstance(text, str) or not text:
+                raw_content = msg.get("content", "")
+                text = raw_content if isinstance(raw_content, str) else ""
+            if not text:
+                continue
+            call_id = metadata.get("tool_call_id")
+            prefix = f"[tool:{call_id}] " if call_id else "[tool] "
+            write(prefix + text)
         return
     if etype == "error":
         write(f"[error] {event.get('detail')}")
