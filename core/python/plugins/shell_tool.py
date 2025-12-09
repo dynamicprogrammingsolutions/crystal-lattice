@@ -350,7 +350,7 @@ class ShellTool(ToolPlugin):
                     if not line:
                         break
                     stdout_chunks.append(line)
-                    chunk = line.rstrip("\n")
+                    chunk = line
                     if chunk:
                         yield {"part": {"type": "text", "content": chunk}}
             try:

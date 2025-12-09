@@ -72,7 +72,7 @@ def main() -> None:  # pragma: no cover - manual execution only
     run_server = args.server or not args.console
     run_console = args.console
 
-    _configure_logging(args.log_file, disable_structlog_colors=run_console)
+    _configure_logging(args.log_file, disable_structlog_colors=False)
 
     console_logger: Optional[logging.Logger] = None
     if args.log_file:

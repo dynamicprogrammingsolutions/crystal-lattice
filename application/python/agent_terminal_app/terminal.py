@@ -6,13 +6,14 @@ from logging import Logger
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
-from prompt_toolkit import PromptSession
+from prompt_toolkit import PromptSession, print_formatted_text
 from prompt_toolkit.completion import Completer, Completion
+from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.patch_stdout import patch_stdout
 
+from agent_core.utils import get_logger
 from .terminal_app import TerminalApplication
-
 
 _DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "config_openrouter_app_layer.json"
 _DEFAULT_SESSION_ROOT = Path(__file__).resolve().parent / "sessions"
@@ -145,7 +146,104 @@ def _status_bar_text(app: TerminalApplication) -> str:
     return f"Agent: {agent}  Session: {session_id}"
 
 
+def get_reasoning_event_renderer():
+    last_request_id = None
+    def renderer(event: Dict[str, Any], write: Callable[[str], None]) -> None:
+        nonlocal last_request_id
+        match event:
+            case {"type": "partial", "request_id": str(request_id), "message": { "metadata": { "reasoning": str(content), **rest1 } }, **rest2 } if content:
+                if last_request_id != request_id:
+                    print("\033[34mAssistant Reasoning\033[0m", flush=True)
+                print(content, flush=True, end="")
+                last_request_id = request_id
+            case _:
+                if last_request_id is not None:
+                    print("", flush=True)
+                    last_request_id = None
+                return
+
+    return renderer
+
+
+def get_assistant_event_renderer():
+    last_request_id = None
+    def renderer(event: Dict[str, Any], write: Callable[[str], None]) -> None:
+        nonlocal last_request_id
+        match event:
+            case {"type": "partial", "request_id": str(request_id), "message": { "content": str(content), **rest1 }, **rest2 } if content:
+                if last_request_id != request_id:
+                    print("\033[34mAssistant message:\033[0m", flush=True)
+                    last_request_id = request_id
+                print(content, flush=True, end="")
+            case _:
+                if last_request_id is not None:
+                    print("", flush=True)
+                    last_request_id = None
+                return
+
+    return renderer
+
+# Test:  Use the shell tool to write Hello World 10 times.
+def get_tool_result_renderer():
+    last_tool_call_id = None
+    def renderer(event: Dict[str, Any], write: Callable[[str], None]) -> None:
+        nonlocal last_tool_call_id
+        match event:
+            case {'type': 'tool_partial', 'request_id': str(request_id), 'tool_call_id': str(tool_call_id), 'payload': {'part': {'type': 'text', 'content': str(content)}}, **rest1} if content:
+                if last_tool_call_id != tool_call_id:
+                    print(f"\033[34mTool call {tool_call_id}:\033[0m", flush=True)
+                    last_tool_call_id = tool_call_id
+                print(content, flush=True, end="")
+            case _:
+                if last_tool_call_id is not None:
+                    last_tool_call_id = None
+                return
+
+    return renderer
+
+def get_request_header_and_footer_renderer():
+    last_request_id = None
+    def renderer(event: Dict[str, Any], write: Callable[[str], None]) -> None:
+        nonlocal last_request_id
+        match event:
+            case { "type": "partial", "request_id": str(request_id)} if last_request_id != request_id:
+                print(f"\n\033[34mrequest {request_id} started\033[0m", flush=True)
+                last_request_id = request_id
+            case { "type": "final", "request_id": str(request_id)} if request_id == last_request_id:
+                print(f"\033[34mrequest {request_id} completed\033[0m", flush=True)
+                last_request_id = None
+
+    return renderer
+
+
+
+renderers = [
+    get_reasoning_event_renderer(),
+    get_assistant_event_renderer(),
+    get_tool_result_renderer(),
+    get_request_header_and_footer_renderer(),
+]
+
+_event_logger: Logger|None = None
+def _require_event_logger() -> Logger:
+    global _event_logger
+
+    if not _event_logger:
+        _event_logger = get_logger("terminal_event")
+
+    return _event_logger
+
 def _render_event(event: Dict[str, Any], write: Callable[[str], None]) -> None:
+
+    event_logger = _require_event_logger()
+    event_logger.debug("event received", ev=event)
+
+    for renderer in renderers:
+        try:
+            renderer(event, write)
+        except Exception:
+            continue
+
     etype = event.get("type")
 
     if etype == "session_created":
@@ -171,23 +269,25 @@ def _render_event(event: Dict[str, Any], write: Callable[[str], None]) -> None:
         write(f"[session] deleted messages at indices: {text_indices}")
         return
     if etype == "request_started":
-        write(f"[request] started ({event.get('request_id')})")
+        write(f"\033[34m[request]\033[0m started ({event.get('request_id')})")
         return
     if etype == "partial":
         message = event.get("message") or {}
         content = message.get("content", "") or ""
         if content:
-            write(f"Assistant (partial): {content}")
+            pass
+            #print(content, flush=True, end="")
+            #write(f"Assistant (partial): {content}")
         return
     if etype == "final":
         messages = event.get("messages") or []
         text = ""
         if messages:
             text = messages[-1].get("content", "") or ""
-        write(f"Assistant: {text}")
+        #write(f"Assistant: {text}")
         return
     if etype == "tool_calls":
-        write("[tools] tool calls requested")
+        #write("[tools] tool calls requested")
         return
     if etype == "tool_partial":
         payload = event.get("payload") or {}
@@ -202,13 +302,13 @@ def _render_event(event: Dict[str, Any], write: Callable[[str], None]) -> None:
             if ptype == "text" and content:
                 call_id = event.get("tool_call_id")
                 prefix = f"[tool:{call_id}] " if call_id else "[tool] "
-                write(prefix + content)
+                #write(prefix + content)
         return
     if etype == "tool_results":
-        write("[tools] tool results applied")
+        #write("[tools] tool results applied")
         messages = event.get("messages") or []
         if not isinstance(messages, list) or not messages:
-            write("[tools] tool results applied")
+            #write("[tools] tool results applied")
             return
         for msg in messages:
             if not isinstance(msg, dict):
@@ -229,7 +329,7 @@ def _render_event(event: Dict[str, Any], write: Callable[[str], None]) -> None:
                 continue
             call_id = metadata.get("tool_call_id")
             prefix = f"[tool:{call_id}] " if call_id else "[tool] "
-            write(prefix + text)
+            #write(prefix + text)
         return
     if etype == "error":
         write(f"[error] {event.get('detail')}")
@@ -1145,7 +1245,6 @@ def _build_key_bindings(
 
     return kb
 
-
 async def _run_terminal(
     app: TerminalApplication,
     system_message: Optional[str] = None,
@@ -1183,7 +1282,7 @@ async def _run_terminal(
 
     write("Session started. Type /help for commands. Press Ctrl-Q to exit.")
 
-    with patch_stdout():
+    with patch_stdout(True):
         while ui_state.get("running", True):
             try:
                 default_text = ui_state.get("input_prefill") or ""
