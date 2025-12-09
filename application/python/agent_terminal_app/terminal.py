@@ -1291,6 +1291,11 @@ def _build_key_bindings(
     def _insert_newline(event: Any) -> None:  # type: ignore[no-redef]
         event.current_buffer.insert_text("\n")
 
+    # Alt-Enter (Meta-Enter / Esc, Enter) also inserts a newline.
+    @kb.add("escape", "enter")
+    def _meta_enter_newline(event: Any) -> None:  # type: ignore[no-redef]
+        event.current_buffer.insert_text("\n")
+
     for sc in iter_shortcuts():
         key_parts = tuple(sc.keys.split()) if sc.keys else ()
         if not key_parts:
