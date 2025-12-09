@@ -13,6 +13,7 @@ import json
 import requests
 
 from agent_core.types import ProviderPlugin
+from agent_core.utils import get_logger
 
 
 class OpenRouterProvider(ProviderPlugin):
@@ -202,6 +203,7 @@ class OpenRouterProvider(ProviderPlugin):
             base_history = override if isinstance(override, list) else native_messages
             messages_to_send = self._sanitize_history(base_history)
             payload = {**request["payload"], "messages": messages_to_send, "stream": False}
+            get_logger('openrouter_provider').info("sending request",payload=payload)
             r = requests.post(
                 request["url"],
                 json=payload,
@@ -241,6 +243,7 @@ class OpenRouterProvider(ProviderPlugin):
             base_history = override if isinstance(override, list) else native_messages
             messages_to_send = self._sanitize_history(base_history)
             payload = {**request["payload"], "messages": messages_to_send, "stream": True}
+            get_logger('openrouter_provider').info("sending request",payload=payload)
             with requests.post(
                 request["url"],
                 json=payload,
