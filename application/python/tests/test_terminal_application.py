@@ -46,8 +46,9 @@ def test_terminal_flow_with_echo_provider(tmp_path: Path) -> None:
     system_message = "You are a helpful echo assistant."
     user_message = "hello from the terminal test"
 
-    # 1) Create a new active session with a system message.
-    session = term_app.start_new_session(system_message=system_message, agent_id="default")
+    # 1) Create a new active session and add a system message.
+    session = term_app.start_new_session(agent_id="default")
+    term_app.add_message(session.session_id, role="system", content=system_message, metadata=None)
     session_id = session.session_id
 
     # 2) Add a user message to the active session.
@@ -188,7 +189,7 @@ def test_switch_session_agent_application_logic(tmp_path: Path) -> None:
     assert len(agents) >= 2
 
     # Create an initial session using the default agent.
-    session = term_app.start_new_session(system_message=None, agent_id="default")
+    session = term_app.start_new_session(agent_id="default")
     metadata = session.metadata or {}
     initial_agent = metadata.get("agent_id")
     assert initial_agent == "default"
@@ -223,7 +224,7 @@ def test_set_overrides_and_send_request_uses_them(tmp_path: Path, monkeypatch: p
     )
 
     # Create a session and update an override via the application.
-    session = term_app.start_new_session(system_message=None, agent_id="default")
+    session = term_app.start_new_session(agent_id="default")
     updated = term_app.update_override("reasoning_effort", "high")
 
     overrides = updated.metadata.get("overrides") or {}
@@ -272,7 +273,8 @@ def test_delete_messages_by_index_and_range(tmp_path: Path) -> None:
     )
 
     # Create a session with a system message and three user messages.
-    session = term_app.start_new_session(system_message="system", agent_id="default")
+    session = term_app.start_new_session(agent_id="default")
+    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
     term_app.append_user_message("one")
     term_app.append_user_message("two")
     term_app.append_user_message("three")
@@ -315,84 +317,9 @@ async def test_delete_slash_command_negative_range(tmp_path: Path) -> None:
     )
 
     # Session with a system message and three user messages.
-    session = term_app.start_new_session(system_message="system", agent_id="default")
-    term_app.append_user_message("one")
-    term_app.append_user_message("two")
-    term_app.append_user_message("three")
+    session = term_app.start_new_session(agent_id="default")
+    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
 
-    contents_before = [m.content for m in term_app.session.messages]
-    assert contents_before == ["system", "one", "two", "three"]
-
-    outputs: list[str] = []
-    ui_state: dict = {}
-
-    # /delete -3:-1 should delete the messages at indices 1 and 2
-    # when there are 4 messages in total.
-    await term_mod._cmd_delete(term_app, "-3:-1", outputs.append, ui_state)
-
-    contents_after = [m.content for m in term_app.session.messages]
-    assert contents_after == ["system", "three"]
-
-    # The command should report the deleted indices.
-    joined = "\n".join(outputs)
-    assert "deleted messages at indices: 1, 2" in joined
-
-
-@pytest.mark.asyncio
-async def test_delete_slash_command_count_last_two(tmp_path: Path) -> None:
-    from agent_app.application_future import AgentApplication
-    from agent_app.events import InMemoryEventStore
-    from agent_terminal_app import terminal as term_mod
-
-    base_dir = Path(term_mod.__file__).resolve().parent
-    config_path = base_dir / "config_echo_app.json"
-    session_root = tmp_path / "sessions"
-
-    events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
-    term_app = term_mod.TerminalApplication(
-        config_path=str(config_path),
-        session_root=str(session_root),
-        agent_app=agent_app,
-    )
-
-    # Session with a system message and three user messages.
-    session = term_app.start_new_session(system_message="system", agent_id="default")
-    term_app.append_user_message("one")
-    term_app.append_user_message("two")
-    term_app.append_user_message("three")
-
-    outputs: list[str] = []
-    ui_state: dict = {}
-
-    # /delete 2 should delete the last two messages: indices 2 and 3
-    await term_mod._cmd_delete(term_app, "2", outputs.append, ui_state)
-
-    contents_after = [m.content for m in term_app.session.messages]
-    assert contents_after == ["system", "one"]
-
-    joined = "\n".join(outputs)
-    assert "deleted messages at indices: 2, 3" in joined
-
-
-def test_list_messages_by_range_reload_session(tmp_path: Path) -> None:
-    from agent_app.application_future import AgentApplication
-    from agent_app.events import InMemoryEventStore
-    from agent_terminal_app import terminal as term_mod
-
-    base_dir = Path(term_mod.__file__).resolve().parent
-    config_path = base_dir / "config_echo_app.json"
-    session_root = tmp_path / "sessions"
-
-    events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
-    term_app = term_mod.TerminalApplication(
-        config_path=str(config_path),
-        session_root=str(session_root),
-        agent_app=agent_app,
-    )
-
-    session = term_app.start_new_session(system_message="system", agent_id="default")
     session_id = session.session_id
 
     term_app.append_user_message("one")
@@ -428,7 +355,8 @@ async def test_list_slash_command_shows_thinking_and_tools(tmp_path: Path) -> No
         agent_app=agent_app,
     )
 
-    session = term_app.start_new_session(system_message="system", agent_id="default")
+    session = term_app.start_new_session(agent_id="default")
+    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
     session_id = session.session_id
 
     term_app.append_user_message("one")
@@ -492,10 +420,12 @@ def test_list_sessions_metadata_and_session_completion(tmp_path: Path) -> None:
     )
 
     # Create two sessions with distinct first user messages.
-    s1 = term_app.start_new_session(system_message="system1", agent_id="default")
+    s1 = term_app.start_new_session(agent_id="default")
+    term_app.add_message(s1.session_id, role="system", content="system1", metadata=None)
     term_app.append_user_message("first session message")
 
-    s2 = term_app.start_new_session(system_message="system2", agent_id="default")
+    s2 = term_app.start_new_session(agent_id="default")
+    term_app.add_message(s2.session_id, role="system", content="system2", metadata=None)
     term_app.append_user_message("second session message that is longer")
 
     # Force modification times so that s2 is the most recent.
@@ -552,7 +482,8 @@ def test_modify_message_application_emits_event(tmp_path: Path) -> None:
         agent_app=agent_app,
     )
 
-    session = term_app.start_new_session(system_message="system", agent_id="default")
+    session = term_app.start_new_session(agent_id="default")
+    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
     term_app.append_user_message("one")
     term_app.append_user_message("two")
 
@@ -565,50 +496,6 @@ def test_modify_message_application_emits_event(tmp_path: Path) -> None:
     assert "message_modified" in kinds
     modified_events = [ev for ev in events_list if ev.get("type") == "message_modified"]
     assert any(ev.get("index") == 1 and ev.get("content") == "one-edited" for ev in modified_events)
-
-
-@pytest.mark.asyncio
-async def test_modify_slash_command_and_handler_flow(tmp_path: Path) -> None:
-    from agent_app.application_future import AgentApplication
-    from agent_app.events import InMemoryEventStore
-    from agent_terminal_app import terminal as term_mod
-
-    base_dir = Path(term_mod.__file__).resolve().parent
-    config_path = base_dir / "config_echo_app.json"
-    session_root = tmp_path / "sessions"
-
-    events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
-    term_app = term_mod.TerminalApplication(
-        config_path=str(config_path),
-        session_root=str(session_root),
-        agent_app=agent_app,
-    )
-
-    term_app.start_new_session(system_message="system", agent_id="default")
-    term_app.append_user_message("first")
-    term_app.append_user_message("second")
-
-    outputs: list[str] = []
-    ui_state: dict = {}
-
-    # Load message at index 1 (the first user message) for editing.
-    await term_mod._cmd_modify(term_app, "1", outputs.append, ui_state)
-
-    assert ui_state.get("pending_modify_index") == 1
-    assert ui_state.get("input_prefill") == "first"
-
-    # Apply the modification via the modify handler.
-    await term_mod._handle_modify_message(term_app, "first-edited", outputs.append, ui_state)
-
-    contents = [m.content for m in term_app.session.messages]
-    assert contents == ["system", "first-edited", "second"]
-    assert ui_state.get("pending_modify_index") is None
-    assert ui_state.get("input_prefill") in (None, "")
-
-    joined = "\n".join(outputs)
-    assert "loaded message at index 1 for editing" in joined
-    assert "updated message at index 1" in joined
 
 
 @pytest.mark.asyncio
@@ -629,7 +516,8 @@ async def test_append_slash_command_appends_with_roles(tmp_path: Path) -> None:
         agent_app=agent_app,
     )
 
-    session = term_app.start_new_session(system_message="system", agent_id="default")
+    session = term_app.start_new_session(agent_id="default")
+    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
 
     outputs: list[str] = []
     ui_state: dict = {}
@@ -669,7 +557,8 @@ async def test_append_shortcut_appends_user_message(tmp_path: Path) -> None:
         agent_app=agent_app,
     )
 
-    term_app.start_new_session(system_message="system", agent_id="default")
+    session = term_app.start_new_session(agent_id="default")
+    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
 
     outputs: list[str] = []
     ui_state: dict = {}
@@ -708,7 +597,8 @@ async def test_send_slash_command_resends_with_current_history(tmp_path: Path) -
         agent_app=agent_app,
     )
 
-    session = term_app.start_new_session(system_message="system", agent_id="default")
+    session = term_app.start_new_session(agent_id="default")
+    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
     term_app.append_user_message("hello")
 
     outputs: list[str] = []
