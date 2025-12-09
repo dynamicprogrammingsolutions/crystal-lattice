@@ -102,8 +102,12 @@ def test_slash_command_completer_basic() -> None:
     # Non-slash input should not offer completions.
     assert _collect_completion_texts(completer, "hello") == set()
 
-    # After a space (arguments), no completion is offered for commands
-    # without argument completers.
+    # Subcommand completion for /help.
+    help_subs = _collect_completion_texts(completer, "/help ")
+    assert "config" in help_subs
+
+    # After a space plus additional text, no completion is offered for
+    # unknown subcommands.
     assert _collect_completion_texts(completer, "/help more") == set()
 
 
@@ -165,6 +169,41 @@ def test_set_completion() -> None:
     val_texts = _collect_completion_texts(completer, "/set reasoning_effort h")
     assert "high" in val_texts
     assert "low" not in val_texts
+
+
+def test_plugins_completion_subcommands_and_ids() -> None:
+    from agent_terminal_app import terminal as term_mod
+
+    class _DummyApp:
+        def list_plugins_for_session(self) -> list[dict]:
+            return [
+                {
+                    "kind": "providers",
+                    "id": "echo_openai_like",
+                    "enabled": True,
+                    "source": "implicit",
+                },
+                {
+                    "kind": "extensions",
+                    "id": "delay_extension",
+                    "enabled": True,
+                    "source": "implicit",
+                },
+            ]
+
+    app = _DummyApp()
+    completer = term_mod.SlashCommandCompleter(lambda: app)  # type: ignore[arg-type]
+
+    # Subcommand completion
+    sub_texts = _collect_completion_texts(completer, "/plugins o")
+    assert "on" in sub_texts
+    assert "off" in sub_texts
+    assert "reset" not in sub_texts
+
+    # Plugin id completion after a subcommand
+    id_texts = _collect_completion_texts(completer, "/plugins on d")
+    assert "delay_extension" in id_texts
+    assert "echo_openai_like" not in id_texts
 
 
 def test_switch_session_agent_application_logic(tmp_path: Path) -> None:
@@ -615,3 +654,249 @@ async def test_send_slash_command_resends_with_current_history(tmp_path: Path) -
 
     joined = "\n".join(outputs)
     assert "[send] request started for current session" in joined
+
+
+def test_list_plugins_for_session_implicit_defaults(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    session = term_app.start_new_session(agent_id="default")
+
+    plugins = term_app.list_plugins_for_session()
+    ids_by_kind: dict[str, list[str]] = {}
+    sources: set[str] = set()
+    for entry in plugins:
+        kind = entry["kind"]
+        pid = entry["id"]
+        ids_by_kind.setdefault(kind, []).append(pid)
+        assert entry["enabled"] is True
+        sources.add(entry["source"])
+
+    # config_echo_app.json registers one provider and two extensions.
+    assert ids_by_kind["providers"] == ["echo_openai_like"]
+    assert ids_by_kind["extensions"] == [
+        "delay_extension",
+        "random_failure_extension",
+    ]
+    assert "features" not in ids_by_kind or ids_by_kind["features"] == []
+    assert "tools" not in ids_by_kind or ids_by_kind["tools"] == []
+
+    # With no explicit agent or session plugin list, the effective
+    # enabled set is implicit and all plugins are enabled.
+    assert sources == {"implicit"}
+    assert "plugins" not in (session.metadata or {})
+
+
+def test_set_session_plugins_persists_and_reloads_core(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    session = term_app.start_new_session(agent_id="default")
+    session_id = session.session_id
+
+    # Restrict the session to the provider plugin only.
+    updated = term_app.set_session_plugins(["echo_openai_like"])
+    assert updated.session_id == session_id
+    md = updated.metadata or {}
+    assert md.get("plugins") == ["echo_openai_like"]
+
+    # Persisted session in the AgentApplication should see the same list.
+    ctx = agent_app.load_session(session_id)
+    assert ctx is not None
+    _core2, _base_config2, persisted = ctx
+    assert (persisted.metadata or {}).get("plugins") == ["echo_openai_like"]
+
+    # The core attached to the terminal application should now have a
+    # provider with no extensions attached.
+    core, _base_config, active_session = term_app.require_session()
+    assert active_session.session_id == session_id
+
+    providers = getattr(core, "_providers")
+    assert len(providers) == 1
+    provider_wrapper = providers[0]
+    assert provider_wrapper.name == "echo_openai_like"
+    assert provider_wrapper.extensions == []
+
+    # list_plugins_for_session should now report only the provider as
+    # enabled, with a "session" source; extensions are disabled.
+    entries = term_app.list_plugins_for_session()
+    by_id = {entry["id"]: entry for entry in entries}
+    assert by_id["echo_openai_like"]["enabled"] is True
+    assert by_id["echo_openai_like"]["source"] == "session"
+    assert by_id["delay_extension"]["enabled"] is False
+    assert by_id["delay_extension"]["source"] == "session"
+    assert by_id["random_failure_extension"]["enabled"] is False
+    assert by_id["random_failure_extension"]["source"] == "session"
+
+
+def test_clear_session_plugins_reverts_to_implicit_defaults(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    session = term_app.start_new_session(agent_id="default")
+    session_id = session.session_id
+
+    # First, set an explicit plugin list so metadata contains "plugins".
+    _ = term_app.set_session_plugins(["echo_openai_like"])
+
+    cleared = term_app.clear_session_plugins()
+    assert cleared.session_id == session_id
+    md_cleared = cleared.metadata or {}
+    assert "plugins" not in md_cleared
+
+    # The persisted session should no longer have a "plugins" key.
+    ctx = agent_app.load_session(session_id)
+    assert ctx is not None
+    _core2, _base_config2, persisted = ctx
+    assert "plugins" not in (persisted.metadata or {})
+
+    # The reloaded core should again have both extensions attached to
+    # the single provider.
+    core, _base_config, active_session = term_app.require_session()
+    assert active_session.session_id == session_id
+
+    providers = getattr(core, "_providers")
+    assert len(providers) == 1
+    provider_wrapper = providers[0]
+    ext_names = [ext.name for ext in provider_wrapper.extensions]
+    assert sorted(ext_names) == ["delay_extension", "random_failure_extension"]
+
+    # list_plugins_for_session should report all plugins enabled with an
+    # implicit source, matching the initial default behaviour.
+    entries = term_app.list_plugins_for_session()
+    assert all(entry["enabled"] for entry in entries)
+    assert {entry["source"] for entry in entries} == {"implicit"}
+
+
+@pytest.mark.asyncio
+async def test_plugins_slash_command_lists_and_toggles(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    session = term_app.start_new_session(agent_id="default")
+    session_id = session.session_id
+
+    outputs: list[str] = []
+    ui_state: dict = {}
+
+    # Initial listing should show provider and both extensions and
+    # populate plugins_last_list in ui_state.
+    await term_mod._cmd_plugins(term_app, "", outputs.append, ui_state)
+    joined = "\n".join(outputs)
+    assert "echo_openai_like" in joined
+    assert "delay_extension" in joined
+    assert "random_failure_extension" in joined
+
+    last_list = ui_state.get("plugins_last_list")
+    assert isinstance(last_list, list)
+    assert [entry["id"] for entry in last_list] == [
+        "echo_openai_like",
+        "delay_extension",
+        "random_failure_extension",
+    ]
+
+    # Disable the first extension by index.
+    outputs.clear()
+    await term_mod._cmd_plugins(term_app, "off 2", outputs.append, ui_state)
+
+    # Session metadata should now contain a plugins list with the
+    # provider and the remaining extension enabled.
+    md = term_app.session.metadata or {}
+    assert md.get("plugins") == ["echo_openai_like", "random_failure_extension"]
+
+    core, _base_config, active_session = term_app.require_session()
+    assert active_session.session_id == session_id
+
+    providers = getattr(core, "_providers")
+    assert len(providers) == 1
+    provider_wrapper = providers[0]
+    assert provider_wrapper.name == "echo_openai_like"
+    ext_names = [ext.name for ext in provider_wrapper.extensions]
+    assert ext_names == ["random_failure_extension"]
+
+    # Disable the remaining extension by id.
+    outputs.clear()
+    await term_mod._cmd_plugins(
+        term_app,
+        "off random_failure_extension",
+        outputs.append,
+        ui_state,
+    )
+
+    md2 = term_app.session.metadata or {}
+    assert md2.get("plugins") == ["echo_openai_like"]
+
+    core_after_off, _base_config_after_off, active_session_after_off = term_app.require_session()
+    assert active_session_after_off.session_id == session_id
+    providers_after_off = getattr(core_after_off, "_providers")
+    assert len(providers_after_off) == 1
+    provider_wrapper_after_off = providers_after_off[0]
+    assert provider_wrapper_after_off.extensions == []
+
+    # Reset should clear session-specific overrides and restore
+    # extensions.
+    outputs.clear()
+    await term_mod._cmd_plugins(term_app, "reset", outputs.append, ui_state)
+
+    md_cleared = term_app.session.metadata or {}
+    assert "plugins" not in md_cleared
+
+    core2, _base_config2, active_session2 = term_app.require_session()
+    assert active_session2.session_id == session_id
+    providers2 = getattr(core2, "_providers")
+    assert len(providers2) == 1
+    provider_wrapper2 = providers2[0]
+    ext_names2 = [ext.name for ext in provider_wrapper2.extensions]
+    assert sorted(ext_names2) == ["delay_extension", "random_failure_extension"]

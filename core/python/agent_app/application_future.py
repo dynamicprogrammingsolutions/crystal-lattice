@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple
 import uuid
 
 from agent_core import AgentCore, MessageRole, Session
@@ -74,6 +74,17 @@ class AgentApplication:
         self._plugin_classes: Dict[str, List[type[Any]]] = plugin_classes
         self._config_errors.extend(plugin_errors)
 
+        # Build a catalog of plugins keyed by kind and plugin id (name attribute).
+        self._plugins_by_kind_and_id: Dict[str, Dict[str, type[Any]]] = {}
+        for kind, classes in self._plugin_classes.items():
+            kind_mapping: Dict[str, type[Any]] = {}
+            for plugin_cls in classes or []:
+                plugin_id = self._plugin_id_for_class(plugin_cls)
+                # First registration for a given id wins to preserve config order.
+                if plugin_id not in kind_mapping:
+                    kind_mapping[plugin_id] = plugin_cls
+            self._plugins_by_kind_and_id[kind] = kind_mapping
+
         # Manual registration from config: providers with shared extensions,
         # then features and tools. This mirrors ``application.AgentApplication``
         # so the two versions can be compared easily.
@@ -92,8 +103,17 @@ class AgentApplication:
         # Cache per-agent base configs to avoid recomputing on every call.
         agents = resolved_config.get("agents") or {}
         self._agent_base_configs: Dict[str, Dict[str, Any]] = {}
-        for agent_id in agents.keys():
+        self._agent_plugin_ids: Dict[str, Optional[List[str]]] = {}
+        for agent_id, agent_cfg in agents.items():
             self._agent_base_configs[agent_id] = build_agent_config(resolved_config, agent_id)
+            raw_plugins = agent_cfg.get("plugins") if isinstance(agent_cfg, dict) else None
+            if isinstance(raw_plugins, list):
+                self._agent_plugin_ids[agent_id] = [
+                    p for p in raw_plugins if isinstance(p, str)
+                ]
+            else:
+                # None means "all plugins enabled" for this agent.
+                self._agent_plugin_ids[agent_id] = None
 
     # ------------------------------------------------------------------
     # Helper methods (kept in the same order as application.AgentApplication)
@@ -109,6 +129,63 @@ class AgentApplication:
             self._agent_base_configs[agent_id] = cfg
         return cfg
 
+    def _plugin_id_for_class(self, plugin_class: type[Any]) -> str:
+        """Return the stable plugin id for a plugin class.
+
+        Uses the class-level ``name`` attribute when present, falling back
+        to the class name. This matches the identity used by the core and
+        the terminal application.
+        """
+
+        plugin_id = getattr(plugin_class, "name", None)
+        if not isinstance(plugin_id, str) or not plugin_id:
+            plugin_id = plugin_class.__name__
+        return plugin_id
+
+    def _build_core_with_enabled_ids(
+        self,
+        enabled_ids: Optional[List[str]],
+    ) -> AgentCore:
+        """Construct a fresh AgentCore with only selected plugins enabled.
+
+        When ``enabled_ids`` is ``None``, all available plugins are
+        registered. Unknown plugin ids are ignored.
+
+        Raises:
+            RuntimeError: If no provider plugins are enabled.
+        """
+
+        core = self._core_factory()
+
+        enabled_set: Optional[Set[str]]
+        if enabled_ids is None:
+            enabled_set = None
+        else:
+            enabled_set = {p for p in enabled_ids if isinstance(p, str)}
+
+        def _filter_plugins(kind: str) -> List[type[Any]]:
+            all_for_kind = self._plugins_by_kind_and_id.get(kind, {})
+            if enabled_set is None:
+                return list(all_for_kind.values())
+            return [cls for pid, cls in all_for_kind.items() if pid in enabled_set]
+
+        enabled_providers = _filter_plugins("providers")
+        if not enabled_providers:
+            raise RuntimeError("No provider plugins enabled")
+
+        enabled_extensions = _filter_plugins("extensions")
+        enabled_features = _filter_plugins("features")
+        enabled_tools = _filter_plugins("tools")
+
+        for provider_cls in enabled_providers:
+            core.register_provider(provider_cls, extensions=enabled_extensions)
+        for feature_cls in enabled_features:
+            core.register_feature(feature_cls)
+        for tool_cls in enabled_tools:
+            core.register_tool(tool_cls)
+
+        return core
+
     def _new_core(self) -> AgentCore:
         """Construct a fresh :class:`AgentCore` instance with all plugins.
 
@@ -117,15 +194,7 @@ class AgentApplication:
         this module.
         """
 
-        core = self._core_factory()
-        provider_exts = self._plugin_classes.get("extensions") or []
-        for provider_cls in self._plugin_classes.get("providers") or []:
-            core.register_provider(provider_cls, extensions=provider_exts)
-        for feature_cls in self._plugin_classes.get("features") or []:
-            core.register_feature(feature_cls)
-        for tool_cls in self._plugin_classes.get("tools") or []:
-            core.register_tool(tool_cls)
-        return core
+        return self._build_core_with_enabled_ids(None)
 
     def _load_session_required(self, session_id: str) -> Session:
         session = self._session_store.load(session_id)
@@ -224,6 +293,43 @@ class AgentApplication:
 
         return sorted(self._agent_base_configs.keys())
 
+    def get_agent_plugins(self, agent_id: str) -> Optional[List[str]]:
+        """Return the configured plugin id list for an agent.
+
+        Returns a copy of the configured list, or ``None`` to indicate
+        that all plugins are enabled for this agent.
+        """
+
+        if not isinstance(agent_id, str) or not agent_id:
+            raise ValueError("agent_id must be a non-empty string")
+        if agent_id not in self._agent_base_configs:
+            raise KeyError(f"Unknown agent_id {agent_id!r}")
+
+        value = self._agent_plugin_ids.get(agent_id)
+        return list(value) if value is not None else None
+
+    def list_plugins(self) -> List[Dict[str, Any]]:
+        """Return metadata for all available plugins.
+
+        Entries are ordered by kind and then by configuration order.
+        """
+
+        result: List[Dict[str, Any]] = []
+        for kind in ("providers", "extensions", "features", "tools"):
+            for plugin_class in self._plugin_classes.get(kind) or []:
+                plugin_id = self._plugin_id_for_class(plugin_class)
+                entry: Dict[str, Any] = {
+                    "kind": kind,
+                    "id": plugin_id,
+                    "class_path": f"{plugin_class.__module__}.{plugin_class.__qualname__}",
+                    "class_name": plugin_class.__name__,
+                }
+                name_attr = getattr(plugin_class, "name", None)
+                if isinstance(name_attr, str) and name_attr:
+                    entry["name"] = name_attr
+                result.append(entry)
+        return result
+
     def load_session(
         self, session_id: str
     ) -> Optional[Tuple[AgentCore, Dict[str, Any], Session]]:
@@ -246,7 +352,15 @@ class AgentApplication:
             raise RuntimeError("session.metadata must contain non-empty 'agent_id'")
 
         base_cfg = self._get_agent_base_config(agent_id)
-        core = self._new_core()
+
+        plugins_from_session = metadata.get("plugins")
+        if isinstance(plugins_from_session, list):
+            enabled_ids = [p for p in plugins_from_session if isinstance(p, str)]
+        else:
+            enabled_ids = self._agent_plugin_ids.get(agent_id)
+
+        # TODO: Instead of bulding a new core, add the enabled_ids to the config
+        core = self._build_core_with_enabled_ids(enabled_ids)
         return core, base_cfg, session
 
     def save_session(self, session: Session) -> None:
@@ -271,7 +385,8 @@ class AgentApplication:
             raise ValueError("agent_id must be a non-empty string")
 
         base_cfg = self._get_agent_base_config(agent_id)
-        core = self._new_core()
+        enabled_ids = self._agent_plugin_ids.get(agent_id)
+        core = self._build_core_with_enabled_ids(enabled_ids)
 
         base = core.create_session()
         session = Session(

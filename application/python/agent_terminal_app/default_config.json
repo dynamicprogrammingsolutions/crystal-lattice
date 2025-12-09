@@ -1,0 +1,45 @@
+{
+  "providers": {
+    "openrouter_tools": {
+      "provider": "openrouter",
+      "model": "openai/gpt-5.1",
+      "api_key": "${env:OPENROUTER_API_KEY}",
+      "base_url": "https://openrouter.ai/api/v1",
+      "timeout": 300,
+      "allowed_paths": ["."],
+      "max_file_size": 5242880,
+      "working_directory": ".",
+      "enable_reasoning": true,
+      "reasoning_effort": "medium",
+      "system_message_enabled": true,
+      "system_message": "You are a helpful coding assistant. Respond concisely."
+    }
+  },
+  "plugins": {
+    "providers": ["plugins.openrouter_provider.OpenRouterProvider"],
+    "extensions": [
+      "plugins.openrouter_reasoning_extension.OpenRouterReasoningExtension",
+      "plugins.openrouter_tools_extension.OpenRouterToolsExtension",
+      "plugins.delay_extension.DelayExtension",
+      "plugins.random_failure_extension.RandomFailureExtension"
+    ],
+    "features": ["plugins.system_message_feature.SystemMessageFeature"],
+    "tools": [
+      "plugins.shell_tool.ShellTool",
+      "plugins.apply_patch_tool.ApplyPatchTool"
+    ]
+  },
+  "agents": {
+    "default": {
+      "provider": "openrouter_tools",
+      "enable_delay_extension": false,
+      "delay_seconds": 10,
+      "enable_random_failure": false,
+      "random_failure_every": 3
+    },
+    "reasoning": {
+      "provider": "openrouter_tools",
+      "reasoning_effort": "medium"
+    }
+  }
+}

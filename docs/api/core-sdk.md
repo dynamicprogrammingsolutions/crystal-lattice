@@ -311,15 +311,22 @@ async for chunk in core.send_request_stream_async(session, config):
 get_config_schema() -> Dict[str, Any]
 ```
 
-Get combined config schema from all registered plugins.
+Get flattened config schema from all registered plugins.
+
+Each plugin contributes its config keys to a shared flat
+mapping. Every entry includes a `plugin` field indicating the
+source plugin.
 
 **Returns:**
-- `dict`: Mapping of plugin names to their config schemas
+- `dict`: Mapping from config key to its schema, including `plugin`
 
 **Example:**
 ```python
 schema = core.get_config_schema()
-# {"openai": {...}, "web_search": {...}}
+# {
+#   "model": {"type": "string", "required": True, "plugin": "openai"},
+#   "web_search_enabled": {"type": "boolean", "plugin": "web_search"},
+# }
 ```
 
 #### get_ui_schema
@@ -333,10 +340,13 @@ Get combined (flattened) UI schema from all registered plugins.
 Each element in the returned list is a dictionary that describes a UI
 configuration element contributed by a provider, extension, feature, or
 tool. Plugins may optionally include a `ui_type` field to classify
-elements as `"config"` (default), `"action"`, or `"info"`.
+elements as `"config"` (default), `"action"`, or `"info"`. The core
+also annotates each element with a `plugin` field (when absent) naming
+the contributing plugin.
 
 **Returns:**
-- `list[dict]`: Flattened list of UI element definitions.
+- `list[dict]`: Flattened list of UI element definitions (each with
+  `ui_type` and `plugin` where available).
 
 **Example:**
 ```python

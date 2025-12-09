@@ -4,6 +4,7 @@ import asyncio
 from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
+import sys
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from prompt_toolkit import PromptSession, print_formatted_text
@@ -237,6 +238,61 @@ def _session_completion(app: TerminalApplication, text: str) -> List[Completion]
     return completions
 
 
+def _plugins_completion(app: TerminalApplication, text: str) -> List[Completion]:
+    rest = text.lstrip()
+    completions: List[Completion] = []
+
+    # First token: subcommand
+    if " " not in rest:
+        prefix = rest
+        for sub in ["on", "off", "reset"]:
+            if not prefix or sub.startswith(prefix):
+                completions.append(
+                    Completion(
+                        sub,
+                        start_position=-len(prefix),
+                        display=sub,
+                        display_meta="subcommand",
+                    )
+                )
+        return completions
+
+    sub, _, tail = rest.partition(" ")
+    tail = tail.lstrip()
+    if sub not in {"on", "off"}:
+        return completions
+
+    prefix = tail
+    try:
+        plugins = app.list_plugins_for_session()
+    except Exception:
+        return completions
+
+    for entry in plugins:
+        pid = entry.get("id")
+        if not isinstance(pid, str) or not pid:
+            continue
+        if prefix and not pid.startswith(prefix):
+            continue
+        kind = entry.get("kind")
+        enabled = bool(entry.get("enabled"))
+        status = "on" if enabled else "off"
+        meta_parts: List[str] = []
+        if isinstance(kind, str) and kind:
+            meta_parts.append(kind)
+        meta_parts.append(status)
+        meta = " ".join(meta_parts)
+        completions.append(
+            Completion(
+                pid,
+                start_position=-len(prefix),
+                display=pid,
+                display_meta=meta,
+            )
+        )
+    return completions
+
+
 @slash_command("agent", "Switch the active agent for this session", completer=_agent_completion)
 async def _cmd_agent(
     app: TerminalApplication,
@@ -352,13 +408,120 @@ async def _cmd_session(
     write("[session] Enter session id or number (empty to cancel):")
 
 
-@slash_command("help", "Show commands and shortcuts")
+def _help_completion(app: TerminalApplication, text: str) -> List[Completion]:
+    rest = text.lstrip()
+    prefix = rest
+    # Only complete a single token after /help
+    if " " in rest:
+        return []
+
+    completions: List[Completion] = []
+    sub = "config"
+    if not prefix or sub.startswith(prefix):
+        completions.append(
+            Completion(
+                sub,
+                start_position=-len(prefix),
+                display=sub,
+                display_meta="subcommand",
+            )
+        )
+    return completions
+
+
+@slash_command("help", "Show commands and shortcuts", completer=_help_completion)
 async def _cmd_help(
+
     app: TerminalApplication,
     arg: str,
     write: Callable[[str], None],
     ui_state: Dict[str, Any],
 ) -> None:
+    text = (arg or "").strip()
+
+    if text == "config":
+        # Show top-level config keys for the currently enabled plugins.
+        try:
+            core, _base_config, _session = app.require_session()
+        except Exception as exc:
+            write(f"[help config] no active session: {exc}")
+            return
+
+        try:
+            schema = core.get_config_schema()
+        except Exception as exc:
+            write(f"[help config] failed to get config schema: {exc}")
+            return
+
+        if not isinstance(schema, dict) or not schema:
+            write("[help config] no config keys available for current plugins")
+        else:
+            write("\n[help] Config keys for enabled plugins:")
+            for key in sorted(schema.keys()):
+                entry = schema.get(key) or {}
+                if not isinstance(entry, dict):
+                    continue
+                plugin_name_val = entry.get("plugin")
+                plugin_name = (
+                    plugin_name_val
+                    if isinstance(plugin_name_val, str) and plugin_name_val
+                    else "unknown"
+                )
+                desc_val = entry.get("description")
+                description = desc_val if isinstance(desc_val, str) else ""
+ 
+                # Formatting: key in bold yellow, [plugin] in blue, description in gray.
+                key_str = f"\x1b[1;33m{key}\x1b[0m"
+                plugin_str = f"\x1b[34m[{plugin_name}]\x1b[0m"
+                if description:
+                    desc_str = f"\x1b[90m{description}\x1b[0m"
+                    write(f"  {key_str} {plugin_str} {desc_str}")
+                else:
+                    write(f"  {key_str} {plugin_str}")
+ 
+        # Also show configurable settings exposed via /set (UI schema).
+        try:
+            ui_elements = app.session_ui_elements()
+        except Exception as exc:  # pragma: no cover - defensive
+            write(f"[help config] failed to get UI schema: {exc}")
+            write("")
+            return
+ 
+        if not ui_elements:
+            write("\n[help] No configurable settings available via /set for this session")
+            write("")
+            return
+ 
+        write("\n[help] Configurable settings (via /set):")
+        for el in ui_elements:
+            key_val = el.get("key")
+            if not isinstance(key_val, str) or not key_val:
+                continue
+            plugin_name_val = el.get("plugin")
+            plugin_name = (
+                plugin_name_val
+                if isinstance(plugin_name_val, str) and plugin_name_val
+                else "unknown"
+            )
+            label_val = el.get("label")
+            desc_val = el.get("description")
+            info = (
+                label_val
+                if isinstance(label_val, str) and label_val
+                else (desc_val if isinstance(desc_val, str) else "")
+            )
+ 
+            key_str = f"\x1b[1;33m{key_val}\x1b[0m"
+            plugin_str = f"\x1b[34m[{plugin_name}]\x1b[0m"
+            if info:
+                info_str = f"\x1b[90m{info}\x1b[0m"
+                write(f"  {key_str} {plugin_str} {info_str}")
+            else:
+                write(f"  {key_str} {plugin_str}")
+        write("")
+        return
+
+
     write("\nCommands:")
     for cmd in iter_slash_commands():
         write(f"  /{cmd.name:10s} - {cmd.description}")
@@ -591,6 +754,163 @@ async def _cmd_set(
         return
 
     write(f"[set] {key}={coerced!r} saved for this session")
+
+
+@slash_command("plugins", "List or toggle plugins for this session", completer=_plugins_completion)
+async def _cmd_plugins(
+    app: TerminalApplication,
+    arg: str,
+    write: Callable[[str], None],
+    ui_state: Dict[str, Any],
+) -> None:
+    text = (arg or "").strip()
+
+    if not text:
+        try:
+            entries = app.list_plugins_for_session()
+        except Exception as exc:  # pragma: no cover - defensive
+            write(f"[plugins] failed to list plugins: {exc}")
+            return
+
+        if not entries:
+            write("[plugins] no plugins configured")
+            ui_state["plugins_last_list"] = []
+            return
+
+        ui_state["plugins_last_list"] = entries
+
+        write("[plugins] Active plugin configuration for this session:")
+        kind_labels = {
+            "providers": "provider",
+            "extensions": "extension",
+            "features": "feature",
+            "tools": "tool",
+        }
+        for index, entry in enumerate(entries, 1):
+            enabled = bool(entry.get("enabled"))
+            status = "on " if enabled else "off"
+            raw_kind = entry.get("kind")
+            kind = raw_kind if isinstance(raw_kind, str) else ""
+            display_kind = kind_labels.get(kind, kind or "-")
+            pid = entry.get("id") if isinstance(entry.get("id"), str) else ""
+            write(f"  {index}. [{status:3s}] {display_kind:<9s} {pid}")
+        return
+
+    # Subcommands: on, off, reset
+    parts = text.split(None, 1)
+    sub = parts[0]
+    rest = parts[1] if len(parts) > 1 else ""
+
+    if sub == "reset":
+        try:
+            app.clear_session_plugins()
+        except Exception as exc:  # pragma: no cover - defensive
+            write(f"[plugins] failed to clear plugin overrides: {exc}")
+            return
+        write("[plugins] cleared session-specific plugin overrides; using defaults again")
+        try:
+            ui_state["plugins_last_list"] = app.list_plugins_for_session()
+        except Exception:
+            ui_state["plugins_last_list"] = []
+        return
+
+    if sub not in {"on", "off"}:
+        write("[plugins] usage: /plugins [on|off|reset] <id-or-index>")
+        return
+
+    target = rest.strip()
+    if not target:
+        write(f"[plugins] usage: /plugins {sub} <id-or-index>")
+        return
+
+    entries = ui_state.get("plugins_last_list")
+    if not isinstance(entries, list) or not entries:
+        try:
+            entries = app.list_plugins_for_session()
+        except Exception as exc:  # pragma: no cover - defensive
+            write(f"[plugins] failed to list plugins: {exc}")
+            return
+    ui_state["plugins_last_list"] = entries
+
+    def _resolve_plugin_id(token: str, items: List[Dict[str, Any]]) -> Optional[str]:
+        if token.isdigit():
+            index = int(token)
+            if 1 <= index <= len(items):
+                pid = items[index - 1].get("id")
+                if isinstance(pid, str) and pid:
+                    return pid
+        for entry in items:
+            pid = entry.get("id")
+            if isinstance(pid, str) and pid == token:
+                return pid
+        name_matches: List[Dict[str, Any]] = [
+            entry
+            for entry in items
+            if isinstance(entry.get("name"), str) and entry["name"] == token
+        ]
+        if len(name_matches) == 1:
+            pid = name_matches[0].get("id")
+            if isinstance(pid, str) and pid:
+                return pid
+        return None
+
+    plugin_id = _resolve_plugin_id(target, entries)
+    if plugin_id is None:
+        write(f"[plugins] unknown plugin: {target!r}")
+        return
+
+    try:
+        session = app.session
+    except RuntimeError as exc:
+        write(f"[plugins] no active session: {exc}")
+        return
+
+    metadata = session.metadata or {}
+    plugins_from_session = metadata.get("plugins")
+    if isinstance(plugins_from_session, list):
+        enabled_ids = [p for p in plugins_from_session if isinstance(p, str)]
+    else:
+        agent_val = metadata.get("agent_id")
+        agent_id = agent_val if isinstance(agent_val, str) and agent_val else "default"
+        try:
+            default_ids = app.agent_app.get_agent_plugins(agent_id)
+        except Exception:  # pragma: no cover - defensive
+            default_ids = None
+        if default_ids is None:
+            enabled_ids = [
+                entry.get("id")
+                for entry in entries
+                if isinstance(entry.get("id"), str) and entry.get("id")
+            ]
+        else:
+            enabled_ids = [p for p in default_ids if isinstance(p, str)]
+
+    if sub == "on":
+        if plugin_id not in enabled_ids:
+            enabled_ids.append(plugin_id)
+    else:
+        enabled_ids = [p for p in enabled_ids if p != plugin_id]
+
+    provider_ids = [
+        entry.get("id")
+        for entry in entries
+        if entry.get("kind") == "providers" and isinstance(entry.get("id"), str) and entry.get("id")
+    ]
+    if sub == "off" and not any(pid in enabled_ids for pid in provider_ids):
+        write("[plugins] warning: no providers will remain enabled after this change")
+
+    try:
+        app.set_session_plugins(enabled_ids)
+    except Exception as exc:  # pragma: no cover - defensive
+        write(f"[plugins] failed to update plugins: {exc}")
+        return
+
+    action = "enabled" if sub == "on" else "disabled"
+    write(f"[plugins] {action} plugin {plugin_id!r} for this session")
+    try:
+        ui_state["plugins_last_list"] = app.list_plugins_for_session()
+    except Exception:
+        ui_state["plugins_last_list"] = entries
 
 
 @slash_command("send", "Send a request with the current history")
@@ -985,14 +1305,39 @@ def _build_key_bindings(
 
     return kb
 
+def _set_terminal_title(title: str) -> None:
+    """Best-effort update of the terminal window title.
+
+    On POSIX terminals, use a standard ANSI escape sequence.
+    On Windows, fall back to the ``title`` console command.
+    Failures are silently ignored so that unsupported terminals
+    are unaffected.
+    """
+    print(f"Setting terminal title to: {title}")
+    try:
+        # Windows consoles (cmd/PowerShell) don't reliably support the
+        # xterm title escape, but they do support the "title" command.
+        if sys.platform.startswith("win"):
+            import os
+
+            os.system(f"title {title}")
+        else:
+            sys.stdout.write(f"\x1B]0;{title}\x07")
+            sys.stdout.flush()
+    except Exception:
+        # Never let title handling break startup.
+        pass
+
 async def _run_terminal(
     app: TerminalApplication,
     logger: Optional[Logger] = None,
 ) -> None:
+    
+    
+    
     session = app.start_new_session(
         agent_id="default",
     )
-
 
     ui_state: Dict[str, Any] = {
         "running": True,
@@ -1021,6 +1366,7 @@ async def _run_terminal(
     write("Session started. Type /help for commands. Press Ctrl-Q to exit.")
 
     with patch_stdout(True):
+        _set_terminal_title("Crystal Lattice")
         while ui_state.get("running", True):
             try:
                 default_text = ui_state.get("input_prefill") or ""

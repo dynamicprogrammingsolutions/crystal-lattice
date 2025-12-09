@@ -1291,7 +1291,16 @@ class AgentCore:
         provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
             config
         )
-
+ 
+        logger.info(
+            "plugins_resolved_for_config",
+            provider=provider.name,
+            extensions=[ext.name for ext in enabled_extensions],
+            features=[feat.name for feat in features],
+            tools=[tool.name for tool in tools],
+            tags=_tags,
+        )
+ 
         provider.set_active_extensions(enabled_extensions)
         messages, native_messages, state = self._pre_request(
             session,
@@ -1301,6 +1310,7 @@ class AgentCore:
             tools,
         )
         baseline_native_len = len(native_messages)
+
 
         logger.info(
             "sending request",
@@ -1387,7 +1397,16 @@ class AgentCore:
         provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
             config
         )
-
+ 
+        logger.info(
+            "plugins_resolved_for_config",
+            provider=provider.name,
+            extensions=[ext.name for ext in enabled_extensions],
+            features=[feat.name for feat in features],
+            tools=[tool.name for tool in tools],
+            tags=_tags,
+        )
+ 
         provider.set_active_extensions(enabled_extensions)
         messages, native_messages, state = self._pre_request(
             session,
@@ -1397,6 +1416,7 @@ class AgentCore:
             tools,
         )
         baseline_native_len = len(native_messages)
+
 
         logger.debug(
             "start streaming request",
@@ -1485,7 +1505,16 @@ class AgentCore:
         provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
             config
         )
-
+ 
+        logger.info(
+            "plugins_resolved_for_config",
+            provider=provider.name,
+            extensions=[ext.name for ext in enabled_extensions],
+            features=[feat.name for feat in features],
+            tools=[tool.name for tool in tools],
+            tags=_tags,
+        )
+ 
         provider.set_active_extensions(enabled_extensions)
         messages, native_messages, state = self._pre_request(
             session,
@@ -1495,6 +1524,7 @@ class AgentCore:
             tools,
         )
         baseline_native_len = len(native_messages)
+
 
         aggregated_native_finals: List[Dict[str, Any]] = []
 
@@ -1548,26 +1578,39 @@ class AgentCore:
         yield {"type": "final", "session": new_session, "messages": final_core}
 
     def get_config_schema(self) -> Dict[str, Any]:
-        """Get combined config schema from all registered plugins.
+        """Get flattened config schema from all registered plugins.
 
         Returns:
-            Mapping from plugin name to JSON schema of its configuration. Includes provider,
-            provider extensions, features, and tools when registered.
+            Mapping from top-level config key to a JSON-schema-like
+            description. Each entry includes a ``"plugin"`` field naming
+            the contributing plugin (provider, extension, feature, or
+            tool).
         """
-        schema: Dict[str, Any] = {}
+        flat: Dict[str, Any] = {}
+
+        def _merge(schema: Dict[str, Any] | None, plugin_name: str) -> None:
+            if not schema:
+                return
+            for key, value in schema.items():
+                if not isinstance(key, str) or not key:
+                    continue
+                if not isinstance(value, dict):
+                    continue
+                entry: Dict[str, Any] = dict(value)
+                if "plugin" not in entry:
+                    entry["plugin"] = plugin_name
+                flat[key] = entry
+
         for provider in self._providers:
-            schema[provider.name] = provider.get_config_schema()
+            _merge(provider.get_config_schema(), provider.name)
             # Include provider extension schemas
-            for (
-                name,
-                ext_schema,
-            ) in provider.get_extension_config_schemas().items():
-                schema[name] = ext_schema
+            for name, ext_schema in provider.get_extension_config_schemas().items():
+                _merge(ext_schema, name)
         for feature in self._features:
-            schema[feature.name] = feature.get_config_schema()
+            _merge(feature.get_config_schema(), feature.name)
         for tool in self._tools:
-            schema[tool.name] = tool.get_config_schema()
-        return schema
+            _merge(tool.get_config_schema(), tool.name)
+        return flat
 
     def get_ui_schema(self) -> List[Dict[str, Any]]:
         """Get flattened UI schema from all registered plugins.
