@@ -601,7 +601,6 @@ class TerminalApplication:
         self._core = core
         self._base_config = base_config
         self._session = new_session
-        self._last_event_id = None
         return new_session
 
     def session_ui_elements(self) -> List[Dict[str, Any]]:
