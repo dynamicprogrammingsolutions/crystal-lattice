@@ -627,3 +627,127 @@ class TerminalApplication:
         """Legacy alias returning the available agents."""
 
         return self.available_agents()
+
+    # ------------------------------------------------------------------
+    # Plugins
+    # ------------------------------------------------------------------
+
+    def list_plugins_for_session(self) -> List[Dict[str, Any]]:
+        """Return plugin metadata with enabled state for the active session.
+
+        The result is derived from the session's ``metadata['plugins']``
+        list when present; otherwise from the agent-level default plugin
+        configuration. When neither is present, all plugins are treated
+        as enabled (implicit default).
+        """
+
+        _core, _base_config, session = self.require_session()
+        all_plugins = self._app.list_plugins()
+        metadata = session.metadata or {}
+
+        plugins_from_session = metadata.get("plugins")
+        if isinstance(plugins_from_session, list):
+            enabled_ids: Optional[set[str]] = {
+                p for p in plugins_from_session if isinstance(p, str)
+            }
+            source = "session"
+        else:
+            agent_val = metadata.get("agent_id")
+            agent_id = agent_val if isinstance(agent_val, str) and agent_val else "default"
+            default_ids = self._app.get_agent_plugins(agent_id)
+            if default_ids is None:
+                enabled_ids = None  # treat as "all enabled"
+                source = "implicit"
+            else:
+                enabled_ids = {p for p in default_ids if isinstance(p, str)}
+                source = "agent"
+
+        result: List[Dict[str, Any]] = []
+        for entry in all_plugins:
+            pid = entry.get("id")
+            if not isinstance(pid, str) or not pid:
+                continue
+
+            if enabled_ids is None:
+                enabled = True
+                src = "implicit"
+            else:
+                enabled = pid in enabled_ids
+                src = source
+
+            result.append({**entry, "enabled": enabled, "source": src})
+
+        return result
+
+    def set_session_plugins(self, enabled_ids: List[str]) -> Session:
+        """Persist an explicit list of enabled plugin ids for this session.
+
+        The provided list is normalized to unique string ids while
+        preserving order. After saving, the active core and base
+        configuration are reloaded from the underlying AgentApplication
+        so subsequent requests use the updated plugin set.
+        """
+
+        session = self.session
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+
+        seen: Dict[str, None] = {}
+        normalized: List[str] = []
+        for pid in enabled_ids:
+            if not isinstance(pid, str) or not pid:
+                continue
+            if pid in seen:
+                continue
+            seen[pid] = None
+            normalized.append(pid)
+
+        new_metadata = {**metadata, "plugins": normalized}
+
+        new_session = Session(
+            session_id=session.session_id,
+            messages=list(session.messages),
+            metadata=new_metadata,
+        )
+        self._app.save_session(new_session)
+
+        ctx = self._app.load_session(new_session.session_id)
+        if ctx is not None:
+            core, base_config, loaded_session = ctx
+            self._core = core
+            self._base_config = base_config
+            self._session = loaded_session
+            self._last_event_id = None
+
+        return self.session
+
+    def clear_session_plugins(self) -> Session:
+        """Remove any session-specific plugin overrides.
+
+        After clearing, the effective plugin set is derived from the
+        agent-level defaults (or implicit all-enabled behaviour).
+        """
+
+        session = self.session
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        if "plugins" not in metadata:
+            return session
+
+        new_metadata = dict(metadata)
+        new_metadata.pop("plugins", None)
+
+        new_session = Session(
+            session_id=session.session_id,
+            messages=list(session.messages),
+            metadata=new_metadata,
+        )
+        self._app.save_session(new_session)
+
+        ctx = self._app.load_session(new_session.session_id)
+        if ctx is not None:
+            core, base_config, loaded_session = ctx
+            self._core = core
+            self._base_config = base_config
+            self._session = loaded_session
+            self._last_event_id = None
+
+        return self.session

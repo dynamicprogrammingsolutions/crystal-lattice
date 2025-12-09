@@ -105,3 +105,21 @@ python -m agent_terminal_app --server --console --log-file combined.log
 The `--log-file` option adds a file handler to Python's root logger, so
 uvicorn and the terminal client logs are written both to stdout and to
 the given file.
+
+## Plugins
+
+The terminal client exposes per-session plugin control via `/plugins`.
+
+- `/plugins` – list all known plugins for the active session, including
+  whether they are enabled, their kind (provider/extension/feature/tool),
+  and a stable plugin id.
+- `/plugins on <id-or-index>` – enable a plugin for this session using
+  either its id (e.g. `delay_extension`) or the 1-based index from the
+  last `/plugins` listing.
+- `/plugins off <id-or-index>` – disable a plugin for this session.
+- `/plugins reset` – clear any session-specific overrides and revert to
+  the agent's default plugin configuration (or "all enabled" if no
+  defaults are configured).
+
+Changes are stored on the session (in `session.metadata["plugins"]`), so
+subsequent requests and reloads use the updated plugin set.

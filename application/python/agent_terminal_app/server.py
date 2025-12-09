@@ -5,10 +5,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 try:  # Optional convenience in local usage
     from dotenv import load_dotenv  # type: ignore[import-not-found]
-
-    load_dotenv()
 except Exception:  # pragma: no cover - optional dependency
-    pass
+    load_dotenv = None  # type: ignore[assignment]
 
 from fastapi import Depends, FastAPI, HTTPException  # type: ignore[reportMissingImports]
 

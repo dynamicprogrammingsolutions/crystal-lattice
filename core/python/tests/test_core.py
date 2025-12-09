@@ -78,7 +78,7 @@ def test_get_config_schema_empty():
 
 
 def test_get_config_schema_with_plugins():
-    """Test config schema with registered plugins."""
+    """Test flattened config schema with registered plugins."""
     core = AgentCore()
     core.register_provider(DummyProvider)
     core.register_feature(DummyFeature)
@@ -86,19 +86,13 @@ def test_get_config_schema_with_plugins():
 
     schema = core.get_config_schema()
 
-    # Check that all plugins are in schema
-    assert "dummy_provider" in schema or "DummyProvider" in schema
-    assert "dummy_feature" in schema or "DummyFeature" in schema
-    assert "dummy_calculator" in schema or "DummyCalculator" in schema
+    # Top-level keys should be config keys, not plugin names.
+    assert "model" in schema
+    assert "prefix" in schema
 
-    # Check schema structure (behavioral test)
-    provider_schema = schema.get("dummy_provider", schema.get("DummyProvider"))
-    assert provider_schema is not None
-    assert "model" in provider_schema
-
-    feature_schema = schema.get("dummy_feature", schema.get("DummyFeature"))
-    assert feature_schema is not None
-    assert "prefix" in feature_schema
+    # Each entry should include the contributing plugin name.
+    assert schema["model"].get("plugin") in {"dummy_provider", "DummyProvider"}
+    assert schema["prefix"].get("plugin") in {"dummy_feature", "DummyFeature"}
 
 
 def test_get_ui_schema_empty():
@@ -111,19 +105,21 @@ def test_get_ui_schema_empty():
 
 
 def test_get_ui_schema_with_plugins():
-    """Test UI schema with registered plugins."""
+    """Test UI schema with registered plugins and plugin annotation."""
     core = AgentCore()
     core.register_provider(DummyProvider)
     core.register_feature(DummyFeature)
-
+ 
     schema = core.get_ui_schema()
-
+ 
     assert isinstance(schema, list)
     keys = {el.get("key") for el in schema if isinstance(el, dict)}
     # DummyProvider UI exposes the "model" field; DummyFeature exposes
     # the "prefix" field.
     assert "model" in keys
     assert "prefix" in keys
+ 
+
 
 
 def test_get_tool_schemas():
