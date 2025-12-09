@@ -75,7 +75,7 @@ class TerminalApplication:
     # Session lifecycle
     # ------------------------------------------------------------------
 
-    def start_new_session(self, system_message: Optional[str] = None, agent_id: Optional[str] = None) -> Session:
+    def start_new_session(self, agent_id: Optional[str] = None) -> Session:
         """Start a new active session, replacing any previous one."""
 
         if agent_id is None and self._session is not None:
@@ -85,12 +85,7 @@ class TerminalApplication:
         elif agent_id is None:
             agent_id = "default"
 
-        core, base_config, base_session = self._app.create_session(agent_id)
-        session = base_session
-
-        if isinstance(system_message, str) and system_message:
-            session = core.add_message(session, "system", system_message)
-            self._app.save_session(session)
+        core, base_config, session = self._app.create_session(agent_id)
 
         store = self._app.get_event_store()
         store.publish(
