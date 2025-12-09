@@ -543,7 +543,7 @@ async def _cmd_new_session(
     write: Callable[[str], None],
     ui_state: Dict[str, Any],
 ) -> None:
-    session = app.start_new_session(agent_id=None)
+    session = app.start_new_session(agent_id=None, persist=False)
     app.reset_event_cursor()
     write(f"[session] switched to {session.session_id}")
 
@@ -1252,8 +1252,6 @@ async def _handle_user_message(
         app.append_user_message(text)
     except Exception:
         write("[error] session not found; starting a new one")
-        app.start_new_session(agent_id="default")
-        app.append_user_message(text)
 
     await _start_background_request(app)
 
