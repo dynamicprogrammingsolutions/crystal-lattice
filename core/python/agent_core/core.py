@@ -238,29 +238,40 @@ class AgentCore:
         except Exception:
             return _core_only_session(md), None
 
-        normalized_suffix = self._normalize_final_core_with_native_indices(
-            core_suffix,
-            suffix_native,
-            baseline_offset=base_len,
-        )
-        normalized_msg = normalized_suffix[0] if normalized_suffix else core_suffix[0]
-        new_md = dict(normalized_msg.get("metadata") or {})
-
-        new_message = Message(role=role, content=content, metadata=new_md or None)
-        new_messages = [*session.messages, new_message]
+        # Append the native suffix to the retained history and rebuild the
+        # full core message sequence from provider-native history so that
+        # feature/provider transforms that operate in to_native/from_native
+        # are reflected in the stored core messages. We rely on
+        # `_rebuild_core_from_native` to assign `native_indices` across the
+        # full history, rather than attempting to normalize the suffix in
+        # isolation (which can change cardinality for features like
+        # SystemMessageFeature).
         new_native_messages = [*retained_native, *suffix_native]
+
+        try:
+            rebuilt_messages = self._rebuild_core_from_native(new_native_messages, config or {})
+        except Exception:
+            # If rebuilding from native fails for any reason, fall back to a
+            # core-only append that drops native history, matching the
+            # behaviour used when native history cannot be safely maintained.
+            return _core_only_session(md), None
+
         new_session_metadata = {
             **base_metadata,
             "native_messages": new_native_messages,
-            "native_messages_integrity": self._compute_native_integrity(new_messages),
+            "native_messages_integrity": self._compute_native_integrity(rebuilt_messages),
         }
 
-        global_indices = list(new_md.get("native_indices") or [])
+        # The caller (AgentCore.add_message) does not currently use the
+        # returned global_indices, and rebuilt_messages already contain
+        # per-message native_indices metadata, so we return an empty list
+        # here for compatibility.
+        global_indices: List[int] = []
 
         return (
             type(session)(
                 session_id=session.session_id,
-                messages=new_messages,
+                messages=rebuilt_messages,
                 metadata=new_session_metadata,
             ),
             global_indices,
@@ -500,6 +511,8 @@ class AgentCore:
         }
         # Always prefer the native-preserving helper; when native history
         # cannot be safely updated, it falls back to a core-only append.
+        
+        # TODO: Legacy behavior with no config should be removed.
         new_session, _ = self._append_single_message_with_native(
             session,
             message_dict,
@@ -1238,23 +1251,26 @@ class AgentCore:
                 retained_native = rn
 
         if retained_native is not None:
-            # Reuse retained provider-native history as-is, including any
-            # reasoning or reasoning_details fields that were returned by
-            # the provider. Extensions such as the OpenRouter reasoning
-            # extension are responsible for treating these fields as opaque
-            # provider-native metadata and, when streaming, for accumulating
-            # them correctly across chunks.
+            # Reuse retained provider-native history as-is as the starting
+            # point for this request. Extensions such as the OpenRouter
+            # reasoning extension are responsible for treating provider-
+            # native metadata as opaque and preserving it across turns.
             native_messages = list(retained_native)
         else:
             # Provider-first conversion (native_base for stateless transforms)
             native_messages = provider.to_native_messages(messages, state)
-            # Apply stateless transforms: Extensions then Features
+            # Apply stateless transforms from provider extensions.
             native_messages = provider.apply_extension_transforms(messages, native_messages)
-            pipe = pipeline(messages)
-            native_messages = pipe(
-                [feature.to_native_messages for feature in features],
-                native_messages,
-            )
+
+        # In both cases, apply feature-level stateless transforms so that
+        # structural features (such as SystemMessageFeature) can ensure that
+        # template-level system messages or other adjustments are reflected
+        # in the provider-native history used for this request.
+        pipe = pipeline(messages)
+        native_messages = pipe(
+            [feature.to_native_messages for feature in features],
+            native_messages,
+        )
 
         # Initialize request chains
         state = provider.initialize_request(native_messages, state)

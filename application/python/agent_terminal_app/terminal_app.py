@@ -195,7 +195,8 @@ class TerminalApplication:
 
         core, _base_config, session = self.require_session()
 
-        new_session = core.add_message(session, "user", content, metadata)
+        # TODO: use overrides in the config. Final config should be the output of the require_session.
+        new_session = core.add_message(session, "user", content, metadata, config=_base_config)
         self._app.save_session(new_session)
 
         last_message = new_session.messages[-1] if new_session.messages else None
@@ -528,7 +529,7 @@ class TerminalApplication:
         core, _base_config, session = ctx
         normalized_role = role if role in {"system", "user", "assistant", "tool"} else "user"
 
-        new_session: Session = core.add_message(session, normalized_role, content, metadata)
+        new_session: Session = core.add_message(session, normalized_role, content, metadata, config=_base_config)
         self._app.save_session(new_session)
 
         if self._session is not None and self._session.session_id == new_session.session_id:

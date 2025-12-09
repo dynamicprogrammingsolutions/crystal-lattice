@@ -88,3 +88,73 @@ def test_server_flow_with_echo_provider(tmp_path: Path) -> None:
     assert "session_created" in kinds
     assert "message_appended" in kinds
     assert "request_started" in kinds or "final" in kinds
+
+
+def test_system_message_feature_adds_system_message_after_second_user_message(tmp_path: Path) -> None:
+    """Application-level test for SystemMessageFeature integration.
+
+    Verifies that when a provider is configured with SystemMessageFeature
+    and the first request has run (so the permanent system template lives
+    only in native history), adding a *subsequent* user message causes the
+    system message to appear in the stored core session history as well.
+    """
+
+    import json
+
+    from agent_core import Session
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+
+    # Minimal config: echo-like provider + SystemMessageFeature.
+    system_template = "You are a helpful system message for tests."
+    config = {
+        "providers": {
+            "echo_with_system": {
+                "provider": "echo_openai_like",
+                "model": "echo-test-1",
+                "timeout": 60,
+                "system_message_enabled": True,
+                "system_message": system_template,
+            }
+        },
+        "plugins": {
+            "providers": [
+                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            ],
+            "extensions": [],
+            "features": [
+                "plugins.system_message_feature.SystemMessageFeature",
+            ],
+            "tools": [],
+        },
+        "agents": {
+            "default": {
+                "provider": "echo_with_system",
+            }
+        },
+    }
+
+    cfg_path = tmp_path / "config_system_message_app.json"
+    cfg_path.write_text(json.dumps(config), encoding="utf-8")
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore()
+    app = AgentApplication(str(cfg_path), str(session_root), event_store=events_store)
+
+    # Create a new session and append the first user message using the
+    # agent's base config so that SystemMessageFeature is active.
+    core, base_config, session = app.create_session("default")
+    session = core.add_message(session, "user", "first", metadata=None, config=base_config)
+
+    # After the first append, native history should contain a single system
+    # message with the configured template, and the rebuilt core history
+    # should also include that system message.
+    native = session.metadata.get("native_messages") or []
+    sys_native = [m for m in native if isinstance(m, dict) and m.get("role") == "system"]
+    assert sys_native and sys_native[0].get("content") == system_template
+
+    roles = [m.role for m in session.messages]
+    contents = [m.content for m in session.messages]
+
+    assert "system" in roles
+    assert system_template in contents
