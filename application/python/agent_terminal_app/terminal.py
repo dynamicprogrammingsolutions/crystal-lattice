@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
 import sys
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional, cast
 
 from prompt_toolkit import PromptSession, print_formatted_text
 from prompt_toolkit.completion import Completer, Completion
@@ -143,7 +143,10 @@ def _status_bar_text(app: TerminalApplication) -> str:
         session_id = app.session_id
     except RuntimeError:
         session_id = "-"
-    agent = app.current_agent_id()
+    try:
+        agent = app.current_agent_id()
+    except RuntimeError:
+        agent = "default"
     return f"Agent: {agent}  Session: {session_id}"
 
 
@@ -878,9 +881,9 @@ async def _cmd_plugins(
             default_ids = None
         if default_ids is None:
             enabled_ids = [
-                entry.get("id")
-                for entry in entries
-                if isinstance(entry.get("id"), str) and entry.get("id")
+                pid
+                for pid in (entry.get("id") for entry in entries)
+                if isinstance(pid, str) and pid
             ]
         else:
             enabled_ids = [p for p in default_ids if isinstance(p, str)]
@@ -900,7 +903,7 @@ async def _cmd_plugins(
         write("[plugins] warning: no providers will remain enabled after this change")
 
     try:
-        app.set_session_plugins(enabled_ids)
+        app.set_session_plugins(cast(List[str], enabled_ids))
     except Exception as exc:  # pragma: no cover - defensive
         write(f"[plugins] failed to update plugins: {exc}")
         return
@@ -1332,12 +1335,10 @@ async def _run_terminal(
     app: TerminalApplication,
     logger: Optional[Logger] = None,
 ) -> None:
-    
-    
-    
-    session = app.start_new_session(
-        agent_id="default",
-    )
+    # Create an initial in-memory session so that the UI has a
+    # session context from startup, but avoid persisting it until
+    # the user sends the first message or otherwise modifies it.
+    app.start_new_session(agent_id="default", persist=False)
 
     ui_state: Dict[str, Any] = {
         "running": True,
