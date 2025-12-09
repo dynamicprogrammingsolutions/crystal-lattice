@@ -75,8 +75,13 @@ class TerminalApplication:
     # Session lifecycle
     # ------------------------------------------------------------------
 
-    def start_new_session(self, agent_id: Optional[str] = None) -> Session:
-        """Start a new active session, replacing any previous one."""
+    def start_new_session(self, agent_id: Optional[str] = None, *, persist: bool = True) -> Session:
+        """Start a new active session, replacing any previous one.
+
+        When ``persist`` is ``False``, the new session is created but not yet
+        written to the underlying session store; it will be persisted by later
+        operations such as :meth:`append_user_message`.
+        """
 
         if agent_id is None and self._session is not None:
             metadata = self._session.metadata or {}
@@ -85,7 +90,10 @@ class TerminalApplication:
         elif agent_id is None:
             agent_id = "default"
 
-        core, base_config, session = self._app.create_session(agent_id)
+        if persist:
+            core, base_config, session = self._app.create_session(agent_id)
+        else:
+            core, base_config, session = self._app.create_session_ephemeral(agent_id)
 
         store = self._app.get_event_store()
         store.publish(
@@ -573,14 +581,25 @@ class TerminalApplication:
         if target_agent_id not in self.available_agents():
             raise KeyError(f"Unknown agent: {target_agent_id!r}")
 
-        metadata = session.metadata or {}
-        new_metadata = {**metadata, "agent_id": target_agent_id}
-        new_session = Session(
-            session_id=session.session_id,
-            messages=list(session.messages),
-            metadata=new_metadata,
-        )
-        self._app.save_session(new_session)
+        # Rebuild core/base_config for the new agent and update
+        # session metadata, but do not decide on persistence here.
+        core, base_config, new_session = self._app.update_agent(target_agent_id, session)
+
+        # Decide whether to persist:
+        # - If the session has messages, always save.
+        # - If it is empty but was previously saved, update the file.
+        # - If it is empty and has never been saved (initial ephemeral
+        #   session), keep it purely in memory.
+        session_path = self._session_root / f"{session.session_id}.json"
+        is_empty = not session.messages
+        is_persisted = session_path.exists()
+        should_save = (not is_empty) or is_persisted
+
+        if should_save:
+            self._app.save_session(new_session)
+
+        self._core = core
+        self._base_config = base_config
         self._session = new_session
         self._last_event_id = None
         return new_session

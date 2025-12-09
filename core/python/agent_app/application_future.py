@@ -381,6 +381,19 @@ class AgentApplication:
         the provider configuration for the agent before per-request overrides.
         """
 
+        core, base_cfg, session = self.create_session_ephemeral(agent_id)
+        self._session_store.save(session)
+        return core, base_cfg, session
+
+    def create_session_ephemeral(self, agent_id: str) -> Tuple[AgentCore, Dict[str, Any], Session]:
+        """Create a new empty session for the given agent without persisting it.
+
+        This helper mirrors :meth:`create_session` but does not write the
+        session to the configured session store. Callers are responsible for
+        explicitly persisting the session via :meth:`save_session` once
+        meaningful content has been added.
+        """
+
         if not isinstance(agent_id, str) or not agent_id:
             raise ValueError("agent_id must be a non-empty string")
 
@@ -394,8 +407,31 @@ class AgentApplication:
             messages=list(base.messages),
             metadata={"agent_id": agent_id},
         )
-        self._session_store.save(session)
         return core, base_cfg, session
+
+    def update_agent(self, agent_id: str, session: Session) -> Tuple[AgentCore, Dict[str, Any], Session]:
+        """Reconfigure core/base_config for ``agent_id`` and update session metadata.
+
+        This does not persist the session; callers are responsible for deciding
+        when to save. The returned session keeps the same ``session_id`` and
+        ``messages`` as the input, with only ``metadata['agent_id']`` updated.
+        """
+
+        if not isinstance(agent_id, str) or not agent_id:
+            raise ValueError("agent_id must be a non-empty string")
+
+        base_cfg = self._get_agent_base_config(agent_id)
+        enabled_ids = self._agent_plugin_ids.get(agent_id)
+        core = self._build_core_with_enabled_ids(enabled_ids)
+
+        metadata = session.metadata or {}
+        new_metadata = {**metadata, "agent_id": agent_id}
+        new_session = Session(
+            session_id=session.session_id,
+            messages=list(session.messages),
+            metadata=new_metadata,
+        )
+        return core, base_cfg, new_session
 
     # ------------------------------------------------------------------
     # Core-first request API (new architecture)
