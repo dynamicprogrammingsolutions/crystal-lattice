@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import threading
+from pathlib import Path
 from typing import Optional
 
 from agent_app.application_future import AgentApplication
@@ -66,6 +67,18 @@ def main() -> None:  # pragma: no cover - manual execution only
         default=None,
         help="optional path to a log file; output still goes to stdout",
     )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="path to JSON config file (default: ./.crystal/config.json)",
+    )
+    parser.add_argument(
+        "--sessions-dir",
+        type=str,
+        default=None,
+        help="directory for session files (default: ./crystal/sessions)",
+    )
 
     args = parser.parse_args()
 
@@ -78,17 +91,22 @@ def main() -> None:  # pragma: no cover - manual execution only
     if args.log_file:
         console_logger = logging.getLogger("agent_terminal_app.console")
 
-    from .server import (
-        _DEFAULT_CONFIG_PATH as SERVER_CONFIG,
-        _DEFAULT_SESSION_ROOT as SERVER_SESSIONS,
-        run_api,
-    )
-    from .terminal import (
-        _DEFAULT_CONFIG_PATH as TERM_CONFIG,
-        _DEFAULT_SESSION_ROOT as TERM_SESSIONS,
-        TerminalApplication,
-        run_terminal,
-    )
+    from .server import run_api
+    from .terminal import TerminalApplication, run_terminal
+
+    default_config_path = Path(".crystal") / "config.json"
+    default_session_root = Path("crystal") / "sessions"
+
+    config_path = Path(args.config) if args.config is not None else default_config_path
+    session_root = Path(args.sessions_dir) if args.sessions_dir is not None else default_session_root
+
+    if not config_path.is_file():
+        parser.error(f"Config file not found: {config_path}")
+
+    try:
+        session_root.mkdir(parents=True, exist_ok=True)
+    except Exception as exc:
+        parser.error(f"Could not create sessions directory {session_root}: {exc}")
 
     # Modes:
     # - default (no flags): server only
@@ -97,11 +115,11 @@ def main() -> None:  # pragma: no cover - manual execution only
     if run_console and run_server:
         shared_events = InMemoryEventStore()
 
-        server_app = AgentApplication(str(SERVER_CONFIG), str(SERVER_SESSIONS), event_store=shared_events)
-        terminal_agent_app = AgentApplication(str(TERM_CONFIG), str(TERM_SESSIONS), event_store=shared_events)
+        server_app = AgentApplication(str(config_path), str(session_root), event_store=shared_events)
+        terminal_agent_app = AgentApplication(str(config_path), str(session_root), event_store=shared_events)
         terminal_app = TerminalApplication(
-            config_path=str(TERM_CONFIG),
-            session_root=str(TERM_SESSIONS),
+            config_path=str(config_path),
+            session_root=str(session_root),
             agent_app=terminal_agent_app,
         )
 
@@ -114,9 +132,16 @@ def main() -> None:  # pragma: no cover - manual execution only
 
         run_terminal(logger=console_logger, app_instance=terminal_app)
     elif run_console:
-        run_terminal(logger=console_logger)
+        agent_app = AgentApplication(str(config_path), str(session_root))
+        terminal_app = TerminalApplication(
+            config_path=str(config_path),
+            session_root=str(session_root),
+            agent_app=agent_app,
+        )
+        run_terminal(logger=console_logger, app_instance=terminal_app)
     else:
-        run_api(host=args.host, port=args.port)
+        app_instance = AgentApplication(str(config_path), str(session_root))
+        run_api(host=args.host, port=args.port, app_instance=app_instance)
 
 
 if __name__ == "__main__":  # pragma: no cover - manual execution only
