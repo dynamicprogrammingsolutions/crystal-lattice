@@ -162,7 +162,7 @@ class EchoProvider(ProviderPlugin):
         # Provider state is an opaque dict owned by the provider and its
         # extensions/features. This example only tracks an accumulated string
         # during streaming.
-        return {"config": dict(config), "accumulated": ""}
+        return {"config": config, "accumulated": ""}
 
     def initialize_request(
         self,
@@ -174,7 +174,7 @@ class EchoProvider(ProviderPlugin):
         self,
         native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        return list(native_messages)
+        return native_messages
 
     def stream_api(
         self,
@@ -447,7 +447,7 @@ class FileReaderTool(ToolPlugin):
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         # Tool state is an opaque dict owned by the tool. This example
         # only relies on configuration values.
-        return {"config": dict(config)}
+        return {"config": config}
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         return [

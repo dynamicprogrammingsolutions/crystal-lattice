@@ -96,8 +96,8 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
         fn = getattr(self.impl, "init", None)
         if callable(fn):
             state = fn(config)
-            return state if isinstance(state, dict) else {"config": dict(config)}
-        return {"config": dict(config)}
+            return state if isinstance(state, dict) else {"config": config}
+        return {"config": config}
 
     def initialize_request(  # type: ignore[override]
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
@@ -495,8 +495,8 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
         fn = getattr(self.impl, "init", None)
         if callable(fn):
             state = fn(config)
-            return state if isinstance(state, dict) else {"config": dict(config)}
-        return {"config": dict(config)}
+            return state if isinstance(state, dict) else {"config": config}
+        return {"config": config}
 
     def get_tags(  # type: ignore[override]
         self,

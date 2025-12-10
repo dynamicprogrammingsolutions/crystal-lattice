@@ -117,11 +117,11 @@ class ToolLoopRunner:
                     "type": "final",
                     "session_id": next_session.session_id,
                     "request_id": rid,
-                    "messages": list(final_messages),
+                    "messages": final_messages,
                     "session": next_session.to_dict(),
                 }
             ]
-            return next_session, list(final_messages), events
+            return next_session, final_messages, events
 
         # Streaming: accumulate partial and final events from send_request_stream
         current_session = session
@@ -151,13 +151,13 @@ class ToolLoopRunner:
                 )
             elif chunk.get("type") == "final":
                 final_session = chunk["session"]
-                final_messages = list(chunk.get("messages") or [])
+                final_messages = chunk.get("messages") or []
                 events.append(
                     {
                         "type": "final",
                         "session_id": final_session.session_id,
                         "request_id": rid,
-                        "messages": list(final_messages),
+                        "messages": final_messages,
                         "session": final_session.to_dict(),
                     }
                 )
@@ -190,7 +190,7 @@ class ToolLoopRunner:
             "type": "tool_calls",
             "session_id": current_session.session_id,
             "request_id": rid,
-            "tool_calls": list(tool_calls),
+            "tool_calls": tool_calls,
         }
 
         tool_messages: List[Dict[str, Any]] = []
@@ -253,7 +253,7 @@ class ToolLoopRunner:
             "type": "tool_results",
             "session_id": current_session.session_id,
             "request_id": rid,
-            "messages": list(tool_messages),
+            "messages": tool_messages,
             "session": current_session.to_dict(),
         }
 

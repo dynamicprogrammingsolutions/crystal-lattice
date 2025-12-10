@@ -37,7 +37,7 @@ class DummyProvider(ProviderPlugin):
         Initialize provider state.
         """
         return {
-            "config": dict(config),
+            "config": config,
             "runtime_state": {"accumulated_content": "", "native_chunks": []},
         }
 
@@ -185,7 +185,7 @@ class FailingOnceDummyProvider(ProviderPlugin):
         return []
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        return {"config": dict(config)}
+        return {"config": config}
 
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]

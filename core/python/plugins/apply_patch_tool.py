@@ -491,7 +491,7 @@ class ApplyPatchTool(ToolPlugin):
         return []
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        return {"config": dict(config)}
+        return {"config": config}
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         working_dir = state.get("config", {}).get("working_directory", ".")

@@ -125,7 +125,7 @@ class OpenAIToolsExtension:
     # ---- Streaming helpers ----
     def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:
         if "choices" in native_chunk and native_chunk["choices"]:
-            return dict(native_chunk["choices"][0])
+            return native_chunk["choices"][0]
         return {}
 
     def process_delta(

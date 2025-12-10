@@ -40,7 +40,7 @@ class BasicDependencyProvider:
     version: str = "1.0.0"
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        return {"config": dict(config)}
+        return {"config": config}
 
     def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         model = config.get("model", "default-model")
@@ -241,7 +241,7 @@ class CountingProvider:
     tags_calls: int = 0
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        return {"config": dict(config)}
+        return {"config": config}
 
     def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         type(self).models_calls += 1
