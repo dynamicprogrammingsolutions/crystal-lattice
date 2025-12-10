@@ -79,8 +79,8 @@ class OpenRouterProvider(ProviderPlugin):
         return {"config": config}
 
     def initialize_request(
-         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
 
         config = state["config"]
 
@@ -205,7 +205,10 @@ class OpenRouterProvider(ProviderPlugin):
             base_history = override if isinstance(override, list) else native_messages
             messages_to_send = self._sanitize_history(base_history)
             payload = {**request["payload"], "messages": messages_to_send, "stream": False}
-            get_logger('openrouter_provider').info("sending request",payload=payload)
+            get_logger("openrouter_provider").info(
+                "sending request",
+                payload=str(payload)[:1000],
+            )
             r = requests.post(
                 request["url"],
                 json=payload,
@@ -214,6 +217,15 @@ class OpenRouterProvider(ProviderPlugin):
             )
             r.raise_for_status()
             obj = r.json()
+            # Debug log full non-streaming response for investigation
+            try:  # pragma: no cover - debug aid
+                get_logger("openrouter_provider").info(
+                    "received response",
+                    response=obj,
+                )
+            except Exception:
+                # Logging must never break the provider
+                pass
         except requests.RequestException as e:
             # Debug payload and error details for investigation (no auth headers included)
             try:  # pragma: no cover - debug aid
@@ -245,7 +257,7 @@ class OpenRouterProvider(ProviderPlugin):
             base_history = override if isinstance(override, list) else native_messages
             messages_to_send = self._sanitize_history(base_history)
             payload = {**request["payload"], "messages": messages_to_send, "stream": True}
-            get_logger('openrouter_provider').info("sending request",payload=payload)
+            get_logger('openrouter_provider').info("sending request", payload=str(payload)[:1000])
             with requests.post(
                 request["url"],
                 json=payload,
@@ -336,7 +348,9 @@ class OpenRouterProvider(ProviderPlugin):
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         current_partial = state.get("partial", None)
-        return [current_partial] if current_partial else [], [*native_messages, current_partial] if current_partial else native_messages, state
+        finals = [current_partial] if current_partial else []
+        full_history = [*native_messages, current_partial] if current_partial else native_messages
+        return finals, full_history, state
 
     def to_display_format(self, message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         return message

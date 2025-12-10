@@ -1374,8 +1374,8 @@ class AgentCore:
 
         logger.info(
             "sending request",
-            native_messages=native_messages,
-            request=state.get("request"),
+            native_messages=str(native_messages)[:1000],
+            request=str(state.get("request"))[:1000],
         )
 
         _partials, final_native_1, native_messages, state = provider.call_api(
@@ -1480,8 +1480,8 @@ class AgentCore:
 
         logger.debug(
             "start streaming request",
-            native_messages=native_messages,
-            requrest=state.get("request", None),
+            native_messages=str(native_messages)[:1000],
+            requrest=str(state.get("request", None))[:1000],
         )
 
         aggregated_native_finals: List[Dict[str, Any]] = []
