@@ -153,6 +153,7 @@ def test_claude_caching_feature_strips_cache_control_from_retained_history(ensur
         new_session,
         "user",
         "Answer in one concise paragraph.",
+        config=config,
     )
 
     followup_session, followup_responses = core.send_request(followup_session, config)
@@ -250,6 +251,7 @@ def test_claude_caching_feature_strips_cache_control_streaming(ensure_api_key):
         new_session,
         "user",
         "Answer in one concise paragraph.",
+        config=config,
     )
 
     second_final_chunk: Dict[str, Any] | None = None

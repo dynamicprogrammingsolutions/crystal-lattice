@@ -153,7 +153,7 @@ def add_message(session_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     core, base_config, session = ctx
 
     try:
-        new_session = core.add_message(session, role, content, metadata)
+        new_session = core.add_message(session, role, content, metadata, base_config)
         _app.save_session(new_session)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

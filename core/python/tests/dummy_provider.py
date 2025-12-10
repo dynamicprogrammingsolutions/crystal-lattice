@@ -74,10 +74,15 @@ class DummyProvider(ProviderPlugin):
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Process a streaming chunk and update state.
-
-        Returns ``(partial_messages, final_messages, native_messages, new_state)``
-        where ``native_messages`` is the full provider-native history including
-        the new chunk. Final messages are produced in :meth:`finalize`.
+ 
+        Returns ``(partial_messages, final_messages, native_messages, new_state)``.
+ 
+        For this dummy provider, per-character streaming chunks are tracked only
+        in ``runtime_state['native_chunks']`` and are **not** persisted into the
+        provider-native history. The retained ``native_messages`` list therefore
+        contains only full chat messages (e.g., user and final assistant), which
+        keeps provider-native history compatible with native-history rebuilds.
+        Final messages are produced in :meth:`finalize`.
         """
         partial_content = native_chunk.get("content", "")
         new_state = {
@@ -90,8 +95,11 @@ class DummyProvider(ProviderPlugin):
             },
         }
         partial_msg = {"role": "assistant", "content": partial_content, "metadata": {}}
-        full_history = list(native_messages) + [native_chunk]
+        # Do not append the raw chunk object into native_messages; only full
+        # chat messages (user/assistant) are preserved in native history.
+        full_history = list(native_messages)
         return ([partial_msg] if partial_content else []), [], full_history, new_state
+
 
     def finalize(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]

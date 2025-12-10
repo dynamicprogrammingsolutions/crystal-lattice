@@ -134,8 +134,6 @@ def test_system_message_feature_with_ollama(ensure_model, tmp_path):
 
     new_session, responses = core.send_request(session, config)
 
-    print("complete session:", new_session)
-
     assert new_session is not None
     assert responses
     final_message = responses[-1]

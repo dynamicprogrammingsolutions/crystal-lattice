@@ -217,27 +217,38 @@ class AgentCore:
             )
 
         retained_native = None
-
+ 
         if isinstance(session.metadata, dict):
             rn = session.metadata.get("native_messages")
             if isinstance(rn, list):
                 retained_native = rn
-
+ 
         message_count = len(session.messages)
-
-        # When native history is absent but there are already messages in the
-        # session, we cannot safely retrofit native history incrementally, so
-        # we fall back to a core-only append. For the very first message,
-        # however, we allow creating native history from scratch.
-        if retained_native is None and message_count > 0:
-            return _core_only_session(md), None
-
+ 
+        # When there is no retained native history, we treat add_message as
+        # a core-only operation unless we have both an explicit config and a
+        # session with no prior messages. This allows applications to call
+        # add_message without a config for core-only sessions while avoiding
+        # silently creating or dropping native history.
+        if retained_native is None:
+            # No native history yet: if no config is provided, append only to
+            # core messages and do not create native history.
+            if not config:
+                return _core_only_session(md), None
+            # When native history is absent but there are already messages in
+            # the session, we cannot safely retrofit native history
+            # incrementally, so we fall back to a core-only append even if a
+            # config is provided.
+            if message_count > 0:
+                return _core_only_session(md), None
+ 
         if retained_native is not None:
             self._verify_native_integrity(session)
             base_len = len(retained_native)
         else:
             base_len = 0
             retained_native = []
+
 
         try:
             core_suffix = [
@@ -248,8 +259,8 @@ class AgentCore:
                 }
             ]
             suffix_native = self._core_messages_to_native_for_config(core_suffix, config or {})
-        except Exception:
-            return _core_only_session(md), None
+        except Exception as e:
+            raise e
 
         # Append the native suffix to the retained history and rebuild the
         # full core message sequence from provider-native history so that
@@ -263,11 +274,8 @@ class AgentCore:
 
         try:
             rebuilt_messages = self._rebuild_core_from_native(new_native_messages, config or {})
-        except Exception:
-            # If rebuilding from native fails for any reason, fall back to a
-            # core-only append that drops native history, matching the
-            # behaviour used when native history cannot be safely maintained.
-            return _core_only_session(md), None
+        except Exception as e:
+            raise e
 
         # Preserve application-supplied metadata (e.g., tool_calls, reasoning)
         # on existing messages and the newly appended message while keeping

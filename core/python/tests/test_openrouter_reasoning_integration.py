@@ -45,7 +45,7 @@ BASE_URL = "https://openrouter.ai/api/v1"
 # Models that support reasoning (using cheap versions)
 MODELS = {
     "gemini": "google/gemini-2.5-flash-lite",
-    "grok": "x-ai/grok-4.1-fast:free",
+    "grok": "x-ai/grok-4.1-fast",
     "gpt": "openai/gpt-5-mini",
     # Note: Claude models may have different reasoning support
 }

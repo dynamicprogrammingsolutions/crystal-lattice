@@ -241,7 +241,13 @@ class ToolLoopRunner:
                 role = "tool"  # type: ignore[assignment]
             content = last_final.get("content", "")
             metadata = last_final.get("metadata")
-            current_session = core.add_message(current_session, role, content, metadata)
+            current_session = core.add_message(
+                current_session,
+                role,
+                content,
+                metadata,
+                config=config,
+            )
 
         yield {
             "type": "tool_results",

@@ -187,7 +187,6 @@ def test_single_tool_call_math(ensure_api_key, model_name, model_id, stream):
     # Execute tool
     tool_msgs = core.execute_tool_calls(tool_calls, config)
     assert tool_msgs, "expected tool results"
-    
     for tm in tool_msgs:
         print(f"  Tool result: {tm.get('content', '')}")
         session = core.add_message(
@@ -195,7 +194,9 @@ def test_single_tool_call_math(ensure_api_key, model_name, model_id, stream):
             role=tm.get("role", "tool"),
             content=tm.get("content", ""),
             metadata=tm.get("metadata"),
+            config=config,
         )
+
     
     # Round 2: expect final answer using the same mode
     responses = []
@@ -278,6 +279,7 @@ def test_single_tool_call_file_read(ensure_api_key, temp_files, model_name, mode
             role=tm.get("role", "tool"),
             content=tm.get("content", ""),
             metadata=tm.get("metadata"),
+            config=config,
         )
     
     # Round 2: expect answer with file content using same mode
@@ -384,6 +386,7 @@ def test_parallel_tool_calls_math(ensure_api_key, model_name, model_id, stream):
                 role=tm.get("role", "tool"),
                 content=result,
                 metadata=tm.get("metadata"),
+                config=config,
             )
         
         # If we've seen all expected results in tool outputs, consider the test successful
@@ -485,6 +488,7 @@ def test_parallel_tool_calls_file_read(ensure_api_key, temp_files, model_name, m
                 role=tm.get("role", "tool"),
                 content=result,
                 metadata=tm.get("metadata"),
+                config=config,
             )
         
         # If we've seen both expected file contents in tool outputs, consider the test successful
@@ -572,6 +576,7 @@ def test_tool_chain_math_sequence(ensure_api_key, model_name, model_id, stream):
                 role=tm.get("role", "tool"),
                 content=tm.get("content", ""),
                 metadata=tm.get("metadata"),
+                config=config,
             )
     else:
         pytest.fail(f"Tool chain did not complete in {max_rounds} rounds")
@@ -649,6 +654,7 @@ def test_tool_chain_file_then_math(ensure_api_key, temp_files, model_name, model
                 role=tm.get("role", "tool"),
                 content=tm.get("content", ""),
                 metadata=tm.get("metadata"),
+                config=config,
             )
     else:
         pytest.fail(f"Tool chain did not complete in {max_rounds} rounds")
@@ -731,6 +737,7 @@ def test_tool_chain_complex_multi_step(ensure_api_key, temp_files, model_name, m
                 role=tm.get("role", "tool"),
                 content=tm.get("content", ""),
                 metadata=tm.get("metadata"),
+                config=config,
             )
     else:
         pytest.fail(f"Tool chain did not complete in {max_rounds} rounds")

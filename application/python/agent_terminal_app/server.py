@@ -113,11 +113,11 @@ def add_message(
         if ctx is None:
             raise KeyError(f"Session {session_id!r} not found")
 
-        core, _base_config, session = ctx
+        core, base_config, session = ctx
 
         normalized_role = role if role in {"system", "user", "assistant", "tool"} else "user"
 
-        new_session = core.add_message(session, normalized_role, content, metadata)
+        new_session = core.add_message(session, normalized_role, content, metadata, base_config)
         app_instance.save_session(new_session)
 
         last_message = new_session.messages[-1] if new_session.messages else None
