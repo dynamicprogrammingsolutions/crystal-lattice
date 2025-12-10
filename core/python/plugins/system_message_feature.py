@@ -352,25 +352,15 @@ class SystemMessageFeature(FeaturePlugin):
     def to_native_messages(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        cfg = self._config
-        if not cfg.get("enabled", True):
-            return native_messages
+        """Leave provider-native messages unchanged.
 
-        # Structural step only: ensure that a permanent template-level
-        # system message exists in the provider-native history. Variable
-        # rendering happens later in initialize_request.
-        has_system = any(m.get("role") == "system" for m in native_messages)
-        if has_system:
-            return native_messages
+        Permanent template-level system messages are now inserted during
+        :meth:`initialize_request` so that structural behavior and
+        per-request rendering share a single implementation.
+        """
 
-        template = cfg.get("template", "") or ""
-        if not template:
-            # No configured template and no user system -> leave history
-            # unchanged.
-            return native_messages
+        return native_messages
 
-        synthetic = {"role": "system", "content": template}
-        return [synthetic, *native_messages]
 
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
@@ -381,24 +371,46 @@ class SystemMessageFeature(FeaturePlugin):
 
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Prepare per-request rendered system message into request state.
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
 
-        This method computes concrete variable values and renders the
-        chosen system message template (user-provided system has
-        precedence). The rendered history is stored under
-        ``state["request"]["messages"]`` and is meant to be consumed by
-        providers instead of the raw ``native_messages`` when present.
-        The original ``native_messages`` remain unmodified so that the
-        stored history retains templates.
+        """Insert permanent template system (when missing) and render per-request.
+
+        This method mirrors the previous behavior that lived partly in
+        :meth:`to_native_messages` and partly in
+        :meth:`initialize_request` by:
+
+        - Ensuring that a single template-level ``system`` message exists
+          in the provider-native history when the feature is enabled and
+          a template is configured but no user ``system`` message is
+          present. This permanent message is inserted into the returned
+          ``native_messages`` with its *template* content.
+        - Computing concrete variable values and rendering the chosen
+          system message template into ``state["request"]["messages"]``
+          for this request only. The stored native history keeps the
+          template content.
         """
 
         cfg = self._config
         if not cfg.get("enabled", True):
-            return state
+            return native_messages, state
 
-        if not isinstance(native_messages, list) or not native_messages:
-            return state
+        if not isinstance(native_messages, list):
+            return native_messages, state
+
+        working_native = list(native_messages)
+
+        # Structural step: ensure a permanent template-level system
+        # message exists in the provider-native history when no user
+        # system message is present and a template is configured.
+        has_system = any(m.get("role") == "system" for m in working_native)
+        if not has_system:
+            template = cfg.get("template", "") or ""
+            if template:
+                synthetic = {"role": "system", "content": template}
+                working_native = [synthetic, *working_native]
+
+        if not working_native:
+            return working_native, state
 
         # Resolve variables for this request.
         variables = self._resolve_variables(cfg.get("variables") or {})
@@ -407,25 +419,24 @@ class SystemMessageFeature(FeaturePlugin):
         # message in the native history so that user-supplied system
         # messages take precedence over any earlier, config-derived one.
         system_index: int | None = None
-        for idx in range(len(native_messages) - 1, -1, -1):
-            if native_messages[idx].get("role") == "system":
+        for idx in range(len(working_native) - 1, -1, -1):
+            if working_native[idx].get("role") == "system":
                 system_index = idx
                 break
 
         if system_index is not None:
-            base_template = str(native_messages[system_index].get("content", "") or "")
+            base_template = str(working_native[system_index].get("content", "") or "")
         else:
             base_template = cfg.get("template", "") or ""
 
         if not base_template:
-            return state
+            return working_native, state
 
         rendered = self._render_template(base_template, variables)
 
         # Build override messages: same as native history, but with the
-        # chosen system message rendered. If no system existed, prepend a
-        # synthetic rendered system just for this request.
-        override_messages = list(native_messages)
+        # chosen system message rendered at the selected index.
+        override_messages = list(working_native)
         if system_index is not None:
             original = dict(override_messages[system_index])
             override_messages[system_index] = {**original, "content": rendered}
@@ -434,7 +445,9 @@ class SystemMessageFeature(FeaturePlugin):
 
         request = state.get("request") or {}
         new_request = {**request, "messages": override_messages}
-        return {**state, "request": new_request}
+        new_state = {**state, "request": new_request}
+        return working_native, new_state
+
 
     def finalize(
         self,

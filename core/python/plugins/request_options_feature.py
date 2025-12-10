@@ -14,7 +14,7 @@ state["request"]["payload"] when building the JSON body).
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from agent_core.types import FeaturePlugin
 
@@ -103,19 +103,20 @@ class RequestOptionsFeature(FeaturePlugin):
     # ---- Request initialization ----
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+
         """Merge ``request_options`` from config into request payload.
 
         Works best with the OpenAI-compatible provider, which expects
         ``state["request"]`` to contain ``{"url", "payload", "headers", "timeout"}``.
         If either the request structure or ``request_options`` are missing,
-        the state is returned unchanged.
+        the state and native_messages are returned unchanged.
         """
 
         config = state.get("config", {})
         options = config.get("request_options")
         if not isinstance(options, dict) or not options:
-            return state
+            return native_messages, state
 
         request = state.get("request") or {}
         payload = dict(request.get("payload", {}))
@@ -123,10 +124,12 @@ class RequestOptionsFeature(FeaturePlugin):
         # Merge arbitrary request options, letting them override existing keys.
         merged_payload = {**payload, **options}
 
-        return {
+        new_state: Dict[str, Any] = {
             **state,
             "request": {**request, "payload": merged_payload},
         }
+        return native_messages, new_state
+
 
     # ---- Finalize (no-op) ----
     def finalize(

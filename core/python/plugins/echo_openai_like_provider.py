@@ -74,7 +74,8 @@ class EchoOpenAILikeProvider(ProviderPlugin):
     # ---------- Request initialization ----------
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+
         config = state.get("config", {})
         timeout = float(config.get("timeout", 60))
         request = {
@@ -83,7 +84,9 @@ class EchoOpenAILikeProvider(ProviderPlugin):
             "headers": {},
             "timeout": timeout,
         }
-        return {**state, "request": request}
+        new_state: Dict[str, Any] = {**state, "request": request}
+        return native_messages, new_state
+
 
     # ---------- Core API calls ----------
     def _select_messages_for_call(

@@ -79,8 +79,9 @@ class OpenRouterProvider(ProviderPlugin):
         return {"config": config}
 
     def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
+         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+
         config = state["config"]
 
         base_url = (config.get("base_url") or "https://openrouter.ai/api/v1").rstrip("/")
@@ -106,7 +107,7 @@ class OpenRouterProvider(ProviderPlugin):
         if app_name:
             headers["X-Title"] = app_name
 
-        return {
+        return native_messages, {
             **state,
             "request": {
                 "url": url,
@@ -116,6 +117,7 @@ class OpenRouterProvider(ProviderPlugin):
             },
             "partial": None,
         }
+
 
     # ---------- Message conversion ----------
     def to_native_messages(

@@ -101,12 +101,18 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
 
     def initialize_request(  # type: ignore[override]
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         fn = getattr(self.impl, "initialize_request", None)
         if callable(fn):
-            new_state = fn(native_messages, state)
-            return new_state if isinstance(new_state, dict) else state
-        return state
+            out = fn(native_messages, state)
+            if isinstance(out, tuple) and len(out) == 2:
+                raw_native, raw_state = out
+                natives = [m for m in self._safe_list(raw_native) if isinstance(m, dict)]
+                new_state = raw_state if isinstance(raw_state, dict) else state
+                return natives or list(native_messages), new_state
+            if isinstance(out, dict):
+                return list(native_messages), out
+        return list(native_messages), state
 
     # ----- Message conversion -----
 
@@ -323,12 +329,18 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
 
     def initialize_request(  # type: ignore[override]
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         fn = getattr(self.impl, "initialize_request", None)
         if callable(fn):
-            new_state = fn(native_messages, state)
-            return new_state if isinstance(new_state, dict) else state
-        return state
+            out = fn(native_messages, state)
+            if isinstance(out, tuple) and len(out) == 2:
+                raw_native, raw_state = out
+                natives = [m for m in self._safe_list(raw_native) if isinstance(m, dict)]
+                new_state = raw_state if isinstance(raw_state, dict) else state
+                return natives or list(native_messages), new_state
+            if isinstance(out, dict):
+                return list(native_messages), out
+        return list(native_messages), state
 
     def process_chunk(  # type: ignore[override]
         self,
@@ -443,12 +455,18 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
 
     def initialize_request(  # type: ignore[override]
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         fn = getattr(self.impl, "initialize_request", None)
         if callable(fn):
-            new_state = fn(native_messages, state)
-            return new_state if isinstance(new_state, dict) else state
-        return state
+            out = fn(native_messages, state)
+            if isinstance(out, tuple) and len(out) == 2:
+                raw_native, raw_state = out
+                natives = [m for m in self._safe_list(raw_native) if isinstance(m, dict)]
+                new_state = raw_state if isinstance(raw_state, dict) else state
+                return natives or list(native_messages), new_state
+            if isinstance(out, dict):
+                return list(native_messages), out
+        return list(native_messages), state
 
     def finalize(  # type: ignore[override]
         self,

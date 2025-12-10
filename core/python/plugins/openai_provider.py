@@ -74,8 +74,9 @@ class OpenAICompatibleProvider(ProviderPlugin):
         return {"config": config}
 
     def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
+         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+
 
         config = state["config"]
 
@@ -90,7 +91,7 @@ class OpenAICompatibleProvider(ProviderPlugin):
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
 
-        return {
+        return native_messages, {
             **state,
             "request": {
                 "url": url,
@@ -100,6 +101,7 @@ class OpenAICompatibleProvider(ProviderPlugin):
             },
             "partial": None,
         }
+
 
     # ---------- Message conversion ----------
     def to_native_messages(

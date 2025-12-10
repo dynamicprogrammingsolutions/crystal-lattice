@@ -146,15 +146,28 @@ def test_system_message_feature_adds_system_message_after_second_user_message(tm
     core, base_config, session = app.create_session("default")
     session = core.add_message(session, "user", "first", metadata=None, config=base_config)
 
-    # After the first append, native history should contain a single system
-    # message with the configured template, and the rebuilt core history
-    # should also include that system message.
-    native = session.metadata.get("native_messages") or []
-    sys_native = [m for m in native if isinstance(m, dict) and m.get("role") == "system"]
-    assert sys_native and sys_native[0].get("content") == system_template
+    # Run the first request; SystemMessageFeature should insert a permanent
+    # template-level system message into provider-native history, but the
+    # core session history remains as the application created it.
+    events1 = list(app.send_request(core, session, base_config, overrides=None, stream=False))
+    final1 = [ev for ev in events1 if ev.get("type") == "final"][-1]
+    session1 = Session.from_dict(final1["session"])
 
-    roles = [m.role for m in session.messages]
-    contents = [m.content for m in session.messages]
+    native1 = session1.metadata.get("native_messages") or []
+    sys_native1 = [m for m in native1 if isinstance(m, dict) and m.get("role") == "system"]
+    assert sys_native1 and sys_native1[0].get("content") == system_template
 
-    assert "system" in roles
-    assert system_template in contents
+    # Append a second user message using the same agent config and run a
+    # second request. Native history should still contain exactly one
+    # template-level system message (no duplication across turns).
+    core2, base_config2, loaded1 = app.load_session(session1.session_id)
+    session2 = core2.add_message(loaded1, "user", "second", metadata=None, config=base_config2)
+
+    events2 = list(app.send_request(core2, session2, base_config2, overrides=None, stream=False))
+    final2 = [ev for ev in events2 if ev.get("type") == "final"][-1]
+    session3 = Session.from_dict(final2["session"])
+
+    native2 = session3.metadata.get("native_messages") or []
+    sys_native2 = [m for m in native2 if isinstance(m, dict) and m.get("role") == "system"]
+    assert len(sys_native2) == 1
+    assert sys_native2[0].get("content") == system_template

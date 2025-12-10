@@ -199,6 +199,8 @@ def test_adapter_init_and_initialize_request_default_passthrough(adapter_cls: An
     new_state = adapter.init(config, state)
     assert new_state is state
 
-    # initialize_request should also default to passthrough
-    newer_state = adapter.initialize_request([], state)
+    # initialize_request should also default to passthrough for both
+    # native_messages and state when not implemented on the plugin.
+    newer_native, newer_state = adapter.initialize_request([], state)
+    assert newer_native == []
     assert newer_state is state
