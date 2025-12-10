@@ -110,7 +110,7 @@ def test_openrouter_multiple_models(ensure_api_key):
 
     models_to_test = [
         "google/gemini-2.5-flash-lite",
-        "x-ai/grok-4.1-fast:free",
+        "x-ai/grok-4.1-fast",
     ]
 
     for model in models_to_test:

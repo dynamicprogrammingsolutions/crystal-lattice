@@ -318,6 +318,7 @@ def send_request(session_id: str, payload: Optional[Dict[str, Any]] = None) -> D
                 role=tm.get("role", "tool"),
                 content=tm.get("content", ""),
                 metadata=tm.get("metadata"),
+                config=config,
             )
         _SESSIONS[session_id] = session
 

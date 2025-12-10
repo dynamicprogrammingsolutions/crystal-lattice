@@ -151,6 +151,7 @@ def run_reasoning_test(
                 role=tm.get("role", "tool"),
                 content=tm.get("content", ""),
                 metadata=tm.get("metadata"),
+                config=config,
             )
     
     return session, final_responses
