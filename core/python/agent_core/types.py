@@ -182,7 +182,7 @@ class ProviderPlugin(BasePlugin, Protocol):
     # New request lifecycle
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Prepare for a new request with provider-native messages.
 
         Args:
@@ -190,9 +190,10 @@ class ProviderPlugin(BasePlugin, Protocol):
             state: Current shared provider state.
 
         Returns:
-            Updated shared provider state (or the same state).
+            Tuple of (provider-native messages for this request, updated shared state).
+            Implementations MAY return the same native_messages when only state changes.
         """
-        return state
+        return list(native_messages), state
 
     def process_chunk(
         self,
@@ -408,7 +409,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
 
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Prepare for a new request with provider-native messages.
 
         Args:
@@ -416,9 +417,10 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
             state: Current shared provider state.
 
         Returns:
-            Updated shared provider state (or the same state).
+            Tuple of (provider-native messages for this request, updated shared state).
+            Implementations MAY return the same native_messages when only state changes.
         """
-        return state
+        return list(native_messages), state
 
     def process_chunk(
         self,
@@ -565,7 +567,7 @@ class FeaturePlugin(BasePlugin, Protocol):
 
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Prepare for a new request with provider-native messages.
 
         Args:
@@ -573,9 +575,10 @@ class FeaturePlugin(BasePlugin, Protocol):
             state: Current shared provider state.
 
         Returns:
-            Updated shared provider state (or the same state).
+            Tuple of (provider-native messages for this request, updated shared state).
+            Implementations MAY return the same native_messages when only state changes.
         """
-        return state
+        return list(native_messages), state
 
     def finalize(
         self,

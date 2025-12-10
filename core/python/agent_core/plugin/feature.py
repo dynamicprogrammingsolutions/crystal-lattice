@@ -66,7 +66,7 @@ class FeatureWrapper(FeaturePlugin):
 
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         return self.plugin.initialize_request(native_messages, state)
 
     def finalize(

@@ -123,3 +123,21 @@ The terminal client exposes per-session plugin control via `/plugins`.
 
 Changes are stored on the session (in `session.metadata["plugins"]`), so
 subsequent requests and reloads use the updated plugin set.
+
+## Listing messages
+
+The `/list` slash command shows recent messages with a compact view of
+content, thinking, and tool usage for each entry:
+
+- `[index] role` – zero-based message index and role.
+- `content:` (or `result:` for `tool` messages) – the message text.
+- `thinking:` – reasoning attached by reasoning-capable providers or
+  extensions (from `metadata["reasoning"]` or `metadata["thinking_blocks"]`).
+- `tools:` – a summary of tool calls attached to assistant messages,
+  counting calls and listing function names from `metadata["tool_calls"]`.
+- `tool_call_id:` – the id of the tool call for `tool` messages when
+  `metadata["tool_call_id"]` is present.
+
+This is the same formatting exercised by
+`test_list_slash_command_shows_thinking_and_tools` in
+`application/python/tests/test_terminal_application.py`.

@@ -95,8 +95,10 @@ def test_initialize_request_with_required_fields():
     state = provider.init(config)
     native_messages = [{"role": "user", "content": "Hello"}]
 
-    new_state = provider.initialize_request(native_messages, state)
+    native_after, new_state = provider.initialize_request(native_messages, state)
 
+    # Provider should not alter native history shape here.
+    assert native_after == native_messages
     assert "request" in new_state
     request = new_state["request"]
     assert request["url"] == "https://openrouter.ai/api/v1/chat/completions"
@@ -118,7 +120,7 @@ def test_initialize_request_with_optional_headers():
     }
     state = provider.init(config)
 
-    new_state = provider.initialize_request([], state)
+    native_after, new_state = provider.initialize_request([], state)
 
     headers = new_state["request"]["headers"]
     assert headers["HTTP-Referer"] == "https://example.com"

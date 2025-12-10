@@ -48,9 +48,16 @@ class DummyProvider(ProviderPlugin):
 
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        # Reset runtime accumulators
-        return {
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        """Prepare for a new request and reset runtime accumulators.
+
+        Returns the (possibly unmodified) provider-native history along with
+        the updated shared state so that callers following the newer
+        ``(native_messages, state)`` contract can preserve history while
+        resetting per-request runtime fields.
+        """
+
+        new_state = {
             **state,
             "runtime_state": {
                 **state.get("runtime_state", {}),
@@ -58,6 +65,7 @@ class DummyProvider(ProviderPlugin):
                 "native_chunks": [],
             },
         }
+        return list(native_messages), new_state
 
     def process_chunk(
         self,
@@ -65,9 +73,11 @@ class DummyProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        """
-        Process streaming chunk and update state.
-        Returns (partial_messages, final_messages, native_messages, new_state).
+        """Process a streaming chunk and update state.
+
+        Returns ``(partial_messages, final_messages, native_messages, new_state)``
+        where ``native_messages`` is the full provider-native history including
+        the new chunk. Final messages are produced in :meth:`finalize`.
         """
         partial_content = native_chunk.get("content", "")
         new_state = {
@@ -80,29 +90,41 @@ class DummyProvider(ProviderPlugin):
             },
         }
         partial_msg = {"role": "assistant", "content": partial_content, "metadata": {}}
-        return ([partial_msg] if partial_content else []), [], [native_chunk], new_state
+        full_history = list(native_messages) + [native_chunk]
+        return ([partial_msg] if partial_content else []), [], full_history, new_state
 
     def finalize(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        """
-        Finalize message from accumulated state.
-        Returns (final_messages, native_messages, new_state).
+        """Finalize message from accumulated state.
+
+        When streaming has produced incremental chunks, this aggregates them
+        into a single assistant message. For non-streaming usage where no
+        chunks were recorded, it simply preserves the existing native history
+        without adding a new final message.
         """
         content = state["runtime_state"]["accumulated_content"]
         if not content:
-            return [], [], state
+            # No aggregated streaming content; keep native history as-is.
+            return [], list(native_messages), state
         message = {
             "role": "assistant",
             "content": content,
             "metadata": {"chunk_count": len(state["runtime_state"]["native_chunks"])},
         }
-        return [message], [], state
+        full_native = list(native_messages) + [message]
+        return [message], full_native, state
 
     def call_api(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        """Make non-streaming API call (simulated). Returns finals, partials, natives, state."""
+        """Make a non-streaming API call (simulated).
+
+        Returns ``(final_messages, partial_messages, native_messages, state)``
+        where ``native_messages`` contains the full history including the new
+        assistant reply so that callers can retain provider-native history
+        across turns.
+        """
         last_message = native_messages[-1] if native_messages else {}
         user_content = last_message.get("content", "")
         final = {
@@ -110,7 +132,8 @@ class DummyProvider(ProviderPlugin):
             "content": f"Echo: {user_content}",
             "metadata": {},
         }
-        return [final], [], [], state
+        full_native = list(native_messages) + [final]
+        return [final], [], full_native, state
 
     def stream_api(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]

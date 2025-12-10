@@ -190,6 +190,18 @@ class AgentCore:
 
         from agent_core.types import Message  # local import to avoid cycles
 
+        # Capture existing per-message metadata (excluding native_indices) so
+        # that application-supplied fields such as reasoning or tool_calls are
+        # preserved across native-history rebuilds.
+        existing_messages = list(session.messages)
+        existing_metadata: List[Dict[str, Any]] = []
+        for msg in existing_messages:
+            data = msg.to_dict()
+            raw_md = data.get("metadata") or {}
+            md_existing = dict(raw_md) if isinstance(raw_md, dict) else {}
+            md_existing.pop("native_indices", None)
+            existing_metadata.append(md_existing)
+
         def _core_only_session(clean_metadata):
             cleaned = dict(clean_metadata)
             cleaned.pop("native_indices", None)
@@ -205,6 +217,7 @@ class AgentCore:
             )
 
         retained_native = None
+
         if isinstance(session.metadata, dict):
             rn = session.metadata.get("native_messages")
             if isinstance(rn, list):
@@ -256,10 +269,39 @@ class AgentCore:
             # behaviour used when native history cannot be safely maintained.
             return _core_only_session(md), None
 
+        # Preserve application-supplied metadata (e.g., tool_calls, reasoning)
+        # on existing messages and the newly appended message while keeping
+        # provider-assigned fields such as native_indices from the rebuild
+        # step. Existing per-message metadata is merged back in by index,
+        # excluding native_indices which are owned by the core.
+        merged_messages: List[Message] = []
+        last_index = len(rebuilt_messages) - 1
+        for idx, msg in enumerate(rebuilt_messages):
+            data = msg.to_dict()
+            base_md = dict(data.get("metadata") or {})
+
+            if 0 <= idx < len(existing_metadata):
+                extra = existing_metadata[idx]
+                if extra:
+                    base_md = {**base_md, **extra}
+
+            if idx == last_index and md:
+                base_md = {**base_md, **md}
+
+            merged_messages.append(
+                Message(
+                    role=data["role"],
+                    content=data["content"],
+                    metadata=base_md or None,
+                )
+            )
+
+        new_messages: List[Message] = merged_messages
+
         new_session_metadata = {
             **base_metadata,
             "native_messages": new_native_messages,
-            "native_messages_integrity": self._compute_native_integrity(rebuilt_messages),
+            "native_messages_integrity": self._compute_native_integrity(new_messages),
         }
 
         # The caller (AgentCore.add_message) does not currently use the
@@ -271,7 +313,7 @@ class AgentCore:
         return (
             type(session)(
                 session_id=session.session_id,
-                messages=rebuilt_messages,
+                messages=new_messages,
                 metadata=new_session_metadata,
             ),
             global_indices,
@@ -1180,14 +1222,15 @@ class AgentCore:
             tools,
             config,
         )
-
+ 
         # Initialize request chains using the adjusted native history.
-        state = provider.initialize_request(native_messages, state)
+        native_messages, state = provider.initialize_request(native_messages, state)
         for feature in features:
-            state = feature.initialize_request(native_messages, state)
+            native_messages, state = feature.initialize_request(native_messages, state)
             provider.set_state(state)
-
+ 
         # Convert native messages back into core messages through the full
+
         # from-native pipeline.
         core_from_provider = provider.from_native_messages(native_messages, state)
         pipe = pipeline(native_messages)
@@ -1273,14 +1316,15 @@ class AgentCore:
         )
 
         # Initialize request chains
-        state = provider.initialize_request(native_messages, state)
+        native_messages, state = provider.initialize_request(native_messages, state)
         for feature in features:
-            state = feature.initialize_request(native_messages, state)
+            native_messages, state = feature.initialize_request(native_messages, state)
             provider.set_state(state)
-
+ 
         logger.info("request init complete", request=state.get("request"))
-
+ 
         return messages, native_messages, state
+
 
     def send_request(
         self, session: Session, config: Dict[str, Any]

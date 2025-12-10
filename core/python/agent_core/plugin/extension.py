@@ -69,8 +69,8 @@ class ExtensionWrapper(ProviderExtensionPlugin):
 
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Prepare for a new turn; MUST return shared state (updated or unchanged)."""
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        """Prepare for a new turn; MUST return (native_messages, shared state)."""
         return self.plugin.initialize_request(native_messages, state)
 
     def process_chunk(

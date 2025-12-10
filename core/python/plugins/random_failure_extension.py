@@ -81,15 +81,17 @@ class RandomFailureExtension(ProviderExtensionPlugin):
 
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+
         global _RF_STATE
 
         if not _RF_STATE.get("enabled"):
-            return state
+            return native_messages, state
 
         counter = int(_RF_STATE.get("counter") or 0) + 1
         _RF_STATE["counter"] = counter
-        return state
+        return native_messages, state
+
 
     def finalize(
         self,

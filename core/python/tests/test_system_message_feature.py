@@ -80,10 +80,12 @@ def test_system_message_permanent_template_injected_when_missing() -> None:
     messages = [{"role": "user", "content": "Hi"}]
     native = _simple_native(messages)
 
-    new_native = feature.to_native_messages(messages, native)
+    # Structural insertion now happens during initialize_request and
+    # returns updated native_messages along with state.
+    new_native, new_state = feature.initialize_request(native, state)
 
     # New permanent system message is prepended, but still contains the
-    # template (variables are not rendered at this stage).
+    # template (variables are not rendered in native history).
     assert len(new_native) == 2
     assert new_native[0]["role"] == "system"
     assert new_native[0]["content"] == "You are a helper for {{PROJECT}}."
@@ -92,6 +94,10 @@ def test_system_message_permanent_template_injected_when_missing() -> None:
     assert new_native[1]["content"] == "Hi"
     # Core history remains unmodified
     assert messages[0]["content"] == "Hi"
+    # State should include a request override with rendered messages.
+    request = new_state.get("request") or {}
+    override = request.get("messages") or []
+    assert override and override[0]["role"] == "system"
 
 
 def test_no_permanent_system_message_when_user_system_present() -> None:
@@ -111,10 +117,10 @@ def test_no_permanent_system_message_when_user_system_present() -> None:
     ]
     native = _simple_native(messages)
 
-    new_native = feature.to_native_messages(messages, native)
+    new_native, _ = feature.initialize_request(native, state)
 
-    # Existing system message is preserved, no additional permanent system
-    # is inserted.
+    # Existing system message is preserved, no additional permanent
+    # system is inserted.
     assert new_native == native
 
 
@@ -218,7 +224,8 @@ def test_system_message_disabled_no_changes() -> None:
     messages = [{"role": "user", "content": "Hi"}]
     native = _simple_native(messages)
 
-    new_native = feature.to_native_messages(messages, native)
+    new_native, new_state = feature.initialize_request(native, state)
 
-    # Feature disabled -> native messages unchanged
+    # Feature disabled -> native messages and state unchanged
     assert new_native == native
+    assert new_state == state

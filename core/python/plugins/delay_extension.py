@@ -61,13 +61,15 @@ class DelayExtension(ProviderExtensionPlugin):
 
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+
         de_state = state.get("delay_extension")
         if not isinstance(de_state, dict) or not de_state.get("enabled"):
-            return state
+            return native_messages, state
 
         delay = float(de_state.get("delay_seconds") or 0.0)
         if delay > 0.0:
             time.sleep(delay)
 
-        return state
+        return native_messages, state
+

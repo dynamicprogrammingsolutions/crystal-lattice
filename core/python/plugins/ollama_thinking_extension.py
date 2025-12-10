@@ -95,18 +95,20 @@ class OllamaThinkingExtension(ProviderExtensionPlugin):
 
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         if not state.get("ollama_think_enabled"):
-            return state
+            return native_messages, state
 
         request = state.get("request") or {}
-        return {
+        new_state: Dict[str, Any] = {
             **state,
             "request": {
                 **request,
                 "payload": {**(dict(request.get("payload", {}))), "think": True},
             },
         }
+        return native_messages, new_state
+
 
     def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:
         """Extract a provider-native delta dictionary from a streaming chunk.

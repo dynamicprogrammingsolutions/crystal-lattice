@@ -154,7 +154,7 @@ class ProviderWrapper(ProviderPlugin):
 
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Run provider and extensions initialize_request with native messages for a new turn.
 
         Args:
@@ -162,18 +162,25 @@ class ProviderWrapper(ProviderPlugin):
             state: Shared provider state (optional; wrapper state used if empty).
 
         Returns:
-            Updated shared provider state.
+            Tuple of (full provider-native history for this turn, updated shared provider state).
         """
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
         working_state = state or self.state
         # Start full native history at request boundary
         self._last_native_messages = list(native_messages)
-        new_state = self.plugin.initialize_request(native_messages, working_state)
-        pipe = pipeline(native_messages)
-        new_state = pipe([ext.initialize_request for ext in self._iter_extensions()], new_state)
+        native_after_provider, new_state = self.plugin.initialize_request(
+            list(native_messages), working_state
+        )
+        pipe = pipeline()
+        native_after_exts, new_state = pipe(
+            [ext.initialize_request for ext in self._iter_extensions()],
+            native_after_provider,
+            new_state,
+        )
         self.state = new_state
-        return self._get_state()
+        self._last_native_messages = list(native_after_exts)
+        return self._last_native_messages, self._get_state()
 
     def to_native_messages(
         self, messages: List[Dict[str, Any]], state: Dict[str, Any]
