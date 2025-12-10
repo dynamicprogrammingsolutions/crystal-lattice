@@ -1425,6 +1425,7 @@ class AgentCore:
 
         logger.info(
             "send_request_complete",
+            final_native=final_native,
             final_core=final_core,
         )
 

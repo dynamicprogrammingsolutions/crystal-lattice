@@ -34,7 +34,7 @@ except ImportError:  # pragma: no cover - optional dependency
 
 from agent_core import AgentCore
 from plugins.openrouter_provider import OpenRouterProvider
-from plugins.claude_caching_feature import ClaudeCachingFeature
+from plugins.claude_caching_extension import ClaudeCachingExtension
 
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
@@ -65,6 +65,14 @@ def _find_cache_blocks(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return blocks
 
 
+def _extract_cached_tokens_from_core_messages(messages: List[Dict[str, Any]]) -> int | None:
+    for m in reversed(messages):
+        md = m.get("metadata") or {}
+        if isinstance(md, dict) and "cached_tokens" in md:
+            return md.get("cached_tokens")
+    return None
+
+
 @pytest.mark.integration
 @pytest.mark.openrouter
 def test_claude_caching_feature_strips_cache_control_from_retained_history(ensure_api_key):
@@ -80,8 +88,7 @@ def test_claude_caching_feature_strips_cache_control_from_retained_history(ensur
     """
 
     core = AgentCore()
-    core.register_provider(OpenRouterProvider)
-    core.register_feature(ClaudeCachingFeature)
+    core.register_provider(OpenRouterProvider, extensions=[ClaudeCachingExtension])
 
     config: Dict[str, Any] = {
         "provider": "openrouter",
@@ -134,6 +141,12 @@ def test_claude_caching_feature_strips_cache_control_from_retained_history(ensur
     cache_blocks = _find_cache_blocks(native_messages)
     assert not cache_blocks, "cache_control blocks must not be persisted in native history"
 
+    cached_tokens_first = _extract_cached_tokens_from_core_messages(responses)
+    # For streaming calls, OpenRouter usage may only be attached at
+    # the native level; core metadata enrichment happens during
+    # non-streaming conversion. Assert presence but allow zero.
+    assert cached_tokens_first is not None, "cached_tokens must be exposed in core metadata on first call"
+
     # Second request: same session, different question, intended to leverage
     # provider-side cached tokens for the long system prompt.
     followup_session = core.add_message(
@@ -147,8 +160,13 @@ def test_claude_caching_feature_strips_cache_control_from_retained_history(ensur
     assert followup_session is not None
     assert followup_responses, "expected a follow-up assistant response"
 
-    print("\nFirst answer:\n", responses[-1]["content"][:200])
-    print("\nFollow-up answer:\n", followup_responses[-1]["content"][:200])
+    cached_tokens_second = _extract_cached_tokens_from_core_messages(followup_responses)
+    assert cached_tokens_second is not None, "cached_tokens must be exposed in core metadata on second call"
+
+    print("\nFirst answer (non-streaming):\n", responses[-1]["content"][:200])
+    print("\nFirst call cached_tokens=", cached_tokens_first)
+    print("\nFollow-up answer (non-streaming):\n", followup_responses[-1]["content"][:200])
+    print("\nSecond call cached_tokens=", cached_tokens_second)
 
 
 @pytest.mark.integration
@@ -164,8 +182,7 @@ def test_claude_caching_feature_strips_cache_control_streaming(ensure_api_key):
     """
 
     core = AgentCore()
-    core.register_provider(OpenRouterProvider)
-    core.register_feature(ClaudeCachingFeature)
+    core.register_provider(OpenRouterProvider, extensions=[ClaudeCachingExtension])
 
     config: Dict[str, Any] = {
         "provider": "openrouter",
@@ -221,6 +238,13 @@ def test_claude_caching_feature_strips_cache_control_streaming(ensure_api_key):
     cache_blocks = _find_cache_blocks(native_messages)
     assert not cache_blocks, "cache_control blocks must not be persisted in native history"
 
+    cached_tokens_first = _extract_cached_tokens_from_core_messages(responses)
+    # In streaming mode, metadata is enriched after provider finalize;
+    # combined finals may not carry cached_tokens into core messages in
+    # all provider versions. We only require that no cache_control
+    # markers persist in native history.
+    # To avoid flakiness, treat missing cached_tokens as informational.
+
     # Second request: same session, streaming again to exercise cached tokens.
     followup_session = core.add_message(
         new_session,
@@ -240,6 +264,11 @@ def test_claude_caching_feature_strips_cache_control_streaming(ensure_api_key):
     assert followup_session is not None
     assert followup_responses, "expected a follow-up assistant response"
 
+    cached_tokens_second = _extract_cached_tokens_from_core_messages(followup_responses)
+    assert cached_tokens_second is not None, "cached_tokens must be exposed in core metadata on second streaming call"
+
     print("\nFirst (streaming) answer:\n", responses[-1]["content"][:200])
+    print("\nFirst streaming call cached_tokens=", cached_tokens_first)
     print("\nFollow-up (streaming) answer:\n", followup_responses[-1]["content"][:200])
+    print("\nSecond streaming call cached_tokens=", cached_tokens_second)
 
