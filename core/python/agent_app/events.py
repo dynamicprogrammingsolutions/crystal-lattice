@@ -73,4 +73,4 @@ class InMemoryEventStore(EventStore):
                 result.append(ev)
                 if len(result) >= limit:
                     break
-            return list(result)
+            return result

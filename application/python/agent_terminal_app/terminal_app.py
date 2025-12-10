@@ -248,7 +248,7 @@ class TerminalApplication:
         metadata = session.metadata if isinstance(session.metadata, dict) else {}
         overrides_val = metadata.get("overrides")
         overrides: Dict[str, Any] = (
-            dict(overrides_val) if isinstance(overrides_val, dict) else {}
+            overrides_val if isinstance(overrides_val, dict) else {}
         )
         config = resolve_request_config(base_config, overrides)
 
@@ -400,7 +400,7 @@ class TerminalApplication:
          metadata = session.metadata if isinstance(session.metadata, dict) else {}
          overrides_val = metadata.get("overrides")
          overrides: Dict[str, Any] = (
-             dict(overrides_val) if isinstance(overrides_val, dict) else {}
+             overrides_val if isinstance(overrides_val, dict) else {}
          )
          config = resolve_request_config(base_config, overrides)
  
@@ -453,7 +453,7 @@ class TerminalApplication:
 
             if stored.get("type") == "final":
                 final_session_dict = stored.get("session") or final_session_dict
-                final_messages = list(stored.get("messages") or [])
+                final_messages = stored.get("messages") or []
                 request_id = stored.get("request_id")
             elif "session" in stored and isinstance(stored.get("session"), dict):
                 final_session_dict = stored["session"]
@@ -628,14 +628,16 @@ class TerminalApplication:
 
         metadata = session.metadata if isinstance(session.metadata, dict) else {}
         overrides_val = metadata.get("overrides")
-        overrides: Dict[str, Any] = dict(overrides_val) if isinstance(overrides_val, dict) else {}
+        overrides: Dict[str, Any] = (
+            overrides_val if isinstance(overrides_val, dict) else {}
+        )
 
         new_overrides = {**overrides, key: value}
         new_metadata = {**metadata, "overrides": new_overrides}
 
         new_session = Session(
             session_id=session.session_id,
-            messages=list(session.messages),
+            messages=session.messages,
             metadata=new_metadata,
         )
         self._app.save_session(new_session)
@@ -724,7 +726,7 @@ class TerminalApplication:
 
         new_session = Session(
             session_id=session.session_id,
-            messages=list(session.messages),
+            messages=session.messages,
             metadata=new_metadata,
         )
         self._app.save_session(new_session)
@@ -756,7 +758,7 @@ class TerminalApplication:
 
         new_session = Session(
             session_id=session.session_id,
-            messages=list(session.messages),
+            messages=session.messages,
             metadata=new_metadata,
         )
         self._app.save_session(new_session)

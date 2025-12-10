@@ -67,7 +67,7 @@ class AgentApplication:
         raw_config = load_raw_config(config_path)
         resolved_config, placeholder_errors = resolve_placeholders(raw_config)
         self._config: Dict[str, Any] = resolved_config
-        self._config_errors: List[Dict[str, Any]] = list(placeholder_errors)
+        self._config_errors: List[Dict[str, Any]] = placeholder_errors
 
         plugins_cfg = resolved_config.get("plugins") or {}
         plugin_classes, plugin_errors = load_plugins(plugins_cfg)
@@ -261,9 +261,9 @@ class AgentApplication:
     # ------------------------------------------------------------------
 
     def get_config_errors(self) -> List[Dict[str, Any]]:
-        """Return a copy of configuration and plugin loading errors."""
+        """Return configuration and plugin loading errors."""
 
-        return list(self._config_errors)
+        return self._config_errors
 
     def get_event_store(self) -> EventStore:
         """Return the configured event store for this application."""
@@ -296,8 +296,8 @@ class AgentApplication:
     def get_agent_plugins(self, agent_id: str) -> Optional[List[str]]:
         """Return the configured plugin id list for an agent.
 
-        Returns a copy of the configured list, or ``None`` to indicate
-        that all plugins are enabled for this agent.
+        Returns the configured list, or ``None`` to indicate that all
+        plugins are enabled for this agent.
         """
 
         if not isinstance(agent_id, str) or not agent_id:
@@ -306,7 +306,7 @@ class AgentApplication:
             raise KeyError(f"Unknown agent_id {agent_id!r}")
 
         value = self._agent_plugin_ids.get(agent_id)
-        return list(value) if value is not None else None
+        return value if value is not None else None
 
     def list_plugins(self) -> List[Dict[str, Any]]:
         """Return metadata for all available plugins.
@@ -404,9 +404,10 @@ class AgentApplication:
         base = core.create_session()
         session = Session(
             session_id=base.session_id,
-            messages=list(base.messages),
+            messages=base.messages,
             metadata={"agent_id": agent_id},
         )
+
         return core, base_cfg, session
 
     def update_agent(self, agent_id: str, session: Session) -> Tuple[AgentCore, Dict[str, Any], Session]:
@@ -428,7 +429,7 @@ class AgentApplication:
         new_metadata = {**metadata, "agent_id": agent_id}
         new_session = Session(
             session_id=session.session_id,
-            messages=list(session.messages),
+            messages=session.messages,
             metadata=new_metadata,
         )
         return core, base_cfg, new_session

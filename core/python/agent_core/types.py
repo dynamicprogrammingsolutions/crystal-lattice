@@ -98,7 +98,7 @@ class ProviderPlugin(BasePlugin, Protocol):
             def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
                 # Provider state is an opaque dict; this minimal example
                 # only stores configuration.
-                return {"config": dict(config)}
+                return {"config": config}
             def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
                 return state
             def to_native_messages(self, messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -122,7 +122,7 @@ class ProviderPlugin(BasePlugin, Protocol):
         Returns:
             Initial shared provider state owned by the provider wrapper.
         """
-        return {"config": dict(config)}
+        return {"config": config}
 
     # Message conversion
     def to_native_messages(
@@ -634,7 +634,7 @@ class ToolPlugin(BasePlugin, Protocol):
         Returns:
             Initial tool state dictionary.
         """
-        return {"config": dict(config)}
+        return {"config": config}
 
     def get_tags(
 

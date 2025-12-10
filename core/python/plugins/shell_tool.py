@@ -50,7 +50,7 @@ class ShellTool(ToolPlugin):
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         # Tools own their internal state; this implementation only needs configuration.
-        return {"config": dict(config)}
+        return {"config": config}
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         config = state.get("config", {})

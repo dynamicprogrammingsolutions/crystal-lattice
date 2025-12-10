@@ -186,7 +186,7 @@ class MyProvider:
         # Provider state is an opaque dict; this minimal example keeps
         # configuration under a single "config" key and is free to add
         # any other per-request data it needs.
-        return {"config": dict(config)}
+        return {"config": config}
 
     def call_api(
         self,

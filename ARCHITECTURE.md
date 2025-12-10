@@ -205,7 +205,7 @@ Each plugin extracts what it needs from the flat config dict.
 
 ## Project Structure
 
-Here's the proposed directory structure for the agent platform (actual files may vary)
+Here's a historical/aspirational directory structure for the agent platform (does not fully match the current Python-only repo; see AGENTS.md for the actual layout)
 
 ```
 agent-platform/

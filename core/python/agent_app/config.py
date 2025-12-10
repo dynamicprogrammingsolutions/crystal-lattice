@@ -124,12 +124,15 @@ def build_agent_config(resolved_config: JsonMapping, agent_id: str) -> Dict[str,
 def resolve_request_config(base_agent_config: JsonMapping, overrides: Mapping[str, Any] | None) -> Dict[str, Any]:
     """Merge per-request overrides into a base agent config.
 
-    The returned mapping is a shallow copy; callers should treat it as
-    immutable from that point on.
+    Callers should treat the returned mapping as immutable.
     """
 
+    from typing import cast
+
     if not overrides:
-        return dict(base_agent_config)
+        # base_agent_config is produced by build_agent_config and is already a dict;
+        # reuse it directly instead of making a defensive shallow copy.
+        return cast(Dict[str, Any], base_agent_config)
     return {**base_agent_config, **dict(overrides)}
 
 

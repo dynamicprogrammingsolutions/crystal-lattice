@@ -9,7 +9,7 @@ Examples:
 
     ```python
     from agent_core import AgentCore
-    from plugins.providers.openai.python.openai_provider import OpenAICompatibleProvider
+    from plugins.openai_provider import OpenAICompatibleProvider
 
     core = AgentCore()
     core.register_provider(OpenAICompatibleProvider)
@@ -134,8 +134,8 @@ class AgentCore:
         baseline_offset: int,
     ) -> list[dict[str, Any]]:
         if not final_core or not finals_native:
-            # Nothing to normalize; return shallow copies to avoid mutation.
-            return [dict(m) for m in final_core]
+            # Nothing to normalize; final_core is already in core shape.
+            return final_core
 
         local_count = len(finals_native)
 
@@ -193,7 +193,7 @@ class AgentCore:
         # Capture existing per-message metadata (excluding native_indices) so
         # that application-supplied fields such as reasoning or tool_calls are
         # preserved across native-history rebuilds.
-        existing_messages = list(session.messages)
+        existing_messages = session.messages
         existing_metadata: List[Dict[str, Any]] = []
         for msg in existing_messages:
             data = msg.to_dict()
@@ -330,7 +330,7 @@ class AgentCore:
     def _modify_single_message_with_native(self, session, index, content, config):
         from agent_core.types import Message  # local import to avoid cycles
 
-        messages = list(session.messages)
+        messages = session.messages
         message_count = len(messages)
 
         # Normalize and validate index (supports negative indices).
@@ -400,7 +400,7 @@ class AgentCore:
         # Verify integrity before attempting any native-preserving update.
         self._verify_native_integrity(session)
 
-        original_native = list(retained_native)
+        original_native = retained_native
 
         # Determine which native indices belong to the target message.
         target_md = target.metadata if isinstance(target.metadata, dict) else {}
@@ -604,7 +604,7 @@ class AgentCore:
         keep_indices: Set[int],
     ) -> Session:
         """Core-only slice/remove that drops native history and indices."""
-        messages = list(session.messages)
+        messages = session.messages
         message_count = len(messages)
         all_indices: Set[int] = set(range(message_count))
         valid_keep: Set[int] = {i for i in keep_indices if 0 <= i < message_count}
@@ -662,7 +662,7 @@ class AgentCore:
         Operations are expressed in core message indices but, when possible,
         provider-native history is adjusted consistently and preserved.
         """
-        messages = list(session.messages)
+        messages = session.messages
         message_count = len(messages)
         all_indices: Set[int] = set(range(message_count))
 
@@ -811,8 +811,8 @@ class AgentCore:
             return sliced
         return Session(
             session_id=new_session_id,
-            messages=list(sliced.messages),
-            metadata=dict(sliced.metadata),
+            messages=sliced.messages,
+            metadata=sliced.metadata,
         )
 
     def _normalize_config(self, config: Dict[str, Any]) -> str:
@@ -982,8 +982,7 @@ class AgentCore:
         cache_key = (provider_id, norm_config)
         cached = self._models_cache.get(cache_key)
         if cached is not None:
-            # Return shallow copies to avoid accidental mutation of cached structures
-            return [dict(m) for m in cached]
+            return cached
 
         # Start with provider-declared models and let extensions and features
         # participate in model discovery. Adapters normalize shapes so that
@@ -1005,7 +1004,7 @@ class AgentCore:
             validated.append(dict(model))
 
         self._models_cache = {**self._models_cache, cache_key: validated}
-        return [dict(m) for m in validated]
+        return validated
 
     def _resolve_plugins_for_config(
         self,
@@ -1035,16 +1034,16 @@ class AgentCore:
             enabled_extensions = [ext for ext in provider.extensions if ext.name in ext_names]
             enabled_features = [feat for feat in self._features if feat.name in feature_names]
             enabled_tools = [tool for tool in self._tools if tool.name in tool_names]
-            return provider, enabled_extensions, enabled_features, enabled_tools, list(tags)
+            return provider, enabled_extensions, enabled_features, enabled_tools, tags
 
         # Build initial candidates
         candidate_extensions: List[ExtensionWrapper] = list(provider.extensions)
         candidate_features: List[FeatureWrapper] = list(self._features)
         candidate_tools: List[ToolWrapper] = list(self._tools)
 
-        enabled_extensions = list(candidate_extensions)
-        enabled_features = list(candidate_features)
-        enabled_tools = list(candidate_tools)
+        enabled_extensions = candidate_extensions
+        enabled_features = candidate_features
+        enabled_tools = candidate_tools
 
         available_tags: Set[str] = set()
         while True:

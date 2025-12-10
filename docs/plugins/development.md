@@ -42,7 +42,7 @@ class EchoProvider(ProviderPlugin):
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         # Provider state is an opaque dict; this minimal example only
         # stores configuration.
-        return {"config": dict(config)}
+        return {"config": config}
 
     def call_api(
         self,
@@ -103,7 +103,7 @@ class MyProvider(ProviderPlugin):
 
     def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:
         if "choices" in native_chunk and native_chunk["choices"]:
-            return dict(native_chunk["choices"][0])
+            return native_chunk["choices"][0]
         return {}
 
     def process_delta(self, delta: Dict[str, Any], accumulated: Dict[str, Any] | None):
@@ -222,7 +222,7 @@ class MyStreamingExtension(ProviderExtensionPlugin):
 
     def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:
         if "choices" in native_chunk and native_chunk["choices"]:
-            return dict(native_chunk["choices"][0])
+            return native_chunk["choices"][0]
         return {}
 
     def process_delta(
@@ -253,7 +253,7 @@ class MyStreamingExtension(ProviderExtensionPlugin):
         delta = self.extract_delta(native_chunk or {})
         accumulated = state.get("partial", {})
 
-        new_partials = list(partial_messages)
+        new_partials = partial_messages
         if new_partials:
             last = new_partials[-1]
             updated_last, accumulated = self.process_delta(delta, last, accumulated)

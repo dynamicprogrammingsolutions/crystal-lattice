@@ -321,7 +321,7 @@ class OpenRouterProvider(ProviderPlugin):
         Return the first choice if present.
         """
         if "choices" in native_chunk and native_chunk["choices"]:
-            return dict(native_chunk["choices"][0])
+            return native_chunk["choices"][0]
 
         return {}
 

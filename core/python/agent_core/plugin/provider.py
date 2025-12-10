@@ -132,12 +132,12 @@ class ProviderWrapper(ProviderPlugin):
         return self.plugin.get_tags(config, models)
 
     def get_state(self) -> Dict[str, Any]:
-        """Expose a copy of the current shared state for orchestration.
+        """Expose the current shared state for orchestration.
 
         Returns:
-            Shallow copy of the shared provider state.
+            Shared provider state.
         """
-        return dict(self._get_state())
+        return self._get_state()
 
     def set_state(self, state: Dict[str, Any]) -> None:
         """Replace the current shared state (used by features).

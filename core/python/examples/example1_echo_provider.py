@@ -21,7 +21,7 @@ class EchoProvider(ProviderPlugin):
         # Provider state is an opaque dict owned by the provider and its
         # extensions/features. This example only tracks an accumulated string
         # during streaming.
-        return {"config": dict(config), "accumulated": ""}
+        return {"config": config, "accumulated": ""}
 
     def initialize_request(
         self,
@@ -33,7 +33,7 @@ class EchoProvider(ProviderPlugin):
         self,
         native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        return list(native_messages)
+        return native_messages
 
     def stream_api(
         self,

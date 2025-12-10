@@ -45,7 +45,7 @@ class EchoOpenAILikeProvider(ProviderPlugin):
         # Provider state is opaque; this provider tracks configuration,
         # request metadata, and a partial accumulator for compatibility
         # with the OpenAI-style streaming helpers.
-        return {"config": dict(config), "request": {}, "partial": None}
+        return {"config": config, "request": {}, "partial": None}
 
     # ---------- Message conversion ----------
     def to_native_messages(

@@ -231,7 +231,7 @@ class OpenAICompatibleProvider(ProviderPlugin):
         Returns the first choice object when present, or an empty dict.
         """
         if "choices" in native_chunk and native_chunk["choices"]:
-            return dict(native_chunk["choices"][0])
+            return native_chunk["choices"][0]
 
         return {}
 

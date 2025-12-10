@@ -130,9 +130,10 @@ def create_session(payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     base = _core.create_session()
     session = Session(
         session_id=base.session_id,
-        messages=list(base.messages),
+        messages=base.messages,
         metadata={},
     )
+
 
     system_message = (payload or {}).get("system_message")
     if isinstance(system_message, str) and system_message:
@@ -203,9 +204,10 @@ def send_request(session_id: str, payload: Optional[Dict[str, Any]] = None) -> D
 
     return {
         "session": final_session.to_dict(),
-        "messages": list(final_messages),
+        "messages": final_messages,
         "request_id": request_id,
     }
+
 
 
 # ---------------------------------------------------------------------------
