@@ -86,10 +86,12 @@ In this mode, any requests sent through the HTTP API (for the same
 session) will produce events that also appear in the terminal, and vice
 versa.
 
-## Logging to a file
+## Logging
 
-By default, all output goes to stdout. You can also mirror logs to a
-separate file using `--log-file`:
+By default, all output goes to stdout and the log level for the
+terminal application starts at `WARNING`.
+
+You can mirror logs to a separate file using `--log-file`:
 
 ```bash
 # Server only, with logs mirrored to app.log
@@ -105,6 +107,37 @@ python -m agent_terminal_app --server --console --log-file combined.log
 The `--log-file` option adds a file handler to Python's root logger, so
 uvicorn and the terminal client logs are written both to stdout and to
 the given file.
+
+You can also control the log level for both the terminal application
+and the core SDK using `--log-level` (overriding any `LOG_LEVEL`
+environment variable):
+
+```bash
+python -m agent_terminal_app --log-level DEBUG
+python -m agent_terminal_app --console --log-level INFO
+```
+
+## Command-line options
+
+You can inspect all available flags with:
+
+```bash
+python -m agent_terminal_app --help
+```
+
+Common options:
+
+- `--server` – run the HTTP API server (default when no flags given)
+- `--console` – run the interactive terminal client
+- `--host` / `--port` – bind address and port for the server
+- `--config` – path to a JSON config file
+- `--config-local` – force use of `./.crystal/config.json`, creating a
+  default if missing
+- `--sessions-dir` – directory for session files (default:
+  `./.crystal/sessions`)
+- `--app-name` – name to set as the terminal window title
+- `--log-file` – mirror logs to a file while keeping stdout output
+- `--log-level` – set log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`)
 
 ## Plugins
 
