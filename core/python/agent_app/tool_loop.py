@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Iterator, List, Tuple
+from typing import Any, Dict, Iterator, List
 
 from agent_core import AgentCore, MessageRole, Session
 
@@ -89,11 +89,20 @@ class ToolLoopRunner:
         session: Session,
         *,
         stream: bool,
-    ) -> Tuple[Session, List[Dict[str, Any]], List[Dict[str, Any]]]:
-        """Run a single LLM phase and return (session, messages, events).
+    ) -> Iterator[Dict[str, Any]]:
+        """Run a single LLM phase, yielding events as they occur.
 
-        The outer tool loop is shared for streaming and non-streaming; this
-        helper handles the per-phase differences in how events are produced.
+        For non-streaming requests a single ``final`` event is yielded.
+        For streaming requests, ``partial`` events are yielded as chunks
+        arrive from :meth:`AgentCore.send_request_stream`, along with
+        a per-phase assistant message lifecycle signal:
+
+        - ``{"type": "assistant_message", "phase": "start", ...}``
+        - ``{"type": "assistant_message", "phase": "end", ...}``
+
+        The updated session and final assistant messages for the phase
+        are returned via ``StopIteration.value`` as
+        ``(final_session, final_messages)``.
         """
 
         core = self._core
@@ -102,67 +111,94 @@ class ToolLoopRunner:
 
         if not stream:
             if self._is_cancelled():
-                events = [
-                    {
-                        "type": "request_cancelled",
-                        "session_id": session.session_id,
-                        "request_id": rid,
-                    }
-                ]
-                return session, [], events
+                yield {
+                    "type": "request_cancelled",
+                    "session_id": session.session_id,
+                    "request_id": rid,
+                }
+                return session, []
 
             next_session, final_messages = core.send_request(session, config)
-            events = [
-                {
-                    "type": "final",
-                    "session_id": next_session.session_id,
-                    "request_id": rid,
-                    "messages": final_messages,
-                    "session": next_session.to_dict(),
-                }
-            ]
-            return next_session, final_messages, events
+            yield {
+                "type": "final",
+                "session_id": next_session.session_id,
+                "request_id": rid,
+                "messages": final_messages,
+                "session": next_session.to_dict(),
+            }
+            return next_session, final_messages
 
-        # Streaming: accumulate partial and final events from send_request_stream
+        # Streaming: yield partial and final events directly from
+        # send_request_stream so that callers see true streaming
+        # behaviour without per-phase buffering.
         current_session = session
         final_session = session
         final_messages: List[Dict[str, Any]] = []
-        events: List[Dict[str, Any]] = []
+        started = False
 
         for chunk in core.send_request_stream(session, config):
             if self._is_cancelled():
-                events.append(
-                    {
-                        "type": "request_cancelled",
-                        "session_id": current_session.session_id,
-                        "request_id": rid,
-                    }
-                )
-                return current_session, [], events
+                yield {
+                    "type": "request_cancelled",
+                    "session_id": current_session.session_id,
+                    "request_id": rid,
+                }
+                return current_session, []
 
-            if chunk.get("type") == "partial":
-                events.append(
-                    {
-                        "type": "partial",
+            ctype = chunk.get("type")
+
+            if ctype == "partial":
+                if not started:
+                    started = True
+                    # Signal the beginning of a streamed assistant message
+                    # so renderers can emit headers before reasoning/content.
+                    yield {
+                        "type": "assistant_message",
                         "session_id": current_session.session_id,
                         "request_id": rid,
-                        "message": chunk["message"],
+                        "phase": "start",
                     }
-                )
-            elif chunk.get("type") == "final":
+                yield {
+                    "type": "partial",
+                    "session_id": current_session.session_id,
+                    "request_id": rid,
+                    "message": chunk["message"],
+                }
+            elif ctype == "final":
                 final_session = chunk["session"]
                 final_messages = chunk.get("messages") or []
-                events.append(
-                    {
-                        "type": "final",
+
+                # If no partials were seen, still emit a synthetic
+                # assistant_message start so UIs can treat this as a
+                # regular assistant reply.
+                if final_messages and not started:
+                    started = True
+                    yield {
+                        "type": "assistant_message",
+                        "session_id": current_session.session_id,
+                        "request_id": rid,
+                        "phase": "start",
+                    }
+
+                yield {
+                    "type": "final",
+                    "session_id": final_session.session_id,
+                    "request_id": rid,
+                    "messages": final_messages,
+                    "session": final_session.to_dict(),
+                }
+
+                if started:
+                    # Signal end-of-message so renderers can close any
+                    # open streaming state before footers are printed.
+                    yield {
+                        "type": "assistant_message",
                         "session_id": final_session.session_id,
                         "request_id": rid,
-                        "messages": final_messages,
-                        "session": final_session.to_dict(),
+                        "phase": "end",
                     }
-                )
 
-        return final_session, final_messages, events
+        return final_session, final_messages
 
     def _apply_tool_calls(
         self,
@@ -199,16 +235,20 @@ class ToolLoopRunner:
             call_id = call.get("id") or call.get("tool_call_id")
             last_final: Dict[str, Any] | None = None
 
+            saw_partial = False
             for item in core.iter_tool_messages([call], config):
                 if not isinstance(item, dict):
                     continue
                 if "part" in item:
                     if stream_tools:
+                        phase = "start" if not saw_partial else "stream"
+                        saw_partial = True
                         yield {
                             "type": "tool_partial",
                             "session_id": current_session.session_id,
                             "request_id": rid,
                             "tool_call_id": call_id,
+                            "phase": phase,
                             "payload": item,
                         }
                     continue
@@ -229,6 +269,18 @@ class ToolLoopRunner:
                     "role": "tool",
                     "content": f"Error: no tool handled '{name}'",
                     "metadata": metadata,
+                }
+
+            if stream_tools and last_final is not None:
+                # Emit an explicit end event so UIs can render headers/footers
+                # around streamed tool output without re-parsing tool_results.
+                yield {
+                    "type": "tool_partial",
+                    "session_id": current_session.session_id,
+                    "request_id": rid,
+                    "tool_call_id": call_id,
+                    "phase": "end",
+                    "payload": {"result": last_final},
                 }
 
             tool_messages.append(last_final)
@@ -320,10 +372,22 @@ class ToolLoopRunner:
                     }
                     break
 
-                final_session, final_messages, phase_events = self._run_llm_phase(
-                    current_session, stream=stream
-                )
-                for ev in phase_events:
+                # Run a single LLM phase, yielding events as they arrive
+                # and capturing the resulting session and messages via
+                # StopIteration.value from the generator.
+                gen_phase = self._run_llm_phase(current_session, stream=stream)
+                final_session = current_session
+                final_messages: List[Dict[str, Any]] = []
+
+                while True:
+                    try:
+                        ev = next(gen_phase)
+                    except StopIteration as stop:
+                        try:
+                            final_session, final_messages = stop.value  # type: ignore[misc]
+                        except Exception:
+                            final_session, final_messages = current_session, []
+                        break
                     yield ev
 
                 current_session = final_session

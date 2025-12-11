@@ -174,7 +174,12 @@ class OpenAICompatibleProvider(ProviderPlugin):
                 headers=request["headers"],
                 timeout=request["timeout"],
             )
-            r.raise_for_status()
+            # OpenAI-compatible chat completions use UTF-8 JSON responses.
+            # Some environments may mis-detect the encoding (e.g. default
+            # to ISO-8859-1), which corrupts non-ASCII characters like
+            # en/em dashes in tool_call arguments. Force UTF-8 before
+            # parsing JSON so we never depend on response headers.
+            r.encoding = "utf-8"
             obj = r.json()
         except requests.RequestException as e:  # pragma: no cover
             raise RuntimeError(f"OpenAI-compatible call failed: {e}") from e
@@ -205,6 +210,11 @@ class OpenAICompatibleProvider(ProviderPlugin):
                 timeout=request["timeout"],
                 stream=True,
             ) as r:
+                # See call_api above: streaming chunks are UTF-8 JSON.
+                # Force UTF-8 so iter_lines(decode_unicode=True) does not
+                # decode bytes with a legacy charset and garble characters
+                # in tool_call.function.arguments.
+                r.encoding = "utf-8"
                 r.raise_for_status()
                 for line in r.iter_lines(decode_unicode=True):
                     if not line:

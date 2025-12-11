@@ -1,4 +1,4 @@
-# AI Agent Platform – Contributor Guide
+# Agent Guidelines
 
 This file is the starting point when you’re asked to change behavior, add a feature, or debug an issue. It summarizes architecture, key directories, dev workflow, and testing/doc principles. For details, read the referenced modules and docs.
 

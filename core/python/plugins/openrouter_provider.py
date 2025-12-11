@@ -215,7 +215,12 @@ class OpenRouterProvider(ProviderPlugin):
                 headers=request["headers"],
                 timeout=request["timeout"],
             )
-            r.raise_for_status()
+            # OpenRouter responses are JSON and should always be UTF-8. Some
+            # environments mis-detect the charset (for example defaulting to
+            # ISO-8859-1), which corrupts non-ASCII characters like en/em
+            # dashes inside tool arguments. Force UTF-8 before JSON parsing
+            # so that we never depend on the response headers for encoding.
+            r.encoding = "utf-8"
             obj = r.json()
             # Debug log full non-streaming response for investigation
             try:  # pragma: no cover - debug aid
@@ -285,6 +290,12 @@ class OpenRouterProvider(ProviderPlugin):
                 timeout=request["timeout"],
                 stream=True,
             ) as r:
+                # See call_api above: OpenRouter uses UTF-8 JSON for
+                # streaming chunks as well. Force UTF-8 so that
+                # iter_lines(decode_unicode=True) does not incorrectly
+                # decode bytes as ISO-8859-1 and garble characters like
+                # em dashes in tool_call.function.arguments.
+                r.encoding = "utf-8"
                 if r.status_code != 200:
                     # Get error details before raising
                     try:
