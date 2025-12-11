@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 import threading
 from pathlib import Path
@@ -12,7 +13,9 @@ from agent_app.events import InMemoryEventStore
 from agent_core.utils import configure_logging as configure_structlog
 
 
-def _configure_logging(log_file: Optional[str], *, disable_structlog_colors: bool) -> None:
+def _configure_logging(
+    log_file: Optional[str], *, log_level: Optional[str] = None, disable_structlog_colors: bool
+) -> None:
     """Configure logging for the terminal application.
 
     Stdout logging remains enabled by default; when ``log_file`` is
@@ -23,14 +26,39 @@ def _configure_logging(log_file: Optional[str], *, disable_structlog_colors: boo
     with the interactive console.
     """
 
+    # Determine effective level:
+    # - CLI flag takes precedence
+    # - then LOG_LEVEL env var
+    # - finally default to WARNING for this application
+    current_env_level = os.getenv("LOG_LEVEL")
+    if log_level:
+        effective_level_name = log_level.upper()
+    elif current_env_level:
+        effective_level_name = current_env_level.upper()
+    else:
+        effective_level_name = "WARNING"
+
+    effective_level = getattr(logging, effective_level_name, logging.WARNING)
+
+    # Keep stdlib logging root configured at the chosen level so
+    # uvicorn and other libraries respect it.
+    root = logging.getLogger()
+    root.setLevel(effective_level)
+
+    # Ensure structlog picks up the same default level:
+    # - Respect explicit CLI override even when LOG_LEVEL was already set.
+    # - Otherwise, don't overwrite an existing LOG_LEVEL env var.
+    if log_level:
+        os.environ["LOG_LEVEL"] = effective_level_name
+    elif current_env_level is None:
+        os.environ["LOG_LEVEL"] = effective_level_name
+
     # Standard library logging: always keep stdout; optionally add file.
     if log_file:
         handler = logging.FileHandler(log_file)
-        handler.setLevel(logging.INFO)
+        handler.setLevel(effective_level)
         formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s - %(message)s")
         handler.setFormatter(formatter)
-
-        root = logging.getLogger()
         root.addHandler(handler)
 
     # Structlog / core logging:
@@ -189,6 +217,16 @@ def main() -> None:  # pragma: no cover - manual execution only
         help="optional path to a log file; output still goes to stdout",
     )
     parser.add_argument(
+        "--log-level",
+        type=str,
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        default=None,
+        help=(
+            "log level for application and core logs "
+            "(default: WARNING; overridden by LOG_LEVEL env var)"
+        ),
+    )
+    parser.add_argument(
         "--config",
         type=str,
         default=None,
@@ -217,7 +255,7 @@ def main() -> None:  # pragma: no cover - manual execution only
     run_server = args.server or not args.console
     run_console = args.console
 
-    _configure_logging(args.log_file, disable_structlog_colors=False)
+    _configure_logging(args.log_file, log_level=args.log_level, disable_structlog_colors=False)
 
     if args.app_name:
         _set_terminal_title(args.app_name)

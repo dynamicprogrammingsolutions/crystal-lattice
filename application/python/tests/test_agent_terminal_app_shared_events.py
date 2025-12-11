@@ -53,6 +53,8 @@ def test_shared_event_store_between_server_and_terminal(tmp_path: Path) -> None:
     kinds = {ev.get("type") for ev in t_events}
     assert "session_created" in kinds
 
+    term_app.switch_session(session_id)
+
     # 3) Append a user message via the terminal helpers.
     term_app.add_message(session_id, role="user", content="from terminal", metadata=None)
 
