@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, cast
 import uuid
 
 from agent_core import AgentCore, MessageRole, Session
@@ -269,6 +269,17 @@ class AgentApplication:
         """Return the configured event store for this application."""
 
         return self._event_store
+
+    def get_application_config(self) -> Dict[str, Any]:
+        """Return application-level configuration section.
+
+        This helper exposes the top-level "application" config subtree used
+        for frontend-specific settings such as rendering limits.
+        """
+
+        cfg = self._config if isinstance(self._config, dict) else {}
+        raw_app_cfg = cfg.get("application") if isinstance(cfg.get("application"), dict) else {}
+        return cast(Dict[str, Any], raw_app_cfg)
 
     def cancel_request(self, request_id: str) -> None:
         """Request cooperative cancellation for an in-flight request.

@@ -195,11 +195,20 @@ class TerminalApplication:
 
         core, _base_config, session = self.require_session()
 
-        # TODO: use overrides in the config. Final config should be the output of the require_session.
-        new_session = core.add_message(session, "user", content, metadata, config=_base_config)
+        base_md: Dict[str, Any] = metadata or {}
+
+        # Append via core so that features (including timestamp plugins)
+        # can enrich metadata such as ``metadata.timestamp``.
+        new_session = core.add_message(session, "user", content, base_md, config=_base_config)
         self._app.save_session(new_session)
 
         last_message = new_session.messages[-1] if new_session.messages else None
+        last_md: Dict[str, Any] = {}
+        if last_message is not None:
+            data = last_message.to_dict()
+            raw_md = data.get("metadata") or {}
+            if isinstance(raw_md, dict):
+                last_md = raw_md
 
         store = self._app.get_event_store()
         store.publish(
@@ -208,7 +217,10 @@ class TerminalApplication:
                 "session_id": new_session.session_id,
                 "role": "user",
                 "content": content,
-                "metadata": metadata or {},
+                # Use the metadata from the appended message so that
+                # plugin-provided fields (e.g., timestamp) are visible
+                # to renderers.
+                "metadata": last_md,
                 "message": last_message.to_dict() if last_message is not None else None,
                 "session": new_session.to_dict(),
             }
@@ -522,11 +534,9 @@ class TerminalApplication:
 
         Returns a dict with the updated session under the "session" key.
         """
-        ctx = self._app.load_session(session_id)
-        if ctx is None:
-            raise KeyError(f"Session {session_id!r} not found")
 
-        core, _base_config, session = ctx
+        core, _base_config, session = self.require_session()
+
         normalized_role = role if role in {"system", "user", "assistant", "tool"} else "user"
 
         new_session: Session = core.add_message(session, normalized_role, content, metadata, config=_base_config)
@@ -536,6 +546,12 @@ class TerminalApplication:
             self._session = new_session
 
         last_message = new_session.messages[-1] if new_session.messages else None
+        last_md: Dict[str, Any] = {}
+        if last_message is not None:
+            data = last_message.to_dict()
+            raw_md = data.get("metadata") or {}
+            if isinstance(raw_md, dict):
+                last_md = raw_md
 
         store = self._app.get_event_store()
         store.publish(
@@ -544,7 +560,9 @@ class TerminalApplication:
                 "session_id": new_session.session_id,
                 "role": normalized_role,
                 "content": content,
-                "metadata": metadata or {},
+                # Surface metadata from the stored message (including
+                # plugin-provided fields) for renderers and clients.
+                "metadata": last_md,
                 "message": last_message.to_dict() if last_message is not None else None,
                 "session": new_session.to_dict(),
             }
@@ -604,7 +622,7 @@ class TerminalApplication:
         self._session = new_session
         return new_session
 
-    def session_ui_elements(self) -> List[Dict[str, Any]]:
+    def session_ui_elements(self) -> list[dict[str, object]]:
         core, _base_config, _session = self.require_session()
 
         try:
@@ -612,7 +630,7 @@ class TerminalApplication:
         except Exception:
             return []
 
-        def _is_config_element(el: Any) -> bool:
+        def _is_config_element(el: object) -> bool:
             match el:
                 case {"ui_type": "config", "key": str(key)} if key:
                     return True
@@ -622,6 +640,65 @@ class TerminalApplication:
                     return False
 
         return [el for el in ui_schema or [] if _is_config_element(el)]
+
+    def message_footer_elements(self) -> list[dict[str, object]]:
+        """Return UI schema elements that describe message footers.
+
+        Plugins may contribute elements with type == "message_footer" that
+        reference JSON paths within messages for display in the terminal
+        footer area.
+        """
+
+        core, _base_config, _session = self.require_session()
+
+        try:
+            ui_schema = core.get_ui_schema()
+        except Exception:
+            return []
+
+        result: list[dict[str, object]] = []
+        for el in ui_schema or []:
+            if not isinstance(el, dict):
+                continue
+            if el.get("type") == "message_footer":
+                result.append(el)
+        return result
+
+    def get_application_config_schema(self) -> Dict[str, Dict[str, Any]]:
+        """Return schema for application-level configuration keys.
+
+        The schema describes options under the top-level "application"
+        section of the config that are consumed by the terminal app
+        itself (for example, tool output rendering limits).
+        """
+
+        return {
+            "tool_output_line_limit": {
+                "type": "int",
+                "default": 100,
+                "description": "Maximum number of lines of tool output shown per tool call (full view).",
+            },
+            "tool_output_char_limit": {
+                "type": "int",
+                "default": 8000,
+                "description": "Maximum number of characters of tool output shown per tool call (full view).",
+            },
+            "tool_output_short_char_limit": {
+                "type": "int",
+                "default": 200,
+                "description": "Maximum characters of tool output shown in short view (e.g. /list short).",
+            },
+            "tool_output_short_one_line": {
+                "type": "bool",
+                "default": True,
+                "description": "If true, short tool output is rendered on a single condensed line.",
+            },
+            "tool_output_short_line_limit": {
+                "type": "int",
+                "default": 20,
+                "description": "Maximum number of lines for short tool output when one-line mode is disabled.",
+            },
+        }
 
     def update_override(self, key: str, value: Any) -> Session:
         session = self.session

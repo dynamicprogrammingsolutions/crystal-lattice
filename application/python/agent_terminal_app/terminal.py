@@ -13,7 +13,7 @@ from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.patch_stdout import patch_stdout
 
-from .event_rendering import _format_message_for_list, _render_event
+from .event_rendering import TerminalRenderContext
 from .terminal_app import TerminalApplication
 
 _DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "config_openrouter_app_layer.json"
@@ -150,6 +150,35 @@ def _status_bar_text(app: TerminalApplication) -> str:
     return f"Agent: {agent}  Session: {session_id}"
 
 
+def _normalize_setting_options(options: Any) -> List[tuple[str, str]]:
+    """Normalize a UI element's options into ``(value, display)`` pairs.
+
+    Supports both simple string options and objects like
+    ``{"value": "low", "label": "Low"}``.
+    """
+
+    normalized: List[tuple[str, str]] = []
+    if not isinstance(options, list):
+        return normalized
+
+    for opt in options:
+        if isinstance(opt, str):
+            if opt:
+                normalized.append((opt, opt))
+            continue
+
+        if isinstance(opt, dict):
+            val = opt.get("value")
+            label = opt.get("label")
+            if isinstance(val, str) and val:
+                if isinstance(label, str) and label:
+                    normalized.append((val, label))
+                else:
+                    normalized.append((val, val))
+
+    return normalized
+
+
 
 
 async def _poll_events(
@@ -160,8 +189,12 @@ async def _poll_events(
 ) -> None:
     while ui_state.get("running", True):
         events = app.poll_new_events(limit=50)
+        renderer = ui_state.get("renderer")
         for ev in events:
-            _render_event(ev, write)
+            # Prefer the shared TerminalRenderContext when available so that
+            # streaming events and history listing share the same visuals.
+            if isinstance(renderer, TerminalRenderContext):
+                renderer.render_event(ev, write)
 
             etype = ev.get("type")
             if etype == "request_started":
@@ -490,37 +523,69 @@ async def _cmd_help(
             write("")
             return
  
-        if not ui_elements:
+        if ui_elements:
+            write("\n[help] Configurable settings (via /set):")
+            for el in ui_elements:
+                key_val = el.get("key")
+                if not isinstance(key_val, str) or not key_val:
+                    continue
+                plugin_name_val = el.get("plugin")
+                plugin_name = (
+                    plugin_name_val
+                    if isinstance(plugin_name_val, str) and plugin_name_val
+                    else "unknown"
+                )
+                label_val = el.get("label")
+                desc_val = el.get("description")
+                info = (
+                    label_val
+                    if isinstance(label_val, str) and label_val
+                    else (desc_val if isinstance(desc_val, str) else "")
+                )
+
+                key_str = f"\x1b[1;33m{key_val}\x1b[0m"
+                plugin_str = f"\x1b[34m[{plugin_name}]\x1b[0m"
+                if info:
+                    info_str = f"\x1b[90m{info}\x1b[0m"
+                    write(f"  {key_str} {plugin_str} {info_str}")
+                else:
+                    write(f"  {key_str} {plugin_str}")
+        else:
             write("\n[help] No configurable settings available via /set for this session")
+
+        # Finally, show application-level config options from the
+        # top-level "application" section (used by the terminal app
+        # itself for things like tool output limits). This is driven by
+        # a static schema so that all options are visible even when they
+        # are not explicitly set in the config file.
+        try:
+            app_cfg_schema = app.get_application_config_schema()
+            app_cfg = app.agent_app.get_application_config()
+        except Exception as exc:  # pragma: no cover - defensive
+            write(f"[help config] failed to get application config: {exc}")
             write("")
             return
- 
-        write("\n[help] Configurable settings (via /set):")
-        for el in ui_elements:
-            key_val = el.get("key")
-            if not isinstance(key_val, str) or not key_val:
-                continue
-            plugin_name_val = el.get("plugin")
-            plugin_name = (
-                plugin_name_val
-                if isinstance(plugin_name_val, str) and plugin_name_val
-                else "unknown"
-            )
-            label_val = el.get("label")
-            desc_val = el.get("description")
-            info = (
-                label_val
-                if isinstance(label_val, str) and label_val
-                else (desc_val if isinstance(desc_val, str) else "")
-            )
- 
-            key_str = f"\x1b[1;33m{key_val}\x1b[0m"
-            plugin_str = f"\x1b[34m[{plugin_name}]\x1b[0m"
-            if info:
-                info_str = f"\x1b[90m{info}\x1b[0m"
-                write(f"  {key_str} {plugin_str} {info_str}")
-            else:
-                write(f"  {key_str} {plugin_str}")
+
+        if app_cfg_schema:
+            write("\n[help] Application-level config options (config[\"application\"]):")
+            for key in sorted(app_cfg_schema.keys()):
+                meta = app_cfg_schema.get(key) or {}
+                type_name = meta.get("type", "?")
+                default_val = meta.get("default")
+                desc = meta.get("description") or ""
+                current_val = app_cfg.get(key, default_val)
+
+                key_str = f"\x1b[1;33m{key}\x1b[0m"
+                type_str = f"\x1b[34m{type_name}\x1b[0m"
+                values_str = f"\x1b[90mdefault={default_val!r}, current={current_val!r}\x1b[0m"
+                if desc:
+                    desc_str = f"\x1b[90m{desc}\x1b[0m"
+                    write(f"  {key_str} ({type_str}) {values_str} - {desc_str}")
+                else:
+                    write(f"  {key_str} ({type_str}) {values_str}")
+        else:
+            write("\n[help] No application-level config options defined (schema is empty)")
+
         write("")
         return
 
@@ -664,6 +729,7 @@ def _set_completion(app: TerminalApplication, text: str) -> List[Completion]:
     # Complete option values for a specific key.
     key_token, _, value_prefix = rest.partition(" ")
     value_prefix = value_prefix.lstrip()
+    raw_prefix = value_prefix
 
     target_el: Optional[Dict[str, Any]] = None
     for el in elements:
@@ -675,16 +741,36 @@ def _set_completion(app: TerminalApplication, text: str) -> List[Completion]:
         return completions
 
     options = target_el.get("options") or []
-    for opt in options:
-        if not isinstance(opt, str) or not opt:
-            continue
-        if not value_prefix or opt.startswith(value_prefix):
+    el_type = target_el.get("type")
+
+    # Special-case boolean / checkbox settings: suggest "true" / "false"
+    # without any extra meta information.
+    if el_type == "checkbox":
+        bool_options = ["true", "false"]
+        lower_prefix = value_prefix.lower()
+        for opt in bool_options:
+            if not value_prefix or opt.startswith(lower_prefix):
+                completions.append(
+                    Completion(
+                        opt,
+                        start_position=-len(raw_prefix),
+                        display=opt,
+                    )
+                )
+        return completions
+
+    # For non-boolean options, support both plain strings and
+    # {"value", "label"} objects. Show the underlying value as the
+    # primary suggestion and the human-friendly label as meta.
+    normalized = _normalize_setting_options(options)
+    for opt_value, opt_display in normalized:
+        if not value_prefix or opt_value.startswith(value_prefix):
             completions.append(
                 Completion(
-                    opt,
+                    opt_value,
                     start_position=-len(value_prefix),
-                    display=opt,
-                    display_meta=key_token,
+                    display=opt_value,
+                    display_meta=opt_display,
                 )
             )
     return completions
@@ -714,8 +800,10 @@ async def _cmd_set(
         write("[set] Available keys:")
         for key in sorted(by_key.keys()):
             options = by_key[key].get("options") or []
-            if options:
-                write(f"  {key} (options: {', '.join(options)})")
+            normalized = _normalize_setting_options(options)
+            if normalized:
+                display_opts = [opt_display for _, opt_display in normalized]
+                write(f"  {key} (options: {', '.join(display_opts)})")
             else:
                 write(f"  {key}")
         return
@@ -734,12 +822,34 @@ async def _cmd_set(
         return
 
     options = el.get("options") or []
-    if options and value not in options:
-        write(f"[set] invalid value for {key!r}. Allowed: {', '.join(options)}")
-        return
+    normalized = _normalize_setting_options(options)
+
+    coerced: Any = value
+    if normalized:
+        lowered = value.lower()
+        canonical: Optional[str] = None
+        for opt_value, opt_display in normalized:
+            # Accept either the underlying value or the human label,
+            # matching case-sensitively or case-insensitively.
+            if (
+                value == opt_value
+                or value == opt_display
+                or lowered == opt_value.lower()
+                or lowered == opt_display.lower()
+            ):
+                canonical = opt_value
+                break
+
+        if canonical is None:
+            allowed_labels = [opt_display for _, opt_display in normalized]
+            write(
+                f"[set] invalid value for {key!r}. Allowed: {', '.join(allowed_labels)}"
+            )
+            return
+
+        coerced = canonical
 
     el_type = el.get("type")
-    coerced: Any = value
     if el_type == "checkbox":
         lowered = value.lower()
         if lowered in {"true", "1", "yes", "on"}:
@@ -1149,6 +1259,15 @@ async def _cmd_list(
     ui_state: Dict[str, Any],
 ) -> None:
     text = (arg or "").strip()
+    use_short = False
+
+    # Optional "short" prefix switches renderers into compact mode.
+    if text.startswith("short"):
+        first, _, rest = text.partition(" ")
+        if first == "short":
+            use_short = True
+            text = rest.strip()
+
     if not text:
         write("[list] usage: /list <count> or /list <start>:<end>")
         return
@@ -1198,9 +1317,21 @@ async def _cmd_list(
         write("[list] no messages to show")
         return
 
+    renderer = ui_state.get("renderer")
+
+    # When no renderer is present in ui_state (for example in tests
+    # calling this command directly), create a fresh TerminalRenderContext
+    # so that listing uses the same visuals as the interactive UI.
+    if not isinstance(renderer, TerminalRenderContext):
+        renderer = TerminalRenderContext(
+            app=app,
+            footer_elements_supplier=lambda: app.message_footer_elements(),
+        )
+        ui_state["renderer"] = renderer
+
     for idx, message in items:
-        for line in _format_message_for_list(idx, message):
-            write(line)
+        renderer.render_message(idx, message, write, short=use_short)
+
 
 
 async def _handle_slash_command(
@@ -1341,7 +1472,7 @@ async def _run_terminal(
     # Create an initial in-memory session so that the UI has a
     # session context from startup, but avoid persisting it until
     # the user sends the first message or otherwise modifies it.
-    app.start_new_session(agent_id="default", persist=False)
+    app.start_new_session(agent_id=app.available_agents()[0], persist=False)
 
     ui_state: Dict[str, Any] = {
         "running": True,
@@ -1349,7 +1480,16 @@ async def _run_terminal(
         "pending_session_choices": None,
         "pending_modify_index": None,
         "input_prefill": "",
+        "renderer": None,
     }
+
+    # Shared renderer context used for both streaming events and history
+    # listing so that visuals stay consistent.
+    renderer_ctx = TerminalRenderContext(
+        app=app,
+        footer_elements_supplier=lambda: app.message_footer_elements(),
+    )
+    ui_state["renderer"] = renderer_ctx
 
     def write(text: str) -> None:
         print(text, flush=True)

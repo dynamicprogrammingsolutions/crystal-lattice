@@ -78,7 +78,7 @@ You should see an echo of your last user message.
 
 ### Terminal app with Echo config
 
-The terminal app ships with an echo‑based config file:
+The terminal app ships with an echo-based config file:
 
 - `application/python/agent_terminal_app/config_echo_app.json`
 
@@ -98,7 +98,31 @@ You now have an interactive terminal client:
 - Use `/new` to start a new session
 - Use `/exit` or `Ctrl-Q` to quit
 
-This mode uses the echo provider only – no API keys or external services.
+This mode uses the echo provider only - no API keys or external services.
+
+The terminal also respects several *application-level* settings under the
+top-level "application" key in the config file. For example, you can
+control how tool outputs are printed in the UI by editing
+`application/python/agent_terminal_app/config_echo_app.json`:
+
+```json
+{
+  "application": {
+    "tool_output_line_limit": 100,
+    "tool_output_char_limit": 8000,
+    "tool_output_short_char_limit": 200,
+    "tool_output_short_one_line": true,
+    "tool_output_short_line_limit": 20
+  },
+  ...
+}
+```
+
+- `tool_output_line_limit` / `tool_output_char_limit` limit how many lines
+  and characters of tool output are shown in the terminal (agents still get
+  the full content).
+- `tool_output_short_*` control the compact "short" view used by
+  `/list short ...`.
 
 ---
 

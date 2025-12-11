@@ -58,6 +58,11 @@ class ClaudeCachingExtension(ProviderExtensionPlugin):
                 "type": "checkbox",
                 "key": "enable_claude_caching",
                 "label": "Enable Claude Caching (Anthropic via OpenRouter)",
+            },
+            {
+                "type": "message_footer",
+                "data": "metadata.cached_tokens",
+                "template": "cached: {{data}}",
             }
         ]
 
@@ -215,11 +220,10 @@ class ClaudeCachingExtension(ProviderExtensionPlugin):
         # metadata we want to attach to the assistant message. The
         # provider's process_chunk() maintains state["partial"] as the
         # latest provider-native assistant message; we enrich that with
-        # cached_tokens when available.
-
-        accumulated = state.get("partial")
-        if not isinstance(accumulated, dict):
-            return partial_messages, final_messages, native_messages, state
+        # cached_tokens when available. We only care about cached_tokens
+        # on the final messages, so we avoid changing the shape of
+        # streaming partials and only decorate the provider's internal
+        # accumulator in state.
 
         cached_tokens = None
         if isinstance(native_chunk, dict):
@@ -228,19 +232,23 @@ class ClaudeCachingExtension(ProviderExtensionPlugin):
                 details = usage.get("prompt_tokens_details") or {}
                 if isinstance(details, dict) and "cached_tokens" in details:
                     cached_tokens = details.get("cached_tokens")
+        if cached_tokens is None:
+            return partial_messages, final_messages, native_messages, state
 
-        if cached_tokens is not None:
+        accumulated = state.get("partial")
+        if isinstance(accumulated, dict):
             internal_md = dict(accumulated.get("_metadata") or {})
             internal_md["cached_tokens"] = cached_tokens
             accumulated = {**accumulated, "_metadata": internal_md}
+            new_state = {**state, "partial": accumulated}
+        else:
+            new_state = state
 
-        new_state = {**state, "partial": accumulated}
-
-        # Emit the enriched accumulator as the only partial message, so
-        # the provider wrapper converts it to a core partial and tracks
-        # it in native history. Finals and full history are unchanged
-        # at this stage; cache_control stripping is handled in finalize.
-        return ([accumulated] if accumulated else []), [], native_messages, new_state
+        # Do not alter the provider's partial/final messages; we only
+        # enrich the internal native accumulator so finalize() and
+        # from_native_messages() can expose cached_tokens on the
+        # retained history and final core messages.
+        return partial_messages, final_messages, native_messages, new_state
 
     def finalize(
         self,
