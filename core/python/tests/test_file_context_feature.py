@@ -65,3 +65,40 @@ def test_persistent_mode_with_residual_markers_falls_back_to_on_the_fly() -> Non
     assert messages[0]["content"] != native[0]["content"]
     # The expanded request content is allowed to contain @file:, since it is
     # request-local and will not be re-interpreted next turn.
+
+
+def test_apply_completion_builds_template_snippet() -> None:
+    feature = FileContextFeature()
+
+    config: Dict[str, Any] = {
+        "file_context_enabled": True,
+        "file_context_template": "{path}\n```{lang}\n@file:{path}:{range}\n```",
+        "file_context_max_lines": 10,
+        "working_directory": ".",
+        "allowed_paths": ["."],
+    }
+
+    # Create a temporary file with a known number of lines.
+    import tempfile
+    import os
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, "bar.py")
+        with open(path, "w", encoding="utf-8") as f:
+            for i in range(1, 6):
+                f.write(f"line {i}\n")
+
+        config["working_directory"] = tmpdir
+
+        completion = {
+            "replacement": "@file:bar.py",
+            "path": "bar.py",
+            "range_input": "2",
+        }
+
+        text = "@file:bar.py:2"
+        snippet = feature.apply_completion(config, text, completion)
+
+        assert "bar.py" in snippet
+        # With 5 lines in the file and start=2, default end should be 5.
+        assert "@file:bar.py:2-5" in snippet

@@ -313,6 +313,14 @@ FeaturePlugin:
     # input text. Each entry is a feature-defined dictionary typically
     # containing keys like "replacement", "start", "display", and
     # "display_meta". Returns an empty list when no completions apply.
+
+  apply_completion(config: dict, text: str, completion: dict) → str
+    # Optional hook that is called when an application accepts a
+    # completion previously returned by get_completions. It receives
+    # the full buffer text after the completion has been applied and
+    # the original completion descriptor. Returns a replacement
+    # snippet string to insert in place of the completion text, or an
+    # empty string/falsey value to indicate no special handling.
 ```
 
 ### 4. Tool Plugin Protocol

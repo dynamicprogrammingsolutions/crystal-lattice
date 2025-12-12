@@ -1743,6 +1743,39 @@ class AgentCore:
                     completions.append(item)
         return completions
 
+    def apply_feature_completion(
+        self,
+        config: Dict[str, Any],
+        text: str,
+        completion: Dict[str, Any],
+    ) -> str:
+        """Ask features to transform an accepted completion into a snippet.
+
+        Iterates over registered feature plugins and calls their
+        :meth:`apply_completion` hooks in registration order. The first
+        non-empty string returned is used as the replacement snippet.
+
+        Args:
+            config: Application configuration for the current agent or
+                request.
+            text: Full buffer text after the completion has been applied.
+            completion: Completion descriptor dict that was accepted, as
+                previously returned by :meth:`get_completions`.
+
+        Returns:
+            Replacement snippet string, or an empty string when no feature
+            chooses to handle the completion.
+        """
+
+        if not self._features:
+            return ""
+
+        for feature in self._features:
+            out = feature.apply_completion(config, text, completion)
+            if isinstance(out, str) and out:
+                return out
+        return ""
+
     def get_tool_schemas(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Get tool schemas from enabled tool plugins for a config.
 

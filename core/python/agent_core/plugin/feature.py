@@ -89,3 +89,12 @@ class FeatureWrapper(FeaturePlugin):
     ) -> List[Dict[str, Any]]:
         """Delegate completion suggestions to the underlying feature implementation."""
         return self.plugin.get_completions(config, text)
+
+    def apply_completion(
+        self,
+        config: Dict[str, Any],
+        text: str,
+        completion: Dict[str, Any],
+    ) -> str:
+        """Delegate completion-accept handling to the underlying feature implementation."""
+        return self.plugin.apply_completion(config, text, completion)

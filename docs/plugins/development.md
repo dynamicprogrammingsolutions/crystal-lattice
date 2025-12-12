@@ -288,6 +288,7 @@ Key methods (subset):
 - `initialize_request(native_messages, state) -> state` (optional in Python; adapter returns state unchanged)
 - `get_template(config) -> str` (optional; returns a feature-specific template string for UIs)
 - `get_completions(config, text) -> list[dict]` (optional; returns completion suggestions for interactive apps)
+- `apply_completion(config, text, completion) -> str` (optional; turns an accepted completion into a final snippet)
 
 Minimal example (add tag):
 ```python
@@ -318,6 +319,115 @@ class TagFeature(FeaturePlugin):
 ```
 
 Feature adapters mirror extension adapters: if a feature omits the stateless conversion and `initialize_request` hooks, the Python SDK supplies identity/default behaviors.
+
+### Feature templates and completions
+
+Feature plugins can participate in interactive editing experiences by
+implementing `get_template`, `get_completions`, and
+`apply_completion`:
+
+- `get_template(config) -> str`
+  - Returns a feature-specific template string for applications that
+    need to render snippets (for example, when expanding a file or
+    web-context marker).
+  - The template is an arbitrary string; many features use Python
+    `str.format`-style placeholders such as `{path}`, `{range}`, or
+    `{lang}` so they can be combined with completion metadata.
+  - May safely return an empty string when the feature does not use
+    templates.
+
+- `get_completions(config, text) -> list[dict]`
+  - Called by applications (via `AgentCore.get_completions`) with the
+    full input `text` before the cursor.
+  - Returns a list of feature-defined dictionaries describing
+    available completions. A common minimal shape is:
+
+    ```python
+    {
+        "replacement": "text to insert",
+        "start": 5,  # 0-based index in `text` where replacement begins
+        "display": "label",  # label shown in the UI
+        "display_meta": "info",  # optional extra description
+    }
+    ```
+
+  - Features are free to attach additional keys that are useful when
+    applying the completion later (for example, `"url"`, `"path"`, or
+    parsed range information). These extra fields are passed through
+    unchanged to `apply_completion`.
+  - Should return an empty list when no completions apply for the
+    current `text`/`config`.
+
+- `apply_completion(config, text, completion) -> str`
+  - Optional hook invoked when a user accepts a completion that was
+    previously returned by `get_completions`.
+  - `text` is the full buffer *after* the completion's
+    `"replacement"` has been inserted by the UI.
+  - `completion` is the original descriptor dict from
+    `get_completions` (including any custom keys you attached).
+  - Returns a string that applications can insert into the buffer in
+    place of the just-applied completion text (for example, expanding
+    a marker into a multi-line snippet). Returning an empty string (or
+    other falsey value) indicates that the feature does not wish to
+    override the completion.
+
+Minimal example (marker completion):
+
+```python
+from typing import Any, Dict, List
+from agent_core.types import FeaturePlugin
+
+
+class MarkerFeature(FeaturePlugin):
+    name = "marker"
+    version = "1.0.0"
+
+    def get_config_schema(self) -> Dict[str, Any]:
+        return {}
+
+    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        return state
+
+    def finalize(self, final_messages, native_messages, state):
+        return final_messages, native_messages, state
+
+    def get_completions(self, config: Dict[str, Any], text: str) -> List[Dict[str, Any]]:
+        if not text.endswith("@tag:"):
+            return []
+        # Offer a fixed tag; UIs use "replacement"/"start" to
+        # update the buffer, and pass this dict back to
+        # apply_completion when accepted.
+        return [
+            {
+                "replacement": "@tag:important",
+                "start": len(text) - len("@tag:"),
+                "display": "@tag:important",
+                "display_meta": "Insert 'important' tag",
+                "tag": "important",
+            }
+        ]
+
+    def apply_completion(
+        self,
+        config: Dict[str, Any],
+        text: str,
+        completion: Dict[str, Any],
+    ) -> str:
+        tag = completion.get("tag", "")
+        if not tag:
+            return ""
+        # Replace the marker with a rendered snippet.
+        return f"[tagged:{tag}] "
+```
+
+Applications such as the terminal UI typically:
+
+- Call `AgentCore.get_completions(config, text)` to gather candidate
+  completions from all registered features.
+- When a completion is accepted, insert its `"replacement"` into the
+  buffer and then call `AgentCore.apply_feature_completion(config, text, completion)`;
+  the first non-empty string returned by a feature's
+  `apply_completion` is used as the final snippet.
 
 ## Tool Plugin
 

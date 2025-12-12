@@ -15,6 +15,7 @@ from prompt_toolkit.patch_stdout import patch_stdout
 
 from .event_rendering import TerminalRenderContext
 from .terminal_app import TerminalApplication
+from agent_app.config import resolve_request_config
 
 _DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "config_openrouter_app_layer.json"
 _DEFAULT_SESSION_ROOT = Path(__file__).resolve().parent / "sessions"
@@ -164,12 +165,16 @@ class SlashCommandCompleter(Completer):
             display_meta = item.get("display_meta") or ""
             start_position = start - cursor_pos
 
-            yield Completion(
+            comp = Completion(
                 replacement,
                 start_position=start_position,
                 display=display,
                 display_meta=display_meta,
             )
+            # Attach the original completion descriptor so that accept
+            # handlers can delegate to feature-specific logic.
+            setattr(comp, "_feature_completion", item)
+            yield comp
 
 
 def _status_bar_text(app: TerminalApplication) -> str:
@@ -1451,6 +1456,92 @@ def _build_key_bindings(
 ) -> KeyBindings:
     kb = KeyBindings()
 
+    def _accept_completion(event: Any) -> None:
+        """Accept the current or first completion without submitting.
+
+        - If a completion menu is active and a completion is selected,
+          apply that completion.
+        - If no completion is selected, start completion and apply the
+          first suggestion when available.
+        - For file-context completions (identified by an ``@file:`` text
+          and ``display_meta`` containing ``"file"``), log acceptance so
+          that a later change can attach richer behavior.
+        """
+
+        buf = event.current_buffer
+        state = buf.complete_state
+
+        # Ensure we have a completion list. When none is active yet,
+        # start completion and let the completer populate suggestions.
+        if state is None or not getattr(state, "completions", None):
+            buf.start_completion(select_first=True)
+            state = buf.complete_state
+
+        if state is None or not getattr(state, "completions", None):
+            return
+
+        # Prefer the currently selected completion when available;
+        # otherwise fall back to the first suggestion.
+        current = state.current_completion
+        if current is not None:
+            comp = current
+        else:
+            comps = list(state.completions)
+            if not comps:
+                return
+            comp = comps[0]
+
+        text = comp.text
+        meta = getattr(comp, "display_meta_text", "") or ""
+
+        # Apply the selected completion; fall back to inserting its text
+        # directly if apply_completion is not available.
+        apply = getattr(buf, "apply_completion", None)
+        if callable(apply):
+            apply(comp)
+        else:  # pragma: no cover - defensive fallback
+            buf.insert_text(comp.text)
+
+        # After the completion is applied, give feature plugins a chance to
+        # transform the accepted completion into a richer snippet. This is
+        # used by FileContextFeature to turn "@file:path" into a multi-line
+        # template snippet.
+        completion_dict = getattr(comp, "_feature_completion", None)
+        if not isinstance(completion_dict, dict):
+            return
+
+        try:
+            core, base_config, session = app.require_session()
+            metadata = session.metadata if isinstance(session.metadata, dict) else {}
+            overrides_val = metadata.get("overrides")
+            overrides: Dict[str, Any] = (
+                overrides_val if isinstance(overrides_val, dict) else {}
+            )
+            config = resolve_request_config(base_config, overrides)
+            buffer_text = buf.text
+            snippet = core.apply_feature_completion(config, buffer_text, completion_dict)
+        except Exception as exc:
+            # Display a user-friendly error message while allowing
+            # structlog-based logging inside the core/plugins to capture
+            # details for debugging.
+            if isinstance(text, str) and text.startswith("@file:") and "file" in meta:
+                write(f"[file-context] {exc}")
+            else:
+                write(f"[completion] {exc}")
+            return
+
+        if not isinstance(snippet, str) or not snippet:
+            return
+
+        # Replace the just-applied completion text with the snippet. We
+        # assume the completion was inserted contiguously before the
+        # cursor.
+        cursor_pos = buf.cursor_position
+        if isinstance(text, str) and cursor_pos >= len(text):
+            buf.cursor_position = cursor_pos
+            buf.delete_before_cursor(len(text))
+            buf.insert_text(snippet)
+
     # Ctrl-J inserts a newline without submitting the buffer.
     @kb.add("c-j")
     def _insert_newline(event: Any) -> None:  # type: ignore[no-redef]
@@ -1460,6 +1551,53 @@ def _build_key_bindings(
     @kb.add("escape", "enter")
     def _meta_enter_newline(event: Any) -> None:  # type: ignore[no-redef]
         event.current_buffer.insert_text("\n")
+
+    # Esc alone: cancel the current completion menu (if any) without
+    # modifying the buffer content.
+    @kb.add("escape")
+    def _escape_cancel_completion(event: Any) -> None:  # type: ignore[no-redef]
+        buf = event.current_buffer
+        state = buf.complete_state
+        if state is None:
+            return
+        cancel = getattr(buf, "cancel_completion", None)
+        if callable(cancel):
+            cancel()
+        else:  # pragma: no cover - defensive fallback
+            buf.complete_state = None
+
+    # Space: if a completion menu is open, cancel it and then insert a
+    # space character. This acts as a "commit current text as-is" gesture
+    # while continuing to type.
+    @kb.add(" ")
+    def _space_cancel_completion(event: Any) -> None:  # type: ignore[no-redef]
+        buf = event.current_buffer
+        state = buf.complete_state
+        if state is not None:
+            cancel = getattr(buf, "cancel_completion", None)
+            if callable(cancel):
+                cancel()
+            else:  # pragma: no cover - defensive fallback
+                buf.complete_state = None
+        buf.insert_text(" ")
+
+    # Tab: accept the selected completion (or the first one when none is
+    # selected) without submitting the buffer.
+    @kb.add("tab")
+    def _tab_accept_completion(event: Any) -> None:  # type: ignore[no-redef]
+        _accept_completion(event)
+        # After accepting a completion, insert a space so that typing can
+        # continue naturally.
+        event.current_buffer.insert_text(" ")
+
+    # Enter: accept current completion (if any) or submit the buffer.
+    # For file-context completions (identified by @file: prefix and
+    # display metadata), we currently just log acceptance; later this
+    # hook can apply a richer template.
+    @kb.add("enter")
+    def _enter_accept(event: Any) -> None:  # type: ignore[no-redef]
+        _accept_completion(event)
+        event.current_buffer.validate_and_handle()
 
     for sc in iter_shortcuts():
         key_parts = tuple(sc.keys.split()) if sc.keys else ()

@@ -507,6 +507,21 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
             return [m for m in items if isinstance(m, dict)]
         return []
 
+    def apply_completion(  # type: ignore[override]
+        self,
+        config: Dict[str, Any],
+        text: str,
+        completion: Dict[str, Any],
+    ) -> str:
+        fn = getattr(self.impl, "apply_completion", None)
+        if callable(fn):
+            try:
+                out = fn(config, text, completion)
+            except Exception:
+                return ""
+            return str(out) if out is not None else ""
+        return ""
+
 
 class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
     """Adapter providing defaults for ToolPlugin implementations."""
