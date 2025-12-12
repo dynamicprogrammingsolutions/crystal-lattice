@@ -35,6 +35,16 @@ class FileContextFeature(FeaturePlugin):
                 "default": True,
                 "description": "Enable @file: path expansion and file completions.",
             },
+            "file_context_on_the_fly": {
+                "type": "boolean",
+                "default": False,
+                "description": (
+                    "When true, expand @file markers only for the current "
+                    "request by overriding state['request']['messages'] and "
+                    "leave native history unchanged. When false, expand "
+                    "native messages (and existing request messages only)."
+                ),
+            },
             "file_context_max_bytes": {
                 "type": "integer",
                 "default": 65536,
@@ -294,28 +304,21 @@ class FileContextFeature(FeaturePlugin):
 
         return pattern.sub(_repl, content)
 
-    def initialize_request(
+    def _expand_messages(
         self,
-        native_messages: List[Dict[str, Any]],
-        state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-
-        enabled = bool(state.get("config", {}).get("file_context_enabled", True))
-        if not enabled:
-            return native_messages, state
-
-        request = state.get("request") or {}
-        base_messages = request.get("messages")
-        if not isinstance(base_messages, list):
-            base_messages = native_messages
-
-        if not isinstance(base_messages, list) or not base_messages:
-            return native_messages, state
-
-        cfg = state.get("config") or {}
+        messages: List[Dict[str, Any]],
+        cfg: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
         new_messages: List[Dict[str, Any]] = []
-        for msg in base_messages:
+        for msg in messages:
             if not isinstance(msg, dict):
+                new_messages.append(msg)
+                continue
+            # Only expand @file markers in user messages; system/assistant/tool
+            # content is left untouched to avoid surprising modifications of
+            # prompts or model outputs.
+            role = msg.get("role")
+            if role != "user":
                 new_messages.append(msg)
                 continue
             content = msg.get("content")
@@ -325,9 +328,89 @@ class FileContextFeature(FeaturePlugin):
             expanded = self._expand_file_markers(content, cfg)
             new_messages.append({**msg, "content": expanded})
 
-        new_request = {**request, "messages": new_messages}
-        new_state = {**state, "request": new_request}
-        return native_messages, new_state
+        return new_messages
+
+    def initialize_request(
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+
+        config_state = state.get("config", {}) or {}
+        enabled = bool(config_state.get("file_context_enabled", True))
+        if not enabled:
+            return native_messages, state
+        cfg = config_state
+
+        on_the_fly = bool(cfg.get("file_context_on_the_fly", False))
+
+        request = state.get("request") or {}
+        request_messages = request.get("messages")
+
+        # On-the-fly mode: expand markers only for this request by adding or
+        # overriding ``request['messages']`` and leave native history
+        # unchanged.
+        if on_the_fly:
+            base_messages: List[Dict[str, Any]]
+            if isinstance(request_messages, list) and request_messages:
+                base_messages = request_messages
+            else:
+                base_messages = native_messages
+
+            new_request_messages = self._expand_messages(base_messages, cfg)
+            new_request = {**request, "messages": new_request_messages}
+            new_state = {**state, "request": new_request}
+            return native_messages, new_state
+
+        # Persistent mode (default): expand ``native_messages`` so that the
+        # provider-native history carries the inlined file contents. If
+        # ``request['messages']`` already exists, expand that as well, but do
+        # not create it when missing.
+
+        # First, compute candidate expanded native messages.
+        candidate_native = self._expand_messages(native_messages, cfg)
+
+        # If the expanded native history still contains any @file markers
+        # (according to the same pattern used in _expand_file_markers), then
+        # expanding natively would cause further replacements on the next
+        # turn. In that case, fall back to on-the-fly behaviour for this
+        # request only.
+        pattern = re.compile(r"@file:(?P<path>[^\s:]+)(?::(?P<start>\d+)-(?P<end>\d+))?")
+        has_residual_markers = False
+        for msg in candidate_native:
+            if not isinstance(msg, dict):
+                continue
+            # Residual-marker guarding only cares about user messages; markers
+            # in system/assistant/tool content are ignored.
+            role = msg.get("role")
+            if role != "user":
+                continue
+            content = msg.get("content")
+            if not isinstance(content, str):
+                continue
+            if pattern.search(content):
+                has_residual_markers = True
+                break
+
+        if has_residual_markers:
+            # Fallback: behave as if on_the_fly were true for this request.
+            base_messages = (
+                request_messages
+                if isinstance(request_messages, list) and request_messages
+                else native_messages
+            )
+            new_request_messages = self._expand_messages(base_messages, cfg)
+            new_request = {**request, "messages": new_request_messages}
+            new_state = {**state, "request": new_request}
+            return native_messages, new_state
+
+        new_state = state
+        if isinstance(request_messages, list) and request_messages:
+            new_request_messages = self._expand_messages(request_messages, cfg)
+            new_request = {**request, "messages": new_request_messages}
+            new_state = {**state, "request": new_request}
+
+        return candidate_native, new_state
 
     def finalize(
         self,
