@@ -53,6 +53,10 @@ class FeatureWrapper(FeaturePlugin):
         """Tags required for this feature to be enabled."""
         return self.plugin.required_tags()
 
+    def get_template(self, config: Dict[str, Any]) -> str:
+        """Return a feature-specific template string, if any."""
+        return self.plugin.get_template(config)
+
     # Stateless transforms
     def to_native_messages(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
@@ -77,3 +81,11 @@ class FeatureWrapper(FeaturePlugin):
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Run feature finalize; return (final_messages, native_messages, new_state)."""
         return self.plugin.finalize(final_messages, native_messages, state)
+
+    def get_completions(
+        self,
+        config: Dict[str, Any],
+        text: str,
+    ) -> List[Dict[str, Any]]:
+        """Delegate completion suggestions to the underlying feature implementation."""
+        return self.plugin.get_completions(config, text)

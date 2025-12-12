@@ -301,6 +301,18 @@ FeaturePlugin:
     new_state: dict
   )
     # Modify or discard outputs from provider; returns updated outputs and shared state
+
+  # Optional template / completion hooks
+  get_template(config: dict) → str
+    # Optional hook that returns a feature-specific template string used
+    # by applications (for example, to construct editor snippets). May
+    # return an empty string when not applicable.
+
+  get_completions(config: dict, text: str) → list[dict]
+    # Optional hook that returns completion suggestions for the given
+    # input text. Each entry is a feature-defined dictionary typically
+    # containing keys like "replacement", "start", "display", and
+    # "display_meta". Returns an empty list when no completions apply.
 ```
 
 ### 4. Tool Plugin Protocol

@@ -598,6 +598,58 @@ class FeaturePlugin(BasePlugin, Protocol):
         """
         return final_messages, native_messages, state
 
+    # Completion / templates
+    def get_template(self, config: Dict[str, Any]) -> str:
+        """Return a template string used by this feature.
+
+        This hook is intended for applications that need a feature-specific
+        textual template (for example, to construct editor snippets or
+        autocomplete expansions). Implementations may return an empty string
+        when no template is applicable.
+
+        Args:
+            config: Application-supplied configuration for the current agent
+                or request.
+
+        Returns:
+            Template string, or an empty string if the feature does not
+            expose a template.
+        """
+
+        return ""
+
+    def get_completions(
+        self,
+        config: Dict[str, Any],
+        text: str,
+    ) -> List[Dict[str, Any]]:
+        """Return completion suggestions for the given input text.
+
+        Each completion entry is a dictionary whose structure is
+        application-defined. A common shape is::
+
+            {
+                "replacement": "text to insert",
+                "start": 5,  # 0-based index in input text
+                "display": "label shown in UI",
+                "display_meta": "extra description",
+            }
+
+        Implementations may ignore ``text`` when not relevant and should
+        return an empty list when no completions apply.
+
+        Args:
+            config: Application-supplied configuration for the current agent
+                or request.
+            text: Full text before the cursor (for example, the contents of
+                an input line in a terminal UI).
+
+        Returns:
+            List of completion descriptor dictionaries.
+        """
+
+        return []
+
 
 class ToolPlugin(BasePlugin, Protocol):
     """Protocol for tool plugins (own tool state; unchanged by shared state design).

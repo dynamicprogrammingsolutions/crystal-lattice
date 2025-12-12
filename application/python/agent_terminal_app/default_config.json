@@ -30,7 +30,10 @@
       "plugins.delay_extension.DelayExtension",
       "plugins.random_failure_extension.RandomFailureExtension"
     ],
-    "features": ["plugins.system_message_feature.SystemMessageFeature"],
+    "features": [
+      "plugins.system_message_feature.SystemMessageFeature",
+      "plugins.file_context_feature.FileContextFeature"
+    ],
     "tools": [
       "plugins.shell_tool.ShellTool",
       "plugins.apply_patch_tool.ApplyPatchTool"

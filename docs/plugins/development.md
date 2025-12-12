@@ -286,6 +286,8 @@ Key methods (subset):
 - `to_native_messages(messages, native_messages) -> list` (optional in Python; adapter defaults to identity)
 - `from_native_messages(native_messages, messages) -> list` (optional in Python; adapter defaults to identity)
 - `initialize_request(native_messages, state) -> state` (optional in Python; adapter returns state unchanged)
+- `get_template(config) -> str` (optional; returns a feature-specific template string for UIs)
+- `get_completions(config, text) -> list[dict]` (optional; returns completion suggestions for interactive apps)
 
 Minimal example (add tag):
 ```python

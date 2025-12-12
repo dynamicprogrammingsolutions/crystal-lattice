@@ -207,7 +207,7 @@ class OpenRouterProvider(ProviderPlugin):
             payload = {**request["payload"], "messages": messages_to_send, "stream": False}
             get_logger("openrouter_provider").info(
                 "sending request",
-                payload=str(payload)[:1000],
+                payload=str(payload)[:10000],
             )
             r = requests.post(
                 request["url"],

@@ -103,39 +103,73 @@ class SlashCommandCompleter(Completer):
 
     def get_completions(self, document, complete_event):  # type: ignore[override]
         text = document.text_before_cursor
-        if not isinstance(text, str) or not text.startswith("/"):
+        if not isinstance(text, str) or not text:
             return
 
-        body = text[1:]
+        # Slash-command completion
+        if text.startswith("/"):
+            body = text[1:]
 
-        # No space yet: complete command names.
-        if " " not in body:
-            prefix = body
-            for cmd in iter_slash_commands():
-                if not prefix or cmd.name.startswith(prefix):
-                    yield Completion(
-                        cmd.name,
-                        start_position=-len(prefix),
-                        display=f"/{cmd.name}",
-                        display_meta=cmd.description,
-                    )
+            # No space yet: complete command names.
+            if " " not in body:
+                prefix = body
+                for cmd in iter_slash_commands():
+                    if not prefix or cmd.name.startswith(prefix):
+                        yield Completion(
+                            cmd.name,
+                            start_position=-len(prefix),
+                            display=f"/{cmd.name}",
+                            display_meta=cmd.description,
+                        )
+                return
+
+            cmd_name, _, rest = body.partition(" ")
+            rest = rest.lstrip()
+
+            cmd = get_slash_command(cmd_name)
+            if cmd is None or cmd.completer is None:
+                return
+
+            app = self._get_app()
+            try:
+                completions = cmd.completer(app, rest) or []
+            except Exception:
+                completions = []
+
+            for comp in completions:
+                yield comp
             return
 
-        cmd_name, _, rest = body.partition(" ")
-        rest = rest.lstrip()
-
-        cmd = get_slash_command(cmd_name)
-        if cmd is None or cmd.completer is None:
+        # Non-slash input: delegate to feature-driven completions when
+        # appropriate (for example, @file: path expansion).
+        if "@" not in text:
             return
 
         app = self._get_app()
         try:
-            completions = cmd.completer(app, rest) or []
+            items = app.get_feature_completions(text) or []
         except Exception:
-            completions = []
+            items = []
 
-        for comp in completions:
-            yield comp
+        cursor_pos = len(text)
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            replacement = item.get("replacement")
+            start = item.get("start")
+            if not isinstance(replacement, str) or not isinstance(start, int):
+                continue
+
+            display = item.get("display") or replacement
+            display_meta = item.get("display_meta") or ""
+            start_position = start - cursor_pos
+
+            yield Completion(
+                replacement,
+                start_position=start_position,
+                display=display,
+                display_meta=display_meta,
+            )
 
 
 def _status_bar_text(app: TerminalApplication) -> str:

@@ -1714,6 +1714,35 @@ class AgentCore:
             _extend(tool.get_ui_elements())
         return elements
 
+    def get_completions(self, config: Dict[str, Any], text: str) -> List[Dict[str, Any]]:
+        """Collect completion suggestions from registered feature plugins.
+
+        Args:
+            config: Application configuration for the current agent or request.
+            text: Full text before the cursor (for example, the current input
+                line in a terminal UI).
+
+        Returns:
+            List of completion descriptor dictionaries contributed by
+            features. The exact shape of each entry is feature- and
+            application-defined; common keys include "replacement",
+            "start", "display", and "display_meta".
+        """
+
+        completions: List[Dict[str, Any]] = []
+        if not self._features:
+            return completions
+
+        for feature in self._features:
+            try:
+                items = feature.get_completions(config, text) or []
+            except Exception:
+                continue
+            for item in items:
+                if isinstance(item, dict):
+                    completions.append(item)
+        return completions
+
     def get_tool_schemas(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Get tool schemas from enabled tool plugins for a config.
 

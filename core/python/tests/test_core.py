@@ -1,9 +1,9 @@
-"""
-Unit tests for AgentCore (functional architecture).
-"""
+"""Unit tests for AgentCore (functional architecture)."""
+
+from typing import Any, Dict, List
 
 import pytest
-from agent_core import AgentCore, Session, Message
+from agent_core import AgentCore, FeaturePlugin, Message, Session
 from .dummy_provider import DummyProvider
 from .dummy_feature import DummyFeature
 from .dummy_tool import DummyCalculator
@@ -132,6 +132,36 @@ def test_get_tool_schemas():
 
     assert len(schemas) == 1
     assert schemas[0]["function"]["name"] == "add"
+
+
+class _DummyCompletionFeature(FeaturePlugin):
+    name: str = "dummy_completion_feature"
+    version: str = "1.0.0"
+
+    def get_completions(self, config: Dict[str, Any], text: str) -> List[Dict[str, Any]]:
+        # Echo back the input text in a simple replacement descriptor so
+        # we can assert that AgentCore.get_completions delegates correctly.
+        return [
+            {
+                "replacement": f"<{text}>",
+                "start": 0,
+                "display": "dummy",
+                "display_meta": "test",
+            }
+        ]
+
+
+def test_get_completions_from_features() -> None:
+    core = AgentCore()
+    core.register_feature(_DummyCompletionFeature)
+
+    config: Dict[str, Any] = {}
+    items = core.get_completions(config, "abc")
+
+    assert isinstance(items, list)
+    assert items
+    first = items[0]
+    assert first.get("replacement") == "<abc>"
 
 
 def test_export_session():

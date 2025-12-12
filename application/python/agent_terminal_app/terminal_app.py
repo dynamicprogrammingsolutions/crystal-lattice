@@ -522,6 +522,29 @@ class TerminalApplication:
             limit=limit,
         )
 
+    def get_feature_completions(self, text: str) -> List[Dict[str, Any]]:
+        """Return feature-driven completion suggestions for the active session.
+
+        The base configuration for the current agent is merged with any
+        per-session overrides before delegating to the core's
+        ``get_completions`` method.
+        """
+
+        core, base_config, session = self.require_session()
+
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides_val = metadata.get("overrides")
+        overrides: Dict[str, Any] = (
+            overrides_val if isinstance(overrides_val, dict) else {}
+        )
+
+        config = resolve_request_config(base_config, overrides)
+
+        try:
+            return core.get_completions(config, text)
+        except Exception:
+            return []
+
     def add_message(
         self,
         session_id: str,
