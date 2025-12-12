@@ -45,7 +45,8 @@
       "enable_delay_extension": false,
       "delay_seconds": 10,
       "enable_random_failure": false,
-      "random_failure_every": 3
+      "random_failure_every": 3,
+      "file_context_on_the_fly": false
     },
     "reasoning": {
       "provider": "openrouter_tools",
