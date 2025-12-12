@@ -8,8 +8,6 @@ import threading
 from pathlib import Path
 from typing import Optional
 
-from agent_app.application_future import AgentApplication
-from agent_app.events import InMemoryEventStore
 from agent_core.utils import configure_logging as configure_structlog
 
 
@@ -62,13 +60,15 @@ def _configure_logging(
         root.addHandler(handler)
 
     # Structlog / core logging:
-    # - For console runs, disable colors to avoid raw ANSI codes being
-    #   rendered literally by prompt_toolkit's patched stdout.
-    # - When log_file is provided, route structlog output to that file.
+    # - Always configure structlog after setting LOG_LEVEL so that
+    #   core loggers pick up the correct minimum level before any
+    #   calls to ``get_logger``.
+    # - For console runs, callers may choose to disable colors to
+    #   avoid raw ANSI codes in prompt_toolkit's patched stdout.
+    # - When ``log_file`` is provided, route structlog output there.
     try:
-        if disable_structlog_colors or log_file:
-            structlog_colors = not disable_structlog_colors
-            configure_structlog(colors=structlog_colors, log_file_path=log_file)
+        structlog_colors = None if not disable_structlog_colors else False
+        configure_structlog(colors=structlog_colors, log_file_path=log_file)
     except Exception:
         # Defensive: never let logging configuration prevent startup.
         pass
@@ -251,7 +251,9 @@ def main() -> None:  # pragma: no cover - manual execution only
     )
 
     args = parser.parse_args()
-
+    # Configure logging before importing application modules so that
+    # any module-level loggers created during import respect the
+    # selected level (CLI or environment).
     run_server = args.server or not args.console
     run_console = args.console
 
@@ -264,6 +266,11 @@ def main() -> None:  # pragma: no cover - manual execution only
     if args.log_file:
         console_logger = logging.getLogger("agent_terminal_app.console")
 
+    # Delay imports that pull in agent_app / FastAPI wiring until
+    # after logging is configured so that their loggers see the
+    # correct level.
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
     from .server import run_api
     from .terminal import TerminalApplication, run_terminal
 

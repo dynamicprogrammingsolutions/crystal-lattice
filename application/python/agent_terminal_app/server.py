@@ -27,13 +27,22 @@ app = FastAPI(title="Agent Terminal App - Echo provider (AgentApplication)")
 
 
 def _build_default_agent_app() -> AgentApplication:
+    """Build a process-wide AgentApplication with default config.
+
+    Construction is intentionally lazy so that applications (including the
+    terminal CLI entrypoint) can configure logging before any AgentCore
+    instances are created. This avoids get_logger() being called during
+    import, which would lock in logging configuration before CLI flags like
+    ``--log-level`` are processed.
+    """
+
     cfg = _DEFAULT_CONFIG_PATH
     root = _DEFAULT_SESSION_ROOT
     root.mkdir(parents=True, exist_ok=True)
     return AgentApplication(str(cfg), str(root))
 
 
-_agent_app: AgentApplication = _build_default_agent_app()
+_agent_app: Optional[AgentApplication] = None
 
 
 def get_agent_app() -> AgentApplication:
@@ -43,6 +52,11 @@ def get_agent_app() -> AgentApplication:
     route functions directly and pass a custom ``AgentApplication``
     instance for isolation.
     """
+
+    global _agent_app
+
+    if _agent_app is None:
+        _agent_app = _build_default_agent_app()
 
     return _agent_app
 
