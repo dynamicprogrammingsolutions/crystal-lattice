@@ -27,6 +27,8 @@
     "extensions": [
       "plugins.openrouter_reasoning_extension.OpenRouterReasoningExtension",
       "plugins.openrouter_tools_extension.OpenRouterToolsExtension",
+      "plugins.openrouter_websearch_extension.OpenRouterWebSearchExtension",
+      "plugins.timestamp_extension.TimestampExtension",
       "plugins.delay_extension.DelayExtension",
       "plugins.random_failure_extension.RandomFailureExtension"
     ],
