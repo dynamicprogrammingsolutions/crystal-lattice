@@ -247,6 +247,7 @@ Stateless processing pipeline.
 - `send_request_stream_async(session, config)` - Async streaming
 - `get_ui_schema()` - Get UI schema from plugins
 - `get_completions(config, text)` - Get feature-driven completion suggestions
+- `apply_feature_completion(config, text, completion)` - Let features turn an accepted completion into a snippet
 - `get_tool_schemas(config)` - Get tool schemas
 - `export_session(session, format="json")` - Export session to string
 - `import_session(data, format="json")` - Import session from string

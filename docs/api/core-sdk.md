@@ -388,6 +388,35 @@ feature-defined and interpreted by the application. A common shape is:
 - `list[dict]`: Flattened list of completion descriptors contributed by
   feature plugins.
 
+#### apply_feature_completion
+
+```python
+apply_feature_completion(
+    config: Dict[str, Any],
+    text: str,
+    completion: Dict[str, Any],
+) -> str
+```
+
+Ask registered feature plugins to transform an accepted completion into
+the final snippet to insert into the buffer.
+
+This is typically used by interactive applications after they have
+inserted a completion's `"replacement"` text into an input buffer.
+The core iterates over feature plugins in registration order and
+invokes their `apply_completion` hooks; the first non-empty string is
+returned as the replacement snippet.
+
+**Parameters:**
+- `config` (dict): Resolved configuration for the current agent or request.
+- `text` (str): Full buffer text after the completion has been applied.
+- `completion` (dict): Completion descriptor that was accepted, as
+  previously returned by `get_completions`.
+
+**Returns:**
+- `str`: Replacement snippet string, or an empty string when no feature
+  chooses to handle the completion.
+
 #### get_tool_schemas
 
 ```python

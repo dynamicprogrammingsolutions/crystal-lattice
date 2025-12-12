@@ -650,6 +650,35 @@ class FeaturePlugin(BasePlugin, Protocol):
 
         return []
 
+    def apply_completion(
+        self,
+        config: Dict[str, Any],
+        text: str,
+        completion: Dict[str, Any],
+    ) -> str:
+        """Optionally transform an accepted completion into a final snippet.
+
+        Applications may call this hook when a user accepts one of the
+        completion entries previously returned by :meth:`get_completions`.
+        The default implementation returns an empty string, indicating that
+        the feature does not wish to modify the completion.
+
+        Args:
+            config: Application-supplied configuration for the current agent
+                or request.
+            text: Full buffer text after the completion has been applied
+                (for example, input containing ``"@file:path"``).
+            completion: The completion descriptor dict that was accepted,
+                as previously returned by :meth:`get_completions`.
+
+        Returns:
+            A replacement string to insert into the buffer in place of the
+            completion text, or an empty string/falsey value to indicate no
+            special handling.
+        """
+
+        return ""
+
 
 class ToolPlugin(BasePlugin, Protocol):
     """Protocol for tool plugins (own tool state; unchanged by shared state design).

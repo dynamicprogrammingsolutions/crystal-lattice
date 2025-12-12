@@ -32,7 +32,8 @@
     ],
     "features": [
       "plugins.system_message_feature.SystemMessageFeature",
-      "plugins.file_context_feature.FileContextFeature"
+      "plugins.file_context_feature.FileContextFeature",
+      "plugins.web_context_feature.WebContextFeature"
     ],
     "tools": [
       "plugins.shell_tool.ShellTool",

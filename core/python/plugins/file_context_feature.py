@@ -21,11 +21,22 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from agent_core.types import FeaturePlugin
+from agent_core.utils import get_logger
 
 
 class FileContextFeature(FeaturePlugin):
     name: str = "file_context"
     version: str = "0.1.0"
+
+    def __init__(self) -> None:  # pragma: no cover - trivial initializer
+        # Simple in-memory caches to avoid repeated filesystem walks and
+        # .gitignore parsing on every completion invocation.
+        self._path_cache: Dict[str, List[str]] = {}
+        self._gitignore_cache: Dict[str, Tuple[float, List[str]]] = {}
+        self._line_count_cache: Dict[Path, Tuple[float, int]] = {}
+        # Fragment -> candidate cache to avoid recomputing substring
+        # filters and gitignore classification on every keystroke.
+        self._fragment_cache: Dict[Tuple[str, str], Tuple[List[str], List[str]]] = {}
 
     # ---- Config / UI ----
     def get_config_schema(self) -> Dict[str, Any]:
@@ -111,6 +122,56 @@ class FileContextFeature(FeaturePlugin):
         }
         return mapping.get(suffix, "")
 
+    def _resolve_path(self, path: str, config: Dict[str, Any]) -> Path | None:
+        """Resolve a path with working_directory and allowed_paths.
+
+        Returns an absolute :class:`Path` when the path is allowed and
+        points to an existing file; otherwise returns ``None``.
+        """
+
+        working_dir = config.get("working_directory") or "."
+        allowed = config.get("allowed_paths") or ["."]
+
+        try:
+            base_dir = Path(working_dir).resolve()
+            candidate = Path(path)
+            if not candidate.is_absolute():
+                candidate = base_dir / candidate
+            abs_path = candidate.resolve()
+        except Exception:
+            return None
+
+        try:
+            allowed_abs: List[Path] = []
+            for base in allowed:
+                try:
+                    base_path = Path(base)
+                    if not base_path.is_absolute():
+                        base_path = base_dir / base_path
+                    allowed_abs.append(base_path.resolve())
+                except Exception:
+                    continue
+
+            if allowed_abs and not any(
+                abs_path == base or (
+                    hasattr(abs_path, "is_relative_to")
+                    and abs_path.is_relative_to(base)  # type: ignore[attr-defined]
+                )
+                or (not hasattr(abs_path, "is_relative_to") and str(abs_path).startswith(str(base)))
+                for base in allowed_abs
+            ):
+                return None
+        except Exception:
+            return None
+
+        try:
+            if not abs_path.is_file():
+                return None
+        except Exception:
+            return None
+
+        return abs_path
+
     def _iter_paths(self, config: Dict[str, Any]) -> List[str]:
         """Return a list of candidate file paths relative to working_directory.
 
@@ -127,6 +188,11 @@ class FileContextFeature(FeaturePlugin):
         if not root.exists() or not root.is_dir():
             return []
 
+        root_str = str(root)
+        cached = self._path_cache.get(root_str)
+        if cached is not None:
+            return cached
+
         results: List[str] = []
         for dirpath, _dirnames, filenames in os.walk(root):
             for name in filenames:
@@ -138,14 +204,127 @@ class FileContextFeature(FeaturePlugin):
                 results.append(rel.as_posix())
 
         results.sort()
+        self._path_cache[root_str] = results
         return results
+
+    def _get_gitignore_patterns(self, root: Path) -> List[str]:
+        """Return cached .gitignore patterns for a root directory."""
+
+        gi = root / ".gitignore"
+        key = str(root)
+        try:
+            if not gi.is_file():
+                return []
+            mtime = gi.stat().st_mtime
+            cached = self._gitignore_cache.get(key)
+            if cached is not None and cached[0] == mtime:
+                return cached[1]
+            raw = gi.read_text(encoding="utf-8").splitlines()
+            patterns = [
+                line.strip()
+                for line in raw
+                if line.strip() and not line.strip().startswith("#")
+            ]
+            self._gitignore_cache[key] = (mtime, patterns)
+            return patterns
+        except Exception:
+            return []
+
+    def _get_candidates_for_fragment(
+        self,
+        root: Path,
+        all_paths: List[str],
+        fragment: str,
+    ) -> Tuple[List[str], List[str]]:
+        """Return (non_ignored, ignored) candidates for a fragment.
+
+        Uses per-root caches so that candidates for longer fragments are
+        always derived from previously-computed candidate sets rather than
+        the full file list.
+        """
+
+        root_str = str(root)
+        frag = fragment.lower()
+        key = (root_str, frag)
+        cached = self._fragment_cache.get(key)
+        if cached is not None:
+            return cached
+
+        # Determine base paths from the longest cached prefix of fragment.
+        base_paths: List[str] = all_paths
+        parent_split: Tuple[List[str], List[str]] | None = None
+        if frag:
+            for i in range(len(frag) - 1, 0, -1):
+                prefix = frag[:i]
+                parent_key = (root_str, prefix)
+                parent_cached = self._fragment_cache.get(parent_key)
+                if parent_cached is not None:
+                    parent_split = parent_cached
+                    base_paths = list(parent_cached[0]) + list(parent_cached[1])
+                    break
+
+        non_ignored: List[str] = []
+        ignored: List[str] = []
+
+        # If we have a cached parent split, reuse its non_ignored/ignored
+        # classification and only refine by the tighter fragment.
+        if parent_split is not None:
+            parent_non, parent_ignored = parent_split
+            if frag:
+                non_ignored = [p for p in parent_non if frag in p.lower()]
+                ignored = [p for p in parent_ignored if frag in p.lower()]
+            else:
+                non_ignored = list(parent_non)
+                ignored = list(parent_ignored)
+        else:
+            patterns = self._get_gitignore_patterns(root)
+            if not patterns:
+                # No patterns: everything is non-ignored.
+                if frag:
+                    non_ignored = [p for p in base_paths if frag in p.lower()]
+                else:
+                    non_ignored = list(base_paths)
+            else:
+                import fnmatch
+
+                def _is_gitignored(path: str) -> bool:
+                    name = path.split("/")[-1]
+                    for pat in patterns:
+                        if pat.startswith("!"):
+                            continue
+                        pat_norm = pat.lstrip("/")
+                        if "/" in pat_norm:
+                            if fnmatch.fnmatch(path, pat_norm):
+                                return True
+                        else:
+                            if fnmatch.fnmatch(name, pat_norm):
+                                return True
+                    return False
+
+                if frag:
+                    for p in base_paths:
+                        if frag not in p.lower():
+                            continue
+                        if _is_gitignored(p):
+                            ignored.append(p)
+                        else:
+                            non_ignored.append(p)
+                else:
+                    for p in base_paths:
+                        if _is_gitignored(p):
+                            ignored.append(p)
+                        else:
+                            non_ignored.append(p)
+
+        self._fragment_cache[key] = (non_ignored, ignored)
+        return non_ignored, ignored
 
     def get_completions(self, config: Dict[str, Any], text: str) -> List[Dict[str, Any]]:
         enabled = bool(config.get("file_context_enabled", True))
         if not enabled:
             return []
 
-        if not isinstance(text, str) or not text:
+        if not isinstance(text, str) or not text or len(text) < 8:
             return []
 
         # Look for an @file: token ending at the cursor.
@@ -156,39 +335,94 @@ class FileContextFeature(FeaturePlugin):
         prefix_start = match.start()
         raw_suffix = match.group(1) or ""
 
-        # Strip any partial range from the suffix when searching paths.
-        path_fragment = raw_suffix.split(":", 1)[0]
+        # raw_suffix is of the form "path" or "path:range". Use only the
+        # path fragment for matching, but keep any trailing range fragment so
+        # that apply_completion can respect the user's input.
+        path_fragment, _, range_input = raw_suffix.partition(":")
+        # Do not offer completions for bare "@file:" without a path.
+        if not path_fragment:
+            return []
 
         all_paths = self._iter_paths(config)
         if not all_paths:
             return []
 
+        working_dir = config.get("working_directory") or "."
+        try:
+            root = Path(working_dir).resolve()
+        except Exception:
+            return []
+
         fragment = path_fragment.lower()
+        non_ignored, ignored = self._get_candidates_for_fragment(root, all_paths, path_fragment)
+
+        # Apply ordering rules on non-ignored candidates:
+        # - Exact matches (case-insensitive) first.
+        # - Non-ignored, non-exact files ordered by path length.
+        # - Among those, up to 3 whose basename contains the fragment are
+        #   prioritized to the very top of the length-ordered group.
+        # - Next, up to 3 additional non-hidden paths (no component starting
+        #   with '.') are prioritized.
+
+        def _is_hidden(path: str) -> bool:
+            return any(part.startswith(".") for part in path.split("/"))
+
+        exact: List[str] = []
+        rest_non_ignored: List[str] = []
+        for p in non_ignored:
+            if fragment and p.lower() == fragment:
+                exact.append(p)
+            else:
+                rest_non_ignored.append(p)
+
+        # Order the non-ignored, non-exact paths by length.
+        rest_sorted = sorted(rest_non_ignored, key=len)
+
+        # Prioritize up to 3 whose basename contains the fragment.
+        prioritized_basename: List[str] = []
+        remaining: List[str] = []
         if fragment:
-            candidates = [p for p in all_paths if fragment in p.lower()]
+            for p in rest_sorted:
+                base = p.split("/")[-1].lower()
+                if fragment in base and len(prioritized_basename) < 3:
+                    prioritized_basename.append(p)
+                else:
+                    remaining.append(p)
         else:
-            candidates = list(all_paths)
+            remaining = rest_sorted
+
+        # From the remaining, prioritize up to 3 that are not hidden.
+        prioritized_visible: List[str] = []
+        final_rest: List[str] = []
+        for p in remaining:
+            if not _is_hidden(p) and len(prioritized_visible) < 3:
+                prioritized_visible.append(p)
+            else:
+                final_rest.append(p)
+
+        ordered = exact + prioritized_basename + prioritized_visible + final_rest + ignored
 
         # Limit number of suggestions for usability.
         max_suggestions = 30
-        candidates = candidates[:max_suggestions]
-
-        template = self.get_template(config)
-        max_lines = int(config.get("file_context_max_lines", 2000) or 2000)
-        if max_lines <= 0:
-            max_lines = 2000
-        default_range = f"1-{max_lines}"
+        candidates = ordered[:max_suggestions]
 
         completions: List[Dict[str, Any]] = []
         for path in candidates:
-            lang = self._guess_language(path)
-            replacement = template.format(path=path, lang=lang, range=default_range)
+            # Insert the @file:path reference, preserving any user-typed
+            # range suffix so that selecting the completion does not
+            # discard explicit ranges like ":10-20".
+            suffix = f":{range_input}" if range_input else ""
+            replacement = f"@file:{path}{suffix}"
+            display = path if not range_input else f"{path}:{range_input}"
+
             completions.append(
                 {
                     "replacement": replacement,
                     "start": prefix_start,
-                    "display": path,
+                    "display": display,
                     "display_meta": "file",
+                    "path": path,
+                    "range_input": range_input,
                 }
             )
 
@@ -212,48 +446,13 @@ class FileContextFeature(FeaturePlugin):
         if start_line <= 0 or end_line < start_line:
             return ""
 
-        working_dir = config.get("working_directory") or "."
-        allowed = config.get("allowed_paths") or ["."]
+        abs_path = self._resolve_path(path, config)
+        if abs_path is None:
+            return ""
+
         max_bytes = int(config.get("file_context_max_bytes", 65536) or 65536)
         if max_bytes <= 0:
             max_bytes = 65536
-
-        try:
-            base_dir = Path(working_dir).resolve()
-            candidate = Path(path)
-            if not candidate.is_absolute():
-                candidate = base_dir / candidate
-            abs_path = candidate.resolve()
-        except Exception:
-            return ""
-
-        # Enforce allowlist.
-        try:
-            allowed_abs: List[Path] = []
-            for base in allowed:
-                try:
-                    base_path = Path(base)
-                    if not base_path.is_absolute():
-                        base_path = base_dir / base_path
-                    allowed_abs.append(base_path.resolve())
-                except Exception:
-                    continue
-
-            if allowed_abs and not any(
-                abs_path == base or abs_path.is_relative_to(base)  # type: ignore[attr-defined]
-                if hasattr(Path, "is_relative_to")
-                else str(abs_path).startswith(str(base))
-                for base in allowed_abs
-            ):
-                return ""
-        except Exception:
-            return ""
-
-        try:
-            if not abs_path.is_file():
-                return ""
-        except Exception:
-            return ""
 
         contents: List[str] = []
         total = 0
@@ -420,3 +619,187 @@ class FileContextFeature(FeaturePlugin):
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         # Responses are not changed by this feature.
         return final_messages, native_messages, state
+
+    # ---- Completion-accept handling ----
+    def apply_completion(
+        self,
+        config: Dict[str, Any],
+        text: str,
+        completion: Dict[str, Any],
+    ) -> str:
+        """Turn an accepted @file: completion into a template snippet.
+
+        This hook is called by the core when a completion previously
+        returned by :meth:`get_completions` is accepted. It constructs a
+        snippet using this feature's template and the accepted path.
+        """
+
+        if not isinstance(text, str) or "@file:" not in text:
+            return ""
+
+        if not isinstance(completion, dict):
+            return ""
+
+        # Determine the referenced path. Prefer the explicit "path" that
+        # get_completions attaches; fall back to parsing replacement/text.
+        path = completion.get("path")
+        if not isinstance(path, str) or not path:
+            raw = completion.get("replacement")
+            candidate = raw if isinstance(raw, str) else text
+            if not isinstance(candidate, str) or not candidate.startswith("@file:"):
+                return ""
+            suffix = candidate[len("@file:") :]
+            path = suffix.split(":", 1)[0]
+            if not path:
+                return ""
+
+        # Parse optional range input from the completion (user-typed
+        # suffix). Supported forms:
+        #   ""         -> default (start at 1)
+        #   "10"       -> start at 10, end computed from max_lines
+        #   "10-"      -> start at 10, end computed from max_lines
+        #   "10-20"    -> explicit start/end
+        range_input = completion.get("range_input") or ""
+        if not isinstance(range_input, str):
+            range_input = ""
+        range_input = range_input.strip()
+
+        start_line: int
+        end_line: int | None
+
+        if not range_input:
+            start_line = 1
+            end_line = None
+        else:
+            if "-" in range_input:
+                start_s, _, end_s = range_input.partition("-")
+                try:
+                    start_line = int(start_s)
+                except Exception:
+                    logger = get_logger("file_context_feature")
+                    logger.warning(
+                        "invalid_range_start",
+                        path=path,
+                        range_input=range_input,
+                    )
+                    raise ValueError(
+                        f"Invalid start line in range {range_input!r} for @file:{path}"
+                    )
+                if end_s:
+                    try:
+                        end_line = int(end_s)
+                    except Exception:
+                        logger = get_logger("file_context_feature")
+                        logger.warning(
+                            "invalid_range_end",
+                            path=path,
+                            range_input=range_input,
+                        )
+                        raise ValueError(
+                            f"Invalid end line in range {range_input!r} for @file:{path}"
+                        )
+                else:
+                    end_line = None
+            else:
+                try:
+                    start_line = int(range_input)
+                except Exception:
+                    logger = get_logger("file_context_feature")
+                    logger.warning(
+                        "invalid_range_start",
+                        path=path,
+                        range_input=range_input,
+                    )
+                    raise ValueError(
+                        f"Invalid start line in range {range_input!r} for @file:{path}"
+                    )
+                end_line = None
+
+        if start_line <= 0:
+            logger = get_logger("file_context_feature")
+            logger.warning(
+                "range_start_out_of_bounds",
+                path=path,
+                range_input=range_input,
+                start_line=start_line,
+            )
+            raise ValueError(
+                f"Start line {start_line} is outside the valid range for @file:{path}"
+            )
+
+        abs_path = self._resolve_path(path, config)
+        if abs_path is None:
+            logger = get_logger("file_context_feature")
+            logger.warning(
+                "path_unreadable_for_completion",
+                path=path,
+            )
+            raise ValueError(f"Cannot read file for @file:{path}")
+
+        # Compute the file's total line count (cached by mtime).
+        line_count = 0
+        try:
+            stat = abs_path.stat()
+            cached = self._line_count_cache.get(abs_path)
+            if cached is not None and cached[0] == stat.st_mtime:
+                line_count = cached[1]
+            else:
+                with abs_path.open("r", encoding="utf-8") as f:
+                    for idx, _line in enumerate(f, start=1):
+                        line_count = idx
+                self._line_count_cache[abs_path] = (stat.st_mtime, line_count)
+        except Exception:
+            logger = get_logger("file_context_feature")
+            logger.warning("failed_to_count_lines", path=path)
+            raise ValueError(f"Cannot read file for @file:{path}")
+
+        if line_count == 0:
+            logger = get_logger("file_context_feature")
+            logger.warning("empty_file_for_range", path=path)
+            raise ValueError(f"File for @file:{path} is empty; no lines to reference")
+
+        max_lines = int(config.get("file_context_max_lines", 2000) or 2000)
+        if max_lines <= 0:
+            max_lines = 2000
+
+        if end_line is None:
+            # Default end: advance by max_lines, but do not exceed actual
+            # file length.
+            end_line = start_line + max_lines - 1
+            if end_line > line_count:
+                end_line = line_count
+        else:
+            # Explicit end: must be within the file's bounds.
+            if end_line < start_line or end_line > line_count:
+                logger = get_logger("file_context_feature")
+                logger.warning(
+                    "range_out_of_bounds",
+                    path=path,
+                    range_input=range_input,
+                    start_line=start_line,
+                    end_line=end_line,
+                    line_count=line_count,
+                )
+                raise ValueError(
+                    f"Line range {start_line}-{end_line} is outside the file's "
+                    f"valid line range 1-{line_count} for @file:{path}"
+                )
+
+        if start_line > line_count:
+            logger = get_logger("file_context_feature")
+            logger.warning(
+                "range_start_after_eof",
+                path=path,
+                range_input=range_input,
+                start_line=start_line,
+                line_count=line_count,
+            )
+            raise ValueError(
+                f"Start line {start_line} is outside the file's valid line range "
+                f"1-{line_count} for @file:{path}"
+            )
+
+        template = self.get_template(config)
+        lang = self._guess_language(path)
+        range_str = f"{start_line}-{end_line}"
+        return template.format(path=path, lang=lang, range=range_str)
