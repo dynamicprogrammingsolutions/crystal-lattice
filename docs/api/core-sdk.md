@@ -357,6 +357,37 @@ schema = core.get_ui_schema()
 # ]
 ```
 
+#### get_completions
+
+```python
+get_completions(config: Dict[str, Any], text: str) -> List[Dict[str, Any]]
+```
+
+Collect completion suggestions from registered feature plugins for the
+given input text. This is typically used by interactive applications
+to implement context-aware autocomplete (for example, `@file:` path
+expansion).
+
+Each completion entry is a dictionary whose structure is
+feature-defined and interpreted by the application. A common shape is:
+
+```python
+{
+    "replacement": "text to insert",
+    "start": 5,               # 0-based index in `text` to start replacing
+    "display": "label",      # label shown in the UI
+    "display_meta": "info",  # optional extra description
+}
+```
+
+**Parameters:**
+- `config` (dict): Resolved configuration for the current agent or request.
+- `text` (str): Full input text before the cursor.
+
+**Returns:**
+- `list[dict]`: Flattened list of completion descriptors contributed by
+  feature plugins.
+
 #### get_tool_schemas
 
 ```python

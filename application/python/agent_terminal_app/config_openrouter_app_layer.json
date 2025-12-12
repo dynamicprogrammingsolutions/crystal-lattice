@@ -31,7 +31,8 @@
       "plugins.random_failure_extension.RandomFailureExtension"
     ],
     "features": [
-      "plugins.system_message_feature.SystemMessageFeature"
+      "plugins.system_message_feature.SystemMessageFeature",
+      "plugins.file_context_feature.FileContextFeature"
     ],
     "tools": [
       "plugins.shell_tool.ShellTool",

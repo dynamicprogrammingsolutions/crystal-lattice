@@ -433,6 +433,16 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
         items = self._safe_list(raw)
         return [str(t) for t in items]
 
+    def get_template(self, config: Dict[str, Any]) -> str:  # type: ignore[override]
+        fn = getattr(self.impl, "get_template", None)
+        if callable(fn):
+            try:
+                out = fn(config)
+            except Exception:
+                return ""
+            return str(out) if out is not None else ""
+        return ""
+
     def to_native_messages(  # type: ignore[override]
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
@@ -481,6 +491,21 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
                 fn(final_messages, native_messages, state),
             )
         return final_messages, native_messages, state
+
+    def get_completions(  # type: ignore[override]
+        self,
+        config: Dict[str, Any],
+        text: str,
+    ) -> List[Dict[str, Any]]:
+        fn = getattr(self.impl, "get_completions", None)
+        if callable(fn):
+            try:
+                out = fn(config, text)
+            except Exception:
+                return []
+            items = self._safe_list(out)
+            return [m for m in items if isinstance(m, dict)]
+        return []
 
 
 class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):

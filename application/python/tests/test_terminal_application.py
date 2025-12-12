@@ -504,6 +504,53 @@ def test_list_sessions_metadata_and_session_completion(tmp_path: Path) -> None:
     # And its description (display_meta) should contain the first user message.
     assert "second session message" in completions[0].display_meta_text
 
+
+def test_at_file_completion_uses_core(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    # Use the OpenRouter app-layer config which enables FileContextFeature.
+    config_path = base_dir / "config_openrouter_app_layer.json"
+    session_root = tmp_path / "sessions"
+
+    # Create a small file tree for completions and expansion.
+    working_dir = tmp_path / "work"
+    working_dir.mkdir(parents=True, exist_ok=True)
+    target_file = working_dir / "foo" / "bar.js"
+    target_file.parent.mkdir(parents=True, exist_ok=True)
+    target_file.write_text("console.log('hello');\n", encoding="utf-8")
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    # Override working_directory via overrides so the feature searches our temp tree.
+    session = term_app.start_new_session(agent_id="default")
+    md = session.metadata or {}
+    overrides = md.get("overrides") or {}
+    overrides["working_directory"] = str(working_dir)
+    new_metadata = {**md, "overrides": overrides}
+    term_app._session = type(session)(
+        session_id=session.session_id,
+        messages=session.messages,
+        metadata=new_metadata,
+    )
+
+    completer = term_mod.SlashCommandCompleter(lambda: term_app)
+    # Simulate typing an @file prefix.
+    doc = Document(text="@file:bar", cursor_position=len("@file:bar"))
+    completions = list(completer.get_completions(doc, None))
+
+    # At least one completion should be offered and display the relative path.
+    assert completions
+    assert any("foo/bar.js" in c.display_text for c in completions)
+
 def test_modify_message_application_emits_event(tmp_path: Path) -> None:
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
