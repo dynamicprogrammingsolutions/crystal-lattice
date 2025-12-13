@@ -230,6 +230,56 @@ class TerminalApplication:
         self._session = new_session
         return new_session
 
+    # Internal helpers for index and slice normalization.
+
+    @staticmethod
+    def _normalize_index(raw_index: int, message_count: int) -> int:
+        """Normalize a Python-style index for a sequence of ``message_count``.
+
+        Negative indices are translated relative to the end. Raises
+        :class:`IndexError` if the resulting index is out of bounds.
+        """
+
+        target_index = raw_index
+        if target_index < 0:
+            target_index = message_count + target_index
+        if target_index < 0 or target_index >= message_count:
+            raise IndexError("message index out of range")
+        return target_index
+
+    @staticmethod
+    def _normalize_slice_bounds(
+        message_count: int,
+        start: Optional[int],
+        end: Optional[int],
+    ) -> Tuple[int, int]:
+        """Return concrete ``(start_idx, end_idx)`` for slice-like bounds.
+
+        Bounds follow Python slice semantics with support for ``None`` and
+        negative indices. Raises :class:`ValueError` when the range selects
+        no messages.
+        """
+
+        def _normalize_bound(value: Optional[int], default: int) -> int:
+            if value is None:
+                return default
+            idx = value
+            if idx < 0:
+                idx = message_count + idx
+            if idx < 0:
+                return 0
+            if idx > message_count:
+                return message_count
+            return idx
+
+        start_idx = _normalize_bound(start, 0)
+        end_idx = _normalize_bound(end, message_count)
+
+        if start_idx >= end_idx:
+            raise ValueError("range selects no messages")
+
+        return start_idx, end_idx
+
     def fork_session(self, index: int) -> Session:
         """Fork the active session up to and including ``index``.
 
@@ -248,11 +298,7 @@ class TerminalApplication:
         if message_count == 0:
             raise ValueError("no messages to fork")
 
-        target_index = index
-        if target_index < 0:
-            target_index = message_count + target_index
-        if target_index < 0 or target_index >= message_count:
-            raise IndexError("message index out of range")
+        target_index = self._normalize_index(index, message_count)
 
         metadata = session.metadata if isinstance(session.metadata, dict) else {}
         overrides_val = metadata.get("overrides")
@@ -359,23 +405,7 @@ class TerminalApplication:
         core, _base_config, session = self.require_session()
         message_count = len(session.messages)
 
-        def _normalize_bound(value: Optional[int], default: int) -> int:
-            if value is None:
-                return default
-            idx = value
-            if idx < 0:
-                idx = message_count + idx
-            if idx < 0:
-                return 0
-            if idx > message_count:
-                return message_count
-            return idx
-
-        start_idx = _normalize_bound(start, 0)
-        end_idx = _normalize_bound(end, message_count)
-
-        if start_idx >= end_idx:
-            raise ValueError("range selects no messages")
+        start_idx, end_idx = self._normalize_slice_bounds(message_count, start, end)
 
         indices = list(range(start_idx, end_idx))
         new_session = self.delete_messages(indices)
@@ -431,23 +461,8 @@ class TerminalApplication:
         if message_count == 0:
             raise ValueError("no messages to list")
 
-        def _normalize_bound(value: Optional[int], default: int) -> int:
-            if value is None:
-                return default
-            idx = value
-            if idx < 0:
-                idx = message_count + idx
-            if idx < 0:
-                return 0
-            if idx > message_count:
-                return message_count
-            return idx
-        start_idx = _normalize_bound(start, 0)
-        end_idx = _normalize_bound(end, message_count)
- 
-        if start_idx >= end_idx:
-             raise ValueError("range selects no messages")
- 
+        start_idx, end_idx = self._normalize_slice_bounds(message_count, start, end)
+
         indices = range(start_idx, end_idx)
         return [(i, session.messages[i]) for i in indices]
  
