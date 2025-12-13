@@ -189,6 +189,37 @@ def _status_bar_text(app: TerminalApplication) -> str:
     return f"Agent: {agent}  Session: {session_id}"
 
 
+def _parse_range_or_index_arg(
+    text: str,
+    *,
+    command: str,
+    write: Callable[[str], None],
+) -> Optional[Tuple[Optional[int], Optional[int]]]:
+    """Parse a ``start:end``-style range argument.
+
+    ``text`` must contain a colon and may omit either bound, following
+    Python slice conventions (e.g. ``":3"``, ``"1:"``). Each side is
+    parsed as an optional integer.
+
+    Returns ``(start, end)`` where each element may be ``None``. On
+    parse errors, prints a user-facing message using ``command`` as the
+    prefix (e.g. ``"[list] ..."``) and returns ``None``.
+    """
+
+    start_str, _, end_str = text.partition(":")
+    try:
+        start_val = int(start_str) if start_str.strip() else None
+    except ValueError:
+        write(f"[{command}] invalid start index; expected an integer")
+        return None
+    try:
+        end_val = int(end_str) if end_str.strip() else None
+    except ValueError:
+        write(f"[{command}] invalid end index; expected an integer")
+        return None
+    return start_val, end_val
+
+
 def _normalize_setting_options(options: Any) -> List[tuple[str, str]]:
     """Normalize a UI element's options into ``(value, display)`` pairs.
 
@@ -1181,19 +1212,14 @@ async def _cmd_delete(
         write("[delete] usage: /delete <count> or /delete <start>:<end>")
         return
 
-    # Parse arguments; delegate deletion semantics to TerminalApplication.
+    # Parse arguments; ranges use slice semantics while a single integer
+    # is interpreted as a Python-style index.
     if ":" in text:
-        start_str, _, end_str = text.partition(":")
-        try:
-            start_val = int(start_str) if start_str.strip() else None
-        except ValueError:
-            write("[delete] invalid start index; expected an integer")
+        bounds = _parse_range_or_index_arg(text, command="delete", write=write)
+        if bounds is None:
             return
-        try:
-            end_val = int(end_str) if end_str.strip() else None
-        except ValueError:
-            write("[delete] invalid end index; expected an integer")
-            return
+
+        start_val, end_val = bounds
 
         try:
             _session, deleted = app.delete_messages_by_range(start_val, end_val)
@@ -1213,9 +1239,8 @@ async def _cmd_delete(
             write("[delete] invalid value; expected an integer or range")
             return
 
-        # Interpret a single integer as a Python-style message index.
         try:
-            session = app.session
+            core, base_config, session = app.require_session()
         except RuntimeError as exc:
             write(f"[delete] no active session: {exc}")
             return
@@ -1225,19 +1250,17 @@ async def _cmd_delete(
             write("[delete] no messages to delete")
             return
 
-        target_index = raw_index
-        if target_index < 0:
-            target_index = message_count + target_index
-        if target_index < 0 or target_index >= message_count:
+        try:
+            target_index = app._normalize_index(raw_index, message_count)
+        except IndexError:
             write("[delete] index out of range")
             return
 
         try:
+            # Reuse the application's delete_messages helper so that
+            # native-history semantics and events remain consistent.
             _session = app.delete_messages([target_index])
             deleted = [target_index]
-        except RuntimeError as exc:
-            write(f"[delete] no active session: {exc}")
-            return
         except Exception as exc:  # pragma: no cover - defensive
             write(f"[delete] failed to delete messages: {exc}")
             return
@@ -1265,27 +1288,20 @@ async def _cmd_modify(
     except ValueError:
         write("[modify] invalid index; expected an integer")
         return
-
     try:
-        session = app.session
+        items = app.list_messages_by_range(raw_index, raw_index + 1)
     except RuntimeError as exc:
         write(f"[modify] no active session: {exc}")
         return
-
-    message_count = len(session.messages)
-    if message_count == 0:
-        write("[modify] no messages to modify")
+    except ValueError as exc:
+        msg = str(exc)
+        if msg == "no messages to list":
+            write("[modify] no messages to modify")
+        elif msg == "range selects no messages":
+            write("[modify] index out of range")
+        else:  # pragma: no cover - defensive
+            write(f"[modify] {exc}")
         return
-
-    target_index = raw_index
-    if target_index < 0:
-        target_index = message_count + target_index
-    if target_index < 0 or target_index >= message_count:
-        write("[modify] index out of range")
-        return
-
-    try:
-        items = app.list_messages_by_range(target_index, target_index + 1)
     except Exception as exc:  # pragma: no cover - defensive
         write(f"[modify] failed to load message: {exc}")
         return
@@ -1294,7 +1310,7 @@ async def _cmd_modify(
         write("[modify] no message found at that index")
         return
 
-    _idx, message = items[0]
+    target_index, message = items[0]
     content = getattr(message, "content", None)
     if content is None and isinstance(message, dict):
         content = message.get("content")
@@ -1324,13 +1340,12 @@ async def _cmd_list(
             use_short = True
             text = rest.strip()
 
+    items: List[Tuple[int, Any]]
+
     # For listing, we either:
     # - list all messages when no bounds are provided,
-    # - delegate slice-style ranges directly to TerminalApplication, or
-    # - interpret a single integer as a Python-style index selecting one
-    #   message.
-
-    items: List[Tuple[int, Any]]
+    # - list a slice when a ``start:end`` range is supplied, or
+    # - list a single message when given a Python-style index.
 
     if not text:
         try:
@@ -1345,17 +1360,10 @@ async def _cmd_list(
             write(f"[list] failed to list messages: {exc}")
             return
     elif ":" in text:
-        start_str, _, end_str = text.partition(":")
-        try:
-            start_val = int(start_str) if start_str.strip() else None
-        except ValueError:
-            write("[list] invalid start index; expected an integer")
+        bounds = _parse_range_or_index_arg(text, command="list", write=write)
+        if bounds is None:
             return
-        try:
-            end_val = int(end_str) if end_str.strip() else None
-        except ValueError:
-            write("[list] invalid end index; expected an integer")
-            return
+        start_val, end_val = bounds
 
         try:
             items = app.list_messages_by_range(start_val, end_val)
@@ -1369,7 +1377,8 @@ async def _cmd_list(
             write(f"[list] failed to list messages: {exc}")
             return
     else:
-        # Single integer: interpret as a Python-style index.
+        # Single integer: interpret as a Python-style index selecting a
+        # single message.
         try:
             raw_index = int(text)
         except ValueError:
@@ -1400,7 +1409,9 @@ async def _cmd_list(
             write("[list] index out of range")
             return
 
-        items = [item for item in all_items if item[0] == target_index]
+        # ``all_items`` already includes the concrete indices from the
+        # application, so we can select the desired entry directly.
+        items = [all_items[target_index]]
 
     if not items:
         write("[list] no messages to show")
