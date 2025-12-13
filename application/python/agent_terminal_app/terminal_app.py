@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import json
+import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-import json
 
 from agent_app.application_future import AgentApplication
 from agent_app.config import resolve_request_config
@@ -227,6 +228,69 @@ class TerminalApplication:
         )
 
         self._session = new_session
+        return new_session
+
+    def fork_session(self, index: int) -> Session:
+        """Fork the active session up to and including ``index``.
+
+        Index semantics follow Python list indexing (0-based with
+        negative indices relative to the end). The forked session is
+        persisted via the underlying application and becomes the active
+        session.
+        """
+
+        core, base_config, session = self.require_session()
+
+        if not isinstance(index, int):
+            raise TypeError("index must be an integer")
+
+        message_count = len(session.messages)
+        if message_count == 0:
+            raise ValueError("no messages to fork")
+
+        target_index = index
+        if target_index < 0:
+            target_index = message_count + target_index
+        if target_index < 0 or target_index >= message_count:
+            raise IndexError("message index out of range")
+
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides_val = metadata.get("overrides")
+        overrides: Dict[str, Any] = (
+            overrides_val if isinstance(overrides_val, dict) else {}
+        )
+        config = resolve_request_config(base_config, overrides)
+
+        new_session_id = str(uuid.uuid4())
+
+        new_session = core.fork_session(
+            session,
+            config,
+            upto_index=target_index,
+            new_session_id=new_session_id,
+        )
+
+        self._app.save_session(new_session)
+
+        # Publish a lifecycle event so renderers can surface the fork.
+        store = self._app.get_event_store()
+        md = new_session.metadata if isinstance(new_session.metadata, dict) else {}
+        agent = md.get("agent_id")
+        agent_id = agent if isinstance(agent, str) and agent else "default"
+        store.publish(
+            {
+                "type": "session_created",
+                "session_id": new_session.session_id,
+                "agent_id": agent_id,
+                "source_session_id": session.session_id,
+                "session": new_session.to_dict(),
+            }
+        )
+
+        self._session = new_session
+        self._core = core
+        self._base_config = base_config
+        self._last_event_id = None
         return new_session
 
     def delete_messages(self, indices: List[int]) -> Session:
