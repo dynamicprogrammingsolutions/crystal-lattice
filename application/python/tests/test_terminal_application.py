@@ -377,6 +377,42 @@ async def test_delete_slash_command_negative_range(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_delete_slash_command_single_index_python_style(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    session = term_app.start_new_session(agent_id="default")
+    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
+    term_app.append_user_message("one")
+    term_app.append_user_message("two")
+
+    # /delete -1 should delete the last message ("two").
+    outputs: list[str] = []
+    ui_state: dict = {}
+    await term_mod._cmd_delete(term_app, "-1", outputs.append, ui_state)
+
+    contents = [m.content for m in term_app.session.messages]
+    assert contents == ["system", "one"]
+
+    joined = "\n".join(outputs)
+    assert "deleted messages at indices" in joined
+    assert "2" in joined  # index of "two"
+
+
+@pytest.mark.asyncio
 async def test_list_slash_command_shows_thinking_and_tools(tmp_path: Path) -> None:
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
@@ -432,14 +468,108 @@ async def test_list_slash_command_shows_thinking_and_tools(tmp_path: Path) -> No
     outputs: list[str] = []
     ui_state: dict = {}
 
-    # /list 3 should show the last three messages: assistant with reasoning,
-    # assistant with tools, and tool result.
-    await term_mod._cmd_list(term_app, "3", outputs.append, ui_state)
+    # /list -3: should show the last three messages: assistant with
+    # reasoning, assistant with tools, and tool result.
+    await term_mod._cmd_list(term_app, "-3:", outputs.append, ui_state)
 
     joined = "\n".join(outputs)
     assert "thinking: step1; step2" in joined
     assert "tools: 1 call(s): read_file" in joined
     assert "tool_call_id: tc1" in joined
+
+
+@pytest.mark.asyncio
+async def test_list_slash_command_index_and_all(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    session = term_app.start_new_session(agent_id="default")
+    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
+    term_app.append_user_message("one")
+    term_app.append_user_message("two")
+    term_app.append_user_message("three")
+
+    # /list with no arguments should list all messages.
+    outputs_all: list[str] = []
+    ui_state_all: dict = {}
+    await term_mod._cmd_list(term_app, "", outputs_all.append, ui_state_all)
+    joined_all = "\n".join(outputs_all)
+    assert "one" in joined_all
+    assert "two" in joined_all
+    assert "three" in joined_all
+
+    # /list short with no additional parameters should also list all
+    # messages (in compact form).
+    outputs_short: list[str] = []
+    ui_state_short: dict = {}
+    await term_mod._cmd_list(term_app, "short", outputs_short.append, ui_state_short)
+    joined_short = "\n".join(outputs_short)
+    assert "one" in joined_short
+    assert "two" in joined_short
+    assert "three" in joined_short
+
+    # A single integer should be treated as a Python-style index.
+    outputs_single: list[str] = []
+    ui_state_single: dict = {}
+    await term_mod._cmd_list(term_app, "-1", outputs_single.append, ui_state_single)
+    joined_single = "\n".join(outputs_single)
+    assert "three" in joined_single
+    assert "one" not in joined_single
+    assert "two" not in joined_single
+
+
+@pytest.mark.asyncio
+async def test_fork_slash_command_creates_new_session(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    session = term_app.start_new_session(agent_id="default")
+    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
+    term_app.append_user_message("one")
+    term_app.append_user_message("two")
+
+    original_session_id = session.session_id
+
+    outputs: list[str] = []
+    ui_state: dict = {}
+
+    # Fork up to index 1 (system + "one").
+    await term_mod._cmd_fork(term_app, "1", outputs.append, ui_state)
+
+    new_session = term_app.session
+    assert new_session.session_id != original_session_id
+    contents = [m.content for m in new_session.messages]
+    assert contents == ["system", "one"]
+
+    joined = "\n".join(outputs)
+    assert original_session_id in joined
+    assert new_session.session_id in joined
 
 def test_list_sessions_metadata_and_session_completion(tmp_path: Path) -> None:
     from agent_app.application_future import AgentApplication

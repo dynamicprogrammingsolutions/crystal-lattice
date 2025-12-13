@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
 import sys
-from typing import Any, Awaitable, Callable, Dict, List, Optional, cast
+from typing import Any, Awaitable, Callable, Dict, List, Optional, cast, Tuple
 
 from prompt_toolkit import PromptSession, print_formatted_text
 from prompt_toolkit.completion import Completer, Completion
@@ -1208,18 +1208,35 @@ async def _cmd_delete(
             return
     else:
         try:
-            count = int(text)
+            raw_index = int(text)
         except ValueError:
             write("[delete] invalid value; expected an integer or range")
             return
 
+        # Interpret a single integer as a Python-style message index.
         try:
-            _session, deleted = app.delete_last_messages(count)
+            session = app.session
         except RuntimeError as exc:
             write(f"[delete] no active session: {exc}")
             return
-        except ValueError as exc:
-            write(f"[delete] {exc}")
+
+        message_count = len(session.messages)
+        if message_count == 0:
+            write("[delete] no messages to delete")
+            return
+
+        target_index = raw_index
+        if target_index < 0:
+            target_index = message_count + target_index
+        if target_index < 0 or target_index >= message_count:
+            write("[delete] index out of range")
+            return
+
+        try:
+            _session = app.delete_messages([target_index])
+            deleted = [target_index]
+        except RuntimeError as exc:
+            write(f"[delete] no active session: {exc}")
             return
         except Exception as exc:  # pragma: no cover - defensive
             write(f"[delete] failed to delete messages: {exc}")
@@ -1307,16 +1324,27 @@ async def _cmd_list(
             use_short = True
             text = rest.strip()
 
+    # For listing, we either:
+    # - list all messages when no bounds are provided,
+    # - delegate slice-style ranges directly to TerminalApplication, or
+    # - interpret a single integer as a Python-style index selecting one
+    #   message.
+
+    items: List[Tuple[int, Any]]
+
     if not text:
-        write("[list] usage: /list <count> or /list <start>:<end>")
-        return
-
-    # Parse arguments; delegate bounds validation and session handling to
-    # TerminalApplication.list_messages_by_range.
-    start_val: Optional[int]
-    end_val: Optional[int]
-
-    if ":" in text:
+        try:
+            items = app.list_messages_by_range(None, None)
+        except RuntimeError as exc:
+            write(f"[list] no active session: {exc}")
+            return
+        except ValueError as exc:
+            write(f"[list] {exc}")
+            return
+        except Exception as exc:  # pragma: no cover - defensive
+            write(f"[list] failed to list messages: {exc}")
+            return
+    elif ":" in text:
         start_str, _, end_str = text.partition(":")
         try:
             start_val = int(start_str) if start_str.strip() else None
@@ -1328,29 +1356,51 @@ async def _cmd_list(
         except ValueError:
             write("[list] invalid end index; expected an integer")
             return
-    else:
+
         try:
-            count = int(text)
+            items = app.list_messages_by_range(start_val, end_val)
+        except RuntimeError as exc:
+            write(f"[list] no active session: {exc}")
+            return
+        except ValueError as exc:
+            write(f"[list] {exc}")
+            return
+        except Exception as exc:  # pragma: no cover - defensive
+            write(f"[list] failed to list messages: {exc}")
+            return
+    else:
+        # Single integer: interpret as a Python-style index.
+        try:
+            raw_index = int(text)
         except ValueError:
             write("[list] invalid value; expected an integer or range")
             return
-        if count <= 0:
-            write("[list] count must be a positive integer")
-            return
-        start_val = -count
-        end_val = None
 
-    try:
-        items = app.list_messages_by_range(start_val, end_val)
-    except RuntimeError as exc:
-        write(f"[list] no active session: {exc}")
-        return
-    except ValueError as exc:
-        write(f"[list] {exc}")
-        return
-    except Exception as exc:  # pragma: no cover - defensive
-        write(f"[list] failed to list messages: {exc}")
-        return
+        try:
+            all_items = app.list_messages_by_range(None, None)
+        except RuntimeError as exc:
+            write(f"[list] no active session: {exc}")
+            return
+        except ValueError as exc:
+            write(f"[list] {exc}")
+            return
+        except Exception as exc:  # pragma: no cover - defensive
+            write(f"[list] failed to list messages: {exc}")
+            return
+
+        if not all_items:
+            write("[list] no messages to show")
+            return
+
+        message_count = len(all_items)
+        target_index = raw_index
+        if target_index < 0:
+            target_index = message_count + target_index
+        if target_index < 0 or target_index >= message_count:
+            write("[list] index out of range")
+            return
+
+        items = [item for item in all_items if item[0] == target_index]
 
     if not items:
         write("[list] no messages to show")
@@ -1371,6 +1421,41 @@ async def _cmd_list(
     for idx, message in items:
         renderer.render_message(idx, message, write, short=use_short)
 
+
+@slash_command("fork", "Fork the current session up to an index")
+async def _cmd_fork(
+    app: TerminalApplication,
+    arg: str,
+    write: Callable[[str], None],
+    ui_state: Dict[str, Any],
+) -> None:
+    text = (arg or "").strip()
+    if not text:
+        write("[fork] usage: /fork <index>")
+        return
+
+    try:
+        index = int(text)
+    except ValueError:
+        write("[fork] invalid index; expected an integer")
+        return
+
+    try:
+        source_session_id = app.session_id
+    except RuntimeError as exc:
+        write(f"[fork] no active session: {exc}")
+        return
+
+    try:
+        new_session = app.fork_session(index)
+    except (ValueError, IndexError) as exc:
+        write(f"[fork] {exc}")
+        return
+    except Exception as exc:  # pragma: no cover - defensive
+        write(f"[fork] failed to fork session: {exc}")
+        return
+
+    write(f"[fork] forked {source_session_id!r} -> {new_session.session_id!r}")
 
 
 async def _handle_slash_command(
