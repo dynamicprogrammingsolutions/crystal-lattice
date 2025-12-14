@@ -30,13 +30,12 @@ class FileContextFeature(FeaturePlugin):
 
     def __init__(self) -> None:  # pragma: no cover - trivial initializer
         # Simple in-memory caches to avoid repeated filesystem walks and
-        # .gitignore parsing on every completion invocation.
-        self._path_cache: Dict[str, List[str]] = {}
-        self._gitignore_cache: Dict[str, Tuple[float, List[str]]] = {}
+        # git ls-files calls on every completion invocation.
+        # Keyed by the resolved working_directory path string.
+        # Values are (non_ignored_paths, ignored_paths), both as posix
+        # paths relative to working_directory.
+        self._path_cache: Dict[str, Tuple[List[str], List[str]]] = {}
         self._line_count_cache: Dict[Path, Tuple[float, int]] = {}
-        # Fragment -> candidate cache to avoid recomputing substring
-        # filters and gitignore classification on every keystroke.
-        self._fragment_cache: Dict[Tuple[str, str], Tuple[List[str], List[str]]] = {}
 
     # ---- Config / UI ----
     def get_config_schema(self) -> Dict[str, Any]:
@@ -172,159 +171,104 @@ class FileContextFeature(FeaturePlugin):
 
         return abs_path
 
-    def _iter_paths(self, config: Dict[str, Any]) -> List[str]:
-        """Return a list of candidate file paths relative to working_directory.
+    def _iter_paths(self, config: Dict[str, Any]) -> Tuple[Path, List[str], List[str]]:
+        """Return (root, non_ignored_paths, ignored_paths).
 
-        The search is rooted at ``working_directory``; paths are returned
-        using forward slashes regardless of platform.
+        Paths are relative to ``working_directory`` and always use
+        forward slashes. When inside a Git repository, paths are
+        obtained via ``git ls-files`` using GitPython so that .gitignore
+        rules are respected precisely. Outside a Git repo, this falls
+        back to a simple filesystem walk that treats all files as
+        non-ignored.
         """
 
         working_dir = config.get("working_directory") or "."
         try:
             root = Path(working_dir).resolve()
         except Exception:
-            return []
+            return Path("."), [], []
 
         if not root.exists() or not root.is_dir():
-            return []
+            return root, [], []
 
         root_str = str(root)
         cached = self._path_cache.get(root_str)
         if cached is not None:
-            return cached
-
-        results: List[str] = []
-        for dirpath, _dirnames, filenames in os.walk(root):
-            for name in filenames:
-                try:
-                    abs_path = Path(dirpath, name)
-                    rel = abs_path.relative_to(root)
-                except Exception:
-                    continue
-                results.append(rel.as_posix())
-
-        results.sort()
-        self._path_cache[root_str] = results
-        return results
-
-    def _get_gitignore_patterns(self, root: Path) -> List[str]:
-        """Return cached .gitignore patterns for a root directory."""
-
-        gi = root / ".gitignore"
-        key = str(root)
-        try:
-            if not gi.is_file():
-                return []
-            mtime = gi.stat().st_mtime
-            cached = self._gitignore_cache.get(key)
-            if cached is not None and cached[0] == mtime:
-                return cached[1]
-            raw = gi.read_text(encoding="utf-8").splitlines()
-            patterns = [
-                line.strip()
-                for line in raw
-                if line.strip() and not line.strip().startswith("#")
-            ]
-            self._gitignore_cache[key] = (mtime, patterns)
-            return patterns
-        except Exception:
-            return []
-
-    def _get_candidates_for_fragment(
-        self,
-        root: Path,
-        all_paths: List[str],
-        fragment: str,
-    ) -> Tuple[List[str], List[str]]:
-        """Return (non_ignored, ignored) candidates for a fragment.
-
-        Uses per-root caches so that candidates for longer fragments are
-        always derived from previously-computed candidate sets rather than
-        the full file list.
-        """
-
-        root_str = str(root)
-        frag = fragment.lower()
-        key = (root_str, frag)
-        cached = self._fragment_cache.get(key)
-        if cached is not None:
-            return cached
-
-        # Determine base paths from the longest cached prefix of fragment.
-        base_paths: List[str] = all_paths
-        parent_split: Tuple[List[str], List[str]] | None = None
-        if frag:
-            for i in range(len(frag) - 1, 0, -1):
-                prefix = frag[:i]
-                parent_key = (root_str, prefix)
-                parent_cached = self._fragment_cache.get(parent_key)
-                if parent_cached is not None:
-                    parent_split = parent_cached
-                    base_paths = list(parent_cached[0]) + list(parent_cached[1])
-                    break
+            non_ignored_cached, ignored_cached = cached
+            return root, non_ignored_cached, ignored_cached
 
         non_ignored: List[str] = []
         ignored: List[str] = []
 
-        # If we have a cached parent split, reuse its non_ignored/ignored
-        # classification and only refine by the tighter fragment.
-        if parent_split is not None:
-            parent_non, parent_ignored = parent_split
-            if frag:
-                non_ignored = [p for p in parent_non if frag in p.lower()]
-                ignored = [p for p in parent_ignored if frag in p.lower()]
-            else:
-                non_ignored = list(parent_non)
-                ignored = list(parent_ignored)
-        else:
-            patterns = self._get_gitignore_patterns(root)
-            if not patterns:
-                # No patterns: everything is non-ignored.
-                if frag:
-                    non_ignored = [p for p in base_paths if frag in p.lower()]
-                else:
-                    non_ignored = list(base_paths)
-            else:
-                import fnmatch
+        # Primary path discovery: GitPython + git ls-files, matching the
+        # following commands when inside a Git repository:
+        #   git ls-files --cached --others --exclude-standard
+        #   git ls-files --cached --others
+        try:
+            from git import Repo  # type: ignore[import]
 
-                def _is_gitignored(path: str) -> bool:
-                    name = path.split("/")[-1]
-                    for pat in patterns:
-                        if pat.startswith("!"):
+            try:
+                repo = Repo(root, search_parent_directories=True)
+                repo_root = Path(repo.working_tree_dir).resolve()
+
+                def _ls_files(args: List[str]) -> List[str]:
+                    output = repo.git.ls_files(*args)
+                    if not output:
+                        return []
+                    return [line.strip() for line in output.splitlines() if line.strip()]
+
+                # Non-ignored files according to Git (.gitignore and
+                # standard excludes).
+                git_non_ignored = _ls_files(["--cached", "--others", "--exclude-standard"])
+                # All Git-tracked/other files, including those ignored by
+                # .gitignore.
+                git_all = _ls_files(["--cached", "--others"])
+
+                if git_all:
+                    non_ignored_set = set(git_non_ignored)
+                    for rel_repo in git_all:
+                        abs_path = repo_root / rel_repo
+                        try:
+                            rel_to_root = abs_path.relative_to(root)
+                        except ValueError:
+                            # Outside the configured working_directory.
                             continue
-                        pat_norm = pat.lstrip("/")
-                        if "/" in pat_norm:
-                            if fnmatch.fnmatch(path, pat_norm):
-                                return True
+                        rel_posix = rel_to_root.as_posix()
+                        if rel_repo in non_ignored_set:
+                            non_ignored.append(rel_posix)
                         else:
-                            if fnmatch.fnmatch(name, pat_norm):
-                                return True
-                    return False
+                            ignored.append(rel_posix)
+            except Exception:
+                # Any Git-related failure falls back to a plain walk.
+                pass
+        except Exception:
+            # GitPython not available; fall back to a plain walk.
+            pass
 
-                if frag:
-                    for p in base_paths:
-                        if frag not in p.lower():
-                            continue
-                        if _is_gitignored(p):
-                            ignored.append(p)
-                        else:
-                            non_ignored.append(p)
-                else:
-                    for p in base_paths:
-                        if _is_gitignored(p):
-                            ignored.append(p)
-                        else:
-                            non_ignored.append(p)
+        # Fallback: simple filesystem walk when Git is unavailable or the
+        # directory is not a Git repository. All files are treated as
+        # non-ignored in this mode.
+        if not non_ignored and not ignored:
+            for dirpath, _dirnames, filenames in os.walk(root):
+                for name in filenames:
+                    try:
+                        abs_path = Path(dirpath, name)
+                        rel = abs_path.relative_to(root)
+                    except Exception:
+                        continue
+                    non_ignored.append(rel.as_posix())
 
-        self._fragment_cache[key] = (non_ignored, ignored)
-        return non_ignored, ignored
+        non_ignored.sort()
+        ignored.sort()
+        self._path_cache[root_str] = (non_ignored, ignored)
+        return root, non_ignored, ignored
 
     def get_completions(self, config: Dict[str, Any], text: str) -> List[Dict[str, Any]]:
         enabled = bool(config.get("file_context_enabled", True))
         if not enabled:
             return []
 
-        if not isinstance(text, str) or not text or len(text) < 8:
+        if not isinstance(text, str) or not text:
             return []
 
         # Look for an @file: token ending at the cursor.
@@ -339,22 +283,17 @@ class FileContextFeature(FeaturePlugin):
         # path fragment for matching, but keep any trailing range fragment so
         # that apply_completion can respect the user's input.
         path_fragment, _, range_input = raw_suffix.partition(":")
-        # Do not offer completions for bare "@file:" without a path.
-        if not path_fragment:
-            return []
-
-        all_paths = self._iter_paths(config)
-        if not all_paths:
-            return []
-
-        working_dir = config.get("working_directory") or "."
-        try:
-            root = Path(working_dir).resolve()
-        except Exception:
+        root, base_non_ignored, base_ignored = self._iter_paths(config)
+        if not base_non_ignored and not base_ignored:
             return []
 
         fragment = path_fragment.lower()
-        non_ignored, ignored = self._get_candidates_for_fragment(root, all_paths, path_fragment)
+        if fragment:
+            non_ignored = [p for p in base_non_ignored if fragment in p.lower()]
+            ignored = [p for p in base_ignored if fragment in p.lower()]
+        else:
+            non_ignored = list(base_non_ignored)
+            ignored = list(base_ignored)
 
         # Apply ordering rules on non-ignored candidates:
         # - Exact matches (case-insensitive) first.
