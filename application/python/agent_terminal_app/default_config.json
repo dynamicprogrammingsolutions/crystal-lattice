@@ -1,7 +1,5 @@
 {
   "application": {
-    "tool_output_line_limit": 100,
-    "tool_output_char_limit": 8000,
     "tool_output_short_char_limit": 200,
     "tool_output_short_one_line": false,
     "tool_output_short_line_limit": 20
@@ -20,17 +18,23 @@
       "reasoning_effort": "medium",
       "system_message_enabled": true,
       "system_message": "You are a helpful coding assistant. Respond concisely."
+    },
+    "openai_compatible": {
+      "provider": "openai_compatible",
+      "model": "qwen3:0.6b",
+      "base_url": "http://localhost:11434/v1"
     }
   },
   "plugins": {
-    "providers": ["plugins.openrouter_provider.OpenRouterProvider"],
+    "providers": ["plugins.openrouter_provider.OpenRouterProvider", "plugins.openai_provider.OpenAICompatibleProvider"],
     "extensions": [
       "plugins.openrouter_reasoning_extension.OpenRouterReasoningExtension",
       "plugins.openrouter_tools_extension.OpenRouterToolsExtension",
       "plugins.openrouter_websearch_extension.OpenRouterWebSearchExtension",
       "plugins.timestamp_extension.TimestampExtension",
       "plugins.delay_extension.DelayExtension",
-      "plugins.random_failure_extension.RandomFailureExtension"
+      "plugins.random_failure_extension.RandomFailureExtension",
+      "plugins.openai_tools_extension.OpenAIToolsExtension"
     ],
     "features": [
       "plugins.system_message_feature.SystemMessageFeature",

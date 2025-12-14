@@ -37,7 +37,7 @@ class OpenAIToolsExtension:
 
     def required_tags(self) -> List[str]:
         """Require tool-calling support from the provider/models."""
-        return ["supports_tools"]
+        return ["supports_tools", "provider:openai_compatible"]
 
     # ---- Init/State ----
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:

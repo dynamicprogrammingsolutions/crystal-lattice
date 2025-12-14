@@ -43,7 +43,7 @@ class ShellTool(ToolPlugin):
             },
             "max_output_chars": {
                 "type": "integer",
-                "default": 8000,
+                "default": 160000,
                 "description": "Maximum number of characters to retain from stdout/stderr",
             },
             "max_output_lines": {
@@ -168,7 +168,7 @@ class ShellTool(ToolPlugin):
                     exec_env[key] = str(value)
 
         max_output_lines = int(config.get("max_output_lines", 2000) or 2000)
-        configured_chars = int(config.get("max_output_chars", 8000) or 8000)
+        configured_chars = int(config.get("max_output_chars", 160000) or 160000)
         # Guard against extremely long lines by capping total characters
         # to approximately ``80 * max_output_lines``.
         hard_char_cap = max_output_lines * 80

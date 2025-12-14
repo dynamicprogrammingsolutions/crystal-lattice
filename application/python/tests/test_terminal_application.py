@@ -1065,6 +1065,7 @@ def test_list_plugins_for_session_implicit_defaults(tmp_path: Path) -> None:
         pid = entry["id"]
         ids_by_kind.setdefault(kind, []).append(pid)
         assert entry["enabled"] is True
+        assert entry["active"] is True
         sources.add(entry["source"])
 
     # config_echo_app.json registers one provider and two extensions.
@@ -1131,10 +1132,13 @@ def test_set_session_plugins_persists_and_reloads_core(tmp_path: Path) -> None:
     by_id = {entry["id"]: entry for entry in entries}
     assert by_id["echo_openai_like"]["enabled"] is True
     assert by_id["echo_openai_like"]["source"] == "session"
+    assert by_id["echo_openai_like"]["active"] is True
     assert by_id["delay_extension"]["enabled"] is False
     assert by_id["delay_extension"]["source"] == "session"
+    assert by_id["delay_extension"]["active"] is False
     assert by_id["random_failure_extension"]["enabled"] is False
     assert by_id["random_failure_extension"]["source"] == "session"
+    assert by_id["random_failure_extension"]["active"] is False
 
 
 def test_clear_session_plugins_reverts_to_implicit_defaults(tmp_path: Path) -> None:
@@ -1186,7 +1190,47 @@ def test_clear_session_plugins_reverts_to_implicit_defaults(tmp_path: Path) -> N
     # implicit source, matching the initial default behaviour.
     entries = term_app.list_plugins_for_session()
     assert all(entry["enabled"] for entry in entries)
+    assert all(entry["active"] for entry in entries)
     assert {entry["source"] for entry in entries} == {"implicit"}
+
+
+def test_session_ui_elements_no_duplicate_keys_default_config(tmp_path: Path) -> None:
+    """session_ui_elements should not contain duplicate keys.
+
+    This uses the default_config.json which wires together multiple
+    plugins that historically contributed overlapping UI schema entries
+    (for example, "enable_reasoning" from both provider and
+    extensions). After the get_ui_schema flattening change, keys must
+    remain unique to avoid duplicated options in the UI.
+    """
+
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "default_config.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    term_app.start_new_session(agent_id="default")
+
+    elements = term_app.session_ui_elements()
+    keys = [el.get("key") for el in elements if isinstance(el, dict) and "key" in el]
+
+    # Previously duplicated keys like "enable_reasoning" should now be
+    # unique in the flattened UI schema.
+    from collections import Counter
+
+    counts = Counter(keys)
+    assert all(count == 1 for count in counts.values())
 
 
 @pytest.mark.asyncio

@@ -219,6 +219,44 @@ class FeatureX:
         return ["tag:y"]
 
 
+def test_get_plugins_for_config_returns_active_ids() -> None:
+    core = AgentCore()
+    core.register_provider(
+        BasicDependencyProvider,
+        extensions=[StreamingExtension, ConditionalExtension],
+    )
+    core.register_feature(StreamingFeature)
+    core.register_feature(ConditionalFeature)
+    core.register_feature(ToolsFeature)
+    core.register_tool(DummyTool)
+
+    config: Dict[str, Any] = {
+        "enable_extension": True,
+        "supports_tools": True,
+    }
+
+    plugins = core.get_plugins_for_config(config)
+
+    assert set(plugins.keys()) == {
+        "providers",
+        "extensions",
+        "features",
+        "tools",
+    }
+
+    assert plugins["providers"] == ["dep_provider"]
+
+    # With enable_extension + supports_tools, all registered test
+    # plugins should be active for this config.
+    assert set(plugins["extensions"]) == {"streaming_extension", "conditional_extension"}
+    assert set(plugins["features"]) == {
+        "streaming_feature",
+        "conditional_feature",
+        "tools_feature",
+    }
+    assert plugins["tools"] == ["dummy_tool"]
+
+
 class FeatureY:
     name: str = "feature_y"
     version: str = "1.0.0"

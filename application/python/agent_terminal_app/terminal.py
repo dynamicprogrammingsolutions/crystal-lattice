@@ -14,7 +14,7 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.patch_stdout import patch_stdout
 
 from .event_rendering import TerminalRenderContext, _render_terminal_exception
-from .terminal_app import TerminalApplication, TerminalUserError
+from .terminal_app import TerminalApplication, TerminalUserError, TerminalApplicationError
 from agent_app.config import resolve_request_config
 
 _DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "config_openrouter_app_layer.json"
@@ -537,18 +537,35 @@ async def _cmd_help(
     if text == "config":
         # Show top-level config keys for the currently enabled plugins.
         core, base_config, session = app.require_session()
+        schema_entries = core.get_config_schema()
 
-        schema = core.get_config_schema()
+        try:
+            plugin_entries = app.list_plugins_for_session()
+        except Exception:
+            plugin_entries = []
 
-        if not isinstance(schema, dict) or not schema:
+        # Build plugin status mapping so we can consistently reflect
+        # enabled/active state across config sections and tint
+        # configuration for inactive or turned-off plugins.
+        plugin_status: Dict[str, Dict[str, bool]] = {}
+        for p in plugin_entries:
+            pid = p.get("id")
+            if not isinstance(pid, str) or not pid:
+                continue
+            enabled_flag = bool(p.get("enabled"))
+            active_flag = bool(p.get("active", True))
+            plugin_status[pid] = {"enabled": enabled_flag, "active": active_flag}
+
+        if not isinstance(schema_entries, list) or not schema_entries:
             write("[help config] no config keys available for current plugins")
         else:
             # Sort config keys by plugin name, then key.
             items: List[Tuple[str, str, Dict[str, Any]]] = []
-            for key, raw_entry in schema.items():
-                if not isinstance(key, str) or not key:
-                    continue
+            for raw_entry in schema_entries:
                 if not isinstance(raw_entry, dict):
+                    continue
+                key = raw_entry.get("key")
+                if not isinstance(key, str) or not key:
                     continue
                 plugin_name_val = raw_entry.get("plugin")
                 plugin_name = (
@@ -567,16 +584,43 @@ async def _cmd_help(
                 description = entry.get("description") or ""
                 current_val = base_config.get(key, default_val)
 
-                key_str = f"\x1b[1;33m{key}\x1b[0m"
-                plugin_str = f"\x1b[34m[{plugin_name}]\x1b[0m"
-                type_str = f"\x1b[34m{type_name}\x1b[0m"
+                status = plugin_status.get(plugin_name)
+                is_off_or_inactive = bool(
+                    status and (not status.get("enabled", True) or not status.get("active", True))
+                )
+                is_inactive_only = bool(status and not status.get("active", True))
+
                 # If the key is not explicitly set in the base config,
                 # the default is in effect; in that case omit the
                 # "current" marker and show only the default.
-                if isinstance(base_config, dict) and key in base_config:
+                has_explicit = isinstance(base_config, dict) and key in base_config
+                if has_explicit:
                     values_body = f"default={default_val!r}, current={current_val!r}"
                 else:
                     values_body = f"default={default_val!r}"
+
+                if is_off_or_inactive:
+                    # For plugins that are disabled or inactive, show the
+                    # entire line in gray to indicate that the
+                    # configuration is not currently in effect.
+                    inactive_suffix = " (inactive)" if is_inactive_only else ""
+                    plain_desc = f" - {description}" if description else ""
+                    plain_line = (
+                        f"  {key} ({type_name}) "
+                        f"[{plugin_name}{inactive_suffix}] {values_body}{plain_desc}"
+                    )
+                    write(f"\x1b[90m{plain_line}\x1b[0m")
+                    continue
+
+                # Bold when an explicit config value is in effect;
+                # normal when only the default is used.
+                if has_explicit:
+                    key_str = f"\x1b[1;33m{key}\x1b[0m"
+                else:
+                    key_str = f"\x1b[33m{key}\x1b[0m"
+                inactive_suffix = " (inactive)" if is_inactive_only else ""
+                plugin_str = f"\x1b[34m[{plugin_name}{inactive_suffix}]\x1b[0m"
+                type_str = f"\x1b[34m{type_name}\x1b[0m"
                 values_str = f"\x1b[90m{values_body}\x1b[0m"
 
                 if description:
@@ -587,11 +631,6 @@ async def _cmd_help(
 
         # List available plugins for this session with their enabled
         # status, mirroring the style of /plugins.
-        try:
-            plugin_entries = app.list_plugins_for_session()
-        except Exception:
-            plugin_entries = []
-
         if plugin_entries:
             write("\n[help] Plugins for this session:")
             kind_labels = {
@@ -600,14 +639,34 @@ async def _cmd_help(
                 "features": "feature",
                 "tools": "tool",
             }
-            for index, entry in enumerate(plugin_entries, 1):
+            for entry in plugin_entries:
                 enabled = bool(entry.get("enabled"))
-                status = "on " if enabled else "off"
                 raw_kind = entry.get("kind")
                 kind = raw_kind if isinstance(raw_kind, str) else ""
                 display_kind = kind_labels.get(kind, kind or "-")
                 pid = entry.get("id") if isinstance(entry.get("id"), str) else ""
-                write(f"  {index}. [{status:3s}] {display_kind:<9s} {pid}")
+                active = bool(entry.get("active", True))
+
+                # Name in yellow; bold when enabled and active, normal
+                # yellow otherwise.
+                if enabled and active:
+                    name_str = f"\x1b[1;33m{pid}\x1b[0m"
+                else:
+                    name_str = f"\x1b[33m{pid}\x1b[0m"
+
+                # Type in brackets, styled similarly to other type
+                # annotations in the help output.
+                type_str = f"\x1b[34m[{display_kind}]\x1b[0m"
+
+                # Status marker [ON]/[OFF] in gray.
+                status_label = "ON" if enabled else "OFF"
+                status_str = f"\x1b[90m[{status_label}]\x1b[0m"
+
+                # Inactive flag when the plugin is not active for this
+                # session.
+                inactive_str = "\x1b[90m (inactive)\x1b[0m" if not active else ""
+
+                write(f"  {name_str} {type_str} {status_str}{inactive_str}")
 
         # Load any per-session configuration overrides stored in the
         # session metadata so that we can display current vs. override
@@ -640,7 +699,16 @@ async def _cmd_help(
 
             write("\n[help] Configurable settings (via /set):")
             for plugin_name, key_val, el in cfg_items:
-                schema_entry = schema.get(key_val) if isinstance(schema, dict) else None
+                schema_entry = None
+                # Prefer an exact match on (plugin, key) when multiple
+                # plugins contribute the same key.
+                if isinstance(schema_entries, list):
+                    for entry in schema_entries:
+                        if not isinstance(entry, dict):
+                            continue
+                        if entry.get("key") == key_val and entry.get("plugin") == plugin_name:
+                            schema_entry = entry
+                            break
                 type_name = (
                     schema_entry.get("type", "?")
                     if isinstance(schema_entry, dict)
@@ -675,8 +743,35 @@ async def _cmd_help(
                 has_override = key_val in overrides
                 override_str = repr(overrides[key_val]) if has_override else "none"
 
-                key_str = f"\x1b[1;33m{key_val}\x1b[0m"
-                plugin_str = f"\x1b[34m[{plugin_name}]\x1b[0m"
+                status = plugin_status.get(plugin_name)
+                is_off_or_inactive = bool(
+                    status and (not status.get("enabled", True) or not status.get("active", True))
+                )
+                is_inactive_only = bool(status and not status.get("active", True))
+
+                if is_off_or_inactive:
+                    # Entire line gray for settings belonging to
+                    # disabled or inactive plugins.
+                    inactive_suffix = " (inactive)" if is_inactive_only else ""
+                    if has_override:
+                        values_body = f"current={current_str}, override={override_str}"
+                    else:
+                        values_body = f"current={current_str}"
+                    info_suffix = f" - {info}" if info else ""
+                    plain_line = (
+                        f"  {key_val} ({type_name}) "
+                        f"[{plugin_name}{inactive_suffix}] {values_body}{info_suffix}"
+                    )
+                    write(f"\x1b[90m{plain_line}\x1b[0m")
+                    continue
+
+                # Normal colouring for active/enabled plugins.
+                if has_override:
+                    key_str = f"\x1b[1;33m{key_val}\x1b[0m"
+                else:
+                    key_str = f"\x1b[33m{key_val}\x1b[0m"
+                inactive_suffix = " (inactive)" if is_inactive_only else ""
+                plugin_str = f"\x1b[34m[{plugin_name}{inactive_suffix}]\x1b[0m"
                 type_str = f"\x1b[34m{type_name}\x1b[0m"
                 if has_override:
                     values_body = f"current={current_str}, override={override_str}"
@@ -710,7 +805,14 @@ async def _cmd_help(
                 desc = meta.get("description") or ""
                 current_val = app_cfg.get(key, default_val)
 
-                key_str = f"\x1b[1;33m{key}\x1b[0m"
+                # Bold when an explicit application-level config value
+                # is set for this key; normal when only the default is
+                # in effect.
+                has_explicit_app = isinstance(app_cfg, dict) and key in app_cfg
+                if has_explicit_app:
+                    key_str = f"\x1b[1;33m{key}\x1b[0m"
+                else:
+                    key_str = f"\x1b[33m{key}\x1b[0m"
                 type_str = f"\x1b[34m{type_name}\x1b[0m"
                 values_str = f"\x1b[90mdefault={default_val!r}, current={current_val!r}\x1b[0m"
                 if desc:
@@ -1031,7 +1133,11 @@ async def _cmd_plugins(
             kind = raw_kind if isinstance(raw_kind, str) else ""
             display_kind = kind_labels.get(kind, kind or "-")
             pid = entry.get("id") if isinstance(entry.get("id"), str) else ""
-            write(f"  {index}. [{status:3s}] {display_kind:<9s} {pid}")
+            active = bool(entry.get("active", True))
+            inactive_suffix = " (inactive)" if not active else ""
+            write(
+                f"  {index}. [{status:3s}] {display_kind:<9s} {pid}{inactive_suffix}"
+            )
         return
 
     # Subcommands: on, off, reset
