@@ -1693,7 +1693,7 @@ class AgentCore:
 
         elements: List[Dict[str, Any]] = []
 
-        def _extend(raw_elements: List[Dict[str, Any]]) -> None:
+        def _extend(raw_elements: List[Dict[str, Any]], plugin_name: str) -> None:
             for el in raw_elements or []:
                 if not isinstance(el, dict):
                     continue
@@ -1701,17 +1701,19 @@ class AgentCore:
                 ui_type = entry.get("ui_type")
                 if not isinstance(ui_type, str) or not ui_type:
                     entry["ui_type"] = "config"
+                if "plugin" not in entry and plugin_name:
+                    entry["plugin"] = plugin_name
                 elements.append(entry)
 
         for provider in self._providers:
-            _extend(provider.get_ui_elements())
+            _extend(provider.get_ui_elements(), provider.name)
             # Include provider extension UI schemas
-            for _name, ext_ui in provider.get_extension_ui_elements().items():
-                _extend(ext_ui)
+            for name, ext_ui in provider.get_extension_ui_elements().items():
+                _extend(ext_ui, name)
         for feature in self._features:
-            _extend(feature.get_ui_elements())
+            _extend(feature.get_ui_elements(), feature.name)
         for tool in self._tools:
-            _extend(tool.get_ui_elements())
+            _extend(tool.get_ui_elements(), tool.name)
         return elements
 
     def get_completions(self, config: Dict[str, Any], text: str) -> List[Dict[str, Any]]:

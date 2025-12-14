@@ -536,41 +536,94 @@ async def _cmd_help(
 
     if text == "config":
         # Show top-level config keys for the currently enabled plugins.
-        core, _base_config, _session = app.require_session()
+        core, base_config, session = app.require_session()
 
         schema = core.get_config_schema()
 
         if not isinstance(schema, dict) or not schema:
             write("[help config] no config keys available for current plugins")
         else:
-            write("\n[help] Config keys for enabled plugins:")
-            for key in sorted(schema.keys()):
-                entry = schema.get(key) or {}
-                if not isinstance(entry, dict):
+            # Sort config keys by plugin name, then key.
+            items: List[Tuple[str, str, Dict[str, Any]]] = []
+            for key, raw_entry in schema.items():
+                if not isinstance(key, str) or not key:
                     continue
-                plugin_name_val = entry.get("plugin")
+                if not isinstance(raw_entry, dict):
+                    continue
+                plugin_name_val = raw_entry.get("plugin")
                 plugin_name = (
                     plugin_name_val
                     if isinstance(plugin_name_val, str) and plugin_name_val
                     else "unknown"
                 )
-                desc_val = entry.get("description")
-                description = desc_val if isinstance(desc_val, str) else ""
- 
-                # Formatting: key in bold yellow, [plugin] in blue, description in gray.
+                items.append((plugin_name, key, raw_entry))
+
+            items.sort(key=lambda item: (item[0], item[1]))
+
+            write("\n[help] Config keys for enabled plugins:")
+            for plugin_name, key, entry in items:
+                type_name = entry.get("type", "?")
+                default_val = entry.get("default")
+                description = entry.get("description") or ""
+                current_val = base_config.get(key, default_val)
+
                 key_str = f"\x1b[1;33m{key}\x1b[0m"
                 plugin_str = f"\x1b[34m[{plugin_name}]\x1b[0m"
+                type_str = f"\x1b[34m{type_name}\x1b[0m"
+                # If the key is not explicitly set in the base config,
+                # the default is in effect; in that case omit the
+                # "current" marker and show only the default.
+                if isinstance(base_config, dict) and key in base_config:
+                    values_body = f"default={default_val!r}, current={current_val!r}"
+                else:
+                    values_body = f"default={default_val!r}"
+                values_str = f"\x1b[90m{values_body}\x1b[0m"
+
                 if description:
                     desc_str = f"\x1b[90m{description}\x1b[0m"
-                    write(f"  {key_str} {plugin_str} {desc_str}")
+                    write(f"  {key_str} ({type_str}) {plugin_str} {values_str} - {desc_str}")
                 else:
-                    write(f"  {key_str} {plugin_str}")
- 
+                    write(f"  {key_str} ({type_str}) {plugin_str} {values_str}")
+
+        # List available plugins for this session with their enabled
+        # status, mirroring the style of /plugins.
+        try:
+            plugin_entries = app.list_plugins_for_session()
+        except Exception:
+            plugin_entries = []
+
+        if plugin_entries:
+            write("\n[help] Plugins for this session:")
+            kind_labels = {
+                "providers": "provider",
+                "extensions": "extension",
+                "features": "feature",
+                "tools": "tool",
+            }
+            for index, entry in enumerate(plugin_entries, 1):
+                enabled = bool(entry.get("enabled"))
+                status = "on " if enabled else "off"
+                raw_kind = entry.get("kind")
+                kind = raw_kind if isinstance(raw_kind, str) else ""
+                display_kind = kind_labels.get(kind, kind or "-")
+                pid = entry.get("id") if isinstance(entry.get("id"), str) else ""
+                write(f"  {index}. [{status:3s}] {display_kind:<9s} {pid}")
+
+        # Load any per-session configuration overrides stored in the
+        # session metadata so that we can display current vs. override
+        # values for configurable settings.
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides_val = metadata.get("overrides")
+        overrides: Dict[str, Any] = (
+            overrides_val if isinstance(overrides_val, dict) else {}
+        )
+
         # Also show configurable settings exposed via /set (UI schema).
         ui_elements = app.session_ui_elements()
- 
+
         if ui_elements:
-            write("\n[help] Configurable settings (via /set):")
+            # Sort configurable settings by plugin name, then key.
+            cfg_items: List[Tuple[str, str, Dict[str, Any]]] = []
             for el in ui_elements:
                 key_val = el.get("key")
                 if not isinstance(key_val, str) or not key_val:
@@ -581,6 +634,18 @@ async def _cmd_help(
                     if isinstance(plugin_name_val, str) and plugin_name_val
                     else "unknown"
                 )
+                cfg_items.append((plugin_name, key_val, el))
+
+            cfg_items.sort(key=lambda item: (item[0], item[1]))
+
+            write("\n[help] Configurable settings (via /set):")
+            for plugin_name, key_val, el in cfg_items:
+                schema_entry = schema.get(key_val) if isinstance(schema, dict) else None
+                type_name = (
+                    schema_entry.get("type", "?")
+                    if isinstance(schema_entry, dict)
+                    else "?"
+                )
                 label_val = el.get("label")
                 desc_val = el.get("description")
                 info = (
@@ -589,13 +654,42 @@ async def _cmd_help(
                     else (desc_val if isinstance(desc_val, str) else "")
                 )
 
+                # Determine the effective current value for this key.
+                # Preference order:
+                #   1. Value from the base agent config (if present)
+                #   2. Default from the plugin config schema (if present)
+                #   3. "none" if neither is defined.
+                has_current = False
+                current_value: Any = None
+                if isinstance(base_config, dict) and key_val in base_config:
+                    current_value = base_config[key_val]
+                    has_current = True
+                elif isinstance(schema_entry, dict) and "default" in schema_entry:
+                    current_value = schema_entry.get("default")
+                    has_current = True
+                current_str = repr(current_value) if has_current else "none"
+
+                # Override value comes from per-session overrides. If
+                # no override exists for this key, we omit it from the
+                # display instead of showing a placeholder.
+                has_override = key_val in overrides
+                override_str = repr(overrides[key_val]) if has_override else "none"
+
                 key_str = f"\x1b[1;33m{key_val}\x1b[0m"
                 plugin_str = f"\x1b[34m[{plugin_name}]\x1b[0m"
+                type_str = f"\x1b[34m{type_name}\x1b[0m"
+                if has_override:
+                    values_body = f"current={current_str}, override={override_str}"
+                else:
+                    values_body = f"current={current_str}"
+                values_str = f"\x1b[90m{values_body}\x1b[0m"
                 if info:
                     info_str = f"\x1b[90m{info}\x1b[0m"
-                    write(f"  {key_str} {plugin_str} {info_str}")
+                    write(
+                        f"  {key_str} ({type_str}) {plugin_str} {values_str} - {info_str}"
+                    )
                 else:
-                    write(f"  {key_str} {plugin_str}")
+                    write(f"  {key_str} ({type_str}) {plugin_str} {values_str}")
         else:
             write("\n[help] No configurable settings available via /set for this session")
 
