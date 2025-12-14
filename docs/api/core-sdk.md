@@ -308,25 +308,33 @@ async for chunk in core.send_request_stream_async(session, config):
 #### get_config_schema
 
 ```python
-get_config_schema() -> Dict[str, Any]
+get_config_schema() -> List[Dict[str, Any]]
 ```
 
 Get flattened config schema from all registered plugins.
 
-Each plugin contributes its config keys to a shared flat
-mapping. Every entry includes a `plugin` field indicating the
-source plugin.
+Each plugin contributes its config keys to a shared flat list of
+entries. Every entry includes:
+
+- `key`: the top-level config key.
+- `plugin`: the contributing plugin.
+- Any additional schema fields such as `type`, `default`,
+  `required`, or `description`.
+
+Multiple plugins may contribute entries for the same `key`.
 
 **Returns:**
-- `dict`: Mapping from config key to its schema, including `plugin`
+- `list[dict]`: List of config schema entries, each with `key` and
+  `plugin`.
 
 **Example:**
 ```python
 schema = core.get_config_schema()
-# {
-#   "model": {"type": "string", "required": True, "plugin": "openai"},
-#   "web_search_enabled": {"type": "boolean", "plugin": "web_search"},
-# }
+# [
+#   {"key": "model", "type": "string", "required": True, "plugin": "openai"},
+#   {"key": "api_key", "type": "string", "plugin": "openai"},
+#   {"key": "api_key", "type": "string", "plugin": "other_provider"},
+# ]
 ```
 
 #### get_ui_schema

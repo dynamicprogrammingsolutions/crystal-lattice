@@ -73,7 +73,7 @@ def test_get_config_schema_empty():
     core = AgentCore()
     schema = core.get_config_schema()
 
-    assert isinstance(schema, dict)
+    assert isinstance(schema, list)
     assert len(schema) == 0
 
 
@@ -86,13 +86,27 @@ def test_get_config_schema_with_plugins():
 
     schema = core.get_config_schema()
 
-    # Top-level keys should be config keys, not plugin names.
-    assert "model" in schema
-    assert "prefix" in schema
+    assert isinstance(schema, list)
+
+    # Top-level keys should appear as entries with a "key" field.
+    keys = {entry.get("key") for entry in schema if isinstance(entry, dict)}
+    assert "model" in keys
+    assert "prefix" in keys
 
     # Each entry should include the contributing plugin name.
-    assert schema["model"].get("plugin") in {"dummy_provider", "DummyProvider"}
-    assert schema["prefix"].get("plugin") in {"dummy_feature", "DummyFeature"}
+    providers = [
+        entry.get("plugin")
+        for entry in schema
+        if isinstance(entry, dict) and entry.get("key") == "model"
+    ]
+    assert any(p in {"dummy_provider", "DummyProvider"} for p in providers)
+
+    features = [
+        entry.get("plugin")
+        for entry in schema
+        if isinstance(entry, dict) and entry.get("key") == "prefix"
+    ]
+    assert any(p in {"dummy_feature", "DummyFeature"} for p in features)
 
 
 def test_get_ui_schema_empty():

@@ -912,7 +912,7 @@ class TerminalApplication:
         as enabled (implicit default).
         """
 
-        _core, _base_config, session = self.require_session()
+        core, base_config, session = self.require_session()
         all_plugins = self._app.list_plugins()
         metadata = session.metadata or {}
 
@@ -933,11 +933,33 @@ class TerminalApplication:
                 enabled_ids = {p for p in default_ids if isinstance(p, str)}
                 source = "agent"
 
+        overrides_val = metadata.get("overrides")
+        overrides: Dict[str, Any] = (
+            overrides_val if isinstance(overrides_val, dict) else {}
+        )
+        config = resolve_request_config(base_config, overrides)
+
+        try:
+            active_by_kind = core.get_plugins_for_config(config)
+        except Exception:
+            active_by_kind = None
+
+        def _is_active(kind: str, pid: str) -> bool:
+            if not isinstance(active_by_kind, dict):
+                return True
+            raw = active_by_kind.get(kind)
+            if not isinstance(raw, list):
+                return True
+            return pid in raw
+
         result: List[Dict[str, Any]] = []
         for entry in all_plugins:
             pid = entry.get("id")
             if not isinstance(pid, str) or not pid:
                 continue
+
+            kind_val = entry.get("kind")
+            kind = kind_val if isinstance(kind_val, str) else ""
 
             if enabled_ids is None:
                 enabled = True
@@ -946,7 +968,11 @@ class TerminalApplication:
                 enabled = pid in enabled_ids
                 src = source
 
-            result.append({**entry, "enabled": enabled, "source": src})
+            active = _is_active(kind, pid)
+
+            result.append(
+                {**entry, "enabled": enabled, "source": src, "active": active}
+            )
 
         return result
 

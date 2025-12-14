@@ -1149,6 +1149,33 @@ class AgentCore:
 
         return provider, enabled_extensions, enabled_features, enabled_tools, final_tags
 
+    def get_plugins_for_config(
+        self,
+        config: Dict[str, Any],
+    ) -> Dict[str, List[str]]:
+        """Return active plugin identifiers for the given config.
+
+        The result is derived from the same tag-based dependency
+        resolution used internally by the core. It maps plugin kinds
+        ("providers", "extensions", "features", "tools") to lists of
+        active plugin identifiers for this config.
+        """
+
+        (
+            provider,
+            enabled_extensions,
+            enabled_features,
+            enabled_tools,
+            _tags,
+        ) = self._resolve_plugins_for_config(config)
+
+        return {
+            "providers": [provider.name],
+            "extensions": [ext.name for ext in enabled_extensions],
+            "features": [feat.name for feat in enabled_features],
+            "tools": [tool.name for tool in enabled_tools],
+        }
+
     def _init_provider_and_features_for_config(
         self,
         provider: ProviderWrapper,
@@ -1645,18 +1672,27 @@ class AgentCore:
 
         yield {"type": "final", "session": new_session, "messages": final_core}
 
-    def get_config_schema(self) -> Dict[str, Any]:
+    def get_config_schema(self) -> List[Dict[str, Any]]:
         """Get flattened config schema from all registered plugins.
 
         Returns:
-            Mapping from top-level config key to a JSON-schema-like
-            description. Each entry includes a ``"plugin"`` field naming
-            the contributing plugin (provider, extension, feature, or
-            tool).
-        """
-        flat: Dict[str, Any] = {}
+            List of config entry descriptors. Each element is a
+            dictionary that includes:
 
-        def _merge(schema: Dict[str, Any] | None, plugin_name: str) -> None:
+            - ``"key"``: the top-level config key.
+            - ``"plugin"``: the contributing plugin's id/name
+              (provider, extension, feature, or tool).
+            - Any additional metadata provided by the plugin
+              (for example, ``"type"``, ``"default"``,
+              ``"required"``, ``"description"``).
+
+            Multiple plugins may contribute entries for the same
+            ``"key"``; each contribution is represented as a separate
+            element in the returned list.
+        """
+        entries: List[Dict[str, Any]] = []
+
+        def _extend(schema: Dict[str, Any] | None, plugin_name: str) -> None:
             if not schema:
                 return
             for key, value in schema.items():
@@ -1667,18 +1703,19 @@ class AgentCore:
                 entry: Dict[str, Any] = dict(value)
                 if "plugin" not in entry:
                     entry["plugin"] = plugin_name
-                flat[key] = entry
+                entry.setdefault("key", key)
+                entries.append(entry)
 
         for provider in self._providers:
-            _merge(provider.get_config_schema(), provider.name)
+            _extend(provider.get_config_schema(), provider.name)
             # Include provider extension schemas
             for name, ext_schema in provider.get_extension_config_schemas().items():
-                _merge(ext_schema, name)
+                _extend(ext_schema, name)
         for feature in self._features:
-            _merge(feature.get_config_schema(), feature.name)
+            _extend(feature.get_config_schema(), feature.name)
         for tool in self._tools:
-            _merge(tool.get_config_schema(), tool.name)
-        return flat
+            _extend(tool.get_config_schema(), tool.name)
+        return entries
 
     def get_ui_schema(self) -> List[Dict[str, Any]]:
         """Get flattened UI schema from all registered plugins.
@@ -1691,7 +1728,14 @@ class AgentCore:
         ``element.get("ui_type", "config") == "config"``.
         """
 
+        # We treat configuration-oriented elements (ui_type == "config")
+        # as keyed by their "key" field, mirroring the flattened
+        # behaviour of ``get_config_schema`` where later plugins override
+        # earlier ones for the same key. Non-config elements (such as
+        # message footers or actions) are preserved in order.
+
         elements: List[Dict[str, Any]] = []
+        config_by_key: Dict[str, Dict[str, Any]] = {}
 
         def _extend(raw_elements: List[Dict[str, Any]], plugin_name: str) -> None:
             for el in raw_elements or []:
@@ -1701,8 +1745,18 @@ class AgentCore:
                 ui_type = entry.get("ui_type")
                 if not isinstance(ui_type, str) or not ui_type:
                     entry["ui_type"] = "config"
+                    ui_type = "config"
                 if "plugin" not in entry and plugin_name:
                     entry["plugin"] = plugin_name
+
+                if ui_type == "config":
+                    key = entry.get("key")
+                    if isinstance(key, str) and key:
+                        # Later plugins override earlier ones for the
+                        # same key, matching get_config_schema.
+                        config_by_key[key] = entry
+                        continue
+
                 elements.append(entry)
 
         for provider in self._providers:
@@ -1714,6 +1768,9 @@ class AgentCore:
             _extend(feature.get_ui_elements(), feature.name)
         for tool in self._tools:
             _extend(tool.get_ui_elements(), tool.name)
+
+        # Append deduplicated config elements after non-config ones.
+        elements.extend(config_by_key.values())
         return elements
 
     def get_completions(self, config: Dict[str, Any], text: str) -> List[Dict[str, Any]]:
