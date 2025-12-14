@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
+import pytest
+
 from plugins.file_context_feature import FileContextFeature
 
 
@@ -102,3 +104,35 @@ def test_apply_completion_builds_template_snippet() -> None:
         assert "bar.py" in snippet
         # With 5 lines in the file and start=2, default end should be 5.
         assert "@file:bar.py:2-5" in snippet
+
+
+def test_get_completions_respects_gitignore(tmp_path) -> None:
+    feature = FileContextFeature()
+    try:
+        from git import Repo  # type: ignore[import]
+    except ModuleNotFoundError:
+        pytest.skip("GitPython not installed")
+
+    repo_dir = tmp_path
+    (repo_dir / ".gitignore").write_text("ignored*.txt\n", encoding="utf-8")
+    (repo_dir / "kept.txt").write_text("keep me", encoding="utf-8")
+    (repo_dir / "ignored.txt").write_text("ignore me", encoding="utf-8")
+
+    Repo.init(repo_dir)
+
+    config: Dict[str, Any] = {
+        "file_context_enabled": True,
+        "working_directory": str(repo_dir),
+        "allowed_paths": [str(repo_dir)],
+    }
+
+    # Use a string long enough to pass the len(text) >= 8 check
+    text = "xx @file:"
+
+    completions = feature.get_completions(config, text)
+    paths = [c.get("path") for c in completions]
+
+    assert "kept.txt" in paths
+    assert "ignored.txt" in paths
+    # Non-ignored files should be suggested before ignored ones.
+    assert paths.index("kept.txt") < paths.index("ignored.txt")

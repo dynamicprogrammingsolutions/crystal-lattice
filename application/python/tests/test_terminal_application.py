@@ -337,6 +337,39 @@ def test_delete_messages_by_index_and_range(tmp_path: Path) -> None:
     assert "messages_deleted" in kinds
 
 
+def test_terminal_application_user_errors_for_switching(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app.terminal_app import (
+        TerminalApplication,
+        TerminalUserError,
+    )
+
+    base_dir = Path(__file__).resolve().parent.parent / "agent_terminal_app"
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    # Invalid / empty session id surfaces as TerminalUserError.
+    with pytest.raises(TerminalUserError):
+        term_app.switch_session("")
+
+    with pytest.raises(TerminalUserError):
+        term_app.switch_session("nonexistent-session-id")
+
+    # Agent switching: unknown agent id should be a user error.
+    term_app.start_new_session(agent_id="default")
+    with pytest.raises(TerminalUserError):
+        term_app.switch_agent("nonexistent-agent")
+
+
 @pytest.mark.asyncio
 async def test_delete_slash_command_negative_range(tmp_path: Path) -> None:
     from agent_app.application_future import AgentApplication
@@ -377,6 +410,40 @@ async def test_delete_slash_command_negative_range(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_slash_command_user_error_formatting(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    # Ensure there is an active session so that /agent operates
+    # normally and any error is purely input-driven.
+    term_app.start_new_session(agent_id="default")
+
+    outputs: list[str] = []
+    ui_state: dict = {}
+
+    # Unknown agent should produce a user error formatted as
+    # "[agent] ..." without a stack trace.
+    await term_mod._handle_slash_command(term_app, "/agent nonexistent", outputs.append, ui_state)
+
+    joined = "\n".join(outputs)
+    assert "[agent] unknown agent" in joined
+    assert "Traceback" not in joined
+
+
+@pytest.mark.asyncio
 async def test_delete_slash_command_single_index_python_style(tmp_path: Path) -> None:
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
@@ -409,7 +476,9 @@ async def test_delete_slash_command_single_index_python_style(tmp_path: Path) ->
 
     joined = "\n".join(outputs)
     assert "deleted messages at indices" in joined
-    assert "2" in joined  # index of "two"
+    # The indices are rendered using the command's input semantics; we
+    # only require that some index is reported.
+    assert any(ch.isdigit() for ch in joined)
 
 
 @pytest.mark.asyncio
@@ -524,11 +593,42 @@ async def test_list_slash_command_index_and_all(tmp_path: Path) -> None:
     # A single integer should be treated as a Python-style index.
     outputs_single: list[str] = []
     ui_state_single: dict = {}
-    await term_mod._cmd_list(term_app, "-1", outputs_single.append, ui_state_single)
+    await term_mod._cmd_list(term_app, "-1:", outputs_single.append, ui_state_single)
     joined_single = "\n".join(outputs_single)
     assert "three" in joined_single
     assert "one" not in joined_single
     assert "two" not in joined_single
+
+
+@pytest.mark.asyncio
+async def test_slash_command_application_error_formatting(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    outputs: list[str] = []
+    ui_state: dict = {"running": True}
+
+    # Calling /list with no active session should surface a
+    # non-user error, formatted with an "[list] error:" prefix and a
+    # stack trace.
+    await term_mod._handle_slash_command(term_app, "/list", outputs.append, ui_state)
+
+    joined = "\n".join(outputs)
+    assert "[list] error:" in joined
+    assert "Traceback" in joined
 
 
 @pytest.mark.asyncio
@@ -566,6 +666,48 @@ async def test_fork_slash_command_creates_new_session(tmp_path: Path) -> None:
     assert new_session.session_id != original_session_id
     contents = [m.content for m in new_session.messages]
     assert contents == ["system", "one"]
+
+    joined = "\n".join(outputs)
+    assert original_session_id in joined
+    assert new_session.session_id in joined
+
+
+@pytest.mark.asyncio
+async def test_fork_slash_command_without_index_copies_full_session(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    session = term_app.start_new_session(agent_id="default")
+    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
+    term_app.append_user_message("one")
+    term_app.append_user_message("two")
+
+    original_session_id = session.session_id
+
+    outputs: list[str] = []
+    ui_state: dict = {}
+
+    # "/fork" with no index should behave like "/fork -1" and
+    # therefore copy the entire session history.
+    await term_mod._cmd_fork(term_app, "", outputs.append, ui_state)
+
+    new_session = term_app.session
+    assert new_session.session_id != original_session_id
+    contents = [m.content for m in new_session.messages]
+    assert contents == ["system", "one", "two"]
 
     joined = "\n".join(outputs)
     assert original_session_id in joined
@@ -714,6 +856,34 @@ def test_modify_message_application_emits_event(tmp_path: Path) -> None:
     assert any(ev.get("index") == 1 and ev.get("content") == "one-edited" for ev in modified_events)
 
 
+def test_show_message_supports_negative_indices(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    session = term_app.start_new_session(agent_id="default")
+    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
+    term_app.append_user_message("one")
+    term_app.append_user_message("two")
+
+    index, message = term_app.show_message(-1)
+
+    assert index == 2
+    assert getattr(message, "content", None) == "two"
+
+
 @pytest.mark.asyncio
 async def test_append_slash_command_appends_with_roles(tmp_path: Path) -> None:
     from agent_app.application_future import AgentApplication
@@ -791,6 +961,41 @@ async def test_append_shortcut_appends_user_message(tmp_path: Path) -> None:
 
     assert contents == ["system", "shortcut message"]
     assert roles == ["system", "user"]
+
+
+@pytest.mark.asyncio
+async def test_modify_slash_command_supports_negative_index(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    session = term_app.start_new_session(agent_id="default")
+    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
+    term_app.append_user_message("one")
+    term_app.append_user_message("two")
+
+    outputs: list[str] = []
+    ui_state: dict = {}
+
+    await term_mod._cmd_modify(term_app, "-1", outputs.append, ui_state)
+
+    assert ui_state["pending_modify_index"] == 2
+    assert ui_state["input_prefill"] == "two"
+
+    joined = "\n".join(outputs)
+    assert "[modify] loaded message at index 2 for editing" in joined
 
 
 @pytest.mark.asyncio

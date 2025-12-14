@@ -6,7 +6,7 @@ from typing import Any, Callable, Dict, List, Optional
 from agent_core.types import Message
 from agent_core.utils import get_logger
 
-from .terminal_app import TerminalApplication
+from .terminal_app import TerminalApplication, TerminalUserError
 
 
 WriteFn = Callable[[str], None]
@@ -15,7 +15,29 @@ WriteFn = Callable[[str], None]
 BLUE = "\x1b[34m"
 YELLOW = "\x1b[33m"
 GRAY = "\x1b[90m"
+RED = "\x1b[31m"
 RESET = "\x1b[0m"
+
+
+def _render_terminal_exception(context: str, exc: Exception, write: WriteFn) -> None:
+    """Render an exception for interactive terminal usage.
+
+    ``TerminalUserError`` instances are treated as user-facing errors
+    without a stack trace. All other exceptions are rendered as
+    application errors in red with a traceback, but the UI remains
+    running.
+    """
+
+    if isinstance(exc, TerminalUserError):
+        write(f"[{context}] {exc}")
+        return
+
+    import traceback
+
+    write(f"{RED}[{context}] error: {exc}{RESET}")
+    tb_text = traceback.format_exc()
+    for line in tb_text.rstrip().splitlines():
+        write(f"{RED}{line}{RESET}")
 
 
 _event_logger: Logger | None = None
@@ -168,12 +190,12 @@ class UserRenderer(BaseMessageRenderer):
         self._footer_elements_supplier = footer_elements_supplier
 
     def render_event(self, event: Dict[str, Any], write: WriteFn) -> None:
-        if event.get("type") == "message_appended" and event.get("role") == "user":
+        if event.get("type") == "message_appended" and (event.get("role") == "user" or event.get("role") == "system"):
             self._render_message(message=event.get("message"), write=write)
 
-    def _render_header(self, write: WriteFn, *, include_index: bool, index: int | None = None) -> None:
+    def _render_header(self, role, write: WriteFn, *, include_index: bool, index: int | None = None) -> None:
         prefix = f"[{index}] " if include_index and index is not None and index >= 0 else ""
-        write(f"{prefix}{BLUE}User:{RESET}")
+        write(f"{prefix}{BLUE}{role.capitalize()}:{RESET}")
 
     def _render_footer(self, md: Dict[str, Any], msg: Dict[str, Any], write: WriteFn) -> None:
         parts: List[str] = []
@@ -205,12 +227,12 @@ class UserRenderer(BaseMessageRenderer):
 
     def _render_message(self, message: Any, write: WriteFn, *, index: int|None = None, short: bool = False) -> None:
         msg = _message_to_dict(message)
-        if msg.get("role") != "user":
+        if msg.get("role") != "user" and msg.get("role") != "system":
             return
         md = msg.get("metadata") or {}
         if not isinstance(md, dict):
             md = {}
-        self._render_header(write, include_index=True, index=index)
+        self._render_header(msg.get("role"), write, include_index=True, index=index)
         content = msg.get("content")
         if isinstance(content, str) and content:
             text = _shorten_single_line(content, 200) if short else str(content)
@@ -470,6 +492,11 @@ class ToolRenderer(BaseMessageRenderer):
         # Per-call line buffers so that streamed tool output is
         # printed only once per complete line.
         self._line_buffers: Dict[str, str] = {}
+        # Per-call accounting for line/character limits so that
+        # streaming respects the same bounds as non-streamed output.
+        self._printed_lines: Dict[str, int] = {}
+        self._printed_chars: Dict[str, int] = {}
+        self._truncated_calls: set[str] = set()
         cfg = app.agent_app.get_application_config()
         self._line_limit: int = int(cfg.get("tool_output_line_limit", 100))
         self._char_limit: int = int(cfg.get("tool_output_char_limit", 8000))
@@ -521,18 +548,58 @@ class ToolRenderer(BaseMessageRenderer):
 
                 # Flush any buffered partial line for this call so that
                 # trailing content without a newline is still printed
-                # once with a newline appended.
+                # once with a newline appended, subject to the same
+                # line/character limits.
                 key = call_id if isinstance(call_id, str) else ""
                 buf = self._line_buffers.pop(key, "")
                 if buf:
-                    print(buf, flush=True)
+                    lines = self._printed_lines.get(key, 0)
+                    chars = self._printed_chars.get(key, 0)
+                    already_truncated = key in self._truncated_calls
+
+                    if self._line_limit <= 0 and self._char_limit <= 0:
+                        # No limits configured; print any remainder.
+                        print(buf, flush=True)
+                    else:
+                        would_exceed_lines = (
+                            self._line_limit > 0 and lines + 1 > self._line_limit
+                        )
+                        would_exceed_chars = (
+                            self._char_limit > 0 and chars + len(buf) > self._char_limit
+                        )
+                        if not already_truncated and (would_exceed_lines or would_exceed_chars):
+                            write(f"{GRAY}[tool output truncated]{RESET}")
+                            self._truncated_calls.add(key)
+                        elif not (would_exceed_lines or would_exceed_chars):
+                            print(buf, flush=True)
 
             if isinstance(call_id, str) and call_id in self._open_calls:
                 self._open_calls.discard(call_id)
+            # Clear per-call accounting once the call ends.
+            key = call_id if isinstance(call_id, str) else ""
+            self._line_buffers.pop(key, None)
+            self._printed_lines.pop(key, None)
+            self._printed_chars.pop(key, None)
+            self._truncated_calls.discard(key)
             return
 
         # For start/stream (or legacy payloads without phase), stream text.
-        if not isinstance(part, dict) or part.get("type") != "text":
+        if not isinstance(part, dict):
+            return
+
+        part_type = part.get("type")
+
+        # Summary payloads are rendered as-is at the end of a tool
+        # call and are not subject to per-call line/character limits
+        # so that exit codes and stderr are always visible even when
+        # the main output was truncated.
+        if part_type == "summary":
+            summary = part.get("content")
+            if isinstance(summary, str) and summary:
+                write(summary.rstrip("\n"))
+            return
+
+        if part_type != "text":
             return
 
         content = part.get("content")
@@ -554,16 +621,56 @@ class ToolRenderer(BaseMessageRenderer):
 
         # Line-buffered streaming: accumulate content until a newline is
         # seen, then print whole lines. Any remainder is flushed when
-        # the tool call ends.
+        # the tool call ends. While streaming, enforce the same
+        # line/character limits used for non-streamed output.
         buf = self._line_buffers.get(key, "") + content
+
+        # Fast path when no limits are configured: behave like the
+        # original streaming implementation.
+        if self._line_limit <= 0 and self._char_limit <= 0:
+            while True:
+                idx = buf.find("\n")
+                if idx == -1:
+                    break
+                line = buf[:idx]
+                buf = buf[idx + 1 :]
+                print(line, flush=True)
+            self._line_buffers[key] = buf
+            return
+
+        lines = self._printed_lines.get(key, 0)
+        chars = self._printed_chars.get(key, 0)
+        already_truncated = key in self._truncated_calls
+
         while True:
             idx = buf.find("\n")
             if idx == -1:
                 break
             line = buf[:idx]
             buf = buf[idx + 1 :]
+
+            # Respect per-call line/character limits. Once a call has
+            # been marked as truncated, suppress further output.
+            if already_truncated:
+                continue
+
+            would_exceed_lines = self._line_limit > 0 and lines + 1 > self._line_limit
+            would_exceed_chars = self._char_limit > 0 and chars + len(line) > self._char_limit
+            if would_exceed_lines or would_exceed_chars:
+                write(f"{GRAY}[tool output truncated]{RESET}")
+                self._truncated_calls.add(key)
+                already_truncated = True
+                # Drop any remaining buffered content for this call.
+                buf = ""
+                break
+
             print(line, flush=True)
+            lines += 1
+            chars += len(line)
+
         self._line_buffers[key] = buf
+        self._printed_lines[key] = lines
+        self._printed_chars[key] = chars
 
     def _render_header(self, write: WriteFn, *, include_index: bool, index: int | None = None) -> None:
         prefix = f"[{index}] " if include_index and index is not None and index >= 0 else ""
@@ -591,7 +698,11 @@ class ToolRenderer(BaseMessageRenderer):
         if not isinstance(md, dict):
             md = {}
         self._render_header(write, include_index=True, index=index)
-        content = msg.get("content")
+        display = md.get("display")
+        if isinstance(display, dict) and display.get("type") == "text":
+            content = display.get("content")
+        else:
+            content = msg.get("content")
         if isinstance(content, str) and content:
             truncated = False
             if short:

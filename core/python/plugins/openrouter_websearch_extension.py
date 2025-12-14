@@ -65,7 +65,7 @@ class OpenRouterWebSearchExtension(ProviderExtensionPlugin):
             "enable_web_search": {
                 "type": "boolean",
                 "required": False,
-                "default": True,
+                "default": False,
                 "description": "Enable OpenRouter web search plugin.",
             },
             "web_search_plugin_id": {
@@ -109,9 +109,9 @@ class OpenRouterWebSearchExtension(ProviderExtensionPlugin):
 
     # ---- Init / state ----
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        enabled = config.get("enable_web_search")
+        enabled = config.get("enable_web_search", False)
         # Default is enabled unless explicitly set to False.
-        if enabled is False:
+        if not enabled:
             return state
 
         plugin_id = config.get("web_search_plugin_id") or "web"

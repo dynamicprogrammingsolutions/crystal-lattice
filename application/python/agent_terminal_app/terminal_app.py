@@ -10,6 +10,18 @@ from agent_app.config import resolve_request_config
 from agent_core import Session
 
 
+class TerminalUserError(Exception):
+    """Error caused by invalid user input (indices, arguments, etc.)."""
+
+
+class TerminalApplicationError(Exception):
+    """Error caused by unexpected terminal application state/invariants."""
+
+    # Currently used only for internal categorization; all non-user
+    # exceptions are surfaced by the terminal's centralized error
+    # handler.
+
+
 class TerminalApplication:
     """Stateful application logic for the terminal frontend.
 
@@ -172,13 +184,12 @@ class TerminalApplication:
 
     def switch_session(self, session_id: str) -> Session:
         """Load an existing session by id and make it active."""
-
         if not isinstance(session_id, str) or not session_id:
-            raise ValueError("session_id must be a non-empty string")
+            raise TerminalUserError("session_id must be a non-empty string")
 
         ctx = self._app.load_session(session_id)
         if ctx is None:
-            raise KeyError(f"Session {session_id!r} not found")
+            raise TerminalUserError(f"session {session_id!r} not found")
 
         core, base_config, session = ctx
         self._core = core
@@ -354,18 +365,21 @@ class TerminalApplication:
         core, base_config, session = self.require_session()
 
         message_count = len(session.messages)
+        if message_count == 0:
+            raise TerminalUserError("no messages to delete")
+
         normalized: List[int] = []
         for raw in indices:
             if not isinstance(raw, int):
-                continue
-            idx = raw
-            if idx < 0:
-                idx = message_count + idx
-            if 0 <= idx < message_count:
-                normalized.append(idx)
+                raise TerminalUserError("indices must be integers")
+            try:
+                idx = self._normalize_index(raw, message_count)
+            except IndexError:
+                raise TerminalUserError("message index out of range")
+            normalized.append(idx)
 
         if not normalized:
-            return session
+            raise TerminalUserError("no messages selected for deletion")
 
         metadata = session.metadata if isinstance(session.metadata, dict) else {}
         overrides_val = metadata.get("overrides")
@@ -405,7 +419,13 @@ class TerminalApplication:
         core, _base_config, session = self.require_session()
         message_count = len(session.messages)
 
-        start_idx, end_idx = self._normalize_slice_bounds(message_count, start, end)
+        if message_count == 0:
+            raise TerminalUserError("no messages to delete")
+
+        try:
+            start_idx, end_idx = self._normalize_slice_bounds(message_count, start, end)
+        except ValueError:
+            raise TerminalUserError("range selects no messages")
 
         indices = list(range(start_idx, end_idx))
         new_session = self.delete_messages(indices)
@@ -419,13 +439,13 @@ class TerminalApplication:
         """
 
         if count <= 0:
-            raise ValueError("count must be a positive integer")
+            raise TerminalUserError("count must be a positive integer")
 
         core, _base_config, session = self.require_session()
         message_count = len(session.messages)
 
         if message_count == 0:
-            raise ValueError("no messages to delete")
+            raise TerminalUserError("no messages to delete")
 
         if count > message_count:
             count = message_count
@@ -442,75 +462,123 @@ class TerminalApplication:
     ) -> List[Tuple[int, Any]]:
         """List messages for the active session using Python-style slice bounds.
 
-        The active session is reloaded from the application before listing so
-        that external modifications are reflected.
+        When the active session has been persisted, the latest version is
+        reloaded from the underlying application so that external
+        modifications are reflected. For in-memory or ephemeral sessions that
+        have not yet been saved, the currently loaded session is used
+        directly.
         """
 
+        # Prefer the latest persisted version of the active session when
+        # available, but fall back to the in-memory session for ephemeral
+        # sessions that are not yet stored on disk.
         sid = self.session_id
-
         ctx = self._app.load_session(sid)
-        if ctx is None:
-            raise RuntimeError(f"Session {sid!r} not found")
-
-        core, base_config, session = ctx
-        self._core = core
-        self._base_config = base_config
-        self._session = session
+        if ctx is not None:
+            core, base_config, session = ctx
+            self._core = core
+            self._base_config = base_config
+            self._session = session
+        else:
+            _core, _base_config, session = self.require_session()
 
         message_count = len(session.messages)
         if message_count == 0:
-            raise ValueError("no messages to list")
+            raise TerminalUserError("no messages to list")
 
-        start_idx, end_idx = self._normalize_slice_bounds(message_count, start, end)
+        try:
+            start_idx, end_idx = self._normalize_slice_bounds(message_count, start, end)
+        except ValueError:
+            raise TerminalUserError("range selects no messages")
 
         indices = range(start_idx, end_idx)
         return [(i, session.messages[i]) for i in indices]
- 
+
+    def show_message(self, index: int) -> Tuple[int, Any]:
+        """Return a single message by Python-style index.
+
+        Negative indices are resolved relative to the end of the
+        message list using :meth:`_normalize_index`. When the active
+        session has been persisted, the latest version is reloaded from
+        the application first so that external modifications are
+        visible. For in-memory or ephemeral sessions that are not yet
+        stored, the currently loaded session is used directly.
+        """
+
+        # Prefer the latest persisted version of the active session when
+        # available, but fall back to the in-memory session for ephemeral
+        # sessions that are not yet stored on disk.
+        sid = self.session_id
+        ctx = self._app.load_session(sid)
+        if ctx is not None:
+            core, base_config, session = ctx
+            self._core = core
+            self._base_config = base_config
+            self._session = session
+        else:
+            _core, _base_config, session = self.require_session()
+
+        if not isinstance(index, int):
+            raise TerminalUserError("index must be an integer")
+
+        message_count = len(session.messages)
+        if message_count == 0:
+            raise TerminalUserError("no messages to show")
+
+        try:
+            target_index = self._normalize_index(index, message_count)
+        except IndexError:
+            raise TerminalUserError("message index out of range")
+
+        return target_index, session.messages[target_index]
+
     def modify_message(self, index: int, content: str) -> Session:
-         """Modify the content of a message in the active session.
- 
-         Index semantics follow Python list indexing (0-based, negatives
-         allowed). The underlying core enforces supported roles and
-         native-history behaviour.
-         """
- 
-         core, base_config, session = self.require_session()
- 
-         if not isinstance(index, int):
-             raise TypeError("index must be an integer")
-         if not isinstance(content, str):
-             raise TypeError("content must be a string")
- 
-         message_count = len(session.messages)
-         target_index = index
-         if target_index < 0:
-             target_index = message_count + target_index
-         if target_index < 0 or target_index >= message_count:
-             raise IndexError("message index out of range")
- 
-         metadata = session.metadata if isinstance(session.metadata, dict) else {}
-         overrides_val = metadata.get("overrides")
-         overrides: Dict[str, Any] = (
-             overrides_val if isinstance(overrides_val, dict) else {}
-         )
-         config = resolve_request_config(base_config, overrides)
- 
-         new_session = core.modify_message(session, target_index, content, config)
-         self._app.save_session(new_session)
- 
-         store = self._app.get_event_store()
-         store.publish(
-             {
-                 "type": "message_modified",
-                 "session_id": new_session.session_id,
-                 "index": target_index,
-                 "content": content,
-                 "session": new_session.to_dict(),
-             }
-         )
- 
-         self._session = new_session
-         return new_session
+        """Modify the content of a message in the active session.
+
+        Index semantics follow Python list indexing (0-based, negatives
+        allowed). The underlying core enforces supported roles and
+        native-history behaviour.
+        """
+
+        core, base_config, session = self.require_session()
+
+        if not isinstance(index, int):
+            raise TerminalUserError("index must be an integer")
+        if not isinstance(content, str):
+            raise TerminalUserError("content must be a string")
+
+        message_count = len(session.messages)
+        if message_count == 0:
+            raise TerminalUserError("no messages to modify")
+
+        try:
+            target_index = self._normalize_index(index, message_count)
+        except IndexError:
+            raise TerminalUserError("message index out of range")
+
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides_val = metadata.get("overrides")
+        overrides: Dict[str, Any] = (
+            overrides_val if isinstance(overrides_val, dict) else {}
+        )
+        config = resolve_request_config(base_config, overrides)
+
+        new_session = core.modify_message(session, target_index, content, config)
+        self._app.save_session(new_session)
+
+        store = self._app.get_event_store()
+        store.publish(
+            {
+                "type": "message_modified",
+                "session_id": new_session.session_id,
+                "index": target_index,
+                "content": content,
+                "session": new_session.to_dict(),
+            }
+        )
+
+        self._session = new_session
+        return new_session
 
     # ------------------------------------------------------------------
     # Requests and events
@@ -699,8 +767,11 @@ class TerminalApplication:
     def switch_agent(self, target_agent_id: str) -> Session:
         session = self.session
 
+        if not isinstance(target_agent_id, str) or not target_agent_id:
+            raise TerminalUserError("agent_id must be a non-empty string")
+
         if target_agent_id not in self.available_agents():
-            raise KeyError(f"Unknown agent: {target_agent_id!r}")
+            raise TerminalUserError(f"unknown agent: {target_agent_id!r}")
 
         # Rebuild core/base_config for the new agent and update
         # session metadata, but do not decide on persistence here.

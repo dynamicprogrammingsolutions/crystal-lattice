@@ -109,4 +109,10 @@ def test_iter_tool_messages_streaming_shell_tool(tmp_path):
     display = md.get("display") or {}
     assert isinstance(display, dict)
     assert display.get("type") == "text"
-    assert "STDOUT:" in str(msg.get("content", ""))
+    # Shell tool prefixes the formatted *display* content with the
+    # executed command so UIs can show it alongside streamed/listed
+    # output without changing the underlying message content.
+    text = str(display.get("content", ""))
+    assert "Command executed:" in text
+    assert "Output:" in text
+    assert "x" in text

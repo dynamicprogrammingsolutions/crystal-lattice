@@ -13,8 +13,8 @@ from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.patch_stdout import patch_stdout
 
-from .event_rendering import TerminalRenderContext
-from .terminal_app import TerminalApplication
+from .event_rendering import TerminalRenderContext, _render_terminal_exception
+from .terminal_app import TerminalApplication, TerminalUserError
 from agent_app.config import resolve_request_config
 
 _DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "config_openrouter_app_layer.json"
@@ -287,11 +287,15 @@ async def _cmd_ui_schema(
     write: Callable[[str], None],
     ui_state: Dict[str, Any],
 ) -> None:
-    try:
-        core, base_config, session = app.agent_app.load_session(app.session_id)
-        print(core.get_ui_schema())
-    except Exception as exc:
-        write(f"[ui_schema] failed to get schema: {exc}")
+    # Debug helper: rely on the centralized error handler. Reuse the
+    # current session/core via TerminalApplication.require_session so
+    # that any missing-session issues are surfaced consistently.
+
+    core, base_config, session = app.require_session()
+    schema = core.get_ui_schema()
+
+    # Print directly so that the raw schema is visible for debugging.
+    print(schema)
 
 
 def _agent_completion(app: TerminalApplication, text: str) -> List[Completion]:
@@ -408,8 +412,7 @@ async def _cmd_agent(
 ) -> None:
     agents = app.list_agents()
     if not agents:
-        write("[agent] no agents configured")
-        return
+        raise TerminalUserError("no agents configured")
 
     selection = (arg or "").strip()
     current_agent = app.current_agent_id()
@@ -425,19 +428,12 @@ async def _cmd_agent(
             target = selection
 
         if target is None:
-            write(f"[agent] unknown agent: {selection!r}")
-            return
+            raise TerminalUserError(f"unknown agent: {selection!r}")
 
         if target == current_agent:
-            write(f"[agent] already using agent {target!r}")
-            return
+            raise TerminalUserError(f"already using agent {target!r}")
 
-        try:
-            app.switch_agent(target)
-        except Exception as exc:  # pragma: no cover - defensive
-            write(f"[agent] failed to switch agent: {exc}")
-            return
-
+        app.switch_agent(target)
         write(f"[agent] switched to {target!r}")
         return
 
@@ -460,8 +456,7 @@ async def _cmd_session(
 ) -> None:
     sessions = app.list_sessions_metadata()
     if not sessions:
-        write("[session] no saved sessions found")
-        return
+        raise TerminalUserError("no saved sessions found")
 
     selection = (arg or "").strip()
 
@@ -478,15 +473,9 @@ async def _cmd_session(
             target = selection
 
         if target is None:
-            write(f"[session] unknown session: {selection!r}")
-            return
+            raise TerminalUserError(f"unknown session: {selection!r}")
 
-        try:
-            session = app.switch_session(target)
-        except Exception as exc:  # pragma: no cover - defensive
-            write(f"[session] failed to switch session: {exc}")
-            return
-
+        session = app.switch_session(target)
         write(f"[session] switched to {session.session_id!r}")
         return
 
@@ -547,17 +536,9 @@ async def _cmd_help(
 
     if text == "config":
         # Show top-level config keys for the currently enabled plugins.
-        try:
-            core, _base_config, _session = app.require_session()
-        except Exception as exc:
-            write(f"[help config] no active session: {exc}")
-            return
+        core, _base_config, _session = app.require_session()
 
-        try:
-            schema = core.get_config_schema()
-        except Exception as exc:
-            write(f"[help config] failed to get config schema: {exc}")
-            return
+        schema = core.get_config_schema()
 
         if not isinstance(schema, dict) or not schema:
             write("[help config] no config keys available for current plugins")
@@ -586,12 +567,7 @@ async def _cmd_help(
                     write(f"  {key_str} {plugin_str}")
  
         # Also show configurable settings exposed via /set (UI schema).
-        try:
-            ui_elements = app.session_ui_elements()
-        except Exception as exc:  # pragma: no cover - defensive
-            write(f"[help config] failed to get UI schema: {exc}")
-            write("")
-            return
+        ui_elements = app.session_ui_elements()
  
         if ui_elements:
             write("\n[help] Configurable settings (via /set):")
@@ -628,13 +604,8 @@ async def _cmd_help(
         # itself for things like tool output limits). This is driven by
         # a static schema so that all options are visible even when they
         # are not explicitly set in the config file.
-        try:
-            app_cfg_schema = app.get_application_config_schema()
-            app_cfg = app.agent_app.get_application_config()
-        except Exception as exc:  # pragma: no cover - defensive
-            write(f"[help config] failed to get application config: {exc}")
-            write("")
-            return
+        app_cfg_schema = app.get_application_config_schema()
+        app_cfg = app.agent_app.get_application_config()
 
         if app_cfg_schema:
             write("\n[help] Application-level config options (config[\"application\"]):")
@@ -730,7 +701,7 @@ def _handle_agent_selection(
     try:
         app.switch_agent(target)
     except Exception as exc:  # pragma: no cover - defensive
-        write(f"[agent] failed to switch agent: {exc}")
+        _render_terminal_exception("agent", exc, write)
         return
 
     write(f"[agent] switched to {target!r}")
@@ -765,7 +736,7 @@ def _handle_session_selection(
     try:
         session = app.switch_session(target)
     except Exception as exc:  # pragma: no cover - defensive
-        write(f"[session] failed to switch session: {exc}")
+        _render_terminal_exception("session", exc, write)
         return
 
     write(f"[session] switched to {session.session_id!r}")
@@ -855,8 +826,7 @@ async def _cmd_set(
 ) -> None:
     elements = app.session_ui_elements()
     if not elements:
-        write("[set] no configurable UI elements available")
-        return
+        raise TerminalUserError("no configurable UI elements available")
 
     by_key: Dict[str, Dict[str, Any]] = {}
     for el in elements:
@@ -884,12 +854,10 @@ async def _cmd_set(
 
     el = by_key.get(key)
     if el is None:
-        write(f"[set] unknown key: {key!r}")
-        return
+        raise TerminalUserError(f"unknown key: {key!r}")
 
     if not value:
-        write(f"[set] missing value for {key!r}")
-        return
+        raise TerminalUserError(f"missing value for {key!r}")
 
     options = el.get("options") or []
     normalized = _normalize_setting_options(options)
@@ -912,10 +880,9 @@ async def _cmd_set(
 
         if canonical is None:
             allowed_labels = [opt_display for _, opt_display in normalized]
-            write(
-                f"[set] invalid value for {key!r}. Allowed: {', '.join(allowed_labels)}"
+            raise TerminalUserError(
+                f"invalid value for {key!r}. Allowed: {', '.join(allowed_labels)}"
             )
-            return
 
         coerced = canonical
 
@@ -927,14 +894,14 @@ async def _cmd_set(
         elif lowered in {"false", "0", "no", "off"}:
             coerced = False
         else:
-            write(f"[set] invalid boolean for {key!r}: {value!r}")
-            return
+            raise TerminalUserError(f"invalid boolean for {key!r}: {value!r}")
 
     try:
         app.update_override(key, coerced)
     except Exception as exc:  # pragma: no cover - defensive
-        write(f"[set] failed to update overrides: {exc}")
-        return
+        # Surface configuration update failures as application errors so
+        # that they include a stack trace but keep the UI responsive.
+        raise TerminalApplicationError(f"failed to update overrides: {exc}")
 
     write(f"[set] {key}={coerced!r} saved for this session")
 
@@ -949,16 +916,10 @@ async def _cmd_plugins(
     text = (arg or "").strip()
 
     if not text:
-        try:
-            entries = app.list_plugins_for_session()
-        except Exception as exc:  # pragma: no cover - defensive
-            write(f"[plugins] failed to list plugins: {exc}")
-            return
+        entries = app.list_plugins_for_session()
 
         if not entries:
-            write("[plugins] no plugins configured")
-            ui_state["plugins_last_list"] = []
-            return
+            raise TerminalUserError("no plugins configured")
 
         ui_state["plugins_last_list"] = entries
 
@@ -985,11 +946,7 @@ async def _cmd_plugins(
     rest = parts[1] if len(parts) > 1 else ""
 
     if sub == "reset":
-        try:
-            app.clear_session_plugins()
-        except Exception as exc:  # pragma: no cover - defensive
-            write(f"[plugins] failed to clear plugin overrides: {exc}")
-            return
+        app.clear_session_plugins()
         write("[plugins] cleared session-specific plugin overrides; using defaults again")
         try:
             ui_state["plugins_last_list"] = app.list_plugins_for_session()
@@ -998,21 +955,15 @@ async def _cmd_plugins(
         return
 
     if sub not in {"on", "off"}:
-        write("[plugins] usage: /plugins [on|off|reset] <id-or-index>")
-        return
+        raise TerminalUserError("usage: /plugins [on|off|reset] <id-or-index>")
 
     target = rest.strip()
     if not target:
-        write(f"[plugins] usage: /plugins {sub} <id-or-index>")
-        return
+        raise TerminalUserError(f"usage: /plugins {sub} <id-or-index>")
 
     entries = ui_state.get("plugins_last_list")
     if not isinstance(entries, list) or not entries:
-        try:
-            entries = app.list_plugins_for_session()
-        except Exception as exc:  # pragma: no cover - defensive
-            write(f"[plugins] failed to list plugins: {exc}")
-            return
+        entries = app.list_plugins_for_session()
     ui_state["plugins_last_list"] = entries
 
     def _resolve_plugin_id(token: str, items: List[Dict[str, Any]]) -> Optional[str]:
@@ -1039,14 +990,14 @@ async def _cmd_plugins(
 
     plugin_id = _resolve_plugin_id(target, entries)
     if plugin_id is None:
-        write(f"[plugins] unknown plugin: {target!r}")
-        return
+        raise TerminalUserError(f"unknown plugin: {target!r}")
 
     try:
         session = app.session
     except RuntimeError as exc:
-        write(f"[plugins] no active session: {exc}")
-        return
+        # Treat a missing active session as an application-level
+        # invariant violation for this command.
+        raise TerminalApplicationError(f"no active session: {exc}")
 
     metadata = session.metadata or {}
     plugins_from_session = metadata.get("plugins")
@@ -1085,8 +1036,7 @@ async def _cmd_plugins(
     try:
         app.set_session_plugins(cast(List[str], enabled_ids))
     except Exception as exc:  # pragma: no cover - defensive
-        write(f"[plugins] failed to update plugins: {exc}")
-        return
+        raise TerminalApplicationError(f"failed to update plugins: {exc}")
 
     action = "enabled" if sub == "on" else "disabled"
     write(f"[plugins] {action} plugin {plugin_id!r} for this session")
@@ -1104,11 +1054,9 @@ async def _cmd_send(
     write: Callable[[str], None],
     ui_state: Dict[str, Any],
 ) -> None:
-    try:
-        _ = app.session
-    except RuntimeError as exc:
-        write(f"[send] no active session: {exc}")
-        return
+    # Ensure there is an active session; any missing-session issues are
+    # treated as application errors and handled by the central wrapper.
+    _ = app.session
 
     await _start_background_request(app)
     write("[send] request started for current session")
@@ -1134,20 +1082,12 @@ async def _cmd_append(
         role = first
         content = rest.strip()
         if not content:
-            write("[append] missing content for message")
-            return
+            raise TerminalUserError("missing content for message")
 
-    try:
-        session_id = app.session_id
-    except RuntimeError as exc:
-        write(f"[append] no active session: {exc}")
-        return
-
-    try:
-        app.add_message(session_id, role=role, content=content, metadata=None)
-    except Exception as exc:  # pragma: no cover - defensive
-        write(f"[append] failed to append message: {exc}")
-        return
+    # Let TerminalApplication manage session/core state and surface
+    # any issues via the central error handler.
+    session_id = app.session_id
+    app.add_message(session_id, role=role, content=content, metadata=None)
 
     write(f"[append] appended {role} message without sending")
 
@@ -1164,15 +1104,12 @@ async def _shortcut_append_current_input(
         return
 
     try:
+        # Let TerminalApplication manage session/core state and surface
+        # any issues via the shared error renderer.
         session_id = app.session_id
-    except RuntimeError as exc:
-        write(f"[append] no active session: {exc}")
-        return
-
-    try:
         app.add_message(session_id, role="user", content=message, metadata=None)
     except Exception as exc:  # pragma: no cover - defensive
-        write(f"[append] failed to append message: {exc}")
+        _render_terminal_exception("append", exc, write)
         return
 
     write("[append] appended user message without sending")
@@ -1192,9 +1129,12 @@ async def _shortcut_cancel_request(
         return
 
     try:
+        # Delegate cancellation to the application layer and render any
+        # errors (including provider/tool issues) through the shared
+        # exception renderer so that behaviour matches slash commands.
         app.agent_app.cancel_request(request_id)
     except Exception as exc:  # pragma: no cover - defensive
-        write(f"[cancel] failed to cancel request: {exc}")
+        _render_terminal_exception("cancel", exc, write)
         return
 
     write("[cancel] cancellation requested for active request")
@@ -1209,8 +1149,7 @@ async def _cmd_delete(
 ) -> None:
     text = (arg or "").strip()
     if not text:
-        write("[delete] usage: /delete <count> or /delete <start>:<end>")
-        return
+        raise TerminalUserError("usage: /delete <index> or /delete <start>:<end>")
 
     # Parse arguments; ranges use slice semantics while a single integer
     # is interpreted as a Python-style index.
@@ -1221,49 +1160,17 @@ async def _cmd_delete(
 
         start_val, end_val = bounds
 
-        try:
-            _session, deleted = app.delete_messages_by_range(start_val, end_val)
-        except RuntimeError as exc:
-            write(f"[delete] no active session: {exc}")
-            return
-        except ValueError as exc:
-            write(f"[delete] {exc}")
-            return
-        except Exception as exc:  # pragma: no cover - defensive
-            write(f"[delete] failed to delete messages: {exc}")
-            return
+        _session, deleted = app.delete_messages_by_range(start_val, end_val)
     else:
         try:
             raw_index = int(text)
         except ValueError:
-            write("[delete] invalid value; expected an integer or range")
-            return
+            raise TerminalUserError("invalid value; expected an integer or range")
 
-        try:
-            core, base_config, session = app.require_session()
-        except RuntimeError as exc:
-            write(f"[delete] no active session: {exc}")
-            return
-
-        message_count = len(session.messages)
-        if message_count == 0:
-            write("[delete] no messages to delete")
-            return
-
-        try:
-            target_index = app._normalize_index(raw_index, message_count)
-        except IndexError:
-            write("[delete] index out of range")
-            return
-
-        try:
-            # Reuse the application's delete_messages helper so that
-            # native-history semantics and events remain consistent.
-            _session = app.delete_messages([target_index])
-            deleted = [target_index]
-        except Exception as exc:  # pragma: no cover - defensive
-            write(f"[delete] failed to delete messages: {exc}")
-            return
+        # Reuse the application's delete_messages helper so that
+        # native-history semantics and events remain consistent.
+        _session = app.delete_messages([raw_index])
+        deleted = [raw_index]
 
     if deleted:
         write("[delete] deleted messages at indices: " + ", ".join(str(i) for i in deleted))
@@ -1280,37 +1187,17 @@ async def _cmd_modify(
 ) -> None:
     text = (arg or "").strip()
     if not text:
-        write("[modify] usage: /modify <index>")
-        return
+        raise TerminalUserError("usage: /modify <index>")
 
     try:
         raw_index = int(text)
     except ValueError:
-        write("[modify] invalid index; expected an integer")
-        return
-    try:
-        items = app.list_messages_by_range(raw_index, raw_index + 1)
-    except RuntimeError as exc:
-        write(f"[modify] no active session: {exc}")
-        return
-    except ValueError as exc:
-        msg = str(exc)
-        if msg == "no messages to list":
-            write("[modify] no messages to modify")
-        elif msg == "range selects no messages":
-            write("[modify] index out of range")
-        else:  # pragma: no cover - defensive
-            write(f"[modify] {exc}")
-        return
-    except Exception as exc:  # pragma: no cover - defensive
-        write(f"[modify] failed to load message: {exc}")
-        return
+        raise TerminalUserError("invalid index; expected an integer")
 
-    if not items:
-        write("[modify] no message found at that index")
-        return
-
-    target_index, message = items[0]
+    # Let TerminalApplication handle index normalization and session
+    # state via show_message so that single-index semantics match other
+    # history operations (including support for negative indices).
+    target_index, message = app.show_message(raw_index)
     content = getattr(message, "content", None)
     if content is None and isinstance(message, dict):
         content = message.get("content")
@@ -1348,70 +1235,25 @@ async def _cmd_list(
     # - list a single message when given a Python-style index.
 
     if not text:
-        try:
-            items = app.list_messages_by_range(None, None)
-        except RuntimeError as exc:
-            write(f"[list] no active session: {exc}")
-            return
-        except ValueError as exc:
-            write(f"[list] {exc}")
-            return
-        except Exception as exc:  # pragma: no cover - defensive
-            write(f"[list] failed to list messages: {exc}")
-            return
+        items = app.list_messages_by_range(None, None)
     elif ":" in text:
         bounds = _parse_range_or_index_arg(text, command="list", write=write)
         if bounds is None:
             return
         start_val, end_val = bounds
 
-        try:
-            items = app.list_messages_by_range(start_val, end_val)
-        except RuntimeError as exc:
-            write(f"[list] no active session: {exc}")
-            return
-        except ValueError as exc:
-            write(f"[list] {exc}")
-            return
-        except Exception as exc:  # pragma: no cover - defensive
-            write(f"[list] failed to list messages: {exc}")
-            return
+        items = app.list_messages_by_range(start_val, end_val)
     else:
         # Single integer: interpret as a Python-style index selecting a
         # single message.
         try:
             raw_index = int(text)
         except ValueError:
-            write("[list] invalid value; expected an integer or range")
-            return
+            raise TerminalUserError("invalid value; expected an integer or range")
 
-        try:
-            all_items = app.list_messages_by_range(None, None)
-        except RuntimeError as exc:
-            write(f"[list] no active session: {exc}")
-            return
-        except ValueError as exc:
-            write(f"[list] {exc}")
-            return
-        except Exception as exc:  # pragma: no cover - defensive
-            write(f"[list] failed to list messages: {exc}")
-            return
-
-        if not all_items:
-            write("[list] no messages to show")
-            return
-
-        message_count = len(all_items)
-        target_index = raw_index
-        if target_index < 0:
-            target_index = message_count + target_index
-        if target_index < 0 or target_index >= message_count:
-            write("[list] index out of range")
-            return
-
-        # ``all_items`` already includes the concrete indices from the
-        # application, so we can select the desired entry directly.
-        items = [all_items[target_index]]
+        # Delegate index normalization and session validation to the
+        # application by selecting a single-element slice.
+        items = app.list_messages_by_range(raw_index, raw_index + 1)
 
     if not items:
         write("[list] no messages to show")
@@ -1433,7 +1275,7 @@ async def _cmd_list(
         renderer.render_message(idx, message, write, short=use_short)
 
 
-@slash_command("fork", "Fork the current session up to an index")
+@slash_command("fork", "Fork the current session (optionally up to an index)")
 async def _cmd_fork(
     app: TerminalApplication,
     arg: str,
@@ -1441,30 +1283,23 @@ async def _cmd_fork(
     ui_state: Dict[str, Any],
 ) -> None:
     text = (arg or "").strip()
+    # When no index is provided, default to ``-1`` so that ``/fork``
+    # with no arguments copies the entire session (up to the last
+    # message) by following Python-style negative index semantics.
     if not text:
-        write("[fork] usage: /fork <index>")
-        return
+        index = -1
+    else:
+        try:
+            index = int(text)
+        except ValueError:
+            raise TerminalUserError("invalid index; expected an integer")
 
-    try:
-        index = int(text)
-    except ValueError:
-        write("[fork] invalid index; expected an integer")
-        return
+    source_session_id = app.session_id
 
-    try:
-        source_session_id = app.session_id
-    except RuntimeError as exc:
-        write(f"[fork] no active session: {exc}")
-        return
-
-    try:
-        new_session = app.fork_session(index)
-    except (ValueError, IndexError) as exc:
-        write(f"[fork] {exc}")
-        return
-    except Exception as exc:  # pragma: no cover - defensive
-        write(f"[fork] failed to fork session: {exc}")
-        return
+    # Let TerminalApplication handle index validation and forking
+    # semantics. Errors surface as TerminalUserError or
+    # TerminalApplicationError.
+    new_session = app.fork_session(index)
 
     write(f"[fork] forked {source_session_id!r} -> {new_session.session_id!r}")
 
@@ -1489,9 +1324,15 @@ async def _handle_slash_command(
         write(f"[commands] unknown command: /{name}")
         return
 
-    result = cmd.handler(app, arg, write, ui_state)
-    if asyncio.iscoroutine(result):
-        await result
+    try:
+        result = cmd.handler(app, arg, write, ui_state)
+        if asyncio.iscoroutine(result):
+            await result
+    except Exception as exc:  # pragma: no cover - defensive
+        # Delegate representation of user vs application errors to the
+        # shared rendering helper so that behavior stays consistent
+        # across all terminal entry points.
+        _render_terminal_exception(cmd.name, exc, write)
 
 
 async def _start_background_request(app: TerminalApplication) -> None:
@@ -1516,8 +1357,17 @@ async def _handle_user_message(
 ) -> None:
     try:
         app.append_user_message(text)
-    except Exception:
+    except RuntimeError:
+        # Auto-recover when no active session is present by starting a
+        # new ephemeral session and retrying the append.
         write("[error] session not found; starting a new one")
+        app.start_new_session(agent_id=None, persist=False)
+        app.append_user_message(text)
+    except Exception as exc:  # pragma: no cover - defensive
+        # For user-caused errors (``TerminalUserError``) render a
+        # simple message; for application errors, include a traceback.
+        _render_terminal_exception("input", exc, write)
+        return
 
     await _start_background_request(app)
 
@@ -1539,7 +1389,7 @@ async def _handle_modify_message(
     try:
         app.modify_message(index, text)
     except Exception as exc:  # pragma: no cover - defensive
-        write(f"[modify] failed to update message at index {index}: {exc}")
+        _render_terminal_exception("modify", exc, write)
         return
 
     write(f"[modify] updated message at index {index}")
@@ -1662,19 +1512,15 @@ def _build_key_bindings(
         else:  # pragma: no cover - defensive fallback
             buf.complete_state = None
 
-    # Space: if a completion menu is open, cancel it and then insert a
-    # space character. This acts as a "commit current text as-is" gesture
-    # while continuing to type.
+    # Space: when a completion menu is open and a completion is already
+    # selected, accept that completion and then insert a space. When no
+    # completion menu is active, behave like a normal space key.
     @kb.add(" ")
-    def _space_cancel_completion(event: Any) -> None:  # type: ignore[no-redef]
+    def _space_accept_or_insert(event: Any) -> None:  # type: ignore[no-redef]
         buf = event.current_buffer
         state = buf.complete_state
-        if state is not None:
-            cancel = getattr(buf, "cancel_completion", None)
-            if callable(cancel):
-                cancel()
-            else:  # pragma: no cover - defensive fallback
-                buf.complete_state = None
+        if state is not None and getattr(state, "completions", None):
+            _accept_completion(event)
         buf.insert_text(" ")
 
     # Tab: accept the selected completion (or the first one when none is
@@ -1682,9 +1528,6 @@ def _build_key_bindings(
     @kb.add("tab")
     def _tab_accept_completion(event: Any) -> None:  # type: ignore[no-redef]
         _accept_completion(event)
-        # After accepting a completion, insert a space so that typing can
-        # continue naturally.
-        event.current_buffer.insert_text(" ")
 
     # Enter: accept current completion (if any) or submit the buffer.
     # For file-context completions (identified by @file: prefix and
