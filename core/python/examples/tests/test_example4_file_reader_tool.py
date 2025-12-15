@@ -1,20 +1,22 @@
-"""
-Tests for examples/file_reader_tool.py
-"""
+"""Tests for examples/file_reader_tool.py."""
 
 import os
 import sys
 import tempfile
+from pathlib import Path
 
+
+REPO_TMP_DIR = Path(__file__).resolve().parents[3] / "tmp"
+REPO_TMP_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def test_file_reader_tool_reads_file():
     from examples.example4_file_reader_tool import FileReaderTool
 
-    cfg = {"allowed_paths": ["."], "max_file_size": 1024 * 1024}
+    cfg = {"allowed_paths": [str(REPO_TMP_DIR)], "max_file_size": 1024 * 1024}
     state = FileReaderTool().init(cfg)
 
-    with tempfile.NamedTemporaryFile("w+", delete=False, dir=".") as tf:
+    with tempfile.NamedTemporaryFile("w+", delete=False, dir=str(REPO_TMP_DIR)) as tf:
         tf.write("hello world")
         tf.flush()
         path = tf.name

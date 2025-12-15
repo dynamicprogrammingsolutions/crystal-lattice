@@ -24,16 +24,17 @@ import pytest
 # Load .env file if it exists
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     pass
 
 from agent_core import AgentCore
+from plugins.file_reader_tool import FileReaderTool
+from plugins.math_tools import MathTools
 from plugins.openrouter_provider import OpenRouterProvider
 from plugins.openrouter_reasoning_extension import OpenRouterReasoningExtension
 from plugins.openrouter_tools_extension import OpenRouterToolsExtension
-from plugins.file_reader_tool import FileReaderTool
-from plugins.math_tools import MathTools
 from plugins.request_options_feature import RequestOptionsFeature
 
 pytestmark = [pytest.mark.integration, pytest.mark.openrouter]
@@ -45,6 +46,10 @@ MODELS = {
     "gemini_2.5_flash": "google/gemini-2.5-flash-preview-09-2025",
     "grok_4_fast": "x-ai/grok-4-fast",
 }
+
+
+REPO_TMP_DIR = Path(__file__).resolve().parents[3] / "tmp"
+REPO_TMP_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _get_openai_provider_options() -> dict[str, object]:
@@ -75,7 +80,7 @@ def ensure_api_key():
 @pytest.fixture
 def temp_files():
     """Create temporary test files."""
-    tmp_dir = tempfile.mkdtemp(dir=".")
+    tmp_dir = tempfile.mkdtemp(dir=str(REPO_TMP_DIR))
     f1 = Path(tmp_dir) / "numbers.txt"
     f2 = Path(tmp_dir) / "data.txt"
     f1.write_text("42")

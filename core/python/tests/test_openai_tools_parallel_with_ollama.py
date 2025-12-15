@@ -1,5 +1,5 @@
-"""
-Integration test for parallel tool calls (multiple read_file invocations in a single assistant turn).
+"""Integration test for parallel tool calls (multiple read_file invocations
+in a single assistant turn).
 
 Asserts:
 - Assistant proposes multiple tool calls in one response
@@ -11,6 +11,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+from pathlib import Path
 from typing import Optional
 
 import pytest
@@ -21,6 +22,10 @@ from agent_core import AgentCore
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OPENAI_BASE_URL = f"{OLLAMA_HOST}/v1"
 MODEL_TOOLS = os.getenv("OLLAMA_MODEL_TOOLS", "qwen3:0.6b")
+
+
+REPO_TMP_DIR = Path(__file__).resolve().parents[3] / "tmp"
+REPO_TMP_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _which(cmd: str) -> Optional[str]:
@@ -59,7 +64,7 @@ def test_parallel_tools_read_multiple_files(ensure_model):
     core.register_tool(FileReaderTool)
 
     # Prepare two files
-    tmp_dir = tempfile.mkdtemp(dir=".")
+    tmp_dir = tempfile.mkdtemp(dir=str(REPO_TMP_DIR))
     f1 = os.path.join(tmp_dir, "a.txt")
     f2 = os.path.join(tmp_dir, "b.txt")
     open(f1, "w", encoding="utf-8").write("ALPHA-CONTENT")
@@ -70,7 +75,7 @@ def test_parallel_tools_read_multiple_files(ensure_model):
             "model": MODEL_TOOLS,
             "base_url": OPENAI_BASE_URL,
             "timeout": 180,
-            "allowed_paths": ["."],
+            "allowed_paths": [".", str(REPO_TMP_DIR)],
             "max_file_size": 1024 * 1024,
         }
 

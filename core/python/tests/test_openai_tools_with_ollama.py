@@ -1,16 +1,18 @@
-"""
-Integration test for OpenAI-compatible provider with tool-calling (FileReaderTool) on Ollama.
+"""Integration test for OpenAI-compatible provider with tool-calling
+(FileReaderTool) on Ollama.
 
 Asserts:
 - First assistant response contains a tool call
 - core.execute_tool_calls executes the tool and returns a tool message
-- After feeding tool result back, assistant answers correctly (mentions file content)
+- After feeding tool result back, assistant answers correctly (mentions file
+  content)
 """
 
 import os
 import shutil
 import subprocess
 import tempfile
+from pathlib import Path
 from typing import Optional
 
 import pytest
@@ -21,6 +23,10 @@ from agent_core import AgentCore
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OPENAI_BASE_URL = f"{OLLAMA_HOST}/v1"
 MODEL_TOOLS = os.getenv("OLLAMA_MODEL_TOOLS", "qwen3:0.6b")
+
+
+REPO_TMP_DIR = Path(__file__).resolve().parents[3] / "tmp"
+REPO_TMP_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _which(cmd: str) -> Optional[str]:
@@ -60,7 +66,7 @@ def test_tools_flow_with_ollama(ensure_model):
     core.register_provider(OpenAICompatibleProvider, extensions=[OpenAIToolsExtension])
     core.register_tool(FileReaderTool)
 
-    with tempfile.NamedTemporaryFile("w+", delete=False, dir=".") as tf:
+    with tempfile.NamedTemporaryFile("w+", delete=False, dir=str(REPO_TMP_DIR)) as tf:
         tf.write("hello from tools")
         tf.flush()
         file_path = tf.name
@@ -71,7 +77,7 @@ def test_tools_flow_with_ollama(ensure_model):
             "base_url": OPENAI_BASE_URL,
             "timeout": 180,
             # Tool config (consumed by tool init)
-            "allowed_paths": ["."],
+            "allowed_paths": [".", str(REPO_TMP_DIR)],
             "max_file_size": 1024 * 1024,
         }
 

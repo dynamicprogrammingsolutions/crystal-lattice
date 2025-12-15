@@ -28,6 +28,8 @@ from typing import Any, Dict, List, Optional
 import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
+REPO_TMP_DIR = ROOT / "tmp"
+REPO_TMP_DIR.mkdir(parents=True, exist_ok=True)
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 APP_PY = ROOT / "application/python"
@@ -160,27 +162,35 @@ def test_terminal_rendering_with_ollama_tools_and_timestamp(tmp_path: Path, ensu
     term_app = TerminalApplication(config_path=str(config_path), session_root=str(session_root), agent_app=app)
 
     # Create a temporary file to exercise FileReaderTool via tools extension.
-    # Use the current working directory so that the default allowed_paths
-    # configuration (["."]) permits access, mirroring the core
-    # application-layer Ollama tools tests.
+    # Use a repository-local temporary directory (under ROOT / "tmp") so that
+    # paths remain within the default allowed_paths configuration (["."]).
     import tempfile
 
-    with tempfile.NamedTemporaryFile("w+", delete=False, dir=".") as tf:
-        tf.write("hello from tools via terminal test")
-        tf.flush()
-        file_path = tf.name
+    file_path = None
+    try:
+        with tempfile.NamedTemporaryFile("w+", delete=False, dir=str(REPO_TMP_DIR)) as tf:
+            tf.write("hello from tools via terminal test")
+            tf.flush()
+            file_path = tf.name
 
-    # Start a session and append a user message that should trigger tools.
-    session = term_app.start_new_session(agent_id="default")
-    term_app.append_user_message(
-        f"Use read_file to read the contents of this file and summarise it: {file_path}",
-        metadata=None,
-    )
+        # Start a session and append a user message that should trigger tools.
+        session = term_app.start_new_session(agent_id="default")
+        term_app.append_user_message(
+            f"Use read_file to read the contents of this file and summarise it: {file_path}",
+            metadata=None,
+        )
 
-    # Run a streaming request; this will publish events into the shared event store.
-    final_session, final_messages, request_id = term_app.send_request(stream=True)
-    assert final_session is not None
-    assert request_id is not None
+        # Run a streaming request; this will publish events into the shared event store.
+        final_session, final_messages, request_id = term_app.send_request(stream=True)
+        assert final_session is not None
+        assert request_id is not None
+
+    finally:
+        if file_path is not None:
+            try:
+                os.unlink(file_path)
+            except Exception:
+                pass
 
     # Collect all events for this session.
     events = term_app.list_events(session_id=session.session_id, limit=1000)

@@ -46,6 +46,9 @@ MODEL_TOOLS = os.getenv("OLLAMA_MODEL_TOOLS", "qwen3:0.6b")
 
 logger = get_logger("test")
 
+REPO_TMP_DIR = Path(__file__).resolve().parents[3] / "tmp"
+REPO_TMP_DIR.mkdir(parents=True, exist_ok=True)
+
 _SYSTEM_MESSAGE = (
     "You are a helpful assistant. Always use the read_file tool when asked about file contents; "
     "do not answer without using the tool."
@@ -95,7 +98,7 @@ def _make_app_config(tmp_path: Path) -> Path:
                 "base_url": OPENAI_BASE_URL,
                 "timeout": 180,
                 # Tool configuration, forwarded to FileReaderTool
-                "allowed_paths": ["."],
+                "allowed_paths": [".", str(REPO_TMP_DIR)],
                 "max_file_size": 1024 * 1024,
             }
         },
@@ -187,7 +190,7 @@ def test_application_layer_ollama_file_reader_non_streaming(
     session_root = tmp_path / "sessions"
     app = AgentApplication(str(config_path), str(session_root))
 
-    with tempfile.NamedTemporaryFile("w+", delete=False, dir=".") as tf:
+    with tempfile.NamedTemporaryFile("w+", delete=False, dir=str(REPO_TMP_DIR)) as tf:
         tf.write("hello from tools")
         tf.flush()
         file_path = tf.name
@@ -284,7 +287,7 @@ def test_application_layer_ollama_file_reader_streaming(
     session_root = tmp_path / "sessions"
     app = AgentApplication(str(config_path), str(session_root))
 
-    with tempfile.NamedTemporaryFile("w+", delete=False, dir=".") as tf:
+    with tempfile.NamedTemporaryFile("w+", delete=False, dir=str(REPO_TMP_DIR)) as tf:
         tf.write("hello from tools")
         tf.flush()
         file_path = tf.name

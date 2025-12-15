@@ -1,5 +1,5 @@
-"""
-Streaming integration test for OpenAI-compatible provider with tools (single write) on Ollama.
+"""Streaming integration test for OpenAI-compatible provider with tools
+(single write) on Ollama.
 
 Scenario:
 - Ask the assistant to write EXACT content to a file using write_file
@@ -15,6 +15,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+from pathlib import Path
 from typing import Optional
 
 import pytest
@@ -25,6 +26,10 @@ from agent_core import AgentCore
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OPENAI_BASE_URL = f"{OLLAMA_HOST}/v1"
 MODEL_TOOLS = os.getenv("OLLAMA_MODEL_TOOLS", "qwen3:0.6b")
+
+
+REPO_TMP_DIR = Path(__file__).resolve().parents[3] / "tmp"
+REPO_TMP_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _which(cmd: str) -> Optional[str]:
@@ -62,7 +67,7 @@ def test_tools_flow_with_ollama_stream(ensure_model):
     core.register_provider(OpenAICompatibleProvider, extensions=[OpenAIToolsExtension])
     core.register_tool(FileWriterTool)
 
-    tmp_dir = tempfile.mkdtemp(dir=".")
+    tmp_dir = tempfile.mkdtemp(dir=str(REPO_TMP_DIR))
     file_path = os.path.join(tmp_dir, "stream_write.txt")
     expected_content = "STREAM-ONLY-WRITE-OK"
 
@@ -71,7 +76,7 @@ def test_tools_flow_with_ollama_stream(ensure_model):
             "model": MODEL_TOOLS,
             "base_url": OPENAI_BASE_URL,
             "timeout": 180,
-            "allowed_paths": ["."],
+            "allowed_paths": [".", str(REPO_TMP_DIR)],
             "max_file_size": 5 * 1024 * 1024,
         }
 
