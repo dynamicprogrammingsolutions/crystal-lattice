@@ -53,6 +53,14 @@ class ClaudeCachingExtension(ProviderExtensionPlugin):
         }
 
     def get_ui_elements(self) -> List[Dict[str, Any]]:
+        """Return configuration and footer UI elements for this extension.
+
+        The returned list contains both a ``"config"`` element (implicit
+        ``ui_type``) for toggling the feature and a ``"message_footer"``
+        element so UIs can display ``metadata.cached_tokens`` in
+        per-message footers.
+        """
+
         return [
             {
                 "type": "checkbox",
@@ -63,7 +71,7 @@ class ClaudeCachingExtension(ProviderExtensionPlugin):
                 "ui_type": "message_footer",
                 "data": "metadata.cached_tokens",
                 "template": "cached: {{data}}",
-            }
+            },
         ]
 
     def get_tags(

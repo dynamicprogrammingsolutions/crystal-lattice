@@ -19,7 +19,10 @@ class TimestampExtension(FeaturePlugin):
     ``_metadata.timestamp`` field and surfaced to core messages via
     ``metadata.timestamp`` in :meth:`from_native_messages`. This allows
     timestamps to be preserved across native-history rebuilds and makes
-    them available to UIs via message footer elements.
+    them available to UIs via :meth:`get_ui_elements`, which contributes
+    a single ``"message_footer"`` element referencing
+    ``metadata.timestamp`` so terminal UIs can render the timestamp
+    beneath each message.
     """
 
     name: str = "timestamp_extension"

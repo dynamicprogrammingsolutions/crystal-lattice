@@ -121,6 +121,29 @@ All plugin methods follow these patterns:
 
 These protocol definitions describe the full logical surface area for each plugin type. Language implementations may provide their own default behaviors for some methods. In the Python SDK, adapters in `agent_core.plugin.adapters` implement identity/default behaviors for many conversion and lifecycle hooks when plugin classes omit them, so plugin authors can often implement only the small subset of methods they actually need.
 
+All plugin types also share a common UI hook, `get_ui_elements() → list[dict]`,
+which allows them to contribute configuration and display-oriented UI
+elements. Each element is a plain dictionary; the core flattens these
+via `AgentCore.get_ui_schema()` and annotates them with a `plugin`
+field. Plugins may include a `ui_type` field to classify entries:
+
+- `"config"` (default) – configuration inputs such as text fields,
+  checkboxes, and selects (typically including keys like `type`, `key`,
+  `label`, `description`, and optional `options`). When `ui_type` is
+  missing or falsy, the core treats the element as `"config"` and
+  deduplicates by `key`.
+- `"message_footer"` – per-message footer fields derived from individual
+  messages. These elements usually include a dotted JSON path in `data`
+  (for example, `"metadata.timestamp"`) and may include a simple
+  `template` string that UIs can use to format the value.
+- `"status_bar"` – persistent status bar fields, often derived from the
+  last assistant message in a session, with a similar shape to
+  `"message_footer"` entries (for example,
+  `{ "ui_type": "status_bar", "data": "metadata.total_cost", "template": "Total: {{data}}" }`).
+
+Additional keys beyond those described above are allowed and are left
+to applications to interpret.
+
 ### 1. Provider Plugin Protocol
 
 Handles communication with LLM APIs and message format conversion.
