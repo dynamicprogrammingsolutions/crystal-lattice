@@ -37,6 +37,16 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
       cost for easier UI rendering.
     - Mirror these fields into core message metadata via
       :meth:`from_native_messages`.
+
+    This extension also contributes UI metadata via
+    :meth:`get_ui_elements`:
+
+    - Two ``"message_footer"`` elements that expose
+      ``metadata.usage_total_tokens_formatted`` and
+      ``metadata.usage_total_cost_formatted`` for per-message footers.
+    - One ``"status_bar"`` element that exposes
+      ``metadata.usage_total_cost_cumulative_formatted`` so terminal UIs
+      can display cumulative cost in the status bar.
     """
 
     name: str = "openrouter_usage"

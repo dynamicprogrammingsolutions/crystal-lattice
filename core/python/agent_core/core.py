@@ -1721,16 +1721,94 @@ class AgentCore:
         """Get flattened UI schema from all registered plugins.
 
         Each element is a dictionary describing a UI element contributed by a
-        provider, extension, feature, or tool. Plugins may optionally include
-        a "ui_type" field to classify elements as "config" (default),
-        "action", "message_footer", or "status_bar".
-        
-        UI Type Descriptions:
-        - "config": Configuration inputs (default)
-        - "action": Actionable UI elements (not implemented)
-        - "message_footer": Per-message footer data (rendered with each message)
-        - "status_bar": Persistent status bar data (from last assistant message)
-        
+        provider, extension, feature, or tool. The core treats the dictionaries
+        as opaque and simply annotates and flattens them; applications decide
+        how to render or interpret each entry.
+
+        Plugins MAY include a ``"ui_type"`` field to classify elements:
+
+        - ``"config"`` (default):
+          Configuration inputs such as text fields, checkboxes, or selects.
+          Elements in this category typically include keys like ``"type"``,
+          ``"key"``, ``"label"``, ``"description"``, and optionally
+          ``"options"`` (for selects) or other plugin-specific metadata.
+          When ``"ui_type"`` is missing or falsy the core normalizes the
+          element to ``"config"``.
+
+        - ``"message_footer"``:
+          Per-message footer fields derived from individual messages.
+          Elements commonly include:
+
+          * ``"data"`` – dotted JSON path into the core message dictionary
+            (for example, ``"metadata.timestamp"``).
+          * ``"template"`` – optional template string where ``"{{data}}"`` is
+            replaced with the resolved value (applications are free to use a
+            different convention).
+
+          Applications like the terminal client use these entries to render a
+          compact footer line under each message.
+
+        - ``"status_bar"``:
+          Persistent status bar fields derived from messages, typically from
+          the last assistant message in a session. Elements have the same
+          general shape as ``"message_footer"`` entries (for example,
+          ``{"ui_type": "status_bar", "data": "metadata.cost", "template": "Total: {{data}}"}``).
+
+        - ``"action"`` (reserved):
+          Intended for future, actionable UI elements. The core does not
+          assign any special semantics to this value and no built-in
+          applications currently interpret it.
+
+	        Example schemas::
+
+	            # Configuration-only schema (two config elements)
+	            [
+	                {
+	                    "ui_type": "config",
+	                    "type": "text",
+	                    "key": "model",
+	                    "label": "OpenRouter Model ID",
+	                    "plugin": "openrouter_provider",
+	                },
+	                {
+	                    "type": "checkbox",  # ui_type defaults to "config"
+	                    "key": "enable_reasoning",
+	                    "label": "Enable Reasoning",
+	                    "plugin": "openrouter_reasoning",
+	                },
+	            ]
+
+	            # Message footer schema (single footer field)
+	            [
+	                {
+	                    "ui_type": "message_footer",
+	                    "data": "metadata.timestamp",
+	                    "template": "{{data}}",
+	                    "plugin": "timestamp_extension",
+	                },
+	            ]
+
+	            # Status bar schema (single status bar field)
+	            [
+	                {
+	                    "ui_type": "status_bar",
+	                    "data": "metadata.usage_total_cost_cumulative_formatted",
+	                    "template": "Total: {{data}}",
+	                    "plugin": "openrouter_usage",
+	                },
+	            ]
+
+        For all elements, the core will:
+
+        * Attach a ``"plugin"`` field (when absent) naming the contributing
+          plugin.
+        * Treat configuration-oriented elements
+          (``element.get("ui_type", "config") == "config"``) as keyed by
+          their ``"key"`` field so that later plugins override earlier ones
+          for the same key.
+        * Preserve the relative order of all non-config elements
+          (for example, ``"message_footer"`` or ``"status_bar"`` entries).
+
         Callers that are only interested in configuration inputs should filter
         for elements with ``element.get("ui_type", "config") == "config"``.
         """

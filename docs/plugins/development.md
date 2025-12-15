@@ -429,6 +429,64 @@ Applications such as the terminal UI typically:
   the first non-empty string returned by a feature's
   `apply_completion` is used as the final snippet.
 
+### UI elements and `ui_type`
+
+All plugin kinds (providers, extensions, features, and tools) can
+optionally expose UI metadata via `get_ui_elements() -> list[dict]`.
+These dictionaries are flattened by `AgentCore.get_ui_schema()` and
+left to applications (for example, the terminal client) to render.
+
+Common patterns:
+
+- **Configuration elements** (default `ui_type == "config"`):
+
+  ```python
+  {
+      "type": "checkbox" | "text" | "number" | "select" | ...,
+      "key": "config_key",          # stable configuration key
+      "label": "Human label",       # short caption
+      "description": "Help text",   # optional
+      "options": [                   # for select-like fields
+          "value" | {"value": "v", "label": "Display"},
+      ],
+  }
+  ```
+
+  When `ui_type` is omitted or falsy, the core normalizes the element to
+  `"config"` and deduplicates configuration entries by `key` when
+  combining schemas from multiple plugins.
+
+- **Per-message footers** (`ui_type == "message_footer"`):
+
+  ```python
+  {
+      "ui_type": "message_footer",
+      "data": "metadata.timestamp",   # dotted JSON path into messages
+      "template": "{{data}}",         # optional; simple placeholder
+  }
+  ```
+
+  Applications such as the terminal client use these to render compact
+  gray footers under each message (for example, timestamps or cached
+  token counts).
+
+- **Status bar fields** (`ui_type == "status_bar"`):
+
+  ```python
+  {
+      "ui_type": "status_bar",
+      "data": "metadata.total_cost",
+      "template": "Total: {{data}}",
+  }
+  ```
+
+  These are typically derived from the last assistant message in a
+  session and are rendered in a persistent status bar.
+
+Plugins are free to attach additional keys suited to their needs; the
+core treats these element dictionaries as immutable and opaque when
+flattening the UI schema.
+
 ## Tool Plugin
 
 Tools expose callable functions to the model and manage their own tool state.

@@ -62,7 +62,69 @@ class BasePlugin(Protocol):
         return {}
 
     def get_ui_elements(self) -> List[Dict[str, Any]]:
-        """Return UI element definitions for configuring this plugin.
+        """Return UI element definitions contributed by this plugin.
+
+        The returned list describes configuration and display-oriented
+        elements that applications can use to build UIs. Each element is a
+        plain dictionary; the core treats these dictionaries as opaque and
+        flattens them via :meth:`AgentCore.get_ui_schema`.
+
+        Recommended element shapes:
+
+        * **Configuration elements** (default ``ui_type == "config"``):
+
+          Used to describe editable settings for the plugin. Typical keys are::
+
+              {
+                  "type": "checkbox" | "text" | "number" | "select" | ...,
+                  "key": "config_key",          # stable configuration key
+                  "label": "Human label",       # short caption for UIs
+                  "description": "Longer help text",  # optional
+                  "options": [                    # for select-like fields
+                      "value" | {"value": "v", "label": "Display"},
+                  ],
+                  ...  # plugin-specific extras are allowed
+              }
+
+          When ``"ui_type"`` is missing or falsy, the core normalizes the
+          element to ``"config"`` and will de-duplicate on ``"key"`` when
+          flattening the global UI schema.
+
+        * **Message footer elements** (``ui_type == "message_footer"``):
+
+          Used by some applications (for example, the terminal client) to
+          render a compact footer line under individual messages. A common
+          shape is::
+
+              {
+                  "ui_type": "message_footer",
+                  "data": "metadata.timestamp",   # dotted JSON path
+                  "template": "{{data}}",         # optional; defaults vary
+                  ...
+              }
+
+          ``"data"`` is interpreted as a dotted path into the core message
+          dictionary (e.g. ``"metadata.timestamp"``). ``"template"`` is a
+          simple string where ``"{{data}}"`` is replaced with the resolved
+          value, but individual applications are free to use different
+          conventions.
+
+        * **Status bar elements** (``ui_type == "status_bar"``):
+
+          Similar to ``"message_footer"`` but intended for persistent status
+          bars (for example, values derived from the last assistant message)::
+
+              {
+                  "ui_type": "status_bar",
+                  "data": "metadata.total_cost",
+                  "template": "Total: {{data}}",
+                  ...
+              }
+
+        The core will attach a ``"plugin"`` field (when absent) naming the
+        contributing plugin class when it flattens UI elements. Plugins may
+        include additional keys beyond those shown above; callers should treat
+        the returned element dictionaries as immutable.
 
         Returns:
             List of UI element dictionaries.

@@ -346,11 +346,33 @@ get_ui_schema() -> List[Dict[str, Any]]
 Get combined (flattened) UI schema from all registered plugins.
 
 Each element in the returned list is a dictionary that describes a UI
-configuration element contributed by a provider, extension, feature, or
-tool. Plugins may optionally include a `ui_type` field to classify
-elements as `"config"` (default), `"action"`, or `"info"`. The core
-also annotates each element with a `plugin` field (when absent) naming
-the contributing plugin.
+element contributed by a provider, extension, feature, or tool. The
+core treats these dictionaries as opaque and simply flattens and
+annotates them; applications (such as the terminal client) decide how
+to render or interpret each entry.
+
+Plugins may include a `ui_type` field to classify elements:
+
+- `"config"` (default): configuration inputs such as text fields,
+  checkboxes, or selects. When `ui_type` is missing or falsy, the core
+  normalizes the element to `"config"` and deduplicates by its `key`
+  when combining schemas from multiple plugins.
+- `"message_footer"`: per-message footer fields derived from individual
+  messages (for example, timestamps or cached-token counters). These
+  elements typically include a dotted JSON `data` path (such as
+  `"metadata.timestamp"`) and an optional `template` string that a UI
+  can use to format the value.
+- `"status_bar"`: persistent status bar fields, often derived from the
+  last assistant message in a session. The element shape generally
+  mirrors `"message_footer"` entries (for example,
+  `{ "ui_type": "status_bar", "data": "metadata.total_cost", "template": "Total: {{data}}" }`).
+- `"action"` (reserved): intended for future actionable UI elements.
+  The core does not assign special semantics to this value, and no
+  built-in applications currently interpret it.
+
+The core annotates each element with a `plugin` field (when absent)
+naming the contributing plugin and preserves the relative order of all
+non-`"config"` elements.
 
 **Returns:**
 - `list[dict]`: Flattened list of UI element definitions (each with

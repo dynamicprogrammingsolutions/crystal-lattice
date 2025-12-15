@@ -157,6 +157,28 @@ The terminal client exposes per-session plugin control via `/plugins`.
 Changes are stored on the session (in `session.metadata["plugins"]`), so
 subsequent requests and reloads use the updated plugin set.
 
+Many plugins also expose configuration and display metadata via
+`get_ui_elements()`:
+
+- Elements with `ui_type == "config"` (or with no `ui_type`, which
+  defaults to `"config"`) describe editable settings. The `/set`
+  command and its completions are driven by these entries.
+- Elements with `ui_type == "message_footer"` describe per-message
+  footer fields (for example, timestamps or cached-token counters).
+  The terminal renders them under each message when present.
+- Elements with `ui_type == "status_bar"` describe status bar fields
+  derived from the last assistant message (for example, cumulative
+  usage cost). These are shown in the bottom status bar next to the
+  agent and session id.
+
+Built-in examples include:
+
+- `TimestampExtension` (feature): adds a `metadata.timestamp` field and
+  a `message_footer` UI element so timestamps appear in message footers.
+- `OpenRouterUsageExtension` (provider extension): adds
+  `message_footer` elements for per-message token/cost info and a
+  `status_bar` element for cumulative cost.
+
 ## Listing messages
 
 The `/list` slash command shows recent messages with a compact view of
