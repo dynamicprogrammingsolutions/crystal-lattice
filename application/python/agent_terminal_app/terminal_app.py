@@ -817,7 +817,7 @@ class TerminalApplication:
     def message_footer_elements(self) -> list[dict[str, object]]:
         """Return UI schema elements that describe message footers.
 
-        Plugins may contribute elements with type == "message_footer" that
+        Plugins may contribute elements with ui_type == "message_footer" that
         reference JSON paths within messages for display in the terminal
         footer area.
         """
@@ -833,9 +833,52 @@ class TerminalApplication:
         for el in ui_schema or []:
             if not isinstance(el, dict):
                 continue
-            if el.get("type") == "message_footer":
+            if el.get("ui_type") == "message_footer":
                 result.append(el)
         return result
+
+
+    def status_bar_elements(self) -> list[dict[str, object]]:
+        """Return UI schema elements that describe status bar fields.
+
+        Plugins may contribute elements with ui_type == "status_bar" that
+        reference JSON paths within messages. These are extracted from the
+        last assistant message and displayed in the terminal's bottom toolbar.
+        """
+        core, _base_config, _session = self.require_session()
+
+        try:
+            ui_schema = core.get_ui_schema()
+        except Exception:
+            return []
+
+        result: list[dict[str, object]] = []
+        for el in ui_schema or []:
+            if not isinstance(el, dict):
+                continue
+            if el.get("ui_type") == "status_bar":
+                result.append(el)
+        return result
+
+    def get_last_assistant_message(self) -> Optional[Dict[str, Any]]:
+        """Get the last assistant message from the active session.
+        
+        Returns:
+            Dictionary representation of the last assistant message, or None
+            if no assistant messages exist.
+        """
+        try:
+            session = self.session
+        except RuntimeError:
+            return None
+        
+        # Iterate backwards to find the last assistant message
+        for message in reversed(session.messages):
+            msg_dict = message.to_dict()
+            if msg_dict.get("role") == "assistant":
+                return msg_dict
+        
+        return None
 
     def get_application_config_schema(self) -> Dict[str, Dict[str, Any]]:
         """Return schema for application-level configuration keys.

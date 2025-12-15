@@ -209,7 +209,7 @@ class UserRenderer(BaseMessageRenderer):
             elements = []
 
         for el in elements:
-            if not isinstance(el, dict) or el.get("type") != "message_footer":
+            if not isinstance(el, dict) or el.get("ui_type") != "message_footer":
                 continue
             data_path = el.get("data")
             template = el.get("template") or "{{data}}"
@@ -398,7 +398,7 @@ class AssistantRenderer(BaseMessageRenderer):
         except Exception:
             elements = []
         for el in elements:
-            if not isinstance(el, dict) or el.get("type") != "message_footer":
+            if not isinstance(el, dict) or el.get("ui_type") != "message_footer":
                 continue
             data_path = el.get("data")
             template = el.get("template") or "{{data}}"

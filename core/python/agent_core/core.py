@@ -1355,7 +1355,7 @@ class AgentCore:
             native_messages, state = feature.initialize_request(native_messages, state)
             provider.set_state(state)
  
-        logger.info("request init complete", request=state.get("request"))
+        logger.info("request init complete", request=state.get("request"), native_messages=native_messages)
  
         return messages, native_messages, state
 
@@ -1723,9 +1723,16 @@ class AgentCore:
         Each element is a dictionary describing a UI element contributed by a
         provider, extension, feature, or tool. Plugins may optionally include
         a "ui_type" field to classify elements as "config" (default),
-        "action", or "info". Callers that are only interested in
-        configuration inputs should filter for elements with
-        ``element.get("ui_type", "config") == "config"``.
+        "action", "message_footer", or "status_bar".
+        
+        UI Type Descriptions:
+        - "config": Configuration inputs (default)
+        - "action": Actionable UI elements (not implemented)
+        - "message_footer": Per-message footer data (rendered with each message)
+        - "status_bar": Persistent status bar data (from last assistant message)
+        
+        Callers that are only interested in configuration inputs should filter
+        for elements with ``element.get("ui_type", "config") == "config"``.
         """
 
         # We treat configuration-oriented elements (ui_type == "config")
