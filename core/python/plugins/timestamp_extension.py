@@ -31,7 +31,7 @@ class TimestampExtension(FeaturePlugin):
     def get_ui_elements(self) -> List[Dict[str, Any]]:
         return [
             {
-                "type": "message_footer",
+                "ui_type": "message_footer",
                 "data": "metadata.timestamp",
                 "template": "{{data}}",
             }

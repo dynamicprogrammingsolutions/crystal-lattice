@@ -29,9 +29,21 @@ def test_get_tags_and_required_tags() -> None:
     assert "openrouter" in required
 
 
-def test_init_enabled_by_default() -> None:
+def test_init_disabled_by_default() -> None:
     ext = OpenRouterWebSearchExtension()
     config: Dict[str, Any] = {}
+    state: Dict[str, Any] = {}
+
+    new_state = ext.init(config, state)
+
+    # With no explicit config, web search should remain disabled.
+    assert new_state == state
+    assert "openrouter_websearch" not in new_state
+
+
+def test_init_can_be_enabled_explicitly() -> None:
+    ext = OpenRouterWebSearchExtension()
+    config: Dict[str, Any] = {"enable_web_search": True}
     state: Dict[str, Any] = {}
 
     new_state = ext.init(config, state)
@@ -43,20 +55,9 @@ def test_init_enabled_by_default() -> None:
     assert cfg["engine"] == "native"
 
 
-def test_init_can_be_disabled() -> None:
-    ext = OpenRouterWebSearchExtension()
-    config: Dict[str, Any] = {"enable_web_search": False}
-    state: Dict[str, Any] = {}
-
-    new_state = ext.init(config, state)
-
-    assert new_state == state
-    assert "openrouter_websearch" not in new_state
-
-
 def test_initialize_request_injects_plugins_entry() -> None:
     ext = OpenRouterWebSearchExtension()
-    config: Dict[str, Any] = {}
+    config: Dict[str, Any] = {"enable_web_search": True}
     base_state: Dict[str, Any] = {"config": config, "request": {"payload": {"model": "test"}}}
 
     state = ext.init(config, base_state)

@@ -179,7 +179,7 @@ def test_reasoning_test_gpt5_mini(stream):
     # The content should be "Clock" (or contain it) if reasoning was preserved
     content = final_msg.get("content", "").strip()
     print(f"\nGPT-5 Mini answer: {content}")
-    assert "Clock" in content, f"Expected 'Clock', got: {content}"
+    assert f"Clock" in content, f"Expected 'Clock', got: {content}"
     
     # Check that reasoning_details were captured
     metadata = final_msg.get("metadata", {})

@@ -26,7 +26,7 @@
     }
   },
   "plugins": {
-    "providers": ["plugins.openrouter_provider.OpenRouterProvider", "plugins.openai_provider.OpenAICompatibleProvider"],
+    "providers": ["plugins.openrouter_provider.OpenRouterProvider"],
     "extensions": [
       "plugins.openrouter_reasoning_extension.OpenRouterReasoningExtension",
       "plugins.openrouter_tools_extension.OpenRouterToolsExtension",
@@ -34,7 +34,8 @@
       "plugins.timestamp_extension.TimestampExtension",
       "plugins.delay_extension.DelayExtension",
       "plugins.random_failure_extension.RandomFailureExtension",
-      "plugins.openai_tools_extension.OpenAIToolsExtension"
+      "plugins.openai_tools_extension.OpenAIToolsExtension",
+      "plugins.openrouter_usage_extension.OpenRouterUsageExtension"
     ],
     "features": [
       "plugins.system_message_feature.SystemMessageFeature",

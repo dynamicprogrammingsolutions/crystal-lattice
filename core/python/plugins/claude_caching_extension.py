@@ -60,7 +60,7 @@ class ClaudeCachingExtension(ProviderExtensionPlugin):
                 "label": "Enable Claude Caching (Anthropic via OpenRouter)",
             },
             {
-                "type": "message_footer",
+                "ui_type": "message_footer",
                 "data": "metadata.cached_tokens",
                 "template": "cached: {{data}}",
             }

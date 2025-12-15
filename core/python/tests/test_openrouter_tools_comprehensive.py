@@ -216,7 +216,7 @@ def test_single_tool_call_math(ensure_api_key, model_name, model_id, stream):
     print(f"  Final answer: {content}")
     
     # Should mention 42 (15 + 27)
-    assert "42" in content, f"Expected '42' in response, got: {content}"
+    assert "42" in content, f"Expected '42' in response, got: {content!r}"
 
 
 @pytest.mark.integration
@@ -298,7 +298,7 @@ def test_single_tool_call_file_read(ensure_api_key, temp_files, model_name, mode
     content = final.get("content", "")
     print(f"  Final answer: {content}")
     
-    assert "42" in content, f"Expected '42' from file, got: {content}"
+    assert "42" in content, f"Expected '42' from file, got: {content!r}"
 
 
 # ============================================================================
@@ -564,7 +564,7 @@ def test_tool_chain_math_sequence(ensure_api_key, model_name, model_id, stream):
             content = assistant.get("content", "")
             print(f"  Final answer: {content}")
             # Should mention 32 ((5+3)*4 = 8*4 = 32)
-            assert "32" in content, f"Expected '32' in final answer, got: {content}"
+            assert "32" in content, f"Expected '32' in final answer, got: {content!r}"
             break
         
         # Execute tools
@@ -641,8 +641,13 @@ def test_tool_chain_file_then_math(ensure_api_key, temp_files, model_name, model
             # Final answer
             content = assistant.get("content", "")
             print(f"  Final answer: {content}")
-            # Should mention 1764 (42^2)
-            assert "1764" in content, f"Expected '1764' (42^2) in final answer, got: {content}"
+            # Should mention 1764 (42^2). Some models format this as
+            # "1,764" with a thousands separator, so normalize commas
+            # before checking.
+            normalized = content.replace(",", "")
+            assert "1764" in normalized, (
+                f"Expected '1764' (42^2) in final answer, got: {content!r}"
+            )
             break
         
         # Execute tools

@@ -44,7 +44,14 @@ class OpenRouterProvider(ProviderPlugin):
         }
 
     def get_ui_elements(self) -> List[Dict[str, Any]]:
-        return []
+        return [
+            {
+                "ui_type": "config",
+                "type": "string",
+                "key": "model",
+                "label": "Openrouter Model ID",
+            },
+        ]
 
     # ---------- Models / capabilities ----------
     def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -162,36 +169,6 @@ class OpenRouterProvider(ProviderPlugin):
                     f"[openrouter_provider] invalid message at index {idx}: missing 'role' or 'content' -> {json.dumps(item, ensure_ascii=False)}"
                 )
 
-    def _sanitize_history(self, history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Normalize provider-native history before sending to OpenRouter.
-
-        - Drop top-level ``refusal`` fields when they are ``None`` (they are
-          response-only metadata and not meaningful when replayed as history).
-        - Drop ``index`` fields from ``tool_calls`` entries so streaming and
-          non-streaming payloads share the same tool_calls shape.
-        """
-        sanitized: List[Dict[str, Any]] = []
-        for msg in history:
-            if not isinstance(msg, dict):
-                sanitized.append(msg)
-                continue
-            m = dict(msg)
-            # Drop any internal _metadata field before sending to the provider.
-            m.pop("_metadata", None)
-            if m.get("refusal") is None:
-                m.pop("refusal", None)
-            tool_calls = m.get("tool_calls")
-            if isinstance(tool_calls, list):
-                cleaned_tcs = []
-                for tc in tool_calls:
-                    if not isinstance(tc, dict):
-                        cleaned_tcs.append(tc)
-                        continue
-                    cleaned_tcs.append({k: v for k, v in tc.items() if k != "index"})
-                m["tool_calls"] = cleaned_tcs
-            sanitized.append(m)
-        return sanitized
-
     def call_api(
         self,
         native_messages: List[Dict[str, Any]],
@@ -202,12 +179,11 @@ class OpenRouterProvider(ProviderPlugin):
         try:
             self._validate_message_list(native_messages)
             override = request.get("messages")
-            base_history = override if isinstance(override, list) else native_messages
-            messages_to_send = self._sanitize_history(base_history)
-            payload = {**request["payload"], "messages": messages_to_send, "stream": False}
+            messages = override if isinstance(override, list) else native_messages
+            payload = {**request["payload"], "messages": messages, "stream": False}
             get_logger("openrouter_provider").info(
                 "sending request",
-                payload=str(payload)[:10000],
+                payload=str(payload),
             )
             r = requests.post(
                 request["url"],
@@ -279,10 +255,9 @@ class OpenRouterProvider(ProviderPlugin):
         try:
             self._validate_message_list(native_messages)
             override = request.get("messages")
-            base_history = override if isinstance(override, list) else native_messages
-            messages_to_send = self._sanitize_history(base_history)
-            payload = {**request["payload"], "messages": messages_to_send, "stream": True}
-            get_logger('openrouter_provider').info("sending request", payload=str(payload)[:10000])
+            messages = override if isinstance(override, list) else native_messages
+            payload = {**request["payload"], "messages": messages, "stream": True}
+            get_logger('openrouter_provider').info("sending request", payload=str(payload))
             with requests.post(
                 request["url"],
                 json=payload,

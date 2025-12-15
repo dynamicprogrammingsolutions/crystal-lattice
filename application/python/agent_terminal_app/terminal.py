@@ -13,7 +13,7 @@ from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.patch_stdout import patch_stdout
 
-from .event_rendering import TerminalRenderContext, _render_terminal_exception
+from .event_rendering import TerminalRenderContext, _render_terminal_exception, _extract_by_path
 from .terminal_app import TerminalApplication, TerminalUserError, TerminalApplicationError
 from agent_app.config import resolve_request_config
 
@@ -177,7 +177,24 @@ class SlashCommandCompleter(Completer):
             yield comp
 
 
+def _render_status_bar_template(template: str, data: Any) -> str:
+    """Render a status bar template string with the given data.
+    
+    Similar to _render_footer_template but for status bar usage.
+    Simple {{data}} replacement.
+    """
+    if not isinstance(template, str):
+        return ""
+    
+    # Simple string replacement (same logic as footer templates)
+    text = template.replace("{{data}}", str(data))
+    return text
+
+
 def _status_bar_text(app: TerminalApplication) -> str:
+    """Build status bar text with agent, session, and plugin-contributed fields."""
+    
+    # Base status info
     try:
         session_id = app.session_id
     except RuntimeError:
@@ -186,7 +203,39 @@ def _status_bar_text(app: TerminalApplication) -> str:
         agent = app.current_agent_id()
     except RuntimeError:
         agent = "default"
-    return f"Agent: {agent}  Session: {session_id}"
+    
+    parts = [f"Agent: {agent}", f"Session: {session_id}"]
+    
+    # Add plugin-contributed status_bar elements from last assistant message
+    try:
+        elements = app.status_bar_elements()
+        last_msg = app.get_last_assistant_message()
+        
+        if last_msg and elements:
+            for el in elements:
+                if not isinstance(el, dict):
+                    continue
+                    
+                data_path = el.get("data")
+                template = el.get("template") or "{{data}}"
+                
+                if not isinstance(data_path, str) or not data_path:
+                    continue
+                
+                # Extract value from the last assistant message
+                value = _extract_by_path(last_msg, data_path)
+                if value is None or value == "":
+                    continue
+                
+                # Render the template
+                text = _render_status_bar_template(template, value)
+                if text:
+                    parts.append(text)
+    except Exception:
+        # Silently ignore errors to keep the status bar functional
+        pass
+    
+    return "  ".join(parts)
 
 
 def _parse_range_or_index_arg(
