@@ -496,6 +496,8 @@ Key methods (subset):
 - `get_tool_schemas(state) -> list`
 - `execute_tool(tool_name, arguments, state) -> dict`
 - `format_tool_result(result, state) -> str`
+ - `stream_tool(tool_name, arguments, state) -> Iterator[dict]` (optional)
+ - `to_display_format(text, result, state) -> dict` (optional)
 
 Minimal example (calculator):
 ```python
@@ -525,6 +527,44 @@ class Calculator(ToolPlugin):
 
     def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
         return f"Result: {result['result']}" if result.get("success") else f"Error: {result.get('error')}"
+
+    # Optional: provide streaming and display hooks
+    #
+    # def stream_tool(
+    #     self,
+    #     tool_name: str,
+    #     arguments: Dict[str, Any],
+    #     state: Dict[str, Any],
+    # ) -> Iterator[Dict[str, Any]]:
+    #     """Yield partial payloads plus a final result dict.
+    #
+    #     When omitted, the default adapter wraps ``execute_tool`` and
+    #     yields a single RESULT dict with no partials. Implement this
+    #     when your tool produces long-running or incremental output.
+    #     Each yielded dict with a ``"part"`` key is treated as a
+    #     display-only partial; a dict with ``"success"`` is treated as
+    #     the final result.
+    #     """
+    #     yield {"part": {"type": "text", "content": "working..."}}
+    #     yield {"success": True, "result": 42}
+
+    # def to_display_format(
+    #     self,
+    #     text: str,
+    #     result: Dict[str, Any],
+    #     state: Dict[str, Any],
+    # ) -> Dict[str, Any]:
+    #     """Convert the tool result into a UI display payload.
+    #
+    #     ``text`` is the string from ``format_tool_result``; ``result``
+    #     is the raw result dict from ``execute_tool`` / ``stream_tool``.
+    #     The adapter attaches this payload under
+    #     ``metadata.display`` on the resulting ``tool`` message so UIs
+    #     can show richer output (for example, the executed shell
+    #     command, working directory, or full patch text) without
+    #     changing what the model sees in ``content``.
+    #     """
+    #     return {"type": "text", "content": text}
 ```
 
 ## Registering Plugins
