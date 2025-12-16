@@ -562,6 +562,10 @@ class ApplyPatchTool(ToolPlugin):
             "result": message,
             "fuzz": fuzz,
             "changes": changes_summary,
+            # Include the original patch text so display hooks can
+            # render it for humans without altering what the model
+            # sees in the tool message content.
+            "patch_text": patch_text,
         }
 
     def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
@@ -586,6 +590,33 @@ class ApplyPatchTool(ToolPlugin):
                     lines.append(f"- {change_type}: {path}")
 
         return "\n".join(lines)
+
+    def to_display_format(
+        self,
+        text: str,
+        result: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Return a display payload that includes the full patch text.
+
+        The core passes in ``text`` from :meth:`format_tool_result` and the
+        raw ``result`` dictionary from :meth:`execute_tool`. We keep the
+        model-facing tool message content as ``text`` (managed by
+        ``format_tool_result``) and enrich only the human-facing display
+        payload with the original ``patch_text`` when available.
+        """
+
+        patch_text = result.get("patch_text")
+        # When no patch text is present, fall back to a simple text payload.
+        if not isinstance(patch_text, str) or not patch_text.strip():
+            return {"type": "text", "content": text}
+
+        header = text or "Patch result:"
+        # Preserve the patch text verbatim so that users can see exactly
+        # what was applied, even when the formatted summary is truncated
+        # by the UI's line/character limits.
+        content = f"{header}\n\nPatch:\n{patch_text}"
+        return {"type": "text", "content": content}
 
     def _process_patch_sandboxed(
         self, patch_text: str, working_dir: str, allowed_paths: List[str]

@@ -505,6 +505,31 @@ class ToolRenderer(BaseMessageRenderer):
         self._short_one_line: bool = bool(cfg.get("tool_output_short_one_line", True))
         self._short_line_limit: int = int(cfg.get("tool_output_short_line_limit", 20))
 
+    def _select_content_from_message(self, msg: Dict[str, Any]) -> str | None:
+        """Return display-aware content for a tool message/result.
+
+        Prefers ``metadata.display.content`` when present, falling back to
+        the core ``content`` field. This mirrors the semantics used when
+        listing stored messages so that streaming and history views stay
+        consistent.
+        """
+
+        if not isinstance(msg, dict):
+            return None
+
+        md = msg.get("metadata") or {}
+        if not isinstance(md, dict):
+            md = {}
+        display = md.get("display")
+        if isinstance(display, dict) and display.get("type") == "text":
+            content = display.get("content")
+        else:
+            content = msg.get("content")
+
+        if isinstance(content, str) and content:
+            return content
+        return None
+
     def render_event(self, event: Dict[str, Any], write: WriteFn) -> None:
         if event.get("type") != "tool_partial":
             return
@@ -529,10 +554,10 @@ class ToolRenderer(BaseMessageRenderer):
                 md = result.get("metadata") or {}
                 if not isinstance(md, dict):
                     md = {}
-                content = result.get("content")
                 saw_stream = isinstance(call_id, str) and call_id in self._open_calls
                 if not saw_stream:
                     self._render_header(write, include_index=False)
+                    content = self._select_content_from_message(result)
                     if isinstance(content, str) and content:
                         # For the non-streamed case, render the tool
                         # output subject to the same line/character
@@ -698,11 +723,7 @@ class ToolRenderer(BaseMessageRenderer):
         if not isinstance(md, dict):
             md = {}
         self._render_header(write, include_index=True, index=index)
-        display = md.get("display")
-        if isinstance(display, dict) and display.get("type") == "text":
-            content = display.get("content")
-        else:
-            content = msg.get("content")
+        content = self._select_content_from_message(msg)
         if isinstance(content, str) and content:
             truncated = False
             if short:
