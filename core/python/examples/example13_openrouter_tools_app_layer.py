@@ -197,8 +197,24 @@ def send_request(session_id: str, payload: Optional[Dict[str, Any]] = None) -> D
     request_id: Optional[str] = None
 
     for ev in _app.send_request(core, session, base_config, overrides, stream=False):
-        if ev.get("type") == "final":
-            final_session_dict = ev.get("session")
+        etype = ev.get("type")
+
+        if etype == "session_checkpoint":
+            # Internal checkpoint events carry the live Session object so
+            # the example app can persist progress incrementally.
+            session_obj = ev.get("session")
+            if isinstance(session_obj, Session):
+                try:
+                    _app.save_session(session_obj)
+                except Exception:  # pragma: no cover - defensive
+                    pass
+                try:
+                    final_session_dict = session_obj.to_dict()
+                except Exception:  # pragma: no cover - defensive
+                    pass
+            continue
+
+        if etype == "final":
             final_messages = list(ev.get("messages") or [])
             request_id = ev.get("request_id")
         elif "session" in ev and isinstance(ev.get("session"), dict):

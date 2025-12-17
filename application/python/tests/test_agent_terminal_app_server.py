@@ -150,8 +150,10 @@ def test_system_message_feature_adds_system_message_after_second_user_message(tm
     # template-level system message into provider-native history, but the
     # core session history remains as the application created it.
     events1 = list(app.send_request(core, session, base_config, overrides=None, stream=False))
-    final1 = [ev for ev in events1 if ev.get("type") == "final"][-1]
-    session1 = Session.from_dict(final1["session"])
+    checkpoints1 = [ev for ev in events1 if ev.get("type") == "session_checkpoint"]
+    assert checkpoints1, "expected at least one session_checkpoint event"
+    session1 = checkpoints1[-1]["session"]
+    assert isinstance(session1, Session)
 
     native1 = session1.metadata.get("native_messages") or []
     sys_native1 = [m for m in native1 if isinstance(m, dict) and m.get("role") == "system"]
@@ -164,8 +166,10 @@ def test_system_message_feature_adds_system_message_after_second_user_message(tm
     session2 = core2.add_message(loaded1, "user", "second", metadata=None, config=base_config2)
 
     events2 = list(app.send_request(core2, session2, base_config2, overrides=None, stream=False))
-    final2 = [ev for ev in events2 if ev.get("type") == "final"][-1]
-    session3 = Session.from_dict(final2["session"])
+    checkpoints2 = [ev for ev in events2 if ev.get("type") == "session_checkpoint"]
+    assert checkpoints2, "expected at least one session_checkpoint event"
+    session3 = checkpoints2[-1]["session"]
+    assert isinstance(session3, Session)
 
     native2 = session3.metadata.get("native_messages") or []
     sys_native2 = [m for m in native2 if isinstance(m, dict) and m.get("role") == "system"]

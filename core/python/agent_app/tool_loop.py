@@ -119,12 +119,22 @@ class ToolLoopRunner:
                 return session, []
 
             next_session, final_messages = core.send_request(session, config)
+
+            # Emit a checkpoint with the updated Session object so that
+            # callers can persist it incrementally without relying on
+            # serialized sessions in normal events.
+            yield {
+                "type": "session_checkpoint",
+                "session_id": next_session.session_id,
+                "request_id": rid,
+                "session": next_session,
+            }
+
             yield {
                 "type": "final",
                 "session_id": next_session.session_id,
                 "request_id": rid,
                 "messages": final_messages,
-                "session": next_session.to_dict(),
             }
             return next_session, final_messages
 
@@ -180,12 +190,20 @@ class ToolLoopRunner:
                         "phase": "start",
                     }
 
+                # Emit a checkpoint with the updated Session object at the
+                # end of the streaming phase.
+                yield {
+                    "type": "session_checkpoint",
+                    "session_id": final_session.session_id,
+                    "request_id": rid,
+                    "session": final_session,
+                }
+
                 yield {
                     "type": "final",
                     "session_id": final_session.session_id,
                     "request_id": rid,
                     "messages": final_messages,
-                    "session": final_session.to_dict(),
                 }
 
                 if started:
@@ -301,12 +319,21 @@ class ToolLoopRunner:
                 config=config,
             )
 
+            # Emit a checkpoint after each tool result message is appended to
+            # the session so that callers can persist progress
+            # incrementally.
+            yield {
+                "type": "session_checkpoint",
+                "session_id": current_session.session_id,
+                "request_id": rid,
+                "session": current_session,
+            }
+
         yield {
             "type": "tool_results",
             "session_id": current_session.session_id,
             "request_id": rid,
             "messages": tool_messages,
-            "session": current_session.to_dict(),
         }
 
         return current_session

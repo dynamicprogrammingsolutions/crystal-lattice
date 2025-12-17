@@ -93,7 +93,7 @@ class ShellTool(ToolPlugin):
                                 "type": "integer",
                                 "description": (
                                     "Optional per-call timeout override in seconds. "
-                                    "Defaults to the configured timeout_seconds."
+                                    "Defaults to the 60s."
                                 ),
                             },
                             "env": {

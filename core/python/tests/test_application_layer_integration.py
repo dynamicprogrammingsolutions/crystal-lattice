@@ -38,6 +38,7 @@ from typing import Any, Dict, List, Optional
 import pytest
 
 from agent_app.application_future import AgentApplication
+from agent_core import Session
 from agent_core.utils import get_logger
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
@@ -273,6 +274,53 @@ def test_application_layer_ollama_file_reader_non_streaming(
 
 
 @pytest.mark.ollama
+def test_application_layer_ollama_file_reader_non_streaming_checkpoints(
+    tmp_path: Path, ensure_model: None
+) -> None:
+    """Verify session_checkpoint behaviour for non-streaming AgentApplication.
+
+    Uses the same setup and prompt as
+    ``test_application_layer_ollama_file_reader_non_streaming`` but focuses on
+    internal session checkpoint events and final session shape.
+    """
+
+    config_path = _make_app_config(tmp_path)
+    session_root = tmp_path / "sessions"
+    app = AgentApplication(str(config_path), str(session_root))
+
+    with tempfile.NamedTemporaryFile("w+", delete=False, dir=str(REPO_TMP_DIR)) as tf:
+        tf.write("hello from tools")
+        tf.flush()
+        file_path = tf.name
+
+    try:
+        core, base_config, session = app.create_session("default")
+        session_id = session.session_id
+
+        session = core.add_message(session, "system", _SYSTEM_MESSAGE)
+        session = core.add_message(session, "user", _user_message(file_path))
+        app.save_session(session)
+
+        events = _collect_events(app, session_id, stream=False, overrides=None, print_stream=False)
+
+        checkpoints = [ev for ev in events if ev.get("type") == "session_checkpoint"]
+        # One checkpoint after the first LLM phase, one after the tool
+        # result is appended, and one after the final LLM phase.
+        assert len(checkpoints) == 3
+
+        final_session = checkpoints[-1]["session"]
+        assert isinstance(final_session, Session)
+        # Final session should contain system + user + first assistant
+        # (tool call) + tool result + final assistant answer.
+        assert len(final_session.messages) == 5
+    finally:
+        try:
+            os.unlink(file_path)
+        except Exception:
+            pass
+
+
+@pytest.mark.ollama
 def test_application_layer_ollama_file_reader_streaming(
     tmp_path: Path, ensure_model: None
 ) -> None:
@@ -369,6 +417,50 @@ def test_application_layer_ollama_file_reader_streaming(
         # assistant message is produced; its exact wording depends on
         # the model and environment.
         assert text != ""
+    finally:
+        try:
+            os.unlink(file_path)
+        except Exception:
+            pass
+
+
+@pytest.mark.ollama
+def test_application_layer_ollama_file_reader_streaming_checkpoints(
+    tmp_path: Path, ensure_model: None
+) -> None:
+    """Verify session_checkpoint behaviour for streaming AgentApplication.
+
+    Mirrors the streaming tools scenario but asserts on the number of
+    checkpoints and the final session message count.
+    """
+
+    config_path = _make_app_config(tmp_path)
+    session_root = tmp_path / "sessions"
+    app = AgentApplication(str(config_path), str(session_root))
+
+    with tempfile.NamedTemporaryFile("w+", delete=False, dir=str(REPO_TMP_DIR)) as tf:
+        tf.write("hello from tools")
+        tf.flush()
+        file_path = tf.name
+
+    try:
+        core, base_config, session = app.create_session("default")
+        session_id = session.session_id
+
+        session = core.add_message(session, "system", _SYSTEM_MESSAGE)
+        session = core.add_message(session, "user", _user_message(file_path))
+        app.save_session(session)
+
+        events = _collect_events(app, session_id, stream=True, overrides=None, print_stream=False)
+
+        checkpoints = [ev for ev in events if ev.get("type") == "session_checkpoint"]
+        # Same tool loop structure as non-streaming: two LLM phases plus
+        # one tool application, each producing a checkpoint.
+        assert len(checkpoints) == 3
+
+        final_session = checkpoints[-1]["session"]
+        assert isinstance(final_session, Session)
+        assert len(final_session.messages) == 5
     finally:
         try:
             os.unlink(file_path)

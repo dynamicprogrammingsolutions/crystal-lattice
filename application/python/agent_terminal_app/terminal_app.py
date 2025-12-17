@@ -608,13 +608,34 @@ class TerminalApplication:
         store = self._app.get_event_store()
 
         for ev in self._app.send_request(core, session, base_config, overrides, stream=stream):
+            etype = ev.get("type")
+
+            # Internal checkpoint events carry the live Session object so the
+            # terminal can persist progress incrementally. They are not
+            # published to the shared event store or exposed over the
+            # network.
+            if etype == "session_checkpoint":
+                session_obj = ev.get("session")
+                if isinstance(session_obj, Session):
+                    try:
+                        self._app.save_session(session_obj)
+                    except Exception:  # pragma: no cover - defensive
+                        pass
+                    self._session = session_obj
+                    try:
+                        final_session_dict = session_obj.to_dict()
+                    except Exception:  # pragma: no cover - defensive
+                        pass
+                continue
+
             stored = store.publish(ev)
 
             if stored.get("type") == "final":
-                final_session_dict = stored.get("session") or final_session_dict
                 final_messages = stored.get("messages") or []
                 request_id = stored.get("request_id")
             elif "session" in stored and isinstance(stored.get("session"), dict):
+                # Backwards compatibility for older event shapes that include
+                # a serialized session payload.
                 final_session_dict = stored["session"]
 
         if final_session_dict is not None:
