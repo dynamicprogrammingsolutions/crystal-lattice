@@ -105,6 +105,95 @@ def test_shell_tool_streams_exit_code_and_stderr_at_end(tmp_path):
     assert "err" in combined
 
 
+def _get_final_stream_result(events):
+    results = [e for e in events if isinstance(e, dict) and "success" in e]
+    assert results, "expected a final result payload from stream_tool"
+    return results[-1]
+
+
+def test_shell_tool_stream_respects_max_output_lines_at_limit(tmp_path):
+    """Exactly max_output_lines lines should be preserved without truncation."""
+
+    wrapper = ToolWrapper(ShellTool)
+    # Configure a large line limit and a generous character cap so that
+    # truncation is governed by lines, not characters.
+    state = wrapper.init(
+        {
+            "working_directory": str(tmp_path),
+            "max_output_lines": 8000,
+        }
+    )
+
+    command = "for i in {1..8000}; do echo \"LINE $i\"; done"
+
+    events = list(
+        wrapper.stream_tool(
+            "shell",
+            {"command": command, "workdir": str(tmp_path)},
+            state,
+        )
+    )
+
+    final = _get_final_stream_result(events)
+    stdout_text = str(final.get("stdout") or "")
+    lines = stdout_text.splitlines()
+
+    # All 8000 lines from the command output should be present and
+    # there should be no truncation marker.
+    assert final.get("stdout_truncated") is False
+    assert len(lines) == 8000
+    assert lines[0] == "LINE 1"
+    assert lines[-1] == "LINE 8000"
+    assert "... (truncated," not in stdout_text
+
+
+def test_shell_tool_stream_truncates_above_max_output_lines(tmp_path):
+    """More than max_output_lines lines should trigger truncation."""
+
+    wrapper = ToolWrapper(ShellTool)
+    state = wrapper.init(
+        {
+            "working_directory": str(tmp_path),
+            "max_output_lines": 8000,
+        }
+    )
+
+    command = "for i in {1..8001}; do echo \"LINE $i\"; done"
+
+    events = list(
+        wrapper.stream_tool(
+            "shell",
+            {"command": command, "workdir": str(tmp_path)},
+            state,
+        )
+    )
+
+    final = _get_final_stream_result(events)
+    stdout_text = str(final.get("stdout") or "")
+    lines = stdout_text.splitlines()
+
+    # The stored stdout should be truncated: only the first 8000
+    # command-output lines are kept, followed by the truncation note.
+    assert final.get("stdout_truncated") is True
+    assert "LINE 8001" not in stdout_text
+    assert "LINE 1" == lines[0]
+    assert "LINE 8000" == lines[7999]
+    assert any("truncated" in line for line in lines[-2:])
+    assert "... (truncated," in stdout_text
+
+    # Streaming mode should also emit a summary part indicating that
+    # stdout was truncated.
+    summary_parts = [
+        e.get("part")
+        for e in events
+        if isinstance(e, dict) and e.get("part", {}).get("type") == "summary"
+    ]
+    combined_summary = "".join(
+        str(p.get("content", "")) for p in summary_parts if isinstance(p, dict)
+    )
+    assert "STDOUT was truncated" in combined_summary
+
+
 def test_shell_tool_respects_timeout_execute(tmp_path):
     """Non-streaming execute_tool should enforce the per-call timeout."""
 
