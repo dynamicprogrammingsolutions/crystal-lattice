@@ -229,6 +229,7 @@ The platform is organized into three layers plus plugins:
    - `tool_loop.py` (`ToolLoopRunner`):
      - Drives the LLM + tools loop on top of `AgentCore.send_request*` and `iter_tool_messages`.
      - Emits `request_started`, `partial`, `final`, `tool_calls`, `tool_partial`, `tool_results`, `request_completed`, `error` events.
+     - Additionally yields internal `session_checkpoint` events with live `Session` objects so applications can persist progress incrementally without embedding full sessions in external events.
      - Supports cooperative cancellation via `AgentApplication.cancel_request()`.
 
 3. **Terminal & HTTP app – `application/python/agent_terminal_app`**

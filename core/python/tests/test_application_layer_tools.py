@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from agent_app.application_future import AgentApplication
-from agent_core import AgentCore
+from agent_core import AgentCore, Session
 from .dummy_tool import DummyCalculator  # noqa: F401  (imported for side effects)
 
 
@@ -60,18 +60,17 @@ def test_execute_tool_calls_non_streaming(tmp_path: Path) -> None:
     # Ensure no streaming tool events were produced in non-streaming mode.
     assert not any(ev["type"] == "tool_partial" for ev in events)
 
-    # Find the latest session snapshot from events.
-    final_session_dict: Dict[str, object] | None = None
-    for ev in events:
-        sess = ev.get("session")  # type: ignore[assignment]
-        if isinstance(sess, dict):
-            final_session_dict = sess  # type: ignore[assignment]
+    # Find the latest session checkpoint from events and inspect the
+    # stored messages to verify that tool output was appended.
+    checkpoints = [ev for ev in events if ev.get("type") == "session_checkpoint"]
+    assert checkpoints, "expected at least one session_checkpoint event"
+    final_session = checkpoints[-1]["session"]
+    assert isinstance(final_session, Session)
 
-    assert final_session_dict is not None
-    messages: List[Dict[str, object]] = list(final_session_dict["messages"])  # type: ignore[index]
-    tool_messages = [m for m in messages if m.get("role") == "tool"]
+    messages = list(final_session.messages)
+    tool_messages = [m for m in messages if getattr(m, "role", None) == "tool"]
     assert tool_messages
-    assert "Result:" in str(tool_messages[-1].get("content", ""))
+    assert "Result:" in str(getattr(tool_messages[-1], "content", ""))
 
 
 def test_execute_tool_calls_streaming(tmp_path: Path) -> None:
