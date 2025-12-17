@@ -1,8 +1,9 @@
 {
   "application": {
+    "tool_output_line_limit": 50,
     "tool_output_short_char_limit": 200,
     "tool_output_short_one_line": false,
-    "tool_output_short_line_limit": 20
+    "tool_output_short_line_limit": 10
   },
   "providers": {
     "openrouter_tools": {
