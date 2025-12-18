@@ -15,10 +15,13 @@ from __future__ import annotations
 
 import os
 import tempfile
+from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from agent_core import AgentCore
 
+REPO_TMP_DIR = Path(__file__).resolve().parents[3] / "tmp"
+REPO_TMP_DIR.mkdir(parents=True, exist_ok=True)
 
 def run_example() -> Tuple[str, Dict[str, Any]]:
     core = AgentCore()
@@ -37,7 +40,7 @@ def run_example() -> Tuple[str, Dict[str, Any]]:
     model = os.getenv("OLLAMA_MODEL_TOOLS", "qwen3:0.6b")
 
     # Prepare a small temp file
-    with tempfile.NamedTemporaryFile("w+", delete=False, dir=".") as tf:
+    with tempfile.NamedTemporaryFile("w+", delete=False, dir=REPO_TMP_DIR) as tf:
         tf.write("hello from tools")
         tf.flush()
         file_path = tf.name
