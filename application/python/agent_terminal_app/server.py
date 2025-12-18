@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import json
+
 try:  # Optional convenience in local usage
     from dotenv import load_dotenv  # type: ignore[import-not-found]
 except Exception:  # pragma: no cover - optional dependency
@@ -105,6 +107,57 @@ def create_session(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     return {"session": session.to_dict(), "errors": app_instance.get_config_errors()}
+
+
+def _get_session_root(app_instance: AgentApplication) -> Path:
+    """Best-effort access to the filesystem session root for an application.
+
+    AgentApplication currently uses :class:`FilesystemSessionStore` internally,
+    but does not expose the root directory publicly. For the server's
+    purposes, it is sufficient to read the private ``_root_dir`` attribute
+    when present.
+    """
+
+    store = getattr(app_instance, "_session_store", None)
+    root = getattr(store, "_root_dir", None)
+    if not isinstance(root, Path):  # pragma: no cover - defensive guard
+        raise HTTPException(status_code=500, detail="Session store does not expose a filesystem root")
+    return root
+
+
+def _normalize_slice_bounds(
+    message_count: int,
+    start: Optional[int],
+    end: Optional[int],
+) -> Tuple[int, int]:
+    """Return concrete ``(start_idx, end_idx)`` for slice-like bounds.
+
+    Semantics mirror :meth:`TerminalApplication._normalize_slice_bounds`:
+    - ``start`` and ``end`` follow Python slice rules, including support
+      for ``None`` and negative indices.
+    - Indices are clamped to ``[0, message_count]``.
+    - ``ValueError`` is raised when the range selects no messages.
+    """
+
+    def _normalize_bound(value: Optional[int], default: int) -> int:
+        if value is None:
+            return default
+        idx = value
+        if idx < 0:
+            idx = message_count + idx
+        if idx < 0:
+            return 0
+        if idx > message_count:
+            return message_count
+        return idx
+
+    start_idx = _normalize_bound(start, 0)
+    end_idx = _normalize_bound(end, message_count)
+
+    if start_idx >= end_idx:
+        raise ValueError("range selects no messages")
+
+    return start_idx, end_idx
 
 
 @app.post("/sessions/{session_id}/messages")
@@ -230,6 +283,109 @@ def send_request(
     }
 
 
+@app.get("/sessions")
+def list_sessions(
+    limit: Optional[int] = None,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """List stored sessions with basic metadata.
+
+    Response shape mirrors :meth:`TerminalApplication.list_sessions_metadata`:
+    each entry contains ``session_id``, ``modified`` (float timestamp),
+    and ``preview`` (first user message snippet).
+    """
+
+    root = _get_session_root(app_instance)
+
+    try:
+        exists = root.exists()
+    except Exception:  # pragma: no cover - defensive
+        exists = False
+
+    if not exists:
+        return {"sessions": []}
+
+    items: List[Dict[str, Any]] = []
+    for path in root.glob("*.json"):
+        try:
+            stat = path.stat()
+        except OSError:  # pragma: no cover - defensive
+            continue
+
+        session_id = path.stem
+        preview = ""
+
+        try:
+            data = path.read_text(encoding="utf-8")
+            raw = json.loads(data)
+            messages = raw.get("messages") or []
+            for msg in messages:
+                if not isinstance(msg, dict):
+                    continue
+                if msg.get("role") != "user":
+                    continue
+                content = msg.get("content")
+                if isinstance(content, str) and content:
+                    single = " ".join(content.split())
+                    if len(single) > 80:
+                        preview = single[:77] + "..."
+                    else:
+                        preview = single
+                    break
+        except Exception:  # pragma: no cover - defensive
+            preview = ""
+
+        items.append(
+            {
+                "session_id": session_id,
+                "modified": float(stat.st_mtime),
+                "preview": preview,
+            }
+        )
+
+    items.sort(key=lambda entry: entry["modified"], reverse=True)
+    if limit is not None and limit >= 0:
+        items = items[:limit]
+
+    return {"sessions": items}
+
+
+@app.get("/sessions/{session_id}/messages")
+def list_session_messages(
+    session_id: str,
+    start: Optional[int] = None,
+    end: Optional[int] = None,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """List messages for a session with optional slice-style bounds."""
+
+    try:
+        ctx = app_instance.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+
+        _core, _base_config, session = ctx
+        message_count = len(session.messages)
+
+        if message_count == 0:
+            return {"messages": []}
+
+        try:
+            start_idx, end_idx = _normalize_slice_bounds(message_count, start, end)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        results: List[Dict[str, Any]] = []
+        for idx in range(start_idx, end_idx):
+            msg = session.messages[idx]
+            results.append({"index": idx, "message": msg.to_dict()})
+
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {"messages": results}
+
+
 @app.get("/events")
 def list_events(
     since_id: Optional[str] = None,
@@ -248,6 +404,24 @@ def list_events(
         limit=limit,
     )
     return {"events": events}
+
+
+@app.post("/requests/{request_id}/cancel")
+def cancel_request(
+    request_id: str,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Request cooperative cancellation for an in-flight request.
+
+    This is a thin wrapper around :meth:`AgentApplication.cancel_request`.
+    """
+
+    try:
+        app_instance.cancel_request(request_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {"request_id": request_id, "status": "cancelled"}
 
 
 # ---------------------------------------------------------------------------
