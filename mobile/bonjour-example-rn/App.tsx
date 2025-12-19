@@ -860,21 +860,21 @@ function App(): React.JSX.Element {
     return null;
   };
 
-  const renderConnectedScreen = () => (
-    <ConnectedRoot adapter={adapter!} onDisconnect={goBack} />
-  );
-
   return (
     <SafeAreaView style={backgroundStyle}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}
-        contentContainerStyle={styles.scrollContent}>
-        {screen === 'method' && renderMethodSelection()}
-        {screen === 'connecting' && renderConnectingScreen()}
-        {screen === 'connected' && renderConnectedScreen()}
-      </ScrollView>
+      {screen === 'connected' && adapter ? (
+        <ConnectedRoot adapter={adapter} onDisconnect={goBack} />
+      ) : (
+        <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
+          style={backgroundStyle}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {screen === 'method' && renderMethodSelection()}
+          {screen === 'connecting' && renderConnectingScreen()}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }

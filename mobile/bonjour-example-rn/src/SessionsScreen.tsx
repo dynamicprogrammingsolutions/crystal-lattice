@@ -94,7 +94,6 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({ adapter, onSelectSessio
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <Text style={styles.title}>Sessions</Text>
         <View style={styles.headerButtons}>
           <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={loadSessions}>
             <Text style={styles.buttonTextSecondary}>Reload</Text>
@@ -143,12 +142,8 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     marginBottom: 12,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
   },
   headerButtons: {
     flexDirection: 'row',

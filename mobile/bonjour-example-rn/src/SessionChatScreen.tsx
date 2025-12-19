@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -9,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/Feather';
 import type { ConnectionAdapter } from '../App';
 import { apiAppendMessage, apiListMessages, apiSend, type IndexedMessage } from './api';
 import MessageBubble from './components/MessageBubble';
@@ -27,6 +29,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({ adapter, sessionI
   const [messageLimit, setMessageLimit] = useState<number | 'all'>(25);
   const [limitInput, setLimitInput] = useState('25');
   const [lastReloadAt, setLastReloadAt] = useState<Date | null>(null);
+  const [settingsVisible, setSettingsVisible] = useState(false);
 
   const loadMessages = useCallback(async () => {
     setLoadingMessages(true);
@@ -128,45 +131,34 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({ adapter, sessionI
           {sessionLabel}
         </Text>
         <View style={styles.headerButtons}>
-          <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={loadMessages}>
-            <Text style={styles.buttonTextSecondary}>Reload</Text>
+          <TouchableOpacity
+            style={[styles.iconButton]}
+            onPress={loadMessages}
+            disabled={sendInProgress}
+          >
+            <Icon name="refresh-ccw" size={18} color="#007AFF" />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.button, styles.primaryButton]}
+            style={[styles.iconButton]}
             onPress={handleResend}
             disabled={sendInProgress}
           >
-            <Text style={styles.buttonText}>Resend</Text>
+            <Icon name="repeat" size={18} color="#007AFF" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.iconButton]}
+            onPress={() => {
+              if (messageLimit === 'all') {
+                setLimitInput('');
+              } else {
+                setLimitInput(String(messageLimit));
+              }
+              setSettingsVisible(true);
+            }}
+          >
+            <Icon name="settings" size={18} color="#007AFF" />
           </TouchableOpacity>
         </View>
-      </View>
-
-      <View style={styles.limitRow}>
-        <Text style={styles.limitLabel}>Show last</Text>
-        <TextInput
-          style={styles.limitInput}
-          value={limitInput}
-          onChangeText={setLimitInput}
-          placeholder="e.g., 25"
-          keyboardType="number-pad"
-        />
-        <Text style={styles.limitLabel}>messages</Text>
-        <TouchableOpacity style={[styles.button, styles.secondaryButton, styles.smallButton]} onPress={handleApplyLimit}>
-          <Text style={styles.buttonTextSecondary}>Apply</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.limitHelperRow}>
-        <Text style={styles.helperText}>
-          {messageLimit === 'all'
-            ? 'Showing all loaded messages'
-            : `Showing last ${messageLimit} messages`}
-        </Text>
-        {lastReloadAt && (
-          <Text style={styles.helperText}>
-            Reloaded at {lastReloadAt.toLocaleTimeString()}
-          </Text>
-        )}
       </View>
 
       {loadingMessages && (
@@ -207,6 +199,53 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({ adapter, sessionI
           </TouchableOpacity>
         </View>
       </View>
+
+      <Modal
+        visible={settingsVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSettingsVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Message limit</Text>
+            <Text style={styles.modalSubtitle}>
+              {messageLimit === 'all'
+                ? 'Currently showing all loaded messages.'
+                : `Currently showing last ${messageLimit} messages.`}
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              value={limitInput}
+              onChangeText={setLimitInput}
+              placeholder="Leave empty for all"
+              keyboardType="number-pad"
+            />
+            <View style={styles.modalButtonsRow}>
+              <TouchableOpacity
+                style={[styles.button, styles.secondaryButton, styles.modalButton]}
+                onPress={() => setSettingsVisible(false)}
+              >
+                <Text style={styles.buttonTextSecondary}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.button, styles.primaryButton, styles.modalButton]}
+                onPress={() => {
+                  handleApplyLimit();
+                  setSettingsVisible(false);
+                }}
+              >
+                <Text style={styles.buttonText}>Apply</Text>
+              </TouchableOpacity>
+            </View>
+            {lastReloadAt && (
+              <Text style={styles.modalHelperText}>
+                Last reload at {lastReloadAt.toLocaleTimeString()}
+              </Text>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -239,6 +278,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  iconButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginLeft: 4,
+  },
   button: {
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -265,36 +309,6 @@ const styles = StyleSheet.create({
     color: '#000000',
     fontSize: 14,
     fontWeight: '600',
-  },
-  limitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  limitLabel: {
-    fontSize: 14,
-    color: '#000000',
-  },
-  limitInput: {
-    marginHorizontal: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    backgroundColor: '#FFFFFF',
-    minWidth: 60,
-    fontSize: 14,
-  },
-  limitHelperRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  helperText: {
-    fontSize: 12,
-    color: '#8E8E93',
   },
   loadingContainer: {
     flexDirection: 'row',
@@ -334,6 +348,52 @@ const styles = StyleSheet.create({
   composerButton: {
     minWidth: 90,
     alignItems: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '80%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginBottom: 12,
+  },
+  modalInput: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  modalButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: 4,
+  },
+  modalButton: {
+    minWidth: 90,
+    alignItems: 'center',
+  },
+  modalHelperText: {
+    fontSize: 12,
+    color: '#8E8E93',
+    textAlign: 'right',
   },
 });
 
