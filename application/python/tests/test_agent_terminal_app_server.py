@@ -313,6 +313,74 @@ def test_cancel_request_endpoint_triggers_cancellation(tmp_path: Path) -> None:
     assert "final" not in kinds
 
 
+def test_get_api_data_returns_initial_state() -> None:
+    """GET /api/data returns the initial DataStore contents.
+
+    This exercises the FastAPI layer end-to-end via TestClient while
+    resetting the module-level ``_bonjour_data_store`` to a known
+    starting value.
+    """
+
+    from agent_terminal_app import server as server_mod
+    from agent_terminal_app.server import app as fastapi_app
+
+    # Reset the global store to a predictable state for this test.
+    server_mod._bonjour_data_store = server_mod.DataStore({"message": "Initial data", "count": 0})
+
+    client = TestClient(fastapi_app)
+    resp = client.get("/api/data")
+    assert resp.status_code == 200
+
+    body = resp.json()
+    assert body["success"] is True
+    assert body["data"] == {"message": "Initial data", "count": 0}
+    ts = body.get("timestamp")
+    assert isinstance(ts, str) and ts.endswith("Z")
+
+
+def test_put_api_data_updates_store() -> None:
+    """PUT /api/data merges into the store and subsequent GET reflects it."""
+
+    from agent_terminal_app import server as server_mod
+    from agent_terminal_app.server import app as fastapi_app
+
+    server_mod._bonjour_data_store = server_mod.DataStore({"message": "Initial data", "count": 0})
+
+    client = TestClient(fastapi_app)
+
+    update = {"count": 5, "extra": "value"}
+    resp = client.put("/api/data", json=update)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["success"] is True
+    updated = body["updated"]
+    assert updated["message"] == "Initial data"
+    assert updated["count"] == 5
+    assert updated["extra"] == "value"
+
+    # A subsequent GET should return the same updated mapping.
+    resp2 = client.get("/api/data")
+    assert resp2.status_code == 200
+    body2 = resp2.json()
+    assert body2["data"] == updated
+
+
+def test_get_api_hello_matches_python_bonjour_shape() -> None:
+    """GET /api/hello exposes the expected greeting shape."""
+
+    from agent_terminal_app.server import app as fastapi_app
+
+    client = TestClient(fastapi_app)
+    resp = client.get("/api/hello")
+    assert resp.status_code == 200
+
+    body = resp.json()
+    assert body["message"] == "Hello from Bonjour Server!"
+    assert body["method"] == "GET"
+    ts = body.get("timestamp")
+    assert isinstance(ts, str) and ts.endswith("Z")
+
+
 # ---------------------------------------------------------------------------
 # HTTP integration test using FastAPI TestClient
 # ---------------------------------------------------------------------------

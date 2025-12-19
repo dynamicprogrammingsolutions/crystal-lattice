@@ -1,0 +1,36 @@
+# Git
+.git/
+.gitignore
+
+# Elixir
+/_build/
+/deps/
+/*.ez
+/doc/
+/cover/
+
+# IDEs
+.vscode/
+.idea/
+*.iml
+.DS_Store
+
+# Test
+/test/
+
+# Documentation
+*.md
+!README.md
+
+# Scripts
+/scripts/
+test_docker.py
+requirements.txt
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Makefile
+Makefile

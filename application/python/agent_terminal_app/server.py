@@ -3,7 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import asyncio
 import json
+import logging
+import os
+import threading
+from datetime import datetime
 
 try:  # Optional convenience in local usage
     from dotenv import load_dotenv  # type: ignore[import-not-found]
@@ -14,6 +19,8 @@ from fastapi import Depends, FastAPI, HTTPException  # type: ignore[reportMissin
 
 from agent_app.application_future import AgentApplication
 from agent_core import Session
+from agent_terminal_app import bonjour as bonjour_mod
+from agent_terminal_app import bridge_client as bridge_mod
 
 
 _DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "config_openrouter_app_layer.json"
@@ -26,6 +33,143 @@ _DEFAULT_SESSION_ROOT = Path(__file__).resolve().parent / "sessions"
 
 
 app = FastAPI(title="Agent Terminal App - Echo provider (AgentApplication)")
+
+
+# ---------------------------------------------------------------------------
+# Optional integrations: Bonjour/mDNS and bridge client
+# ---------------------------------------------------------------------------
+
+
+_bonjour_handle: Optional[bonjour_mod.BonjourServiceHandle] = None
+_bridge_client: Optional[bridge_mod.BridgeClient] = None
+_bridge_task: Optional[asyncio.Task[None]] = None
+
+_log = logging.getLogger(__name__)
+
+
+@app.on_event("startup")
+async def _on_startup() -> None:
+    """FastAPI startup hook.
+
+    * Optionally advertise the HTTP API via Bonjour/mDNS when the
+      ``ENABLE_BONJOUR`` environment variable is set.
+    * Optionally start the bridge client when ``BRIDGE_URL`` is set.
+    """
+
+    global _bonjour_handle, _bridge_client, _bridge_task
+
+    # Bonjour advertising -------------------------------------------------
+    if os.getenv("ENABLE_BONJOUR"):
+        # The advertised port can be configured explicitly via
+        # ``BONJOUR_PORT``. When not set, fall back to ``SERVER_PORT`` or
+        # the common FastAPI default of 8000.
+        port_str = os.getenv("BONJOUR_PORT") or os.getenv("SERVER_PORT") or "8000"
+        try:
+            port = int(port_str)
+        except ValueError:  # pragma: no cover - defensive
+            port = 8000
+
+        service_name = os.getenv("BONJOUR_SERVICE_NAME") or "Agent Terminal App"
+        _log.info(
+            "[bonjour] starting registration: service=%r port=%d", service_name, port
+        )
+        # ``zeroconf`` uses its own asyncio machinery under the hood and
+        # calling it directly from within FastAPI's event loop can lead to
+        # deadlocks (manifesting as ``EventLoopBlocked``). Run the blocking
+        # registration in a separate thread instead.
+        _bonjour_handle = await asyncio.to_thread(
+            bonjour_mod.start_bonjour, service_name, port
+        )
+
+        if _bonjour_handle is not None:
+            _log.info(
+                "[bonjour] registration finished: service=%r port=%d", service_name, port
+            )
+        else:
+            _log.warning(
+                "[bonjour] registration failed; see earlier logs for details "
+                "(service=%r port=%d)",
+                service_name,
+                port,
+            )
+
+    # Bridge client -------------------------------------------------------
+    client = bridge_mod.create_bridge_client_from_env()
+    if client is not None:
+        _bridge_client = client
+        # Run the bridge client in the background for the lifetime of the
+        # FastAPI application.
+        _bridge_task = asyncio.create_task(client.run())
+
+
+@app.on_event("shutdown")
+async def _on_shutdown() -> None:
+    """FastAPI shutdown hook for cleaning up integrations."""
+
+    global _bonjour_handle, _bridge_client, _bridge_task
+
+    # Stop bridge client first so that any in-flight requests are
+    # cancelled before the HTTP server itself is torn down.
+    if _bridge_client is not None:
+        try:
+            await _bridge_client.stop()
+        except Exception:  # pragma: no cover - defensive
+            pass
+
+    if _bridge_task is not None:
+        try:
+            await _bridge_task
+        except Exception:  # pragma: no cover - defensive
+            pass
+
+    _bridge_client = None
+    _bridge_task = None
+
+    # Tear down Bonjour advertisement last.
+    if _bonjour_handle is not None:
+        _log.info("[bonjour] stopping registration")
+        # See comment in ``_on_startup``: perform zeroconf operations in a
+        # worker thread to avoid blocking the main event loop.
+        await asyncio.to_thread(bonjour_mod.stop_bonjour, _bonjour_handle)
+        _bonjour_handle = None
+        _log.info("[bonjour] registration stopped")
+
+
+# ---------------------------------------------------------------------------
+# Simple in-memory data store for Bonjour-style example endpoints
+# ---------------------------------------------------------------------------
+
+
+class DataStore:
+    """Thread-safe in-memory key/value store used by /api/* endpoints.
+
+    The semantics mirror the ``DataStore`` used by the standalone Bonjour
+    example server: a mutable mapping initialised with a ``message`` and
+    ``count`` field that can be read in full and updated via ``update``.
+    """
+
+    def __init__(self, initial_data: Optional[Dict[str, Any]] = None) -> None:
+        self._data: Dict[str, Any] = dict(initial_data or {"message": "Initial data", "count": 0})
+        self._lock = threading.Lock()
+
+    def get(self) -> Dict[str, Any]:
+        """Return a shallow copy of the current data mapping."""
+
+        with self._lock:
+            return dict(self._data)
+
+    def update(self, new_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Merge ``new_data`` into the store and return the updated mapping."""
+
+        if not isinstance(new_data, dict):  # Defensive guard; FastAPI normally enforces this
+            raise ValueError("new_data must be a mapping")
+
+        with self._lock:
+            self._data.update(new_data)
+            return dict(self._data)
+
+
+_bonjour_data_store = DataStore()
 
 
 def _build_default_agent_app() -> AgentApplication:
@@ -61,6 +205,61 @@ def get_agent_app() -> AgentApplication:
         _agent_app = _build_default_agent_app()
 
     return _agent_app
+
+
+# ---------------------------------------------------------------------------
+# Bonjour-style example HTTP endpoints
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/data")
+def get_api_data() -> Dict[str, Any]:
+    """Return the current contents of the in-memory ``DataStore``.
+
+    Shape matches the standalone Bonjour example server:
+
+    .. code-block:: json
+
+        {
+          "success": true,
+          "data": { ... },
+          "timestamp": "2025-01-01T00:00:00Z"
+        }
+    """
+
+    return {
+        "success": True,
+        "data": _bonjour_data_store.get(),
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+    }
+
+
+@app.put("/api/data")
+def put_api_data(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge the given JSON body into the ``DataStore`` and return it.
+
+    The behaviour mirrors the Bonjour example server's ``PUT /api/data``
+    handler: the body is treated as a partial update and the response
+    includes the full updated mapping under ``updated``.
+    """
+
+    try:
+        updated = _bonjour_data_store.update(payload or {})
+    except ValueError as exc:  # pragma: no cover - defensive; FastAPI validates payload
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {"success": True, "updated": updated}
+
+
+@app.get("/api/hello")
+def get_api_hello() -> Dict[str, Any]:
+    """Return a static greeting payload matching the Bonjour example."""
+
+    return {
+        "message": "Hello from Bonjour Server!",
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "method": "GET",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -452,5 +651,12 @@ def run_api(
     global _agent_app
     if app_instance is not None:
         _agent_app = app_instance
+
+    # Expose host/port via environment variables so that optional
+    # integrations (Bonjour, bridge client) can infer the local HTTP
+    # base URL and advertised port when the server is launched via this
+    # helper instead of directly through ``uvicorn``.
+    os.environ.setdefault("SERVER_HOST", host)
+    os.environ.setdefault("SERVER_PORT", str(port))
 
     uvicorn.run("agent_terminal_app.server:app", host=host, port=port, reload=False)

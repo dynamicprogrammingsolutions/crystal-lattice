@@ -1,0 +1,6 @@
+/Users/ferenci84/Dev/Mine/bonjour-example-1/react-native-app/android/app/.cxx/Debug/4n3k5b41/arm64-v8a/CMakeFiles/appmodules.dir
+/Users/ferenci84/Dev/Mine/bonjour-example-1/react-native-app/android/app/.cxx/Debug/4n3k5b41/arm64-v8a/CMakeFiles/edit_cache.dir
+/Users/ferenci84/Dev/Mine/bonjour-example-1/react-native-app/android/app/.cxx/Debug/4n3k5b41/arm64-v8a/CMakeFiles/rebuild_cache.dir
+/Users/ferenci84/Dev/Mine/bonjour-example-1/react-native-app/android/app/.cxx/Debug/4n3k5b41/arm64-v8a/safeareacontext_autolinked_build/CMakeFiles/react_codegen_safeareacontext.dir
+/Users/ferenci84/Dev/Mine/bonjour-example-1/react-native-app/android/app/.cxx/Debug/4n3k5b41/arm64-v8a/safeareacontext_autolinked_build/CMakeFiles/edit_cache.dir
+/Users/ferenci84/Dev/Mine/bonjour-example-1/react-native-app/android/app/.cxx/Debug/4n3k5b41/arm64-v8a/safeareacontext_autolinked_build/CMakeFiles/rebuild_cache.dir
