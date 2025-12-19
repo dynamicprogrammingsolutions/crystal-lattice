@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import threading
+import uuid
 from datetime import datetime
 
 try:  # Optional convenience in local usage
@@ -18,6 +19,7 @@ except Exception:  # pragma: no cover - optional dependency
 from fastapi import Depends, FastAPI, HTTPException  # type: ignore[reportMissingImports]
 
 from agent_app.application_future import AgentApplication
+from agent_app.config import resolve_request_config
 from agent_core import Session
 from agent_terminal_app import bonjour as bonjour_mod
 from agent_terminal_app import bridge_client as bridge_mod
@@ -359,6 +361,23 @@ def _normalize_slice_bounds(
     return start_idx, end_idx
 
 
+def _normalize_index(raw_index: int, message_count: int) -> int:
+    """Normalize a Python-style index for a sequence of ``message_count``.
+
+    Semantics mirror :meth:`TerminalApplication._normalize_index`:
+
+    * Negative indices are translated relative to the end.
+    * ``IndexError`` is raised when the resulting index is out of bounds.
+    """
+
+    target_index = raw_index
+    if target_index < 0:
+        target_index = message_count + target_index
+    if target_index < 0 or target_index >= message_count:
+        raise IndexError("message index out of range")
+    return target_index
+
+
 @app.post("/sessions/{session_id}/messages")
 def add_message(
     session_id: str,
@@ -397,6 +416,66 @@ def add_message(
                 "content": content,
                 "metadata": metadata or {},
                 "message": last_message.to_dict() if last_message is not None else None,
+                "session": new_session.to_dict(),
+            }
+        )
+
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {"session": new_session.to_dict()}
+
+
+@app.patch("/sessions/{session_id}/messages/{index}")
+def update_message(
+    session_id: str,
+    index: int,
+    payload: Dict[str, Any],
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Modify the content of a single message at ``index``.
+
+    This mirrors :meth:`TerminalApplication.modify_message` using
+    Python-style indices (0-based, negatives allowed).
+    """
+
+    content = payload.get("content")
+    if not isinstance(content, str):
+        raise HTTPException(status_code=400, detail="content must be a string")
+
+    try:
+        ctx = app_instance.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+
+        core, base_config, session = ctx
+
+        message_count = len(session.messages)
+        if message_count == 0:
+            raise HTTPException(status_code=400, detail="no messages to modify")
+
+        try:
+            target_index = _normalize_index(index, message_count)
+        except IndexError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides_val = metadata.get("overrides")
+        overrides: Dict[str, Any] = (
+            overrides_val if isinstance(overrides_val, dict) else {}
+        )
+        config = resolve_request_config(base_config, overrides)
+
+        new_session = core.modify_message(session, target_index, content, config)
+        app_instance.save_session(new_session)
+
+        store = app_instance.get_event_store()
+        store.publish(
+            {
+                "type": "message_modified",
+                "session_id": new_session.session_id,
+                "index": target_index,
+                "content": content,
                 "session": new_session.to_dict(),
             }
         )
@@ -482,6 +561,129 @@ def send_request(
     }
 
 
+@app.delete("/sessions/{session_id}/messages")
+def delete_messages(
+    session_id: str,
+    payload: Dict[str, Any],
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Delete one or more messages from a session.
+
+    The body supports three shapes:
+
+    * ``{"indices": [int, ...]}`` – delete specific indices.
+    * ``{"range": {"start": Optional[int], "end": Optional[int]}}`` –
+      delete a Python-style slice.
+    * ``{"last": int}`` – delete the last *N* messages.
+
+    Response shape: ``{"session": <Session>, "deleted_indices": [int, ...]}``.
+    """
+
+    body = payload or {}
+    has_indices = "indices" in body
+    has_range = "range" in body
+    has_last = "last" in body
+
+    if int(has_indices) + int(has_range) + int(has_last) != 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Exactly one of 'indices', 'range', or 'last' must be provided",
+        )
+
+    try:
+        ctx = app_instance.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+
+        core, base_config, session = ctx
+        message_count = len(session.messages)
+
+        if message_count == 0:
+            raise HTTPException(status_code=400, detail="no messages to delete")
+
+        # Determine concrete indices to delete based on the chosen mode.
+        delete_indices: List[int]
+
+        if has_indices:
+            raw_indices = body.get("indices")
+            if not isinstance(raw_indices, list):
+                raise HTTPException(status_code=400, detail="indices must be a list of integers")
+            if not raw_indices:
+                # Nothing to delete; return the current session unchanged.
+                return {"session": session.to_dict(), "deleted_indices": []}
+
+            delete_indices = []
+            for raw in raw_indices:
+                if not isinstance(raw, int):
+                    raise HTTPException(status_code=400, detail="indices must be integers")
+                try:
+                    idx = _normalize_index(raw, message_count)
+                except IndexError as exc:
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
+                delete_indices.append(idx)
+
+        elif has_range:
+            range_spec = body.get("range") or {}
+            if not isinstance(range_spec, dict):
+                raise HTTPException(status_code=400, detail="range must be an object")
+
+            start = range_spec.get("start")
+            end = range_spec.get("end")
+            if start is not None and not isinstance(start, int):
+                raise HTTPException(status_code=400, detail="start must be an integer or null")
+            if end is not None and not isinstance(end, int):
+                raise HTTPException(status_code=400, detail="end must be an integer or null")
+
+            try:
+                start_idx, end_idx = _normalize_slice_bounds(message_count, start, end)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+            delete_indices = list(range(start_idx, end_idx))
+
+        else:  # has_last
+            last = body.get("last")
+            if not isinstance(last, int):
+                raise HTTPException(status_code=400, detail="last must be an integer")
+            if last <= 0:
+                raise HTTPException(status_code=400, detail="count must be a positive integer")
+
+            count = min(last, message_count)
+            start_idx = message_count - count
+            delete_indices = list(range(start_idx, message_count))
+
+        if not delete_indices:
+            raise HTTPException(status_code=400, detail="no messages selected for deletion")
+
+        # Perform the deletion via the core, mirroring TerminalApplication.delete_messages.
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides_val = metadata.get("overrides")
+        overrides: Dict[str, Any] = (
+            overrides_val if isinstance(overrides_val, dict) else {}
+        )
+        config = resolve_request_config(base_config, overrides)
+
+        new_session = core.slice_session(session, config, remove_indices=delete_indices)
+        app_instance.save_session(new_session)
+
+        concrete_indices = sorted(set(delete_indices))
+
+        store = app_instance.get_event_store()
+        store.publish(
+            {
+                "type": "messages_deleted",
+                "session_id": new_session.session_id,
+                "indices": sorted(delete_indices),
+                "session": new_session.to_dict(),
+            }
+        )
+
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {"session": new_session.to_dict(), "deleted_indices": concrete_indices}
+
+
 @app.get("/sessions")
 def list_sessions(
     limit: Optional[int] = None,
@@ -547,6 +749,78 @@ def list_sessions(
         items = items[:limit]
 
     return {"sessions": items}
+
+
+@app.post("/sessions/{session_id}/fork")
+def fork_session(
+    session_id: str,
+    payload: Optional[Dict[str, Any]] = None,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Create a new session by forking history up to ``index``.
+
+    The body accepts ``{"index": int}`` where the index uses
+    Python-style semantics (0-based, negatives allowed). When omitted,
+    ``index`` defaults to ``-1`` (fork full history).
+    """
+
+    data = payload or {}
+    raw_index = data.get("index", -1)
+    if not isinstance(raw_index, int):
+        raise HTTPException(status_code=400, detail="index must be an integer")
+
+    try:
+        ctx = app_instance.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+
+        core, base_config, session = ctx
+
+        message_count = len(session.messages)
+        if message_count == 0:
+            raise HTTPException(status_code=400, detail="no messages to fork")
+
+        try:
+            target_index = _normalize_index(raw_index, message_count)
+        except IndexError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides_val = metadata.get("overrides")
+        overrides: Dict[str, Any] = (
+            overrides_val if isinstance(overrides_val, dict) else {}
+        )
+        config = resolve_request_config(base_config, overrides)
+
+        new_session_id = str(uuid.uuid4())
+        new_session = core.fork_session(
+            session,
+            config,
+            upto_index=target_index,
+            new_session_id=new_session_id,
+        )
+
+        app_instance.save_session(new_session)
+
+        # Publish a lifecycle event so frontends can surface the fork.
+        store = app_instance.get_event_store()
+        md = new_session.metadata if isinstance(new_session.metadata, dict) else {}
+        agent_val = md.get("agent_id")
+        agent_id = agent_val if isinstance(agent_val, str) and agent_val else "default"
+        store.publish(
+            {
+                "type": "session_created",
+                "session_id": new_session.session_id,
+                "agent_id": agent_id,
+                "source_session_id": session.session_id,
+                "session": new_session.to_dict(),
+            }
+        )
+
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {"session": new_session.to_dict(), "source_session_id": session.session_id}
 
 
 @app.get("/sessions/{session_id}/messages")
@@ -621,6 +895,101 @@ def cancel_request(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return {"request_id": request_id, "status": "cancelled"}
+
+
+@app.get("/agents")
+def list_agents(
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return the configured agent identifiers.
+
+    Response shape: ``{"agents": [str, ...]}`` mirroring
+    :meth:`TerminalApplication.available_agents`.
+    """
+
+    agents = [a for a in app_instance.list_agents() if isinstance(a, str) and a]
+    # Deduplicate while preserving order, then sort for stability.
+    unique: Dict[str, None] = {}
+    for agent in agents:
+        if agent not in unique:
+            unique[agent] = None
+    return {"agents": sorted(unique.keys())}
+
+
+@app.get("/sessions/{session_id}/agent")
+def get_session_agent(
+    session_id: str,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return the current agent id for a session."""
+
+    try:
+        ctx = app_instance.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+
+        _core, _base_config, session = ctx
+        metadata = session.metadata or {}
+        agent_val = metadata.get("agent_id")
+        agent_id = agent_val if isinstance(agent_val, str) and agent_val else "default"
+
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {"agent_id": agent_id}
+
+
+@app.patch("/sessions/{session_id}/agent")
+def update_session_agent(
+    session_id: str,
+    payload: Dict[str, Any],
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Switch the agent for a given session.
+
+    Behaviour mirrors :meth:`TerminalApplication.switch_agent`:
+
+    * ``agent_id`` must be a non-empty string.
+    * The target agent id must exist in the configured agents.
+    * The updated session metadata is persisted when the session has
+      messages or has previously been saved to disk.
+    """
+
+    target_agent_id = payload.get("agent_id")
+    if not isinstance(target_agent_id, str) or not target_agent_id:
+        raise HTTPException(status_code=400, detail="agent_id must be a non-empty string")
+
+    # Validate the target agent using the same semantics as the terminal app.
+    available = [a for a in app_instance.list_agents() if isinstance(a, str) and a]
+    if target_agent_id not in available:
+        raise HTTPException(status_code=400, detail=f"unknown agent: {target_agent_id!r}")
+
+    try:
+        ctx = app_instance.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+
+        _core, _base_config, session = ctx
+
+        core, base_config, new_session = app_instance.update_agent(target_agent_id, session)
+
+        # Decide whether to persist the updated session:
+        # - If the session has messages, always save.
+        # - If it is empty but was previously saved, update the file.
+        # - If it is empty and has never been saved, keep it in memory.
+        root = _get_session_root(app_instance)
+        session_path = root / f"{session.session_id}.json"
+        is_empty = not session.messages
+        is_persisted = session_path.exists()
+        should_save = (not is_empty) or is_persisted
+
+        if should_save:
+            app_instance.save_session(new_session)
+
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {"session": new_session.to_dict(), "agent_id": target_agent_id}
 
 
 # ---------------------------------------------------------------------------
