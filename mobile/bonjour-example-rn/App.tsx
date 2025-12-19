@@ -14,6 +14,7 @@ import {
   TextInput,
 } from 'react-native';
 import Zeroconf from 'react-native-zeroconf';
+import ConnectedRoot from './src/ConnectedRoot';
 
 type ConnectionMethod = 'manual' | 'discovery' | 'bridge';
 
@@ -31,10 +32,11 @@ interface BridgeServer {
   location?: string;
 }
 
-interface ConnectionAdapter {
+export interface ConnectionAdapter {
   connect(): Promise<void>;
   get(path: string): Promise<any>;
   put(path: string, data: any): Promise<any>;
+  post(path: string, data: any): Promise<any>;
   disconnect(): void;
   getDisplayName(): string;
 }
@@ -73,6 +75,16 @@ class HttpAdapter implements ConnectionAdapter {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
+    });
+    return await response.json();
+  }
+
+   async post(path: string, data: any): Promise<any> {
+    const url = `http://${this.host}:${this.port}${path}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data ?? {}),
     });
     return await response.json();
   }
@@ -337,6 +349,31 @@ class BridgeAdapter implements ConnectionAdapter {
     return response;
   }
 
+  async post(path: string, data: any): Promise<any> {
+    if (!this.sessionId) {
+      throw new Error('Not paired with any server');
+    }
+
+    const requestId = this.generateUuid();
+    const response = await this.sendMessage(
+      `app:${this.clientId}`,
+      'http_request',
+      {
+        request_id: requestId,
+        session_id: this.sessionId,
+        method: 'POST',
+        path,
+        headers: {},
+        body: JSON.stringify(data ?? {}),
+      }
+    );
+
+    if (response.body) {
+      return JSON.parse(response.body);
+    }
+    return response;
+  }
+
   disconnect(): void {
     if (this.ws) {
       this.ws.close();
@@ -371,7 +408,6 @@ function App(): React.JSX.Element {
   const [bridgeAdapter, setBridgeAdapter] = useState<BridgeAdapter | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
-  const [response, setResponse] = useState('');
 
   useEffect(() => {
     zeroconf.on('resolved', (service: any) => {
@@ -540,34 +576,6 @@ function App(): React.JSX.Element {
     }
   };
 
-  const executeRequest = async (type: 'GET' | 'PUT') => {
-    if (!adapter) {
-      Alert.alert('Error', 'Not connected');
-      return;
-    }
-
-    setIsLoading(true);
-    setResponse('');
-
-    try {
-      let data;
-      if (type === 'GET') {
-        data = await adapter.get('/api/data');
-      } else {
-        data = await adapter.put('/api/data', {
-          message: 'Hello from React Native',
-          timestamp: new Date().toISOString(),
-        });
-      }
-      setResponse(JSON.stringify(data, null, 2));
-    } catch (error: any) {
-      setResponse(`Error: ${error.message}`);
-      Alert.alert('Request Error', error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const goBack = () => {
     if (adapter) {
       adapter.disconnect();
@@ -584,7 +592,6 @@ function App(): React.JSX.Element {
     setBridgeServers([]);
     setSelectedBridgeServer(null);
     setPairingCode('');
-    setResponse('');
   };
 
   const backgroundStyle = {
@@ -854,56 +861,7 @@ function App(): React.JSX.Element {
   };
 
   const renderConnectedScreen = () => (
-    <View style={styles.container}>
-      <Text style={styles.title}>Connected</Text>
-
-      <View style={[styles.statusContainer, styles.statusConnected]}>
-        <View style={[styles.statusDot, styles.statusConnectedDot]} />
-        <Text style={styles.statusText}>{adapter?.getDisplayName()}</Text>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Available Actions</Text>
-        
-        <TouchableOpacity
-          style={styles.endpointItem}
-          onPress={() => executeRequest('GET')}
-          disabled={isLoading}>
-          <Text style={styles.endpointName}>GET /api/data</Text>
-          <Text style={styles.endpointDescription}>Retrieve current data</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.endpointItem}
-          onPress={() => executeRequest('PUT')}
-          disabled={isLoading}>
-          <Text style={styles.endpointName}>PUT /api/data</Text>
-          <Text style={styles.endpointDescription}>Update data</Text>
-        </TouchableOpacity>
-      </View>
-
-      {isLoading && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Loading...</Text>
-        </View>
-      )}
-
-      {response && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Response:</Text>
-          <ScrollView style={styles.responseContainer}>
-            <Text style={styles.responseText}>{response}</Text>
-          </ScrollView>
-        </View>
-      )}
-
-      <TouchableOpacity
-        style={[styles.button, styles.secondaryButton]}
-        onPress={goBack}>
-        <Text style={styles.buttonTextSecondary}>Disconnect</Text>
-      </TouchableOpacity>
-    </View>
+    <ConnectedRoot adapter={adapter!} onDisconnect={goBack} />
   );
 
   return (
