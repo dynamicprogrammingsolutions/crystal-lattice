@@ -1,0 +1,25 @@
+# Elixir
+/_build/
+/deps/
+/*.ez
+/doc/
+
+# Elixir releases
+/rel/
+
+# IDEs
+/.vscode/
+/.idea/
+*.iml
+.DS_Store
+
+# Test
+/cover/
+/test/tmp/
+
+# Environment
+.env
+.envrc
+
+# Mix lockfile
+/mix.lock

@@ -1,0 +1,1 @@
+/Users/ferenci84/Dev/Mine/bonjour-example-1/react-native-app/android/app/build/intermediates/cxx/Debug/4n3k5b41/obj/x86
