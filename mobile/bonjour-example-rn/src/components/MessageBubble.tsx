@@ -86,10 +86,12 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     fontStyle: 'italic',
     marginBottom: 4,
+    fontFamily: 'Courier',
   },
   contentText: {
     fontSize: 14,
     color: '#000000',
+    fontFamily: 'Courier',
   },
   userContentText: {
     color: '#FFFFFF',

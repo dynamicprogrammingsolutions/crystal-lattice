@@ -1,13 +1,8 @@
 import React, { useState } from 'react';
-import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Icon from 'react-native-vector-icons/Feather';
 import type { ConnectionAdapter } from '../App';
+import ConnectionScreen from './ConnectionScreen';
 import SessionsScreen from './SessionsScreen';
 import SessionChatScreen from './SessionChatScreen';
 
@@ -19,7 +14,7 @@ interface ConnectedRootProps {
 type ConnectedTab = 'sessions' | 'demo';
 
 const ConnectedRoot: React.FC<ConnectedRootProps> = ({ adapter, onDisconnect }) => {
-  const [tab, setTab] = useState<ConnectedTab>('sessions');
+  const [tab, setTab] = useState<'connection' | 'sessions' | 'messages'>('connection');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoResponse, setDemoResponse] = useState('');
@@ -47,12 +42,17 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({ adapter, onDisconnect }) 
     }
   };
 
+  const handleSelectSession = (sessionId: string) => {
+    setSelectedSessionId(sessionId);
+    setTab('messages');
+  };
+
   const renderSessionsArea = () => {
     if (selectedSessionId == null) {
       return (
         <SessionsScreen
           adapter={adapter}
-          onSelectSession={setSelectedSessionId}
+          onSelectSession={handleSelectSession}
         />
       );
     }
@@ -61,85 +61,79 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({ adapter, onDisconnect }) 
       <SessionChatScreen
         adapter={adapter}
         sessionId={selectedSessionId}
-        onBack={() => setSelectedSessionId(null)}
+        onBack={() => {
+          setSelectedSessionId(null);
+          setTab('sessions');
+        }}
       />
     );
   };
 
-  const renderDemoArea = () => (
-    <View style={styles.demoContainer}>
-      <Text style={styles.sectionTitle}>Demo /api/data</Text>
-
-      <View style={styles.demoButtonsRow}>
-        <TouchableOpacity
-          style={[styles.button, styles.primaryButton]}
-          onPress={() => executeDemoRequest('GET')}
-          disabled={demoLoading}
-        >
-          <Text style={styles.buttonText}>GET /api/data</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.button, styles.secondaryButton]}
-          onPress={() => executeDemoRequest('PUT')}
-          disabled={demoLoading}
-        >
-          <Text style={styles.buttonTextSecondary}>PUT /api/data</Text>
-        </TouchableOpacity>
-      </View>
-
-      {demoLoading && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color="#007AFF" />
-          <Text style={styles.loadingText}>Running demo request...</Text>
+  const renderMessagesArea = () => {
+    if (!selectedSessionId) {
+      return (
+        <View style={styles.placeholderContainer}>
+          <Text style={styles.placeholderText}>Select a session from the Sessions tab.</Text>
         </View>
-      )}
+      );
+    }
 
-      {demoResponse !== '' && (
-        <ScrollView style={styles.demoResponseContainer}>
-          <Text style={styles.demoResponseText}>{demoResponse}</Text>
-        </ScrollView>
-      )}
-    </View>
-  );
+    return (
+      <SessionChatScreen
+        adapter={adapter}
+        sessionId={selectedSessionId}
+        onBack={() => {
+          setTab('sessions');
+        }}
+      />
+    );
+  };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Connected</Text>
-
-      <View style={[styles.statusContainer, styles.statusConnected]}>
-        <View style={[styles.statusDot, styles.statusConnectedDot]} />
-        <Text style={styles.statusText}>{adapter.getDisplayName()}</Text>
+      <View style={styles.contentArea}>
+        {tab === 'connection' && (
+          <ConnectionScreen adapter={adapter} onDisconnect={onDisconnect} />
+        )}
+        {tab === 'sessions' && renderSessionsArea()}
+        {tab === 'messages' && renderMessagesArea()}
       </View>
 
-      <View style={styles.tabRow}>
+      <View style={styles.navBar}>
         <TouchableOpacity
-          style={[styles.tabButton, tab === 'sessions' && styles.tabButtonActive]}
+          style={[styles.navItem, tab === 'connection' && styles.navItemActive]}
+          onPress={() => setTab('connection')}
+        >
+          <Icon
+            name="wifi"
+            size={20}
+            color={tab === 'connection' ? '#007AFF' : '#8E8E93'}
+          />
+          <Text style={tab === 'connection' ? styles.navTextActive : styles.navText}>Connection</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.navItem, tab === 'sessions' && styles.navItemActive]}
           onPress={() => setTab('sessions')}
         >
-          <Text style={tab === 'sessions' ? styles.tabButtonTextActive : styles.tabButtonText}>
-            Chat Sessions
-          </Text>
+          <Icon
+            name="list"
+            size={20}
+            color={tab === 'sessions' ? '#007AFF' : '#8E8E93'}
+          />
+          <Text style={tab === 'sessions' ? styles.navTextActive : styles.navText}>Sessions</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tabButton, tab === 'demo' && styles.tabButtonActive]}
-          onPress={() => setTab('demo')}
+          style={[styles.navItem, tab === 'messages' && styles.navItemActive]}
+          onPress={() => setTab('messages')}
         >
-          <Text style={tab === 'demo' ? styles.tabButtonTextActive : styles.tabButtonText}>
-            Demo /api/data
-          </Text>
+          <Icon
+            name="message-circle"
+            size={20}
+            color={tab === 'messages' ? '#007AFF' : '#8E8E93'}
+          />
+          <Text style={tab === 'messages' ? styles.navTextActive : styles.navText}>Messages</Text>
         </TouchableOpacity>
       </View>
-
-      <View style={styles.contentArea}>
-        {tab === 'sessions' ? renderSessionsArea() : renderDemoArea()}
-      </View>
-
-      <TouchableOpacity
-        style={[styles.disconnectButton, styles.secondaryButton]}
-        onPress={onDisconnect}
-      >
-        <Text style={styles.buttonTextSecondary}>Disconnect</Text>
-      </TouchableOpacity>
     </View>
   );
 };
@@ -147,82 +141,12 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({ adapter, onDisconnect }) 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  statusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    backgroundColor: 'rgba(52, 199, 89, 0.1)',
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  statusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  statusConnectedDot: {
-    backgroundColor: '#34C759',
-  },
-  statusConnected: {
-    backgroundColor: 'rgba(52, 199, 89, 0.1)',
-  },
-  statusText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  tabRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 12,
-  },
-  tabButton: {
-    flex: 1,
-    paddingVertical: 10,
-    marginHorizontal: 4,
-    borderRadius: 8,
-    backgroundColor: '#E5E5EA',
-    alignItems: 'center',
-  },
-  tabButtonActive: {
-    backgroundColor: '#007AFF',
-  },
-  tabButtonText: {
-    color: '#000000',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  tabButtonTextActive: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
   },
   contentArea: {
     flex: 1,
-  },
-  disconnectButton: {
-    marginTop: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  secondaryButton: {
-    backgroundColor: '#E5E5EA',
-  },
-  buttonTextSecondary: {
-    color: '#000000',
-    fontSize: 16,
-    fontWeight: '600',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4,
   },
   button: {
     paddingHorizontal: 12,
@@ -239,11 +163,6 @@ const styles = StyleSheet.create({
   },
   demoContainer: {
     flex: 1,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 8,
   },
   demoButtonsRow: {
     flexDirection: 'row',
@@ -269,6 +188,42 @@ const styles = StyleSheet.create({
   demoResponseText: {
     fontSize: 12,
     fontFamily: 'Courier',
+  },
+  navBar: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E5EA',
+    paddingVertical: 6,
+    backgroundColor: '#FFFFFF',
+  },
+  navItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  navItemActive: {
+    borderTopWidth: 2,
+    borderTopColor: '#007AFF',
+  },
+  navText: {
+    fontSize: 12,
+    color: '#8E8E93',
+  },
+  navTextActive: {
+    fontSize: 12,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  placeholderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  placeholderText: {
+    fontSize: 14,
+    color: '#8E8E93',
+    textAlign: 'center',
   },
 });
 
