@@ -250,7 +250,111 @@ def main() -> None:  # pragma: no cover - manual execution only
         help="optional name to set as the terminal title",
     )
 
+    # Optional integrations: Bonjour and bridge
+    parser.add_argument(
+        "--enable-bonjour",
+        action="store_true",
+        help="advertise the HTTP API via Bonjour/mDNS (uses zeroconf)",
+    )
+    parser.add_argument(
+        "--bonjour-port",
+        type=int,
+        default=None,
+        help=(
+            "port to advertise over Bonjour (default: server port or 8000)"
+        ),
+    )
+    parser.add_argument(
+        "--bonjour-service-name",
+        type=str,
+        default=None,
+        help=(
+            "Bonjour service name to advertise as "
+            "(default: 'Agent Terminal App')"
+        ),
+    )
+
+    parser.add_argument(
+        "--bridge-url",
+        type=str,
+        default=None,
+        help=(
+            "Bridge WebSocket URL (e.g. ws://localhost:4000/ws/websocket). "
+            "When provided, the server registers itself with the bridge "
+            "and accepts proxied HTTP requests from paired clients."
+        ),
+    )
+    parser.add_argument(
+        "--bridge-display-name",
+        type=str,
+        default=None,
+        help=(
+            "Human-friendly name for this server when registering with "
+            "the bridge (default: 'Agent Terminal App')."
+        ),
+    )
+    parser.add_argument(
+        "--bridge-location",
+        type=str,
+        default=None,
+        help="Optional location string reported to the bridge (e.g. 'Office')",
+    )
+    parser.add_argument(
+        "--bridge-local-http-base",
+        type=str,
+        default=None,
+        help=(
+            "Base URL of the local HTTP server as seen from the bridge "
+            "(default: http://<SERVER_HOST>:<SERVER_PORT>)."
+        ),
+    )
+    parser.add_argument(
+        "--bridge-server-id",
+        type=str,
+        default=None,
+        help=(
+            "Optional stable server_id for this process when registering "
+            "with the bridge (default: random UUID)."
+        ),
+    )
+
     args = parser.parse_args()
+
+    # Map CLI flags for Bonjour / bridge integrations onto environment
+    # variables so that the FastAPI server and helper modules can read a
+    # single configuration source regardless of how the app was started
+    # (``python -m agent_terminal_app`` vs direct uvicorn invocation).
+    if args.enable_bonjour:
+        os.environ["ENABLE_BONJOUR"] = "1"
+        if args.bonjour_port is not None:
+            os.environ["BONJOUR_PORT"] = str(args.bonjour_port)
+        if args.bonjour_service_name:
+            os.environ["BONJOUR_SERVICE_NAME"] = args.bonjour_service_name
+
+        advertised_port = args.bonjour_port or args.port
+        service_name = args.bonjour_service_name or "Agent Terminal App"
+        print(
+            f"[agent_terminal_app] Bonjour enabled: service={service_name!r} "
+            f"port={advertised_port}"
+        )
+
+    if args.bridge_url:
+        os.environ["BRIDGE_URL"] = args.bridge_url
+        if args.bridge_display_name:
+            os.environ["BRIDGE_DISPLAY_NAME"] = args.bridge_display_name
+        if args.bridge_location:
+            os.environ["BRIDGE_LOCATION"] = args.bridge_location
+        if args.bridge_local_http_base:
+            os.environ["BRIDGE_LOCAL_HTTP_BASE"] = args.bridge_local_http_base
+        if args.bridge_server_id:
+            os.environ["BRIDGE_SERVER_ID"] = args.bridge_server_id
+
+        display_name = args.bridge_display_name or "Agent Terminal App"
+        print(
+            f"[agent_terminal_app] Bridge enabled: url={args.bridge_url!r} "
+            f"display_name={display_name!r}"
+        )
+
     # Configure logging before importing application modules so that
     # any module-level loggers created during import respect the
     # selected level (CLI or environment).

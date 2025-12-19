@@ -49,6 +49,124 @@ You can change host and port:
 python -m agent_terminal_app --host 0.0.0.0 --port 9000
 ```
 
+## Enabling Bonjour (mDNS) and the bridge service
+
+The API server can optionally:
+
+- advertise itself on the local network via **Bonjour/mDNS** so that
+  compatible clients (like the React Native demo app) can discover it
+  automatically, and
+- connect to the **Elixir bridge service** so that mobile/desktop
+  clients can reach the server via a WebSocket bridge with a pairing
+  flow.
+
+These integrations are configured via command‑line flags when starting
+the app with ``python -m agent_terminal_app``. Under the hood the
+flags are converted to environment variables (``ENABLE_BONJOUR``,
+``BRIDGE_URL``, etc.) that the FastAPI app reads on startup.
+
+### Simplest Bonjour command
+
+From ``application/python``:
+
+```bash
+python -m agent_terminal_app \
+  --host 0.0.0.0 \
+  --port 9000 \
+  --enable-bonjour
+``
+
+This will:
+
+- start the HTTP API on ``http://0.0.0.0:9000``, and
+- advertise a ``_http._tcp`` Bonjour service named
+  ``"Agent Terminal App"`` on port ``9000``.
+
+You normally do **not** need to override the Bonjour options. For
+completeness, the most useful flags are:
+
+- ``--enable-bonjour`` – turn Bonjour advertising on.
+- ``--bonjour-port`` – explicit port to advertise; by default the
+  server port (``--port``) is used.
+- ``--bonjour-service-name`` – human‑readable instance name shown in
+  Bonjour browsers (default: ``"Agent Terminal App"``).
+
+Internally these map to:
+
+- ``ENABLE_BONJOUR=1``
+- ``BONJOUR_PORT=<value>`` (if provided)
+- ``BONJOUR_SERVICE_NAME=<value>`` (if provided)
+
+### Simplest bridge command
+
+To enable the bridge client, you need a running Elixir bridge
+instance (for example, from the ``bridge-elixir`` directory in the
+repository) exposing a WebSocket endpoint such as
+``ws://localhost:4000/ws/websocket``.
+
+The minimal command is:
+
+```bash
+python -m agent_terminal_app \
+  --host 0.0.0.0 \
+  --port 9000 \
+  --bridge-url ws://localhost:4000/ws/websocket
+``
+
+This will:
+
+- start the HTTP API on ``http://0.0.0.0:9000``, and
+- connect to the bridge as a "server" client, registering this
+  process so that mobile/desktop clients can discover and pair with it.
+
+When the bridge is enabled, the server prints human‑facing messages to
+stdout, including a banner with the 6‑digit pairing code and, once
+paired, the bridge session id. This makes it easy to complete the
+pairing flow from the React Native demo app.
+
+The most useful bridge options are:
+
+- ``--bridge-url`` – **required** to enable the bridge; WebSocket URL
+  of the Elixir bridge, for example
+  ``ws://localhost:4000/ws/websocket``.
+- ``--bridge-display-name`` – optional human‑friendly name shown in
+  bridge clients (defaults to ``"Agent Terminal App"``).
+- ``--bridge-location`` – optional free‑text location string (for
+  example, ``"Office"``); purely informational.
+- ``--bridge-local-http-base`` – optional explicit base URL for the
+  local HTTP server as seen from the bridge (default:
+  ``http://<SERVER_HOST>:<SERVER_PORT>`` derived from the ``--host``
+  and ``--port`` flags).
+
+Under the hood these map to the following environment variables:
+
+- ``BRIDGE_URL``
+- ``BRIDGE_DISPLAY_NAME`` (if provided)
+- ``BRIDGE_LOCATION`` (if provided)
+- ``BRIDGE_LOCAL_HTTP_BASE`` (if provided)
+- ``BRIDGE_SERVER_ID`` (if you supply ``--bridge-server-id``)
+
+### Bonjour + bridge together
+
+You can enable both integrations at the same time:
+
+```bash
+python -m agent_terminal_app \
+  --host 0.0.0.0 \
+  --port 9000 \
+  --enable-bonjour \
+  --bridge-url ws://localhost:4000/ws/websocket \
+  --bridge-display-name "My Agent Server" \
+  --bridge-location "Office"
+``
+
+In this mode:
+
+- LAN clients can discover the server via Bonjour and talk to it
+  directly over HTTP.
+- Remote clients can connect to the same server via the Elixir bridge
+  using the pairing flow.
+
 ## Running the terminal client
 
 To run only the terminal client (no HTTP server in this process):
