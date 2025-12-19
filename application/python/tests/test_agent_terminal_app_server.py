@@ -611,3 +611,249 @@ def test_http_flow_with_tools_and_reasoning(ensure_ollama_model: None, tmp_path:
         from agent_terminal_app.server import app as shared_app
 
         shared_app.dependency_overrides.clear()
+
+
+def test_update_message_endpoint_modifies_content_and_emits_event(tmp_path: Path) -> None:
+    """PATCH /sessions/{session_id}/messages/{index} updates message content.
+
+    The test creates a session with a system and two user messages,
+    modifies the last message via the endpoint, and verifies both the
+    stored session and the emitted ``message_modified`` event.
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    # Create a session and add a system plus two user messages.
+    create = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create["session"]["session_id"]
+
+    server_mod.add_message(
+        session_id,
+        {"role": "system", "content": "system", "metadata": None},
+        app_instance=app,
+    )
+    server_mod.add_message(
+        session_id,
+        {"role": "user", "content": "one", "metadata": None},
+        app_instance=app,
+    )
+    server_mod.add_message(
+        session_id,
+        {"role": "user", "content": "two", "metadata": None},
+        app_instance=app,
+    )
+
+    # Modify the last message using a negative index.
+    resp = server_mod.update_message(
+        session_id,
+        -1,
+        {"content": "two modified"},
+        app_instance=app,
+    )
+    session_dict = resp["session"]
+    contents = [m["content"] for m in session_dict["messages"]]
+    assert contents == ["system", "one", "two modified"]
+
+    # Check that a message_modified event was recorded with the expected index.
+    evs = app.get_event_store().list(session_id=session_id, limit=100)
+    modified = [ev for ev in evs if ev.get("type") == "message_modified"]
+    assert modified, "expected at least one message_modified event"
+    last_ev = modified[-1]
+    assert last_ev["index"] == 2
+    assert last_ev["content"] == "two modified"
+
+
+def test_delete_messages_endpoint_supports_indices_range_and_last(tmp_path: Path) -> None:
+    """DELETE /sessions/{session_id}/messages handles all deletion modes.
+
+    The test exercises the ``indices``, ``range``, and ``last`` shapes
+    and verifies both the resulting history and the reported indices.
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    # Session with a system message and three user messages.
+    create = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create["session"]["session_id"]
+
+    server_mod.add_message(
+        session_id,
+        {"role": "system", "content": "system", "metadata": None},
+        app_instance=app,
+    )
+    for content in ["one", "two", "three"]:
+        server_mod.add_message(
+            session_id,
+            {"role": "user", "content": content, "metadata": None},
+            app_instance=app,
+        )
+
+    # 1) Delete a single message by explicit index (remove "two").
+    resp_indices = server_mod.delete_messages(
+        session_id,
+        {"indices": [2]},
+        app_instance=app,
+    )
+    session_after_indices = resp_indices["session"]
+    contents_indices = [m["content"] for m in session_after_indices["messages"]]
+    assert contents_indices == ["system", "one", "three"]
+    assert resp_indices["deleted_indices"] == [2]
+
+    # 2) Delete specific indices (remove "one" and "three").
+    resp_range = server_mod.delete_messages(
+        session_id,
+        {"indices": [1, 2]},
+        app_instance=app,
+    )
+    session_after_range = resp_range["session"]
+    contents_range = [m["content"] for m in session_after_range["messages"]]
+    assert contents_range == ["system"]
+    assert sorted(resp_range["deleted_indices"]) == [1, 2]
+
+    # 3) Recreate messages and exercise range + last forms together.
+    server_mod.add_message(
+        session_id,
+        {"role": "user", "content": "one", "metadata": None},
+        app_instance=app,
+    )
+    server_mod.add_message(
+        session_id,
+        {"role": "user", "content": "two", "metadata": None},
+        app_instance=app,
+    )
+    server_mod.add_message(
+        session_id,
+        {"role": "user", "content": "three", "metadata": None},
+        app_instance=app,
+    )
+
+    # Delete a slice [1:3) -> "one", "two".
+    resp_slice = server_mod.delete_messages(
+        session_id,
+        {"range": {"start": 1, "end": 3}},
+        app_instance=app,
+    )
+    contents_slice = [m["content"] for m in resp_slice["session"]["messages"]]
+    assert contents_slice == ["system", "three"]
+    assert resp_slice["deleted_indices"] == [1, 2]
+
+    # Delete the last remaining user message via ``last``.
+    resp_last = server_mod.delete_messages(
+        session_id,
+        {"last": 1},
+        app_instance=app,
+    )
+    contents_last = [m["content"] for m in resp_last["session"]["messages"]]
+    assert contents_last == ["system"]
+    assert resp_last["deleted_indices"] == [1]
+
+
+def test_fork_session_endpoint_creates_truncated_copy(tmp_path: Path) -> None:
+    """POST /sessions/{session_id}/fork creates a new session with sliced history."""
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    source_session = create["session"]
+    source_id = source_session["session_id"]
+
+    # Add a system message and three user messages to the source session.
+    server_mod.add_message(
+        source_id,
+        {"role": "system", "content": "system", "metadata": None},
+        app_instance=app,
+    )
+    for content in ["one", "two", "three"]:
+        server_mod.add_message(
+            source_id,
+            {"role": "user", "content": content, "metadata": None},
+            app_instance=app,
+        )
+
+    # Fork up to and including index 2 ("two").
+    fork_resp = server_mod.fork_session(
+        source_id,
+        {"index": 2},
+        app_instance=app,
+    )
+    forked = fork_resp["session"]
+    forked_id = forked["session_id"]
+
+    assert forked_id != source_id
+    assert fork_resp["source_session_id"] == source_id
+
+    forked_contents = [m["content"] for m in forked["messages"]]
+    assert forked_contents == ["system", "one", "two"]
+
+    # A session_created event for the fork should be present.
+    evs = app.get_event_store().list(session_id=forked_id, limit=20)
+    created = [ev for ev in evs if ev.get("type") == "session_created"]
+    assert created, "expected a session_created event for forked session"
+    assert created[-1].get("source_session_id") == source_id
+
+
+def test_agent_endpoints_list_and_switch_agents(tmp_path: Path) -> None:
+    """GET /agents and /sessions/{id}/agent + PATCH switching behaviour."""
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    # List configured agents.
+    agents_resp = server_mod.list_agents(app_instance=app)
+    agents = agents_resp["agents"]
+    assert "default" in agents
+    assert "alt" in agents
+
+    # Create a session using the default agent.
+    create = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create["session"]["session_id"]
+
+    # The session's agent endpoint should report "default".
+    agent_resp = server_mod.get_session_agent(session_id, app_instance=app)
+    assert agent_resp["agent_id"] == "default"
+
+    # Switch to the "alt" agent.
+    switch_resp = server_mod.update_session_agent(
+        session_id,
+        {"agent_id": "alt"},
+        app_instance=app,
+    )
+    assert switch_resp["agent_id"] == "alt"
+
+    # The session metadata should reflect the new agent id.
+    ctx = app.load_session(session_id)
+    assert ctx is not None
+    _core, _base_config, session = ctx
+    md = session.metadata or {}
+    assert md.get("agent_id") == "alt"
+
+
+
+
