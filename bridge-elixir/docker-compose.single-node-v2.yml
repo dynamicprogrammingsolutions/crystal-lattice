@@ -1,0 +1,15 @@
+version: '2'
+
+services:
+  bridge:
+    build: .
+    container_name: bridge-single
+    environment:
+      - MIX_ENV=prod
+      - PORT=4000
+      # Optional tuning:
+      # - PAIRING_CODE_TTL=300
+      # - MAX_PAIRING_ATTEMPTS=3
+      # - SESSION_TIMEOUT=3600
+    ports:
+      - "4000:4000"

@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  haproxy:
+    # Override the default HAProxy config to enable TLS termination
+    volumes:
+      - ./haproxy-ssl.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./certs/bridge.pem:/usr/local/etc/haproxy/certs/bridge.pem:ro
+    # Ports remain the same as in docker-compose.yml
+    ports:
+      - "4000:4000"
+      - "8404:8404"
