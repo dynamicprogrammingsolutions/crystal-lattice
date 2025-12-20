@@ -239,7 +239,7 @@ Add tests in `application/python/tests/test_agent_terminal_app_server.py`:
 
 - Create a new directory in this repo, e.g.:
 
-    - `mobile/bonjour-example-rn/` (or `mobile/react-native-bonjour`).
+    - `mobile/crystal-lattice-control-rn/` (or `mobile/react-native-bonjour`).
 
 - Copy `../bonjour-example-1/react-native-app` contents into that directory.
 
