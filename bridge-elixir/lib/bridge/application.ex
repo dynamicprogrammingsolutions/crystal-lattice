@@ -8,6 +8,7 @@ defmodule Bridge.Application do
       {Cluster.Supervisor, [Application.get_env(:libcluster, :topologies), [name: Bridge.ClusterSupervisor]]},
       Bridge.ServerRegistry,
       Bridge.PairingManager,
+      Bridge.PersistentPairingManager,
       Bridge.SessionManager,
       Bridge.Endpoint
     ]

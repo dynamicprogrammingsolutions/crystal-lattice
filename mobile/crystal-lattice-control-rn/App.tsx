@@ -105,6 +105,8 @@ class BridgeAdapter implements ConnectionAdapter {
   private sessionId: string | null = null;
   private serverId: string | null = null;
   private serverName: string = '';
+  private pairingToken: string | null = null;
+  private connectPromise: Promise<void> | null = null;
   private responseHandlers: Map<string, (data: any) => void> = new Map();
 
   constructor(bridgeUrl: string) {
@@ -136,7 +138,27 @@ class BridgeAdapter implements ConnectionAdapter {
     });
   }
 
+  private async ensureConnected(): Promise<void> {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      return;
+    }
+
+    if (!this.connectPromise) {
+      this.connectPromise = this.connectInternal();
+    }
+
+    try {
+      await this.connectPromise;
+    } finally {
+      this.connectPromise = null;
+    }
+  }
+
   async connect(): Promise<void> {
+    await this.ensureConnected();
+  }
+
+  private connectInternal(): Promise<void> {
     return new Promise((resolve, reject) => {
       console.log('🔌 Connecting to bridge:', this.bridgeUrl);
       
@@ -172,13 +194,19 @@ class BridgeAdapter implements ConnectionAdapter {
 
           try {
             await this.joinChannel();
+
+            if (this.pairingToken && this.serverId && !this.sessionId) {
+              console.log('🔁 Attempting to resume bridge session');
+              await this.resumeSessionRaw();
+            }
+
             console.log('✅ Bridge connection complete');
             resolve();
           } catch (err: any) {
-            console.log('❌ Failed to join channel:', err);
+            console.log('❌ Failed to complete bridge handshake:', err);
             clearTimeout(connectionTimeout);
             this.ws?.close();
-            reject(new Error(`Failed to join channel: ${err.message}`));
+            reject(new Error(`Failed to complete bridge handshake: ${err.message}`));
           }
         };
 
@@ -206,6 +234,8 @@ class BridgeAdapter implements ConnectionAdapter {
             wasClean: event.wasClean,
           });
           clearTimeout(connectionTimeout);
+          this.ws = null;
+          this.sessionId = null;
           
           if (event.code !== 1000 && event.code !== 1005) {
             const errorMsg = `Connection closed unexpectedly (code: ${event.code})`;
@@ -222,7 +252,7 @@ class BridgeAdapter implements ConnectionAdapter {
     });
   }
 
-  private sendMessage(topic: string, event: string, payload: any): Promise<any> {
+  private sendMessageRaw(topic: string, event: string, payload: any): Promise<any> {
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
         reject(new Error('WebSocket not connected'));
@@ -251,12 +281,22 @@ class BridgeAdapter implements ConnectionAdapter {
     });
   }
 
+  private async sendMessage(topic: string, event: string, payload: any): Promise<any> {
+    await this.ensureConnected();
+    return this.sendMessageRaw(topic, event, payload);
+  }
+
   private async joinChannel(): Promise<void> {
-    const msg = this.phoenixMessage(`app:${this.clientId}`, 'phx_join', {});
-    
+    const topic = `app:${this.clientId}`;
+    const ref = this.getRef();
+    const msg = JSON.stringify({ topic, event: 'phx_join', payload: {}, ref });
+
     return new Promise((resolve, reject) => {
-      const ref = this.refCounter.toString();
-      
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+        reject(new Error('WebSocket not connected'));
+        return;
+      }
+
       this.responseHandlers.set(ref, (data) => {
         if (data.event === 'phx_reply' && data.payload.status === 'ok') {
           console.log('✅ Joined app channel');
@@ -266,7 +306,7 @@ class BridgeAdapter implements ConnectionAdapter {
         }
       });
 
-      this.ws!.send(msg);
+      this.ws.send(msg);
     });
   }
 
@@ -295,14 +335,34 @@ class BridgeAdapter implements ConnectionAdapter {
       { server_id: serverId, code: code }
     );
     this.sessionId = response.session_id;
+    this.pairingToken = response.pairing_token || null;
     this.serverId = serverId;
     this.serverName = serverName;
+  }
+
+  private async resumeSessionRaw(): Promise<void> {
+    if (!this.pairingToken || !this.serverId) {
+      return;
+    }
+
+    const response = await this.sendMessageRaw(
+      `app:${this.clientId}`,
+      'resume_session',
+      {
+        pairing_token: this.pairingToken,
+        server_id: this.serverId,
+      }
+    );
+
+    this.sessionId = response.session_id;
   }
 
   async get(path: string): Promise<any> {
     if (!this.sessionId) {
       throw new Error('Not paired with any server');
     }
+
+    await this.ensureConnected();
 
     const requestId = this.generateUuid();
     const response = await this.sendMessage(
@@ -329,6 +389,8 @@ class BridgeAdapter implements ConnectionAdapter {
       throw new Error('Not paired with any server');
     }
 
+    await this.ensureConnected();
+
     const requestId = this.generateUuid();
     const response = await this.sendMessage(
       `app:${this.clientId}`,
@@ -353,6 +415,8 @@ class BridgeAdapter implements ConnectionAdapter {
     if (!this.sessionId) {
       throw new Error('Not paired with any server');
     }
+
+    await this.ensureConnected();
 
     const requestId = this.generateUuid();
     const response = await this.sendMessage(
@@ -381,6 +445,7 @@ class BridgeAdapter implements ConnectionAdapter {
     }
     this.sessionId = null;
     this.serverId = null;
+    this.pairingToken = null;
   }
 
   getDisplayName(): string {

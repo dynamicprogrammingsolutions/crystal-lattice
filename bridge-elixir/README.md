@@ -189,6 +189,32 @@ All messages are JSON with a `type` field.
 }
 ```
 
+On success, the client receives a response (via the underlying Phoenix
+channel protocol) that includes both a short‑lived `session_id` and a
+longer‑lived `pairing_token` that can be used to resume the logical
+connection across WebSocket reconnects:
+
+```json
+{
+  "session_id": "uuid",
+  "pairing_token": "uuid-or-random-token"
+}
+```
+
+**Resume Session:**
+```json
+{
+  "type": "resume_session",
+  "pairing_token": "uuid-or-random-token",
+  "server_id": "uuid"  
+}
+```
+
+The `resume_session` flow lets an app client obtain a fresh `session_id`
+for a previously paired server (as long as the bridge node is still
+running and the server is registered), without requiring the user to
+enter the 6‑digit pairing code again.
+
 **HTTP Request:**
 ```json
 {

@@ -318,6 +318,9 @@ plugins/experimental/
 docs/build/
 docs/dist/
 
+# React Native Android build artefacts
+mobile/crystal-lattice-control-rn/android/app/.cxx/
+
 # Package manager lock files (optional - uncomment if you want to ignore them)
 # package-lock.json
 # yarn.lock

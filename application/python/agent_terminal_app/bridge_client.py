@@ -128,30 +128,42 @@ class BridgeClient:
             return
 
         ws_url = f"{self.config.bridge_url}?type=server"
-        log.info("Connecting to bridge at %s", ws_url)
-        if not self.test_mode:
-            print(f"[bridge] connecting to {ws_url} as server '{self.config.display_name}'…")
+        # Keep trying to connect until stopped; this lets the server recover
+        # from transient bridge outages without a full restart.
+        backoff = 1.0
 
-        try:
-            self._ws = await websockets.connect(ws_url)
-            self._connected = True
-            log.info("Connected to bridge WebSocket")
+        while not self._stopped:
+            log.info("Connecting to bridge at %s", ws_url)
             if not self.test_mode:
-                print("[bridge] connected to WebSocket")
+                print(
+                    f"[bridge] connecting to {ws_url} as server '{self.config.display_name}'…"
+                )
 
-            await self._join_channel()
-            await self._register_server()
+            try:
+                self._ws = await websockets.connect(ws_url)
+                self._connected = True
+                log.info("Connected to bridge WebSocket")
+                if not self.test_mode:
+                    print("[bridge] connected to WebSocket")
 
-            await self._handle_messages()
-        except asyncio.CancelledError:  # pragma: no cover - cooperative shutdown
-            raise
-        except Exception:
-            log.exception("Bridge client error")
-            if not self.test_mode:
-                print("[bridge] error in bridge client; see logs for details")
-        finally:
-            await self._close_ws()
-            self._connected = False
+                await self._join_channel()
+                await self._register_server()
+
+                await self._handle_messages()
+            except asyncio.CancelledError:  # pragma: no cover - cooperative shutdown
+                raise
+            except Exception:
+                log.exception("Bridge client error")
+                if not self.test_mode:
+                    print("[bridge] error in bridge client; will retry shortly")
+            finally:
+                await self._close_ws()
+                self._connected = False
+
+            if self._stopped:
+                break
+
+            await asyncio.sleep(backoff)
 
     async def stop(self) -> None:
         """Request graceful shutdown of the bridge connection."""
