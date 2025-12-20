@@ -11,7 +11,9 @@ The AI Agent Platform is a **modular, functional agent framework** for building 
 Main pieces:
 - **Core SDK** (`core/python/agent_core`): pure conversation engine + plugin system.
 - **Application layer** (`core/python/agent_app`): config loading, session & event stores, tool loop.
-- **Terminal + HTTP app** (`application/python/agent_terminal_app`): FastAPI JSON API and prompt_toolkit terminal.
+- **Terminal + HTTP + mobile integration app** (`application/python/agent_terminal_app`): FastAPI JSON API, prompt_toolkit terminal, and glue for mobile connectivity (direct HTTP, Bonjour/mDNS, and bridge service).
+- **Mobile app** (`mobile/crystal-lattice-control-rn`): React Native client (Crystal Lattice Control) that connects to the terminal/HTTP app directly or via the bridge, providing a sessions/messages UI on phones and simulators.
+- **Bridge service** (`bridge-elixir`): Elixir/Phoenix WebSocket bridge that lets mobile/desktop apps talk to local HTTP servers across networks using pairing + proxied HTTP requests.
 - **Built-in plugins** (`core/python/plugins`): providers, extensions, features, tools.
 - **Examples & tests** (`core/python/examples`, `core/python/tests`, `application/python/tests`).
 
@@ -39,10 +41,34 @@ Design principles:
 - `events.py`: `InMemoryEventStore`.
 
 **Terminal & HTTP app – `application/python/agent_terminal_app`**
-- `server.py`: FastAPI routes; maps HTTP JSON to `AgentApplication`.
+- `server.py`: FastAPI routes; maps HTTP JSON to `AgentApplication`, exposes both agent/session APIs and small demo endpoints used by the mobile app (e.g. `/api/data`, `/api/hello`).
 - `terminal_app.py`: `TerminalApplication` – terminal-facing app API (sessions, delete/modify/list, agents, plugins, overrides).
 - `terminal.py`: CLI UI (slash commands, shortcuts); calls `TerminalApplication` only.
 - `event_rendering.py`: how streamed events (assistant, reasoning, tools) are printed.
+- `bonjour.py` / `bridge_client.py`: integration helpers so the mobile app can connect via direct address, Bonjour discovery, or the bridge service.
+
+See `application/python/agent_terminal_app/AGENTS.md` for directory-specific guidelines when working on the server, terminal, or mobile/bridge integration.
+
+**Mobile app – `mobile/crystal-lattice-control-rn`**
+- React Native app (Crystal Lattice Control) that talks to the terminal/HTTP app and bridge.
+- Connection methods: manual IP/port, Bonjour/mDNS discovery, and bridge WebSocket.
+- Main pieces:
+  - `App.tsx`: connection flow + `ConnectionAdapter` implementations.
+  - `src/ConnectedRoot.tsx`: bottom-tab navigation (Connection / Sessions / Messages).
+  - `src/api.ts`: typed wrapper around the terminal HTTP API (sessions, messages, send).
+  - `src/components/MessageBubble.tsx`: per-role message renderers (user/system/tool/assistant) including collapsible tool results and reasoning.
+  - `src/SessionsScreen.tsx`, `src/SessionChatScreen.tsx`, `src/ConnectionScreen.tsx`: screens for listing sessions, viewing messages, and connection status.
+
+See `mobile/crystal-lattice-control-rn/AGENTS.md` for React Native–specific guidelines, styling rules, and notes on message rendering and scrolling behavior.
+
+**Bridge service – `bridge-elixir`**
+- Distributed Elixir/Phoenix bridge that:
+  - Accepts "server" WebSocket clients (e.g. Python `agent_terminal_app`).
+  - Accepts "app" WebSocket clients (e.g. the React Native demo).
+  - Manages pairing (6-digit codes) and sessions.
+  - Forwards serialized HTTP requests/responses between app and server.
+
+See `bridge-elixir/AGENTS.md` for directory-specific guidelines and deployment notes.
 
 **Plugins – `core/python/plugins`**
 - Providers: e.g. `openai_provider.py`, `openrouter_provider.py`.

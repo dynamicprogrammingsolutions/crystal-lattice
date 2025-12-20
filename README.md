@@ -4,8 +4,10 @@ A functional, plugin‑based agent framework for building conversational applica
 
 - **Functional core SDK (`agent_core`)** – immutable sessions/messages, stateless pipeline, provider/tool orchestration.
 - **Application layer (`agent_app`)** – config loading, sessions, events, tool loop, cancellation.
-- **Terminal + HTTP app (`agent_terminal_app`)** – FastAPI JSON API and prompt_toolkit terminal client.
+- **Terminal + HTTP + mobile integration app (`agent_terminal_app`)** – FastAPI JSON API, prompt_toolkit terminal client, and glue so mobile apps can connect via direct HTTP, Bonjour/mDNS discovery, or a bridge service.
+- **Mobile app (`mobile/crystal-lattice-control-rn`)** – React Native client (Crystal Lattice Control) that connects to the terminal/HTTP app directly or via the bridge and provides a sessions/messages UI on phones and simulators.
 - **Plugin system (`core/python/plugins`)** – providers, reasoning/thinking extensions, features, and tools.
+- **Bridge service (`bridge-elixir`)** – Elixir/Phoenix WebSocket bridge that lets mobile/desktop apps talk to local HTTP servers across networks using pairing + proxied HTTP requests.
 
 This README is for first‑time users and contributors who want to either *try the platform quickly* or *start extending it*.
 
@@ -238,6 +240,7 @@ The platform is organized into three layers plus plugins:
      - `POST /sessions/{session_id}/messages` – append a message.
      - `POST /sessions/{session_id}/send` – run request + tool loop and publish events.
      - `GET /events` – poll events by `session_id` / `request_id`.
+      - `GET/PUT /api/data`, `GET /api/hello` – simple demo endpoints used by the React Native mobile example.
    - `terminal_app.py` (`TerminalApplication`):
      - Owns an `AgentApplication` and an active `Session`.
      - Session lifecycle: create, switch, list, delete.
@@ -253,6 +256,12 @@ The platform is organized into three layers plus plugins:
        - Autocomplete for agents, sessions, plugins, and `/set` keys.
    - `event_rendering.py`:
      - Separate renderers for reasoning (`metadata.reasoning`), assistant content, streaming tool output, and request headers/footers.
+
+   Together, the HTTP server and terminal app form the main user-facing application. They also provide the attachment points for **mobile connectivity**:
+
+   - **Direct HTTP** – mobile apps can call `/api/data` and `/sessions/...` directly by host + port.
+   - **Bonjour/mDNS** – `bonjour.py` advertises the HTTP server on the local network so compatible clients can discover it automatically.
+   - **Bridge service** – `bridge_client.py` connects to the Elixir bridge (`bridge-elixir`) so mobile apps can pair with and talk to this server across networks via `http_request` messages.
 
 4. **Plugins – `core/python/plugins`**
    - Providers:
@@ -275,6 +284,95 @@ The platform is organized into three layers plus plugins:
 
 For a deeper architectural description and diagrams, see `ARCHITECTURE.md`.
 
+For directory-specific guidelines on the terminal/server/mobile integration layer, see:
+
+- `application/python/agent_terminal_app/AGENTS.md`
+- `application/python/agent_terminal_app/README.md`
+
+---
+
+## Mobile & Bridge Integration
+
+The platform includes a reference mobile integration that connects a React Native
+app to a locally running Python server, both on the same LAN and across
+networks.
+
+High-level flow:
+
+- **Direct HTTP** – mobile app talks directly to the FastAPI server
+  (`agent_terminal_app.server`) via host + port.
+- **Bonjour/mDNS** – the server advertises an `_http._tcp` service via
+  `bonjour.py`, and the mobile app discovers it automatically on the local
+  network.
+- **Bridge service** – the Python server connects as a "server" client to the
+  Elixir bridge (`bridge-elixir`) using `bridge_client.py`. The mobile app
+  connects as an "app" client, pairs using a 6‑digit code, and sends
+  `http_request` messages that the bridge proxies to the local FastAPI server.
+
+Rough topology with bridge + TLS in front:
+
+```text
+React Native app
+     │
+     ▼
+  Nginx / LB (TLS termination, e.g. wss://bridge.example.com)
+     │
+     ▼
+  bridge-elixir (Phoenix + libcluster, /ws/websocket)
+     │
+     ▼
+Python HTTP server (agent_terminal_app.server, http://host:port)
+```
+
+Key directories and docs:
+
+- `application/python/agent_terminal_app` – FastAPI server, terminal client,
+  Bonjour + bridge integration.
+- `mobile/crystal-lattice-control-rn` – React Native app (Crystal Lattice Control) that talks to the terminal/HTTP app via direct HTTP, Bonjour discovery, or the bridge; see its `README.md` and `AGENTS.md`.
+- `bridge-elixir` – Elixir/Phoenix bridge service and Docker/HAProxy configs.
+- `bridge-elixir/PRODUCTION_DEPLOYMENT.md` – single-node and clustered bridge
+  deployment guides (with optional TLS in Nginx/HAProxy).
+- `bridge-elixir/README.md` / `bridge-elixir/AGENTS.md` – bridge architecture
+  and contributor notes.
+
+### React Native example app (Crystal Lattice Control)
+
+The repository includes a React Native app that exercises the mobile
+connectivity paths in a real UI.
+
+From the repo root:
+
+```bash
+cd mobile/crystal-lattice-control-rn
+npm install           # or: npm ci
+
+# Start Metro bundler
+npm run start
+
+# In a separate terminal: run on iOS simulator
+npm run ios
+
+# Or on Android emulator / device
+npm run android
+```
+
+The app expects the Python terminal/HTTP server to be running and reachable
+from the device or simulator. You can connect in three ways from the app:
+
+- **Manual** – enter host and port of the FastAPI server.
+- **Discovery** – use Bonjour/mDNS to find the advertised `_http._tcp` service.
+- **Bridge** – enter the WebSocket URL for the Elixir bridge (e.g.
+  `ws://bridge-host:4000/ws/websocket`), select a server, and pair using the
+  6‑digit code shown in the server logs.
+
+Once connected, the app shows:
+
+- A **Connection** tab – server name, `/api/hello` health check, disconnect.
+- A **Sessions** tab – list/create sessions backed by `/sessions`.
+- A **Messages** tab – per-session chat view using `/sessions/{id}/messages`
+  and `/sessions/{id}/send`, with role-specific message styling and
+  collapsible tool results and reasoning.
+
 ---
 
 ## Repository Layout
@@ -286,8 +384,10 @@ Common entry points and directories:
 - `core/python/plugins` – built‑in providers, extensions, features, tools.
 - `core/python/examples` – runnable examples; also used to generate `EXAMPLES.md`.
 - `core/python/tests` – tests for core, app layer, and plugins.
-- `application/python/agent_terminal_app` – terminal + HTTP app.
+- `application/python/agent_terminal_app` – terminal + HTTP + mobile integration app; see its `README.md` and `AGENTS.md` for details.
 - `application/python/tests` – tests for server + terminal behavior.
+- `mobile/crystal-lattice-control-rn` – React Native app (Crystal Lattice Control); see its `README.md` and `AGENTS.md`.
+- `bridge-elixir` – Elixir/Phoenix bridge service used for cross‑network mobile connectivity; see `bridge-elixir/README.md`, `bridge-elixir/PRODUCTION_DEPLOYMENT.md`, and `bridge-elixir/AGENTS.md`.
 - `docs/` – MkDocs configuration and reference docs.
 - Root docs: `ARCHITECTURE.md`, `DEVELOPMENT.md`, `EXAMPLES.md`, `TYPES_AND_PROTOCOLS.md`, `PROJECT_PLAN.md`.
 
