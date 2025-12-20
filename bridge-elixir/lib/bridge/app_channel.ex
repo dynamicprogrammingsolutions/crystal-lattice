@@ -49,6 +49,9 @@ defmodule Bridge.AppChannel do
       :ok ->
         case Bridge.ServerRegistry.get_server(server_id) do
           {:ok, server_info} ->
+            {:ok, pairing_token} =
+              Bridge.PersistentPairingManager.create_or_get_token(server_id, client_id)
+
             {:ok, session_id} = Bridge.SessionManager.create_session(
               server_id,
               client_id,
@@ -59,7 +62,7 @@ defmodule Bridge.AppChannel do
             socket = assign(socket, :session_id, session_id)
             Phoenix.PubSub.subscribe(Bridge.PubSub, "tunnel:app:#{client_id}")
 
-            {:reply, {:ok, %{session_id: session_id}}, socket}
+            {:reply, {:ok, %{session_id: session_id, pairing_token: pairing_token}}, socket}
 
           {:error, :not_found} ->
             {:reply, {:error, %{reason: "server_not_found"}}, socket}
@@ -67,6 +70,46 @@ defmodule Bridge.AppChannel do
 
       {:error, reason} ->
         {:reply, {:error, %{reason: Atom.to_string(reason)}}, socket}
+    end
+  end
+
+  @impl true
+  def handle_in("resume_session", %{"pairing_token" => token} = params, socket) do
+    client_id = socket.assigns.client_id
+
+    case Bridge.PersistentPairingManager.get_by_token(token) do
+      {:ok, pairing} ->
+        server_id_param = Map.get(params, "server_id")
+
+        # If a server_id is provided by the client, ensure it matches the
+        # stored pairing to avoid accidental mixes.
+        if is_binary(server_id_param) and server_id_param != pairing.server_id do
+          {:reply, {:error, %{reason: "server_mismatch"}}, socket}
+        else
+          case Bridge.ServerRegistry.get_server(pairing.server_id) do
+            {:ok, server_info} ->
+              {:ok, session_id} =
+                Bridge.SessionManager.create_session(
+                  pairing.server_id,
+                  client_id,
+                  server_info.node,
+                  node()
+                )
+
+              Bridge.PersistentPairingManager.touch(token)
+
+              socket = assign(socket, :session_id, session_id)
+              Phoenix.PubSub.subscribe(Bridge.PubSub, "tunnel:app:#{client_id}")
+
+              {:reply, {:ok, %{session_id: session_id}}, socket}
+
+            {:error, :not_found} ->
+              {:reply, {:error, %{reason: "server_not_found"}}, socket}
+          end
+        end
+
+      {:error, :not_found} ->
+        {:reply, {:error, %{reason: "invalid_pairing_token"}}, socket}
     end
   end
 
