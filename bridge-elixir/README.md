@@ -458,6 +458,11 @@ Node.list()
 - Resource limits (memory, CPU)
 - Monitoring and alerting
 
+For a detailed, step-by-step deployment guide (single-node and clustered,
+with optional TLS at HAProxy or a reverse proxy), see:
+
+- [`PRODUCTION_DEPLOYMENT.md`](./PRODUCTION_DEPLOYMENT.md)
+
 ### Kubernetes
 
 See `BRIDGE_PLAN.md` for Kubernetes deployment strategy.
@@ -480,14 +485,16 @@ Key considerations:
 For production, use secure WebSocket connections:
 
 ```elixir
-# config/prod.exs
-config :bridge, BridgeWeb.Endpoint,
+# Example: enabling TLS directly in Phoenix (optional; not configured by default).
+# See PRODUCTION_DEPLOYMENT.md for what would need to change in config/runtime.exs.
+
+config :bridge, Bridge.Endpoint,
   url: [host: "bridge.example.com", port: 443, scheme: "https"],
   https: [
     port: 443,
     cipher_suite: :strong,
-    keyfile: System.get_env("SSL_KEY_PATH"),
-    certfile: System.get_env("SSL_CERT_PATH")
+    keyfile: System.get_env("TLS_KEY_PATH"),
+    certfile: System.get_env("TLS_CERT_PATH")
   ]
 ```
 
