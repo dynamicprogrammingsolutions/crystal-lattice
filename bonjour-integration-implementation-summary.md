@@ -277,7 +277,7 @@ dns-sd -B _http._tcp .
 # You should see "Agent Terminal App" (or your BONJOUR_SERVICE_NAME).
 ```
 
-The RN app (already copied into `mobile/bonjour-example-rn`) can now discover this `_http._tcp` service via its “Automatic Discovery” mode and talk to `/api/data`.
+The RN app (already copied into `mobile/crystal-lattice-control-rn`) can now discover this `_http._tcp` service via its “Automatic Discovery” mode and talk to `/api/data`.
 
 ---
 
