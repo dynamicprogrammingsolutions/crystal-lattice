@@ -603,10 +603,8 @@ class BridgeAdapter implements ConnectionAdapter {
 
 function App(): React.JSX.Element {
   const isDarkMode = useColorScheme() === 'dark';
-  const [screen, setScreen] = useState<
-    'connections' | 'method' | 'connecting' | 'connected'
-  >('connections');
   const [connectionMethod, setConnectionMethod] = useState<ConnectionMethod | null>(null);
+  const [showConnectionWizard, setShowConnectionWizard] = useState(false);
   const [adapter, setAdapter] = useState<ConnectionAdapter | null>(null);
   const [connections, setConnections] = useState<ConnectionRecord[]>([]);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
@@ -637,23 +635,13 @@ function App(): React.JSX.Element {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed)) {
               setConnections(parsed as ConnectionRecord[]);
-              if (parsed.length > 0) {
-                setScreen('connections');
-              } else {
-                setScreen('method');
-              }
-            } else {
-              setScreen('method');
             }
           } catch {
-            setScreen('method');
+            // ignore malformed storage
           }
-        } else {
-          setScreen('method');
         }
       } catch (err) {
         console.log('Failed to load saved connections', err);
-        setScreen('method');
       } finally {
         setConnectionsLoading(false);
       }
@@ -719,11 +707,21 @@ function App(): React.JSX.Element {
 
   const selectMethod = (method: ConnectionMethod) => {
     setConnectionMethod(method);
-    setScreen('connecting');
-    
     if (method === 'discovery') {
       startDiscovery();
     }
+  };
+
+  const cancelConnectionWizard = () => {
+    if (isSearching) {
+      stopDiscovery();
+    }
+    setConnectionMethod(null);
+    setShowConnectionWizard(false);
+    setDiscoveredServices([]);
+    setBridgeServers([]);
+    setSelectedBridgeServer(null);
+    setPairingCode('');
   };
 
   const startDiscovery = () => {
@@ -761,7 +759,8 @@ function App(): React.JSX.Element {
       };
       upsertConnection(record);
       setSelectedConnectionId(id);
-      setScreen('connected');
+      setShowConnectionWizard(false);
+      setConnectionMethod(null);
     } catch (error: any) {
       Alert.alert('Connection Error', error.message);
     } finally {
@@ -788,7 +787,8 @@ function App(): React.JSX.Element {
       };
       upsertConnection(record);
       setSelectedConnectionId(id);
-      setScreen('connected');
+      setShowConnectionWizard(false);
+      setConnectionMethod(null);
     } catch (error: any) {
       Alert.alert('Connection Error', error.message);
     } finally {
@@ -883,7 +883,8 @@ function App(): React.JSX.Element {
       };
       upsertConnection(record);
       setSelectedConnectionId(id);
-      setScreen('connected');
+      setShowConnectionWizard(false);
+      setConnectionMethod(null);
       setPairingCode('');
     } catch (error: any) {
       Alert.alert('Pairing Failed', error.message);
@@ -901,13 +902,7 @@ function App(): React.JSX.Element {
       bridgeAdapter.disconnect();
       setBridgeAdapter(null);
     }
-    stopDiscovery();
-    setScreen('connections');
-    setConnectionMethod(null);
-    setDiscoveredServices([]);
-    setBridgeServers([]);
-    setSelectedBridgeServer(null);
-    setPairingCode('');
+    cancelConnectionWizard();
   };
 
   const backgroundStyle = {
@@ -938,6 +933,12 @@ function App(): React.JSX.Element {
         onPress={() => selectMethod('bridge')}>
         <Text style={styles.buttonText}>Bridge Service</Text>
         <Text style={styles.methodDescription}>Connect via bridge server</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, styles.secondaryButton]}
+        onPress={cancelConnectionWizard}>
+        <Text style={styles.buttonTextSecondary}>Cancel</Text>
       </TouchableOpacity>
     </View>
   );
@@ -974,7 +975,7 @@ function App(): React.JSX.Element {
 
       <TouchableOpacity
         style={[styles.button, styles.secondaryButton]}
-        onPress={handleDisconnect}>
+        onPress={cancelConnectionWizard}>
         <Text style={styles.buttonTextSecondary}>Back</Text>
       </TouchableOpacity>
     </View>
@@ -1019,7 +1020,7 @@ function App(): React.JSX.Element {
 
       <TouchableOpacity
         style={[styles.button, styles.secondaryButton]}
-        onPress={handleDisconnect}>
+        onPress={cancelConnectionWizard}>
         <Text style={styles.buttonTextSecondary}>Back</Text>
       </TouchableOpacity>
     </View>
@@ -1164,8 +1165,8 @@ function App(): React.JSX.Element {
 
       <TouchableOpacity
         style={[styles.button, styles.secondaryButton]}
-        onPress={handleDisconnect}>
-        <Text style={styles.buttonTextSecondary}>Back</Text>
+        onPress={cancelConnectionWizard}>
+        <Text style={styles.buttonTextSecondary}>Cancel</Text>
       </TouchableOpacity>
     </View>
   );
@@ -1200,7 +1201,6 @@ function App(): React.JSX.Element {
         setAdapter(nextAdapter);
         setSelectedConnectionId(record.id);
         upsertConnection({ ...record, lastUsedAt: Date.now() });
-        setScreen('connected');
       }
     } catch (error: any) {
       console.log('Failed to reconnect to saved connection', error);
@@ -1213,26 +1213,29 @@ function App(): React.JSX.Element {
   return (
     <SafeAreaView style={backgroundStyle}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      {screen === 'connected' && adapter ? (
-        <ConnectedRoot adapter={adapter} onDisconnect={handleDisconnect} />
-      ) : (
-        <ScrollView
-          contentInsetAdjustmentBehavior="automatic"
-          style={backgroundStyle}
-          contentContainerStyle={styles.scrollContent}
-        >
-          {screen === 'connections' && (
-            <ConnectionsScreen
-              connections={connections}
-              loading={connectionsLoading}
-              onSelectConnection={handleSelectSavedConnection}
-              onNewConnection={() => setScreen('method')}
-            />
-          )}
-          {screen === 'method' && renderMethodSelection()}
-          {screen === 'connecting' && renderConnectingScreen()}
-        </ScrollView>
-      )}
+      <ConnectedRoot
+        adapter={adapter}
+        onDisconnect={handleDisconnect}
+        connections={connections}
+        connectionsLoading={connectionsLoading}
+        onSelectConnectionRecord={handleSelectSavedConnection}
+        onNewConnectionRequested={() => {
+          if (adapter) {
+            handleDisconnect();
+          }
+          setConnectionMethod(null);
+          setShowConnectionWizard(true);
+        }}
+        renderConnectionWizard={() => {
+          if (!showConnectionWizard) {
+            return null;
+          }
+          if (!connectionMethod) {
+            return renderMethodSelection();
+          }
+          return renderConnectingScreen();
+        }}
+      />
     </SafeAreaView>
   );
 }
