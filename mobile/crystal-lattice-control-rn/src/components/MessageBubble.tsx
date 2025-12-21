@@ -124,8 +124,6 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({ index, message }
           )}
         </View>
 
-        {content ? <Text style={styles.contentText}>{content}</Text> : null}
-
         {reasoning && reasoningExpanded && (
           <View style={styles.collapsibleContainerReasoning}>
             <ScrollView
@@ -140,6 +138,8 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({ index, message }
         {reasoning && !reasoningExpanded && (
           <Text style={styles.collapsedHintText}>Reasoning hidden (tap chevron to expand).</Text>
         )}
+
+        {content ? <Text style={styles.contentText}>{content}</Text> : null}
       </View>
     </View>
   );
