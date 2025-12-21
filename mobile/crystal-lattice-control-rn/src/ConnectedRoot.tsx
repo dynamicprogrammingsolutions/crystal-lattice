@@ -21,7 +21,9 @@ interface ConnectedRootProps {
   onSelectConnectionRecord: (record: ConnectionRecord) => void;
   onNewConnectionRequested: () => void;
   renderConnectionWizard: () => React.ReactNode;
+  onDeleteConnectionRecord: (record: ConnectionRecord) => void;
   activeConnectionId: string | null;
+  activeConnectionAdditionalInfo: string | null;
   sessionsCache: SessionsCache;
   onUpdateSessionsCache: (connectionId: string, sessions: SessionSummary[]) => void;
   messagesCache: MessagesCache;
@@ -40,7 +42,9 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   onSelectConnectionRecord,
   onNewConnectionRequested,
   renderConnectionWizard,
+  onDeleteConnectionRecord,
   activeConnectionId,
+  activeConnectionAdditionalInfo,
   sessionsCache,
   onUpdateSessionsCache,
   messagesCache,
@@ -93,7 +97,11 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
               return (
                 <>
                   {adapter ? (
-                    <ConnectionScreen adapter={adapter} onDisconnect={onDisconnect} />
+                    <ConnectionScreen
+                      adapter={adapter}
+                      onDisconnect={onDisconnect}
+                      additionalInfo={activeConnectionAdditionalInfo}
+                    />
                   ) : (
                     <View style={styles.placeholderContainer}>
                       <Text style={styles.placeholderText}>
@@ -111,6 +119,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                         setTab('sessions');
                       }}
                       onNewConnection={onNewConnectionRequested}
+                      onDeleteConnection={onDeleteConnectionRecord}
                     />
                   </View>
                 </>

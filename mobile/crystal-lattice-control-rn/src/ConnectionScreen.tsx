@@ -5,9 +5,14 @@ import type { ConnectionAdapter } from '../App';
 interface ConnectionScreenProps {
   adapter: ConnectionAdapter;
   onDisconnect: () => void;
+  additionalInfo?: string | null;
 }
 
-const ConnectionScreen: React.FC<ConnectionScreenProps> = ({ adapter, onDisconnect }) => {
+const ConnectionScreen: React.FC<ConnectionScreenProps> = ({
+  adapter,
+  onDisconnect,
+  additionalInfo,
+}) => {
   const [healthStatus, setHealthStatus] = useState<string | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
 
@@ -30,6 +35,9 @@ const ConnectionScreen: React.FC<ConnectionScreenProps> = ({ adapter, onDisconne
     <View style={styles.container}>
       <Text style={styles.label}>Connected to</Text>
       <Text style={styles.serverName}>{adapter.getDisplayName()}</Text>
+      {additionalInfo ? (
+        <Text style={styles.serverSubLabel}>{additionalInfo}</Text>
+      ) : null}
 
       <TouchableOpacity
         style={[styles.button, styles.primaryButton]}
@@ -75,6 +83,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 24,
+  },
+  serverSubLabel: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginBottom: 16,
   },
   button: {
     paddingHorizontal: 20,

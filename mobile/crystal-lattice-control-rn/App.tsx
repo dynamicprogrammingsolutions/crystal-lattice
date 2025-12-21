@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Zeroconf from 'react-native-zeroconf';
 import ConnectedRoot from './src/ConnectedRoot';
 import ConnectionsScreen from './src/ConnectionsScreen';
+import { getConnectionAdditionalInfo } from './src/connectionInfo';
 import type { SessionSummary, IndexedMessage } from './src/api';
 
 type ConnectionMethod = 'manual' | 'discovery' | 'bridge';
@@ -1054,6 +1055,40 @@ function App(): React.JSX.Element {
     cancelConnectionWizard();
   };
 
+  const handleDeleteConnection = (record: ConnectionRecord) => {
+    setConnections((prev) => prev.filter((r) => r.id !== record.id));
+
+    setSessionsCache((prev) => {
+      if (!prev[record.id]) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[record.id];
+      return next;
+    });
+
+    setMessagesCache((prev) => {
+      if (!prev[record.id]) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[record.id];
+      return next;
+    });
+
+    if (selectedConnectionId === record.id) {
+      if (adapter) {
+        adapter.disconnect();
+        setAdapter(null);
+      }
+      if (bridgeAdapter) {
+        bridgeAdapter.disconnect();
+        setBridgeAdapter(null);
+      }
+      setSelectedConnectionId(null);
+    }
+  };
+
   const backgroundStyle = {
     backgroundColor: isDarkMode ? '#000' : '#F2F2F7',
     flex: 1,
@@ -1362,6 +1397,17 @@ function App(): React.JSX.Element {
   return (
     <SafeAreaView style={backgroundStyle}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+      {/** Determine active connection info for display components */}
+      {/** This is derived once here and passed down rather than recomputed in children. */}
+      {(() => {
+        const activeConnection =
+          selectedConnectionId != null
+            ? connections.find((c) => c.id === selectedConnectionId) || null
+            : null;
+        const activeConnectionAdditionalInfo =
+          activeConnection != null ? getConnectionAdditionalInfo(activeConnection) : null;
+
+        return (
       <ConnectedRoot
         adapter={adapter}
         onDisconnect={handleDisconnect}
@@ -1384,12 +1430,16 @@ function App(): React.JSX.Element {
           }
           return renderConnectingScreen();
         }}
+        onDeleteConnectionRecord={handleDeleteConnection}
         activeConnectionId={selectedConnectionId}
+        activeConnectionAdditionalInfo={activeConnectionAdditionalInfo}
         sessionsCache={sessionsCache}
         onUpdateSessionsCache={updateSessionsCache}
         messagesCache={messagesCache}
         onUpdateMessagesCache={updateMessagesCache}
       />
+        );
+      })()}
     </SafeAreaView>
   );
 }

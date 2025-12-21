@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -9,12 +10,14 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import type { ConnectionRecord } from '../App';
+import { getConnectionAdditionalInfo } from './connectionInfo';
 
 interface ConnectionsScreenProps {
   connections: ConnectionRecord[];
   loading?: boolean;
   onSelectConnection: (record: ConnectionRecord) => void;
   onNewConnection: () => void;
+  onDeleteConnection: (record: ConnectionRecord) => void;
 }
 
 const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({
@@ -22,6 +25,7 @@ const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({
   loading = false,
   onSelectConnection,
   onNewConnection,
+  onDeleteConnection,
 }) => {
   const sorted = [...connections].sort((a, b) => b.lastUsedAt - a.lastUsedAt);
 
@@ -74,27 +78,52 @@ const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({
             const lastUsedLabel = new Date(
               record.lastUsedAt,
             ).toLocaleString();
+            const additionalInfo = getConnectionAdditionalInfo(record);
 
             return (
-              <TouchableOpacity
-                key={record.id}
-                style={styles.item}
-                onPress={() => onSelectConnection(record)}
-              >
-                <View style={styles.itemHeaderRow}>
-                  <Text style={styles.itemTitle} numberOfLines={1}>
-                    {record.name}
-                  </Text>
-                  <View style={styles.methodBadge}>
-                    <Text style={styles.methodBadgeText}>
-                      {renderMethodLabel(record.kind)}
+              <View key={record.id} style={styles.item}>
+                <TouchableOpacity
+                  style={styles.itemContent}
+                  onPress={() => onSelectConnection(record)}
+                >
+                  <View style={styles.itemHeaderRow}>
+                    <Text style={styles.itemTitle} numberOfLines={1}>
+                      {record.name}
                     </Text>
+                    <View style={styles.methodBadge}>
+                      <Text style={styles.methodBadgeText}>
+                        {renderMethodLabel(record.kind)}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-                <Text style={styles.itemMeta} numberOfLines={1}>
-                  Last used: {lastUsedLabel}
-                </Text>
-              </TouchableOpacity>
+                  <Text style={styles.itemSubLabel} numberOfLines={1}>
+                    {additionalInfo}
+                  </Text>
+                  <Text style={styles.itemMeta} numberOfLines={1}>
+                    Last used: {lastUsedLabel}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.deleteButton}
+                  onPress={() => {
+                    Alert.alert(
+                      'Delete Connection',
+                      'Remove this saved connection from the list? This does not delete any data on the server.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Delete',
+                          style: 'destructive',
+                          onPress: () => onDeleteConnection(record),
+                        },
+                      ],
+                    );
+                  }}
+                  accessibilityLabel={`Delete connection ${record.name}`}
+                >
+                  <Icon name="trash-2" size={18} color="#FF3B30" />
+                </TouchableOpacity>
+              </View>
             );
           })}
         </ScrollView>
@@ -150,12 +179,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   item: {
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 12,
     backgroundColor: '#FFFFFF',
     borderRadius: 8,
     marginBottom: 8,
     borderWidth: 1,
     borderColor: '#E5E5EA',
+  },
+  itemContent: {
+    flex: 1,
   },
   itemHeaderRow: {
     flexDirection: 'row',
@@ -183,6 +217,15 @@ const styles = StyleSheet.create({
   itemMeta: {
     fontSize: 12,
     color: '#8E8E93',
+  },
+  itemSubLabel: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginTop: 2,
+  },
+  deleteButton: {
+    paddingLeft: 8,
+    paddingVertical: 4,
   },
   emptyContainer: {
     flex: 1,
