@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Zeroconf from 'react-native-zeroconf';
 import ConnectedRoot from './src/ConnectedRoot';
 import ConnectionsScreen from './src/ConnectionsScreen';
+import type { SessionSummary } from './src/api';
 
 type ConnectionMethod = 'manual' | 'discovery' | 'bridge';
 
@@ -81,6 +82,15 @@ export type ConnectionRecord =
   | BridgeConnectionRecord;
 
 const STORAGE_KEY_CONNECTIONS = 'clc_connections_v1';
+const STORAGE_KEY_SESSIONS_CACHE = 'clc_sessions_cache_v1';
+
+export interface SessionsCacheEntry {
+  connectionId: string;
+  sessions: SessionSummary[];
+  lastLoadedAt: number | null;
+}
+
+export type SessionsCache = Record<string, SessionsCacheEntry>;
 
 function generateId(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -609,6 +619,7 @@ function App(): React.JSX.Element {
   const [connections, setConnections] = useState<ConnectionRecord[]>([]);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [connectionsLoading, setConnectionsLoading] = useState(false);
+  const [sessionsCache, setSessionsCache] = useState<SessionsCache>({});
   
   const [isSearching, setIsSearching] = useState(false);
   const [discoveredServices, setDiscoveredServices] = useState<Service[]>([]);
@@ -651,6 +662,29 @@ function App(): React.JSX.Element {
   }, []);
 
   useEffect(() => {
+    const loadSessionsCache = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY_SESSIONS_CACHE);
+        if (!raw) {
+          return;
+        }
+        try {
+          const parsed = JSON.parse(raw) as SessionsCache;
+          if (parsed && typeof parsed === 'object') {
+            setSessionsCache(parsed);
+          }
+        } catch (err) {
+          console.log('Failed to parse stored sessions cache', err);
+        }
+      } catch (err) {
+        console.log('Failed to load sessions cache', err);
+      }
+    };
+
+    loadSessionsCache();
+  }, []);
+
+  useEffect(() => {
     const save = async () => {
       try {
         await AsyncStorage.setItem(
@@ -664,6 +698,32 @@ function App(): React.JSX.Element {
 
     save();
   }, [connections]);
+
+  useEffect(() => {
+    const saveSessions = async () => {
+      try {
+        await AsyncStorage.setItem(
+          STORAGE_KEY_SESSIONS_CACHE,
+          JSON.stringify(sessionsCache),
+        );
+      } catch (err) {
+        console.log('Failed to save sessions cache', err);
+      }
+    };
+
+    saveSessions();
+  }, [sessionsCache]);
+
+  const updateSessionsCache = (connectionId: string, list: SessionSummary[]) => {
+    setSessionsCache((prev) => ({
+      ...prev,
+      [connectionId]: {
+        connectionId,
+        sessions: list,
+        lastLoadedAt: Date.now(),
+      },
+    }));
+  };
 
   const upsertConnection = (record: ConnectionRecord) => {
     setConnections((prev) => {
@@ -1235,6 +1295,9 @@ function App(): React.JSX.Element {
           }
           return renderConnectingScreen();
         }}
+        activeConnectionId={selectedConnectionId}
+        sessionsCache={sessionsCache}
+        onUpdateSessionsCache={updateSessionsCache}
       />
     </SafeAreaView>
   );

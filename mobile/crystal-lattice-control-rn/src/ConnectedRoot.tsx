@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
-import type { ConnectionAdapter, ConnectionRecord } from '../App';
+import type { ConnectionAdapter, ConnectionRecord, SessionsCache } from '../App';
 import ConnectionScreen from './ConnectionScreen';
 import ConnectionsScreen from './ConnectionsScreen';
 import SessionsScreen from './SessionsScreen';
+import type { SessionSummary } from './api';
 import SessionChatScreen from './SessionChatScreen';
 
 interface ConnectedRootProps {
@@ -15,6 +16,9 @@ interface ConnectedRootProps {
   onSelectConnectionRecord: (record: ConnectionRecord) => void;
   onNewConnectionRequested: () => void;
   renderConnectionWizard: () => React.ReactNode;
+  activeConnectionId: string | null;
+  sessionsCache: SessionsCache;
+  onUpdateSessionsCache: (connectionId: string, sessions: SessionSummary[]) => void;
 }
 
 const ConnectedRoot: React.FC<ConnectedRootProps> = ({
@@ -25,6 +29,9 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   onSelectConnectionRecord,
   onNewConnectionRequested,
   renderConnectionWizard,
+  activeConnectionId,
+  sessionsCache,
+  onUpdateSessionsCache,
 }) => {
   const [tab, setTab] = useState<'connection' | 'sessions' | 'messages'>('sessions');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -99,18 +106,37 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
           </View>
         )}
         {tab === 'sessions' && (
-          adapter ? (
-            <SessionsScreen
-              adapter={adapter}
-              onSelectSession={handleSelectSession}
-            />
-          ) : (
-            <View style={styles.placeholderContainer}>
-              <Text style={styles.placeholderText}>
-                No active connection. Open the Connections tab to connect to a server.
-              </Text>
-            </View>
-          )
+          (() => {
+            const connectionId = activeConnectionId;
+            const cacheEntry = connectionId
+              ? sessionsCache[connectionId] ?? null
+              : null;
+
+            if (!adapter && !cacheEntry) {
+              return (
+                <View style={styles.placeholderContainer}>
+                  <Text style={styles.placeholderText}>
+                    No sessions loaded yet. Open the Connections tab to connect to a server.
+                  </Text>
+                </View>
+              );
+            }
+
+            return (
+              <SessionsScreen
+                adapter={adapter}
+                connectionId={connectionId}
+                cachedSessions={cacheEntry?.sessions ?? null}
+                lastLoadedAt={cacheEntry?.lastLoadedAt ?? null}
+                onUpdateCache={(list: SessionSummary[]) => {
+                  if (connectionId) {
+                    onUpdateSessionsCache(connectionId, list);
+                  }
+                }}
+                onSelectSession={handleSelectSession}
+              />
+            );
+          })()
         )}
         {tab === 'messages' && (
           selectedSessionId ? (
