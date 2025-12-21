@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
-import type { ConnectionAdapter, ConnectionRecord, SessionsCache } from '../App';
+import type {
+  ConnectionAdapter,
+  ConnectionRecord,
+  SessionsCache,
+  MessagesCache,
+} from '../App';
 import ConnectionScreen from './ConnectionScreen';
 import ConnectionsScreen from './ConnectionsScreen';
 import SessionsScreen from './SessionsScreen';
-import type { SessionSummary } from './api';
+import type { SessionSummary, IndexedMessage } from './api';
 import SessionChatScreen from './SessionChatScreen';
 
 interface ConnectedRootProps {
@@ -19,6 +24,12 @@ interface ConnectedRootProps {
   activeConnectionId: string | null;
   sessionsCache: SessionsCache;
   onUpdateSessionsCache: (connectionId: string, sessions: SessionSummary[]) => void;
+  messagesCache: MessagesCache;
+  onUpdateMessagesCache: (
+    connectionId: string,
+    sessionId: string,
+    messages: IndexedMessage[],
+  ) => void;
 }
 
 const ConnectedRoot: React.FC<ConnectedRootProps> = ({
@@ -32,6 +43,8 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   activeConnectionId,
   sessionsCache,
   onUpdateSessionsCache,
+  messagesCache,
+  onUpdateMessagesCache,
 }) => {
   const [tab, setTab] = useState<'connection' | 'sessions' | 'messages'>('sessions');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -140,25 +153,48 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
         )}
         {tab === 'messages' && (
           selectedSessionId ? (
-            adapter ? (
-              <SessionChatScreen
-                adapter={adapter}
-                sessionId={selectedSessionId}
-                onBack={() => {
-                  setTab('sessions');
-                }}
-                onNavigateToSession={(sessionId) => {
-                  setSelectedSessionId(sessionId);
-                  setTab('messages');
-                }}
-              />
-            ) : (
-              <View style={styles.placeholderContainer}>
-                <Text style={styles.placeholderText}>
-                  No active connection. Messages cannot be loaded until you connect.
-                </Text>
-              </View>
-            )
+            (() => {
+              const connectionId = activeConnectionId;
+              const bySession = connectionId
+                ? messagesCache[connectionId] ?? {}
+                : {};
+              const cacheEntry =
+                connectionId && selectedSessionId
+                  ? bySession[selectedSessionId] ?? null
+                  : null;
+
+              if (!adapter && !cacheEntry) {
+                return (
+                  <View style={styles.placeholderContainer}>
+                    <Text style={styles.placeholderText}>
+                      No messages loaded yet. Connect to a server to load this session.
+                    </Text>
+                  </View>
+                );
+              }
+
+              return (
+                <SessionChatScreen
+                  adapter={adapter}
+                  connectionId={connectionId}
+                  sessionId={selectedSessionId}
+                  cachedMessages={cacheEntry?.messages ?? null}
+                  lastLoadedAt={cacheEntry?.lastLoadedAt ?? null}
+                  onUpdateCache={(list: IndexedMessage[]) => {
+                    if (connectionId) {
+                      onUpdateMessagesCache(connectionId, selectedSessionId, list);
+                    }
+                  }}
+                  onBack={() => {
+                    setTab('sessions');
+                  }}
+                  onNavigateToSession={(sessionId) => {
+                    setSelectedSessionId(sessionId);
+                    setTab('messages');
+                  }}
+                />
+              );
+            })()
           ) : (
             <View style={styles.placeholderContainer}>
               <Text style={styles.placeholderText}>Select a session from the Sessions tab.</Text>
