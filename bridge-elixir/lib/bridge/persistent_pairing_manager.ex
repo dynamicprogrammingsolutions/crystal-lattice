@@ -6,7 +6,7 @@ defmodule Bridge.PersistentPairingManager do
   @table_by_key :bridge_pairings_by_key
 
   defmodule Pairing do
-    defstruct [:token, :server_id, :client_id, :created_at, :last_used_at]
+    defstruct [:token, :server_id, :client_id, :last_session_id, :created_at, :last_used_at]
   end
 
   def start_link(_opts) do
@@ -44,11 +44,50 @@ defmodule Bridge.PersistentPairingManager do
     GenServer.cast(__MODULE__, {:touch, token})
   end
 
+  @doc """
+  Remember the most recent bridge `session_id` for this token.
+
+  If the token is unknown, this is a no-op.
+  """
+  @spec set_last_session(String.t(), String.t()) :: :ok
+  def set_last_session(token, session_id) do
+    GenServer.call(__MODULE__, {:set_last_session, token, session_id})
+  end
+
   @impl true
   def init(_) do
     :ets.new(@table_by_token, [:named_table, :set, :public, read_concurrency: true])
     :ets.new(@table_by_key, [:named_table, :set, :public, read_concurrency: true])
     {:ok, %{}}
+  end
+
+  @impl true
+  def handle_cast({:touch, token}, state) do
+    case :ets.lookup(@table_by_token, token) do
+      [{^token, pairing}] ->
+        updated = %{pairing | last_used_at: DateTime.utc_now()}
+        :ets.insert(@table_by_token, {token, updated})
+
+      [] ->
+        :ok
+    end
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_call({:set_last_session, token, session_id}, _from, state) do
+    case :ets.lookup(@table_by_token, token) do
+      [{^token, pairing}] ->
+        now = DateTime.utc_now()
+        updated = %{pairing | last_session_id: session_id, last_used_at: now}
+        :ets.insert(@table_by_token, {token, updated})
+
+      [] ->
+        :ok
+    end
+
+    {:reply, :ok, state}
   end
 
   @impl true
@@ -71,20 +110,6 @@ defmodule Bridge.PersistentPairingManager do
     end
   end
 
-  @impl true
-  def handle_cast({:touch, token}, state) do
-    case :ets.lookup(@table_by_token, token) do
-      [{^token, pairing}] ->
-        updated = %{pairing | last_used_at: DateTime.utc_now()}
-        :ets.insert(@table_by_token, {token, updated})
-
-      [] ->
-        :ok
-    end
-
-    {:noreply, state}
-  end
-
   defp create_new_pairing(key, server_id, client_id, state) do
     token = UUID.uuid4()
     now = DateTime.utc_now()
@@ -93,6 +118,7 @@ defmodule Bridge.PersistentPairingManager do
       token: token,
       server_id: server_id,
       client_id: client_id,
+      last_session_id: nil,
       created_at: now,
       last_used_at: now
     }
