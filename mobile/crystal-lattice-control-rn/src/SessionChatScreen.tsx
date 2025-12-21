@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Feather';
 import type { ConnectionAdapter } from '../App';
 import {
@@ -39,6 +40,9 @@ interface SessionChatScreenProps {
   onBack: () => void;
   onNavigateToSession?: (sessionId: string) => void;
 }
+
+const STORAGE_KEY_SESSION_ACTIONS = 'clc_pinned_session_actions_v1';
+const STORAGE_KEY_MESSAGE_ACTIONS = 'clc_pinned_message_actions_by_role_v1';
 
 const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   adapter,
@@ -73,6 +77,58 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [editingText, setEditingText] = useState('');
   const [shouldAutoScroll, setShouldAutoScroll] = useState(false);
   const scrollViewRef = useRef<ScrollView | null>(null);
+
+  useEffect(() => {
+    const loadPinnedFromStorage = async () => {
+      try {
+        const [sessionRaw, messageRaw] = await Promise.all([
+          AsyncStorage.getItem(STORAGE_KEY_SESSION_ACTIONS),
+          AsyncStorage.getItem(STORAGE_KEY_MESSAGE_ACTIONS),
+        ]);
+
+        if (sessionRaw) {
+          try {
+            const parsed = JSON.parse(sessionRaw);
+            if (Array.isArray(parsed)) {
+              const valid = parsed.filter((key: any) =>
+                Object.prototype.hasOwnProperty.call(SESSION_ACTIONS, key),
+              );
+              if (valid.length > 0 || parsed.length === 0) {
+                // Allow empty array (no pinned session actions).
+                setPinnedSessionActions(valid as SessionActionKey[]);
+              }
+            }
+          } catch (err) {
+            console.log('Failed to parse stored pinned session actions', err);
+          }
+        }
+
+        if (messageRaw) {
+          try {
+            const parsed = JSON.parse(messageRaw);
+            if (parsed && typeof parsed === 'object') {
+              const next: Record<string, MessageActionKey[]> = {};
+              Object.entries(parsed).forEach(([role, value]) => {
+                if (Array.isArray(value)) {
+                  const filtered = (value as any[]).filter((key) =>
+                    ALL_MESSAGE_ACTIONS.some((def) => def.key === key),
+                  );
+                  next[role] = filtered as MessageActionKey[];
+                }
+              });
+              setPinnedMessageActionsByRole(next);
+            }
+          } catch (err) {
+            console.log('Failed to parse stored pinned message actions', err);
+          }
+        }
+      } catch (err) {
+        console.log('Failed to load pinned actions from storage', err);
+      }
+    };
+
+    loadPinnedFromStorage();
+  }, []);
 
   const applyMessageLimitAndReload = () => {
     setMessageLimitVisible(false);
@@ -114,6 +170,34 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	  useEffect(() => {
 	    loadMessages();
 	  }, [loadMessages]);
+
+  useEffect(() => {
+    const saveSessionPinned = async () => {
+      try {
+        await AsyncStorage.setItem(
+          STORAGE_KEY_SESSION_ACTIONS,
+          JSON.stringify(pinnedSessionActions),
+        );
+      } catch (err) {
+        console.log('Failed to save pinned session actions', err);
+      }
+    };
+    saveSessionPinned();
+  }, [pinnedSessionActions]);
+
+  useEffect(() => {
+    const saveMessagePinned = async () => {
+      try {
+        await AsyncStorage.setItem(
+          STORAGE_KEY_MESSAGE_ACTIONS,
+          JSON.stringify(pinnedMessageActionsByRole),
+        );
+      } catch (err) {
+        console.log('Failed to save pinned message actions', err);
+      }
+    };
+    saveMessagePinned();
+  }, [pinnedMessageActionsByRole]);
 
 	  const handleAppend = async () => {
     const text = composeText.trim();
@@ -277,7 +361,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       .map((def) => def.key as MessageActionKey);
 
     const existing = pinnedMessageActionsByRole[role];
-    if (existing && existing.length > 0) {
+    if (Array.isArray(existing)) {
+      // Respect an explicit empty list (user chose to pin nothing).
       return existing.filter((key) => allowedKeys.includes(key));
     }
 
