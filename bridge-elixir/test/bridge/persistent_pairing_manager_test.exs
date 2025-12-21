@@ -19,9 +19,22 @@ defmodule Bridge.PersistentPairingManagerTest do
     assert {:ok, pairing} = Bridge.PersistentPairingManager.get_by_token(token1)
     assert pairing.server_id == server_id
     assert pairing.client_id == client_id
+    assert pairing.last_session_id == nil
   end
 
   test "get_by_token returns error for unknown token" do
     assert {:error, :not_found} = Bridge.PersistentPairingManager.get_by_token("non-existent-token")
+  end
+
+  test "set_last_session remembers last session id" do
+    server_id = UUID.uuid4()
+    client_id = UUID.uuid4()
+
+    {:ok, token} = Bridge.PersistentPairingManager.create_or_get_token(server_id, client_id)
+
+    Bridge.PersistentPairingManager.set_last_session(token, "sess-123")
+
+    assert {:ok, pairing} = Bridge.PersistentPairingManager.get_by_token(token)
+    assert pairing.last_session_id == "sess-123"
   end
 end

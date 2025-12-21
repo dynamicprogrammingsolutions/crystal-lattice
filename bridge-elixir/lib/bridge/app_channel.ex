@@ -59,6 +59,8 @@ defmodule Bridge.AppChannel do
               node()
             )
 
+            Bridge.PersistentPairingManager.set_last_session(pairing_token, session_id)
+
             socket = assign(socket, :session_id, session_id)
             Phoenix.PubSub.subscribe(Bridge.PubSub, "tunnel:app:#{client_id}")
 
@@ -88,13 +90,40 @@ defmodule Bridge.AppChannel do
         else
           case Bridge.ServerRegistry.get_server(pairing.server_id) do
             {:ok, server_info} ->
-              {:ok, session_id} =
-                Bridge.SessionManager.create_session(
-                  pairing.server_id,
-                  client_id,
-                  server_info.node,
-                  node()
-                )
+              # Prefer to reuse the last known session_id for this pairing
+              # when it still exists, so the bridge session remains stable
+              # across app reconnects. If it no longer exists (e.g. timed
+              # out), create a new one and remember it.
+              reused_session_id =
+                case pairing.last_session_id do
+                  nil ->
+                    nil
+
+                  last_id ->
+                    case Bridge.SessionManager.get_session(last_id) do
+                      {:ok, _session} -> last_id
+                      {:error, :not_found} -> nil
+                    end
+                end
+
+              session_id =
+                case reused_session_id do
+                  nil ->
+                    {:ok, new_id} =
+                      Bridge.SessionManager.create_session(
+                        pairing.server_id,
+                        client_id,
+                        server_info.node,
+                        node()
+                      )
+
+                    Bridge.PersistentPairingManager.set_last_session(token, new_id)
+                    new_id
+
+                  existing_id ->
+                    Bridge.SessionManager.update_activity(existing_id)
+                    existing_id
+                end
 
               Bridge.PersistentPairingManager.touch(token)
 
@@ -161,10 +190,7 @@ defmodule Bridge.AppChannel do
   end
 
   @impl true
-  def terminate(_reason, socket) do
-    if socket.assigns[:session_id] do
-      Bridge.SessionManager.delete_session(socket.assigns.session_id)
-    end
+  def terminate(_reason, _socket) do
     :ok
   end
 end

@@ -358,11 +358,11 @@ class BridgeAdapter implements ConnectionAdapter {
   }
 
   async get(path: string): Promise<any> {
+    await this.ensureConnected();
+
     if (!this.sessionId) {
       throw new Error('Not paired with any server');
     }
-
-    await this.ensureConnected();
 
     const requestId = this.generateUuid();
     const response = await this.sendMessage(
@@ -385,11 +385,11 @@ class BridgeAdapter implements ConnectionAdapter {
   }
 
   async put(path: string, data: any): Promise<any> {
+    await this.ensureConnected();
+
     if (!this.sessionId) {
       throw new Error('Not paired with any server');
     }
-
-    await this.ensureConnected();
 
     const requestId = this.generateUuid();
     const response = await this.sendMessage(
@@ -412,11 +412,11 @@ class BridgeAdapter implements ConnectionAdapter {
   }
 
   async post(path: string, data: any): Promise<any> {
+    await this.ensureConnected();
+
     if (!this.sessionId) {
       throw new Error('Not paired with any server');
     }
-
-    await this.ensureConnected();
 
     const requestId = this.generateUuid();
     const response = await this.sendMessage(
@@ -868,6 +868,7 @@ function App(): React.JSX.Element {
                 disabled={isLoading}>
                 <Text style={styles.serviceName}>{server.display_name}</Text>
                 <Text style={styles.serviceDetails}>{server.computer_name}</Text>
+                <Text style={styles.serviceDetails}>ID: {server.server_id}</Text>
                 {server.location && (
                   <Text style={styles.serviceDetails}>{server.location}</Text>
                 )}

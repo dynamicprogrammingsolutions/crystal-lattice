@@ -273,7 +273,9 @@ interface ConnectionAdapter {
 **Bridge Flow:**
 1. User enters bridge WebSocket URL
 2. BridgeAdapter connects via WebSocket
-3. Lists available servers from bridge
+3. Lists available servers from bridge (showing display name, computer name,
+   and the bridge `server_id` so you can distinguish servers with the same
+   name)
 4. User selects server → requests pairing
 5. Server displays 6-digit code (5 min TTL)
 6. User submits code → pairing complete
