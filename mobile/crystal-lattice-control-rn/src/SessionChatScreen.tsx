@@ -35,8 +35,12 @@ import { SESSION_ACTIONS, type SessionActionKey } from './sessionActions';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 
 interface SessionChatScreenProps {
-  adapter: ConnectionAdapter;
+  adapter: ConnectionAdapter | null;
+  connectionId: string | null;
   sessionId: string;
+  cachedMessages: IndexedMessage[] | null;
+  lastLoadedAt: number | null;
+  onUpdateCache: (messages: IndexedMessage[]) => void;
   onBack: () => void;
   onNavigateToSession?: (sessionId: string) => void;
 }
@@ -46,11 +50,15 @@ const STORAGE_KEY_MESSAGE_ACTIONS = 'clc_pinned_message_actions_by_role_v1';
 
 const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   adapter,
+  connectionId,
   sessionId,
+  cachedMessages,
+  lastLoadedAt,
+  onUpdateCache,
   onBack,
   onNavigateToSession,
 }) => {
-  const [messages, setMessages] = useState<IndexedMessage[]>([]);
+  const [messages, setMessages] = useState<IndexedMessage[]>(cachedMessages ?? []);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sendInProgress, setSendInProgress] = useState(false);
   const [composeText, setComposeText] = useState('');
@@ -136,6 +144,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   };
 
   const loadMessages = useCallback(async () => {
+    if (!adapter) {
+      const message = 'No active connection';
+      Alert.alert('Error', message);
+      return;
+    }
     setLoadingMessages(true);
 		    try {
 		      let start: number | undefined;
@@ -158,6 +171,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 		      setMessages(list);
 		      setShouldAutoScroll(true);
 		      setLastReloadAt(new Date());
+		      onUpdateCache(list);
     } catch (err: any) {
       console.log('Failed to load messages', err);
       const message = err?.message || 'Failed to load messages';
@@ -165,11 +179,20 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     } finally {
       setLoadingMessages(false);
 	    }
-	  }, [adapter, sessionId, rangeStartText, rangeEndText]);
+  }, [adapter, sessionId, rangeStartText, rangeEndText, onUpdateCache]);
 
-	  useEffect(() => {
-	    loadMessages();
-	  }, [loadMessages]);
+  useEffect(() => {
+    setMessages(cachedMessages ?? []);
+    if (cachedMessages && lastLoadedAt) {
+      setLastReloadAt(new Date(lastLoadedAt));
+    }
+  }, [cachedMessages, connectionId, sessionId, lastLoadedAt]);
+
+  useEffect(() => {
+    if (!cachedMessages && adapter) {
+      loadMessages();
+    }
+  }, [adapter, cachedMessages, loadMessages]);
 
   useEffect(() => {
     const saveSessionPinned = async () => {
@@ -204,6 +227,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     if (!text) {
       return;
     }
+    if (!adapter) {
+      Alert.alert('No connection', 'Connect to a server to append messages.');
+      return;
+    }
     setSendInProgress(true);
     try {
       await apiAppendMessage(adapter, sessionId, 'user', text);
@@ -220,6 +247,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const handleSend = async () => {
     const text = composeText.trim();
     setSendInProgress(true);
+    if (!adapter) {
+      Alert.alert('No connection', 'Connect to a server to send messages.');
+      setSendInProgress(false);
+      return;
+    }
     try {
       if (text) {
         await apiAppendMessage(adapter, sessionId, 'user', text);
@@ -256,6 +288,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       Alert.alert('Invalid range', 'Provide at least a start or end index.');
       return;
     }
+    if (!adapter) {
+      Alert.alert('No connection', 'Connect to a server to delete messages.');
+      return;
+    }
     try {
       await apiDeleteMessagesByRange(adapter, sessionId, start, end);
       setDeleteRangeVisible(false);
@@ -268,6 +304,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   };
 
   const handleSwitchAgent = async (agentId: string) => {
+	    if (!adapter) {
+	      Alert.alert('No connection', 'Connect to a server to switch agent.');
+	      return;
+	    }
 	    try {
 	      setAgentLoading(true);
 	      await apiSwitchSessionAgent(adapter, sessionId, agentId);
@@ -298,6 +338,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
     if (action === 'resend') {
       setSendInProgress(true);
+      if (!adapter) {
+        Alert.alert('No connection', 'Connect to a server to resend.');
+        setSendInProgress(false);
+        return;
+      }
       try {
         await apiSend(adapter, sessionId);
         await loadMessages();
@@ -315,6 +360,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       return;
     }
     if (action === 'copy') {
+      if (!adapter) {
+        Alert.alert('No connection', 'Connect to a server to copy sessions.');
+        return;
+      }
       try {
         const result = await apiForkSession(adapter, sessionId, -1);
         const newId = result.session.session_id;
@@ -400,6 +449,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       Alert.alert('Invalid content', 'Message content cannot be empty.');
       return;
     }
+    if (!adapter) {
+      Alert.alert('No connection', 'Connect to a server to modify messages.');
+      return;
+    }
     try {
       await apiModifyMessage(adapter, sessionId, index, trimmed);
       setEditingIndex(null);
@@ -431,6 +484,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         ]);
       });
       if (!confirmed) return;
+      if (!adapter) {
+        Alert.alert('No connection', 'Connect to a server to delete messages.');
+        return;
+      }
       try {
         await apiDeleteMessagesByIndices(adapter, sessionId, [index]);
         await loadMessages();
@@ -448,6 +505,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
 
     if (action === 'fork') {
+      if (!adapter) {
+        Alert.alert('No connection', 'Connect to a server to fork sessions.');
+        return;
+      }
       try {
         const result = await apiForkSession(adapter, sessionId, index);
         const newId = result.session.session_id;

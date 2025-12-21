@@ -17,7 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Zeroconf from 'react-native-zeroconf';
 import ConnectedRoot from './src/ConnectedRoot';
 import ConnectionsScreen from './src/ConnectionsScreen';
-import type { SessionSummary } from './src/api';
+import type { SessionSummary, IndexedMessage } from './src/api';
 
 type ConnectionMethod = 'manual' | 'discovery' | 'bridge';
 
@@ -83,6 +83,7 @@ export type ConnectionRecord =
 
 const STORAGE_KEY_CONNECTIONS = 'clc_connections_v1';
 const STORAGE_KEY_SESSIONS_CACHE = 'clc_sessions_cache_v1';
+const STORAGE_KEY_MESSAGES_CACHE = 'clc_messages_cache_v1';
 
 export interface SessionsCacheEntry {
   connectionId: string;
@@ -91,6 +92,16 @@ export interface SessionsCacheEntry {
 }
 
 export type SessionsCache = Record<string, SessionsCacheEntry>;
+
+export interface MessagesCacheEntry {
+  connectionId: string;
+  sessionId: string;
+  messages: IndexedMessage[];
+  lastLoadedAt: number | null;
+}
+
+export type MessagesBySession = Record<string, MessagesCacheEntry>;
+export type MessagesCache = Record<string, MessagesBySession>;
 
 function generateId(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -620,6 +631,7 @@ function App(): React.JSX.Element {
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [connectionsLoading, setConnectionsLoading] = useState(false);
   const [sessionsCache, setSessionsCache] = useState<SessionsCache>({});
+  const [messagesCache, setMessagesCache] = useState<MessagesCache>({});
   
   const [isSearching, setIsSearching] = useState(false);
   const [discoveredServices, setDiscoveredServices] = useState<Service[]>([]);
@@ -685,6 +697,29 @@ function App(): React.JSX.Element {
   }, []);
 
   useEffect(() => {
+    const loadMessagesCache = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY_MESSAGES_CACHE);
+        if (!raw) {
+          return;
+        }
+        try {
+          const parsed = JSON.parse(raw) as MessagesCache;
+          if (parsed && typeof parsed === 'object') {
+            setMessagesCache(parsed);
+          }
+        } catch (err) {
+          console.log('Failed to parse stored messages cache', err);
+        }
+      } catch (err) {
+        console.log('Failed to load messages cache', err);
+      }
+    };
+
+    loadMessagesCache();
+  }, []);
+
+  useEffect(() => {
     const save = async () => {
       try {
         await AsyncStorage.setItem(
@@ -714,6 +749,21 @@ function App(): React.JSX.Element {
     saveSessions();
   }, [sessionsCache]);
 
+  useEffect(() => {
+    const saveMessages = async () => {
+      try {
+        await AsyncStorage.setItem(
+          STORAGE_KEY_MESSAGES_CACHE,
+          JSON.stringify(messagesCache),
+        );
+      } catch (err) {
+        console.log('Failed to save messages cache', err);
+      }
+    };
+
+    saveMessages();
+  }, [messagesCache]);
+
   const updateSessionsCache = (connectionId: string, list: SessionSummary[]) => {
     setSessionsCache((prev) => ({
       ...prev,
@@ -723,6 +773,45 @@ function App(): React.JSX.Element {
         lastLoadedAt: Date.now(),
       },
     }));
+  };
+
+  const updateMessagesCache = (
+    connectionId: string,
+    sessionId: string,
+    list: IndexedMessage[],
+  ) => {
+    setMessagesCache((prev) => {
+      const bySession = prev[connectionId] ?? {};
+
+      const entry: MessagesCacheEntry = {
+        connectionId,
+        sessionId,
+        messages: list,
+        lastLoadedAt: Date.now(),
+      };
+
+      const nextBySession: MessagesBySession = { ...bySession, [sessionId]: entry };
+
+      const MAX_SESSIONS_PER_CONNECTION = 10;
+      const sessionIds = Object.keys(nextBySession);
+      if (sessionIds.length > MAX_SESSIONS_PER_CONNECTION) {
+        const sortedByAge = sessionIds
+          .map((id) => nextBySession[id])
+          .sort((a, b) => (a.lastLoadedAt ?? 0) - (b.lastLoadedAt ?? 0));
+        const toDrop = sortedByAge.slice(
+          0,
+          sessionIds.length - MAX_SESSIONS_PER_CONNECTION,
+        );
+        for (const old of toDrop) {
+          delete nextBySession[old.sessionId];
+        }
+      }
+
+      return {
+        ...prev,
+        [connectionId]: nextBySession,
+      };
+    });
   };
 
   const upsertConnection = (record: ConnectionRecord) => {
@@ -1298,6 +1387,8 @@ function App(): React.JSX.Element {
         activeConnectionId={selectedConnectionId}
         sessionsCache={sessionsCache}
         onUpdateSessionsCache={updateSessionsCache}
+        messagesCache={messagesCache}
+        onUpdateMessagesCache={updateMessagesCache}
       />
     </SafeAreaView>
   );
