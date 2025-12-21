@@ -13,8 +13,10 @@ import {
   Alert,
   TextInput,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Zeroconf from 'react-native-zeroconf';
 import ConnectedRoot from './src/ConnectedRoot';
+import ConnectionsScreen from './src/ConnectionsScreen';
 
 type ConnectionMethod = 'manual' | 'discovery' | 'bridge';
 
@@ -41,6 +43,53 @@ export interface ConnectionAdapter {
   delete(path: string, data?: any): Promise<any>;
   disconnect(): void;
   getDisplayName(): string;
+}
+
+export type ConnectionKind = 'manual' | 'discovery' | 'bridge';
+
+export interface BaseConnectionRecord {
+  id: string;
+  kind: ConnectionKind;
+  name: string;
+  lastUsedAt: number;
+}
+
+export interface ManualConnectionRecord extends BaseConnectionRecord {
+  kind: 'manual';
+  host: string;
+  port: number;
+}
+
+export interface DiscoveryConnectionRecord extends BaseConnectionRecord {
+  kind: 'discovery';
+  host: string;
+  port: number;
+  serviceName: string;
+}
+
+export interface BridgeConnectionRecord extends BaseConnectionRecord {
+  kind: 'bridge';
+  bridgeUrl: string;
+  serverId: string;
+  serverName: string;
+  pairingToken: string | null;
+}
+
+export type ConnectionRecord =
+  | ManualConnectionRecord
+  | DiscoveryConnectionRecord
+  | BridgeConnectionRecord;
+
+const STORAGE_KEY_CONNECTIONS = 'clc_connections_v1';
+
+function generateId(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    // eslint-disable-next-line no-bitwise
+    const r = (Math.random() * 16) | 0;
+    // eslint-disable-next-line no-bitwise
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 class HttpAdapter implements ConnectionAdapter {
@@ -151,9 +200,17 @@ class BridgeAdapter implements ConnectionAdapter {
   private connectPromise: Promise<void> | null = null;
   private responseHandlers: Map<string, (data: any) => void> = new Map();
 
-  constructor(bridgeUrl: string) {
+  constructor(
+    bridgeUrl: string,
+    opts?: { serverId?: string; serverName?: string; pairingToken?: string | null },
+  ) {
     this.bridgeUrl = bridgeUrl;
     this.clientId = this.generateUuid();
+    if (opts) {
+      this.serverId = opts.serverId ?? null;
+      this.serverName = opts.serverName ?? '';
+      this.pairingToken = opts.pairingToken ?? null;
+    }
   }
 
   private generateUuid(): string {
@@ -537,7 +594,6 @@ class BridgeAdapter implements ConnectionAdapter {
     }
     this.sessionId = null;
     this.serverId = null;
-    this.pairingToken = null;
   }
 
   getDisplayName(): string {
@@ -547,9 +603,14 @@ class BridgeAdapter implements ConnectionAdapter {
 
 function App(): React.JSX.Element {
   const isDarkMode = useColorScheme() === 'dark';
-  const [screen, setScreen] = useState<'method' | 'connecting' | 'connected'>('method');
+  const [screen, setScreen] = useState<
+    'connections' | 'method' | 'connecting' | 'connected'
+  >('connections');
   const [connectionMethod, setConnectionMethod] = useState<ConnectionMethod | null>(null);
   const [adapter, setAdapter] = useState<ConnectionAdapter | null>(null);
+  const [connections, setConnections] = useState<ConnectionRecord[]>([]);
+  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
+  const [connectionsLoading, setConnectionsLoading] = useState(false);
   
   const [isSearching, setIsSearching] = useState(false);
   const [discoveredServices, setDiscoveredServices] = useState<Service[]>([]);
@@ -565,6 +626,68 @@ function App(): React.JSX.Element {
   const [bridgeAdapter, setBridgeAdapter] = useState<BridgeAdapter | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const loadConnections = async () => {
+      setConnectionsLoading(true);
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY_CONNECTIONS);
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              setConnections(parsed as ConnectionRecord[]);
+              if (parsed.length > 0) {
+                setScreen('connections');
+              } else {
+                setScreen('method');
+              }
+            } else {
+              setScreen('method');
+            }
+          } catch {
+            setScreen('method');
+          }
+        } else {
+          setScreen('method');
+        }
+      } catch (err) {
+        console.log('Failed to load saved connections', err);
+        setScreen('method');
+      } finally {
+        setConnectionsLoading(false);
+      }
+    };
+
+    loadConnections();
+  }, []);
+
+  useEffect(() => {
+    const save = async () => {
+      try {
+        await AsyncStorage.setItem(
+          STORAGE_KEY_CONNECTIONS,
+          JSON.stringify(connections),
+        );
+      } catch (err) {
+        console.log('Failed to save connections', err);
+      }
+    };
+
+    save();
+  }, [connections]);
+
+  const upsertConnection = (record: ConnectionRecord) => {
+    setConnections((prev) => {
+      const idx = prev.findIndex((r) => r.id === record.id);
+      if (idx === -1) {
+        return [...prev, record];
+      }
+      const next = [...prev];
+      next[idx] = record;
+      return next;
+    });
+  };
 
   useEffect(() => {
     zeroconf.on('resolved', (service: any) => {
@@ -627,6 +750,17 @@ function App(): React.JSX.Element {
       const httpAdapter = new HttpAdapter(manualHost, parseInt(manualPort, 10), `${manualHost}:${manualPort}`);
       await httpAdapter.connect();
       setAdapter(httpAdapter);
+      const id = generateId();
+      const record: ManualConnectionRecord = {
+        id,
+        kind: 'manual',
+        name: `${manualHost}:${manualPort}`,
+        host: manualHost,
+        port: parseInt(manualPort, 10),
+        lastUsedAt: Date.now(),
+      };
+      upsertConnection(record);
+      setSelectedConnectionId(id);
       setScreen('connected');
     } catch (error: any) {
       Alert.alert('Connection Error', error.message);
@@ -642,6 +776,18 @@ function App(): React.JSX.Element {
       await httpAdapter.connect();
       setAdapter(httpAdapter);
       stopDiscovery();
+      const id = generateId();
+      const record: DiscoveryConnectionRecord = {
+        id,
+        kind: 'discovery',
+        name: service.name,
+        host: service.host,
+        port: service.port,
+        serviceName: service.name,
+        lastUsedAt: Date.now(),
+      };
+      upsertConnection(record);
+      setSelectedConnectionId(id);
       setScreen('connected');
     } catch (error: any) {
       Alert.alert('Connection Error', error.message);
@@ -724,6 +870,19 @@ function App(): React.JSX.Element {
         selectedBridgeServer.display_name
       );
       setAdapter(bridgeAdapter);
+      const id = generateId();
+      const record: BridgeConnectionRecord = {
+        id,
+        kind: 'bridge',
+        name: selectedBridgeServer.display_name,
+        bridgeUrl,
+        serverId: selectedBridgeServer.server_id,
+        serverName: selectedBridgeServer.display_name,
+        pairingToken: (bridgeAdapter as any).pairingToken ?? null,
+        lastUsedAt: Date.now(),
+      };
+      upsertConnection(record);
+      setSelectedConnectionId(id);
       setScreen('connected');
       setPairingCode('');
     } catch (error: any) {
@@ -733,7 +892,7 @@ function App(): React.JSX.Element {
     }
   };
 
-  const goBack = () => {
+  const handleDisconnect = () => {
     if (adapter) {
       adapter.disconnect();
       setAdapter(null);
@@ -743,7 +902,7 @@ function App(): React.JSX.Element {
       setBridgeAdapter(null);
     }
     stopDiscovery();
-    setScreen('method');
+    setScreen('connections');
     setConnectionMethod(null);
     setDiscoveredServices([]);
     setBridgeServers([]);
@@ -815,7 +974,7 @@ function App(): React.JSX.Element {
 
       <TouchableOpacity
         style={[styles.button, styles.secondaryButton]}
-        onPress={goBack}>
+        onPress={handleDisconnect}>
         <Text style={styles.buttonTextSecondary}>Back</Text>
       </TouchableOpacity>
     </View>
@@ -860,7 +1019,7 @@ function App(): React.JSX.Element {
 
       <TouchableOpacity
         style={[styles.button, styles.secondaryButton]}
-        onPress={goBack}>
+        onPress={handleDisconnect}>
         <Text style={styles.buttonTextSecondary}>Back</Text>
       </TouchableOpacity>
     </View>
@@ -877,7 +1036,7 @@ function App(): React.JSX.Element {
     setIsLoading(true);
     try {
       console.log('🧪 Testing HTTP connectivity:', httpUrl);
-      const response = await fetch(httpUrl, { 
+      const response = await fetch(httpUrl, {
         method: 'GET',
         timeout: 5000,
       } as any);
@@ -1005,7 +1164,7 @@ function App(): React.JSX.Element {
 
       <TouchableOpacity
         style={[styles.button, styles.secondaryButton]}
-        onPress={goBack}>
+        onPress={handleDisconnect}>
         <Text style={styles.buttonTextSecondary}>Back</Text>
       </TouchableOpacity>
     </View>
@@ -1018,17 +1177,58 @@ function App(): React.JSX.Element {
     return null;
   };
 
+  const handleSelectSavedConnection = async (record: ConnectionRecord) => {
+    setIsLoading(true);
+    try {
+      let nextAdapter: ConnectionAdapter | null = null;
+
+      if (record.kind === 'manual' || record.kind === 'discovery') {
+        const httpAdapter = new HttpAdapter(record.host, record.port, record.name);
+        await httpAdapter.connect();
+        nextAdapter = httpAdapter;
+      } else if (record.kind === 'bridge') {
+        const bridge = new BridgeAdapter(record.bridgeUrl, {
+          serverId: record.serverId,
+          serverName: record.serverName,
+          pairingToken: record.pairingToken,
+        });
+        await bridge.connect();
+        nextAdapter = bridge;
+      }
+
+      if (nextAdapter) {
+        setAdapter(nextAdapter);
+        setSelectedConnectionId(record.id);
+        upsertConnection({ ...record, lastUsedAt: Date.now() });
+        setScreen('connected');
+      }
+    } catch (error: any) {
+      console.log('Failed to reconnect to saved connection', error);
+      Alert.alert('Connection Error', error?.message || 'Failed to reconnect');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={backgroundStyle}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       {screen === 'connected' && adapter ? (
-        <ConnectedRoot adapter={adapter} onDisconnect={goBack} />
+        <ConnectedRoot adapter={adapter} onDisconnect={handleDisconnect} />
       ) : (
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
           style={backgroundStyle}
           contentContainerStyle={styles.scrollContent}
         >
+          {screen === 'connections' && (
+            <ConnectionsScreen
+              connections={connections}
+              loading={connectionsLoading}
+              onSelectConnection={handleSelectSavedConnection}
+              onNewConnection={() => setScreen('method')}
+            />
+          )}
           {screen === 'method' && renderMethodSelection()}
           {screen === 'connecting' && renderConnectingScreen()}
         </ScrollView>
