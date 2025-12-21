@@ -37,6 +37,8 @@ export interface ConnectionAdapter {
   get(path: string): Promise<any>;
   put(path: string, data: any): Promise<any>;
   post(path: string, data: any): Promise<any>;
+  patch(path: string, data: any): Promise<any>;
+  delete(path: string, data?: any): Promise<any>;
   disconnect(): void;
   getDisplayName(): string;
 }
@@ -79,7 +81,7 @@ class HttpAdapter implements ConnectionAdapter {
     return await response.json();
   }
 
-   async post(path: string, data: any): Promise<any> {
+  async post(path: string, data: any): Promise<any> {
     const url = `http://${this.host}:${this.port}${path}`;
     const response = await fetch(url, {
       method: 'POST',
@@ -87,6 +89,46 @@ class HttpAdapter implements ConnectionAdapter {
       body: JSON.stringify(data ?? {}),
     });
     return await response.json();
+  }
+
+  async patch(path: string, data: any): Promise<any> {
+    const url = `http://${this.host}:${this.port}${path}`;
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data ?? {}),
+    });
+    return await response.json();
+  }
+
+  async delete(path: string, data?: any): Promise<any> {
+    const url = `http://${this.host}:${this.port}${path}`;
+    const init: any = {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+    };
+    if (data !== undefined) {
+      init.body = JSON.stringify(data);
+    }
+    const response = await fetch(url, init);
+    if (!response.ok) {
+      // Try to surface JSON error body when available
+      let message = `Request failed: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (typeof errorData === 'object' && errorData && typeof (errorData as any).detail === 'string') {
+          message = (errorData as any).detail;
+        }
+      } catch {
+        // ignore JSON parse errors
+      }
+      throw new Error(message);
+    }
+    try {
+      return await response.json();
+    } catch {
+      return null;
+    }
   }
 
   disconnect(): void {
@@ -429,6 +471,56 @@ class BridgeAdapter implements ConnectionAdapter {
         path,
         headers: {},
         body: JSON.stringify(data ?? {}),
+      }
+    );
+
+    if (response.body) {
+      return JSON.parse(response.body);
+    }
+    return response;
+  }
+
+  async patch(path: string, data: any): Promise<any> {
+    if (!this.sessionId) {
+      throw new Error('Not paired with any server');
+    }
+
+    const requestId = this.generateUuid();
+    const response = await this.sendMessage(
+      `app:${this.clientId}`,
+      'http_request',
+      {
+        request_id: requestId,
+        session_id: this.sessionId,
+        method: 'PATCH',
+        path,
+        headers: {},
+        body: JSON.stringify(data ?? {}),
+      }
+    );
+
+    if (response.body) {
+      return JSON.parse(response.body);
+    }
+    return response;
+  }
+
+  async delete(path: string, data?: any): Promise<any> {
+    if (!this.sessionId) {
+      throw new Error('Not paired with any server');
+    }
+
+    const requestId = this.generateUuid();
+    const response = await this.sendMessage(
+      `app:${this.clientId}`,
+      'http_request',
+      {
+        request_id: requestId,
+        session_id: this.sessionId,
+        method: 'DELETE',
+        path,
+        headers: {},
+        body: data === undefined ? null : JSON.stringify(data),
       }
     );
 

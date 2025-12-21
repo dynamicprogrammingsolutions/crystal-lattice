@@ -65,6 +65,10 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({ adapter, onDisconnect }) 
               onBack={() => {
                 setTab('sessions');
               }}
+              onNavigateToSession={(sessionId) => {
+                setSelectedSessionId(sessionId);
+                setTab('messages');
+              }}
             />
           ) : (
             <View style={styles.placeholderContainer}>
