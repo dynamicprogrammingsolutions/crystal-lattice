@@ -1,5 +1,12 @@
 import React, { useState } from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
+} from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import {
   ALL_SESSION_ACTIONS,
@@ -60,47 +67,59 @@ const SessionActionsBar: React.FC<SessionActionsBarProps> = ({
         </TouchableOpacity>
       </View>
 
-      {menuVisible && (
-        <Modal
-          visible
-          transparent
-          animationType="fade"
-          onRequestClose={() => setMenuVisible(false)}
-        >
-          <View style={styles.menuOverlay}>
-            <View style={styles.menuContent}>
-              {ALL_SESSION_ACTIONS.map((def) => {
-                const pinnedHere = pinned.includes(def.key);
-                return (
-                  <TouchableOpacity
-                    key={def.key}
-                    style={styles.menuItem}
-                    onPress={() => {
-                      setMenuVisible(false);
-                      onAction(def.key);
-                    }}
-                  >
-                    <View style={styles.menuItemLeft}>
-                      {renderIconButton(def.key)}
-                      <Text style={styles.menuItemText}>{def.label}</Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.pinButton}
-                      onPress={() => togglePinned(def.key)}
-                    >
-                      <Icon
-                        name={pinnedHere ? 'star' : 'star-off'}
-                        size={16}
-                        color={pinnedHere ? '#FFCC00' : '#C7C7CC'}
-                      />
-                    </TouchableOpacity>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        </Modal>
-      )}
+	      {menuVisible && (
+	        <Modal
+	          visible
+	          transparent
+	          animationType="fade"
+	          onRequestClose={() => setMenuVisible(false)}
+	        >
+	          <TouchableWithoutFeedback onPress={() => setMenuVisible(false)}>
+	            <View style={styles.menuOverlay}>
+	              <TouchableWithoutFeedback onPress={() => {}}>
+	                <View style={styles.menuContent}>
+	                  <View style={styles.menuHeader}>
+	                    <Text style={styles.menuHeaderText}>Session actions</Text>
+	                    <TouchableOpacity
+	                      style={styles.closeButton}
+	                      onPress={() => setMenuVisible(false)}
+	                    >
+	                      <Icon name="x" size={18} color="#8E8E93" />
+	                    </TouchableOpacity>
+	                  </View>
+	                  {ALL_SESSION_ACTIONS.map((def) => {
+	                    const pinnedHere = pinned.includes(def.key);
+	                    return (
+	                      <View key={def.key} style={styles.menuItem}>
+	                        <TouchableOpacity
+	                          style={styles.menuItemLeft}
+	                          onPress={() => {
+	                            setMenuVisible(false);
+	                            onAction(def.key);
+	                          }}
+	                        >
+	                          {renderIconButton(def.key)}
+	                          <Text style={styles.menuItemText}>{def.label}</Text>
+	                        </TouchableOpacity>
+	                        <TouchableOpacity
+	                          style={styles.pinButton}
+	                          onPress={() => togglePinned(def.key)}
+	                        >
+	                          <Icon
+	                            name="star"
+	                            size={16}
+	                            color={pinnedHere ? '#FFCC00' : '#C7C7CC'}
+	                          />
+	                        </TouchableOpacity>
+	                      </View>
+	                    );
+	                  })}
+	                </View>
+	              </TouchableWithoutFeedback>
+	            </View>
+	          </TouchableWithoutFeedback>
+	        </Modal>
+	      )}
     </>
   );
 };
@@ -126,6 +145,25 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     paddingVertical: 8,
+  },
+  menuHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E5EA',
+    marginBottom: 4,
+  },
+  menuHeaderText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#000000',
+  },
+  closeButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 4,
   },
   menuItem: {
     flexDirection: 'row',

@@ -16,18 +16,22 @@ import Icon from 'react-native-vector-icons/Feather';
 import type { ConnectionAdapter } from '../App';
 import {
   apiAppendMessage,
+  apiDeleteMessagesByIndices,
   apiDeleteMessagesByRange,
   apiForkSession,
   apiGetSessionAgent,
   apiListAgents,
   apiListMessages,
+  apiModifyMessage,
   apiSend,
   apiSwitchSessionAgent,
+  type ApiMessage,
   type IndexedMessage,
 } from './api';
 import MessageBubble from './components/MessageBubble';
 import SessionActionsBar from './components/SessionActionsBar';
 import { SESSION_ACTIONS, type SessionActionKey } from './sessionActions';
+import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 
 interface SessionChatScreenProps {
   adapter: ConnectionAdapter;
@@ -62,6 +66,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [sessionAgentId, setSessionAgentId] = useState<string | null>(null);
   const [agentModalVisible, setAgentModalVisible] = useState(false);
   const [agentLoading, setAgentLoading] = useState(false);
+  const [pinnedMessageActionsByRole, setPinnedMessageActionsByRole] = useState<
+    Record<string, MessageActionKey[]>
+  >({});
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingText, setEditingText] = useState('');
   const [shouldAutoScroll, setShouldAutoScroll] = useState(false);
   const scrollViewRef = useRef<ScrollView | null>(null);
 
@@ -142,40 +151,39 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       setSendInProgress(false);
     }
   };
+  const confirmDeleteRange = async () => {
+    const startTrimmed = deleteRangeStartText.trim();
+    const endTrimmed = deleteRangeEndText.trim();
+    let start: number | undefined;
+    let end: number | undefined;
+    if (startTrimmed) {
+      const parsed = parseInt(startTrimmed, 10);
+      if (!Number.isNaN(parsed)) {
+        start = parsed;
+      }
+    }
+    if (endTrimmed) {
+      const parsedEnd = parseInt(endTrimmed, 10);
+      if (!Number.isNaN(parsedEnd)) {
+        end = parsedEnd;
+      }
+    }
+    if (start === undefined && end === undefined) {
+      Alert.alert('Invalid range', 'Provide at least a start or end index.');
+      return;
+    }
+    try {
+      await apiDeleteMessagesByRange(adapter, sessionId, start, end);
+      setDeleteRangeVisible(false);
+      await loadMessages();
+    } catch (err: any) {
+      console.log('Failed to delete range', err);
+      const message = err?.message || 'Failed to delete messages';
+      Alert.alert('Error', message);
+    }
+  };
 
-	  const confirmDeleteRange = async () => {
-	    const startTrimmed = deleteRangeStartText.trim();
-	    const endTrimmed = deleteRangeEndText.trim();
-	    let start: number | undefined;
-	    let end: number | undefined;
-	    if (startTrimmed) {
-	      const parsed = parseInt(startTrimmed, 10);
-	      if (!Number.isNaN(parsed)) {
-	        start = parsed;
-	      }
-	    }
-	    if (endTrimmed) {
-	      const parsedEnd = parseInt(endTrimmed, 10);
-	      if (!Number.isNaN(parsedEnd)) {
-	        end = parsedEnd;
-	      }
-	    }
-	    if (start === undefined && end === undefined) {
-	      Alert.alert('Invalid range', 'Provide at least a start or end index.');
-	      return;
-	    }
-	    try {
-	      await apiDeleteMessagesByRange(adapter, sessionId, start, end);
-	      setDeleteRangeVisible(false);
-	      await loadMessages();
-	    } catch (err: any) {
-	      console.log('Failed to delete range', err);
-	      const message = err?.message || 'Failed to delete messages';
-	      Alert.alert('Error', message);
-	    }
-	  };
-
-	  const handleSwitchAgent = async (agentId: string) => {
+  const handleSwitchAgent = async (agentId: string) => {
 	    try {
 	      setAgentLoading(true);
 	      await apiSwitchSessionAgent(adapter, sessionId, agentId);
@@ -263,6 +271,113 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
   };
 
+  const getPinnedActionsForRole = (role: string): MessageActionKey[] => {
+    const allowedKeys = ALL_MESSAGE_ACTIONS
+      .filter((def) => def.allowedRoles.includes(role))
+      .map((def) => def.key as MessageActionKey);
+
+    const existing = pinnedMessageActionsByRole[role];
+    if (existing && existing.length > 0) {
+      return existing.filter((key) => allowedKeys.includes(key));
+    }
+
+    const defaults: MessageActionKey[] = [];
+    ALL_MESSAGE_ACTIONS.forEach((def) => {
+      if (def.defaultPinnedRoles.includes(role) && def.allowedRoles.includes(role)) {
+        defaults.push(def.key as MessageActionKey);
+      }
+    });
+    return defaults;
+  };
+
+  const handleChangePinnedForRole = (role: string, pinned: MessageActionKey[]) => {
+    setPinnedMessageActionsByRole((prev) => ({ ...prev, [role]: pinned }));
+  };
+
+  const handleStartEditMessage = (index: number, message: ApiMessage) => {
+    const role = message.role || 'unknown';
+    if (role === 'tool') {
+      // Tool results cannot be modified.
+      return;
+    }
+    const content = typeof message.content === 'string' ? message.content : '';
+    setEditingIndex(index);
+    setEditingText(content);
+  };
+
+  const handleSubmitEditMessage = async (
+    index: number,
+    _message: ApiMessage,
+    newText: string,
+  ) => {
+    const trimmed = newText.trim();
+    if (!trimmed) {
+      Alert.alert('Invalid content', 'Message content cannot be empty.');
+      return;
+    }
+    try {
+      await apiModifyMessage(adapter, sessionId, index, trimmed);
+      setEditingIndex(null);
+      setEditingText('');
+      await loadMessages();
+    } catch (err: any) {
+      console.log('Failed to modify message', err);
+      const msg = err?.message || 'Failed to modify message';
+      Alert.alert('Error', msg);
+    }
+  };
+
+  const handleCancelEditMessage = () => {
+    setEditingIndex(null);
+    setEditingText('');
+  };
+
+  const handleMessageAction = async (
+    action: MessageActionKey,
+    index: number,
+    message: ApiMessage,
+  ) => {
+    if (action === 'delete') {
+      const label = `Delete message [${index}]?`;
+      const confirmed = await new Promise<boolean>((resolve) => {
+        Alert.alert('Confirm delete', label, [
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
+        ]);
+      });
+      if (!confirmed) return;
+      try {
+        await apiDeleteMessagesByIndices(adapter, sessionId, [index]);
+        await loadMessages();
+      } catch (err: any) {
+        console.log('Failed to delete message', err);
+        const msg = err?.message || 'Failed to delete message';
+        Alert.alert('Error', msg);
+      }
+      return;
+    }
+
+    if (action === 'modify') {
+      handleStartEditMessage(index, message);
+      return;
+    }
+
+    if (action === 'fork') {
+      try {
+        const result = await apiForkSession(adapter, sessionId, index);
+        const newId = result.session.session_id;
+        if (onNavigateToSession && typeof newId === 'string' && newId) {
+          onNavigateToSession(newId);
+        }
+      } catch (err: any) {
+        console.log('Failed to fork session from message', err);
+        const msg = err?.message || 'Failed to fork session';
+        Alert.alert('Error', msg);
+      }
+      return;
+    }
+  };
+
 	  const sessionLabel = `Session ${sessionId.slice(0, 8)}`;
 
 		  return (
@@ -308,10 +423,31 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	          }
 	        }}
 	      >
-        {messages.map((m) => (
-          <MessageBubble key={m.index} index={m.index} message={m.message} />
-        ))}
-      </ScrollView>
+	      {messages.map((m) => {
+	        const role = m.message.role || 'unknown';
+	        const allowedActions = ALL_MESSAGE_ACTIONS
+	          .filter((def) => def.allowedRoles.includes(role))
+	          .map((def) => def.key as MessageActionKey);
+	        const pinnedForRole = getPinnedActionsForRole(role);
+	        const isEditing = editingIndex === m.index;
+	        return (
+	          <MessageBubble
+	            key={m.index}
+	            index={m.index}
+	            message={m.message}
+	            pinnedActions={pinnedForRole}
+	            allowedActions={allowedActions}
+	            onAction={handleMessageAction}
+	            onChangePinnedForRole={handleChangePinnedForRole}
+	            isEditing={isEditing}
+	            editingText={isEditing ? editingText : undefined}
+	            onChangeEditingText={isEditing ? setEditingText : undefined}
+	            onSubmitEdit={handleSubmitEditMessage}
+	            onCancelEdit={handleCancelEditMessage}
+	          />
+	        );
+	      })}
+	      </ScrollView>
 
 	      <View style={styles.composer}>
         <TextInput
@@ -354,23 +490,23 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	            <View style={styles.rangeRow}>
 	              <View style={styles.rangeInputContainer}>
 	                <Text style={styles.rangeLabel}>Start</Text>
-	                <TextInput
-	                  style={styles.modalInput}
-	                  value={rangeStartText}
-	                  onChangeText={setRangeStartText}
-	                  placeholder="e.g. -50"
-	                  keyboardType="number-pad"
-	                />
+                <TextInput
+                  style={styles.modalInput}
+                  value={rangeStartText}
+                  onChangeText={setRangeStartText}
+                  placeholder="e.g. -50"
+                  keyboardType="default"
+                />
 	              </View>
 	              <View style={styles.rangeInputContainer}>
 	                <Text style={styles.rangeLabel}>End</Text>
-	                <TextInput
-	                  style={styles.modalInput}
-	                  value={rangeEndText}
-	                  onChangeText={setRangeEndText}
-	                  placeholder="optional"
-	                  keyboardType="number-pad"
-	                />
+                <TextInput
+                  style={styles.modalInput}
+                  value={rangeEndText}
+                  onChangeText={setRangeEndText}
+                  placeholder="optional"
+                  keyboardType="default"
+                />
 	              </View>
 	            </View>
 	            <View style={styles.modalButtonsRow}>
@@ -411,23 +547,23 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	            <View style={styles.rangeRow}>
 	              <View style={styles.rangeInputContainer}>
 	                <Text style={styles.rangeLabel}>Start</Text>
-	                <TextInput
-	                  style={styles.modalInput}
-	                  value={deleteRangeStartText}
-	                  onChangeText={setDeleteRangeStartText}
-	                  placeholder="e.g. 0 or -10"
-	                  keyboardType="number-pad"
-	                />
+                <TextInput
+                  style={styles.modalInput}
+                  value={deleteRangeStartText}
+                  onChangeText={setDeleteRangeStartText}
+                  placeholder="e.g. 0 or -10"
+                  keyboardType="default"
+                />
 	              </View>
 	              <View style={styles.rangeInputContainer}>
 	                <Text style={styles.rangeLabel}>End</Text>
-	                <TextInput
-	                  style={styles.modalInput}
-	                  value={deleteRangeEndText}
-	                  onChangeText={setDeleteRangeEndText}
-	                  placeholder="optional"
-	                  keyboardType="number-pad"
-	                />
+                <TextInput
+                  style={styles.modalInput}
+                  value={deleteRangeEndText}
+                  onChangeText={setDeleteRangeEndText}
+                  placeholder="optional"
+                  keyboardType="default"
+                />
 	              </View>
 	            </View>
 	            <View style={styles.modalButtonsRow}>
@@ -447,9 +583,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	          </View>
 	        </View>
 	      </Modal>
-
-	      {renderSessionActionsMenu()}
-	      <Modal
+      <Modal
 	        visible={agentModalVisible}
 	        transparent
 	        animationType="fade"
@@ -662,38 +796,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	    fontSize: 12,
 	    color: '#8E8E93',
 	    marginBottom: 4,
-	  },
-	  menuOverlay: {
-	    flex: 1,
-	    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-	    justifyContent: 'center',
-	    alignItems: 'center',
-	  },
-	  menuContent: {
-	    width: '80%',
-	    backgroundColor: '#FFFFFF',
-	    borderRadius: 12,
-	    paddingVertical: 8,
-	  },
-	  menuItem: {
-	    flexDirection: 'row',
-	    alignItems: 'center',
-	    justifyContent: 'space-between',
-	    paddingHorizontal: 12,
-	    paddingVertical: 8,
-	  },
-	  menuItemLeft: {
-	    flexDirection: 'row',
-	    alignItems: 'center',
-	  },
-	  menuItemText: {
-	    marginLeft: 8,
-	    fontSize: 14,
-	    color: '#000000',
-	  },
-	  pinButton: {
-	    paddingHorizontal: 4,
-	    paddingVertical: 4,
 	  },
 	  agentList: {
 	    maxHeight: 220,
