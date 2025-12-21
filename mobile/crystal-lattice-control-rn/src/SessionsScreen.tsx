@@ -19,12 +19,23 @@ import {
 } from './api';
 
 interface SessionsScreenProps {
-  adapter: ConnectionAdapter;
+  adapter: ConnectionAdapter | null;
+  connectionId: string | null;
+  cachedSessions: SessionSummary[] | null;
+  lastLoadedAt: number | null;
+  onUpdateCache: (sessions: SessionSummary[]) => void;
   onSelectSession: (sessionId: string) => void;
 }
 
-const SessionsScreen: React.FC<SessionsScreenProps> = ({ adapter, onSelectSession }) => {
-  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+const SessionsScreen: React.FC<SessionsScreenProps> = ({
+  adapter,
+  connectionId,
+  cachedSessions,
+  lastLoadedAt,
+  onUpdateCache,
+  onSelectSession,
+}) => {
+  const [sessions, setSessions] = useState<SessionSummary[]>(cachedSessions ?? []);
   const [filterText, setFilterText] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,10 +44,17 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({ adapter, onSelectSessio
   const [agentLoading, setAgentLoading] = useState(false);
 
   const loadSessions = useCallback(async () => {
+    if (!adapter) {
+      const message = 'No active connection';
+      setError(message);
+      Alert.alert('Error', message);
+      return;
+    }
     setLoading(true);
     try {
       const list = await apiListSessions(adapter);
       setSessions(list);
+      onUpdateCache(list);
       setError(null);
     } catch (err: any) {
       console.log('Failed to load sessions', err);
@@ -46,11 +64,16 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({ adapter, onSelectSessio
     } finally {
       setLoading(false);
     }
-  }, [adapter]);
+  }, [adapter, onUpdateCache]);
 
   useEffect(() => {
-    loadSessions();
-  }, [loadSessions]);
+    if (cachedSessions) {
+      setSessions(cachedSessions);
+      setError(null);
+    } else if (!adapter) {
+      setSessions([]);
+    }
+  }, [cachedSessions, connectionId, adapter]);
 
   const createSessionWithAgent = async (agentId: string | null) => {
     const chosenAgent = agentId && agentId.trim() ? agentId.trim() : 'default';
