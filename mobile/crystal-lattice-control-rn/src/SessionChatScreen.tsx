@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -25,23 +27,25 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({ adapter, sessionI
   const [messages, setMessages] = useState<IndexedMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sendInProgress, setSendInProgress] = useState(false);
-  const [composeText, setComposeText] = useState('');
-  const [messageLimit, setMessageLimit] = useState<number | 'all'>(25);
-  const [limitInput, setLimitInput] = useState('25');
-  const [lastReloadAt, setLastReloadAt] = useState<Date | null>(null);
-  const [settingsVisible, setSettingsVisible] = useState(false);
-  const scrollViewRef = useRef<ScrollView | null>(null);
+	  const [composeText, setComposeText] = useState('');
+	  const [messageLimit, setMessageLimit] = useState<number | 'all'>(25);
+	  const [limitInput, setLimitInput] = useState('25');
+	  const [lastReloadAt, setLastReloadAt] = useState<Date | null>(null);
+	  const [settingsVisible, setSettingsVisible] = useState(false);
+	  const [shouldAutoScroll, setShouldAutoScroll] = useState(false);
+	  const scrollViewRef = useRef<ScrollView | null>(null);
 
   const loadMessages = useCallback(async () => {
     setLoadingMessages(true);
-    try {
-      let start: number | undefined;
-      if (messageLimit !== 'all' && messageLimit > 0) {
-        start = -messageLimit;
-      }
-      const list = await apiListMessages(adapter, sessionId, start);
-      setMessages(list);
-      setLastReloadAt(new Date());
+	    try {
+	      let start: number | undefined;
+	      if (messageLimit !== 'all' && messageLimit > 0) {
+	        start = -messageLimit;
+	      }
+	      const list = await apiListMessages(adapter, sessionId, start);
+	      setMessages(list);
+	      setShouldAutoScroll(true);
+	      setLastReloadAt(new Date());
     } catch (err: any) {
       console.log('Failed to load messages', err);
       const message = err?.message || 'Failed to load messages';
@@ -120,10 +124,15 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({ adapter, sessionI
     }
   };
 
-  const sessionLabel = `Session ${sessionId.slice(0, 8)}`;
-
-  return (
-    <View style={styles.container}>
+	  const sessionLabel = `Session ${sessionId.slice(0, 8)}`;
+	
+	  return (
+	    <KeyboardAvoidingView
+	      style={styles.keyboardAvoiding}
+	      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+	      keyboardVerticalOffset={8}
+	    >
+	      <View style={styles.container}>
       <View style={styles.headerRow}>
         <TouchableOpacity style={styles.backButton} onPress={onBack}>
           <Text style={styles.backButtonText}>← Sessions</Text>
@@ -162,22 +171,23 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({ adapter, sessionI
         </View>
       </View>
 
-      {loadingMessages && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color="#007AFF" />
-          <Text style={styles.loadingText}>Loading messages...</Text>
-        </View>
-      )}
-
-      <ScrollView
-        style={styles.messagesContainer}
-        ref={scrollViewRef}
-        onContentSizeChange={() => {
-          if (scrollViewRef.current) {
-            scrollViewRef.current.scrollToEnd({ animated: false });
-          }
-        }}
-      >
+	      {loadingMessages && (
+	        <View style={styles.loadingContainer}>
+	          <ActivityIndicator size="small" color="#007AFF" />
+	          <Text style={styles.loadingText}>Loading messages...</Text>
+	        </View>
+	      )}
+	
+	      <ScrollView
+	        style={styles.messagesContainer}
+	        ref={scrollViewRef}
+	        onContentSizeChange={() => {
+	          if (shouldAutoScroll && scrollViewRef.current) {
+	            scrollViewRef.current.scrollToEnd({ animated: false });
+	            setShouldAutoScroll(false);
+	          }
+	        }}
+	      >
         {messages.map((m) => (
           <MessageBubble key={m.index} index={m.index} message={m.message} />
         ))}
@@ -209,60 +219,64 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({ adapter, sessionI
         </View>
       </View>
 
-      <Modal
-        visible={settingsVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSettingsVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Message limit</Text>
-            <Text style={styles.modalSubtitle}>
-              {messageLimit === 'all'
-                ? 'Currently showing all loaded messages.'
-                : `Currently showing last ${messageLimit} messages.`}
-            </Text>
-            <TextInput
-              style={styles.modalInput}
-              value={limitInput}
-              onChangeText={setLimitInput}
-              placeholder="Leave empty for all"
-              keyboardType="number-pad"
-            />
-            <View style={styles.modalButtonsRow}>
-              <TouchableOpacity
-                style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                onPress={() => setSettingsVisible(false)}
-              >
-                <Text style={styles.buttonTextSecondary}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.button, styles.primaryButton, styles.modalButton]}
-                onPress={() => {
-                  handleApplyLimit();
-                  setSettingsVisible(false);
-                }}
-              >
-                <Text style={styles.buttonText}>Apply</Text>
-              </TouchableOpacity>
-            </View>
-            {lastReloadAt && (
-              <Text style={styles.modalHelperText}>
-                Last reload at {lastReloadAt.toLocaleTimeString()}
-              </Text>
-            )}
-          </View>
-        </View>
-      </Modal>
-    </View>
+	      <Modal
+	        visible={settingsVisible}
+	        transparent
+	        animationType="fade"
+	        onRequestClose={() => setSettingsVisible(false)}
+	      >
+	        <View style={styles.modalOverlay}>
+	          <View style={styles.modalContent}>
+	            <Text style={styles.modalTitle}>Message limit</Text>
+	            <Text style={styles.modalSubtitle}>
+	              {messageLimit === 'all'
+	                ? 'Currently showing all loaded messages.'
+	                : `Currently showing last ${messageLimit} messages.`}
+	            </Text>
+	            <TextInput
+	              style={styles.modalInput}
+	              value={limitInput}
+	              onChangeText={setLimitInput}
+	              placeholder="Leave empty for all"
+	              keyboardType="number-pad"
+	            />
+	            <View style={styles.modalButtonsRow}>
+	              <TouchableOpacity
+	                style={[styles.button, styles.secondaryButton, styles.modalButton]}
+	                onPress={() => setSettingsVisible(false)}
+	              >
+	                <Text style={styles.buttonTextSecondary}>Cancel</Text>
+	              </TouchableOpacity>
+	              <TouchableOpacity
+	                style={[styles.button, styles.primaryButton, styles.modalButton]}
+	                onPress={() => {
+	                  handleApplyLimit();
+	                  setSettingsVisible(false);
+	                }}
+	              >
+	                <Text style={styles.buttonText}>Apply</Text>
+	              </TouchableOpacity>
+	            </View>
+	            {lastReloadAt && (
+	              <Text style={styles.modalHelperText}>
+	                Last reload at {lastReloadAt.toLocaleTimeString()}
+	              </Text>
+	            )}
+	          </View>
+	        </View>
+	      </Modal>
+	    </View>
+	    </KeyboardAvoidingView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+	const styles = StyleSheet.create({
+	  keyboardAvoiding: {
+	    flex: 1,
+	  },
+	  container: {
+	    flex: 1,
+	  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
