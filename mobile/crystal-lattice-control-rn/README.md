@@ -8,6 +8,9 @@ This is a React Native implementation of the Bonjour service discovery example. 
   - Manual address entry (IP + port)
   - Automatic Bonjour/mDNS discovery
   - Bridge service connection for cross-network access
+- 📂 **Connections Screen:**
+  - Saves successful connections (manual, discovery, bridge)
+  - Lets you reconnect with a single tap instead of re-entering details or pairing codes (when the bridge still knows about the pairing)
 - 📡 Connect to discovered services
 - ✅ Execute GET and PUT requests
 - 🔐 Secure pairing with bridge servers
@@ -281,6 +284,7 @@ interface ConnectionAdapter {
 6. User submits code → pairing complete
 7. Requests are proxied through WebSocket
 8. Bridge forwards requests to server via session
+9. The app stores a connection record (including the bridge URL, server id, and pairing token) so you can reconnect from the Connections screen without re-entering the 6-digit code, as long as the bridge still has the pairing
 
 ## Troubleshooting
 
