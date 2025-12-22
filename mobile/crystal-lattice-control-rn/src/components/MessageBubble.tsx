@@ -543,8 +543,10 @@ const createStyles = (theme: Theme) =>
       color: theme.text,
       fontFamily: 'Courier',
     },
+    // User messages share the same foreground color as other
+    // messages; only the background changes per theme.
     userContentText: {
-      color: theme.textOnPrimary,
+      color: theme.text,
     },
     collapseIconButton: {
       paddingHorizontal: 4,
