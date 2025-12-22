@@ -1,4 +1,4 @@
-export type MessageActionKey = 'delete' | 'modify' | 'fork';
+export type MessageActionKey = 'delete' | 'modify' | 'fork' | 'toggleMarkdown' | 'copy';
 
 export interface MessageActionDefinition {
   key: MessageActionKey;
@@ -30,6 +30,20 @@ export const MESSAGE_ACTIONS: Record<MessageActionKey, MessageActionDefinition> 
     label: 'Fork',
     iconName: 'git-branch',
     defaultPinnedRoles: ['user', 'assistant'],
+    allowedRoles: ['user', 'assistant', 'system', 'tool'],
+  },
+  toggleMarkdown: {
+    key: 'toggleMarkdown',
+    label: 'Toggle markdown',
+    iconName: 'code',
+    defaultPinnedRoles: ['assistant'],
+    allowedRoles: ['assistant'],
+  },
+  copy: {
+    key: 'copy',
+    label: 'Copy message',
+    iconName: 'copy',
+    defaultPinnedRoles: ['user', 'assistant', 'system', 'tool'],
     allowedRoles: ['user', 'assistant', 'system', 'tool'],
   },
 };

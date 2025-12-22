@@ -120,15 +120,6 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
           </View>
         );
       },
-      code_inline: (node: any) => {
-        const content = typeof node.content === 'string' ? node.content : '';
-
-        return (
-          <Text key={node.key} style={styles.inlineCode}>
-            {content}
-          </Text>
-        );
-      },
     }),
     [],
   );
@@ -146,10 +137,8 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
 const styles = StyleSheet.create({
   bodyText: {
     fontSize: 14,
-    fontFamily: 'Courier',
   },
   heading: {
-    fontFamily: 'Courier',
     fontWeight: '700',
     marginTop: 4,
     marginBottom: 2,

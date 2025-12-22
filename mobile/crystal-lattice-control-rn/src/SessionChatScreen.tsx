@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Clipboard from '@react-native-clipboard/clipboard';
 import Icon from 'react-native-vector-icons/Feather';
 import type { ConnectionAdapter } from '../App';
 import {
@@ -33,6 +34,7 @@ import MessageBubble from './components/MessageBubble';
 import SessionActionsBar from './components/SessionActionsBar';
 import { SESSION_ACTIONS, type SessionActionKey } from './sessionActions';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
+import { selectDisplayContent } from './messageUtils';
 
 interface SessionChatScreenProps {
   adapter: ConnectionAdapter | null;
@@ -86,6 +88,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [agentLoading, setAgentLoading] = useState(false);
   const [pinnedMessageActionsByRole, setPinnedMessageActionsByRole] = useState<
     Record<string, MessageActionKey[]>
+  >({});
+  const [messageViewModeByIndex, setMessageViewModeByIndex] = useState<
+    Record<number, 'markdown' | 'raw'>
   >({});
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingText, setEditingText] = useState('');
@@ -243,12 +248,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   }, [pinnedMessageActionsByRole]);
 
   useEffect(() => {
-    // Persist UI state when this screen is unmounted or when
-    // the associated connection/session changes.
+    // Persist UI state when this screen is unmounted.
+    // We intentionally do not depend on props here to avoid
+    // running the cleanup on every re-render.
     return () => {
       onUpdateUiState(composeTextRef.current, scrollOffsetRef.current);
     };
-  }, [onUpdateUiState, connectionId, sessionId]);
+  }, []);
 
 	  const handleAppend = async () => {
     const text = composeText.trim();
@@ -551,6 +557,30 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }
       return;
     }
+
+    if (action === 'toggleMarkdown') {
+      const role = message.role || 'unknown';
+      if (role !== 'assistant') {
+        return;
+      }
+      setMessageViewModeByIndex((prev) => {
+        const current = prev[index] ?? 'markdown';
+        const next: 'markdown' | 'raw' = current === 'markdown' ? 'raw' : 'markdown';
+        return { ...prev, [index]: next };
+      });
+      return;
+    }
+
+    if (action === 'copy') {
+      const content = selectDisplayContent(message);
+      if (!content) {
+        Alert.alert('Nothing to copy', 'This message has no text content.');
+        return;
+      }
+      Clipboard.setString(content);
+      Alert.alert('Copied', 'Message content copied to clipboard.');
+      return;
+    }
   };
 
 	  const sessionLabel = `Session ${sessionId.slice(0, 8)}`;
@@ -605,6 +635,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	          .map((def) => def.key as MessageActionKey);
 	        const pinnedForRole = getPinnedActionsForRole(role);
 	        const isEditing = editingIndex === m.index;
+	        const defaultModeForRole: 'markdown' | 'raw' =
+	          role === 'assistant' ? 'markdown' : 'raw';
+	        const renderMode = messageViewModeByIndex[m.index] ?? defaultModeForRole;
 	        return (
 	          <MessageBubble
 	            key={m.index}
@@ -619,6 +652,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	            onChangeEditingText={isEditing ? setEditingText : undefined}
 	            onSubmitEdit={handleSubmitEditMessage}
 	            onCancelEdit={handleCancelEditMessage}
+	            renderMode={renderMode}
 	          />
 	        );
 	      })}

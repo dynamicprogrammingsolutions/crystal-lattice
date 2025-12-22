@@ -191,6 +191,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
 
               return (
                 <SessionChatScreen
+                  key={`${connectionId ?? 'none'}:${selectedSessionId}`}
                   adapter={adapter}
                   connectionId={connectionId}
                   sessionId={selectedSessionId}
