@@ -32,6 +32,12 @@ interface ConnectedRootProps {
     sessionId: string,
     messages: IndexedMessage[],
   ) => void;
+  onUpdateMessagesUiState: (
+    connectionId: string,
+    sessionId: string,
+    composeText: string,
+    scrollOffset: number,
+  ) => void;
 }
 
 const ConnectedRoot: React.FC<ConnectedRootProps> = ({
@@ -49,8 +55,9 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   onUpdateSessionsCache,
   messagesCache,
   onUpdateMessagesCache,
+  onUpdateMessagesUiState,
 }) => {
-  const [tab, setTab] = useState<'connection' | 'sessions' | 'messages'>('sessions');
+  const [tab, setTab] = useState<'connection' | 'sessions' | 'messages'>('connection');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoResponse, setDemoResponse] = useState('');
@@ -189,6 +196,8 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                   sessionId={selectedSessionId}
                   cachedMessages={cacheEntry?.messages ?? null}
                   lastLoadedAt={cacheEntry?.lastLoadedAt ?? null}
+                  initialComposeText={cacheEntry?.composeText ?? ''}
+                  initialScrollOffset={cacheEntry?.scrollOffset ?? 0}
                   onUpdateCache={(list: IndexedMessage[]) => {
                     if (connectionId) {
                       onUpdateMessagesCache(connectionId, selectedSessionId, list);
@@ -200,6 +209,17 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                   onNavigateToSession={(sessionId) => {
                     setSelectedSessionId(sessionId);
                     setTab('messages');
+                  }}
+                  onUpdateUiState={(composeText, scrollOffset) => {
+                    const connectionId = activeConnectionId;
+                    if (connectionId) {
+                      onUpdateMessagesUiState(
+                        connectionId,
+                        selectedSessionId,
+                        composeText,
+                        scrollOffset,
+                      );
+                    }
                   }}
                 />
               );
