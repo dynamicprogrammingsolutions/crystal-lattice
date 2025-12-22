@@ -48,7 +48,8 @@ interface SessionChatScreenProps {
   onNavigateToSession?: (sessionId: string) => void;
   initialComposeText: string;
   initialScrollOffset: number;
-  onUpdateUiState: (composeText: string, scrollOffset: number) => void;
+  onSaveComposeText: (composeText: string) => void;
+  onSaveScrollOffset: (scrollOffset: number) => void;
 }
 
 const STORAGE_KEY_SESSION_ACTIONS = 'clc_pinned_session_actions_v1';
@@ -65,7 +66,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   onNavigateToSession,
   initialComposeText,
   initialScrollOffset,
-  onUpdateUiState,
+  onSaveComposeText,
+  onSaveScrollOffset,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -100,6 +102,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [shouldAutoScroll, setShouldAutoScroll] = useState(false);
   const scrollViewRef = useRef<ScrollView | null>(null);
   const composeTextRef = useRef<string>(initialComposeText ?? '');
+  const scrollOffsetRef = useRef<number>(initialScrollOffset || 0);
+  const hasRestoredScrollRef = useRef(false);
   const hasAutoScrolledRef = useRef(false);
 
   useEffect(() => {
@@ -248,7 +252,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   useEffect(() => {
     // Persist UI state when this screen is unmounted.
     return () => {
-      onUpdateUiState(composeTextRef.current, 0);
+      onSaveComposeText(composeTextRef.current);
+      onSaveScrollOffset(scrollOffsetRef.current);
     };
   }, []);
 
@@ -289,7 +294,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       await apiSend(adapter, sessionId);
       await loadMessages();
         setComposeText('');
-        onUpdateUiState('', 0);
+        onSaveComposeText('');
     } catch (err: any) {
       console.log('Failed to send request', err);
       const message = err?.message || 'Failed to send request';
@@ -617,7 +622,24 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	      <ScrollView
 	        style={styles.messagesContainer}
 	        ref={scrollViewRef}
+	        onScroll={(event) => {
+	          scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+	        }}
 	        onContentSizeChange={() => {
+	          if (
+	            !hasRestoredScrollRef.current &&
+	            typeof initialScrollOffset === 'number' &&
+	            initialScrollOffset > 0 &&
+	            scrollViewRef.current
+	          ) {
+	            scrollViewRef.current.scrollTo({
+	              x: 0,
+	              y: initialScrollOffset,
+	              animated: false,
+	            });
+	            hasRestoredScrollRef.current = true;
+	            return;
+	          }
 	          if (shouldAutoScroll && scrollViewRef.current) {
 	            scrollViewRef.current.scrollToEnd({ animated: false });
 	            setShouldAutoScroll(false);
@@ -664,7 +686,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
             setComposeText(text);
           }}
           onBlur={() => {
-	            onUpdateUiState(composeTextRef.current, 0);
+            onSaveComposeText(composeTextRef.current);
           }}
           multiline
         />
