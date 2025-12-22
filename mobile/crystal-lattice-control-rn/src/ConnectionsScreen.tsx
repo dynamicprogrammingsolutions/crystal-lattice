@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,7 @@ import {
 import Icon from 'react-native-vector-icons/Feather';
 import type { ConnectionRecord } from '../App';
 import { getConnectionAdditionalInfo } from './connectionInfo';
+import { useTheme, type Theme } from './theme';
 
 interface ConnectionsScreenProps {
   connections: ConnectionRecord[];
@@ -27,6 +28,8 @@ const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({
   onNewConnection,
   onDeleteConnection,
 }) => {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const sorted = [...connections].sort((a, b) => b.lastUsedAt - a.lastUsedAt);
 
   const renderMethodLabel = (kind: ConnectionRecord['kind']) => {
@@ -65,7 +68,7 @@ const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({
 
       {loading && (
         <View style={styles.loadingRow}>
-          <ActivityIndicator size="small" color="#007AFF" />
+          <ActivityIndicator size="small" color={theme.primary} />
           <Text style={styles.loadingText}>Loading saved connections...</Text>
         </View>
       )}
@@ -121,7 +124,7 @@ const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({
                   }}
                   accessibilityLabel={`Delete connection ${record.name}`}
                 >
-                  <Icon name="trash-2" size={18} color="#FF3B30" />
+                  <Icon name="trash-2" size={18} color={theme.danger} />
                 </TouchableOpacity>
               </View>
             );
@@ -132,117 +135,123 @@ const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 16,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  primaryButton: {
-    backgroundColor: '#007AFF',
-  },
-  buttonIcon: {
-    marginRight: 6,
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  loadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  loadingText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#8E8E93',
-  },
-  list: {
-    flex: 1,
-  },
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-  },
-  itemContent: {
-    flex: 1,
-  },
-  itemHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  itemTitle: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '600',
-    marginRight: 8,
-  },
-  methodBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-    backgroundColor: '#E5E5EA',
-  },
-  methodBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#000000',
-  },
-  itemMeta: {
-    fontSize: 12,
-    color: '#8E8E93',
-  },
-  itemSubLabel: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginTop: 2,
-  },
-  deleteButton: {
-    paddingLeft: 8,
-    paddingVertical: 4,
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: '#8E8E93',
-    textAlign: 'center',
-  },
-});
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      padding: 16,
+      backgroundColor: theme.background,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 16,
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      color: theme.text,
+    },
+    button: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 8,
+      backgroundColor: theme.primary,
+    },
+    primaryButton: {
+      backgroundColor: theme.primary,
+    },
+    buttonIcon: {
+      marginRight: 6,
+    },
+    buttonText: {
+      color: theme.textOnPrimary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    loadingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    loadingText: {
+      marginLeft: 8,
+      fontSize: 14,
+      color: theme.textSecondary,
+    },
+    list: {
+      flex: 1,
+    },
+    item: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 12,
+      backgroundColor: theme.surface,
+      borderRadius: 8,
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    itemContent: {
+      flex: 1,
+    },
+    itemHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 4,
+    },
+    itemTitle: {
+      flex: 1,
+      fontSize: 16,
+      fontWeight: '600',
+      marginRight: 8,
+      color: theme.text,
+    },
+    methodBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 12,
+      backgroundColor: theme.surfaceAlt,
+    },
+    methodBadgeText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: theme.text,
+    },
+    itemMeta: {
+      fontSize: 12,
+      color: theme.textSecondary,
+    },
+    itemSubLabel: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      marginTop: 2,
+    },
+    deleteButton: {
+      paddingLeft: 8,
+      paddingVertical: 4,
+    },
+    emptyContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 16,
+    },
+    emptyTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      marginBottom: 8,
+      color: theme.text,
+    },
+    emptySubtitle: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      textAlign: 'center',
+    },
+  });
 
 export default ConnectionsScreen;

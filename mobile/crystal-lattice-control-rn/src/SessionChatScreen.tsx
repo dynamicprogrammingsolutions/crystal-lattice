@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -35,6 +35,7 @@ import SessionActionsBar from './components/SessionActionsBar';
 import { SESSION_ACTIONS, type SessionActionKey } from './sessionActions';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 import { selectDisplayContent } from './messageUtils';
+import { useTheme, type Theme } from './theme';
 
 interface SessionChatScreenProps {
   adapter: ConnectionAdapter | null;
@@ -68,6 +69,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   initialScrollOffset,
   onUpdateUiState,
 }) => {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [messages, setMessages] = useState<IndexedMessage[]>(cachedMessages ?? []);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sendInProgress, setSendInProgress] = useState(false);
@@ -629,7 +632,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
 	      {loadingMessages && (
 	        <View style={styles.loadingContainer}>
-	          <ActivityIndicator size="small" color="#007AFF" />
+	          <ActivityIndicator size="small" color={theme.primary} />
 	          <Text style={styles.loadingText}>Loading messages...</Text>
 	        </View>
 	      )}
@@ -637,6 +640,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	      <ScrollView
 	        style={styles.messagesContainer}
 	        ref={scrollViewRef}
+	        onScroll={(event) => {
+	          scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+	        }}
 	        onContentSizeChange={() => {
 	          if (shouldAutoScroll && scrollViewRef.current) {
 	            scrollViewRef.current.scrollToEnd({ animated: false });
@@ -678,6 +684,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         <TextInput
           style={styles.composerInput}
           placeholder="Type your message..."
+          placeholderTextColor={theme.textSecondary}
           value={composeText}
           onChangeText={(text) => {
             setComposeText(text);
@@ -824,7 +831,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	            <Text style={styles.modalTitle}>Switch agent</Text>
 	            {agentLoading && (
 	              <View style={styles.loadingContainer}>
-	                <ActivityIndicator size="small" color="#007AFF" />
+	                <ActivityIndicator size="small" color={theme.primary} />
 	                <Text style={styles.loadingText}>Loading agents...</Text>
 	              </View>
 	            )}
@@ -864,193 +871,199 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   );
 };
 
-	const styles = StyleSheet.create({
-	  keyboardAvoiding: {
-	    flex: 1,
-	  },
-	  container: {
-	    flex: 1,
-	  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  backButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  backButtonText: {
-    color: '#007AFF',
-    fontSize: 14,
-  },
-  title: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  iconButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    marginLeft: 4,
-  },
-  button: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginLeft: 6,
-  },
-  primaryButton: {
-    backgroundColor: '#007AFF',
-  },
-  secondaryButton: {
-    backgroundColor: '#E5E5EA',
-  },
-  smallButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    marginLeft: 8,
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  buttonTextSecondary: {
-    color: '#000000',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  loadingText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#8E8E93',
-  },
-  messagesContainer: {
-    flex: 1,
-    marginBottom: 8,
-  },
-  composer: {
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
-    paddingTop: 8,
-  },
-  composerInput: {
-    minHeight: 60,
-    maxHeight: 120,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  composerButtonsRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  composerButton: {
-    minWidth: 90,
-    alignItems: 'center',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    width: '80%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  modalSubtitle: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginBottom: 12,
-  },
-  modalInput: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    fontSize: 14,
-    marginBottom: 12,
-  },
-  modalButtonsRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginBottom: 4,
-  },
-  modalButton: {
-    minWidth: 90,
-    alignItems: 'center',
-  },
-  modalHelperText: {
-    fontSize: 12,
-    color: '#8E8E93',
-    textAlign: 'right',
-  },
-	  rangeRow: {
-	    flexDirection: 'row',
-	    justifyContent: 'space-between',
-	    marginBottom: 12,
-	    marginTop: 8,
-	  },
-	  rangeInputContainer: {
-	    flex: 1,
-	    marginRight: 8,
-	  },
-	  rangeLabel: {
-	    fontSize: 12,
-	    color: '#8E8E93',
-	    marginBottom: 4,
-	  },
-	  agentList: {
-	    maxHeight: 220,
-	    marginTop: 8,
-	    marginBottom: 8,
-	  },
-	  agentItem: {
-	    flexDirection: 'row',
-	    alignItems: 'center',
-	    justifyContent: 'space-between',
-	    paddingVertical: 8,
-	    paddingHorizontal: 10,
-	    borderRadius: 8,
-	    borderWidth: 1,
-	    borderColor: '#E5E5EA',
-	    marginBottom: 6,
-	  },
-	  agentItemSelected: {
-	    borderColor: '#007AFF',
-	    backgroundColor: 'rgba(0, 122, 255, 0.08)',
-	  },
-	  agentItemText: {
-	    fontSize: 14,
-	    color: '#000000',
-	  },
-});
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    keyboardAvoiding: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    container: {
+      flex: 1,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 8,
+    },
+    backButton: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+    },
+    backButtonText: {
+      color: theme.primary,
+      fontSize: 14,
+    },
+    title: {
+      flex: 1,
+      textAlign: 'center',
+      fontSize: 18,
+      fontWeight: '600',
+      color: theme.text,
+    },
+    headerButtons: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    iconButton: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      marginLeft: 4,
+    },
+    button: {
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 8,
+      marginLeft: 6,
+    },
+    primaryButton: {
+      backgroundColor: theme.primary,
+    },
+    secondaryButton: {
+      backgroundColor: theme.surfaceAlt,
+    },
+    smallButton: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      marginLeft: 8,
+    },
+    buttonText: {
+      color: theme.textOnPrimary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    buttonTextSecondary: {
+      color: theme.text,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    loadingContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    loadingText: {
+      marginLeft: 8,
+      fontSize: 14,
+      color: theme.textSecondary,
+    },
+    messagesContainer: {
+      flex: 1,
+      marginBottom: 8,
+    },
+    composer: {
+      borderTopWidth: 1,
+      borderTopColor: theme.border,
+      paddingTop: 8,
+    },
+    composerInput: {
+      minHeight: 60,
+      maxHeight: 120,
+      backgroundColor: theme.surface,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      fontSize: 14,
+      marginBottom: 8,
+      color: theme.text,
+    },
+    composerButtonsRow: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+    },
+    composerButton: {
+      minWidth: 90,
+      alignItems: 'center',
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: theme.modalBackdrop,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    modalContent: {
+      width: '80%',
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      padding: 16,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      marginBottom: 4,
+      color: theme.text,
+    },
+    modalSubtitle: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      marginBottom: 12,
+    },
+    modalInput: {
+      backgroundColor: theme.surface,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      fontSize: 14,
+      marginBottom: 12,
+      color: theme.text,
+    },
+    modalButtonsRow: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      marginBottom: 4,
+    },
+    modalButton: {
+      minWidth: 90,
+      alignItems: 'center',
+    },
+    modalHelperText: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      textAlign: 'right',
+    },
+    rangeRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 12,
+      marginTop: 8,
+    },
+    rangeInputContainer: {
+      flex: 1,
+      marginRight: 8,
+    },
+    rangeLabel: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      marginBottom: 4,
+    },
+    agentList: {
+      maxHeight: 220,
+      marginTop: 8,
+      marginBottom: 8,
+    },
+    agentItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+      marginBottom: 6,
+    },
+    agentItemSelected: {
+      borderColor: theme.primary,
+      backgroundColor: theme.primaryMuted,
+    },
+    agentItemText: {
+      fontSize: 14,
+      color: theme.text,
+    },
+  });
 
 export default SessionChatScreen;

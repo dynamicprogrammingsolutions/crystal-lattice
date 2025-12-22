@@ -1,5 +1,5 @@
 import 'react-native-url-polyfill/auto';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -19,6 +19,7 @@ import ConnectedRoot from './src/ConnectedRoot';
 import ConnectionsScreen from './src/ConnectionsScreen';
 import { getConnectionAdditionalInfo } from './src/connectionInfo';
 import type { SessionSummary, IndexedMessage } from './src/api';
+import { ThemeProvider, lightTheme, darkTheme, type Theme } from './src/theme';
 
 type ConnectionMethod = 'manual' | 'discovery' | 'bridge';
 
@@ -626,7 +627,9 @@ class BridgeAdapter implements ConnectionAdapter {
 }
 
 function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+  const colorScheme = useColorScheme();
+  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+
   const [connectionMethod, setConnectionMethod] = useState<ConnectionMethod | null>(null);
   const [showConnectionWizard, setShowConnectionWizard] = useState(false);
   const [adapter, setAdapter] = useState<ConnectionAdapter | null>(null);
@@ -650,6 +653,8 @@ function App(): React.JSX.Element {
   const [bridgeAdapter, setBridgeAdapter] = useState<BridgeAdapter | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
+
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   useEffect(() => {
     const loadConnections = async () => {
@@ -1129,11 +1134,6 @@ function App(): React.JSX.Element {
     }
   };
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? '#000' : '#F2F2F7',
-    flex: 1,
-  };
-
   const renderMethodSelection = () => (
     <View style={styles.container}>
       <Text style={styles.title}>Select Connection Method</Text>
@@ -1435,216 +1435,229 @@ function App(): React.JSX.Element {
   };
 
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      {/** Determine active connection info for display components */}
-      {/** This is derived once here and passed down rather than recomputed in children. */}
-      {(() => {
-        const activeConnection =
-          selectedConnectionId != null
-            ? connections.find((c) => c.id === selectedConnectionId) || null
-            : null;
-        const activeConnectionAdditionalInfo =
-          activeConnection != null ? getConnectionAdditionalInfo(activeConnection) : null;
+    <ThemeProvider theme={theme}>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
+        {/** Determine active connection info for display components */}
+        {/** This is derived once here and passed down rather than recomputed in children. */}
+        {(() => {
+          const activeConnection =
+            selectedConnectionId != null
+              ? connections.find((c) => c.id === selectedConnectionId) || null
+              : null;
+          const activeConnectionAdditionalInfo =
+            activeConnection != null ? getConnectionAdditionalInfo(activeConnection) : null;
 
-        return (
-      <ConnectedRoot
-        adapter={adapter}
-        onDisconnect={handleDisconnect}
-        connections={connections}
-        connectionsLoading={connectionsLoading}
-        onSelectConnectionRecord={handleSelectSavedConnection}
-        onNewConnectionRequested={() => {
-          if (adapter) {
-            handleDisconnect();
-          }
-          setConnectionMethod(null);
-          setShowConnectionWizard(true);
-        }}
-        renderConnectionWizard={() => {
-          if (!showConnectionWizard) {
-            return null;
-          }
-          if (!connectionMethod) {
-            return renderMethodSelection();
-          }
-          return renderConnectingScreen();
-        }}
-        onDeleteConnectionRecord={handleDeleteConnection}
-        activeConnectionId={selectedConnectionId}
-        activeConnectionAdditionalInfo={activeConnectionAdditionalInfo}
-        sessionsCache={sessionsCache}
-        onUpdateSessionsCache={updateSessionsCache}
-        messagesCache={messagesCache}
-        onUpdateMessagesCache={updateMessagesCache}
-        onUpdateMessagesUiState={updateMessagesUiState}
-      />
-        );
-      })()}
-    </SafeAreaView>
+          return (
+            <ConnectedRoot
+              adapter={adapter}
+              onDisconnect={handleDisconnect}
+              connections={connections}
+              connectionsLoading={connectionsLoading}
+              onSelectConnectionRecord={handleSelectSavedConnection}
+              onNewConnectionRequested={() => {
+                if (adapter) {
+                  handleDisconnect();
+                }
+                setConnectionMethod(null);
+                setShowConnectionWizard(true);
+              }}
+              renderConnectionWizard={() => {
+                if (!showConnectionWizard) {
+                  return null;
+                }
+                if (!connectionMethod) {
+                  return renderMethodSelection();
+                }
+                return renderConnectingScreen();
+              }}
+              onDeleteConnectionRecord={handleDeleteConnection}
+              activeConnectionId={selectedConnectionId}
+              activeConnectionAdditionalInfo={activeConnectionAdditionalInfo}
+              sessionsCache={sessionsCache}
+              onUpdateSessionsCache={updateSessionsCache}
+              messagesCache={messagesCache}
+              onUpdateMessagesCache={updateMessagesCache}
+              onUpdateMessagesUiState={updateMessagesUiState}
+            />
+          );
+        })()}
+      </SafeAreaView>
+    </ThemeProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  scrollContent: {
-    flexGrow: 1,
-  },
-  container: {
-    flex: 1,
-    padding: 16,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  statusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    backgroundColor: 'rgba(128, 128, 128, 0.1)',
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  statusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  statusText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  button: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  methodButton: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 16,
-  },
-  primaryButton: {
-    backgroundColor: '#007AFF',
-  },
-  secondaryButton: {
-    backgroundColor: '#E5E5EA',
-    marginTop: 8,
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  buttonTextSecondary: {
-    color: '#000000',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  methodDescription: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    marginTop: 4,
-    opacity: 0.8,
-  },
-  input: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    fontSize: 16,
-  },
-  section: {
-    marginTop: 16,
-    flex: 1,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  serviceList: {
-    maxHeight: 300,
-  },
-  serviceItem: {
-    padding: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-  },
-  serviceName: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  serviceDetails: {
-    fontSize: 12,
-    color: '#8E8E93',
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#8E8E93',
-    textAlign: 'center',
-    fontStyle: 'italic',
-    marginVertical: 16,
-  },
-  endpointItem: {
-    padding: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-  },
-  endpointName: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  endpointDescription: {
-    fontSize: 12,
-    color: '#8E8E93',
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  loadingText: {
-    marginTop: 8,
-    fontSize: 14,
-    color: '#8E8E93',
-  },
-  responseContainer: {
-    backgroundColor: 'rgba(128, 128, 128, 0.1)',
-    borderRadius: 8,
-    padding: 12,
-    maxHeight: 200,
-  },
-  responseText: {
-    fontSize: 12,
-    fontFamily: 'Courier',
-  },
-  statusSearching: {
-    backgroundColor: '#FF9500',
-  },
-  statusInactive: {
-    backgroundColor: '#8E8E93',
-  },
-  statusConnected: {
-    backgroundColor: 'rgba(52, 199, 89, 0.1)',
-  },
-  statusConnectedDot: {
-    backgroundColor: '#34C759',
-  },
-});
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    scrollContent: {
+      flexGrow: 1,
+    },
+    container: {
+      flex: 1,
+      padding: 16,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: 'bold',
+      marginBottom: 24,
+      textAlign: 'center',
+      color: theme.text,
+    },
+    statusContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 12,
+      backgroundColor: theme.primaryMuted,
+      borderRadius: 8,
+      marginBottom: 16,
+    },
+    statusDot: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+      marginRight: 8,
+    },
+    statusText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: theme.text,
+    },
+    button: {
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      borderRadius: 8,
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    methodButton: {
+      backgroundColor: theme.primary,
+      paddingVertical: 16,
+    },
+    primaryButton: {
+      backgroundColor: theme.primary,
+    },
+    secondaryButton: {
+      backgroundColor: theme.surfaceAlt,
+      marginTop: 8,
+    },
+    buttonText: {
+      color: theme.textOnPrimary,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    buttonTextSecondary: {
+      color: theme.text,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    methodDescription: {
+      color: theme.textOnPrimary,
+      fontSize: 12,
+      marginTop: 4,
+      opacity: 0.8,
+    },
+    input: {
+      backgroundColor: theme.surface,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 8,
+      padding: 12,
+      marginBottom: 12,
+      fontSize: 16,
+      color: theme.text,
+    },
+    section: {
+      marginTop: 16,
+      flex: 1,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      marginBottom: 8,
+      color: theme.text,
+    },
+    serviceList: {
+      maxHeight: 300,
+    },
+    serviceItem: {
+      padding: 12,
+      backgroundColor: theme.surface,
+      borderRadius: 8,
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    serviceName: {
+      fontSize: 16,
+      fontWeight: '600',
+      marginBottom: 4,
+      color: theme.text,
+    },
+    serviceDetails: {
+      fontSize: 12,
+      color: theme.textSecondary,
+    },
+    infoText: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      textAlign: 'center',
+      fontStyle: 'italic',
+      marginVertical: 16,
+    },
+    endpointItem: {
+      padding: 12,
+      backgroundColor: theme.surface,
+      borderRadius: 8,
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    endpointName: {
+      fontSize: 16,
+      fontWeight: '600',
+      marginBottom: 4,
+      color: theme.text,
+    },
+    endpointDescription: {
+      fontSize: 12,
+      color: theme.textSecondary,
+    },
+    loadingContainer: {
+      alignItems: 'center',
+      marginTop: 16,
+    },
+    loadingText: {
+      marginTop: 8,
+      fontSize: 14,
+      color: theme.textSecondary,
+    },
+    responseContainer: {
+      backgroundColor: theme.surfaceAlt,
+      borderRadius: 8,
+      padding: 12,
+      maxHeight: 200,
+    },
+    responseText: {
+      fontSize: 12,
+      fontFamily: 'Courier',
+      color: theme.text,
+    },
+    statusSearching: {
+      backgroundColor: '#FF9500',
+    },
+    statusInactive: {
+      backgroundColor: theme.textSecondary,
+    },
+    statusConnected: {
+      backgroundColor: 'rgba(52, 199, 89, 0.1)',
+    },
+    statusConnectedDot: {
+      backgroundColor: theme.success,
+    },
+  });
 
 export default App;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import type {
@@ -12,6 +12,7 @@ import ConnectionsScreen from './ConnectionsScreen';
 import SessionsScreen from './SessionsScreen';
 import type { SessionSummary, IndexedMessage } from './api';
 import SessionChatScreen from './SessionChatScreen';
+import { useTheme, type Theme } from './theme';
 
 interface ConnectedRootProps {
   adapter: ConnectionAdapter | null;
@@ -57,6 +58,8 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   onUpdateMessagesCache,
   onUpdateMessagesUiState,
 }) => {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [tab, setTab] = useState<'connection' | 'sessions' | 'messages'>('connection');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [demoLoading, setDemoLoading] = useState(false);
@@ -243,7 +246,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
           <Icon
             name="wifi"
             size={20}
-            color={tab === 'connection' ? '#007AFF' : '#8E8E93'}
+            color={tab === 'connection' ? theme.navIconActive : theme.navIconInactive}
           />
           <Text style={tab === 'connection' ? styles.navTextActive : styles.navText}>Connections</Text>
         </TouchableOpacity>
@@ -254,7 +257,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
           <Icon
             name="list"
             size={20}
-            color={tab === 'sessions' ? '#007AFF' : '#8E8E93'}
+            color={tab === 'sessions' ? theme.navIconActive : theme.navIconInactive}
           />
           <Text style={tab === 'sessions' ? styles.navTextActive : styles.navText}>Sessions</Text>
         </TouchableOpacity>
@@ -265,7 +268,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
           <Icon
             name="message-circle"
             size={20}
-            color={tab === 'messages' ? '#007AFF' : '#8E8E93'}
+            color={tab === 'messages' ? theme.navIconActive : theme.navIconInactive}
           />
           <Text style={tab === 'messages' ? styles.navTextActive : styles.navText}>Messages</Text>
         </TouchableOpacity>
@@ -273,105 +276,107 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  contentArea: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 4,
-  },
-  connectionsTabContainer: {
-    flex: 1,
-  },
-  wizardContainer: {
-    flex: 1,
-    paddingHorizontal: 0,
-  },
-  connectionsListSection: {
-    flex: 1,
-    marginTop: 16,
-  },
-  button: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  primaryButton: {
-    backgroundColor: '#007AFF',
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  demoContainer: {
-    flex: 1,
-  },
-  demoButtonsRow: {
-    flexDirection: 'row',
-    marginBottom: 8,
-  },
-  loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  loadingText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#8E8E93',
-  },
-  demoResponseContainer: {
-    marginTop: 8,
-    backgroundColor: 'rgba(128, 128, 128, 0.1)',
-    borderRadius: 8,
-    padding: 10,
-    maxHeight: 220,
-  },
-  demoResponseText: {
-    fontSize: 12,
-    fontFamily: 'Courier',
-  },
-  navBar: {
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
-    paddingVertical: 6,
-    backgroundColor: '#FFFFFF',
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-  },
-  navItemActive: {
-    borderTopWidth: 2,
-    borderTopColor: '#007AFF',
-  },
-  navText: {
-    fontSize: 12,
-    color: '#8E8E93',
-  },
-  navTextActive: {
-    fontSize: 12,
-    color: '#007AFF',
-    fontWeight: '600',
-  },
-  placeholderContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  placeholderText: {
-    fontSize: 14,
-    color: '#8E8E93',
-    textAlign: 'center',
-  },
-});
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    contentArea: {
+      flex: 1,
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      paddingBottom: 4,
+    },
+    connectionsTabContainer: {
+      flex: 1,
+    },
+    wizardContainer: {
+      flex: 1,
+      paddingHorizontal: 0,
+    },
+    connectionsListSection: {
+      flex: 1,
+      marginTop: 16,
+    },
+    button: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 8,
+    },
+    primaryButton: {
+      backgroundColor: theme.primary,
+    },
+    buttonText: {
+      color: theme.textOnPrimary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    demoContainer: {
+      flex: 1,
+    },
+    demoButtonsRow: {
+      flexDirection: 'row',
+      marginBottom: 8,
+    },
+    loadingContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    loadingText: {
+      marginLeft: 8,
+      fontSize: 14,
+      color: theme.textSecondary,
+    },
+    demoResponseContainer: {
+      marginTop: 8,
+      backgroundColor: theme.surfaceAlt,
+      borderRadius: 8,
+      padding: 10,
+      maxHeight: 220,
+    },
+    demoResponseText: {
+      fontSize: 12,
+      fontFamily: 'Courier',
+      color: theme.text,
+    },
+    navBar: {
+      flexDirection: 'row',
+      borderTopWidth: 1,
+      borderTopColor: theme.navBarBorder,
+      paddingVertical: 6,
+      backgroundColor: theme.navBarBg,
+    },
+    navItem: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 2,
+    },
+    navItemActive: {
+      borderTopWidth: 2,
+      borderTopColor: theme.primary,
+    },
+    navText: {
+      fontSize: 12,
+      color: theme.textSecondary,
+    },
+    navTextActive: {
+      fontSize: 12,
+      color: theme.primary,
+      fontWeight: '600',
+    },
+    placeholderContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    placeholderText: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      textAlign: 'center',
+    },
+  });
 
 export default ConnectedRoot;
