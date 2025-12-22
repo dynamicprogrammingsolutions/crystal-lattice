@@ -837,11 +837,10 @@ function App(): React.JSX.Element {
     });
   };
 
-  const updateMessagesUiState = (
+  const saveMessagesComposeText = (
     connectionId: string,
     sessionId: string,
     composeText: string,
-    scrollOffset: number,
   ) => {
     setMessagesCache((prev) => {
       const bySession = prev[connectionId] ?? {};
@@ -851,7 +850,6 @@ function App(): React.JSX.Element {
         ? {
             ...existing,
             composeText,
-            scrollOffset,
           }
         : {
             connectionId,
@@ -859,6 +857,39 @@ function App(): React.JSX.Element {
             messages: [],
             lastLoadedAt: null,
             composeText,
+            scrollOffset: 0,
+          };
+
+      return {
+        ...prev,
+        [connectionId]: {
+          ...bySession,
+          [sessionId]: entry,
+        },
+      };
+    });
+  };
+
+  const saveMessagesScrollOffset = (
+    connectionId: string,
+    sessionId: string,
+    scrollOffset: number,
+  ) => {
+    setMessagesCache((prev) => {
+      const bySession = prev[connectionId] ?? {};
+      const existing = bySession[sessionId];
+
+      const entry: MessagesCacheEntry = existing
+        ? {
+            ...existing,
+            scrollOffset,
+          }
+        : {
+            connectionId,
+            sessionId,
+            messages: [],
+            lastLoadedAt: null,
+            composeText: '',
             scrollOffset,
           };
 
@@ -1478,7 +1509,8 @@ function App(): React.JSX.Element {
               onUpdateSessionsCache={updateSessionsCache}
               messagesCache={messagesCache}
               onUpdateMessagesCache={updateMessagesCache}
-              onUpdateMessagesUiState={updateMessagesUiState}
+        onSaveMessagesComposeText={saveMessagesComposeText}
+        onSaveMessagesScrollOffset={saveMessagesScrollOffset}
             />
           );
         })()}

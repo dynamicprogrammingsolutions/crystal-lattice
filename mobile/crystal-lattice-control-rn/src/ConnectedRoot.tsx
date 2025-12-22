@@ -33,10 +33,14 @@ interface ConnectedRootProps {
     sessionId: string,
     messages: IndexedMessage[],
   ) => void;
-  onUpdateMessagesUiState: (
+  onSaveMessagesComposeText: (
     connectionId: string,
     sessionId: string,
     composeText: string,
+  ) => void;
+  onSaveMessagesScrollOffset: (
+    connectionId: string,
+    sessionId: string,
     scrollOffset: number,
   ) => void;
 }
@@ -56,7 +60,8 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   onUpdateSessionsCache,
   messagesCache,
   onUpdateMessagesCache,
-  onUpdateMessagesUiState,
+  onSaveMessagesComposeText,
+  onSaveMessagesScrollOffset,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -215,15 +220,16 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                     setSelectedSessionId(sessionId);
                     setTab('messages');
                   }}
-                  onUpdateUiState={(composeText, scrollOffset) => {
+                  onSaveComposeText={(composeText) => {
                     const connectionId = activeConnectionId;
                     if (connectionId) {
-                      onUpdateMessagesUiState(
-                        connectionId,
-                        selectedSessionId,
-                        composeText,
-                        scrollOffset,
-                      );
+                      onSaveMessagesComposeText(connectionId, selectedSessionId, composeText);
+                    }
+                  }}
+                  onSaveScrollOffset={(scrollOffset) => {
+                    const connectionId = activeConnectionId;
+                    if (connectionId) {
+                      onSaveMessagesScrollOffset(connectionId, selectedSessionId, scrollOffset);
                     }
                   }}
                 />
