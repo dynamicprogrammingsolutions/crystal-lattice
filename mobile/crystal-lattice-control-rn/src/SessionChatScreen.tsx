@@ -42,6 +42,7 @@ interface SessionChatScreenProps {
   sessionId: string;
   cachedMessages: IndexedMessage[] | null;
   lastLoadedAt: number | null;
+  isActive: boolean;
   onUpdateCache: (messages: IndexedMessage[]) => void;
   onBack: () => void;
   onNavigateToSession?: (sessionId: string) => void;
@@ -59,6 +60,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   sessionId,
   cachedMessages,
   lastLoadedAt,
+  isActive,
   onUpdateCache,
   onBack,
   onNavigateToSession,
@@ -89,6 +91,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [pinnedMessageActionsByRole, setPinnedMessageActionsByRole] = useState<
     Record<string, MessageActionKey[]>
   >({});
+  const [hasAutoLoaded, setHasAutoLoaded] = useState(false);
   const [messageViewModeByIndex, setMessageViewModeByIndex] = useState<
     Record<number, 'markdown' | 'raw'>
   >({});
@@ -249,12 +252,25 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   useEffect(() => {
     // Persist UI state when this screen is unmounted.
-    // We intentionally do not depend on props here to avoid
-    // running the cleanup on every re-render.
     return () => {
       onUpdateUiState(composeTextRef.current, scrollOffsetRef.current);
     };
-  }, []);
+  }, [onUpdateUiState]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    if (!adapter) return;
+
+    const now = Date.now();
+    const isStale = !lastLoadedAt || now - lastLoadedAt > 30000;
+
+    if (!hasAutoLoaded || isStale || !cachedMessages) {
+      loadMessages().catch(() => {
+        // Error already handled inside loadMessages.
+      });
+      setHasAutoLoaded(true);
+    }
+  }, [isActive, adapter, lastLoadedAt, hasAutoLoaded, loadMessages, cachedMessages]);
 
 	  const handleAppend = async () => {
     const text = composeText.trim();

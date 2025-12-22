@@ -23,6 +23,7 @@ interface SessionsScreenProps {
   connectionId: string | null;
   cachedSessions: SessionSummary[] | null;
   lastLoadedAt: number | null;
+   isActive: boolean;
   onUpdateCache: (sessions: SessionSummary[]) => void;
   onSelectSession: (sessionId: string) => void;
 }
@@ -32,6 +33,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   connectionId,
   cachedSessions,
   lastLoadedAt,
+  isActive,
   onUpdateCache,
   onSelectSession,
 }) => {
@@ -42,6 +44,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const [agentPickerVisible, setAgentPickerVisible] = useState(false);
   const [availableAgents, setAvailableAgents] = useState<string[]>([]);
   const [agentLoading, setAgentLoading] = useState(false);
+  const [hasAutoLoaded, setHasAutoLoaded] = useState(false);
 
   const loadSessions = useCallback(async () => {
     if (!adapter) {
@@ -74,6 +77,21 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       setSessions([]);
     }
   }, [cachedSessions, connectionId, adapter]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    if (!adapter) return;
+
+    const now = Date.now();
+    const isStale = !lastLoadedAt || now - lastLoadedAt > 30000;
+
+    if (!hasAutoLoaded || isStale) {
+      loadSessions().catch(() => {
+        // Error is already handled inside loadSessions.
+      });
+      setHasAutoLoaded(true);
+    }
+  }, [isActive, adapter, lastLoadedAt, hasAutoLoaded, loadSessions]);
 
   const createSessionWithAgent = async (agentId: string | null) => {
     const chosenAgent = agentId && agentId.trim() ? agentId.trim() : 'default';
