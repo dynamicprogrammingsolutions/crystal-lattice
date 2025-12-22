@@ -201,7 +201,6 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                   sessionId={selectedSessionId}
                   cachedMessages={cacheEntry?.messages ?? null}
                   lastLoadedAt={cacheEntry?.lastLoadedAt ?? null}
-                  isActive={tab === 'messages'}
                   initialComposeText={cacheEntry?.composeText ?? ''}
                   initialScrollOffset={cacheEntry?.scrollOffset ?? 0}
                   onUpdateCache={(list: IndexedMessage[]) => {
