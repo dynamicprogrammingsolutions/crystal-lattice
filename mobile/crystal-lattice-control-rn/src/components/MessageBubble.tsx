@@ -26,6 +26,7 @@ export interface MessageBubbleProps {
   onChangeEditingText?: (text: string) => void;
   onSubmitEdit?: (index: number, message: ApiMessage, newText: string) => void;
   onCancelEdit?: () => void;
+  renderMode?: 'markdown' | 'raw';
 }
 
 const UserMessageBubble: React.FC<MessageBubbleProps> = ({
@@ -40,6 +41,7 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
   onChangeEditingText,
   onSubmitEdit,
   onCancelEdit,
+  renderMode,
 }) => {
   const content = selectDisplayContent(message);
   const role = 'user';
@@ -78,7 +80,14 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
     <View style={styles.row}>
       <View style={[styles.bubble, styles.userBubble]}>
         <Text style={styles.headerText}>{`[${index}] User`}</Text>
-        {content ? <Text style={[styles.contentText, styles.userContentText]}>{content}</Text> : null}
+        {content ? (
+          <Text
+            style={[styles.contentText, styles.userContentText]}
+            selectable
+          >
+            {content}
+          </Text>
+        ) : null}
         {pinnedActions && onAction && onChangePinnedForRole && (
           <MessageActionsBar
             pinned={pinnedActions}
@@ -104,6 +113,7 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
   onChangeEditingText,
   onSubmitEdit,
   onCancelEdit,
+  renderMode,
 }) => {
   const content = selectDisplayContent(message);
   const role = 'system';
@@ -142,7 +152,14 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
     <View style={styles.row}>
       <View style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}>
         <Text style={styles.headerText}>{`[${index}] System`}</Text>
-        {content ? <Text style={styles.systemText}>{content}</Text> : null}
+        {content ? (
+          <Text
+            style={styles.systemText}
+            selectable
+          >
+            {content}
+          </Text>
+        ) : null}
         {pinnedActions && onAction && onChangePinnedForRole && (
           <MessageActionsBar
             pinned={pinnedActions}
@@ -163,6 +180,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
   onAction,
   onChangePinnedForRole,
   allowedActions,
+  renderMode,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const content = selectDisplayContent(message);
@@ -194,17 +212,32 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
               style={styles.collapsibleScroll}
               nestedScrollEnabled
             >
-              <Text style={styles.contentText}>{content}</Text>
+              <Text
+                style={styles.contentText}
+                selectable
+              >
+                {content}
+              </Text>
             </ScrollView>
           </View>
         )}
 
         {hasContent && !expanded && (
-          <Text style={styles.collapsedHintText}>Tool result hidden (tap to expand).</Text>
+          <Text
+            style={styles.collapsedHintText}
+            selectable
+          >
+            Tool result hidden (tap to expand).
+          </Text>
         )}
 
         {!hasContent && (
-          <Text style={styles.collapsedHintText}>No tool output.</Text>
+          <Text
+            style={styles.collapsedHintText}
+            selectable
+          >
+            No tool output.
+          </Text>
         )}
         {pinnedActions && onAction && onChangePinnedForRole && (
           <MessageActionsBar
@@ -231,6 +264,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
   onChangeEditingText,
   onSubmitEdit,
   onCancelEdit,
+  renderMode,
 }) => {
   const [reasoningExpanded, setReasoningExpanded] = useState(false);
   const content = selectDisplayContent(message);
@@ -296,20 +330,39 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
               style={styles.collapsibleScroll}
               nestedScrollEnabled
             >
-              <Text style={styles.reasoningText}>{reasoning}</Text>
+              <Text
+                style={styles.reasoningText}
+                selectable
+              >
+                {reasoning}
+              </Text>
             </ScrollView>
           </View>
         )}
 
         {reasoning && !reasoningExpanded && (
-          <Text style={styles.collapsedHintText}>Reasoning hidden (tap chevron to expand).</Text>
+          <Text
+            style={styles.collapsedHintText}
+            selectable
+          >
+            Reasoning hidden (tap chevron to expand).
+          </Text>
         )}
 
         {content ? (
-          <MarkdownMessageContent
-            text={content}
-            variant="assistant"
-          />
+          renderMode === 'raw' ? (
+            <TextInput
+              style={[styles.contentText, styles.rawReadonlyInput]}
+              value={content}
+              editable={false}
+              multiline
+            />
+          ) : (
+            <MarkdownMessageContent
+              text={content}
+              variant="assistant"
+            />
+          )
         ) : null}
         {pinnedActions && onAction && onChangePinnedForRole && (
           <MessageActionsBar
@@ -336,6 +389,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onChangeEditingText,
   onSubmitEdit,
   onCancelEdit,
+  renderMode,
 }) => {
   const role = message.role || 'unknown';
 
@@ -370,6 +424,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         onChangeEditingText={onChangeEditingText}
         onSubmitEdit={onSubmitEdit}
         onCancelEdit={onCancelEdit}
+        renderMode={renderMode}
       />
     );
   }
@@ -382,6 +437,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         onAction={onAction}
         onChangePinnedForRole={onChangePinnedForRole}
         allowedActions={allowedActions}
+        renderMode={renderMode}
       />
     );
   }
@@ -399,6 +455,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         onChangeEditingText={onChangeEditingText}
         onSubmitEdit={onSubmitEdit}
         onCancelEdit={onCancelEdit}
+        renderMode={renderMode}
       />
     );
   }
@@ -409,7 +466,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     <View style={styles.row}>
       <View style={[styles.bubble, styles.otherBubble]}>
         <Text style={styles.headerText}>{`[${index}] ${role}`}</Text>
-        {content ? <Text style={styles.contentText}>{content}</Text> : null}
+        {content ? (
+          <Text
+            style={styles.contentText}
+            selectable
+          >
+            {content}
+          </Text>
+        ) : null}
         {pinnedActions && onAction && onChangePinnedForRole && (
           <MessageActionsBar
             pinned={pinnedActions}
@@ -542,6 +606,10 @@ const styles = StyleSheet.create({
     color: '#000000',
     fontSize: 14,
     fontWeight: '600',
+  },
+  rawReadonlyInput: {
+    marginTop: 2,
+    padding: 0,
   },
 });
 
