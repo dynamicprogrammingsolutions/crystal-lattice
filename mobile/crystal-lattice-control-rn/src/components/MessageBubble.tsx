@@ -12,6 +12,7 @@ import type { ApiMessage } from '../api';
 import MessageActionsBar from './MessageActionsBar';
 import type { MessageActionKey } from '../messageActions';
 import { selectDisplayContent } from '../messageUtils';
+import MarkdownMessageContent from './MarkdownMessageContent';
 
 export interface MessageBubbleProps {
   index: number;
@@ -304,7 +305,12 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
           <Text style={styles.collapsedHintText}>Reasoning hidden (tap chevron to expand).</Text>
         )}
 
-        {content ? <Text style={styles.contentText}>{content}</Text> : null}
+        {content ? (
+          <MarkdownMessageContent
+            text={content}
+            variant="assistant"
+          />
+        ) : null}
         {pinnedActions && onAction && onChangePinnedForRole && (
           <MessageActionsBar
             pinned={pinnedActions}
