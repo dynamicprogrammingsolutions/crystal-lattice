@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import SyntaxHighlighter from 'react-native-syntax-highlighter';
 import { atomOneDark } from 'react-syntax-highlighter/styles/hljs';
+import { useTheme } from '../theme';
 
 export type MarkdownMessageVariant = 'assistant' | 'tool' | 'system' | 'user';
 
@@ -15,8 +16,9 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
   text,
   variant = 'assistant',
 }) => {
+  const theme = useTheme();
   const markdownStyle = useMemo(() => {
-    const baseTextColor = variant === 'user' ? '#FFFFFF' : '#000000';
+    const baseTextColor = variant === 'user' ? theme.textOnPrimary : theme.text;
 
     return {
       body: {
@@ -33,7 +35,10 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
       em: {
         fontStyle: 'italic',
       },
-      code_inline: styles.inlineCode,
+      code_inline: {
+        ...styles.inlineCode,
+        backgroundColor: theme.inlineCodeBg,
+      },
       code_block: styles.codeBlockContainer,
       fence: styles.codeBlockContainer,
       bullet_list: styles.list,
@@ -46,7 +51,7 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
       heading5: styles.heading,
       heading6: styles.heading,
     } as const;
-  }, [variant]);
+  }, [variant, theme]);
 
   const rules = useMemo(
     () => ({
@@ -58,7 +63,10 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
         const content = typeof node.content === 'string' ? node.content : '';
 
         return (
-          <View key={node.key} style={styles.codeBlockOuter}>
+          <View
+            key={node.key}
+            style={[styles.codeBlockOuter, { backgroundColor: theme.codeBlockBg }]}
+          >
             <ScrollView
               style={styles.codeBlockScrollVertical}
               contentContainerStyle={styles.codeBlockScrollVerticalContent}
@@ -93,7 +101,10 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
         const content = typeof node.content === 'string' ? node.content : '';
 
         return (
-          <View key={node.key} style={styles.codeBlockOuter}>
+          <View
+            key={node.key}
+            style={[styles.codeBlockOuter, { backgroundColor: theme.codeBlockBg }]}
+          >
             <ScrollView
               style={styles.codeBlockScrollVertical}
               contentContainerStyle={styles.codeBlockScrollVerticalContent}
@@ -152,7 +163,6 @@ const styles = StyleSheet.create({
   inlineCode: {
     fontFamily: 'Courier',
     fontSize: 14,
-    backgroundColor: 'rgba(142, 142, 147, 0.16)',
     borderRadius: 3,
     paddingHorizontal: 3,
     paddingVertical: 1,
@@ -165,7 +175,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 4,
     borderRadius: 6,
-    backgroundColor: 'rgba(28, 28, 30, 0.9)',
     overflow: 'hidden',
   },
   codeBlockScrollVertical: {

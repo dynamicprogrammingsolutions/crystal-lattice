@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import type { ConnectionAdapter } from '../App';
+import { useTheme, type Theme } from './theme';
 import {
   apiCreateSession,
   apiListAgents,
@@ -23,7 +24,7 @@ interface SessionsScreenProps {
   connectionId: string | null;
   cachedSessions: SessionSummary[] | null;
   lastLoadedAt: number | null;
-   isActive: boolean;
+  isActive: boolean;
   onUpdateCache: (sessions: SessionSummary[]) => void;
   onSelectSession: (sessionId: string) => void;
 }
@@ -37,6 +38,8 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   onUpdateCache,
   onSelectSession,
 }) => {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [sessions, setSessions] = useState<SessionSummary[]>(cachedSessions ?? []);
   const [filterText, setFilterText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -177,6 +180,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       <TextInput
         style={styles.input}
         placeholder="Filter by id or preview"
+        placeholderTextColor={theme.textSecondary}
         value={filterText}
         onChangeText={setFilterText}
         autoCapitalize="none"
@@ -185,7 +189,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 
       {loading && (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color="#007AFF" />
+          <ActivityIndicator size="small" color={theme.primary} />
           <Text style={styles.loadingText}>Loading sessions...</Text>
         </View>
       )}
@@ -213,7 +217,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
             <Text style={styles.modalTitle}>New session</Text>
             {agentLoading && (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color="#007AFF" />
+                <ActivityIndicator size="small" color={theme.primary} />
                 <Text style={styles.loadingText}>Loading agents...</Text>
               </View>
             )}
@@ -275,151 +279,155 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginBottom: 12,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  button: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginLeft: 8,
-  },
-  primaryButton: {
-    backgroundColor: '#007AFF',
-  },
-  secondaryButton: {
-    backgroundColor: '#E5E5EA',
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  buttonTextSecondary: {
-    color: '#000000',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  input: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 12,
-    fontSize: 14,
-  },
-  loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  loadingText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#8E8E93',
-  },
-  errorText: {
-    color: '#FF3B30',
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#8E8E93',
-    fontStyle: 'italic',
-    marginBottom: 8,
-  },
-  list: {
-    flexGrow: 0,
-  },
-  sessionItem: {
-    padding: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-  },
-  sessionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  sessionId: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginBottom: 4,
-  },
-  sessionPreview: {
-    fontSize: 14,
-    color: '#000000',
-    marginBottom: 4,
-  },
-  sessionMeta: {
-    fontSize: 12,
-    color: '#8E8E93',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    width: '80%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  modalSubtitle: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginBottom: 12,
-  },
-  modalButtonsRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 8,
-  },
-  modalButton: {
-    minWidth: 90,
-    alignItems: 'center',
-    marginLeft: 8,
-  },
-  agentList: {
-    maxHeight: 220,
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  agentItem: {
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    marginBottom: 6,
-  },
-  agentItemText: {
-    fontSize: 14,
-    color: '#000000',
-  },
-});
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      marginBottom: 12,
+    },
+    headerButtons: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    button: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 8,
+      marginLeft: 8,
+    },
+    primaryButton: {
+      backgroundColor: theme.primary,
+    },
+    secondaryButton: {
+      backgroundColor: theme.surfaceAlt,
+    },
+    buttonText: {
+      color: theme.textOnPrimary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    buttonTextSecondary: {
+      color: theme.text,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    input: {
+      backgroundColor: theme.surface,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 8,
+      padding: 10,
+      marginBottom: 12,
+      fontSize: 14,
+      color: theme.text,
+    },
+    loadingContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    loadingText: {
+      marginLeft: 8,
+      fontSize: 14,
+      color: theme.textSecondary,
+    },
+    errorText: {
+      color: theme.danger,
+      marginBottom: 8,
+    },
+    emptyText: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      fontStyle: 'italic',
+      marginBottom: 8,
+    },
+    list: {
+      flexGrow: 0,
+    },
+    sessionItem: {
+      padding: 12,
+      backgroundColor: theme.surface,
+      borderRadius: 8,
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    sessionTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      marginBottom: 2,
+      color: theme.text,
+    },
+    sessionId: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      marginBottom: 4,
+    },
+    sessionPreview: {
+      fontSize: 14,
+      color: theme.text,
+      marginBottom: 4,
+    },
+    sessionMeta: {
+      fontSize: 12,
+      color: theme.textSecondary,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: theme.modalBackdrop,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    modalContent: {
+      width: '80%',
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      padding: 16,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      marginBottom: 4,
+      color: theme.text,
+    },
+    modalSubtitle: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      marginBottom: 12,
+    },
+    modalButtonsRow: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      marginTop: 8,
+    },
+    modalButton: {
+      minWidth: 90,
+      alignItems: 'center',
+      marginLeft: 8,
+    },
+    agentList: {
+      maxHeight: 220,
+      marginTop: 8,
+      marginBottom: 8,
+    },
+    agentItem: {
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+      marginBottom: 6,
+    },
+    agentItemText: {
+      fontSize: 14,
+      color: theme.text,
+    },
+  });
 
 export default SessionsScreen;

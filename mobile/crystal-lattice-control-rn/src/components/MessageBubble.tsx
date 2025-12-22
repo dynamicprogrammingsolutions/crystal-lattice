@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -13,6 +13,7 @@ import MessageActionsBar from './MessageActionsBar';
 import type { MessageActionKey } from '../messageActions';
 import { selectDisplayContent } from '../messageUtils';
 import MarkdownMessageContent from './MarkdownMessageContent';
+import { useTheme, type Theme } from '../theme';
 
 export interface MessageBubbleProps {
   index: number;
@@ -43,6 +44,8 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
   onCancelEdit,
   renderMode,
 }) => {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const content = selectDisplayContent(message);
   const role = 'user';
 
@@ -115,6 +118,8 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
   onCancelEdit,
   renderMode,
 }) => {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const content = selectDisplayContent(message);
   const role = 'system';
 
@@ -182,6 +187,8 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
   allowedActions,
   renderMode,
 }) => {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [expanded, setExpanded] = useState(false);
   const content = selectDisplayContent(message);
   const hasContent = !!content;
@@ -200,7 +207,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
               <Icon
                 name={expanded ? 'chevron-up' : 'chevron-down'}
                 size={14}
-                color="#8E8E93"
+                color={theme.textSecondary}
               />
             </TouchableOpacity>
           )}
@@ -266,6 +273,8 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
   onCancelEdit,
   renderMode,
 }) => {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [reasoningExpanded, setReasoningExpanded] = useState(false);
   const content = selectDisplayContent(message);
   const reasoning = typeof (message.metadata as any)?.reasoning === 'string'
@@ -318,7 +327,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
               <Icon
                 name={reasoningExpanded ? 'chevron-up' : 'chevron-down'}
                 size={14}
-                color="#8E8E93"
+                color={theme.textSecondary}
               />
             </TouchableOpacity>
           )}
@@ -487,130 +496,133 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  row: {
-    marginBottom: 8,
-  },
-  bubble: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-  },
-  userBubble: {
-    backgroundColor: '#007AFF',
-  },
-  otherBubble: {
-    backgroundColor: 'transparent',
-  },
-  toolSystemBubble: {
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  headerText: {
-    fontSize: 12,
-    color: '#8E8E93',
-  },
-  systemText: {
-    fontSize: 13,
-    color: '#000000',
-    fontFamily: 'Courier',
-    fontStyle: 'italic',
-  },
-  reasoningText: {
-    fontSize: 12,
-    color: '#8E8E93',
-    fontStyle: 'italic',
-    fontFamily: 'Courier',
-  },
-  contentText: {
-    fontSize: 14,
-    color: '#000000',
-    fontFamily: 'Courier',
-  },
-  userContentText: {
-    color: '#FFFFFF',
-  },
-  collapseIconButton: {
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-  },
-  collapsibleContainerTool: {
-    marginTop: 4,
-    maxHeight: 220,
-    borderRadius: 6,
-    backgroundColor: 'rgba(142, 142, 147, 0.08)',
-    overflow: 'hidden',
-  },
-  collapsibleContainerReasoning: {
-    marginTop: 4,
-    maxHeight: 160,
-    borderRadius: 6,
-    backgroundColor: 'rgba(142, 142, 147, 0.08)',
-    overflow: 'hidden',
-  },
-  collapsibleScroll: {
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-  },
-  collapsedHintText: {
-    marginTop: 2,
-    fontSize: 11,
-    color: '#8E8E93',
-    fontStyle: 'italic',
-  },
-  editInput: {
-    marginTop: 4,
-    minHeight: 60,
-    maxHeight: 140,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    fontSize: 14,
-    fontFamily: 'Courier',
-    backgroundColor: '#FFFFFF',
-  },
-  editInputOnBlue: {
-    backgroundColor: '#FFFFFF',
-  },
-  editButtonsRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 6,
-  },
-  editButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginLeft: 8,
-  },
-  editButtonPrimary: {
-    backgroundColor: '#007AFF',
-  },
-  editButtonSecondary: {
-    backgroundColor: '#E5E5EA',
-  },
-  editButtonTextPrimary: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  editButtonTextSecondary: {
-    color: '#000000',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  rawReadonlyInput: {
-    marginTop: 2,
-    padding: 0,
-  },
-});
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    row: {
+      marginBottom: 8,
+    },
+    bubble: {
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 8,
+    },
+    userBubble: {
+      backgroundColor: theme.bubbleUserBg,
+    },
+    otherBubble: {
+      backgroundColor: 'transparent',
+    },
+    toolSystemBubble: {
+      borderWidth: 1,
+      borderColor: theme.bubbleSystemBorder,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 4,
+    },
+    headerText: {
+      fontSize: 12,
+      color: theme.textSecondary,
+    },
+    systemText: {
+      fontSize: 13,
+      color: theme.text,
+      fontFamily: 'Courier',
+      fontStyle: 'italic',
+    },
+    reasoningText: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      fontStyle: 'italic',
+      fontFamily: 'Courier',
+    },
+    contentText: {
+      fontSize: 14,
+      color: theme.text,
+      fontFamily: 'Courier',
+    },
+    userContentText: {
+      color: theme.textOnPrimary,
+    },
+    collapseIconButton: {
+      paddingHorizontal: 4,
+      paddingVertical: 2,
+    },
+    collapsibleContainerTool: {
+      marginTop: 4,
+      maxHeight: 220,
+      borderRadius: 6,
+      backgroundColor: theme.bubbleToolBg,
+      overflow: 'hidden',
+    },
+    collapsibleContainerReasoning: {
+      marginTop: 4,
+      maxHeight: 160,
+      borderRadius: 6,
+      backgroundColor: theme.bubbleToolBg,
+      overflow: 'hidden',
+    },
+    collapsibleScroll: {
+      paddingHorizontal: 4,
+      paddingVertical: 4,
+    },
+    collapsedHintText: {
+      marginTop: 2,
+      fontSize: 11,
+      color: theme.textSecondary,
+      fontStyle: 'italic',
+    },
+    editInput: {
+      marginTop: 4,
+      minHeight: 60,
+      maxHeight: 140,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 6,
+      fontSize: 14,
+      fontFamily: 'Courier',
+      backgroundColor: theme.surface,
+      color: theme.text,
+    },
+    editInputOnBlue: {
+      backgroundColor: theme.surface,
+    },
+    editButtonsRow: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      marginTop: 6,
+    },
+    editButton: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 6,
+      marginLeft: 8,
+    },
+    editButtonPrimary: {
+      backgroundColor: theme.primary,
+    },
+    editButtonSecondary: {
+      backgroundColor: theme.surfaceAlt,
+    },
+    editButtonTextPrimary: {
+      color: theme.textOnPrimary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    editButtonTextSecondary: {
+      color: theme.text,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    rawReadonlyInput: {
+      marginTop: 2,
+      padding: 0,
+      color: theme.text,
+    },
+  });
 
 export default MessageBubble;

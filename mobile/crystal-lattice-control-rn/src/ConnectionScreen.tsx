@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { ConnectionAdapter } from '../App';
+import { useTheme, type Theme } from './theme';
 
 interface ConnectionScreenProps {
   adapter: ConnectionAdapter;
@@ -13,6 +14,8 @@ const ConnectionScreen: React.FC<ConnectionScreenProps> = ({
   onDisconnect,
   additionalInfo,
 }) => {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [healthStatus, setHealthStatus] = useState<string | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
 
@@ -45,7 +48,7 @@ const ConnectionScreen: React.FC<ConnectionScreenProps> = ({
         disabled={healthLoading}
       >
         {healthLoading ? (
-          <ActivityIndicator size="small" color="#FFFFFF" />
+          <ActivityIndicator size="small" color={theme.textOnPrimary} />
         ) : (
           <Text style={styles.buttonText}>Run Health Check</Text>
         )}
@@ -66,64 +69,66 @@ const ConnectionScreen: React.FC<ConnectionScreenProps> = ({
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
-  label: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginBottom: 4,
-  },
-  serverName: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 24,
-  },
-  serverSubLabel: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginBottom: 16,
-  },
-  button: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 12,
-    minWidth: 180,
-  },
-  primaryButton: {
-    backgroundColor: '#007AFF',
-  },
-  secondaryButton: {
-    backgroundColor: '#E5E5EA',
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  secondaryButtonText: {
-    color: '#000000',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  statusBox: {
-    marginTop: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(128, 128, 128, 0.1)',
-  },
-  statusText: {
-    fontSize: 12,
-    color: '#000000',
-  },
-});
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      backgroundColor: theme.background,
+    },
+    label: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      marginBottom: 4,
+    },
+    serverName: {
+      fontSize: 18,
+      fontWeight: '600',
+      marginBottom: 24,
+      color: theme.text,
+    },
+    serverSubLabel: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      marginBottom: 16,
+    },
+    button: {
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      borderRadius: 8,
+      alignItems: 'center',
+      marginTop: 12,
+      minWidth: 180,
+    },
+    primaryButton: {
+      backgroundColor: theme.primary,
+    },
+    secondaryButton: {
+      backgroundColor: theme.surfaceAlt,
+    },
+    buttonText: {
+      color: theme.textOnPrimary,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    secondaryButtonText: {
+      color: theme.text,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    statusBox: {
+      marginTop: 16,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 8,
+      backgroundColor: theme.surfaceAlt,
+    },
+    statusText: {
+      fontSize: 12,
+      color: theme.text,
+    },
+  });
 
 export default ConnectionScreen;

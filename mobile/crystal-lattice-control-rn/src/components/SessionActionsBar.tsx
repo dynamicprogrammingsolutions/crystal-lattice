@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Modal,
   StyleSheet,
@@ -13,6 +13,7 @@ import {
   SESSION_ACTIONS,
   type SessionActionKey,
 } from '../sessionActions';
+import { useTheme, type Theme } from '../theme';
 
 export interface SessionActionsBarProps {
   pinned: SessionActionKey[];
@@ -27,6 +28,8 @@ const SessionActionsBar: React.FC<SessionActionsBarProps> = ({
   onAction,
   isActionDisabled,
 }) => {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [menuVisible, setMenuVisible] = useState(false);
 
   const togglePinned = (key: SessionActionKey) => {
@@ -50,7 +53,7 @@ const SessionActionsBar: React.FC<SessionActionsBarProps> = ({
         onPress={() => onAction(def.key)}
         disabled={disabled}
       >
-        <Icon name={def.iconName} size={18} color="#007AFF" />
+        <Icon name={def.iconName} size={18} color={theme.primary} />
       </TouchableOpacity>
     );
   };
@@ -63,7 +66,7 @@ const SessionActionsBar: React.FC<SessionActionsBarProps> = ({
           style={styles.iconButton}
           onPress={() => setMenuVisible(true)}
         >
-          <Icon name="more-horizontal" size={20} color="\#007AFF" />
+          <Icon name="more-horizontal" size={20} color={theme.primary} />
         </TouchableOpacity>
       </View>
 
@@ -124,67 +127,68 @@ const SessionActionsBar: React.FC<SessionActionsBarProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  actionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  iconButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    marginLeft: 4,
-  },
-  menuOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  menuContent: {
-    width: '80%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingVertical: 8,
-  },
-  menuHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E5EA',
-    marginBottom: 4,
-  },
-  menuHeaderText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#000000',
-  },
-  closeButton: {
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  menuItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  menuItemText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#000000',
-  },
-  pinButton: {
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-  },
-});
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    actionsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    iconButton: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      marginLeft: 4,
+    },
+    menuOverlay: {
+      flex: 1,
+      backgroundColor: theme.modalBackdrop,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    menuContent: {
+      width: '80%',
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      paddingVertical: 8,
+    },
+    menuHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.border,
+      marginBottom: 4,
+    },
+    menuHeaderText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.text,
+    },
+    closeButton: {
+      paddingHorizontal: 4,
+      paddingVertical: 4,
+    },
+    menuItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    menuItemLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    menuItemText: {
+      marginLeft: 8,
+      fontSize: 14,
+      color: theme.text,
+    },
+    pinButton: {
+      paddingHorizontal: 4,
+      paddingVertical: 4,
+    },
+  });
 
 export default SessionActionsBar;
