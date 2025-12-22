@@ -42,7 +42,8 @@ export const lightTheme: Theme = {
   textOnPrimary: '#FFFFFF',
   danger: '#FF3B30',
   success: '#34C759',
-  bubbleUserBg: '#007AFF',
+  // Light, subtle blue behind user messages; text stays standard dark.
+  bubbleUserBg: 'rgba(0, 122, 255, 0.12)',
   bubbleSystemBorder: '#E5E5EA',
   bubbleToolBg: 'rgba(142, 142, 147, 0.08)',
   modalBackdrop: 'rgba(0, 0, 0, 0.3)',
@@ -69,7 +70,8 @@ export const darkTheme: Theme = {
   textOnPrimary: '#FFFFFF',
   danger: '#FF453A',
   success: '#32D74B',
-  bubbleUserBg: '#0A84FF',
+  // Darker blue bubble in dark mode; text stays light.
+  bubbleUserBg: '#0040A5',
   bubbleSystemBorder: '#3A3A3C',
   bubbleToolBg: 'rgba(142, 142, 147, 0.25)',
   modalBackdrop: 'rgba(0, 0, 0, 0.4)',
