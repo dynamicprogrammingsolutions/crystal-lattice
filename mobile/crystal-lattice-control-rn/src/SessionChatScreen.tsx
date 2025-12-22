@@ -43,6 +43,9 @@ interface SessionChatScreenProps {
   onUpdateCache: (messages: IndexedMessage[]) => void;
   onBack: () => void;
   onNavigateToSession?: (sessionId: string) => void;
+  initialComposeText: string;
+  initialScrollOffset: number;
+  onUpdateUiState: (composeText: string, scrollOffset: number) => void;
 }
 
 const STORAGE_KEY_SESSION_ACTIONS = 'clc_pinned_session_actions_v1';
@@ -57,11 +60,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   onUpdateCache,
   onBack,
   onNavigateToSession,
+  initialComposeText,
+  initialScrollOffset,
+  onUpdateUiState,
 }) => {
   const [messages, setMessages] = useState<IndexedMessage[]>(cachedMessages ?? []);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sendInProgress, setSendInProgress] = useState(false);
-  const [composeText, setComposeText] = useState('');
+  const [composeText, setComposeText] = useState(initialComposeText ?? '');
   const [rangeStartText, setRangeStartText] = useState('-50');
   const [rangeEndText, setRangeEndText] = useState('');
   const [lastReloadAt, setLastReloadAt] = useState<Date | null>(null);
@@ -85,6 +91,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [editingText, setEditingText] = useState('');
   const [shouldAutoScroll, setShouldAutoScroll] = useState(false);
   const scrollViewRef = useRef<ScrollView | null>(null);
+  const scrollOffsetRef = useRef<number>(initialScrollOffset || 0);
+  const composeTextRef = useRef<string>(initialComposeText ?? '');
+
+  useEffect(() => {
+    composeTextRef.current = composeText;
+  }, [composeText]);
 
   useEffect(() => {
     const loadPinnedFromStorage = async () => {
@@ -189,6 +201,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   }, [cachedMessages, connectionId, sessionId, lastLoadedAt]);
 
   useEffect(() => {
+    // Restore initial scroll position once on mount when a cached
+    // offset is available.
+    if (initialScrollOffset && scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({ x: 0, y: initialScrollOffset, animated: false });
+    }
+  }, [initialScrollOffset]);
+
+  useEffect(() => {
     if (!cachedMessages && adapter) {
       loadMessages();
     }
@@ -221,6 +241,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     };
     saveMessagePinned();
   }, [pinnedMessageActionsByRole]);
+
+  useEffect(() => {
+    // Persist UI state when this screen is unmounted or when
+    // the associated connection/session changes.
+    return () => {
+      onUpdateUiState(composeTextRef.current, scrollOffsetRef.current);
+    };
+  }, [onUpdateUiState, connectionId, sessionId]);
 
 	  const handleAppend = async () => {
     const text = composeText.trim();
@@ -258,7 +286,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }
       await apiSend(adapter, sessionId);
       await loadMessages();
-      setComposeText('');
+        setComposeText('');
+        onUpdateUiState('', scrollOffsetRef.current);
     } catch (err: any) {
       console.log('Failed to send request', err);
       const message = err?.message || 'Failed to send request';
@@ -600,7 +629,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           style={styles.composerInput}
           placeholder="Type your message..."
           value={composeText}
-          onChangeText={setComposeText}
+          onChangeText={(text) => {
+            setComposeText(text);
+          }}
+          onBlur={() => {
+            onUpdateUiState(composeTextRef.current, scrollOffsetRef.current);
+          }}
           multiline
         />
         <View style={styles.composerButtonsRow}>

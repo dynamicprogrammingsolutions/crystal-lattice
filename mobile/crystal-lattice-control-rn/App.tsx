@@ -99,6 +99,8 @@ export interface MessagesCacheEntry {
   sessionId: string;
   messages: IndexedMessage[];
   lastLoadedAt: number | null;
+  composeText?: string;
+  scrollOffset?: number;
 }
 
 export type MessagesBySession = Record<string, MessagesCacheEntry>;
@@ -784,7 +786,10 @@ function App(): React.JSX.Element {
     setMessagesCache((prev) => {
       const bySession = prev[connectionId] ?? {};
 
+      const existing = bySession[sessionId];
+
       const entry: MessagesCacheEntry = {
+        ...(existing ?? {}),
         connectionId,
         sessionId,
         messages: list,
@@ -824,6 +829,41 @@ function App(): React.JSX.Element {
       const next = [...prev];
       next[idx] = record;
       return next;
+    });
+  };
+
+  const updateMessagesUiState = (
+    connectionId: string,
+    sessionId: string,
+    composeText: string,
+    scrollOffset: number,
+  ) => {
+    setMessagesCache((prev) => {
+      const bySession = prev[connectionId] ?? {};
+      const existing = bySession[sessionId];
+
+      const entry: MessagesCacheEntry = existing
+        ? {
+            ...existing,
+            composeText,
+            scrollOffset,
+          }
+        : {
+            connectionId,
+            sessionId,
+            messages: [],
+            lastLoadedAt: null,
+            composeText,
+            scrollOffset,
+          };
+
+      return {
+        ...prev,
+        [connectionId]: {
+          ...bySession,
+          [sessionId]: entry,
+        },
+      };
     });
   };
 
@@ -1437,6 +1477,7 @@ function App(): React.JSX.Element {
         onUpdateSessionsCache={updateSessionsCache}
         messagesCache={messagesCache}
         onUpdateMessagesCache={updateMessagesCache}
+        onUpdateMessagesUiState={updateMessagesUiState}
       />
         );
       })()}
