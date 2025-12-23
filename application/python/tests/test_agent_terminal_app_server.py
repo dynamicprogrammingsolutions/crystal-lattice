@@ -64,16 +64,30 @@ def test_server_flow_with_echo_provider(tmp_path: Path) -> None:
     updated_session = add_resp["session"]
     assert updated_session["session_id"] == session_id
 
-    # 3) Send a request and verify the echo provider behaviour.
+    # 3) Send a request asynchronously and verify echo provider behaviour.
     send_resp = server_mod.send_request(
         session_id,
         {"config_overrides": {}},
         app_instance=app,
     )
 
-    final_session_dict = send_resp["session"]
-    messages = send_resp["messages"]
-    request_id = send_resp["request_id"]
+    # The /send endpoint now returns an immediate acknowledgement with
+    # no session/messages/request_id payload.
+    assert send_resp == {}
+
+    # Wait for the background worker to finish and record a final event.
+    deadline = time.time() + 30.0
+    final_kinds: set[str] = set()
+    while time.time() < deadline:
+        events = app.get_event_store().list(session_id=session_id, limit=100)
+        final_kinds = {ev.get("type") for ev in events}
+        if "final" in final_kinds or "request_completed" in final_kinds:
+            break
+        time.sleep(0.1)
+
+    assert ("final" in final_kinds) or ("request_completed" in final_kinds), (
+        "timed out waiting for final/request_completed events",
+    )
 
     # Reload the final session from the application to avoid relying on
     # the shape of the streaming events.
@@ -94,6 +108,55 @@ def test_server_flow_with_echo_provider(tmp_path: Path) -> None:
     assert "session_created" in kinds
     assert "message_appended" in kinds
     assert "request_started" in kinds or "final" in kinds
+
+
+def test_run_send_request_background_helper_sends_and_persists(tmp_path: Path) -> None:
+    """Internal helper _run_send_request_background mirrors /send behaviour.
+
+    This test calls the helper directly to ensure that it drives the
+    send_request flow to completion and persists the final session.
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    system_message = "You are a helpful echo assistant."
+    user_message = "hello from the _run_send_request_background test"
+
+    create_resp = server_mod.create_session(
+        {"agent_id": "default", "system_message": system_message},
+        app_instance=app,
+    )
+    session_dict = create_resp["session"]
+    session_id = session_dict["session_id"]
+
+    server_mod.add_message(
+        session_id,
+        {"role": "user", "content": user_message, "metadata": None},
+        app_instance=app,
+    )
+
+    # Run the helper synchronously; it should process the request to
+    # completion and save the final session.
+    server_mod._run_send_request_background(app, session_id, {})
+
+    ctx = app.load_session(session_id)
+    assert ctx is not None
+    _core, _base_config, final_session = ctx
+    session_dict = final_session.to_dict()
+    history = session_dict.get("messages") or []
+    assert history, "expected at least one message in the final session"
+
+    evs = app.get_event_store().list(session_id=session_id, limit=100)
+    kinds = {ev.get("type") for ev in evs}
+    assert "request_started" in kinds
+    assert "final" in kinds or "request_completed" in kinds
 
 
 def test_system_message_feature_adds_system_message_after_second_user_message(tmp_path: Path) -> None:
@@ -573,11 +636,6 @@ def test_http_flow_with_tools_and_reasoning(ensure_ollama_model: None, tmp_path:
                             seen_reasoning_in_final = True
 
             if "final" in seen_event_types and "request_completed" in seen_event_types:
-                break
-
-            # If the background thread already finished and no new events
-            # are coming in, exit the loop after a short grace period.
-            if not send_thread.is_alive() and not batch:
                 break
 
             time.sleep(0.5)
