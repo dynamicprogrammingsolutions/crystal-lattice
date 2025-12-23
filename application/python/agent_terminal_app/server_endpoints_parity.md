@@ -31,11 +31,13 @@ can send requests and consume streaming events.
       `TerminalApplication.add_message`.
 
 - [EXISTING] `POST /sessions/{session_id}/send`
-    - Purpose: run `AgentApplication.send_request` with optional
-      `config_overrides`, publish all events, and return final session
-        + messages + `request_id`.
+    - Purpose: start `AgentApplication.send_request` with optional
+      `config_overrides` in the background, publishing all events to the
+      shared store. The HTTP response is an immediate acknowledgement
+      without embedding the final session, messages, or `request_id`.
     - Terminal parity: `TerminalApplication.send_request(stream=True)` as
-      used by the prompt_toolkit UI.
+      used by the prompt_toolkit UI; frontends should observe progress
+      via `/events` and reload session messages as needed.
 
 - [EXISTING] `GET /events`
     - Purpose: read events from the shared event store, filtered by

@@ -378,6 +378,83 @@ def _normalize_index(raw_index: int, message_count: int) -> int:
     return target_index
 
 
+def _run_send_request_background(
+    app_instance: AgentApplication,
+    session_id: str,
+    overrides: Dict[str, Any],
+) -> None:
+    """Run ``AgentApplication.send_request`` and publish all events.
+
+    This helper mirrors the previous behaviour of :func:`send_request`
+    but is designed to run in a background thread so that the HTTP
+    route can return immediately.
+    """
+
+    try:
+        ctx = app_instance.load_session(session_id)
+        if ctx is None:
+            _log.warning("send_request background worker: session %r not found", session_id)
+            return
+
+        core, base_config, session = ctx
+
+        final_session_dict: Optional[Dict[str, Any]] = session.to_dict()
+        final_messages: List[Dict[str, Any]] = []
+        request_id: Optional[str] = None
+
+        store = app_instance.get_event_store()
+
+        for ev in app_instance.send_request(core, session, base_config, overrides, stream=True):
+            etype = ev.get("type")
+
+            # Internal checkpoint events carry the live Session object so the
+            # server can persist progress incrementally. They are not
+            # published to the shared event store or serialized in responses.
+            if etype == "session_checkpoint":
+                session_obj = ev.get("session")
+                if isinstance(session_obj, Session):
+                    try:
+                        app_instance.save_session(session_obj)
+                    except Exception:  # pragma: no cover - defensive
+                        _log.exception(
+                            "failed to save session checkpoint for %r", session_id
+                        )
+                    try:
+                        final_session_dict = session_obj.to_dict()
+                    except Exception:  # pragma: no cover - defensive
+                        _log.exception(
+                            "failed to serialize session checkpoint for %r", session_id
+                        )
+                continue
+
+            stored = store.publish(ev)
+
+            if stored.get("type") == "final":
+                final_messages = list(stored.get("messages") or [])
+                request_id = stored.get("request_id")
+            elif "session" in stored and isinstance(stored.get("session"), dict):
+                # Backwards compatibility for older event shapes that include
+                # a serialized session payload.
+                final_session_dict = stored["session"]
+
+        if final_session_dict is not None:
+            try:
+                final_session = Session.from_dict(final_session_dict)
+                app_instance.save_session(final_session)
+            except Exception:  # pragma: no cover - defensive
+                _log.exception("failed to persist final session for %r", session_id)
+
+        # ``final_messages`` and ``request_id`` are intentionally unused
+        # here; callers are expected to observe results via the event
+        # store and session history.
+
+    except Exception:  # pragma: no cover - defensive
+        _log.exception(
+            "unexpected error in send_request background worker for session %r",
+            session_id,
+        )
+
+
 @app.post("/sessions/{session_id}/messages")
 def add_message(
     session_id: str,
@@ -492,73 +569,43 @@ def send_request(
     payload: Optional[Dict[str, Any]] = None,
     app_instance: AgentApplication = Depends(get_agent_app),
 ) -> Dict[str, Any]:
-    """Run ``AgentApplication.send_request`` and publish all events."""
+    """Start ``AgentApplication.send_request`` in the background.
+
+    The HTTP response is an immediate acknowledgement; clients are
+    expected to observe progress and results via the event store and
+    session history rather than the response body.
+    """
 
     data = payload or {}
     overrides = data.get("config_overrides") or {}
 
     if overrides is not None and not isinstance(overrides, dict):
-        raise HTTPException(status_code=400, detail="config_overrides must be a mapping if provided")
+        raise HTTPException(
+            status_code=400,
+            detail="config_overrides must be a mapping if provided",
+        )
 
     try:
+        # Validate that the session exists before starting the
+        # background worker so that clients receive an immediate 404 for
+        # unknown sessions.
         ctx = app_instance.load_session(session_id)
         if ctx is None:
             raise KeyError(f"Session {session_id!r} not found")
-
-        core, base_config, session = ctx
-
-        final_session_dict: Optional[Dict[str, Any]] = session.to_dict()
-        final_messages: List[Dict[str, Any]] = []
-        request_id: Optional[str] = None
-
-        store = app_instance.get_event_store()
-
-        for ev in app_instance.send_request(core, session, base_config, overrides, stream=True):
-            etype = ev.get("type")
-
-            # Internal checkpoint events carry the live Session object so the
-            # server can persist progress incrementally. They are not
-            # published to the shared event store or serialized in responses.
-            if etype == "session_checkpoint":
-                session_obj = ev.get("session")
-                if isinstance(session_obj, Session):
-                    try:
-                        app_instance.save_session(session_obj)
-                    except Exception:  # pragma: no cover - defensive
-                        pass
-                    try:
-                        final_session_dict = session_obj.to_dict()
-                    except Exception:  # pragma: no cover - defensive
-                        pass
-                continue
-
-            stored = store.publish(ev)
-
-            if stored.get("type") == "final":
-                final_messages = list(stored.get("messages") or [])
-                request_id = stored.get("request_id")
-            elif "session" in stored and isinstance(stored.get("session"), dict):
-                # Backwards compatibility for older event shapes that include
-                # a serialized session payload.
-                final_session_dict = stored["session"]
-
-        if final_session_dict is not None:
-            try:
-                final_session = Session.from_dict(final_session_dict)
-                app_instance.save_session(final_session)
-            except Exception:  # pragma: no cover - defensive
-                pass
-
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return {
-        "session": final_session_dict,
-        "messages": final_messages,
-        "request_id": request_id,
-    }
+    # Start the send_request flow in a background thread so that the
+    # HTTP response can return immediately.
+    threading.Thread(
+        target=_run_send_request_background,
+        args=(app_instance, session_id, overrides),
+        daemon=True,
+    ).start()
+
+    # The response intentionally omits session/messages/request_id; they
+    # can be observed via the event store and subsequent session loads.
+    return {}
 
 
 @app.delete("/sessions/{session_id}/messages")

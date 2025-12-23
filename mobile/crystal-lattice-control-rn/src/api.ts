@@ -30,9 +30,7 @@ export interface ListMessagesResponse {
 }
 
 export interface SendResponse {
-  session: any;
-  messages: ApiMessage[];
-  request_id?: string | null;
+  status?: string;
 }
 
 export interface AgentsResponse {

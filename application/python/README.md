@@ -40,7 +40,7 @@ default. The main routes are:
 
 - `POST /sessions` – create a new session
 - `POST /sessions/{session_id}/messages` – append a message
-- `POST /sessions/{session_id}/send` – run the model/tool loop
+- `POST /sessions/{session_id}/send` – start the model/tool loop in the background
 - `GET /events` – list events from the shared in-memory event store
 
 You can change host and port:
