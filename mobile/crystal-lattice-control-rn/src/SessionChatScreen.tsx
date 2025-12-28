@@ -31,11 +31,14 @@ import {
   type IndexedMessage,
 } from './api';
 import MessageBubble from './components/MessageBubble';
+import DebugEventsView from './components/DebugEventsView';
 import SessionActionsBar from './components/SessionActionsBar';
 import { SESSION_ACTIONS, type SessionActionKey } from './sessionActions';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 import { selectDisplayContent } from './messageUtils';
 import { useTheme, type Theme } from './theme';
+import { useSessionEvents } from './useSessionEvents';
+import type { Event, FinalEvent, MessageAppendedEvent } from './eventsTypes';
 
 interface SessionChatScreenProps {
   adapter: ConnectionAdapter | null;
@@ -100,6 +103,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingText, setEditingText] = useState('');
   const [shouldAutoScroll, setShouldAutoScroll] = useState(false);
+  const [initialCheckpointId, setInitialCheckpointId] = useState<string | null>(null);
+  const [debugVisible, setDebugVisible] = useState(false);
+  const [debugEvents, setDebugEvents] = useState<Event[]>([]);
   const scrollViewRef = useRef<ScrollView | null>(null);
   const composeTextRef = useRef<string>(initialComposeText ?? '');
   const scrollOffsetRef = useRef<number>(initialScrollOffset || 0);
@@ -191,8 +197,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 		          end = parsedEnd;
 		        }
 		      }
-		      const list = await apiListMessages(adapter, sessionId, start, end);
+		      const { messages: list, checkpoint_event_id } = await apiListMessages(
+		        adapter,
+		        sessionId,
+		        start,
+		        end,
+		      );
 		      setMessages(list);
+		      setInitialCheckpointId(checkpoint_event_id ?? null);
 		      if (!hasAutoScrolledRef.current) {
 		        setShouldAutoScroll(true);
 		        hasAutoScrolledRef.current = true;
@@ -584,6 +596,66 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
   };
 
+  const appendEventsToDebugBuffer = (events: Event[]) => {
+    if (!events || events.length === 0) return;
+    setDebugEvents((prev) => {
+      const combined = [...prev, ...events];
+      const max = 200;
+      return combined.length > max ? combined.slice(combined.length - max) : combined;
+    });
+  };
+
+  const applyFinalEvent = (ev: FinalEvent) => {
+    if (!Array.isArray(ev.messages) || ev.messages.length === 0) return;
+    setMessages((prev) => {
+      const current = [...prev];
+      let lastIndex = current.length > 0 ? current[current.length - 1].index : -1;
+      for (const msg of ev.messages) {
+        lastIndex += 1;
+        current.push({ index: lastIndex, message: msg });
+      }
+      return current;
+    });
+  };
+
+  const applyMessageAppendedEvent = (ev: MessageAppendedEvent) => {
+    if (!ev.message) return;
+    setMessages((prev) => {
+      const lastIndex = prev.length > 0 ? prev[prev.length - 1].index : -1;
+      return [...prev, { index: lastIndex + 1, message: ev.message }];
+    });
+  };
+
+  const AUTO_RELOAD_ON_REQUEST_COMPLETED = false;
+
+  const handleEvents = (events: Event[]) => {
+    if (!events || events.length === 0) return;
+    const relevant = events.filter((ev) => ev.session_id === sessionId);
+
+    relevant.forEach((ev) => {
+      if (ev.type === 'final') {
+        applyFinalEvent(ev as FinalEvent);
+      } else if (ev.type === 'message_appended') {
+        applyMessageAppendedEvent(ev as MessageAppendedEvent);
+      } else if (ev.type === 'request_completed' && AUTO_RELOAD_ON_REQUEST_COMPLETED) {
+        loadMessages();
+      }
+    });
+
+    appendEventsToDebugBuffer(events);
+  };
+
+  const eventsEnabled = !!(adapter && sessionId);
+  const { lastEventId: _lastEventId, status: _eventsStatus } = useSessionEvents(
+    {
+      adapter,
+      sessionId,
+      enabled: eventsEnabled,
+      initialSinceId: initialCheckpointId,
+    },
+    handleEvents,
+  );
+
 	  const sessionLabel = `Session ${sessionId.slice(0, 8)}`;
 
 		  return (
@@ -609,6 +681,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	                sendInProgress && (action === 'reload' || action === 'resend')
 	              }
 	            />
+	            <TouchableOpacity
+	              style={styles.iconButton}
+	              onPress={() => setDebugVisible(true)}
+	            >
+	              <Icon name="activity" size={18} color={theme.primary} />
+	            </TouchableOpacity>
 	          </View>
 	        </View>
 
@@ -862,6 +940,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	          </View>
 	        </View>
 	      </Modal>
+	      {debugVisible && (
+	        <View style={styles.debugOverlay}>
+	          <DebugEventsView events={debugEvents} onClose={() => setDebugVisible(false)} />
+	        </View>
+	      )}
 	    </View>
 	    </KeyboardAvoidingView>
   );
@@ -1059,6 +1142,14 @@ const createStyles = (theme: Theme) =>
     agentItemText: {
       fontSize: 14,
       color: theme.text,
+    },
+    debugOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: theme.modalBackdrop,
     },
   });
 

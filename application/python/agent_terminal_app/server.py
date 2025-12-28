@@ -46,7 +46,20 @@ _bonjour_handle: Optional[bonjour_mod.BonjourServiceHandle] = None
 _bridge_client: Optional[bridge_mod.BridgeClient] = None
 _bridge_task: Optional[asyncio.Task[None]] = None
 
+_session_locks: Dict[str, threading.Lock] = {}
+_session_locks_lock = threading.Lock()
+_last_checkpoint_event_id_by_session: Dict[str, Optional[str]] = {}
+
 _log = logging.getLogger(__name__)
+
+
+def _get_session_lock(session_id: str) -> threading.Lock:
+    with _session_locks_lock:
+        lock = _session_locks.get(session_id)
+        if lock is None:
+            lock = threading.Lock()
+            _session_locks[session_id] = lock
+        return lock
 
 
 @app.on_event("startup")
@@ -288,19 +301,41 @@ def create_session(
     try:
         core, _base_config, session = app_instance.create_session(agent_id)
 
-        if isinstance(system_message, str) and system_message:
-            session = core.add_message(session, "system", system_message)
-            app_instance.save_session(session)
+        session_lock = _get_session_lock(session.session_id)
+        with session_lock:
+            if isinstance(system_message, str) and system_message:
+                session = core.add_message(session, "system", system_message)
+                app_instance.save_session(session)
 
-        store = app_instance.get_event_store()
-        store.publish(
-            {
-                "type": "session_created",
-                "session_id": session.session_id,
-                "agent_id": agent_id,
-                "session": session.to_dict(),
-            }
-        )
+            store = app_instance.get_event_store()
+            stored = store.publish(
+                {
+                    "type": "session_created",
+                    "session_id": session.session_id,
+                    "agent_id": agent_id,
+                    "session": session.to_dict(),
+                }
+            )
+
+            try:
+                marker = store.publish(
+                    {
+                        "type": "checkpoint",
+                        "session_id": session.session_id,
+                        "request_id": stored.get("request_id"),
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                    }
+                )
+                checkpoint_event_id = marker.get("event_id")
+                if isinstance(checkpoint_event_id, str):
+                    _last_checkpoint_event_id_by_session[session.session_id] = (
+                        checkpoint_event_id
+                    )
+            except Exception:  # pragma: no cover - defensive
+                _log.exception(
+                    "failed to publish checkpoint event after session create for %r",
+                    session.session_id,
+                )
 
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -413,18 +448,39 @@ def _run_send_request_background(
             if etype == "session_checkpoint":
                 session_obj = ev.get("session")
                 if isinstance(session_obj, Session):
-                    try:
-                        app_instance.save_session(session_obj)
-                    except Exception:  # pragma: no cover - defensive
-                        _log.exception(
-                            "failed to save session checkpoint for %r", session_id
-                        )
-                    try:
-                        final_session_dict = session_obj.to_dict()
-                    except Exception:  # pragma: no cover - defensive
-                        _log.exception(
-                            "failed to serialize session checkpoint for %r", session_id
-                        )
+                    session_lock = _get_session_lock(session_id)
+                    with session_lock:
+                        try:
+                            app_instance.save_session(session_obj)
+                        except Exception:  # pragma: no cover - defensive
+                            _log.exception(
+                                "failed to save session checkpoint for %r", session_id
+                            )
+                        try:
+                            final_session_dict = session_obj.to_dict()
+                        except Exception:  # pragma: no cover - defensive
+                            _log.exception(
+                                "failed to serialize session checkpoint for %r", session_id
+                            )
+
+                        try:
+                            marker = store.publish(
+                                {
+                                    "type": "checkpoint",
+                                    "session_id": session_obj.session_id,
+                                    "request_id": ev.get("request_id"),
+                                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                                }
+                            )
+                            checkpoint_event_id = marker.get("event_id")
+                            if isinstance(checkpoint_event_id, str):
+                                _last_checkpoint_event_id_by_session[
+                                    session_obj.session_id
+                                ] = checkpoint_event_id
+                        except Exception:  # pragma: no cover - defensive
+                            _log.exception(
+                                "failed to publish checkpoint event for %r", session_id
+                            )
                 continue
 
             stored = store.publish(ev)
@@ -471,31 +527,57 @@ def add_message(
         raise HTTPException(status_code=400, detail="role and content must be strings")
 
     try:
-        ctx = app_instance.load_session(session_id)
-        if ctx is None:
-            raise KeyError(f"Session {session_id!r} not found")
+        session_lock = _get_session_lock(session_id)
+        with session_lock:
+            ctx = app_instance.load_session(session_id)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
 
-        core, base_config, session = ctx
+            core, base_config, session = ctx
 
-        normalized_role = role if role in {"system", "user", "assistant", "tool"} else "user"
+            normalized_role = (
+                role if role in {"system", "user", "assistant", "tool"} else "user"
+            )
 
-        new_session = core.add_message(session, normalized_role, content, metadata, base_config)
-        app_instance.save_session(new_session)
+            new_session = core.add_message(
+                session, normalized_role, content, metadata, base_config
+            )
+            app_instance.save_session(new_session)
 
-        last_message = new_session.messages[-1] if new_session.messages else None
+            last_message = new_session.messages[-1] if new_session.messages else None
 
-        store = app_instance.get_event_store()
-        store.publish(
-            {
-                "type": "message_appended",
-                "session_id": new_session.session_id,
-                "role": normalized_role,
-                "content": content,
-                "metadata": metadata or {},
-                "message": last_message.to_dict() if last_message is not None else None,
-                "session": new_session.to_dict(),
-            }
-        )
+            store = app_instance.get_event_store()
+            stored = store.publish(
+                {
+                    "type": "message_appended",
+                    "session_id": new_session.session_id,
+                    "role": normalized_role,
+                    "content": content,
+                    "metadata": metadata or {},
+                    "message": last_message.to_dict() if last_message is not None else None,
+                    "session": new_session.to_dict(),
+                }
+            )
+
+            try:
+                marker = store.publish(
+                    {
+                        "type": "checkpoint",
+                        "session_id": new_session.session_id,
+                        "request_id": stored.get("request_id"),
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                    }
+                )
+                checkpoint_event_id = marker.get("event_id")
+                if isinstance(checkpoint_event_id, str):
+                    _last_checkpoint_event_id_by_session[new_session.session_id] = (
+                        checkpoint_event_id
+                    )
+            except Exception:  # pragma: no cover - defensive
+                _log.exception(
+                    "failed to publish checkpoint event after message append for %r",
+                    session_id,
+                )
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -521,41 +603,63 @@ def update_message(
         raise HTTPException(status_code=400, detail="content must be a string")
 
     try:
-        ctx = app_instance.load_session(session_id)
-        if ctx is None:
-            raise KeyError(f"Session {session_id!r} not found")
+        session_lock = _get_session_lock(session_id)
+        with session_lock:
+            ctx = app_instance.load_session(session_id)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
 
-        core, base_config, session = ctx
+            core, base_config, session = ctx
 
-        message_count = len(session.messages)
-        if message_count == 0:
-            raise HTTPException(status_code=400, detail="no messages to modify")
+            message_count = len(session.messages)
+            if message_count == 0:
+                raise HTTPException(status_code=400, detail="no messages to modify")
 
-        try:
-            target_index = _normalize_index(index, message_count)
-        except IndexError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            try:
+                target_index = _normalize_index(index, message_count)
+            except IndexError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-        metadata = session.metadata if isinstance(session.metadata, dict) else {}
-        overrides_val = metadata.get("overrides")
-        overrides: Dict[str, Any] = (
-            overrides_val if isinstance(overrides_val, dict) else {}
-        )
-        config = resolve_request_config(base_config, overrides)
+            metadata = session.metadata if isinstance(session.metadata, dict) else {}
+            overrides_val = metadata.get("overrides")
+            overrides: Dict[str, Any] = (
+                overrides_val if isinstance(overrides_val, dict) else {}
+            )
+            config = resolve_request_config(base_config, overrides)
 
-        new_session = core.modify_message(session, target_index, content, config)
-        app_instance.save_session(new_session)
+            new_session = core.modify_message(session, target_index, content, config)
+            app_instance.save_session(new_session)
 
-        store = app_instance.get_event_store()
-        store.publish(
-            {
-                "type": "message_modified",
-                "session_id": new_session.session_id,
-                "index": target_index,
-                "content": content,
-                "session": new_session.to_dict(),
-            }
-        )
+            store = app_instance.get_event_store()
+            stored = store.publish(
+                {
+                    "type": "message_modified",
+                    "session_id": new_session.session_id,
+                    "index": target_index,
+                    "content": content,
+                    "session": new_session.to_dict(),
+                }
+            )
+
+            try:
+                marker = store.publish(
+                    {
+                        "type": "checkpoint",
+                        "session_id": new_session.session_id,
+                        "request_id": stored.get("request_id"),
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                    }
+                )
+                checkpoint_event_id = marker.get("event_id")
+                if isinstance(checkpoint_event_id, str):
+                    _last_checkpoint_event_id_by_session[new_session.session_id] = (
+                        checkpoint_event_id
+                    )
+            except Exception:  # pragma: no cover - defensive
+                _log.exception(
+                    "failed to publish checkpoint event after message modify for %r",
+                    session_id,
+                )
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -638,92 +742,124 @@ def delete_messages(
         )
 
     try:
-        ctx = app_instance.load_session(session_id)
-        if ctx is None:
-            raise KeyError(f"Session {session_id!r} not found")
+        session_lock = _get_session_lock(session_id)
+        with session_lock:
+            ctx = app_instance.load_session(session_id)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
 
-        core, base_config, session = ctx
-        message_count = len(session.messages)
+            core, base_config, session = ctx
+            message_count = len(session.messages)
 
-        if message_count == 0:
-            raise HTTPException(status_code=400, detail="no messages to delete")
+            if message_count == 0:
+                raise HTTPException(status_code=400, detail="no messages to delete")
 
-        # Determine concrete indices to delete based on the chosen mode.
-        delete_indices: List[int]
+            # Determine concrete indices to delete based on the chosen mode.
+            delete_indices: List[int]
 
-        if has_indices:
-            raw_indices = body.get("indices")
-            if not isinstance(raw_indices, list):
-                raise HTTPException(status_code=400, detail="indices must be a list of integers")
-            if not raw_indices:
-                # Nothing to delete; return the current session unchanged.
-                return {"session": session.to_dict(), "deleted_indices": []}
+            if has_indices:
+                raw_indices = body.get("indices")
+                if not isinstance(raw_indices, list):
+                    raise HTTPException(
+                        status_code=400, detail="indices must be a list of integers"
+                    )
+                if not raw_indices:
+                    # Nothing to delete; return the current session unchanged.
+                    return {"session": session.to_dict(), "deleted_indices": []}
 
-            delete_indices = []
-            for raw in raw_indices:
-                if not isinstance(raw, int):
-                    raise HTTPException(status_code=400, detail="indices must be integers")
+                delete_indices = []
+                for raw in raw_indices:
+                    if not isinstance(raw, int):
+                        raise HTTPException(
+                            status_code=400, detail="indices must be integers"
+                        )
+                    try:
+                        idx = _normalize_index(raw, message_count)
+                    except IndexError as exc:
+                        raise HTTPException(status_code=400, detail=str(exc)) from exc
+                    delete_indices.append(idx)
+
+            elif has_range:
+                range_spec = body.get("range") or {}
+                if not isinstance(range_spec, dict):
+                    raise HTTPException(status_code=400, detail="range must be an object")
+
+                start = range_spec.get("start")
+                end = range_spec.get("end")
+                if start is not None and not isinstance(start, int):
+                    raise HTTPException(
+                        status_code=400, detail="start must be an integer or null"
+                    )
+                if end is not None and not isinstance(end, int):
+                    raise HTTPException(
+                        status_code=400, detail="end must be an integer or null"
+                    )
+
                 try:
-                    idx = _normalize_index(raw, message_count)
-                except IndexError as exc:
+                    start_idx, end_idx = _normalize_slice_bounds(message_count, start, end)
+                except ValueError as exc:
                     raise HTTPException(status_code=400, detail=str(exc)) from exc
-                delete_indices.append(idx)
 
-        elif has_range:
-            range_spec = body.get("range") or {}
-            if not isinstance(range_spec, dict):
-                raise HTTPException(status_code=400, detail="range must be an object")
+                delete_indices = list(range(start_idx, end_idx))
 
-            start = range_spec.get("start")
-            end = range_spec.get("end")
-            if start is not None and not isinstance(start, int):
-                raise HTTPException(status_code=400, detail="start must be an integer or null")
-            if end is not None and not isinstance(end, int):
-                raise HTTPException(status_code=400, detail="end must be an integer or null")
+            else:  # has_last
+                last = body.get("last")
+                if not isinstance(last, int):
+                    raise HTTPException(status_code=400, detail="last must be an integer")
+                if last <= 0:
+                    raise HTTPException(
+                        status_code=400, detail="count must be a positive integer"
+                    )
+
+                count = min(last, message_count)
+                start_idx = message_count - count
+                delete_indices = list(range(start_idx, message_count))
+
+            if not delete_indices:
+                raise HTTPException(status_code=400, detail="no messages selected for deletion")
+
+            # Perform the deletion via the core, mirroring TerminalApplication.delete_messages.
+            metadata = session.metadata if isinstance(session.metadata, dict) else {}
+            overrides_val = metadata.get("overrides")
+            overrides: Dict[str, Any] = (
+                overrides_val if isinstance(overrides_val, dict) else {}
+            )
+            config = resolve_request_config(base_config, overrides)
+
+            new_session = core.slice_session(session, config, remove_indices=delete_indices)
+            app_instance.save_session(new_session)
+
+            concrete_indices = sorted(set(delete_indices))
+
+            store = app_instance.get_event_store()
+            stored = store.publish(
+                {
+                    "type": "messages_deleted",
+                    "session_id": new_session.session_id,
+                    "indices": sorted(delete_indices),
+                    "session": new_session.to_dict(),
+                }
+            )
 
             try:
-                start_idx, end_idx = _normalize_slice_bounds(message_count, start, end)
-            except ValueError as exc:
-                raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-            delete_indices = list(range(start_idx, end_idx))
-
-        else:  # has_last
-            last = body.get("last")
-            if not isinstance(last, int):
-                raise HTTPException(status_code=400, detail="last must be an integer")
-            if last <= 0:
-                raise HTTPException(status_code=400, detail="count must be a positive integer")
-
-            count = min(last, message_count)
-            start_idx = message_count - count
-            delete_indices = list(range(start_idx, message_count))
-
-        if not delete_indices:
-            raise HTTPException(status_code=400, detail="no messages selected for deletion")
-
-        # Perform the deletion via the core, mirroring TerminalApplication.delete_messages.
-        metadata = session.metadata if isinstance(session.metadata, dict) else {}
-        overrides_val = metadata.get("overrides")
-        overrides: Dict[str, Any] = (
-            overrides_val if isinstance(overrides_val, dict) else {}
-        )
-        config = resolve_request_config(base_config, overrides)
-
-        new_session = core.slice_session(session, config, remove_indices=delete_indices)
-        app_instance.save_session(new_session)
-
-        concrete_indices = sorted(set(delete_indices))
-
-        store = app_instance.get_event_store()
-        store.publish(
-            {
-                "type": "messages_deleted",
-                "session_id": new_session.session_id,
-                "indices": sorted(delete_indices),
-                "session": new_session.to_dict(),
-            }
-        )
+                marker = store.publish(
+                    {
+                        "type": "checkpoint",
+                        "session_id": new_session.session_id,
+                        "request_id": stored.get("request_id"),
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                    }
+                )
+                checkpoint_event_id = marker.get("event_id")
+                if isinstance(checkpoint_event_id, str):
+                    _last_checkpoint_event_id_by_session[new_session.session_id] = (
+                        checkpoint_event_id
+                    )
+            except Exception:  # pragma: no cover - defensive
+                _log.exception(
+                    "failed to publish checkpoint event after messages delete for %r",
+                    session_id,
+                )
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -817,52 +953,78 @@ def fork_session(
         raise HTTPException(status_code=400, detail="index must be an integer")
 
     try:
-        ctx = app_instance.load_session(session_id)
-        if ctx is None:
-            raise KeyError(f"Session {session_id!r} not found")
+        session_lock = _get_session_lock(session_id)
+        with session_lock:
+            ctx = app_instance.load_session(session_id)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
 
-        core, base_config, session = ctx
+            core, base_config, session = ctx
 
-        message_count = len(session.messages)
-        if message_count == 0:
-            raise HTTPException(status_code=400, detail="no messages to fork")
+            message_count = len(session.messages)
+            if message_count == 0:
+                raise HTTPException(status_code=400, detail="no messages to fork")
 
-        try:
-            target_index = _normalize_index(raw_index, message_count)
-        except IndexError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            try:
+                target_index = _normalize_index(raw_index, message_count)
+            except IndexError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-        metadata = session.metadata if isinstance(session.metadata, dict) else {}
-        overrides_val = metadata.get("overrides")
-        overrides: Dict[str, Any] = (
-            overrides_val if isinstance(overrides_val, dict) else {}
-        )
-        config = resolve_request_config(base_config, overrides)
+            metadata = session.metadata if isinstance(session.metadata, dict) else {}
+            overrides_val = metadata.get("overrides")
+            overrides: Dict[str, Any] = (
+                overrides_val if isinstance(overrides_val, dict) else {}
+            )
+            config = resolve_request_config(base_config, overrides)
 
-        new_session_id = str(uuid.uuid4())
-        new_session = core.fork_session(
-            session,
-            config,
-            upto_index=target_index,
-            new_session_id=new_session_id,
-        )
+            new_session_id = str(uuid.uuid4())
+            new_session = core.fork_session(
+                session,
+                config,
+                upto_index=target_index,
+                new_session_id=new_session_id,
+            )
 
-        app_instance.save_session(new_session)
+            app_instance.save_session(new_session)
 
-        # Publish a lifecycle event so frontends can surface the fork.
-        store = app_instance.get_event_store()
-        md = new_session.metadata if isinstance(new_session.metadata, dict) else {}
-        agent_val = md.get("agent_id")
-        agent_id = agent_val if isinstance(agent_val, str) and agent_val else "default"
-        store.publish(
-            {
-                "type": "session_created",
-                "session_id": new_session.session_id,
-                "agent_id": agent_id,
-                "source_session_id": session.session_id,
-                "session": new_session.to_dict(),
-            }
-        )
+            # Publish a lifecycle event so frontends can surface the fork.
+            store = app_instance.get_event_store()
+            md = (
+                new_session.metadata if isinstance(new_session.metadata, dict) else {}
+            )
+            agent_val = md.get("agent_id")
+            agent_id = (
+                agent_val if isinstance(agent_val, str) and agent_val else "default"
+            )
+            stored = store.publish(
+                {
+                    "type": "session_created",
+                    "session_id": new_session.session_id,
+                    "agent_id": agent_id,
+                    "source_session_id": session.session_id,
+                    "session": new_session.to_dict(),
+                }
+            )
+
+            try:
+                marker = store.publish(
+                    {
+                        "type": "checkpoint",
+                        "session_id": new_session.session_id,
+                        "request_id": stored.get("request_id"),
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                    }
+                )
+                checkpoint_event_id = marker.get("event_id")
+                if isinstance(checkpoint_event_id, str):
+                    _last_checkpoint_event_id_by_session[new_session.session_id] = (
+                        checkpoint_event_id
+                    )
+            except Exception:  # pragma: no cover - defensive
+                _log.exception(
+                    "failed to publish checkpoint event after fork for %r",
+                    new_session.session_id,
+                )
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -880,30 +1042,34 @@ def list_session_messages(
     """List messages for a session with optional slice-style bounds."""
 
     try:
-        ctx = app_instance.load_session(session_id)
-        if ctx is None:
-            raise KeyError(f"Session {session_id!r} not found")
+        session_lock = _get_session_lock(session_id)
+        with session_lock:
+            ctx = app_instance.load_session(session_id)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
 
-        _core, _base_config, session = ctx
-        message_count = len(session.messages)
+            _core, _base_config, session = ctx
+            message_count = len(session.messages)
 
-        if message_count == 0:
-            return {"messages": []}
+            if message_count == 0:
+                return {"messages": [], "checkpoint_event_id": _last_checkpoint_event_id_by_session.get(session_id)}
 
-        try:
-            start_idx, end_idx = _normalize_slice_bounds(message_count, start, end)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            try:
+                start_idx, end_idx = _normalize_slice_bounds(message_count, start, end)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-        results: List[Dict[str, Any]] = []
-        for idx in range(start_idx, end_idx):
-            msg = session.messages[idx]
-            results.append({"index": idx, "message": msg.to_dict()})
+            results: List[Dict[str, Any]] = []
+            for idx in range(start_idx, end_idx):
+                msg = session.messages[idx]
+                results.append({"index": idx, "message": msg.to_dict()})
+
+            checkpoint_event_id = _last_checkpoint_event_id_by_session.get(session_id)
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    return {"messages": results}
+    return {"messages": results, "checkpoint_event_id": checkpoint_event_id}
 
 
 @app.get("/events")
@@ -1012,26 +1178,52 @@ def update_session_agent(
         raise HTTPException(status_code=400, detail=f"unknown agent: {target_agent_id!r}")
 
     try:
-        ctx = app_instance.load_session(session_id)
-        if ctx is None:
-            raise KeyError(f"Session {session_id!r} not found")
+        session_lock = _get_session_lock(session_id)
+        with session_lock:
+            ctx = app_instance.load_session(session_id)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
 
-        _core, _base_config, session = ctx
+            _core, _base_config, session = ctx
 
-        core, base_config, new_session = app_instance.update_agent(target_agent_id, session)
+            core, base_config, new_session = app_instance.update_agent(
+                target_agent_id, session
+            )
 
-        # Decide whether to persist the updated session:
-        # - If the session has messages, always save.
-        # - If it is empty but was previously saved, update the file.
-        # - If it is empty and has never been saved, keep it in memory.
-        root = _get_session_root(app_instance)
-        session_path = root / f"{session.session_id}.json"
-        is_empty = not session.messages
-        is_persisted = session_path.exists()
-        should_save = (not is_empty) or is_persisted
+            # Decide whether to persist the updated session:
+            # - If the session has messages, always save.
+            # - If it is empty but was previously saved, update the file.
+            # - If it is empty and has never been saved, keep it in memory.
+            root = _get_session_root(app_instance)
+            session_path = root / f"{session.session_id}.json"
+            is_empty = not session.messages
+            is_persisted = session_path.exists()
+            should_save = (not is_empty) or is_persisted
 
-        if should_save:
-            app_instance.save_session(new_session)
+            if should_save:
+                app_instance.save_session(new_session)
+
+            if should_save:
+                store = app_instance.get_event_store()
+                try:
+                    marker = store.publish(
+                        {
+                            "type": "checkpoint",
+                            "session_id": new_session.session_id,
+                            "request_id": None,
+                            "timestamp": datetime.utcnow().isoformat() + "Z",
+                        }
+                    )
+                    checkpoint_event_id = marker.get("event_id")
+                    if isinstance(checkpoint_event_id, str):
+                        _last_checkpoint_event_id_by_session[new_session.session_id] = (
+                            checkpoint_event_id
+                        )
+                except Exception:  # pragma: no cover - defensive
+                    _log.exception(
+                        "failed to publish checkpoint event after agent switch for %r",
+                        session_id,
+                    )
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
