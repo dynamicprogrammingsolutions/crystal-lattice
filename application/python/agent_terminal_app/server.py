@@ -46,20 +46,7 @@ _bonjour_handle: Optional[bonjour_mod.BonjourServiceHandle] = None
 _bridge_client: Optional[bridge_mod.BridgeClient] = None
 _bridge_task: Optional[asyncio.Task[None]] = None
 
-_session_locks: Dict[str, threading.Lock] = {}
-_session_locks_lock = threading.Lock()
-_last_checkpoint_event_id_by_session: Dict[str, Optional[str]] = {}
-
 _log = logging.getLogger(__name__)
-
-
-def _get_session_lock(session_id: str) -> threading.Lock:
-    with _session_locks_lock:
-        lock = _session_locks.get(session_id)
-        if lock is None:
-            lock = threading.Lock()
-            _session_locks[session_id] = lock
-        return lock
 
 
 @app.on_event("startup")
@@ -300,42 +287,20 @@ def create_session(
 
     try:
         core, _base_config, session = app_instance.create_session(agent_id)
-
-        session_lock = _get_session_lock(session.session_id)
-        with session_lock:
+        with app_instance.acquire_session_lock(session.session_id):
             if isinstance(system_message, str) and system_message:
                 session = core.add_message(session, "system", system_message)
                 app_instance.save_session(session)
 
-            store = app_instance.get_event_store()
-            stored = store.publish(
+            app_instance.publish_event(
                 {
                     "type": "session_created",
                     "session_id": session.session_id,
                     "agent_id": agent_id,
                     "session": session.to_dict(),
-                }
+                },
+                add_checkpoint=True,
             )
-
-            try:
-                marker = store.publish(
-                    {
-                        "type": "checkpoint",
-                        "session_id": session.session_id,
-                        "request_id": stored.get("request_id"),
-                        "timestamp": datetime.utcnow().isoformat() + "Z",
-                    }
-                )
-                checkpoint_event_id = marker.get("event_id")
-                if isinstance(checkpoint_event_id, str):
-                    _last_checkpoint_event_id_by_session[session.session_id] = (
-                        checkpoint_event_id
-                    )
-            except Exception:  # pragma: no cover - defensive
-                _log.exception(
-                    "failed to publish checkpoint event after session create for %r",
-                    session.session_id,
-                )
 
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -437,8 +402,6 @@ def _run_send_request_background(
         final_messages: List[Dict[str, Any]] = []
         request_id: Optional[str] = None
 
-        store = app_instance.get_event_store()
-
         for ev in app_instance.send_request(core, session, base_config, overrides, stream=True):
             etype = ev.get("type")
 
@@ -448,8 +411,7 @@ def _run_send_request_background(
             if etype == "session_checkpoint":
                 session_obj = ev.get("session")
                 if isinstance(session_obj, Session):
-                    session_lock = _get_session_lock(session_id)
-                    with session_lock:
+                    with app_instance.acquire_session_lock(session_obj.session_id):
                         try:
                             app_instance.save_session(session_obj)
                         except Exception:  # pragma: no cover - defensive
@@ -462,28 +424,17 @@ def _run_send_request_background(
                             _log.exception(
                                 "failed to serialize session checkpoint for %r", session_id
                             )
-
                         try:
-                            marker = store.publish(
-                                {
-                                    "type": "checkpoint",
-                                    "session_id": session_obj.session_id,
-                                    "request_id": ev.get("request_id"),
-                                    "timestamp": datetime.utcnow().isoformat() + "Z",
-                                }
+                            app_instance.record_checkpoint(
+                                session_obj.session_id, ev.get("request_id")
                             )
-                            checkpoint_event_id = marker.get("event_id")
-                            if isinstance(checkpoint_event_id, str):
-                                _last_checkpoint_event_id_by_session[
-                                    session_obj.session_id
-                                ] = checkpoint_event_id
                         except Exception:  # pragma: no cover - defensive
                             _log.exception(
                                 "failed to publish checkpoint event for %r", session_id
                             )
                 continue
 
-            stored = store.publish(ev)
+            stored = app_instance.publish_event(ev)
 
             if stored.get("type") == "final":
                 final_messages = list(stored.get("messages") or [])
@@ -527,8 +478,7 @@ def add_message(
         raise HTTPException(status_code=400, detail="role and content must be strings")
 
     try:
-        session_lock = _get_session_lock(session_id)
-        with session_lock:
+        with app_instance.acquire_session_lock(session_id):
             ctx = app_instance.load_session(session_id)
             if ctx is None:
                 raise KeyError(f"Session {session_id!r} not found")
@@ -546,8 +496,7 @@ def add_message(
 
             last_message = new_session.messages[-1] if new_session.messages else None
 
-            store = app_instance.get_event_store()
-            stored = store.publish(
+            app_instance.publish_event(
                 {
                     "type": "message_appended",
                     "session_id": new_session.session_id,
@@ -556,28 +505,9 @@ def add_message(
                     "metadata": metadata or {},
                     "message": last_message.to_dict() if last_message is not None else None,
                     "session": new_session.to_dict(),
-                }
+                },
+                add_checkpoint=True,
             )
-
-            try:
-                marker = store.publish(
-                    {
-                        "type": "checkpoint",
-                        "session_id": new_session.session_id,
-                        "request_id": stored.get("request_id"),
-                        "timestamp": datetime.utcnow().isoformat() + "Z",
-                    }
-                )
-                checkpoint_event_id = marker.get("event_id")
-                if isinstance(checkpoint_event_id, str):
-                    _last_checkpoint_event_id_by_session[new_session.session_id] = (
-                        checkpoint_event_id
-                    )
-            except Exception:  # pragma: no cover - defensive
-                _log.exception(
-                    "failed to publish checkpoint event after message append for %r",
-                    session_id,
-                )
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -603,8 +533,7 @@ def update_message(
         raise HTTPException(status_code=400, detail="content must be a string")
 
     try:
-        session_lock = _get_session_lock(session_id)
-        with session_lock:
+        with app_instance.acquire_session_lock(session_id):
             ctx = app_instance.load_session(session_id)
             if ctx is None:
                 raise KeyError(f"Session {session_id!r} not found")
@@ -630,36 +559,16 @@ def update_message(
             new_session = core.modify_message(session, target_index, content, config)
             app_instance.save_session(new_session)
 
-            store = app_instance.get_event_store()
-            stored = store.publish(
+            app_instance.publish_event(
                 {
                     "type": "message_modified",
                     "session_id": new_session.session_id,
                     "index": target_index,
                     "content": content,
                     "session": new_session.to_dict(),
-                }
+                },
+                add_checkpoint=True,
             )
-
-            try:
-                marker = store.publish(
-                    {
-                        "type": "checkpoint",
-                        "session_id": new_session.session_id,
-                        "request_id": stored.get("request_id"),
-                        "timestamp": datetime.utcnow().isoformat() + "Z",
-                    }
-                )
-                checkpoint_event_id = marker.get("event_id")
-                if isinstance(checkpoint_event_id, str):
-                    _last_checkpoint_event_id_by_session[new_session.session_id] = (
-                        checkpoint_event_id
-                    )
-            except Exception:  # pragma: no cover - defensive
-                _log.exception(
-                    "failed to publish checkpoint event after message modify for %r",
-                    session_id,
-                )
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -742,8 +651,7 @@ def delete_messages(
         )
 
     try:
-        session_lock = _get_session_lock(session_id)
-        with session_lock:
+        with app_instance.acquire_session_lock(session_id):
             ctx = app_instance.load_session(session_id)
             if ctx is None:
                 raise KeyError(f"Session {session_id!r} not found")
@@ -831,35 +739,15 @@ def delete_messages(
 
             concrete_indices = sorted(set(delete_indices))
 
-            store = app_instance.get_event_store()
-            stored = store.publish(
+            app_instance.publish_event(
                 {
                     "type": "messages_deleted",
                     "session_id": new_session.session_id,
                     "indices": sorted(delete_indices),
                     "session": new_session.to_dict(),
-                }
+                },
+                add_checkpoint=True,
             )
-
-            try:
-                marker = store.publish(
-                    {
-                        "type": "checkpoint",
-                        "session_id": new_session.session_id,
-                        "request_id": stored.get("request_id"),
-                        "timestamp": datetime.utcnow().isoformat() + "Z",
-                    }
-                )
-                checkpoint_event_id = marker.get("event_id")
-                if isinstance(checkpoint_event_id, str):
-                    _last_checkpoint_event_id_by_session[new_session.session_id] = (
-                        checkpoint_event_id
-                    )
-            except Exception:  # pragma: no cover - defensive
-                _log.exception(
-                    "failed to publish checkpoint event after messages delete for %r",
-                    session_id,
-                )
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -953,8 +841,7 @@ def fork_session(
         raise HTTPException(status_code=400, detail="index must be an integer")
 
     try:
-        session_lock = _get_session_lock(session_id)
-        with session_lock:
+        with app_instance.acquire_session_lock(session_id):
             ctx = app_instance.load_session(session_id)
             if ctx is None:
                 raise KeyError(f"Session {session_id!r} not found")
@@ -988,7 +875,6 @@ def fork_session(
             app_instance.save_session(new_session)
 
             # Publish a lifecycle event so frontends can surface the fork.
-            store = app_instance.get_event_store()
             md = (
                 new_session.metadata if isinstance(new_session.metadata, dict) else {}
             )
@@ -996,35 +882,16 @@ def fork_session(
             agent_id = (
                 agent_val if isinstance(agent_val, str) and agent_val else "default"
             )
-            stored = store.publish(
+            app_instance.publish_event(
                 {
                     "type": "session_created",
                     "session_id": new_session.session_id,
                     "agent_id": agent_id,
                     "source_session_id": session.session_id,
                     "session": new_session.to_dict(),
-                }
+                },
+                add_checkpoint=True,
             )
-
-            try:
-                marker = store.publish(
-                    {
-                        "type": "checkpoint",
-                        "session_id": new_session.session_id,
-                        "request_id": stored.get("request_id"),
-                        "timestamp": datetime.utcnow().isoformat() + "Z",
-                    }
-                )
-                checkpoint_event_id = marker.get("event_id")
-                if isinstance(checkpoint_event_id, str):
-                    _last_checkpoint_event_id_by_session[new_session.session_id] = (
-                        checkpoint_event_id
-                    )
-            except Exception:  # pragma: no cover - defensive
-                _log.exception(
-                    "failed to publish checkpoint event after fork for %r",
-                    new_session.session_id,
-                )
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -1042,8 +909,7 @@ def list_session_messages(
     """List messages for a session with optional slice-style bounds."""
 
     try:
-        session_lock = _get_session_lock(session_id)
-        with session_lock:
+        with app_instance.acquire_session_lock(session_id):
             ctx = app_instance.load_session(session_id)
             if ctx is None:
                 raise KeyError(f"Session {session_id!r} not found")
@@ -1052,7 +918,12 @@ def list_session_messages(
             message_count = len(session.messages)
 
             if message_count == 0:
-                return {"messages": [], "checkpoint_event_id": _last_checkpoint_event_id_by_session.get(session_id)}
+                return {
+                    "messages": [],
+                    "checkpoint_event_id": app_instance.get_checkpoint_event_id(
+                        session_id
+                    ),
+                }
 
             try:
                 start_idx, end_idx = _normalize_slice_bounds(message_count, start, end)
@@ -1064,7 +935,7 @@ def list_session_messages(
                 msg = session.messages[idx]
                 results.append({"index": idx, "message": msg.to_dict()})
 
-            checkpoint_event_id = _last_checkpoint_event_id_by_session.get(session_id)
+            checkpoint_event_id = app_instance.get_checkpoint_event_id(session_id)
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -1178,8 +1049,7 @@ def update_session_agent(
         raise HTTPException(status_code=400, detail=f"unknown agent: {target_agent_id!r}")
 
     try:
-        session_lock = _get_session_lock(session_id)
-        with session_lock:
+        with app_instance.acquire_session_lock(session_id):
             ctx = app_instance.load_session(session_id)
             if ctx is None:
                 raise KeyError(f"Session {session_id!r} not found")
@@ -1202,23 +1072,8 @@ def update_session_agent(
 
             if should_save:
                 app_instance.save_session(new_session)
-
-            if should_save:
-                store = app_instance.get_event_store()
                 try:
-                    marker = store.publish(
-                        {
-                            "type": "checkpoint",
-                            "session_id": new_session.session_id,
-                            "request_id": None,
-                            "timestamp": datetime.utcnow().isoformat() + "Z",
-                        }
-                    )
-                    checkpoint_event_id = marker.get("event_id")
-                    if isinstance(checkpoint_event_id, str):
-                        _last_checkpoint_event_id_by_session[new_session.session_id] = (
-                            checkpoint_event_id
-                        )
+                    app_instance.record_checkpoint(new_session.session_id, None)
                 except Exception:  # pragma: no cover - defensive
                     _log.exception(
                         "failed to publish checkpoint event after agent switch for %r",

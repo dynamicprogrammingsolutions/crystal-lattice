@@ -120,21 +120,24 @@ class ToolLoopRunner:
 
             next_session, final_messages = core.send_request(session, config)
 
-            # Emit a checkpoint with the updated Session object so that
-            # callers can persist it incrementally without relying on
-            # serialized sessions in normal events.
-            yield {
-                "type": "session_checkpoint",
-                "session_id": next_session.session_id,
-                "request_id": rid,
-                "session": next_session,
-            }
-
+            # Emit the public final event first so that external
+            # consumers see the completed assistant reply before any
+            # internal checkpoint markers.
             yield {
                 "type": "final",
                 "session_id": next_session.session_id,
                 "request_id": rid,
                 "messages": final_messages,
+            }
+
+            # Internal checkpoint is emitted *after* the final event so
+            # that session persistence and checkpoint cursors align with
+            # the visible assistant messages.
+            yield {
+                "type": "session_checkpoint",
+                "session_id": next_session.session_id,
+                "request_id": rid,
+                "session": next_session,
             }
             return next_session, final_messages
 
@@ -190,15 +193,8 @@ class ToolLoopRunner:
                         "phase": "start",
                     }
 
-                # Emit a checkpoint with the updated Session object at the
-                # end of the streaming phase.
-                yield {
-                    "type": "session_checkpoint",
-                    "session_id": final_session.session_id,
-                    "request_id": rid,
-                    "session": final_session,
-                }
-
+                # Emit the public final event describing the completed
+                # assistant reply.
                 yield {
                     "type": "final",
                     "session_id": final_session.session_id,
@@ -215,6 +211,16 @@ class ToolLoopRunner:
                         "request_id": rid,
                         "phase": "end",
                     }
+
+                # Internal checkpoint is emitted *after* the final
+                # event so that persistence and checkpoint cursors align
+                # with the visible assistant messages.
+                yield {
+                    "type": "session_checkpoint",
+                    "session_id": final_session.session_id,
+                    "request_id": rid,
+                    "session": final_session,
+                }
 
         return final_session, final_messages
 
@@ -319,21 +325,22 @@ class ToolLoopRunner:
                 config=config,
             )
 
-            # Emit a checkpoint after each tool result message is appended to
-            # the session so that callers can persist progress
-            # incrementally.
-            yield {
-                "type": "session_checkpoint",
-                "session_id": current_session.session_id,
-                "request_id": rid,
-                "session": current_session,
-            }
-
+        # Summarise final tool messages appended to the session.
         yield {
             "type": "tool_results",
             "session_id": current_session.session_id,
             "request_id": rid,
             "messages": tool_messages,
+        }
+
+        # Emit a single checkpoint *after* tool_results so that
+        # external consumers can align snapshots with the final tool
+        # messages for this phase.
+        yield {
+            "type": "session_checkpoint",
+            "session_id": current_session.session_id,
+            "request_id": rid,
+            "session": current_session,
         }
 
         return current_session

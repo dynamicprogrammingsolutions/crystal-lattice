@@ -200,15 +200,22 @@ from the internal `session_checkpoint` events.
 
 ### 4.2 Tracking the latest checkpoint per session
 
-Each Python server process maintains an in‑memory map:
+Checkpoint tracking and per‑session locking live in the
+application layer (`AgentApplication`), not in individual
+frontends (server / terminal). Each `AgentApplication`
+instance maintains:
 
-- `last_checkpoint_event_id_by_session: Dict[str, Optional[str]]`
+- `_session_locks: Dict[str, Lock]`
   - Keys: `session_id`.
-  - Values: `event_id` of the most recent **checkpoint marker** for that
-    session, or `None` if no checkpoint marker exists yet.
-  - This map is **not** written to disk and is per process.
+  - Values: process‑local locks to serialize access to that
+    session’s state.
+- `_last_checkpoint_event_id_by_session: Dict[str, Optional[str]]`
+  - Keys: `session_id`.
+  - Values: `event_id` of the most recent **checkpoint marker** for
+    that session, or `None` if no checkpoint marker exists yet.
 
-It is updated whenever a new checkpoint marker is published.
+This state is **per AgentApplication instance** and is not
+persisted to disk.
 
 ### 4.3 Integrating with `_run_send_request_background` and HTTP endpoints
 
@@ -224,32 +231,58 @@ Current behaviour (simplified):
 New behaviour for **internal** `session_checkpoint` events and
 non‑streaming HTTP mutations:
 
-1. Introduce a **per‑session lock** (e.g., keyed by `session_id`) used both
-   here and in `GET /sessions/{id}/messages`.
-2. When a `session_checkpoint` event arrives, under that lock:
-   - Save the `Session` object to disk as today.
-   - Publish a **checkpoint marker** event:
+1. Add helpers to `AgentApplication`:
 
-     ```python
-     marker = store.publish({
-         "type": "checkpoint",
-         "session_id": session_id,
-         "request_id": request_id,
-         "timestamp": <now>,
-     })
-     checkpoint_event_id = marker["event_id"]
-     last_checkpoint_event_id_by_session[session_id] = checkpoint_event_id
-     ```
+   - `acquire_session_lock(session_id: str) -> ContextManager[None]`
+     - Yields under the per‑session lock.
+   - `publish_event(event: dict, *, add_checkpoint: bool = False,
+     checkpoint_request_id: Optional[str] = None) -> dict`
+     - Wraps `event_store.publish` and optionally emits a `checkpoint`
+       marker + updates `last_checkpoint_event_id_by_session`.
+   - `record_checkpoint(session_id: str, request_id: Optional[str]) -> Optional[str>`
+     - Publishes a `checkpoint` marker and returns its `event_id`.
+   - `get_checkpoint_event_id(session_id: str) -> Optional[str>`
+     - Returns the latest checkpoint cursor for that session.
+
+2. When a `session_checkpoint` event arrives in
+   `_run_send_request_background`, under the session lock obtained via
+   `acquire_session_lock(session_id)`:
+   - Save the `Session` object to disk as today.
+   - Call `record_checkpoint(session_id, request_id)` to publish a
+     **checkpoint marker** event and update
+     `last_checkpoint_event_id_by_session`.
 
 3. For non‑streaming HTTP endpoints that modify and save a session
    (e.g. `message_appended`, `message_modified`, `messages_deleted`,
-   `session_created` / fork, certain agent updates), under the same
-   per‑session lock:
+   `session_created` / fork, certain agent updates):
 
-   - Apply the change and call `save_session(new_session)`.
-   - Publish the lifecycle event into the shared `EventStore`.
-   - Publish a `checkpoint` marker as above and update
-     `last_checkpoint_event_id_by_session[session_id]`.
+   - Use `AgentApplication.acquire_session_lock(session_id)` to guard
+     the critical section.
+   - Apply the change and call `save_session(new_session)` inside the
+     lock (the server remains responsible for persistence).
+   - Call `AgentApplication.publish_event(lifecycle_event,
+     add_checkpoint=True)` so that the same application‑layer code
+     emits both the lifecycle event and the follow‑up `checkpoint`
+     marker and updates `last_checkpoint_event_id_by_session`.
+
+4. Within `ToolLoopRunner` (application layer), ensure that internal
+   `session_checkpoint` events are emitted *after* the public
+   events that describe the visible state for a phase:
+
+   - Non‑streaming LLM phase:
+     - `final` → `session_checkpoint`.
+   - Streaming LLM phase:
+     - `assistant_message(start)` / `partial` … → `final` →
+       `assistant_message(end)` → `session_checkpoint`.
+   - Tool phase:
+     - `tool_calls` → `tool_partial` … → `tool_results` →
+       `session_checkpoint`.
+
+   With this ordering, when `_run_send_request_background` handles a
+   `session_checkpoint` it is guaranteed that all streaming events that
+   produced the last assistant/tool messages for that phase have
+   already been published, and the checkpoint cursor will be at or
+   after those events.
 
 4. Continue handling all other non‑checkpoint events as today
    (publishing them directly), without any embedded `Session` objects.
@@ -280,9 +313,10 @@ Semantics:
 
 Implementation sketch:
 
-1. Acquire the **per‑session lock** for this `session_id`.
+1. Acquire the **per‑session lock** for this `session_id` via
+   `AgentApplication.acquire_session_lock`.
 2. Load the session from disk (as done today).
-3. Read `checkpoint_event_id = last_checkpoint_event_id_by_session.get(session_id)`.
+3. Read `checkpoint_event_id = AgentApplication.get_checkpoint_event_id(session_id)`.
 4. Return `{"messages": ..., "checkpoint_event_id": checkpoint_event_id}`.
 
 Because both checkpoint handling and snapshot reading run inside the same
