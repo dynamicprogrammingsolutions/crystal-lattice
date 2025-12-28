@@ -339,9 +339,16 @@ Semantics:
 - The server tracks the most recent `checkpoint` event per session and
   exposes its `event_id` as `checkpoint_event_id` from
   `GET /sessions/{session_id}/messages`.
-- A client that loads messages and then starts polling
-  `GET /events` with `since_id = checkpoint_event_id` will not receive
-  events whose effects are already reflected in that snapshot.
+- Within a single LLM/tool phase, `ToolLoopRunner` emits public
+  events (such as `final` or `tool_results`) *before* the internal
+  `session_checkpoint` that captures the updated `Session`. When the
+  server handles this `session_checkpoint` and records a corresponding
+  `checkpoint` marker, the resulting `checkpoint_event_id` is always
+  at or after the events that produced the last messages visible in
+  the persisted session history.
+- A client that loads messages and then starts polling `GET /events`
+  with `since_id = checkpoint_event_id` will not receive events whose
+  effects are already reflected in that snapshot.
 
 ---
 

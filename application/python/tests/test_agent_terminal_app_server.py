@@ -163,6 +163,61 @@ def test_run_send_request_background_helper_sends_and_persists(tmp_path: Path) -
     assert checkpoint_events, "expected at least one checkpoint event for the session"
 
 
+def test_checkpoint_cursor_after_final_event(tmp_path: Path) -> None:
+    """After a request, checkpoint_event_id is after the final event.
+
+    The test runs a non-streaming request to completion via the
+    background helper and verifies that the checkpoint marker recorded
+    for the session has a higher ``event_id`` than the last ``final``
+    event and that ``checkpoint_event_id`` from the messages endpoint
+    matches that marker.
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    server_mod.add_message(
+        session_id,
+        {"role": "user", "content": "hello from final", "metadata": None},
+        app_instance=app,
+    )
+
+    # Run the helper synchronously to drive the non-streaming request.
+    server_mod._run_send_request_background(app, session_id, {})
+
+    evs = app.get_event_store().list(session_id=session_id, limit=200)
+    final_events = [ev for ev in evs if ev.get("type") == "final"]
+    checkpoint_events = [ev for ev in evs if ev.get("type") == "checkpoint"]
+
+    assert final_events, "expected at least one final event for the session"
+    assert checkpoint_events, "expected at least one checkpoint event for the session"
+
+    last_final = final_events[-1]
+    last_checkpoint = checkpoint_events[-1]
+
+    def _to_int(value: Any) -> int:
+        try:
+            return int(value)
+        except Exception:
+            return -1
+
+    assert _to_int(last_checkpoint.get("event_id")) > _to_int(
+        last_final.get("event_id")
+    )
+
+    resp = server_mod.list_session_messages(session_id, app_instance=app)
+    assert resp["checkpoint_event_id"] == last_checkpoint.get("event_id")
+
+
 def test_list_session_messages_includes_checkpoint_event_id_after_request(tmp_path: Path) -> None:
     """GET /sessions/{session_id}/messages returns checkpoint_event_id.
 
@@ -334,6 +389,63 @@ def test_list_sessions_endpoint_returns_metadata_for_created_sessions(tmp_path: 
     preview_by_id = {entry["session_id"]: entry["preview"] for entry in sessions}
     assert preview_by_id[session_id1] == "first session hello"
     assert preview_by_id[session_id2] == "second session hi"
+
+
+def test_checkpoint_cursor_after_message_appended(tmp_path: Path) -> None:
+    """After appending a message, checkpoint_event_id is after the event.
+
+    The test appends a single user message via the HTTP-style route
+    functions, then verifies that:
+
+    * A ``message_appended`` event exists for the session.
+    * A subsequent ``checkpoint`` event exists with a higher
+      ``event_id``.
+    * ``GET /sessions/{id}/messages`` exposes ``checkpoint_event_id``
+      equal to that checkpoint's ``event_id``.
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create["session"]["session_id"]
+
+    server_mod.add_message(
+        session_id,
+        {"role": "user", "content": "hello", "metadata": None},
+        app_instance=app,
+    )
+
+    # Inspect raw events for this session.
+    evs = app.get_event_store().list(session_id=session_id, limit=100)
+    appended = [ev for ev in evs if ev.get("type") == "message_appended"]
+    checkpoints = [ev for ev in evs if ev.get("type") == "checkpoint"]
+
+    assert appended, "expected message_appended event"
+    assert checkpoints, "expected checkpoint event after append"
+
+    last_appended = appended[-1]
+    last_checkpoint = checkpoints[-1]
+
+    def _to_int(value: Any) -> int:
+        try:
+            return int(value)
+        except Exception:
+            return -1
+
+    assert _to_int(last_checkpoint.get("event_id")) > _to_int(
+        last_appended.get("event_id")
+    )
+
+    # The messages endpoint should expose the same checkpoint_event_id.
+    resp = server_mod.list_session_messages(session_id, app_instance=app)
+    assert resp["checkpoint_event_id"] == last_checkpoint.get("event_id")
 
 
 def test_list_session_messages_endpoint_supports_slice_bounds(tmp_path: Path) -> None:

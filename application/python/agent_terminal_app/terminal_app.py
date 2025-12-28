@@ -108,14 +108,17 @@ class TerminalApplication:
         else:
             core, base_config, session = self._app.create_session_ephemeral(agent_id)
 
-        store = self._app.get_event_store()
-        store.publish(
+        # For ephemeral sessions we still publish a lifecycle event so
+        # the terminal can show them in the events view, but we do not
+        # record a checkpoint until the session is actually saved.
+        self._app.publish_event(
             {
                 "type": "session_created",
                 "session_id": session.session_id,
                 "agent_id": agent_id,
                 "session": session.to_dict(),
-            }
+            },
+            add_checkpoint=persist,
         )
 
         self._session = session
@@ -222,8 +225,7 @@ class TerminalApplication:
             if isinstance(raw_md, dict):
                 last_md = raw_md
 
-        store = self._app.get_event_store()
-        store.publish(
+        self._app.publish_event(
             {
                 "type": "message_appended",
                 "session_id": new_session.session_id,
@@ -235,7 +237,8 @@ class TerminalApplication:
                 "metadata": last_md,
                 "message": last_message.to_dict() if last_message is not None else None,
                 "session": new_session.to_dict(),
-            }
+            },
+            add_checkpoint=True,
         )
 
         self._session = new_session
@@ -330,18 +333,18 @@ class TerminalApplication:
         self._app.save_session(new_session)
 
         # Publish a lifecycle event so renderers can surface the fork.
-        store = self._app.get_event_store()
         md = new_session.metadata if isinstance(new_session.metadata, dict) else {}
         agent = md.get("agent_id")
         agent_id = agent if isinstance(agent, str) and agent else "default"
-        store.publish(
+        self._app.publish_event(
             {
                 "type": "session_created",
                 "session_id": new_session.session_id,
                 "agent_id": agent_id,
                 "source_session_id": session.session_id,
                 "session": new_session.to_dict(),
-            }
+            },
+            add_checkpoint=True,
         )
 
         self._session = new_session
@@ -391,14 +394,14 @@ class TerminalApplication:
         new_session = core.slice_session(session, config, remove_indices=normalized)
         self._app.save_session(new_session)
 
-        store = self._app.get_event_store()
-        store.publish(
+        self._app.publish_event(
             {
                 "type": "messages_deleted",
                 "session_id": new_session.session_id,
                 "indices": sorted(normalized),
                 "session": new_session.to_dict(),
-            }
+            },
+            add_checkpoint=True,
         )
 
         self._session = new_session

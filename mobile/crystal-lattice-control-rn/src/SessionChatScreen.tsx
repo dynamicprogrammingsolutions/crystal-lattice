@@ -625,7 +625,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       return [...prev, { index: lastIndex + 1, message: ev.message }];
     });
   };
-
   const AUTO_RELOAD_ON_REQUEST_COMPLETED = false;
 
   const handleEvents = (events: Event[]) => {

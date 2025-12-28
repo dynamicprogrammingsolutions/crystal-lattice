@@ -146,6 +146,14 @@ export function useSessionEvents(
   const [error, setError] = useState<Error | null>(null);
   const sourceRef = useRef<SessionEventSource | null>(null);
 
+  const onEventsRef = useRef<(events: Event[]) => void>(onEvents);
+
+  // Keep a stable reference to the latest onEvents callback without
+  // forcing the polling source to be recreated on every render.
+  useEffect(() => {
+    onEventsRef.current = onEvents;
+  }, [onEvents]);
+
   useEffect(() => {
     // Tear down any existing source.
     if (sourceRef.current) {
@@ -163,7 +171,10 @@ export function useSessionEvents(
 
     const handleEvents = (events: Event[]) => {
       try {
-        onEvents(events);
+        const cb = onEventsRef.current;
+        if (cb) {
+          cb(events);
+        }
         setLastEventId(source.getLastEventId());
         setStatus(source.getStatus());
         setError(null);
@@ -179,7 +190,7 @@ export function useSessionEvents(
       source.stop();
       sourceRef.current = null;
     };
-  }, [adapter, sessionId, enabled, initialSinceId, onEvents]);
+  }, [adapter, sessionId, enabled, initialSinceId]);
 
   return { lastEventId, status, error };
 }
