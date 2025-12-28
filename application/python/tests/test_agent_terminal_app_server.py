@@ -158,6 +158,49 @@ def test_run_send_request_background_helper_sends_and_persists(tmp_path: Path) -
     assert "request_started" in kinds
     assert "final" in kinds or "request_completed" in kinds
 
+    # A checkpoint marker should also have been recorded for this session.
+    checkpoint_events = [ev for ev in evs if ev.get("type") == "checkpoint"]
+    assert checkpoint_events, "expected at least one checkpoint event for the session"
+
+
+def test_list_session_messages_includes_checkpoint_event_id_after_request(tmp_path: Path) -> None:
+    """GET /sessions/{session_id}/messages returns checkpoint_event_id.
+
+    The test runs a request to completion using the background helper
+    and then verifies that the messages endpoint exposes the
+    event_id of the latest checkpoint marker for that session.
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_dict = create_resp["session"]
+    session_id = session_dict["session_id"]
+
+    server_mod.add_message(
+        session_id,
+        {"role": "user", "content": "hello", "metadata": None},
+        app_instance=app,
+    )
+
+    server_mod._run_send_request_background(app, session_id, {})
+
+    evs = app.get_event_store().list(session_id=session_id, limit=100)
+    checkpoint_events = [ev for ev in evs if ev.get("type") == "checkpoint"]
+    assert checkpoint_events, "expected at least one checkpoint event for the session"
+    last_id = checkpoint_events[-1].get("event_id")
+    assert isinstance(last_id, str) and last_id
+
+    resp = server_mod.list_session_messages(session_id, app_instance=app)
+    assert resp["checkpoint_event_id"] == last_id
+
 
 def test_system_message_feature_adds_system_message_after_second_user_message(tmp_path: Path) -> None:
     """Application-level test for SystemMessageFeature integration.
@@ -324,6 +367,9 @@ def test_list_session_messages_endpoint_supports_slice_bounds(tmp_path: Path) ->
     full = server_mod.list_session_messages(session_id, app_instance=app)
     full_messages = full["messages"]
     assert [m["message"]["content"] for m in full_messages] == ["one", "two", "three"]
+
+    # checkpoint_event_id is present (may be null if no checkpoints yet)
+    assert "checkpoint_event_id" in full
 
     # Last two messages using a negative start index
     last_two = server_mod.list_session_messages(session_id, start=-2, app_instance=app)

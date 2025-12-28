@@ -27,6 +27,7 @@ export interface ListSessionsResponse {
 
 export interface ListMessagesResponse {
   messages: IndexedMessage[];
+  checkpoint_event_id?: string | null;
 }
 
 export interface SendResponse {
@@ -49,6 +50,13 @@ export interface ForkSessionResponse {
 export interface DeleteMessagesResponse {
   session: any;
   deleted_indices: number[];
+}
+
+export interface ListEventsParams {
+  sessionId?: string;
+  sinceId?: string;
+  requestId?: string;
+  limit?: number;
 }
 
 function buildQuery(params: Record<string, string | number | undefined>): string {
@@ -87,11 +95,15 @@ export async function apiListMessages(
   sessionId: string,
   start?: number,
   end?: number,
-): Promise<IndexedMessage[]> {
+): Promise<ListMessagesResponse> {
   const query = buildQuery({ start, end });
   const path = `/sessions/${encodeURIComponent(sessionId)}/messages${query}`;
   const data = (await adapter.get(path)) as ListMessagesResponse;
-  return Array.isArray(data.messages) ? data.messages : [];
+  const messages = Array.isArray(data.messages) ? data.messages : [];
+  return {
+    messages,
+    checkpoint_event_id: data.checkpoint_event_id ?? null,
+  };
 }
 
 export async function apiAppendMessage(
@@ -118,6 +130,26 @@ export async function apiSend(
   const payload = { config_overrides: {} };
   const data = await adapter.post(path, payload);
   return data as SendResponse;
+}
+
+// --- Event helpers ---
+
+import type { Event } from './eventsTypes';
+
+export async function apiListEvents(
+  adapter: ConnectionAdapter,
+  params: ListEventsParams = {},
+): Promise<Event[]> {
+  const { sessionId, sinceId, requestId, limit } = params;
+  const query = buildQuery({
+    session_id: sessionId,
+    since_id: sinceId,
+    request_id: requestId,
+    limit,
+  });
+  const data = (await adapter.get(`/events${query}`)) as { events?: any[] };
+  const events = Array.isArray(data.events) ? data.events : [];
+  return events as Event[];
 }
 
 // --- Phase 2 / advanced helpers ---

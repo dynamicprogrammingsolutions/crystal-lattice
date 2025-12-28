@@ -210,18 +210,19 @@ Each Python server process maintains an in‑memory map:
 
 It is updated whenever a new checkpoint marker is published.
 
-### 4.3 Integrating with `_run_send_request_background`
+### 4.3 Integrating with `_run_send_request_background` and HTTP endpoints
 
 Current behaviour (simplified):
 
-- For each event from `AgentApplication.send_request(..., stream=True)`:
+- For each event from `AgentApplication.send_request(..., stream=True)`: 
   - If `type == "session_checkpoint"`:
     - Extracts a `Session` object and saves it to disk.
     - Does **not** publish this event.
   - Else:
     - Publishes the event via `store.publish(ev)`.
 
-New behaviour for **internal** `session_checkpoint` events:
+New behaviour for **internal** `session_checkpoint` events and
+non‑streaming HTTP mutations:
 
 1. Introduce a **per‑session lock** (e.g., keyed by `session_id`) used both
    here and in `GET /sessions/{id}/messages`.
@@ -240,8 +241,18 @@ New behaviour for **internal** `session_checkpoint` events:
      last_checkpoint_event_id_by_session[session_id] = checkpoint_event_id
      ```
 
-3. Continue handling all non‑checkpoint events as today (publishing them
-   directly), without any embedded `Session` objects.
+3. For non‑streaming HTTP endpoints that modify and save a session
+   (e.g. `message_appended`, `message_modified`, `messages_deleted`,
+   `session_created` / fork, certain agent updates), under the same
+   per‑session lock:
+
+   - Apply the change and call `save_session(new_session)`.
+   - Publish the lifecycle event into the shared `EventStore`.
+   - Publish a `checkpoint` marker as above and update
+     `last_checkpoint_event_id_by_session[session_id]`.
+
+4. Continue handling all other non‑checkpoint events as today
+   (publishing them directly), without any embedded `Session` objects.
 
 The internal `session_checkpoint` event with the live `Session` object
 remains **internal‑only** and is never serialized.
@@ -644,7 +655,8 @@ Scope (Python only):
      4.4.
    - Ensure the endpoint and the checkpoint handling both use the same
      per-session lock so that the snapshot and `checkpoint_event_id`
-     always refer to the same checkpoint.
+     always refer to the same checkpoint **including** changes made via
+     non-streaming HTTP endpoints (append/modify/delete/fork/etc.).
 
 3. **Keep bridge behaviour unchanged for now**
    - Do **not** yet rely on Elixir-side event storage or

@@ -283,7 +283,7 @@ Defined in:
 - `core/python/agent_app/tool_loop.py`
   - `_run_llm_phase`, `_apply_tool_calls`
 
-### `session_checkpoint`
+### `session_checkpoint` (internal only)
 
 These events are **internal only** and are used by the server and
 terminal app to persist `Session` objects incrementally.
@@ -301,6 +301,47 @@ The HTTP server’s background worker (`_run_send_request_background` in
 `application/python/agent_terminal_app/server.py`) consumes these
 events but does **not** forward them to `/events` or the bridge as
 public API.
+
+Instead, whenever the server processes a `session_checkpoint` it
+emits a lightweight, serializable **checkpoint marker** event into the
+shared event store (described below).
+
+### `checkpoint` (marker event)
+
+Defined in:
+
+- `application/python/agent_terminal_app/server.py`
+  - `_run_send_request_background`
+  - Session/message lifecycle endpoints
+
+Lightweight marker emitted whenever a session has just been persisted
+to disk, either:
+
+- after processing an internal `session_checkpoint` from the tool
+  loop, or
+- after a non-streaming HTTP operation that modifies a session and
+  saves it (append/modify/delete messages, create/fork sessions,
+  certain agent updates).
+
+```jsonc
+{
+  "type": "checkpoint",
+  "session_id": "<session-id>",
+  "request_id": "<request-id>", // may be omitted for non-request ops
+  "timestamp": "2025-01-01T00:00:00Z"
+}
+```
+
+Semantics:
+
+- `checkpoint` events are written to the same `EventStore` as all
+  other events and therefore receive an `event_id` on publish.
+- The server tracks the most recent `checkpoint` event per session and
+  exposes its `event_id` as `checkpoint_event_id` from
+  `GET /sessions/{session_id}/messages`.
+- A client that loads messages and then starts polling
+  `GET /events` with `since_id = checkpoint_event_id` will not receive
+  events whose effects are already reflected in that snapshot.
 
 ---
 
