@@ -38,7 +38,13 @@ import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 import { selectDisplayContent } from './messageUtils';
 import { useTheme, type Theme } from './theme';
 import { useSessionEvents } from './useSessionEvents';
-import type { Event, FinalEvent, MessageAppendedEvent } from './eventsTypes';
+import type {
+  ErrorEvent,
+  Event,
+  FinalEvent,
+  MessageAppendedEvent,
+  ToolResultsEvent,
+} from './eventsTypes';
 
 interface SessionChatScreenProps {
   adapter: ConnectionAdapter | null;
@@ -106,6 +112,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [initialCheckpointId, setInitialCheckpointId] = useState<string | null>(null);
   const [debugVisible, setDebugVisible] = useState(false);
   const [debugEvents, setDebugEvents] = useState<Event[]>([]);
+  const [activeError, setActiveError] = useState<
+    { detail: string; requestId: string | null } | null
+  >(null);
   const scrollViewRef = useRef<ScrollView | null>(null);
   const composeTextRef = useRef<string>(initialComposeText ?? '');
   const scrollOffsetRef = useRef<number>(initialScrollOffset || 0);
@@ -180,7 +189,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       return;
     }
     setLoadingMessages(true);
-		    try {
+    try {
 		      let start: number | undefined;
 		      let end: number | undefined;
 		      const startTrimmed = rangeStartText.trim();
@@ -197,14 +206,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 		          end = parsedEnd;
 		        }
 		      }
-		      const { messages: list, checkpoint_event_id } = await apiListMessages(
+      const { messages: list, cursor_event_id } = await apiListMessages(
 		        adapter,
 		        sessionId,
 		        start,
 		        end,
 		      );
 		      setMessages(list);
-		      setInitialCheckpointId(checkpoint_event_id ?? null);
+      setInitialCheckpointId(cursor_event_id ?? null);
 		      if (!hasAutoScrolledRef.current) {
 		        setShouldAutoScroll(true);
 		        hasAutoScrolledRef.current = true;
@@ -303,6 +312,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       if (text) {
         await apiAppendMessage(adapter, sessionId, 'user', text);
       }
+      setActiveError(null);
       await apiSend(adapter, sessionId);
       await loadMessages();
         setComposeText('');
@@ -381,6 +391,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   const handleSessionAction = async (action: SessionActionKey) => {
     if (action === 'reload') {
+      setActiveError(null);
       await loadMessages();
       return;
     }
@@ -392,6 +403,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         return;
       }
       try {
+        setActiveError(null);
         await apiSend(adapter, sessionId);
         await loadMessages();
       } catch (err: any) {
@@ -625,6 +637,19 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       return [...prev, { index: lastIndex + 1, message: ev.message }];
     });
   };
+  const applyToolResultsEvent = (ev: ToolResultsEvent) => {
+    if (!Array.isArray(ev.messages) || ev.messages.length === 0) return;
+    setMessages((prev) => {
+      const current = [...prev];
+      let lastIndex = current.length > 0 ? current[current.length - 1].index : -1;
+      for (const msg of ev.messages) {
+        lastIndex += 1;
+        current.push({ index: lastIndex, message: msg });
+      }
+      return current;
+    });
+  };
+
   const AUTO_RELOAD_ON_REQUEST_COMPLETED = false;
 
   const handleEvents = (events: Event[]) => {
@@ -632,10 +657,19 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     const relevant = events.filter((ev) => ev.session_id === sessionId);
 
     relevant.forEach((ev) => {
-      if (ev.type === 'final') {
+      if (ev.type === 'request_started') {
+        setActiveError(null);
+      } else if (ev.type === 'final') {
         applyFinalEvent(ev as FinalEvent);
       } else if (ev.type === 'message_appended') {
         applyMessageAppendedEvent(ev as MessageAppendedEvent);
+      } else if (ev.type === 'tool_results') {
+        applyToolResultsEvent(ev as ToolResultsEvent);
+      } else if (ev.type === 'error') {
+        const err = ev as ErrorEvent;
+        const detail =
+          (typeof err.detail === 'string' && err.detail) || 'Request failed with an error.';
+        setActiveError({ detail, requestId: err.request_id ?? null });
       } else if (ev.type === 'request_completed' && AUTO_RELOAD_ON_REQUEST_COMPLETED) {
         loadMessages();
       }
@@ -723,7 +757,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	          }
 	        }}
 	      >
-	      {messages.map((m) => {
+      {messages.map((m) => {
 	        const role = m.message.role || 'unknown';
 	        const allowedActions = ALL_MESSAGE_ACTIONS
 	          .filter((def) => def.allowedRoles.includes(role))
@@ -751,7 +785,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	          />
 	        );
 	      })}
-	      </ScrollView>
+      </ScrollView>
+
+      {activeError && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTitle}>Error</Text>
+          <Text style={styles.errorText}>{activeError.detail}</Text>
+        </View>
+      )}
 
 	      <View style={styles.composer}>
         <TextInput
@@ -1028,6 +1069,26 @@ const createStyles = (theme: Theme) =>
     messagesContainer: {
       flex: 1,
       marginBottom: 8,
+    },
+    errorContainer: {
+      marginHorizontal: 4,
+      marginBottom: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.danger,
+      backgroundColor: theme.surface,
+    },
+    errorTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.danger,
+      marginBottom: 4,
+    },
+    errorText: {
+      fontSize: 13,
+      color: theme.text,
     },
     composer: {
       borderTopWidth: 1,

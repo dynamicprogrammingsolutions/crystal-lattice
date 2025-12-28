@@ -336,18 +336,21 @@ Semantics:
 
 - `checkpoint` events are written to the same `EventStore` as all
   other events and therefore receive an `event_id` on publish.
-- The server tracks the most recent `checkpoint` event per session and
-  exposes its `event_id` as `checkpoint_event_id` from
-  `GET /sessions/{session_id}/messages`.
+- The server tracks the most recent **session cursor** event id per
+  session and exposes it as `cursor_event_id` from
+  `GET /sessions/{session_id}/messages`. The cursor may correspond to
+  the `event_id` of a `checkpoint` event or to another event (for
+  example, a `final` or `message_appended` event) whose effects are
+  known to be reflected in the persisted session state.
 - Within a single LLM/tool phase, `ToolLoopRunner` emits public
   events (such as `final` or `tool_results`) *before* the internal
   `session_checkpoint` that captures the updated `Session`. When the
   server handles this `session_checkpoint` and records a corresponding
-  `checkpoint` marker, the resulting `checkpoint_event_id` is always
-  at or after the events that produced the last messages visible in
-  the persisted session history.
+  `checkpoint` marker, the resulting session cursor is always at or
+  after the events that produced the last messages visible in the
+  persisted session history.
 - A client that loads messages and then starts polling `GET /events`
-  with `since_id = checkpoint_event_id` will not receive events whose
+  with `since_id = cursor_event_id` will not receive events whose
   effects are already reflected in that snapshot.
 
 ---

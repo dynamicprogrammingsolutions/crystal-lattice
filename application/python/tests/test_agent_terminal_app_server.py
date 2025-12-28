@@ -164,12 +164,12 @@ def test_run_send_request_background_helper_sends_and_persists(tmp_path: Path) -
 
 
 def test_checkpoint_cursor_after_final_event(tmp_path: Path) -> None:
-    """After a request, checkpoint_event_id is after the final event.
+    """After a request, cursor_event_id is after the final event.
 
     The test runs a non-streaming request to completion via the
     background helper and verifies that the checkpoint marker recorded
     for the session has a higher ``event_id`` than the last ``final``
-    event and that ``checkpoint_event_id`` from the messages endpoint
+    event and that ``cursor_event_id`` from the messages endpoint
     matches that marker.
     """
 
@@ -215,11 +215,11 @@ def test_checkpoint_cursor_after_final_event(tmp_path: Path) -> None:
     )
 
     resp = server_mod.list_session_messages(session_id, app_instance=app)
-    assert resp["checkpoint_event_id"] == last_checkpoint.get("event_id")
+    assert resp["cursor_event_id"] == last_checkpoint.get("event_id")
 
 
-def test_list_session_messages_includes_checkpoint_event_id_after_request(tmp_path: Path) -> None:
-    """GET /sessions/{session_id}/messages returns checkpoint_event_id.
+def test_list_session_messages_includes_cursor_event_id_after_request(tmp_path: Path) -> None:
+    """GET /sessions/{session_id}/messages returns cursor_event_id.
 
     The test runs a request to completion using the background helper
     and then verifies that the messages endpoint exposes the
@@ -254,7 +254,7 @@ def test_list_session_messages_includes_checkpoint_event_id_after_request(tmp_pa
     assert isinstance(last_id, str) and last_id
 
     resp = server_mod.list_session_messages(session_id, app_instance=app)
-    assert resp["checkpoint_event_id"] == last_id
+    assert resp["cursor_event_id"] == last_id
 
 
 def test_system_message_feature_adds_system_message_after_second_user_message(tmp_path: Path) -> None:
@@ -392,7 +392,7 @@ def test_list_sessions_endpoint_returns_metadata_for_created_sessions(tmp_path: 
 
 
 def test_checkpoint_cursor_after_message_appended(tmp_path: Path) -> None:
-    """After appending a message, checkpoint_event_id is after the event.
+    """After appending a message, cursor_event_id is after the event.
 
     The test appends a single user message via the HTTP-style route
     functions, then verifies that:
@@ -400,7 +400,7 @@ def test_checkpoint_cursor_after_message_appended(tmp_path: Path) -> None:
     * A ``message_appended`` event exists for the session.
     * A subsequent ``checkpoint`` event exists with a higher
       ``event_id``.
-    * ``GET /sessions/{id}/messages`` exposes ``checkpoint_event_id``
+    * ``GET /sessions/{id}/messages`` exposes ``cursor_event_id``
       equal to that checkpoint's ``event_id``.
     """
 
@@ -443,9 +443,9 @@ def test_checkpoint_cursor_after_message_appended(tmp_path: Path) -> None:
         last_appended.get("event_id")
     )
 
-    # The messages endpoint should expose the same checkpoint_event_id.
+    # The messages endpoint should expose the same cursor_event_id.
     resp = server_mod.list_session_messages(session_id, app_instance=app)
-    assert resp["checkpoint_event_id"] == last_checkpoint.get("event_id")
+    assert resp["cursor_event_id"] == last_checkpoint.get("event_id")
 
 
 def test_list_session_messages_endpoint_supports_slice_bounds(tmp_path: Path) -> None:
@@ -480,8 +480,8 @@ def test_list_session_messages_endpoint_supports_slice_bounds(tmp_path: Path) ->
     full_messages = full["messages"]
     assert [m["message"]["content"] for m in full_messages] == ["one", "two", "three"]
 
-    # checkpoint_event_id is present (may be null if no checkpoints yet)
-    assert "checkpoint_event_id" in full
+    # cursor_event_id is present (may be null if no cursor yet)
+    assert "cursor_event_id" in full
 
     # Last two messages using a negative start index
     last_two = server_mod.list_session_messages(session_id, start=-2, app_instance=app)

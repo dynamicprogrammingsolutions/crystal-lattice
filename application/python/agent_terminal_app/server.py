@@ -292,15 +292,22 @@ def create_session(
                 session = core.add_message(session, "system", system_message)
                 app_instance.save_session(session)
 
-            app_instance.publish_event(
+            stored = app_instance.publish_event(
                 {
                     "type": "session_created",
                     "session_id": session.session_id,
                     "agent_id": agent_id,
                     "session": session.to_dict(),
                 },
-                add_checkpoint=True,
             )
+
+            try:
+                app_instance.record_checkpoint(session.session_id, stored.get("request_id"))
+            except Exception:  # pragma: no cover - defensive
+                _log.exception(
+                    "failed to publish checkpoint event after session create for %r",
+                    session.session_id,
+                )
 
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -496,7 +503,7 @@ def add_message(
 
             last_message = new_session.messages[-1] if new_session.messages else None
 
-            app_instance.publish_event(
+            stored = app_instance.publish_event(
                 {
                     "type": "message_appended",
                     "session_id": new_session.session_id,
@@ -506,8 +513,15 @@ def add_message(
                     "message": last_message.to_dict() if last_message is not None else None,
                     "session": new_session.to_dict(),
                 },
-                add_checkpoint=True,
             )
+
+            try:
+                app_instance.record_checkpoint(new_session.session_id, stored.get("request_id"))
+            except Exception:  # pragma: no cover - defensive
+                _log.exception(
+                    "failed to publish checkpoint event after message append for %r",
+                    session_id,
+                )
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -559,7 +573,7 @@ def update_message(
             new_session = core.modify_message(session, target_index, content, config)
             app_instance.save_session(new_session)
 
-            app_instance.publish_event(
+            stored = app_instance.publish_event(
                 {
                     "type": "message_modified",
                     "session_id": new_session.session_id,
@@ -567,8 +581,15 @@ def update_message(
                     "content": content,
                     "session": new_session.to_dict(),
                 },
-                add_checkpoint=True,
             )
+
+            try:
+                app_instance.record_checkpoint(new_session.session_id, stored.get("request_id"))
+            except Exception:  # pragma: no cover - defensive
+                _log.exception(
+                    "failed to publish checkpoint event after message modify for %r",
+                    session_id,
+                )
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -739,15 +760,22 @@ def delete_messages(
 
             concrete_indices = sorted(set(delete_indices))
 
-            app_instance.publish_event(
+            stored = app_instance.publish_event(
                 {
                     "type": "messages_deleted",
                     "session_id": new_session.session_id,
                     "indices": sorted(delete_indices),
                     "session": new_session.to_dict(),
                 },
-                add_checkpoint=True,
             )
+
+            try:
+                app_instance.record_checkpoint(new_session.session_id, stored.get("request_id"))
+            except Exception:  # pragma: no cover - defensive
+                _log.exception(
+                    "failed to publish checkpoint event after messages delete for %r",
+                    session_id,
+                )
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -882,7 +910,7 @@ def fork_session(
             agent_id = (
                 agent_val if isinstance(agent_val, str) and agent_val else "default"
             )
-            app_instance.publish_event(
+            stored = app_instance.publish_event(
                 {
                     "type": "session_created",
                     "session_id": new_session.session_id,
@@ -890,8 +918,15 @@ def fork_session(
                     "source_session_id": session.session_id,
                     "session": new_session.to_dict(),
                 },
-                add_checkpoint=True,
             )
+
+            try:
+                app_instance.record_checkpoint(new_session.session_id, stored.get("request_id"))
+            except Exception:  # pragma: no cover - defensive
+                _log.exception(
+                    "failed to publish checkpoint event after fork for %r",
+                    new_session.session_id,
+                )
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -920,7 +955,7 @@ def list_session_messages(
             if message_count == 0:
                 return {
                     "messages": [],
-                    "checkpoint_event_id": app_instance.get_checkpoint_event_id(
+                    "cursor_event_id": app_instance.get_session_cursor_event_id(
                         session_id
                     ),
                 }
@@ -935,12 +970,12 @@ def list_session_messages(
                 msg = session.messages[idx]
                 results.append({"index": idx, "message": msg.to_dict()})
 
-            checkpoint_event_id = app_instance.get_checkpoint_event_id(session_id)
+            cursor_event_id = app_instance.get_session_cursor_event_id(session_id)
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    return {"messages": results, "checkpoint_event_id": checkpoint_event_id}
+    return {"messages": results, "cursor_event_id": cursor_event_id}
 
 
 @app.get("/events")

@@ -103,12 +103,12 @@ class AgentApplication:
         self._tool_loop_cfg = _ToolLoopConfig()
         self._cancelled_requests: set[str] = set()
 
-        # Per-session locks and checkpoint tracking are maintained at the
+        # Per-session locks and cursor tracking are maintained at the
         # application layer so that multiple frontends (HTTP server,
-        # terminal) can share consistent cursor semantics.
+        # terminal) can share consistent semantics for event cursors.
         self._session_locks: Dict[str, Lock] = {}
         self._session_locks_lock = Lock()
-        self._last_checkpoint_event_id_by_session: Dict[str, Optional[str]] = {}
+        self._session_cursor_event_id_by_session: Dict[str, Optional[str]] = {}
 
         # Cache per-agent base configs to avoid recomputing on every call.
         agents = resolved_config.get("agents") or {}
@@ -297,12 +297,35 @@ class AgentApplication:
 
         return self._event_store
 
-    def record_checkpoint(self, session_id: str, request_id: Optional[str]) -> Optional[str]:
+    def advance_session_cursor(self, session_id: str, event_id: str) -> None:
+        """Advance the per-session event cursor to ``event_id``.
+
+        The cursor represents the latest event id whose effects are
+        known to be reflected in the persisted session state for the
+        given ``session_id``.
+        """
+
+        if isinstance(event_id, str):
+            self._session_cursor_event_id_by_session[session_id] = event_id
+
+    def get_session_cursor_event_id(self, session_id: str) -> Optional[str]:
+        """Return the latest cursor event id for ``session_id``."""
+
+        return self._session_cursor_event_id_by_session.get(session_id)
+
+    # Backwards-compatible alias; prefer get_session_cursor_event_id.
+    def get_checkpoint_event_id(self, session_id: str) -> Optional[str]:
+        return self.get_session_cursor_event_id(session_id)
+
+    def record_checkpoint(
+        self,
+        session_id: str,
+        request_id: Optional[str],
+    ) -> Optional[str]:
         """Publish a lightweight checkpoint marker for ``session_id``.
 
-        The marker is written to the shared event store and the
-        resulting ``event_id`` is recorded as the latest checkpoint
-        cursor for that session.
+        The marker is written to the shared event store and the session
+        cursor is advanced to the checkpoint event's own ``event_id``.
         """
 
         marker = self._event_store.publish(
@@ -313,48 +336,24 @@ class AgentApplication:
                 "timestamp": datetime.utcnow().isoformat() + "Z",
             }
         )
-        event_id = marker.get("event_id")
-        if isinstance(event_id, str):
-            self._last_checkpoint_event_id_by_session[session_id] = event_id
-            return event_id
+        marker_id = marker.get("event_id")
+        if isinstance(marker_id, str):
+            self.advance_session_cursor(session_id, marker_id)
+            return marker_id
         return None
 
-    def publish_event(
-        self,
-        event: Dict[str, Any],
-        *,
-        add_checkpoint: bool = False,
-        checkpoint_request_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """Publish an event and optionally emit a checkpoint marker.
+    def publish_event(self, event: Dict[str, Any]) -> Dict[str, Any]:
+        """Publish an event to the underlying event store.
 
-        When ``add_checkpoint`` is true, a ``checkpoint`` marker is
-        recorded for the event's ``session_id`` using either the
-        explicit ``checkpoint_request_id`` or the event's
-        ``request_id`` field when present.
+        This helper is intentionally low-level: it does not emit
+        checkpoint markers or advance session cursors. Callers that
+        need to track persistence boundaries should combine this with
+        :meth:`record_checkpoint` or :meth:`advance_session_cursor` as
+        appropriate.
         """
 
         stored = self._event_store.publish(event)
-        if add_checkpoint:
-            session_id = stored.get("session_id")
-            if isinstance(session_id, str):
-                req_id = checkpoint_request_id
-                if req_id is None:
-                    raw = stored.get("request_id")
-                    if isinstance(raw, str):
-                        req_id = raw
-                try:
-                    self.record_checkpoint(session_id, req_id)
-                except Exception:
-                    # Checkpoint emission is best-effort and should not
-                    # break the caller's main operation.
-                    pass
         return stored
-
-    def get_checkpoint_event_id(self, session_id: str) -> Optional[str]:
-        """Return the latest checkpoint event id for ``session_id``."""
-
-        return self._last_checkpoint_event_id_by_session.get(session_id)
 
     def get_application_config(self) -> Dict[str, Any]:
         """Return application-level configuration section.

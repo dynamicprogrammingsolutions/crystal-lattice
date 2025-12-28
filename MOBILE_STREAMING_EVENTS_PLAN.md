@@ -23,7 +23,7 @@ documented there before Stage 1 begins).
   regardless of whether the underlying transport is HTTP polling or bridge
   streaming.
 - Support per-session event consumption with:
-  - Alignment to a session snapshot via checkpoint_event_id.
+  - Alignment to a session snapshot via cursor_event_id.
   - Continuation via an event_id cursor (since_id).
 - Handle lost connections and reconnection gracefully:
   - On reconnect, resume from the last seen event_id.
@@ -70,8 +70,8 @@ The work is split into two stages:
   - Internal session_checkpoint events (internal only).
   - New checkpoint marker events to be added for alignment.
 - We do not change the core Message or Session types (no per-message
-  UUIDs); all continuation and consistency are based on event_id and
-  checkpoint_event_id.
+  UUIDs); all continuation and consistency are based on event_id and a
+  per-session cursor_event_id.
 
 2. Core Mobile Abstractions
 ---------------------------
@@ -116,7 +116,7 @@ Event = FinalEvent | MessageAppendedEvent | RequestCompletedEvent | ...
 
 2.2 Events API helpers
 
-Extend src/api.ts to wrap /events (HTTP) and surface checkpoint_event_id.
+Extend src/api.ts to wrap /events (HTTP) and surface cursor_event_id.
 
 - Add types:
   - ListEventsParams
@@ -131,12 +131,12 @@ Extend src/api.ts to wrap /events (HTTP) and surface checkpoint_event_id.
   - Builds a query string with session_id, since_id, request_id, limit.
   - Calls adapter.get(/events?...) and returns data.events as Event[].
 
-- Extend apiListMessages to surface checkpoint_event_id:
+- Extend apiListMessages to surface cursor_event_id:
   - ListMessagesResponse
     - messages: IndexedMessage[]
-    - checkpoint_event_id?: string | null
+    - cursor_event_id?: string | null
 
-Frontends will use checkpoint_event_id as the initial since_id cursor when
+Frontends will use cursor_event_id as the initial since_id cursor when
 subscribing to events.
 
 2.3 SessionEventSource abstraction
@@ -169,7 +169,7 @@ Signature (conceptual):
   - adapter: ConnectionAdapter
   - sessionId: string | null
   - enabled: boolean
-  - initialSinceId: string | null (from checkpoint_event_id)
+  - initialSinceId: string | null (from cursor_event_id)
   - mode?: auto | polling | bridge
 
 - UseSessionEventsResult
@@ -268,11 +268,11 @@ The hook maintains:
 SessionChatScreen integrates useSessionEvents and processes events into the
 chat view and the debug buffer.
 
-3.3.1 Using checkpoint_event_id
+3.3.1 Using cursor_event_id
 
 - When loading messages via apiListMessages:
-  - Store checkpoint_event_id as initialSinceId for useSessionEvents.
-  - Messages represent the session state as of that checkpoint.
+  - Store cursor_event_id as initialSinceId for useSessionEvents.
+  - Messages represent the session state as of that cursor.
 
 3.3.2 Event processing goals
 
