@@ -22,8 +22,23 @@ export interface MessageAppendedEvent extends BaseEvent {
   message?: ApiMessage;
 }
 
+export interface ToolResultsEvent extends BaseEvent {
+  type: 'tool_results';
+  messages: ApiMessage[];
+}
+
 export interface RequestCompletedEvent extends BaseEvent {
   type: 'request_completed';
+}
+
+export interface RequestStartedEvent extends BaseEvent {
+  type: 'request_started';
+  stream?: boolean;
+}
+
+export interface ErrorEvent extends BaseEvent {
+  type: 'error';
+  detail?: string;
 }
 
 export interface CheckpointEvent extends BaseEvent {
@@ -34,6 +49,9 @@ export interface CheckpointEvent extends BaseEvent {
 export type Event =
   | FinalEvent
   | MessageAppendedEvent
+   | ToolResultsEvent
+   | RequestStartedEvent
+   | ErrorEvent
   | RequestCompletedEvent
   | CheckpointEvent
   | BaseEvent;

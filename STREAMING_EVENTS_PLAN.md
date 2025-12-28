@@ -147,15 +147,15 @@ Important constraints:
 
 - **Frontends (mobile and others):**
   - Obtain a **message snapshot** from the Python HTTP server.
-  - Obtain an **aligned event cursor** (`checkpoint_event_id`).
-  - Use the bridge to stream events **after** that checkpoint.
+  - Obtain an **aligned event cursor** (`cursor_event_id`).
+  - Use the bridge to stream events **after** that cursor.
   - When not using the bridge, fall back to HTTP `/events` polling.
 
 ### 3.2 Key design choices
 
 1. Use **`event_id` as the primary cursor**; do not add message UUIDs.
    - Frontends align on `event_id` and `session_id`.
-   - The triple `(snapshot messages, checkpoint_event_id, subsequent
+   - The triple `(snapshot messages, cursor_event_id, subsequent
      events)` is sufficient for consistency.
 
 2. Represent checkpoints as **lightweight marker events**:
@@ -209,13 +209,14 @@ instance maintains:
   - Keys: `session_id`.
   - Values: process‑local locks to serialize access to that
     session’s state.
-- `_last_checkpoint_event_id_by_session: Dict[str, Optional[str]]`
+- `_session_cursor_event_id_by_session: Dict[str, Optional[str]]`
   - Keys: `session_id`.
-  - Values: `event_id` of the most recent **checkpoint marker** for
-    that session, or `None` if no checkpoint marker exists yet.
+  - Values: `event_id` of the latest event whose effects are known to
+    be reflected in the persisted session state for that session, or
+    `None` if no cursor has been recorded yet.
 
-This state is **per AgentApplication instance** and is not
-persisted to disk.
+This state is **per AgentApplication instance** and is not persisted to
+disk.
 
 ### 4.3 Integrating with `_run_send_request_background` and HTTP endpoints
 
@@ -235,22 +236,21 @@ non‑streaming HTTP mutations:
 
    - `acquire_session_lock(session_id: str) -> ContextManager[None]`
      - Yields under the per‑session lock.
-   - `publish_event(event: dict, *, add_checkpoint: bool = False,
-     checkpoint_request_id: Optional[str] = None) -> dict`
-     - Wraps `event_store.publish` and optionally emits a `checkpoint`
-       marker + updates `last_checkpoint_event_id_by_session`.
+   - `publish_event(event: dict) -> dict`
+     - Wraps `event_store.publish` and returns the stored event with
+       its assigned `event_id`.
    - `record_checkpoint(session_id: str, request_id: Optional[str]) -> Optional[str>`
-     - Publishes a `checkpoint` marker and returns its `event_id`.
-   - `get_checkpoint_event_id(session_id: str) -> Optional[str>`
-     - Returns the latest checkpoint cursor for that session.
+     - Publishes a `checkpoint` marker and advances the session cursor
+       to the checkpoint marker's `event_id`.
+   - `get_session_cursor_event_id(session_id: str) -> Optional[str>`
+     - Returns the latest session cursor for that session.
 
 2. When a `session_checkpoint` event arrives in
    `_run_send_request_background`, under the session lock obtained via
    `acquire_session_lock(session_id)`:
    - Save the `Session` object to disk as today.
    - Call `record_checkpoint(session_id, request_id)` to publish a
-     **checkpoint marker** event and update
-     `last_checkpoint_event_id_by_session`.
+     **checkpoint marker** event and advance the session cursor.
 
 3. For non‑streaming HTTP endpoints that modify and save a session
    (e.g. `message_appended`, `message_modified`, `messages_deleted`,
@@ -260,10 +260,11 @@ non‑streaming HTTP mutations:
      the critical section.
    - Apply the change and call `save_session(new_session)` inside the
      lock (the server remains responsible for persistence).
-   - Call `AgentApplication.publish_event(lifecycle_event,
-     add_checkpoint=True)` so that the same application‑layer code
-     emits both the lifecycle event and the follow‑up `checkpoint`
-     marker and updates `last_checkpoint_event_id_by_session`.
+   - Call `AgentApplication.publish_event(lifecycle_event)` to record
+     the lifecycle event in the event store, followed by
+     `AgentApplication.record_checkpoint(session_id, request_id)` so
+     that a `checkpoint` marker is emitted and the session cursor
+     advances to that marker's `event_id`.
 
 4. Within `ToolLoopRunner` (application layer), ensure that internal
    `session_checkpoint` events are emitted *after* the public
@@ -293,39 +294,40 @@ remains **internal‑only** and is never serialized.
 ### 4.4 Aligning message snapshots with checkpoints
 
 `GET /sessions/{session_id}/messages` will be extended to return a
-checkpoint cursor:
+session cursor:
 
 - Response shape (conceptually):
 
   ```json
   {
     "messages": [ ... ],
-    "checkpoint_event_id": "1234"  // or null
+    "cursor_event_id": "1234"  // or null
   }
   ```
 
 Semantics:
 
 - `messages` reflect the session as saved on disk at the time of the most
-  recent checkpoint marker handled by this process.
-- `checkpoint_event_id` is the `event_id` of that marker, taken from
-  `last_checkpoint_event_id_by_session[session_id]`.
+  recent cursor update handled by this process.
+- `cursor_event_id` is the `event_id` of the latest event whose effects
+  are known to be reflected in the persisted session state for this
+  session.
 
 Implementation sketch:
 
 1. Acquire the **per‑session lock** for this `session_id` via
    `AgentApplication.acquire_session_lock`.
 2. Load the session from disk (as done today).
-3. Read `checkpoint_event_id = AgentApplication.get_checkpoint_event_id(session_id)`.
-4. Return `{"messages": ..., "checkpoint_event_id": checkpoint_event_id}`.
+3. Read `cursor_event_id = AgentApplication.get_session_cursor_event_id(session_id)`.
+4. Return `{"messages": ..., "cursor_event_id": cursor_event_id}`.
 
 Because both checkpoint handling and snapshot reading run inside the same
 per‑session critical section, we avoid races where the snapshot and
-`checkpoint_event_id` refer to different checkpoints.
+`cursor_event_id` refer to different checkpoints.
 
-If no checkpoint marker exists yet:
+If no cursor has been recorded yet:
 
-- `checkpoint_event_id` is `null` / omitted.
+- `cursor_event_id` is `null` / omitted.
 - The snapshot corresponds to whatever initial or manually saved state
   exists.
 
@@ -528,12 +530,12 @@ For a given `session_id = S` on a specific Python server (and corresponding
      ```json
      {
        "messages": [...],
-       "checkpoint_event_id": "100"  // or null
+       "cursor_event_id": "100"  // or null
      }
      ```
 
    - Interpretation:
-     - `messages` reflect the session as of checkpoint marker event `100`.
+     - `messages` reflect the session as of the cursor event `100`.
      - All events with `event_id <= 100` have their effects included in the
        snapshot.
 
@@ -677,19 +679,19 @@ Scope (Python only):
      section 4.1:
      - Internal `session_checkpoint` events remain in-process only.
      - For each internal checkpoint, publish a small `checkpoint` event to
-       the shared `EventStore` and record its `event_id` in
-       `last_checkpoint_event_id_by_session`.
+       the shared `EventStore` and advance the per-session cursor as
+       described in section 4.3.
    - Update docs/api/events.md to include the new public `checkpoint`
      event type, clearly differentiating it from the internal
      `session_checkpoint` event.
 
-2. **Per-session checkpoint cursor in `/sessions/{id}/messages`**
+2. **Per-session cursor in `/sessions/{id}/messages`**
    - Extend `GET /sessions/{session_id}/messages` to return
-     `checkpoint_event_id` alongside `messages`, as described in section
+     `cursor_event_id` alongside `messages`, as described in section
      4.4.
    - Ensure the endpoint and the checkpoint handling both use the same
-     per-session lock so that the snapshot and `checkpoint_event_id`
-     always refer to the same checkpoint **including** changes made via
+     per-session lock so that the snapshot and `cursor_event_id`
+     always refer to the same persisted state **including** changes made via
      non-streaming HTTP endpoints (append/modify/delete/fork/etc.).
 
 3. **Keep bridge behaviour unchanged for now**
@@ -697,13 +699,13 @@ Scope (Python only):
      `events_subscribe`/`events_update`.
    - Existing behaviour (if any) for forwarding events to the bridge may
      remain, but the mobile app’s Stage 1 will only consume events via
-     HTTP `/events` and use `checkpoint_event_id` to set `since_id`.
+     HTTP `/events` and use `cursor_event_id` to set `since_id`.
 
 Result:
 
 - Mobile clients can:
-  - Load a session’s message list and get an aligned `checkpoint_event_id`.
-  - Use HTTP `/events` with `since_id=checkpoint_event_id` to poll for
+  - Load a session’s message list and get an aligned `cursor_event_id`.
+  - Use HTTP `/events` with `since_id=cursor_event_id` to poll for
     subsequent events.
   - Reason about consistency between the snapshot and the event stream,
     even without any Elixir changes.

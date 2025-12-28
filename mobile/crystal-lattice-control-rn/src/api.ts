@@ -27,7 +27,7 @@ export interface ListSessionsResponse {
 
 export interface ListMessagesResponse {
   messages: IndexedMessage[];
-  checkpoint_event_id?: string | null;
+  cursor_event_id?: string | null;
 }
 
 export interface SendResponse {
@@ -102,7 +102,7 @@ export async function apiListMessages(
   const messages = Array.isArray(data.messages) ? data.messages : [];
   return {
     messages,
-    checkpoint_event_id: data.checkpoint_event_id ?? null,
+    cursor_event_id: data.cursor_event_id ?? null,
   };
 }
 

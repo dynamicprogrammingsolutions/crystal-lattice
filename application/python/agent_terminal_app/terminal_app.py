@@ -109,8 +109,9 @@ class TerminalApplication:
             core, base_config, session = self._app.create_session_ephemeral(agent_id)
 
         # For ephemeral sessions we still publish a lifecycle event so
-        # the terminal can show them in the events view, but we do not
-        # record a checkpoint until the session is actually saved.
+        # the terminal can show them in the events view. For persisted
+        # sessions, also emit a checkpoint marker so that the session
+        # cursor advances to a concrete persistence point.
         self._app.publish_event(
             {
                 "type": "session_created",
@@ -118,8 +119,15 @@ class TerminalApplication:
                 "agent_id": agent_id,
                 "session": session.to_dict(),
             },
-            add_checkpoint=persist,
         )
+
+        if persist:
+            try:
+                self._app.record_checkpoint(session.session_id, None)
+            except Exception:
+                # Best-effort; do not fail session creation on
+                # checkpoint emission issues.
+                pass
 
         self._session = session
         self._core = core
@@ -238,8 +246,11 @@ class TerminalApplication:
                 "message": last_message.to_dict() if last_message is not None else None,
                 "session": new_session.to_dict(),
             },
-            add_checkpoint=True,
         )
+        try:
+            self._app.record_checkpoint(new_session.session_id, None)
+        except Exception:
+            pass
 
         self._session = new_session
         return new_session
@@ -332,7 +343,8 @@ class TerminalApplication:
 
         self._app.save_session(new_session)
 
-        # Publish a lifecycle event so renderers can surface the fork.
+        # Publish a lifecycle event so renderers can surface the fork
+        # and advance the session cursor via a checkpoint marker.
         md = new_session.metadata if isinstance(new_session.metadata, dict) else {}
         agent = md.get("agent_id")
         agent_id = agent if isinstance(agent, str) and agent else "default"
@@ -344,8 +356,11 @@ class TerminalApplication:
                 "source_session_id": session.session_id,
                 "session": new_session.to_dict(),
             },
-            add_checkpoint=True,
         )
+        try:
+            self._app.record_checkpoint(new_session.session_id, None)
+        except Exception:
+            pass
 
         self._session = new_session
         self._core = core
@@ -401,8 +416,11 @@ class TerminalApplication:
                 "indices": sorted(normalized),
                 "session": new_session.to_dict(),
             },
-            add_checkpoint=True,
         )
+        try:
+            self._app.record_checkpoint(new_session.session_id, None)
+        except Exception:
+            pass
 
         self._session = new_session
         return new_session
