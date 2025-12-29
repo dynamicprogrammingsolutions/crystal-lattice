@@ -268,6 +268,15 @@ Summary of final tool messages appended to the session.
         "tool_call_id": "<call-id>",
         "tool_name": "tool_name",
         // provider- or tool-specific metadata
+        //
+        // Optional display helper used by terminal and other UIs.
+        // When present and display.type == "text", renderers prefer
+        // display.content over the raw message.content when showing
+        // tool output.
+        "display": {
+          "type": "text",
+          "content": "human-friendly, possibly truncated output"
+        }
       }
     }
   ]
@@ -433,6 +442,10 @@ Emitted when one or more messages are deleted from a session.
   - `application/python/agent_terminal_app/event_rendering.py`
     - Renders `partial`, `final`, `tool_*`, `request_*`, and error events
       into a human-readable terminal view.
+    - For tool messages/results, prefers `metadata.display.content`
+      (when `display.type == "text"`) over the raw `content` field, so
+      tools can provide a dedicated, user-facing rendering separate
+      from their full machine-oriented output.
 
 - **Terminal application logic**:
   - `application/python/agent_terminal_app/terminal_app.py`
