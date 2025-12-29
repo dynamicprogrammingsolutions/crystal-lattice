@@ -100,6 +100,7 @@ export interface MessagesCacheEntry {
   sessionId: string;
   messages: IndexedMessage[];
   lastLoadedAt: number | null;
+  cursorEventId?: string | null;
   composeText?: string;
   scrollOffset?: number;
 }
@@ -787,6 +788,7 @@ function App(): React.JSX.Element {
     connectionId: string,
     sessionId: string,
     list: IndexedMessage[],
+    cursorEventId: string | null,
   ) => {
     setMessagesCache((prev) => {
       const bySession = prev[connectionId] ?? {};
@@ -799,6 +801,7 @@ function App(): React.JSX.Element {
         sessionId,
         messages: list,
         lastLoadedAt: Date.now(),
+        cursorEventId,
       };
 
       const nextBySession: MessagesBySession = { ...bySession, [sessionId]: entry };

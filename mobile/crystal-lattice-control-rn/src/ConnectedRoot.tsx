@@ -32,6 +32,7 @@ interface ConnectedRootProps {
     connectionId: string,
     sessionId: string,
     messages: IndexedMessage[],
+    cursorEventId: string | null,
   ) => void;
   onSaveMessagesComposeText: (
     connectionId: string,
@@ -206,11 +207,17 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                   sessionId={selectedSessionId}
                   cachedMessages={cacheEntry?.messages ?? null}
                   lastLoadedAt={cacheEntry?.lastLoadedAt ?? null}
+                  cachedCursorEventId={cacheEntry?.cursorEventId ?? null}
                   initialComposeText={cacheEntry?.composeText ?? ''}
                   initialScrollOffset={cacheEntry?.scrollOffset ?? 0}
-                  onUpdateCache={(list: IndexedMessage[]) => {
+                  onUpdateCache={(list: IndexedMessage[], cursorEventId: string | null) => {
                     if (connectionId) {
-                      onUpdateMessagesCache(connectionId, selectedSessionId, list);
+                      onUpdateMessagesCache(
+                        connectionId,
+                        selectedSessionId,
+                        list,
+                        cursorEventId,
+                      );
                     }
                   }}
                   onBack={() => {
