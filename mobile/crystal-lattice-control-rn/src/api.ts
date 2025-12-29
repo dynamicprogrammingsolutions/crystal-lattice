@@ -145,7 +145,15 @@ export async function apiListEvents(
     session_id: sessionId,
     since_id: sinceId,
     request_id: requestId,
+    // ``limit`` now applies to the compacted response size on the
+    // server. Use it directly when provided so callers can bound the
+    // number of events per batch, and rely on the server default
+    // internal_limit for the raw event window.
     limit,
+    // Always request a reasonably large internal window on the
+    // server so that compaction can operate over more raw events
+    // without forcing mobile to handle huge batches.
+    internal_limit: 5000,
   });
   const data = (await adapter.get(`/events${query}`)) as { events?: any[] };
   const events = Array.isArray(data.events) ? data.events : [];

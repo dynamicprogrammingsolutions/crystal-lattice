@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Protocol
+from typing import Any, Dict, List, Optional, Protocol, Iterator
 from threading import Lock
+from contextlib import contextmanager
 from itertools import count
 
 
@@ -35,6 +36,20 @@ class EventStore(Protocol):
         """
         ...
 
+    # Cursor and locking helpers
+
+    def advance_session_cursor(self, session_id: str, event_id: str) -> None:  # pragma: no cover - interface
+        """Advance the per-session cursor for ``session_id`` to ``event_id``."""
+        ...
+
+    def get_session_cursor_event_id(self, session_id: str) -> Optional[str]:  # pragma: no cover - interface
+        """Return the latest cursor event id for ``session_id``, if known."""
+        ...
+
+    def acquire_session_lock(self, session_id: str) -> Iterator[None]:  # pragma: no cover - interface
+        """Yield under a process-local lock for ``session_id``."""
+        ...
+
 
 class InMemoryEventStore(EventStore):
     """Simple in-memory event store for testing and local usage.
@@ -48,6 +63,13 @@ class InMemoryEventStore(EventStore):
         self._events: List[Dict[str, Any]] = []
         self._counter = count(1)
         self._lock = Lock()
+        # Optional shared state for per-session cursors and locks. These are
+        # used by application instances that share this store so that
+        # checkpoint cursors and filesystem access are coordinated across
+        # frontends within a process.
+        self._session_cursors: Dict[str, Optional[str]] = {}
+        self._session_locks: Dict[str, Lock] = {}
+        self._session_locks_lock = Lock()
 
     def _next_id(self) -> str:
         return str(next(self._counter))
@@ -118,3 +140,46 @@ class InMemoryEventStore(EventStore):
                 except Exception:  # pragma: no cover - defensive
                     pass
             return None
+
+    # ------------------------------------------------------------------
+    # Optional helpers: per-session cursor and lock coordination
+    # ------------------------------------------------------------------
+
+    def advance_session_cursor(self, session_id: str, event_id: str) -> None:
+        """Advance the per-session cursor for ``session_id``.
+
+        The cursor is stored in the shared event store instance so that
+        multiple :class:`AgentApplication` objects using this store can
+        observe a consistent view of persistence boundaries.
+        """
+
+        if isinstance(session_id, str) and isinstance(event_id, str):
+            self._session_cursors[session_id] = event_id
+
+    def get_session_cursor_event_id(self, session_id: str) -> Optional[str]:
+        """Return the latest cursor event id for ``session_id`` if known."""
+
+        if not isinstance(session_id, str) or not session_id:
+            return None
+        return self._session_cursors.get(session_id)
+
+    @contextmanager
+    def acquire_session_lock(self, session_id: str) -> Iterator[None]:
+        """Yield under a process-local lock for ``session_id``.
+
+        This mirrors :meth:`AgentApplication.acquire_session_lock` but lives
+        on the shared event store so that multiple application instances
+        using the same store coordinate access to a session's persisted
+        state and cursor.
+        """
+
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("session_id must be a non-empty string")
+
+        with self._session_locks_lock:
+            lock = self._session_locks.get(session_id)
+            if lock is None:
+                lock = Lock()
+                self._session_locks[session_id] = lock
+        with lock:
+            yield

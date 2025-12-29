@@ -88,7 +88,9 @@ class PollingEventSource implements SessionEventSource {
     const params: ListEventsParams = {
       sessionId: this.sessionId,
       sinceId: this.sinceId ?? undefined,
-      limit: 100,
+      // Leave ``limit`` undefined here so that the server uses its
+      // default compacted batch size, while ``apiListEvents`` always
+      // requests a large ``internal_limit`` for the raw window.
     };
 
     try {
