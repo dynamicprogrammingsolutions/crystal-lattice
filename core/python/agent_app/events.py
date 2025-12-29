@@ -21,6 +21,20 @@ class EventStore(Protocol):
     ) -> List[Dict[str, Any]]:  # pragma: no cover - interface
         ...
 
+    def get_latest_event_id(
+        self,
+        *,
+        request_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ) -> Optional[str]:  # pragma: no cover - interface
+        """Return the event_id of the most recent matching event.
+
+        When both ``request_id`` and ``session_id`` are ``None``, this
+        returns the latest event_id across the entire store, or
+        ``None`` if the store is empty.
+        """
+        ...
+
 
 class InMemoryEventStore(EventStore):
     """Simple in-memory event store for testing and local usage.
@@ -74,3 +88,33 @@ class InMemoryEventStore(EventStore):
                 if len(result) >= limit:
                     break
             return result
+
+    def get_latest_event_id(
+        self,
+        *,
+        request_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ) -> Optional[str]:
+        """Return the event_id of the most recent matching event.
+
+        When both filters are ``None``, this returns the event_id of
+        the last event in the store, or ``None`` if no events have
+        been published.
+        """
+
+        with self._lock:
+            for ev in reversed(self._events):
+                if request_id is not None and ev.get("request_id") != request_id:
+                    continue
+                if session_id is not None and ev.get("session_id") != session_id:
+                    continue
+                event_id = ev.get("event_id")
+                if isinstance(event_id, str):
+                    return event_id
+                try:
+                    # Accept integer-like ids but normalise to str.
+                    if isinstance(event_id, int):
+                        return str(event_id)
+                except Exception:  # pragma: no cover - defensive
+                    pass
+            return None

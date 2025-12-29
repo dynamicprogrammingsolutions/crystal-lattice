@@ -99,9 +99,21 @@ Important constraints:
         - Published to the store via `store.publish(ev)`.
   - `GET /events`:
     - Returns `{"events": [...]}` from the event store.
+    - When called with `session_id` but no `since_id`, defaults to the
+      per-session cursor so that polling does not replay the entire
+      history for that session.
+    - When called with no `since_id`, no `session_id`, and no
+      `request_id`, returns `{"events": [], "latest_event_id": ...}`
+      so that clients can bootstrap polling without replay.
+    - For non-bootstrap calls, applies a small compaction step that
+      drops redundant `partial` / `tool_partial` events that precede a
+      `final` / `tool_results` for the same request in the batch and
+      merges consecutive partials for the same request into a single
+      event.
   - `GET /sessions/{session_id}/messages`:
     - Returns a slice of messages addressed by index.
-    - Currently does not return any event cursor.
+    - Exposes an aligned `cursor_event_id` for that session so clients
+      can safely start polling `/events` from that cursor.
 
 ### 2.4 Elixir bridge
 
@@ -574,9 +586,26 @@ the server:
 
 - Omit `session_id` in `events_subscribe`.
 - Choose an initial `since_id` by:
-  - Calling `GET /events?limit=1` and taking the highest `event_id`, or
-  - Adding a small helper endpoint like `GET /events/last` that returns the
-    global last `event_id`.
+  - Calling `GET /events` with no filters and using the
+    `latest_event_id` field from the response as the initial cursor, or
+  - (Internally) querying the bridge store for the global last
+    `event_id`.
+
+### 6.3 Future bridge-side compaction (Stage 2)
+
+In Stage 2 of the streaming events work, the Elixir bridge may also
+apply compaction and merging optimisations when persisting and
+replaying events to subscribed app clients. These optimisations would:
+
+- Mirror the Python-side `compact_events` semantics (dropping
+  redundant `partial` / `tool_partial` events before `final` /
+  `tool_results` for the same request and merging consecutive
+  partials for the same request into a single event).
+- Be controlled by bridge-level flags so they can be enabled or
+  disabled independently for debugging or benchmarking.
+- Affect only storage/throughput and subscription payload size, not
+  the core correctness model (Python remains the source of truth for
+  event ordering and session cursors).
 
 
 7. Push Notifications (Future Work)

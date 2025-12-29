@@ -370,6 +370,104 @@ def test_terminal_application_user_errors_for_switching(tmp_path: Path) -> None:
         term_app.switch_agent("nonexistent-agent")
 
 
+def test_switch_session_uses_cursor_for_polling(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app.terminal_app import TerminalApplication
+
+    base_dir = Path(__file__).resolve().parent.parent / "agent_terminal_app"
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    # Create two sessions so that switching exercises the code path.
+    s1 = term_app.start_new_session(agent_id="default")
+    # start_new_session for persisted sessions emits a checkpoint and
+    # advances the cursor for this session.
+    cursor_id = term_app._app.get_session_cursor_event_id(s1.session_id)
+    assert isinstance(cursor_id, str) and cursor_id
+
+    s2 = term_app.start_new_session(agent_id="default")
+    assert s2.session_id != s1.session_id
+
+    # Switch back to the first session; _last_event_id should be
+    # initialised from the cursor so that polling does not replay
+    # historical events.
+    term_app.switch_session(s1.session_id)
+    assert term_app._last_event_id == cursor_id
+
+
+def test_poll_new_events_compacts_partials(tmp_path: Path) -> None:
+    """Terminal poll_new_events returns compacted events for the session.
+
+    This exercises the same compaction logic used by the HTTP server
+    but via TerminalApplication.poll_new_events.
+    """
+
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app.terminal_app import TerminalApplication
+
+    base_dir = Path(__file__).resolve().parent.parent / "agent_terminal_app"
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    session = term_app.start_new_session(agent_id="default")
+    session_id = session.session_id
+
+    request_id = "req-term-compaction"
+    # Publish two partials and a final for this session/request.
+    agent_app.publish_event(
+        {
+            "type": "partial",
+            "session_id": session_id,
+            "request_id": request_id,
+            "message": {"role": "assistant", "content": "foo", "metadata": {}},
+        }
+    )
+    agent_app.publish_event(
+        {
+            "type": "partial",
+            "session_id": session_id,
+            "request_id": request_id,
+            "message": {"role": "assistant", "content": "bar", "metadata": {}},
+        }
+    )
+    agent_app.publish_event(
+        {
+            "type": "final",
+            "session_id": session_id,
+            "request_id": request_id,
+            "messages": [
+                {"role": "assistant", "content": "foobar", "metadata": {}},
+            ],
+        }
+    )
+
+    # With _last_event_id at its default (None), poll_new_events should
+    # return only the final event for this request; partials are
+    # dropped by compaction.
+    events_list = term_app.poll_new_events(limit=10)
+    types = [ev.get("type") for ev in events_list]
+    assert "final" in types
+    assert "partial" not in types
+
+
 @pytest.mark.asyncio
 async def test_delete_slash_command_negative_range(tmp_path: Path) -> None:
     from agent_app.application_future import AgentApplication

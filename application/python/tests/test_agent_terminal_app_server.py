@@ -257,6 +257,397 @@ def test_list_session_messages_includes_cursor_event_id_after_request(tmp_path: 
     assert resp["cursor_event_id"] == last_id
 
 
+def test_events_endpoint_bootstrap_returns_latest_event_id(tmp_path: Path) -> None:
+    """GET /events with no filters returns only latest_event_id.
+
+    When called without since_id, session_id, or request_id, the
+    events endpoint should not replay the entire history. Instead it
+    returns an empty events list plus the latest event_id so that
+    clients can start polling from "now".
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    # Publish a couple of events for distinct sessions.
+    s1_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    s1 = s1_resp["session"]["session_id"]
+    server_mod.add_message(
+        s1,
+        {"role": "user", "content": "one", "metadata": None},
+        app_instance=app,
+    )
+
+    s2_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    s2 = s2_resp["session"]["session_id"]
+    server_mod.add_message(
+        s2,
+        {"role": "user", "content": "two", "metadata": None},
+        app_instance=app,
+    )
+
+    # Directly call the route function with no filters.
+    resp = server_mod.list_events(app_instance=app)
+    events_payload = resp.get("events")
+    latest_event_id = resp.get("latest_event_id")
+
+    assert isinstance(events_payload, list) and events_payload == []
+    # The latest event id should correspond to the last event published
+    # in the store.
+    assert isinstance(latest_event_id, str) and latest_event_id
+
+
+def test_events_endpoint_uses_session_cursor_as_default_since_id(tmp_path: Path) -> None:
+    """GET /events?session_id=... uses cursor when since_id omitted.
+
+    After a checkpoint is recorded for a session, polling /events for
+    that session without an explicit since_id should return only
+    events after the cursor.
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    # Add a user message and run a request to completion so that a
+    # checkpoint is recorded for this session.
+    server_mod.add_message(
+        session_id,
+        {"role": "user", "content": "before", "metadata": None},
+        app_instance=app,
+    )
+    server_mod._run_send_request_background(app, session_id, {})
+
+    # Capture the cursor and then publish an additional synthetic event
+    # for the same session after the checkpoint.
+    cursor_id = app.get_session_cursor_event_id(session_id)
+    assert isinstance(cursor_id, str) and cursor_id
+
+    extra = app.publish_event({"type": "debug_marker", "session_id": session_id})
+    extra_id = extra.get("event_id")
+    assert isinstance(extra_id, str) and extra_id
+
+    # Calling /events with only session_id should start from the
+    # cursor, returning only the extra event for this session.
+    resp = server_mod.list_events(session_id=session_id, app_instance=app)
+    payload = resp.get("events") or []
+
+    returned_ids = {ev.get("event_id") for ev in payload}
+    assert extra_id in returned_ids
+    # Older events (including the checkpoint itself) should not be
+    # included in this batch.
+    assert cursor_id not in returned_ids
+
+
+def test_events_endpoint_compacts_partials(tmp_path: Path) -> None:
+    """GET /events omits redundant partials when a final is present.
+
+    When a batch contains both partial and final events for the same
+    request, only the final should be returned for that request.
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    # Publish a sequence of partial events followed by a final for the
+    # same (session_id, request_id) pair.
+    request_id = "req-1"
+    app.publish_event(
+        {"type": "partial", "session_id": session_id, "request_id": request_id}
+    )
+    app.publish_event(
+        {"type": "partial", "session_id": session_id, "request_id": request_id}
+    )
+    app.publish_event(
+        {
+            "type": "final",
+            "session_id": session_id,
+            "request_id": request_id,
+            "messages": [
+                {"role": "assistant", "content": "done", "metadata": {}},
+            ],
+        }
+    )
+
+    resp = server_mod.list_events(session_id=session_id, app_instance=app)
+    payload = resp.get("events") or []
+
+    types = [ev.get("type") for ev in payload if ev.get("session_id") == session_id]
+    # Final must be present.
+    assert "final" in types
+    # All partials for this request should have been compacted away.
+    assert "partial" not in [
+        ev.get("type")
+        for ev in payload
+        if ev.get("session_id") == session_id and ev.get("request_id") == request_id
+    ]
+
+
+def test_events_endpoint_merges_consecutive_partials(tmp_path: Path) -> None:
+    """GET /events merges consecutive partials for the same request.
+
+    When a batch contains only partial events for a request (no
+    final yet), consecutive partials should be merged so that callers
+    receive a single event with concatenated content/reasoning.
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    request_id = "req-merge"
+    # Two partials with both reasoning and content pieces.
+    app.publish_event(
+        {
+            "type": "partial",
+            "session_id": session_id,
+            "request_id": request_id,
+            "message": {
+                "role": "assistant",
+                "content": "Hello, ",
+                "metadata": {"reasoning": "think1 "},
+            },
+        }
+    )
+    app.publish_event(
+        {
+            "type": "partial",
+            "session_id": session_id,
+            "request_id": request_id,
+            "message": {
+                "role": "assistant",
+                "content": "world",
+                "metadata": {"reasoning": "think2"},
+            },
+        }
+    )
+
+    resp = server_mod.list_events(session_id=session_id, app_instance=app)
+    payload = resp.get("events") or []
+
+    # For this request we should see a single merged partial.
+    partials = [
+        ev
+        for ev in payload
+        if ev.get("type") == "partial" and ev.get("session_id") == session_id
+    ]
+    assert len(partials) == 1
+
+    msg = partials[0].get("message") or {}
+    md = msg.get("metadata") or {}
+    assert msg.get("content") == "Hello, world"
+    assert md.get("reasoning") == "think1 think2"
+
+
+def test_events_endpoint_respects_compaction_flags(tmp_path: Path) -> None:
+    """Disabling compaction flags leaves event batches unchanged.
+
+    This test toggles the AgentApplication compaction flags to verify
+    that they can be used to disable dropping and merging behavior for
+    debugging and tests.
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+    request_id = "req-flags"
+
+    # Publish two partials and a final.
+    ev1 = app.publish_event(
+        {
+            "type": "partial",
+            "session_id": session_id,
+            "request_id": request_id,
+            "message": {"role": "assistant", "content": "a", "metadata": {}},
+        }
+    )
+    ev2 = app.publish_event(
+        {
+            "type": "partial",
+            "session_id": session_id,
+            "request_id": request_id,
+            "message": {"role": "assistant", "content": "b", "metadata": {}},
+        }
+    )
+    ev3 = app.publish_event(
+        {
+            "type": "final",
+            "session_id": session_id,
+            "request_id": request_id,
+            "messages": [
+                {"role": "assistant", "content": "ab", "metadata": {}},
+            ],
+        }
+    )
+
+    # Disable all compaction.
+    app._enable_event_compaction = False
+
+    resp = server_mod.list_events(session_id=session_id, app_instance=app)
+    payload = resp.get("events") or []
+
+    ids = [ev.get("event_id") for ev in payload]
+    assert ids[:3] == [ev1.get("event_id"), ev2.get("event_id"), ev3.get("event_id")]
+
+
+def test_events_endpoint_compacts_tool_partials(tmp_path: Path) -> None:
+    """GET /events drops tool_partial events once tool_results is present."""
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+    request_id = "req-tools"
+    tool_call_id = "call-1"
+
+    # Two streaming tool_partial chunks followed by a final tool_results.
+    app.publish_event(
+        {
+            "type": "tool_partial",
+            "session_id": session_id,
+            "request_id": request_id,
+            "tool_call_id": tool_call_id,
+            "phase": "stream",
+            "payload": {"part": "alpha "},
+        }
+    )
+    app.publish_event(
+        {
+            "type": "tool_partial",
+            "session_id": session_id,
+            "request_id": request_id,
+            "tool_call_id": tool_call_id,
+            "phase": "stream",
+            "payload": {"part": "beta"},
+        }
+    )
+    app.publish_event(
+        {
+            "type": "tool_results",
+            "session_id": session_id,
+            "request_id": request_id,
+            "messages": [
+                {
+                    "role": "tool",
+                    "content": "final",
+                    "metadata": {"tool_call_id": tool_call_id},
+                }
+            ],
+        }
+    )
+
+    resp = server_mod.list_events(session_id=session_id, app_instance=app)
+    payload = resp.get("events") or []
+
+    types = [
+        ev.get("type")
+        for ev in payload
+        if ev.get("session_id") == session_id and ev.get("request_id") == request_id
+    ]
+    assert "tool_results" in types
+    assert "tool_partial" not in types
+
+
+def test_events_endpoint_preserves_inflight_partials(tmp_path: Path) -> None:
+    """GET /events keeps in-flight partials when no final/results exist.
+
+    For requests that have not yet produced a final or tool_results
+    event, partial and tool_partial events should not be dropped by the
+    compaction pass.
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+    request_id = "req-inflight"
+
+    app.publish_event(
+        {
+            "type": "partial",
+            "session_id": session_id,
+            "request_id": request_id,
+            "message": {"role": "assistant", "content": "a", "metadata": {}},
+        }
+    )
+    app.publish_event(
+        {
+            "type": "tool_partial",
+            "session_id": session_id,
+            "request_id": request_id,
+            "tool_call_id": "tc1",
+            "phase": "stream",
+            "payload": {"part": "x"},
+        }
+    )
+
+    resp = server_mod.list_events(session_id=session_id, app_instance=app)
+    payload = resp.get("events") or []
+
+    types = [
+        ev.get("type")
+        for ev in payload
+        if ev.get("session_id") == session_id and ev.get("request_id") == request_id
+    ]
+    # Both partial and tool_partial should still be present (they may
+    # be merged with any additional partials, but not dropped).
+    assert "partial" in types
+    assert "tool_partial" in types
+
+
 def test_system_message_feature_adds_system_message_after_second_user_message(tmp_path: Path) -> None:
     """Application-level test for SystemMessageFeature integration.
 
