@@ -41,6 +41,16 @@ export interface ErrorEvent extends BaseEvent {
   detail?: string;
 }
 
+export interface AssistantMessageEvent extends BaseEvent {
+  type: 'assistant_message';
+  phase: 'start' | 'end';
+}
+
+export interface PartialEvent extends BaseEvent {
+  type: 'partial';
+  message: ApiMessage;
+}
+
 export interface CheckpointEvent extends BaseEvent {
   type: 'checkpoint';
   timestamp?: string;
@@ -52,6 +62,8 @@ export type Event =
    | ToolResultsEvent
    | RequestStartedEvent
    | ErrorEvent
+   | AssistantMessageEvent
+   | PartialEvent
   | RequestCompletedEvent
   | CheckpointEvent
   | BaseEvent;
