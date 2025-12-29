@@ -719,11 +719,17 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                   content: '',
                   metadata: null,
                 };
+          const nextReasoning = base.reasoning + reasoningDelta;
+          const mergedMetadata = {
+            ...(base.metadata || {}),
+            ...(rawMessage.metadata || {}),
+            reasoning: nextReasoning,
+          } as Record<string, any>;
           return {
             requestId: base.requestId,
-            reasoning: base.reasoning + reasoningDelta,
+            reasoning: nextReasoning,
             content: base.content + contentDelta,
-            metadata: rawMessage.metadata ?? base.metadata,
+            metadata: mergedMetadata,
           };
         });
       } else if (ev.type === 'final') {
@@ -853,32 +859,25 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	          />
         );
       })}
-      {streamingRow && (
-        <>
-          {streamingRow.reasoning && (
-            <View style={styles.reasoningContainer}>
-              <Text style={styles.reasoningLabel}>thinking:</Text>
-              <Text style={styles.reasoningText}>{streamingRow.reasoning}</Text>
-            </View>
-          )}
-          {streamingRow.content && (
-            <MessageBubble
-              key={`stream-${streamingRow.requestId}`}
-              index={messages.length > 0 ? messages[messages.length - 1].index + 1 : 0}
-              message={{
-                role: 'assistant',
-                content: streamingRow.content,
-                metadata: streamingRow.metadata || {},
-              }}
-              pinnedActions={[]}
-              allowedActions={[]}
-              onAction={handleMessageAction}
-              onChangePinnedForRole={handleChangePinnedForRole}
-              isEditing={false}
-              renderMode="markdown"
-            />
-          )}
-        </>
+      {streamingRow && (streamingRow.content || streamingRow.reasoning) && (
+        <MessageBubble
+          key={`stream-${streamingRow.requestId}`}
+          index={messages.length > 0 ? messages[messages.length - 1].index + 1 : 0}
+          message={{
+            role: 'assistant',
+            content: streamingRow.content,
+            metadata: {
+              ...(streamingRow.metadata || {}),
+              reasoning: streamingRow.reasoning,
+            },
+          }}
+          pinnedActions={[]}
+          allowedActions={[]}
+          onAction={handleMessageAction}
+          onChangePinnedForRole={handleChangePinnedForRole}
+          isEditing={false}
+          renderMode="markdown"
+        />
       )}
       </ScrollView>
 
@@ -1164,21 +1163,6 @@ const createStyles = (theme: Theme) =>
     messagesContainer: {
       flex: 1,
       marginBottom: 8,
-    },
-    reasoningContainer: {
-      marginHorizontal: 4,
-      marginBottom: 4,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-    },
-    reasoningLabel: {
-      fontSize: 11,
-      color: theme.textSecondary,
-      marginBottom: 2,
-    },
-    reasoningText: {
-      fontSize: 12,
-      color: theme.textSecondary,
     },
     errorContainer: {
       marginHorizontal: 4,
