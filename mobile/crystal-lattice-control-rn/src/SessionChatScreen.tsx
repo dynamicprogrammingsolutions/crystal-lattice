@@ -54,7 +54,8 @@ interface SessionChatScreenProps {
   sessionId: string;
   cachedMessages: IndexedMessage[] | null;
   lastLoadedAt: number | null;
-  onUpdateCache: (messages: IndexedMessage[]) => void;
+  cachedCursorEventId: string | null;
+  onUpdateCache: (messages: IndexedMessage[], cursorEventId: string | null) => void;
   onBack: () => void;
   onNavigateToSession?: (sessionId: string) => void;
   initialComposeText: string;
@@ -72,6 +73,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   sessionId,
   cachedMessages,
   lastLoadedAt,
+  cachedCursorEventId,
   onUpdateCache,
   onBack,
   onNavigateToSession,
@@ -111,7 +113,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingText, setEditingText] = useState('');
   const [shouldAutoScroll, setShouldAutoScroll] = useState(false);
-  const [initialCheckpointId, setInitialCheckpointId] = useState<string | null>(null);
+  const [initialCheckpointId, setInitialCheckpointId] = useState<string | null>(
+    cachedCursorEventId,
+  );
+  const [snapshotReady, setSnapshotReady] = useState<boolean>(!!cachedMessages);
   const [debugVisible, setDebugVisible] = useState(false);
   const [debugEvents, setDebugEvents] = useState<Event[]>([]);
   const [activeError, setActiveError] = useState<
@@ -231,7 +236,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 		        hasAutoScrolledRef.current = true;
 		      }
 		      setLastReloadAt(new Date());
-		      onUpdateCache(list);
+      onUpdateCache(list, cursor_event_id ?? null);
+      setSnapshotReady(true);
     } catch (err: any) {
       console.log('Failed to load messages', err);
       const message = err?.message || 'Failed to load messages';
@@ -247,6 +253,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       setLastReloadAt(new Date(lastLoadedAt));
     }
   }, [cachedMessages, connectionId, sessionId, lastLoadedAt]);
+
+  useEffect(() => {
+    if (sessionId && connectionId !== null) {
+      setInitialCheckpointId(cachedCursorEventId ?? null);
+      setSnapshotReady(!!cachedMessages);
+    }
+  }, [cachedCursorEventId, cachedMessages, sessionId, connectionId]);
 
   useEffect(() => {
     if (!cachedMessages && adapter) {
@@ -733,7 +746,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     appendEventsToDebugBuffer(events);
   };
 
-  const eventsEnabled = !!(adapter && sessionId);
+  const eventsEnabled = !!(adapter && sessionId && snapshotReady);
   const { lastEventId: _lastEventId, status: _eventsStatus } = useSessionEvents(
     {
       adapter,
