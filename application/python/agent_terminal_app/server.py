@@ -989,13 +989,35 @@ def list_events(
     """List events from the application's event store."""
 
     store = app_instance.get_event_store()
+    # Global bootstrap: when no filters or cursor are provided, do not
+    # return the entire history. Instead, expose only the latest
+    # event_id so that clients can start polling from "now".
+    if since_id is None and session_id is None and request_id is None:
+        latest_event_id: Optional[str]
+        try:
+            latest_event_id = store.get_latest_event_id()
+        except AttributeError:  # pragma: no cover - defensive
+            latest_event_id = None
+        return {"events": [], "latest_event_id": latest_event_id}
+
+    effective_since_id = since_id
+    # When filtering by session but no since_id is provided, default to
+    # the persisted cursor for that session so that polling does not
+    # replay the entire history.
+    if effective_since_id is None and session_id is not None:
+        try:
+            effective_since_id = app_instance.get_session_cursor_event_id(session_id)
+        except Exception:  # pragma: no cover - defensive
+            effective_since_id = None
+
     events = store.list(
-        since_id=since_id,
+        since_id=effective_since_id,
         request_id=request_id,
         session_id=session_id,
         limit=limit,
     )
-    return {"events": events}
+    compacted = app_instance.compact_events(events)
+    return {"events": compacted}
 
 
 @app.post("/requests/{request_id}/cancel")

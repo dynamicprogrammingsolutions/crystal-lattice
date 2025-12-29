@@ -206,7 +206,12 @@ class TerminalApplication:
         self._core = core
         self._base_config = base_config
         self._session = session
-        self._last_event_id = None
+        # Resume polling from the persisted cursor for this session so
+        # that switching does not replay the entire event history.
+        try:
+            self._last_event_id = self._app.get_session_cursor_event_id(session.session_id)
+        except Exception:  # pragma: no cover - defensive
+            self._last_event_id = None
         return session
 
     # ------------------------------------------------------------------
@@ -678,14 +683,15 @@ class TerminalApplication:
             return []
 
         store = self._app.get_event_store()
-        events = store.list(
+        raw_events = store.list(
             since_id=self._last_event_id,
             request_id=None,
             session_id=session.session_id,
             limit=limit,
         )
-        if events:
-            last = events[-1].get("event_id")
+        events = self._app.compact_events(raw_events)
+        if raw_events:
+            last = raw_events[-1].get("event_id")
             if isinstance(last, str):
                 self._last_event_id = last
         return events

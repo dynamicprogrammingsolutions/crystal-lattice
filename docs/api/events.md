@@ -36,6 +36,17 @@ increasing string `event_id` when published.
     publishes all yielded events into the shared event store.
   - `GET /events` returns a window of events filtered by
     `since_id`, `session_id`, and/or `request_id`.
+    - When called with ``session_id`` but no ``since_id``, the server
+      defaults to the per-session cursor (``cursor_event_id``) so that
+      polling does not replay the entire history for that session.
+    - When called with no ``since_id``, no ``session_id``, and no
+      ``request_id``, the server returns an empty ``events`` list and a
+      ``latest_event_id`` field suitable for bootstrapping polling
+      without replaying existing events.
+    - For non-bootstrap calls, the server applies a lightweight
+      compaction pass that drops redundant ``partial`` / ``tool_partial``
+      events before terminal events and merges consecutive partials for
+      the same request into a single event.
   - Session/message routes publish additional lifecycle events
     (`session_created`, `message_appended`, etc.).
 
@@ -454,7 +465,9 @@ Emitted when one or more messages are deleted from a session.
 
 - **HTTP API**:
   - `application/python/agent_terminal_app/server.py`
-    - `GET /events` exposes raw stored events for web/mobile clients.
+    - `GET /events` exposes stored events for web/mobile clients,
+      applying cursor-aware defaults and basic compaction as described
+      above.
 
 - **Bridge + mobile**:
   - `application/python/agent_terminal_app/bridge_client.py`

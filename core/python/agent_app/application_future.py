@@ -103,6 +103,13 @@ class AgentApplication:
         self._tool_loop_cfg = _ToolLoopConfig()
         self._cancelled_requests: set[str] = set()
 
+        # Event compaction controls. These are primarily intended for
+        # debugging and tests; in normal operation they remain enabled
+        # so that HTTP and terminal polling see compacted batches.
+        self._enable_event_compaction: bool = True
+        self._enable_drop_redundant_partials: bool = True
+        self._enable_merge_consecutive_partials: bool = True
+
         # Per-session locks and cursor tracking are maintained at the
         # application layer so that multiple frontends (HTTP server,
         # terminal) can share consistent semantics for event cursors.
@@ -296,6 +303,181 @@ class AgentApplication:
         """Return the configured event store for this application."""
 
         return self._event_store
+
+    def compact_events(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Return a compacted view of ``events``.
+
+        This helper removes redundant ``partial`` and ``tool_partial``
+        events that precede terminal events (``final`` or
+        ``tool_results``) for the same ``session_id``/``request_id``
+        pair within a single batch. It does not modify the underlying
+        event store and preserves the order of all kept events.
+        """
+
+        if not events or not self._enable_event_compaction:
+            return events
+
+        # ------------------------------------------------------------------
+        # Pass 1: drop redundant partials that precede terminal events
+        # ------------------------------------------------------------------
+
+        if self._enable_drop_redundant_partials:
+            keep_flags: List[bool] = [True] * len(events)
+            seen_final: Dict[Tuple[Optional[str], Optional[str]], bool] = {}
+            seen_tool_results: Dict[Tuple[Optional[str], Optional[str]], bool] = {}
+
+            for idx in range(len(events) - 1, -1, -1):
+                ev = events[idx]
+                etype = ev.get("type")
+                session_id = ev.get("session_id")
+                request_id = ev.get("request_id")
+                key = (session_id, request_id)
+
+                if etype == "final":
+                    seen_final[key] = True
+                    keep_flags[idx] = True
+                elif etype == "tool_results":
+                    seen_tool_results[key] = True
+                    keep_flags[idx] = True
+                elif etype == "partial":
+                    if seen_final.get(key):
+                        keep_flags[idx] = False
+                    else:
+                        keep_flags[idx] = True
+                elif etype == "tool_partial":
+                    if seen_tool_results.get(key):
+                        keep_flags[idx] = False
+                    else:
+                        keep_flags[idx] = True
+                else:
+                    keep_flags[idx] = True
+
+            if all(keep_flags):
+                dropped = events
+            else:
+                dropped = [ev for idx, ev in enumerate(events) if keep_flags[idx]]
+        else:
+            dropped = events
+
+        # ------------------------------------------------------------------
+        # Pass 2: merge consecutive partial/tool_partial events where possible
+        # ------------------------------------------------------------------
+
+        def _merge_two(a: Dict[str, Any], b: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+            """Return a merged event for ``a`` and ``b`` or ``None``.
+
+            Only consecutive events of type ``partial`` or
+            ``tool_partial`` with matching ``session_id`` and
+            ``request_id`` are considered for merging.
+            """
+
+            atype = a.get("type")
+            btype = b.get("type")
+            if atype != btype:
+                return None
+
+            session_id_a = a.get("session_id")
+            session_id_b = b.get("session_id")
+            request_id_a = a.get("request_id")
+            request_id_b = b.get("request_id")
+            if session_id_a != session_id_b or request_id_a != request_id_b:
+                return None
+
+            if atype == "partial":
+                msg_a = a.get("message") or {}
+                msg_b = b.get("message") or {}
+                if not isinstance(msg_a, dict) or not isinstance(msg_b, dict):
+                    return None
+
+                md_a = msg_a.get("metadata") or {}
+                md_b = msg_b.get("metadata") or {}
+                if not isinstance(md_a, dict) or not isinstance(md_b, dict):
+                    md_a = {}
+                    md_b = {}
+
+                reasoning_a = md_a.get("reasoning")
+                reasoning_b = md_b.get("reasoning")
+                content_a = msg_a.get("content")
+                content_b = msg_b.get("content")
+
+                has_reasoning = isinstance(reasoning_a, str) or isinstance(reasoning_b, str)
+                has_content = isinstance(content_a, str) or isinstance(content_b, str)
+                if not (has_reasoning or has_content):
+                    return None
+
+                merged_event = dict(b)
+                merged_msg = dict(msg_b)
+                merged_md = dict(md_b)
+
+                if has_reasoning:
+                    ra = reasoning_a if isinstance(reasoning_a, str) else ""
+                    rb = reasoning_b if isinstance(reasoning_b, str) else ""
+                    merged_md["reasoning"] = ra + rb
+
+                if has_content:
+                    ca = content_a if isinstance(content_a, str) else ""
+                    cb = content_b if isinstance(content_b, str) else ""
+                    merged_msg["content"] = ca + cb
+
+                merged_msg["metadata"] = merged_md
+                merged_event["message"] = merged_msg
+                return merged_event
+
+            if atype == "tool_partial":
+                # Tool partials stream tool output via payload.part.
+                tool_id_a = a.get("tool_call_id")
+                tool_id_b = b.get("tool_call_id")
+                if tool_id_a != tool_id_b:
+                    return None
+
+                phase_a = a.get("phase")
+                phase_b = b.get("phase")
+                # Do not merge "end" events carrying the final result.
+                if phase_a == "end" or phase_b == "end":
+                    return None
+
+                payload_a = a.get("payload") or {}
+                payload_b = b.get("payload") or {}
+                if not isinstance(payload_a, dict) or not isinstance(payload_b, dict):
+                    return None
+
+                part_a = payload_a.get("part")
+                part_b = payload_b.get("part")
+                if not (isinstance(part_a, str) or isinstance(part_b, str)):
+                    return None
+
+                merged_event = dict(b)
+                merged_payload = dict(payload_b)
+                pa = part_a if isinstance(part_a, str) else ""
+                pb = part_b if isinstance(part_b, str) else ""
+                merged_payload["part"] = pa + pb
+                merged_event["payload"] = merged_payload
+                return merged_event
+
+            return None
+
+        if not self._enable_merge_consecutive_partials:
+            return dropped
+
+        merged: List[Dict[str, Any]] = []
+        current: Optional[Dict[str, Any]] = None
+
+        for ev in dropped:
+            if current is None:
+                current = ev
+                continue
+
+            combined = _merge_two(current, ev)
+            if combined is not None:
+                current = combined
+            else:
+                merged.append(current)
+                current = ev
+
+        if current is not None:
+            merged.append(current)
+
+        return merged
 
     def advance_session_cursor(self, session_id: str, event_id: str) -> None:
         """Advance the per-session event cursor to ``event_id``.
