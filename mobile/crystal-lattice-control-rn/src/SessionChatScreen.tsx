@@ -39,10 +39,12 @@ import { selectDisplayContent } from './messageUtils';
 import { useTheme, type Theme } from './theme';
 import { useSessionEvents } from './useSessionEvents';
 import type {
+  AssistantMessageEvent,
   ErrorEvent,
   Event,
   FinalEvent,
   MessageAppendedEvent,
+  PartialEvent,
   ToolResultsEvent,
 } from './eventsTypes';
 
@@ -114,6 +116,15 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [debugEvents, setDebugEvents] = useState<Event[]>([]);
   const [activeError, setActiveError] = useState<
     { detail: string; requestId: string | null } | null
+  >(null);
+  const [streamingRow, setStreamingRow] = useState<
+    | {
+        requestId: string;
+        reasoning: string;
+        content: string;
+        metadata?: Record<string, any> | null;
+      }
+    | null
   >(null);
   const scrollViewRef = useRef<ScrollView | null>(null);
   const composeTextRef = useRef<string>(initialComposeText ?? '');
@@ -214,6 +225,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 		      );
 		      setMessages(list);
       setInitialCheckpointId(cursor_event_id ?? null);
+      setStreamingRow(null);
 		      if (!hasAutoScrolledRef.current) {
 		        setShouldAutoScroll(true);
 		        hasAutoScrolledRef.current = true;
@@ -313,6 +325,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         await apiAppendMessage(adapter, sessionId, 'user', text);
       }
       setActiveError(null);
+      setStreamingRow(null);
       await apiSend(adapter, sessionId);
       await loadMessages();
         setComposeText('');
@@ -392,6 +405,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const handleSessionAction = async (action: SessionActionKey) => {
     if (action === 'reload') {
       setActiveError(null);
+      setStreamingRow(null);
       await loadMessages();
       return;
     }
@@ -404,6 +418,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }
       try {
         setActiveError(null);
+        setStreamingRow(null);
         await apiSend(adapter, sessionId);
         await loadMessages();
       } catch (err: any) {
@@ -658,9 +673,49 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
     relevant.forEach((ev) => {
       if (ev.type === 'request_started') {
+        // New request: clear error and streaming state.
         setActiveError(null);
+        setStreamingRow(null);
+      } else if (ev.type === 'assistant_message') {
+        const msgEv = ev as AssistantMessageEvent;
+        if (msgEv.phase === 'start') {
+          setStreamingRow({
+            requestId: msgEv.request_id ?? 'unknown',
+            reasoning: '',
+            content: '',
+            metadata: null,
+          });
+        }
+      } else if (ev.type === 'partial') {
+        const p = ev as PartialEvent;
+        const rawMessage = p.message || ({} as ApiMessage);
+        const rawMetadata = (rawMessage.metadata || {}) as Record<string, any>;
+        const reasoningDelta =
+          typeof rawMetadata.reasoning === 'string' ? rawMetadata.reasoning : '';
+        const contentDelta =
+          typeof rawMessage.content === 'string' ? rawMessage.content : '';
+        if (!reasoningDelta && !contentDelta) return;
+        const evRequestId = p.request_id ?? null;
+        setStreamingRow((prev) => {
+          const base =
+            prev && (!evRequestId || prev.requestId === evRequestId)
+              ? prev
+              : {
+                  requestId: evRequestId || 'unknown',
+                  reasoning: '',
+                  content: '',
+                  metadata: null,
+                };
+          return {
+            requestId: base.requestId,
+            reasoning: base.reasoning + reasoningDelta,
+            content: base.content + contentDelta,
+            metadata: rawMessage.metadata ?? base.metadata,
+          };
+        });
       } else if (ev.type === 'final') {
         applyFinalEvent(ev as FinalEvent);
+        setStreamingRow(null);
       } else if (ev.type === 'message_appended') {
         applyMessageAppendedEvent(ev as MessageAppendedEvent);
       } else if (ev.type === 'tool_results') {
@@ -730,7 +785,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        </View>
 	      )}
 	
-	      <ScrollView
+      <ScrollView
 	        style={styles.messagesContainer}
 	        ref={scrollViewRef}
 	        onScroll={(event) => {
@@ -756,7 +811,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	            setShouldAutoScroll(false);
 	          }
 	        }}
-	      >
+      >
       {messages.map((m) => {
 	        const role = m.message.role || 'unknown';
 	        const allowedActions = ALL_MESSAGE_ACTIONS
@@ -783,8 +838,35 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	            onCancelEdit={handleCancelEditMessage}
 	            renderMode={renderMode}
 	          />
-	        );
-	      })}
+        );
+      })}
+      {streamingRow && (
+        <>
+          {streamingRow.reasoning && (
+            <View style={styles.reasoningContainer}>
+              <Text style={styles.reasoningLabel}>thinking:</Text>
+              <Text style={styles.reasoningText}>{streamingRow.reasoning}</Text>
+            </View>
+          )}
+          {streamingRow.content && (
+            <MessageBubble
+              key={`stream-${streamingRow.requestId}`}
+              index={messages.length > 0 ? messages[messages.length - 1].index + 1 : 0}
+              message={{
+                role: 'assistant',
+                content: streamingRow.content,
+                metadata: streamingRow.metadata || {},
+              }}
+              pinnedActions={[]}
+              allowedActions={[]}
+              onAction={handleMessageAction}
+              onChangePinnedForRole={handleChangePinnedForRole}
+              isEditing={false}
+              renderMode="markdown"
+            />
+          )}
+        </>
+      )}
       </ScrollView>
 
       {activeError && (
@@ -1069,6 +1151,21 @@ const createStyles = (theme: Theme) =>
     messagesContainer: {
       flex: 1,
       marginBottom: 8,
+    },
+    reasoningContainer: {
+      marginHorizontal: 4,
+      marginBottom: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+    },
+    reasoningLabel: {
+      fontSize: 11,
+      color: theme.textSecondary,
+      marginBottom: 2,
+    },
+    reasoningText: {
+      fontSize: 12,
+      color: theme.textSecondary,
     },
     errorContainer: {
       marginHorizontal: 4,
