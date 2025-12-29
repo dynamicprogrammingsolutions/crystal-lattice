@@ -110,13 +110,6 @@ class AgentApplication:
         self._enable_drop_redundant_partials: bool = True
         self._enable_merge_consecutive_partials: bool = True
 
-        # Per-session locks and cursor tracking are maintained at the
-        # application layer so that multiple frontends (HTTP server,
-        # terminal) can share consistent semantics for event cursors.
-        self._session_locks: Dict[str, Lock] = {}
-        self._session_locks_lock = Lock()
-        self._session_cursor_event_id_by_session: Dict[str, Optional[str]] = {}
-
         # Cache per-agent base configs to avoid recomputing on every call.
         agents = resolved_config.get("agents") or {}
         self._agent_base_configs: Dict[str, Dict[str, Any]] = {}
@@ -138,19 +131,9 @@ class AgentApplication:
 
     @contextmanager
     def acquire_session_lock(self, session_id: str) -> Iterator[None]:
-        """Yield under a process-local lock for ``session_id``.
+        """Yield under the event store's lock for ``session_id``."""
 
-        This helper is used by both HTTP and terminal frontends to
-        serialize access to a given session's persisted state and
-        checkpoint cursor.
-        """
-
-        with self._session_locks_lock:
-            lock = self._session_locks.get(session_id)
-            if lock is None:
-                lock = Lock()
-                self._session_locks[session_id] = lock
-        with lock:
+        with self._event_store.acquire_session_lock(session_id):
             yield
 
     def _new_request_id(self) -> str:
@@ -487,13 +470,11 @@ class AgentApplication:
         given ``session_id``.
         """
 
-        if isinstance(event_id, str):
-            self._session_cursor_event_id_by_session[session_id] = event_id
+        self._event_store.advance_session_cursor(session_id, event_id)
 
     def get_session_cursor_event_id(self, session_id: str) -> Optional[str]:
         """Return the latest cursor event id for ``session_id``."""
-
-        return self._session_cursor_event_id_by_session.get(session_id)
+        return self._event_store.get_session_cursor_event_id(session_id)
 
     # Backwards-compatible alias; prefer get_session_cursor_event_id.
     def get_checkpoint_event_id(self, session_id: str) -> Optional[str]:

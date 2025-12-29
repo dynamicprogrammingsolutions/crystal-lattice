@@ -984,11 +984,28 @@ def list_events(
     request_id: Optional[str] = None,
     session_id: Optional[str] = None,
     limit: int = 100,
+    internal_limit: int = 5000,
     app_instance: AgentApplication = Depends(get_agent_app),
 ) -> Dict[str, Any]:
-    """List events from the application's event store."""
+    """List events from the application's event store.
+
+    The ``limit`` parameter (default 5000) is applied to the raw
+    un-compacted event list retrieved from the store. After the
+    compaction pass, the response payload is further capped to a
+    smaller window so that clients do not receive excessively large
+    batches even when many raw events collapse into a handful of
+    logical entries.
+    """
 
     store = app_instance.get_event_store()
+    # ``internal_limit`` bounds the number of raw events loaded from
+    # the store so that compaction has sufficient context without
+    # unbounded memory usage. ``limit`` caps the number of events
+    # returned *after* compaction.
+    if internal_limit <= 0:
+        internal_limit = 5000
+    if limit <= 0:
+        limit = 100
     # Global bootstrap: when no filters or cursor are provided, do not
     # return the entire history. Instead, expose only the latest
     # event_id so that clients can start polling from "now".
@@ -1014,9 +1031,11 @@ def list_events(
         since_id=effective_since_id,
         request_id=request_id,
         session_id=session_id,
-        limit=limit,
+        limit=internal_limit,
     )
     compacted = app_instance.compact_events(events)
+    if len(compacted) > limit:
+        compacted = compacted[:limit]
     return {"events": compacted}
 
 
