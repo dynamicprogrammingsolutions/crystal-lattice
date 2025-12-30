@@ -110,6 +110,42 @@ def test_server_flow_with_echo_provider(tmp_path: Path) -> None:
     assert "request_started" in kinds or "final" in kinds
 
 
+def test_get_session_ui_elements_returns_config_elements(tmp_path: Path) -> None:
+    """GET /sessions/{session_id}/ui-elements exposes config UI entries.
+
+    Uses the OpenRouter application-layer config so that real plugin UI
+    elements (reasoning, web context, etc.) are present in the schema.
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_openrouter_app_layer.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    resp = server_mod.get_session_ui_elements(session_id, app_instance=app)
+    elements = resp.get("elements")
+    assert isinstance(elements, list)
+
+    keys = {el.get("key") for el in elements if isinstance(el, dict)}
+    # openrouter_reasoning_extension exposes these keys in its UI schema.
+    assert "enable_reasoning" in keys
+    assert "reasoning_effort" in keys
+
+    # Ensure that only config-style elements are returned; message_footer
+    # and status_bar entries should be filtered out.
+    ui_types = {el.get("ui_type") for el in elements if isinstance(el, dict)}
+    # Some elements may omit ui_type entirely (defaults to "config").
+    assert "message_footer" not in ui_types
+    assert "status_bar" not in ui_types
+
+
 def test_run_send_request_background_helper_sends_and_persists(tmp_path: Path) -> None:
     """Internal helper _run_send_request_background mirrors /send behaviour.
 
@@ -161,6 +197,88 @@ def test_run_send_request_background_helper_sends_and_persists(tmp_path: Path) -
     # A checkpoint marker should also have been recorded for this session.
     checkpoint_events = [ev for ev in evs if ev.get("type") == "checkpoint"]
     assert checkpoint_events, "expected at least one checkpoint event for the session"
+
+
+def test_session_overrides_get_and_patch_round_trip(tmp_path: Path) -> None:
+    """GET/PATCH /sessions/{id}/overrides round-trips a single key.
+
+    Verifies that overrides are persisted on the session metadata and
+    exposed again via the GET endpoint.
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_openrouter_app_layer.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    # Initially there should be no overrides.
+    get_resp = server_mod.get_session_overrides(session_id, app_instance=app)
+    assert get_resp == {"overrides": {}}
+
+    # Patch a single override and verify it is persisted.
+    server_mod.patch_session_overrides(
+        session_id,
+        {"key": "reasoning_effort", "value": "high"},
+        app_instance=app,
+    )
+
+    get_resp2 = server_mod.get_session_overrides(session_id, app_instance=app)
+    overrides = get_resp2.get("overrides") or {}
+    assert overrides.get("reasoning_effort") == "high"
+
+    # Confirm that the session metadata was updated on disk.
+    ctx = app.load_session(session_id)
+    assert ctx is not None
+    _core, _base_config, session = ctx
+    md = session.metadata or {}
+    stored = md.get("overrides") or {}
+    assert stored.get("reasoning_effort") == "high"
+
+
+def test_session_overrides_patch_bulk_merges_with_existing(tmp_path: Path) -> None:
+    """PATCH /sessions/{id}/overrides merges bulk values with existing.
+
+    Starts with an override for one key, then bulk-updates another and
+    verifies that both remain in the mapping.
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_openrouter_app_layer.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    # Seed a single-key override.
+    server_mod.patch_session_overrides(
+        session_id,
+        {"key": "enable_reasoning", "value": True},
+        app_instance=app,
+    )
+
+    # Bulk update another key.
+    server_mod.patch_session_overrides(
+        session_id,
+        {"values": {"reasoning_effort": "medium"}},
+        app_instance=app,
+    )
+
+    get_resp = server_mod.get_session_overrides(session_id, app_instance=app)
+    overrides = get_resp.get("overrides") or {}
+    assert overrides.get("enable_reasoning") is True
+    assert overrides.get("reasoning_effort") == "medium"
 
 
 def test_checkpoint_cursor_after_final_event(tmp_path: Path) -> None:
@@ -216,6 +334,119 @@ def test_checkpoint_cursor_after_final_event(tmp_path: Path) -> None:
 
     resp = server_mod.list_session_messages(session_id, app_instance=app)
     assert resp["cursor_event_id"] == last_checkpoint.get("event_id")
+
+
+def test_run_send_request_background_merges_session_and_http_overrides(tmp_path: Path) -> None:
+    """Background send merges metadata overrides with HTTP overrides.
+
+    The per-session overrides stored in session.metadata["overrides"]
+    must be merged with any config_overrides passed via HTTP, with the
+    HTTP-provided values taking precedence on conflicts.
+    """
+
+    from agent_terminal_app import server as server_mod
+    from agent_core import Session
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    # Attach some per-session overrides directly to the stored session.
+    ctx = app.load_session(session_id)
+    assert ctx is not None
+    core, base_config, session = ctx
+    existing_md = session.metadata or {}
+    new_md = {
+        **existing_md,
+        "overrides": {"foo": "session", "both": "session"},
+    }
+    session_with_overrides = Session(
+        session_id=session.session_id,
+        messages=session.messages,
+        metadata=new_md,
+    )
+    app.save_session(session_with_overrides)
+
+    captured: dict[str, Any] = {}
+
+    def _fake_send_request(
+        core_arg: Any,
+        session_arg: Any,
+        base_config_arg: Any,
+        overrides_arg: Dict[str, Any] | None,
+        stream: bool = True,
+        request_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        captured["overrides"] = overrides_arg
+        return []
+
+    # Monkeypatch AgentApplication.send_request.
+    app.send_request = _fake_send_request  # type: ignore[assignment]
+
+    # HTTP-provided overrides should be merged on top.
+    http_overrides = {"bar": "http", "both": "http"}
+    server_mod._run_send_request_background(app, session_id, http_overrides)
+
+    merged = captured.get("overrides") or {}
+    assert merged == {"foo": "session", "both": "http", "bar": "http"}
+
+
+def test_run_send_request_background_uses_session_overrides_when_http_empty(tmp_path: Path) -> None:
+    """Background send uses only session overrides when HTTP none provided."""
+
+    from agent_terminal_app import server as server_mod
+    from agent_core import Session
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    ctx = app.load_session(session_id)
+    assert ctx is not None
+    core, base_config, session = ctx
+    existing_md = session.metadata or {}
+    new_md = {
+        **existing_md,
+        "overrides": {"alpha": 1, "beta": 2},
+    }
+    session_with_overrides = Session(
+        session_id=session.session_id,
+        messages=session.messages,
+        metadata=new_md,
+    )
+    app.save_session(session_with_overrides)
+
+    captured: dict[str, Any] = {}
+
+    def _fake_send_request(
+        core_arg: Any,
+        session_arg: Any,
+        base_config_arg: Any,
+        overrides_arg: Dict[str, Any] | None,
+        stream: bool = True,
+        request_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        captured["overrides"] = overrides_arg
+        return []
+
+    app.send_request = _fake_send_request  # type: ignore[assignment]
+
+    server_mod._run_send_request_background(app, session_id, {})
+
+    merged = captured.get("overrides") or {}
+    assert merged == {"alpha": 1, "beta": 2}
 
 
 def test_list_session_messages_includes_cursor_event_id_after_request(tmp_path: Path) -> None:
