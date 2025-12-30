@@ -5,7 +5,8 @@ export type SessionActionKey =
   | 'copy'
   | 'deleteRange'
   | 'agentSwitch'
-  | 'debugEvents';
+  | 'debugEvents'
+  | 'settings';
 
 export interface SessionActionDefinition {
   key: SessionActionKey;
@@ -55,6 +56,12 @@ export const SESSION_ACTIONS: Record<SessionActionKey, SessionActionDefinition> 
     key: 'debugEvents',
     label: 'Debug events',
     iconName: 'activity',
+    defaultPinned: false,
+  },
+  settings: {
+    key: 'settings',
+    label: 'Settings',
+    iconName: 'settings',
     defaultPinned: false,
   },
 };
