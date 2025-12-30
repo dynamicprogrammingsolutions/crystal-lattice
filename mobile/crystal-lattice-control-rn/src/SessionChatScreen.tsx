@@ -490,6 +490,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }
       return;
     }
+    if (action === 'debugEvents') {
+      setDebugVisible(true);
+      return;
+    }
   };
 
   const getPinnedActionsForRole = (role: string): MessageActionKey[] => {
@@ -779,22 +783,16 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	          <Text style={styles.title} numberOfLines={1}>
 	            {sessionLabel}
 	          </Text>
-	          <View style={styles.headerButtons}>
-	            <SessionActionsBar
-	              pinned={pinnedSessionActions}
-	              onChangePinned={setPinnedSessionActions}
-	              onAction={handleSessionAction}
-	              isActionDisabled={(action) =>
-	                sendInProgress && (action === 'reload' || action === 'resend')
-	              }
-	            />
-	            <TouchableOpacity
-	              style={styles.iconButton}
-	              onPress={() => setDebugVisible(true)}
-	            >
-	              <Icon name="activity" size={18} color={theme.primary} />
-	            </TouchableOpacity>
-	          </View>
+          <View style={styles.headerButtons}>
+            <SessionActionsBar
+              pinned={pinnedSessionActions}
+              onChangePinned={setPinnedSessionActions}
+              onAction={handleSessionAction}
+              isActionDisabled={(action) =>
+                sendInProgress && (action === 'reload' || action === 'resend')
+              }
+            />
+          </View>
 	        </View>
 
 	      {loadingMessages && (
