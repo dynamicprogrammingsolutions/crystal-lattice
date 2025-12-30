@@ -504,36 +504,87 @@ def get_session_ui_elements(
     """
 
     try:
-        with app_instance.acquire_session_lock(session_id):
-            ctx = app_instance.load_session(session_id)
-            if ctx is None:
-                raise KeyError(f"Session {session_id!r} not found")
+        ctx = app_instance.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
 
-            core, _base_config, _session = ctx
+        core, _base_config, _session = ctx
 
-            try:
-                ui_schema = core.get_ui_schema()
-            except Exception:  # pragma: no cover - defensive
-                ui_schema = []
+        try:
+            ui_schema = core.get_ui_schema()
+        except Exception:  # pragma: no cover - defensive
+            ui_schema = []
 
-            def _is_config_element(el: Any) -> bool:
-                if not isinstance(el, dict):
-                    return False
-                key = el.get("key")
-                if not isinstance(key, str) or not key:
-                    return False
-                if el.get("ui_type") == "config":
-                    return True
-                # When ui_type is omitted, default to "config".
-                if "ui_type" not in el:
-                    return True
+        def _is_config_element(el: Any) -> bool:
+            if not isinstance(el, dict):
                 return False
+            key = el.get("key")
+            if not isinstance(key, str) or not key:
+                return False
+            if el.get("ui_type") == "config":
+                return True
+            # When ui_type is omitted, default to "config".
+            if "ui_type" not in el:
+                return True
+            return False
 
-            elements = [el for el in (ui_schema or []) if _is_config_element(el)]
+        elements = [el for el in (ui_schema or []) if _is_config_element(el)]
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     return {"elements": elements}
+
+
+@app.get("/sessions/{session_id}/config/schema")
+def get_session_config_schema(
+    session_id: str,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return flattened config schema entries for the session's agent.
+
+    This exposes the same data used by the terminal application's
+    ``/help config`` command via :meth:`AgentCore.get_config_schema`.
+    """
+
+    try:
+        ctx = app_instance.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+
+        core, _base_config, _session = ctx
+        try:
+            schema_entries = core.get_config_schema()
+        except Exception:  # pragma: no cover - defensive
+            schema_entries = []
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {"schema": schema_entries}
+
+
+@app.get("/sessions/{session_id}/config/base")
+def get_session_base_config(
+    session_id: str,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return the base configuration for the session's agent.
+
+    The base config is the agent-level configuration before any
+    per-session overrides are applied. It corresponds to the "agent
+    config" layer shown in the terminal ``/help config`` output.
+    """
+
+    try:
+        ctx = app_instance.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+
+        _core, base_config, _session = ctx
+        cfg = base_config if isinstance(base_config, dict) else {}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {"config": cfg}
 
 
 @app.post("/sessions/{session_id}/messages")
@@ -609,17 +660,16 @@ def get_session_overrides(
     """
 
     try:
-        with app_instance.acquire_session_lock(session_id):
-            ctx = app_instance.load_session(session_id)
-            if ctx is None:
-                raise KeyError(f"Session {session_id!r} not found")
+        ctx = app_instance.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
 
-            _core, _base_config, session = ctx
-            metadata = session.metadata if isinstance(session.metadata, dict) else {}
-            raw_overrides = metadata.get("overrides")
-            overrides: Dict[str, Any] = (
-                raw_overrides if isinstance(raw_overrides, dict) else {}
-            )
+        _core, _base_config, session = ctx
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        raw_overrides = metadata.get("overrides")
+        overrides: Dict[str, Any] = (
+            raw_overrides if isinstance(raw_overrides, dict) else {}
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -688,6 +738,114 @@ def patch_session_overrides(
 
             new_overrides = {**overrides, **updates}
             new_metadata = {**metadata, "overrides": new_overrides}
+
+            new_session = Session(
+                session_id=session.session_id,
+                messages=session.messages,
+                metadata=new_metadata,
+            )
+            app_instance.save_session(new_session)
+
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {"session": new_session.to_dict()}
+
+
+@app.get("/sessions/{session_id}/config/schema")
+def get_session_config_schema(
+    session_id: str,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return flattened config schema entries for this session's agent.
+
+    The schema entries are derived from ``core.get_config_schema()`` and
+    correspond to the same data used by the terminal application's
+    ``/help config`` output.
+    """
+
+    try:
+        ctx = app_instance.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        core, _base_config, _session = ctx
+        schema = core.get_config_schema()
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception:  # pragma: no cover - defensive
+        schema = []
+
+    return {"schema": schema}
+
+
+@app.get("/sessions/{session_id}/config/base")
+def get_session_base_config(
+    session_id: str,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return the base agent configuration for this session.
+
+    The returned mapping corresponds to the configuration used for this
+    session's agent before applying any per-session overrides.
+    """
+
+    try:
+        ctx = app_instance.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        _core, base_config, _session = ctx
+        cfg = base_config if isinstance(base_config, dict) else {}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {"config": cfg}
+
+
+@app.delete("/sessions/{session_id}/overrides/{key}")
+def delete_session_override(
+    session_id: str,
+    key: str,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Remove a single configuration override for the given session.
+
+    When the key is present under ``session.metadata['overrides']`` it
+    is removed; any remaining overrides are preserved. If no overrides
+    remain after deletion, the ``"overrides"`` key is removed from the
+    metadata entirely. Deleting a non-existent key is treated as a
+    no-op and returns the current session unchanged.
+    """
+
+    if not isinstance(key, str) or not key:
+        raise HTTPException(
+            status_code=400,
+            detail="key must be a non-empty string",
+        )
+
+    try:
+        with app_instance.acquire_session_lock(session_id):
+            ctx = app_instance.load_session(session_id)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
+
+            _core, _base_config, session = ctx
+            metadata = session.metadata if isinstance(session.metadata, dict) else {}
+            raw_overrides = metadata.get("overrides")
+            overrides: Dict[str, Any] = (
+                raw_overrides if isinstance(raw_overrides, dict) else {}
+            )
+
+            if key not in overrides:
+                return {"session": session.to_dict()}
+
+            new_overrides = dict(overrides)
+            new_overrides.pop(key, None)
+
+            new_metadata = dict(metadata)
+            if new_overrides:
+                new_metadata["overrides"] = new_overrides
+            else:
+                new_metadata.pop("overrides", None)
 
             new_session = Session(
                 session_id=session.session_id,

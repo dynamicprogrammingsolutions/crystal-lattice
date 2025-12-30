@@ -146,6 +146,83 @@ def test_get_session_ui_elements_returns_config_elements(tmp_path: Path) -> None
     assert "status_bar" not in ui_types
 
 
+def test_get_session_config_schema_exposes_known_keys(tmp_path: Path) -> None:
+  """GET /sessions/{id}/config/schema returns flattened config entries.
+
+  Uses the OpenRouter application-layer config so that plugin config
+  schema entries are present and can be queried by key.
+  """
+
+  from agent_terminal_app import server as server_mod
+
+  base_dir = Path(server_mod.__file__).resolve().parent
+  config_path = base_dir / "config_openrouter_app_layer.json"
+  session_root = tmp_path / "sessions"
+
+  events = InMemoryEventStore()
+  app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+  create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+  session_id = create_resp["session"]["session_id"]
+
+  resp = server_mod.get_session_config_schema(session_id, app_instance=app)
+  schema = resp.get("schema")
+  assert isinstance(schema, list)
+
+  keys = {entry.get("key") for entry in schema if isinstance(entry, dict)}
+  # openrouter_reasoning_extension contributes these keys to the config schema.
+  assert "reasoning_effort" in keys
+  assert "enable_reasoning" in keys
+
+
+def test_get_session_config_schema_exposes_known_keys(tmp_path: Path) -> None:
+  """GET /sessions/{id}/config/schema exposes plugin config entries.
+
+  Uses the OpenRouter application-layer config so that real plugin
+  config schema entries are present.
+  """
+
+  from agent_terminal_app import server as server_mod
+
+  base_dir = Path(server_mod.__file__).resolve().parent
+  config_path = base_dir / "config_openrouter_app_layer.json"
+  session_root = tmp_path / "sessions"
+
+  events = InMemoryEventStore()
+  app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+  create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+  session_id = create_resp["session"]["session_id"]
+
+  resp = server_mod.get_session_config_schema(session_id, app_instance=app)
+  schema = resp.get("schema")
+  assert isinstance(schema, list)
+
+  keys = {entry.get("key") for entry in schema if isinstance(entry, dict)}
+  assert "reasoning_effort" in keys
+  assert "enable_reasoning" in keys
+
+
+def test_get_session_base_config_returns_mapping(tmp_path: Path) -> None:
+  """GET /sessions/{id}/config/base returns a config mapping."""
+
+  from agent_terminal_app import server as server_mod
+
+  base_dir = Path(server_mod.__file__).resolve().parent
+  config_path = base_dir / "config_openrouter_app_layer.json"
+  session_root = tmp_path / "sessions"
+
+  events = InMemoryEventStore()
+  app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+  create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+  session_id = create_resp["session"]["session_id"]
+
+  resp = server_mod.get_session_base_config(session_id, app_instance=app)
+  cfg = resp.get("config")
+  assert isinstance(cfg, dict)
+
+
 def test_run_send_request_background_helper_sends_and_persists(tmp_path: Path) -> None:
     """Internal helper _run_send_request_background mirrors /send behaviour.
 
@@ -279,6 +356,128 @@ def test_session_overrides_patch_bulk_merges_with_existing(tmp_path: Path) -> No
     overrides = get_resp.get("overrides") or {}
     assert overrides.get("enable_reasoning") is True
     assert overrides.get("reasoning_effort") == "medium"
+
+
+def test_delete_session_override_removes_key_and_preserves_others(tmp_path: Path) -> None:
+    """DELETE /sessions/{id}/overrides/{key} removes a single override key."""
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_openrouter_app_layer.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    # Seed two overrides.
+    server_mod.patch_session_overrides(
+        session_id,
+        {"values": {"enable_reasoning": True, "reasoning_effort": "high"}},
+        app_instance=app,
+    )
+
+    # Delete only reasoning_effort.
+    server_mod.delete_session_override(session_id, "reasoning_effort", app_instance=app)
+
+    resp = server_mod.get_session_overrides(session_id, app_instance=app)
+    overrides = resp.get("overrides") or {}
+    assert overrides.get("enable_reasoning") is True
+    assert "reasoning_effort" not in overrides
+
+
+def test_delete_session_override_is_idempotent_for_missing_key(tmp_path: Path) -> None:
+    """Deleting a non-existent override key is a no-op."""
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_openrouter_app_layer.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    # No overrides set; deleting a key should be a no-op.
+    before = server_mod.get_session_overrides(session_id, app_instance=app)
+    server_mod.delete_session_override(session_id, "nonexistent", app_instance=app)
+    after = server_mod.get_session_overrides(session_id, app_instance=app)
+    assert before == after
+
+
+def test_get_session_base_config_returns_mapping(tmp_path: Path) -> None:
+    """GET /sessions/{id}/config/base exposes base agent config as mapping."""
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_openrouter_app_layer.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    resp = server_mod.get_session_base_config(session_id, app_instance=app)
+    cfg = resp.get("config")
+    assert isinstance(cfg, dict)
+
+
+def test_delete_session_override_removes_key_and_preserves_others(tmp_path: Path) -> None:
+    """DELETE /sessions/{id}/overrides/{key} drops only the requested key."""
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_openrouter_app_layer.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    server_mod.patch_session_overrides(
+        session_id,
+        {"values": {"enable_reasoning": True, "reasoning_effort": "high"}},
+        app_instance=app,
+    )
+
+    server_mod.delete_session_override(session_id, "reasoning_effort", app_instance=app)
+
+    get_resp = server_mod.get_session_overrides(session_id, app_instance=app)
+    overrides = get_resp.get("overrides") or {}
+    assert overrides.get("enable_reasoning") is True
+    assert "reasoning_effort" not in overrides
+
+
+def test_delete_session_override_is_idempotent_when_key_missing(tmp_path: Path) -> None:
+    """DELETE /sessions/{id}/overrides/{key} is idempotent for missing keys."""
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_openrouter_app_layer.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    # No overrides set; deleting a non-existent key should not fail.
+    resp = server_mod.delete_session_override(session_id, "nonexistent", app_instance=app)
+    assert isinstance(resp.get("session"), dict)
 
 
 def test_checkpoint_cursor_after_final_event(tmp_path: Path) -> None:

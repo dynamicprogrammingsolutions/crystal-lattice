@@ -262,6 +262,23 @@ export interface SessionOverridesResponse {
   overrides: Record<string, any>;
 }
 
+export interface ConfigSchemaEntry {
+  key: string;
+  plugin?: string;
+  type?: string;
+  default?: any;
+  description?: string;
+  [k: string]: any;
+}
+
+export interface SessionConfigSchemaResponse {
+  schema: ConfigSchemaEntry[];
+}
+
+export interface SessionBaseConfigResponse {
+  config: Record<string, any>;
+}
+
 export async function apiGetSessionUiElements(
   adapter: ConnectionAdapter,
   sessionId: string,
@@ -293,4 +310,37 @@ export async function apiPatchSessionOverrides(
 ): Promise<void> {
   const path = `/sessions/${encodeURIComponent(sessionId)}/overrides`;
   await adapter.patch(path, { values });
+}
+
+export async function apiGetSessionConfigSchema(
+  adapter: ConnectionAdapter,
+  sessionId: string,
+): Promise<ConfigSchemaEntry[]> {
+  const path = `/sessions/${encodeURIComponent(sessionId)}/config/schema`;
+  const data = (await adapter.get(path)) as SessionConfigSchemaResponse | ConfigSchemaEntry[];
+  const schema = Array.isArray((data as any).schema)
+    ? (data as SessionConfigSchemaResponse).schema
+    : (data as ConfigSchemaEntry[]);
+  return Array.isArray(schema) ? schema : [];
+}
+
+export async function apiGetSessionBaseConfig(
+  adapter: ConnectionAdapter,
+  sessionId: string,
+): Promise<Record<string, any>> {
+  const path = `/sessions/${encodeURIComponent(sessionId)}/config/base`;
+  const data = (await adapter.get(path)) as SessionBaseConfigResponse;
+  if (data && data.config && typeof data.config === 'object') {
+    return data.config;
+  }
+  return {};
+}
+
+export async function apiDeleteSessionOverride(
+  adapter: ConnectionAdapter,
+  sessionId: string,
+  key: string,
+): Promise<void> {
+  const path = `/sessions/${encodeURIComponent(sessionId)}/overrides/${encodeURIComponent(key)}`;
+  await adapter.delete(path);
 }
