@@ -33,6 +33,7 @@ import {
 import MessageBubble from './components/MessageBubble';
 import DebugEventsView from './components/DebugEventsView';
 import SessionActionsBar from './components/SessionActionsBar';
+import SessionSettingsModal from './components/SessionSettingsModal';
 import { SESSION_ACTIONS, type SessionActionKey } from './sessionActions';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 import { selectDisplayContent } from './messageUtils';
@@ -131,6 +132,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }
     | null
   >(null);
+  const [settingsVisible, setSettingsVisible] = useState(false);
   const scrollViewRef = useRef<ScrollView | null>(null);
   const composeTextRef = useRef<string>(initialComposeText ?? '');
   const scrollOffsetRef = useRef<number>(initialScrollOffset || 0);
@@ -492,6 +494,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
     if (action === 'debugEvents') {
       setDebugVisible(true);
+      return;
+    }
+    if (action === 'settings') {
+      setSettingsVisible(true);
       return;
     }
   };
@@ -1072,6 +1078,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	          </View>
 	        </View>
 	      </Modal>
+
+	      <SessionSettingsModal
+	        adapter={adapter}
+	        sessionId={sessionId}
+	        visible={settingsVisible}
+	        onRequestClose={() => setSettingsVisible(false)}
+	      />
 	      {debugVisible && (
 	        <View style={styles.debugOverlay}>
 	          <DebugEventsView events={debugEvents} onClose={() => setDebugVisible(false)} />

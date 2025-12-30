@@ -240,3 +240,57 @@ export async function apiDeleteMessagesByRange(
   const data = await adapter.delete(path, payload);
   return data as DeleteMessagesResponse;
 }
+
+// --- Session configuration helpers ---
+
+export interface UiConfigElement {
+  ui_type?: string;
+  type?: string;
+  key: string;
+  label?: string;
+  description?: string;
+  plugin?: string;
+  options?: any;
+  [k: string]: any;
+}
+
+export interface UiElementsResponse {
+  elements: UiConfigElement[];
+}
+
+export interface SessionOverridesResponse {
+  overrides: Record<string, any>;
+}
+
+export async function apiGetSessionUiElements(
+  adapter: ConnectionAdapter,
+  sessionId: string,
+): Promise<UiConfigElement[]> {
+  const path = `/sessions/${encodeURIComponent(sessionId)}/ui-elements`;
+  const data = (await adapter.get(path)) as UiElementsResponse | UiConfigElement[];
+  const elements = Array.isArray((data as any).elements)
+    ? (data as UiElementsResponse).elements
+    : (data as UiConfigElement[]);
+  return Array.isArray(elements) ? elements : [];
+}
+
+export async function apiGetSessionOverrides(
+  adapter: ConnectionAdapter,
+  sessionId: string,
+): Promise<Record<string, any>> {
+  const path = `/sessions/${encodeURIComponent(sessionId)}/overrides`;
+  const data = (await adapter.get(path)) as SessionOverridesResponse;
+  if (data && data.overrides && typeof data.overrides === 'object') {
+    return data.overrides;
+  }
+  return {};
+}
+
+export async function apiPatchSessionOverrides(
+  adapter: ConnectionAdapter,
+  sessionId: string,
+  values: Record<string, any>,
+): Promise<void> {
+  const path = `/sessions/${encodeURIComponent(sessionId)}/overrides`;
+  await adapter.patch(path, { values });
+}
