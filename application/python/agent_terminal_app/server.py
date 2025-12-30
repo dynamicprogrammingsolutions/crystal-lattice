@@ -405,11 +405,31 @@ def _run_send_request_background(
 
         core, base_config, session = ctx
 
+        # Merge per-session configuration overrides stored on the
+        # session metadata with any overrides provided in the HTTP
+        # request. Request-level overrides take precedence. This
+        # mirrors the terminal application's behaviour where
+        # `session.metadata["overrides"]` is always applied and
+        # explicit overrides can further refine it.
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        stored_val = metadata.get("overrides")
+        stored_overrides: Dict[str, Any] = (
+            stored_val if isinstance(stored_val, dict) else {}
+        )
+        http_overrides = overrides if isinstance(overrides, dict) else {}
+        merged_overrides: Dict[str, Any] = {**stored_overrides, **http_overrides}
+
         final_session_dict: Optional[Dict[str, Any]] = session.to_dict()
         final_messages: List[Dict[str, Any]] = []
         request_id: Optional[str] = None
 
-        for ev in app_instance.send_request(core, session, base_config, overrides, stream=True):
+        for ev in app_instance.send_request(
+            core,
+            session,
+            base_config,
+            merged_overrides,
+            stream=True,
+        ):
             etype = ev.get("type")
 
             # Internal checkpoint events carry the live Session object so the
@@ -469,6 +489,53 @@ def _run_send_request_background(
         )
 
 
+@app.get("/sessions/{session_id}/ui-elements")
+def get_session_ui_elements(
+    session_id: str,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return UI schema elements that represent configurable settings.
+
+    This mirrors :meth:`TerminalApplication.session_ui_elements`,
+    exposing only ``ui_type == "config"`` elements (or elements with
+    a ``key`` field and no explicit ``ui_type``) from the flattened
+    plugin UI schema. Frontends can use this to build dynamic settings
+    UIs equivalent to the terminal's ``/set`` support.
+    """
+
+    try:
+        with app_instance.acquire_session_lock(session_id):
+            ctx = app_instance.load_session(session_id)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
+
+            core, _base_config, _session = ctx
+
+            try:
+                ui_schema = core.get_ui_schema()
+            except Exception:  # pragma: no cover - defensive
+                ui_schema = []
+
+            def _is_config_element(el: Any) -> bool:
+                if not isinstance(el, dict):
+                    return False
+                key = el.get("key")
+                if not isinstance(key, str) or not key:
+                    return False
+                if el.get("ui_type") == "config":
+                    return True
+                # When ui_type is omitted, default to "config".
+                if "ui_type" not in el:
+                    return True
+                return False
+
+            elements = [el for el in (ui_schema or []) if _is_config_element(el)]
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {"elements": elements}
+
+
 @app.post("/sessions/{session_id}/messages")
 def add_message(
     session_id: str,
@@ -522,6 +589,112 @@ def add_message(
                     "failed to publish checkpoint event after message append for %r",
                     session_id,
                 )
+
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {"session": new_session.to_dict()}
+
+
+@app.get("/sessions/{session_id}/overrides")
+def get_session_overrides(
+    session_id: str,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return per-session configuration overrides for this session.
+
+    Overrides are stored on the session metadata under the "overrides"
+    key and correspond to the same mechanism used by the terminal
+    application's ``/set`` command.
+    """
+
+    try:
+        with app_instance.acquire_session_lock(session_id):
+            ctx = app_instance.load_session(session_id)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
+
+            _core, _base_config, session = ctx
+            metadata = session.metadata if isinstance(session.metadata, dict) else {}
+            raw_overrides = metadata.get("overrides")
+            overrides: Dict[str, Any] = (
+                raw_overrides if isinstance(raw_overrides, dict) else {}
+            )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {"overrides": overrides}
+
+
+@app.patch("/sessions/{session_id}/overrides")
+def patch_session_overrides(
+    session_id: str,
+    payload: Dict[str, Any],
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Upsert one or more configuration overrides for a session.
+
+    The body supports two shapes (exactly one must be provided):
+
+    * ``{"key": str, "value": Any}`` – update a single key.
+    * ``{"values": {"k": v, ...}}`` – bulk update.
+
+    The resulting overrides are stored under
+    ``session.metadata["overrides"]`` and will be merged into the
+    base configuration for subsequent requests.
+    """
+
+    body = payload or {}
+    has_single = "key" in body or "value" in body
+    has_bulk = "values" in body
+
+    if int(bool(has_single)) + int(bool(has_bulk)) != 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Exactly one of ('key' & 'value') or 'values' must be provided",
+        )
+
+    updates: Dict[str, Any]
+    if has_bulk:
+        values = body.get("values")
+        if not isinstance(values, dict):
+            raise HTTPException(
+                status_code=400,
+                detail="'values' must be an object mapping keys to values",
+            )
+        updates = dict(values)
+    else:
+        key = body.get("key")
+        if not isinstance(key, str) or not key:
+            raise HTTPException(
+                status_code=400,
+                detail="'key' must be a non-empty string when using the single-key form",
+            )
+        # Allow any JSON-serializable value for overrides.
+        updates = {key: body.get("value")}
+
+    try:
+        with app_instance.acquire_session_lock(session_id):
+            ctx = app_instance.load_session(session_id)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
+
+            _core, _base_config, session = ctx
+            metadata = session.metadata if isinstance(session.metadata, dict) else {}
+            raw_overrides = metadata.get("overrides")
+            overrides: Dict[str, Any] = (
+                raw_overrides if isinstance(raw_overrides, dict) else {}
+            )
+
+            new_overrides = {**overrides, **updates}
+            new_metadata = {**metadata, "overrides": new_overrides}
+
+            new_session = Session(
+                session_id=session.session_id,
+                messages=session.messages,
+                metadata=new_metadata,
+            )
+            app_instance.save_session(new_session)
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
