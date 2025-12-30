@@ -12,11 +12,16 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/Feather';
 import type { ConnectionAdapter } from '../../App';
 import {
   apiGetSessionOverrides,
   apiGetSessionUiElements,
   apiPatchSessionOverrides,
+  apiGetSessionBaseConfig,
+  apiGetSessionConfigSchema,
+  apiDeleteSessionOverride,
+  type ConfigSchemaEntry,
   type UiConfigElement,
 } from '../api';
 import { useTheme, type Theme } from '../theme';
@@ -41,6 +46,8 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [elements, setElements] = useState<UiConfigElement[]>([]);
   const [overrides, setOverrides] = useState<Record<string, any>>({});
+  const [baseConfig, setBaseConfig] = useState<Record<string, any>>({});
+  const [schemaByKey, setSchemaByKey] = useState<Record<string, ConfigSchemaEntry>>({});
   const [pendingTextByKey, setPendingTextByKey] = useState<Record<string, string>>({});
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
@@ -52,6 +59,8 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
       setError('No active connection');
       setElements([]);
       setOverrides({});
+      setBaseConfig({});
+      setSchemaByKey({});
       return;
     }
     let cancelled = false;
@@ -59,13 +68,25 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
       setLoading(true);
       setError(null);
       try {
-        const [els, ovs] = await Promise.all([
+        const [els, ovs, schema, baseCfg] = await Promise.all([
           apiGetSessionUiElements(adapter, sessionId),
           apiGetSessionOverrides(adapter, sessionId),
+          apiGetSessionConfigSchema(adapter, sessionId),
+          apiGetSessionBaseConfig(adapter, sessionId),
         ]);
         if (cancelled) return;
         setElements(Array.isArray(els) ? els : []);
         setOverrides(ovs || {});
+        const byKey: Record<string, ConfigSchemaEntry> = {};
+        (schema || []).forEach((entry) => {
+          if (!entry || typeof entry !== 'object') return;
+          const k = (entry as any).key;
+          if (typeof k === 'string' && k && !byKey[k]) {
+            byKey[k] = entry;
+          }
+        });
+        setSchemaByKey(byKey);
+        setBaseConfig(baseCfg || {});
         setPendingTextByKey({});
       } catch (err: any) {
         if (cancelled) return;
@@ -134,6 +155,36 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     }
   };
 
+  const handleRevertToDefault = async (key: string) => {
+    if (!adapter) {
+      Alert.alert('No connection', 'Connect to a server to change settings.');
+      return;
+    }
+    // Optimistically update local state, then revert on failure.
+    const prevOverrides = overrides;
+    const prevPending = pendingTextByKey;
+    setOverrides((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setPendingTextByKey((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    try {
+      await apiDeleteSessionOverride(adapter, sessionId, key);
+    } catch (err: any) {
+      console.log('Failed to revert setting override', err);
+      const msg = err?.message || 'Failed to revert setting.';
+      Alert.alert('Error', msg);
+      // Revert optimistic update on failure.
+      setOverrides(prevOverrides);
+      setPendingTextByKey(prevPending);
+    }
+  };
+
   const normalizeOptions = (raw: any): { value: string; label: string }[] => {
     if (!Array.isArray(raw)) return [];
     return raw
@@ -158,20 +209,81 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     const type = typeof el.type === 'string' ? el.type : undefined;
     const label = typeof el.label === 'string' && el.label ? el.label : key;
     const description = typeof el.description === 'string' ? el.description : '';
-    const currentValue = overrides[key];
+
+    const schemaEntry = schemaByKey[key];
+    const baseHasValue = Object.prototype.hasOwnProperty.call(baseConfig, key);
+    const baseValue = baseHasValue ? baseConfig[key] : undefined;
+    const defaultFromSchema =
+      schemaEntry && Object.prototype.hasOwnProperty.call(schemaEntry, 'default')
+        ? schemaEntry.default
+        : undefined;
+
+    let currentSource: 'agent' | 'schema_default' | 'none' = 'none';
+    let currentValue: any;
+    if (baseHasValue) {
+      currentValue = baseValue;
+      currentSource = 'agent';
+    } else if (defaultFromSchema !== undefined) {
+      currentValue = defaultFromSchema;
+      currentSource = 'schema_default';
+    } else {
+      currentValue = undefined;
+      currentSource = 'none';
+    }
+
+    const hasOverride = Object.prototype.hasOwnProperty.call(overrides, key);
+    const overrideValue = hasOverride ? overrides[key] : undefined;
+    const effectiveValue = hasOverride ? overrideValue : currentValue;
+
+    let tagLabel: 'config' | 'default' | null = null;
+    if (!hasOverride) {
+      if (currentSource === 'agent') tagLabel = 'config';
+      else if (currentSource === 'schema_default') tagLabel = 'default';
+    }
 
     if (type === 'checkbox') {
-      const boolValue = Boolean(currentValue ?? false);
+      const boolValue = Boolean(effectiveValue ?? false);
       return (
         <View key={key} style={styles.itemRow}>
           <View style={styles.itemTextColumn}>
-            <Text style={styles.itemLabel}>{label}</Text>
+            <View style={styles.itemLabelRow}>
+              <View style={styles.itemLabelChipColumn}>
+                <Text style={styles.itemLabel}>{label}</Text>
+                {tagLabel && (
+                  <View
+                    style={
+                      tagLabel === 'config' ? styles.tagConfig : styles.tagDefault
+                    }
+                  >
+                    <Text
+                      style={
+                        tagLabel === 'config'
+                          ? styles.tagTextConfig
+                          : styles.tagTextDefault
+                      }
+                    >
+                      {tagLabel}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
             {description ? <Text style={styles.itemDescription}>{description}</Text> : null}
           </View>
-          <Switch
-            value={boolValue}
-            onValueChange={(next) => handleToggleCheckbox(key, next)}
-          />
+          <View style={styles.controlSwitchColumn}>
+            <Switch
+              value={boolValue}
+              onValueChange={(next) => handleToggleCheckbox(key, next)}
+            />
+            {hasOverride && (
+              <TouchableOpacity
+                style={styles.trashBeforeSwitch}
+                onPress={() => handleRevertToDefault(key)}
+              >
+                <Icon name="trash-2" size={14} color={theme.danger} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       );
     }
@@ -179,11 +291,43 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     if (type === 'select') {
       const options = normalizeOptions(el.options);
       if (!options.length) return null;
-      const selected = typeof currentValue === 'string' ? currentValue : String(currentValue ?? '');
+      const selected =
+        typeof effectiveValue === 'string'
+          ? effectiveValue
+          : String(effectiveValue ?? '');
       return (
         <View key={key} style={styles.itemRow}>
           <View style={styles.itemTextColumn}>
-            <Text style={styles.itemLabel}>{label}</Text>
+            <View style={styles.itemLabelRow}>
+              <View style={styles.itemLabelChipColumn}>
+                <Text style={styles.itemLabel}>{label}</Text>
+                {tagLabel && (
+                  <View
+                    style={
+                      tagLabel === 'config' ? styles.tagConfig : styles.tagDefault
+                    }
+                  >
+                    <Text
+                      style={
+                        tagLabel === 'config'
+                          ? styles.tagTextConfig
+                          : styles.tagTextDefault
+                      }
+                    >
+                      {tagLabel}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              {hasOverride && (
+                <TouchableOpacity
+                  style={styles.trashRightOfLabel}
+                  onPress={() => handleRevertToDefault(key)}
+                >
+                  <Icon name="trash-2" size={14} color={theme.danger} />
+                </TouchableOpacity>
+              )}
+            </View>
             {description ? <Text style={styles.itemDescription}>{description}</Text> : null}
             <View style={styles.chipsRow}>
               {options.map((opt) => {
@@ -213,14 +357,43 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     const textValue =
       key in pendingTextByKey
         ? pendingTextByKey[key]
-        : currentValue !== undefined && currentValue !== null
-          ? String(currentValue)
+        : effectiveValue !== undefined && effectiveValue !== null
+          ? String(effectiveValue)
           : '';
 
     return (
       <View key={key} style={styles.itemRow}>
         <View style={styles.itemTextColumn}>
-          <Text style={styles.itemLabel}>{label}</Text>
+          <View style={styles.itemLabelRow}>
+            <View style={styles.itemLabelChipColumn}>
+              <Text style={styles.itemLabel}>{label}</Text>
+              {tagLabel && (
+                <View
+                  style={
+                    tagLabel === 'config' ? styles.tagConfig : styles.tagDefault
+                  }
+                >
+                  <Text
+                    style={
+                      tagLabel === 'config'
+                        ? styles.tagTextConfig
+                        : styles.tagTextDefault
+                    }
+                  >
+                    {tagLabel}
+                  </Text>
+                </View>
+              )}
+            </View>
+            {hasOverride && (
+              <TouchableOpacity
+                style={styles.trashRightOfLabel}
+                onPress={() => handleRevertToDefault(key)}
+              >
+                <Icon name="trash-2" size={14} color={theme.danger} />
+              </TouchableOpacity>
+            )}
+          </View>
           {description ? <Text style={styles.itemDescription}>{description}</Text> : null}
           <View style={styles.textRow}>
             <TextInput
@@ -338,12 +511,11 @@ const createStyles = (theme: Theme) =>
       marginBottom: 8,
     },
     list: {
-      maxHeight: 320,
       marginVertical: 8,
     },
     itemRow: {
       flexDirection: 'row',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       justifyContent: 'space-between',
       paddingVertical: 6,
       borderBottomWidth: StyleSheet.hairlineWidth,
@@ -353,14 +525,53 @@ const createStyles = (theme: Theme) =>
       flex: 1,
       marginRight: 8,
     },
+    itemLabelRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      marginBottom: 2,
+    },
+    itemLabelChipColumn: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      flex: 1,
+    },
     itemLabel: {
       fontSize: 14,
       fontWeight: '500',
       color: theme.text,
       marginBottom: 2,
+      marginRight: 4,
     },
     itemDescription: {
       fontSize: 12,
+      color: theme.textSecondary,
+    },
+    tagConfig: {
+      marginLeft: 8,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 10,
+      backgroundColor: theme.surfaceAlt,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.border,
+    },
+    tagDefault: {
+      marginLeft: 8,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 10,
+      backgroundColor: theme.surfaceAlt,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.border,
+    },
+    tagTextConfig: {
+      fontSize: 10,
+      color: theme.textSecondary,
+    },
+    tagTextDefault: {
+      fontSize: 10,
       color: theme.textSecondary,
     },
     chipsRow: {
@@ -438,6 +649,22 @@ const createStyles = (theme: Theme) =>
       fontSize: 14,
       fontWeight: '600',
       color: theme.text,
+    },
+    controlSwitchColumn: {
+      marginLeft: 8,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-start',
+    },
+    trashBeforeSwitch: {
+      paddingHorizontal: 4,
+      paddingVertical: 2,
+      marginRight: 4,
+    },
+    trashRightOfLabel: {
+      paddingHorizontal: 4,
+      paddingVertical: 2,
+      marginLeft: 4,
     },
   });
 
