@@ -122,6 +122,7 @@ def start_bonjour(service_name: str, port: int) -> Optional[BonjourServiceHandle
             properties=properties,
             server=f"{socket.gethostname()}.local.",
         )
+        log.info("Constructed ServiceInfo for Bonjour: %r", info)
     except Exception as exc:  # pragma: no cover - defensive
         log.error("Failed to construct ServiceInfo for Bonjour (service=%r ip=%s port=%s): %s", service_name, local_ip, port, exc)
         try:
@@ -143,6 +144,7 @@ def start_bonjour(service_name: str, port: int) -> Optional[BonjourServiceHandle
     )
 
     try:
+
         zc.register_service(info)
     except Exception:  # pragma: no cover - defensive
         # Use ``log.exception`` so that the exception type, message and
