@@ -110,17 +110,18 @@ def test_server_flow_with_echo_provider(tmp_path: Path) -> None:
     assert "request_started" in kinds or "final" in kinds
 
 
-def test_get_session_ui_elements_returns_config_elements(tmp_path: Path) -> None:
-    """GET /sessions/{session_id}/ui-elements exposes config UI entries.
+def test_get_session_ui_schema_includes_ui_types(tmp_path: Path) -> None:
+    """GET /sessions/{session_id}/ui-schema exposes full UI entries.
 
-    Uses the OpenRouter application-layer config so that real plugin UI
-    elements (reasoning, web context, etc.) are present in the schema.
+    Uses the default config so that provider, extension, and feature
+    plugins contribute both configuration and footer / status metadata
+    to the schema.
     """
 
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    config_path = base_dir / "default_config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
@@ -129,21 +130,21 @@ def test_get_session_ui_elements_returns_config_elements(tmp_path: Path) -> None
     create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
 
-    resp = server_mod.get_session_ui_elements(session_id, app_instance=app)
+    resp = server_mod.get_session_ui_schema(session_id, app_instance=app)
     elements = resp.get("elements")
     assert isinstance(elements, list)
 
-    keys = {el.get("key") for el in elements if isinstance(el, dict)}
-    # openrouter_reasoning_extension exposes these keys in its UI schema.
-    assert "enable_reasoning" in keys
-    assert "reasoning_effort" in keys
-
-    # Ensure that only config-style elements are returned; message_footer
-    # and status_bar entries should be filtered out.
     ui_types = {el.get("ui_type") for el in elements if isinstance(el, dict)}
-    # Some elements may omit ui_type entirely (defaults to "config").
-    assert "message_footer" not in ui_types
-    assert "status_bar" not in ui_types
+
+    # Configuration entries (either explicit or defaulted) should be present.
+    assert "config" in {t or "config" for t in ui_types}
+
+    # The default config registers extensions that contribute message_footer
+    # and status_bar elements (for example, timestamp_extension and
+    # openrouter_usage_extension). We only require that such entries are
+    # surfaced, not the exact count.
+    assert "message_footer" in ui_types
+    assert "status_bar" in ui_types
 
 
 def test_get_session_config_schema_exposes_known_keys(tmp_path: Path) -> None:

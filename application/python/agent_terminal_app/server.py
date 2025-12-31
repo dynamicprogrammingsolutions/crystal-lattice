@@ -489,18 +489,26 @@ def _run_send_request_background(
         )
 
 
-@app.get("/sessions/{session_id}/ui-elements")
-def get_session_ui_elements(
+@app.get("/sessions/{session_id}/ui-schema")
+def get_session_ui_schema(
     session_id: str,
     app_instance: AgentApplication = Depends(get_agent_app),
 ) -> Dict[str, Any]:
-    """Return UI schema elements that represent configurable settings.
+    """Return the full flattened UI schema for this session.
 
-    This mirrors :meth:`TerminalApplication.session_ui_elements`,
-    exposing only ``ui_type == "config"`` elements (or elements with
-    a ``key`` field and no explicit ``ui_type``) from the flattened
-    plugin UI schema. Frontends can use this to build dynamic settings
-    UIs equivalent to the terminal's ``/set`` support.
+    The returned list mirrors :meth:`AgentCore.get_ui_schema` for the
+    session's configured agent and plugins. Each element is an
+    application-defined dictionary that may describe:
+
+    * configuration inputs (``ui_type == "config"`` or omitted),
+    * per-message footer fields (``ui_type == "message_footer"``),
+    * status bar fields (``ui_type == "status_bar"``), or
+    * other future UI element types.
+
+    Frontends are expected to filter elements by ``ui_type`` for their
+    specific needs (for example, building settings UIs from
+    configuration elements and rendering message footers or status bars
+    from the corresponding schema entries).
     """
 
     try:
@@ -514,25 +522,10 @@ def get_session_ui_elements(
             ui_schema = core.get_ui_schema()
         except Exception:  # pragma: no cover - defensive
             ui_schema = []
-
-        def _is_config_element(el: Any) -> bool:
-            if not isinstance(el, dict):
-                return False
-            key = el.get("key")
-            if not isinstance(key, str) or not key:
-                return False
-            if el.get("ui_type") == "config":
-                return True
-            # When ui_type is omitted, default to "config".
-            if "ui_type" not in el:
-                return True
-            return False
-
-        elements = [el for el in (ui_schema or []) if _is_config_element(el)]
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    return {"elements": elements}
+    return {"elements": ui_schema or []}
 
 
 @app.get("/sessions/{session_id}/config/schema")

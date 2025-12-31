@@ -243,19 +243,24 @@ export async function apiDeleteMessagesByRange(
 
 // --- Session configuration helpers ---
 
-export interface UiConfigElement {
+export interface UiSchemaElement {
   ui_type?: string;
+  // Config-oriented fields
+  key?: string;
   type?: string;
-  key: string;
   label?: string;
   description?: string;
-  plugin?: string;
   options?: any;
+  // Footer / status bar fields
+  data?: string;
+  template?: string;
+  // Plugin / misc
+  plugin?: string;
   [k: string]: any;
 }
 
-export interface UiElementsResponse {
-  elements: UiConfigElement[];
+export interface UiSchemaResponse {
+  elements: UiSchemaElement[];
 }
 
 export interface SessionOverridesResponse {
@@ -279,15 +284,15 @@ export interface SessionBaseConfigResponse {
   config: Record<string, any>;
 }
 
-export async function apiGetSessionUiElements(
+export async function apiGetSessionUiSchema(
   adapter: ConnectionAdapter,
   sessionId: string,
-): Promise<UiConfigElement[]> {
-  const path = `/sessions/${encodeURIComponent(sessionId)}/ui-elements`;
-  const data = (await adapter.get(path)) as UiElementsResponse | UiConfigElement[];
+): Promise<UiSchemaElement[]> {
+  const path = `/sessions/${encodeURIComponent(sessionId)}/ui-schema`;
+  const data = (await adapter.get(path)) as UiSchemaResponse | UiSchemaElement[];
   const elements = Array.isArray((data as any).elements)
-    ? (data as UiElementsResponse).elements
-    : (data as UiConfigElement[]);
+    ? (data as UiSchemaResponse).elements
+    : (data as UiSchemaElement[]);
   return Array.isArray(elements) ? elements : [];
 }
 

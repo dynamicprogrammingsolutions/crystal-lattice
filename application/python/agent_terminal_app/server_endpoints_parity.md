@@ -164,11 +164,6 @@ admin tools.
       config.
     - Terminal parity: used by `/help config`.
 
-- [NEW] `GET /sessions/{session_id}/ui-elements`
-    - Purpose: expose UI elements that represent configurable settings
-      (essentially `TerminalApplication.session_ui_elements()`).
-    - Used by frontends to build dynamic config UIs.
-
 - [NEW] `GET /sessions/{session_id}/overrides`
     - Purpose: read per-session config overrides stored in
       `session.metadata["overrides"]`.
@@ -193,13 +188,15 @@ admin tools.
 
 ### UI schema helpers
 
-- [NEW] `GET /sessions/{session_id}/ui/footer-elements`
-    - Purpose: expose message-footer UI schema entries for this session.
-    - Source: `TerminalApplication.message_footer_elements()`.
-
-- [NEW] `GET /sessions/{session_id}/ui/status-bar-elements`
-    - Purpose: expose status-bar UI schema entries for this session.
-    - Source: `TerminalApplication.status_bar_elements()`.
+- [NEW] `GET /sessions/{session_id}/ui-schema`
+    - Purpose: expose the full flattened UI schema for this session's
+      agent and plugin set, as returned by `AgentCore.get_ui_schema()`.
+    - Usage:
+        - Filter `ui_type == "config"` (or omitted) for configuration
+          inputs.
+        - Filter `ui_type == "message_footer"` for per-message footer
+          fields.
+        - Filter `ui_type == "status_bar"` for status bar fields.
 
 ### Feature-driven completions
 
