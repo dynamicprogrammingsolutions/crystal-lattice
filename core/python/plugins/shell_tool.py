@@ -43,6 +43,11 @@ class ShellTool(ToolPlugin):
                 "default": 60,
                 "description": "Default maximum execution time per command in seconds",
             },
+            "max_output_chars": {
+                "type": "integer",
+                "default": MAX_OUTPUT_LINES_DEFAULT * HAD_CHAR_LIMIT_PER_LINE,
+                "description": "Maximum number of characters of stdout/stderr to retain before truncation.",
+            },
             "max_output_lines": {
                 "type": "integer",
                 "default": 2000,
@@ -164,8 +169,17 @@ class ShellTool(ToolPlugin):
                 if isinstance(key, str):
                     exec_env[key] = str(value)
 
-        max_output_lines = int(config.get("max_output_lines", MAX_OUTPUT_LINES_DEFAULT) or MAX_OUTPUT_LINES_DEFAULT)
-        max_output_chars = max_output_lines * HAD_CHAR_LIMIT_PER_LINE
+        max_output_lines = int(
+            config.get("max_output_lines", MAX_OUTPUT_LINES_DEFAULT)
+            or MAX_OUTPUT_LINES_DEFAULT
+        )
+        max_output_chars_cfg = config.get("max_output_chars")
+        try:
+            max_output_chars = int(max_output_chars_cfg) if max_output_chars_cfg is not None else 0
+        except Exception:
+            max_output_chars = 0
+        if max_output_chars <= 0:
+            max_output_chars = max_output_lines * HAD_CHAR_LIMIT_PER_LINE
 
         try:
             completed = subprocess.run(
@@ -387,8 +401,17 @@ class ShellTool(ToolPlugin):
                 if isinstance(key, str):
                     exec_env[key] = str(value)
 
-        max_output_lines = int(config.get("max_output_lines", MAX_OUTPUT_LINES_DEFAULT) or MAX_OUTPUT_LINES_DEFAULT)
-        max_output_chars = max_output_lines * HAD_CHAR_LIMIT_PER_LINE
+        max_output_lines = int(
+            config.get("max_output_lines", MAX_OUTPUT_LINES_DEFAULT)
+            or MAX_OUTPUT_LINES_DEFAULT
+        )
+        max_output_chars_cfg = config.get("max_output_chars")
+        try:
+            max_output_chars = int(max_output_chars_cfg) if max_output_chars_cfg is not None else 0
+        except Exception:
+            max_output_chars = 0
+        if max_output_chars <= 0:
+            max_output_chars = max_output_lines * HAD_CHAR_LIMIT_PER_LINE
 
         try:
             proc = subprocess.Popen(
@@ -405,7 +428,7 @@ class ShellTool(ToolPlugin):
             return
 
         stdout_chunks: List[str] = []
-        stderr_text = ""
+        stderr_chunks: List[str] = []
         timed_out = False
 
         # Use a background thread to read stdout so we can enforce a real
@@ -427,8 +450,25 @@ class ShellTool(ToolPlugin):
                 except Exception:
                     pass
 
+        def _stderr_reader() -> None:
+            try:
+                if proc.stderr is None:
+                    return
+                for line in proc.stderr:
+                    if not line:
+                        break
+                    stderr_chunks.append(line)
+            finally:
+                try:
+                    if proc.stderr is not None and not proc.stderr.closed:
+                        proc.stderr.close()
+                except Exception:
+                    pass
+
         reader_thread = threading.Thread(target=_stdout_reader, daemon=True)
+        stderr_thread = threading.Thread(target=_stderr_reader, daemon=True)
         reader_thread.start()
+        stderr_thread.start()
 
         start_time = time.monotonic()
         sent_header = False
@@ -491,18 +531,13 @@ class ShellTool(ToolPlugin):
             except Exception:
                 pass
 
-            if proc.stderr is not None:
-                try:
-                    stderr_text = proc.stderr.read() or ""
-                except Exception:
-                    stderr_text = ""
-                finally:
-                    try:
-                        proc.stderr.close()
-                    except Exception:
-                        pass
+            try:
+                stderr_thread.join(timeout=1)
+            except Exception:
+                pass
 
         stdout_text = "".join(stdout_chunks)
+        stderr_text = "".join(stderr_chunks)
         truncated_stdout = self._truncate(stdout_text, max_output_lines, max_output_chars)
         truncated_stderr = self._truncate(stderr_text, max_output_lines, max_output_chars)
 
