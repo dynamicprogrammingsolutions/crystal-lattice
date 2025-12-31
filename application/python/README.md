@@ -97,6 +97,12 @@ Internally these map to:
 - ``BONJOUR_PORT=<value>`` (if provided)
 - ``BONJOUR_SERVICE_NAME=<value>`` (if provided)
 
+### Verify
+
+```bash
+dns-sd -B _http._tcp .
+```
+
 ### Simplest bridge command
 
 To enable the bridge client, you need a running Elixir bridge

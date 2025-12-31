@@ -102,7 +102,7 @@ def start_bonjour(service_name: str, port: int) -> Optional[BonjourServiceHandle
     try:
         zc = Zeroconf()
     except Exception as exc:  # pragma: no cover - very unlikely
-        log.error("Failed to create Zeroconf instance: %s", exc)
+        log.error("Failed to create Zeroconf instance for Bonjour: %s", exc)
         return None
 
     properties = {
@@ -123,26 +123,45 @@ def start_bonjour(service_name: str, port: int) -> Optional[BonjourServiceHandle
             server=f"{socket.gethostname()}.local.",
         )
     except Exception as exc:  # pragma: no cover - defensive
-        log.error("Failed to construct ServiceInfo for Bonjour: %s", exc)
+        log.error("Failed to construct ServiceInfo for Bonjour (service=%r ip=%s port=%s): %s", service_name, local_ip, port, exc)
         try:
             zc.close()
         except Exception:
             pass
         return None
+
+    # Log before attempting registration so that we always have a
+    # trace of the intended service parameters even when registration
+    # fails.
+    log.info(
+        "[bonjour] registering service name=%r type=%r ip=%s port=%s server=%r",
+        service_name,
+        "_http._tcp.local.",
+        local_ip,
+        port,
+        f"{socket.gethostname()}.local.",
+    )
 
     try:
         zc.register_service(info)
     except Exception:  # pragma: no cover - defensive
         # Use ``log.exception`` so that the exception type, message and
-        # stack trace are visible even when ``str(exc)`` is empty.
-        log.exception("Failed to register Bonjour service")
+        # full stack trace are visible even when ``str(exc)`` is empty.
+        log.exception(
+            "[bonjour] failed to register service name=%r ip=%s port=%s",
+            service_name,
+            local_ip,
+            port,
+        )
         try:
             zc.close()
         except Exception:
             pass
         return None
 
-    log.info("Advertising Bonjour service '%s' on port %s", service_name, port)
+    log.info(
+        "[bonjour] advertising service name=%r ip=%s port=%s", service_name, local_ip, port
+    )
     return BonjourServiceHandle(zeroconf=zc, info=info)
 
 
@@ -158,6 +177,20 @@ def stop_bonjour(handle: Optional[BonjourServiceHandle]) -> None:
 
     zc = handle.zeroconf
     info = handle.info
+
+    # Best-effort extraction of the advertised service name for
+    # logging. ``ServiceInfo`` exposes ``name`` on real zeroconf
+    # instances; for tests or dummy objects this may be missing.
+    service_name = None
+    try:
+        service_name = getattr(info, "name", None)
+    except Exception:  # pragma: no cover - defensive
+        service_name = None
+
+    if service_name:
+        log.info("[bonjour] unregistering service %r", service_name)
+    else:
+        log.info("[bonjour] unregistering service (name unavailable)")
 
     try:
         if zc is not None and info is not None:

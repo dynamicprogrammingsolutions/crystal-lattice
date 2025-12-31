@@ -1800,6 +1800,16 @@ def _build_key_bindings(
             if asyncio.iscoroutine(result):
                 asyncio.create_task(result)
 
+            # For the exit shortcut (Ctrl-Q), also request that the
+            # prompt_toolkit application exit the current prompt so
+            # that the main loop can observe the updated ``ui_state``
+            # and terminate cleanly.
+            if _shortcut.keys == "c-q":
+                try:
+                    event.app.exit(result="")
+                except Exception:  # pragma: no cover - defensive
+                    pass
+
     return kb
 
 def _set_terminal_title(title: str) -> None:

@@ -449,14 +449,41 @@ def main() -> None:  # pragma: no cover - manual execution only
             agent_app=terminal_agent_app,
         )
 
-        thread = threading.Thread(
-            target=run_api,
-            kwargs={"host": args.host, "port": args.port, "app_instance": server_app},
+        try:
+            import uvicorn  # type: ignore[import-not-found]
+        except Exception as exc:  # pragma: no cover - optional dependency
+            parser.error(
+                f"Uvicorn is required for --server mode but could not be imported: {exc}"
+            )
+
+        import agent_terminal_app.server as server_mod  # type: ignore[import-not-found]
+
+        server_mod._agent_app = server_app  # type: ignore[attr-defined]
+
+        os.environ.setdefault("SERVER_HOST", args.host)
+        os.environ.setdefault("SERVER_PORT", str(args.port))
+
+        config = uvicorn.Config(
+            "agent_terminal_app.server:app",
+            host=args.host,
+            port=args.port,
+            reload=False,
         )
-        thread.daemon = True
+        uvicorn_server = uvicorn.Server(config)
+
+        def _run_uvicorn() -> None:
+            import asyncio
+
+            asyncio.run(uvicorn_server.serve())
+
+        thread = threading.Thread(target=_run_uvicorn, name="agent_terminal_app.uvicorn")
         thread.start()
 
-        run_terminal(logger=console_logger, app_instance=terminal_app)
+        try:
+            run_terminal(logger=console_logger, app_instance=terminal_app)
+        finally:
+            uvicorn_server.should_exit = True
+            thread.join()
     elif run_console:
         agent_app = AgentApplication(str(config_path), str(session_root))
         terminal_app = TerminalApplication(
