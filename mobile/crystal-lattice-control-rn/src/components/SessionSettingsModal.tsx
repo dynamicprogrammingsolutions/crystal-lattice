@@ -16,13 +16,13 @@ import Icon from 'react-native-vector-icons/Feather';
 import type { ConnectionAdapter } from '../../App';
 import {
   apiGetSessionOverrides,
-  apiGetSessionUiElements,
+  apiGetSessionUiSchema,
   apiPatchSessionOverrides,
   apiGetSessionBaseConfig,
   apiGetSessionConfigSchema,
   apiDeleteSessionOverride,
   type ConfigSchemaEntry,
-  type UiConfigElement,
+  type UiSchemaElement,
 } from '../api';
 import { useTheme, type Theme } from '../theme';
 
@@ -44,7 +44,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [elements, setElements] = useState<UiConfigElement[]>([]);
+  const [elements, setElements] = useState<UiSchemaElement[]>([]);
   const [overrides, setOverrides] = useState<Record<string, any>>({});
   const [baseConfig, setBaseConfig] = useState<Record<string, any>>({});
   const [schemaByKey, setSchemaByKey] = useState<Record<string, ConfigSchemaEntry>>({});
@@ -69,13 +69,24 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
       setError(null);
       try {
         const [els, ovs, schema, baseCfg] = await Promise.all([
-          apiGetSessionUiElements(adapter, sessionId),
+          apiGetSessionUiSchema(adapter, sessionId),
           apiGetSessionOverrides(adapter, sessionId),
           apiGetSessionConfigSchema(adapter, sessionId),
           apiGetSessionBaseConfig(adapter, sessionId),
         ]);
         if (cancelled) return;
-        setElements(Array.isArray(els) ? els : []);
+        // Filter to config-style elements: ui_type == "config" or missing,
+        // and with a non-empty key.
+        const configElements = (els || []).filter((el) => {
+          if (!el || typeof el !== 'object') return false;
+          const key = (el as any).key;
+          if (typeof key !== 'string' || !key) return false;
+          const uiType = (el as any).ui_type;
+          if (uiType === 'config') return true;
+          if (uiType === undefined || uiType === null || uiType === '') return true;
+          return false;
+        }) as UiSchemaElement[];
+        setElements(configElements);
         setOverrides(ovs || {});
         const byKey: Record<string, ConfigSchemaEntry> = {};
         (schema || []).forEach((entry) => {
@@ -202,7 +213,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
       .filter((v) => v !== null) as { value: string; label: string }[];
   };
 
-  const renderElement = (el: UiConfigElement) => {
+  const renderElement = (el: UiSchemaElement) => {
     if (!el || typeof el !== 'object') return null;
     if (typeof el.key !== 'string' || !el.key) return null;
     const key = el.key;

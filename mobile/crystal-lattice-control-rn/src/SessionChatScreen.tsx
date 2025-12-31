@@ -29,6 +29,8 @@ import {
   apiSwitchSessionAgent,
   type ApiMessage,
   type IndexedMessage,
+  apiGetSessionUiSchema,
+  type UiSchemaElement,
 } from './api';
 import MessageBubble from './components/MessageBubble';
 import DebugEventsView from './components/DebugEventsView';
@@ -39,6 +41,7 @@ import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 import { selectDisplayContent } from './messageUtils';
 import { useTheme, type Theme } from './theme';
 import { useSessionEvents } from './useSessionEvents';
+import { extractByPath, renderTemplate } from './uiSchemaUtils';
 import type {
   AssistantMessageEvent,
   ErrorEvent,
@@ -133,6 +136,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     | null
   >(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [uiSchemaElements, setUiSchemaElements] = useState<UiSchemaElement[]>([]);
   const scrollViewRef = useRef<ScrollView | null>(null);
   const composeTextRef = useRef<string>(initialComposeText ?? '');
   const scrollOffsetRef = useRef<number>(initialScrollOffset || 0);
@@ -194,6 +198,31 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
     loadPinnedFromStorage();
   }, []);
+
+  useEffect(() => {
+    if (!adapter) {
+      setUiSchemaElements([]);
+      return;
+    }
+    let cancelled = false;
+    const loadSchema = async () => {
+      try {
+        const els = await apiGetSessionUiSchema(adapter, sessionId);
+        if (!cancelled) {
+          setUiSchemaElements(Array.isArray(els) ? els : []);
+        }
+      } catch (err) {
+        console.log('Failed to load UI schema for session', err);
+        if (!cancelled) {
+          setUiSchemaElements([]);
+        }
+      }
+    };
+    loadSchema();
+    return () => {
+      cancelled = true;
+    };
+  }, [adapter, sessionId]);
 
   const applyMessageLimitAndReload = () => {
     setMessageLimitVisible(false);
@@ -775,6 +804,57 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
 	  const sessionLabel = `Session ${sessionId.slice(0, 8)}`;
 
+	  const footerElements = useMemo(
+	    () =>
+	      (uiSchemaElements || []).filter(
+	        (el) => el && el.ui_type === 'message_footer' && typeof el.data === 'string' && el.data,
+	      ),
+	    [uiSchemaElements],
+	  );
+
+	  const statusBarElements = useMemo(
+	    () =>
+	      (uiSchemaElements || []).filter(
+	        (el) => el && el.ui_type === 'status_bar' && typeof el.data === 'string' && el.data,
+	      ),
+	    [uiSchemaElements],
+	  );
+
+	  const lastAssistantMessage = useMemo(() => {
+	    if (streamingRow && (streamingRow.content || streamingRow.reasoning)) {
+	      return {
+	        role: 'assistant',
+	        content: streamingRow.content,
+	        metadata: streamingRow.metadata || {},
+	      } as ApiMessage;
+	    }
+	    for (let i = messages.length - 1; i >= 0; i -= 1) {
+	      const m = messages[i].message;
+	      if ((m.role || 'unknown') === 'assistant') {
+	        return m;
+	      }
+	    }
+	    return null;
+	  }, [messages, streamingRow]);
+
+	  const statusBarParts = useMemo(() => {
+	    const parts: string[] = [];
+	    const agentLabel = sessionAgentId || 'default';
+	    parts.push(`Agent: ${agentLabel}`);
+	    parts.push(`Session: ${sessionId.slice(0, 8)}`);
+	    if (!lastAssistantMessage || !statusBarElements.length) {
+	      return parts;
+	    }
+	    statusBarElements.forEach((el) => {
+	      if (!el || el.ui_type !== 'status_bar') return;
+	      const value = extractByPath(lastAssistantMessage, el.data);
+	      if (value === undefined || value === null || value === '') return;
+	      const text = renderTemplate(el.template ?? '{{data}}', value);
+	      if (text) parts.push(text);
+	    });
+	    return parts;
+	  }, [lastAssistantMessage, statusBarElements, sessionAgentId, sessionId]);
+
 		  return (
 	    <KeyboardAvoidingView
 	      style={styles.keyboardAvoiding}
@@ -860,6 +940,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	            onSubmitEdit={handleSubmitEditMessage}
 	            onCancelEdit={handleCancelEditMessage}
 	            renderMode={renderMode}
+	            footerElements={footerElements}
 	          />
         );
       })}
@@ -881,8 +962,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           onChangePinnedForRole={handleChangePinnedForRole}
           isEditing={false}
           renderMode="markdown"
+          footerElements={footerElements}
         />
       )}
+	      {statusBarParts.length > 0 && (
+	        <View style={styles.statusBarContainer}>
+	          <Text style={styles.statusBarText}>{statusBarParts.join('   ')}</Text>
+	        </View>
+	      )}
       </ScrollView>
 
       {activeError && (
@@ -1315,6 +1402,19 @@ const createStyles = (theme: Theme) =>
       right: 0,
       bottom: 0,
       backgroundColor: theme.modalBackdrop,
+    },
+    statusBarContainer: {
+      marginTop: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderTopWidth: 1,
+      borderTopColor: theme.divider,
+      backgroundColor: theme.surfaceAlt,
+    },
+    statusBarText: {
+      fontSize: 11,
+      color: theme.textSecondary,
+      fontFamily: 'Courier',
     },
   });
 

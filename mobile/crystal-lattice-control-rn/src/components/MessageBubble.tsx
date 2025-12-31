@@ -8,12 +8,13 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
-import type { ApiMessage } from '../api';
+import type { ApiMessage, UiSchemaElement } from '../api';
 import MessageActionsBar from './MessageActionsBar';
 import type { MessageActionKey } from '../messageActions';
 import { selectDisplayContent } from '../messageUtils';
 import MarkdownMessageContent from './MarkdownMessageContent';
 import { useTheme, type Theme } from '../theme';
+import { extractByPath, renderTemplate } from '../uiSchemaUtils';
 
 export interface MessageBubbleProps {
   index: number;
@@ -28,6 +29,7 @@ export interface MessageBubbleProps {
   onSubmitEdit?: (index: number, message: ApiMessage, newText: string) => void;
   onCancelEdit?: () => void;
   renderMode?: 'markdown' | 'raw';
+  footerElements?: UiSchemaElement[];
 }
 
 const UserMessageBubble: React.FC<MessageBubbleProps> = ({
@@ -43,11 +45,24 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
   onSubmitEdit,
   onCancelEdit,
   renderMode,
+  footerElements,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const content = selectDisplayContent(message);
   const role = 'user';
+  const footerParts = useMemo(() => {
+    const elements = footerElements || [];
+    const parts: string[] = [];
+    elements.forEach((el) => {
+      if (!el || el.ui_type !== 'message_footer') return;
+      const value = extractByPath(message, el.data);
+      if (value === null || value === undefined || value === '') return;
+      const text = renderTemplate(el.template ?? '{{data}}', value);
+      if (text) parts.push(text);
+    });
+    return parts;
+  }, [footerElements, message]);
 
   if (isEditing && onChangeEditingText && onSubmitEdit && onCancelEdit) {
     return (
@@ -91,6 +106,11 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
             {content}
           </Text>
         ) : null}
+        {footerParts.length > 0 && (
+          <View style={styles.footerRow}>
+            <Text style={styles.footerText}>{footerParts.join('   ')}</Text>
+          </View>
+        )}
         {pinnedActions && onAction && onChangePinnedForRole && (
           <MessageActionsBar
             pinned={pinnedActions}
@@ -117,11 +137,24 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
   onSubmitEdit,
   onCancelEdit,
   renderMode,
+  footerElements,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const content = selectDisplayContent(message);
   const role = 'system';
+  const footerParts = useMemo(() => {
+    const elements = footerElements || [];
+    const parts: string[] = [];
+    elements.forEach((el) => {
+      if (!el || el.ui_type !== 'message_footer') return;
+      const value = extractByPath(message, el.data);
+      if (value === null || value === undefined || value === '') return;
+      const text = renderTemplate(el.template ?? '{{data}}', value);
+      if (text) parts.push(text);
+    });
+    return parts;
+  }, [footerElements, message]);
 
   if (isEditing && onChangeEditingText && onSubmitEdit && onCancelEdit) {
     return (
@@ -165,6 +198,11 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
             {content}
           </Text>
         ) : null}
+        {footerParts.length > 0 && (
+          <View style={styles.footerRow}>
+            <Text style={styles.footerText}>{footerParts.join('   ')}</Text>
+          </View>
+        )}
         {pinnedActions && onAction && onChangePinnedForRole && (
           <MessageActionsBar
             pinned={pinnedActions}
@@ -186,6 +224,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
   onChangePinnedForRole,
   allowedActions,
   renderMode,
+  footerElements,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -193,6 +232,18 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
   const content = selectDisplayContent(message);
   const hasContent = !!content;
   const role = 'tool';
+  const footerParts = useMemo(() => {
+    const elements = footerElements || [];
+    const parts: string[] = [];
+    elements.forEach((el) => {
+      if (!el || el.ui_type !== 'message_footer') return;
+      const value = extractByPath(message, el.data);
+      if (value === null || value === undefined || value === '') return;
+      const text = renderTemplate(el.template ?? '{{data}}', value);
+      if (text) parts.push(text);
+    });
+    return parts;
+  }, [footerElements, message]);
 
   return (
     <View style={styles.row}>
@@ -246,6 +297,11 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
             No tool output.
           </Text>
         )}
+        {footerParts.length > 0 && (
+          <View style={styles.footerRow}>
+            <Text style={styles.footerText}>{footerParts.join('   ')}</Text>
+          </View>
+        )}
         {pinnedActions && onAction && onChangePinnedForRole && (
           <MessageActionsBar
             pinned={pinnedActions}
@@ -272,6 +328,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
   onSubmitEdit,
   onCancelEdit,
   renderMode,
+  footerElements,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -281,6 +338,18 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
     ? (message.metadata as any).reasoning
     : undefined;
   const role = 'assistant';
+  const footerParts = useMemo(() => {
+    const elements = footerElements || [];
+    const parts: string[] = [];
+    elements.forEach((el) => {
+      if (!el || el.ui_type !== 'message_footer') return;
+      const value = extractByPath(message, el.data);
+      if (value === null || value === undefined || value === '') return;
+      const text = renderTemplate(el.template ?? '{{data}}', value);
+      if (text) parts.push(text);
+    });
+    return parts;
+  }, [footerElements, message]);
 
   if (isEditing && onChangeEditingText && onSubmitEdit && onCancelEdit) {
     return (
@@ -373,6 +442,11 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
             />
           )
         ) : null}
+        {footerParts.length > 0 && (
+          <View style={styles.footerRow}>
+            <Text style={styles.footerText}>{footerParts.join('   ')}</Text>
+          </View>
+        )}
         {pinnedActions && onAction && onChangePinnedForRole && (
           <MessageActionsBar
             pinned={pinnedActions}
@@ -399,6 +473,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onSubmitEdit,
   onCancelEdit,
   renderMode,
+  footerElements,
 }) => {
   const role = message.role || 'unknown';
 
@@ -416,6 +491,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         onChangeEditingText={onChangeEditingText}
         onSubmitEdit={onSubmitEdit}
         onCancelEdit={onCancelEdit}
+        footerElements={footerElements}
       />
     );
   }
@@ -434,6 +510,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         onSubmitEdit={onSubmitEdit}
         onCancelEdit={onCancelEdit}
         renderMode={renderMode}
+        footerElements={footerElements}
       />
     );
   }
@@ -447,6 +524,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         onChangePinnedForRole={onChangePinnedForRole}
         allowedActions={allowedActions}
         renderMode={renderMode}
+        footerElements={footerElements}
       />
     );
   }
@@ -465,6 +543,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         onSubmitEdit={onSubmitEdit}
         onCancelEdit={onCancelEdit}
         renderMode={renderMode}
+        footerElements={footerElements}
       />
     );
   }
@@ -483,6 +562,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             {content}
           </Text>
         ) : null}
+        {/* Footer elements are not rendered for unknown roles. */}
         {pinnedActions && onAction && onChangePinnedForRole && (
           <MessageActionsBar
             pinned={pinnedActions}
@@ -575,6 +655,14 @@ const createStyles = (theme: Theme) =>
       fontSize: 11,
       color: theme.textSecondary,
       fontStyle: 'italic',
+    },
+    footerRow: {
+      marginTop: 4,
+    },
+    footerText: {
+      fontSize: 11,
+      color: theme.textSecondary,
+      fontFamily: 'Courier',
     },
     editInput: {
       marginTop: 4,
