@@ -10,9 +10,11 @@ from threading import Lock
 
 from agent_core import AgentCore, MessageRole, Session
 
+from .app_plugins import ApplicationPluginWrapper
 from .config import (
     build_agent_config,
     load_plugins,
+    load_application_plugins,
     load_raw_config,
     resolve_placeholders,
     resolve_request_config,
@@ -98,6 +100,24 @@ class AgentApplication:
             core.register_feature(feature_cls)
         for tool_cls in plugin_classes.get("tools") or []:
             core.register_tool(tool_cls)
+
+        # Application-level plugins are configured separately from core
+        # provider/feature/tool plugins. They operate on the
+        # :class:`AgentApplication` level (sessions, storage, actions).
+        raw_app_plugins = resolved_config.get("application_plugins") or []
+        app_plugin_classes, app_plugin_errors = load_application_plugins(raw_app_plugins)
+        self._app_plugin_classes: List[type[Any]] = app_plugin_classes
+        self._config_errors.extend(app_plugin_errors)
+
+        self._app_plugins: Dict[str, ApplicationPluginWrapper] = {}
+        for plugin_class in self._app_plugin_classes:
+            plugin_id = self._plugin_id_for_class(plugin_class)
+            # First registration for a given id wins to preserve config order.
+            if plugin_id in self._app_plugins:
+                continue
+            wrapper = ApplicationPluginWrapper(plugin_id=plugin_id, plugin_class=plugin_class)
+            wrapper.init(resolved_config)
+            self._app_plugins[plugin_id] = wrapper
 
         self._session_store = FilesystemSessionStore(Path(session_root), core)
         self._tool_loop_cfg = _ToolLoopConfig()
@@ -588,6 +608,107 @@ class AgentApplication:
                     entry["name"] = name_attr
                 result.append(entry)
         return result
+
+    # ------------------------------------------------------------------
+    # Application-level plugins (actions + UI schema)
+    # ------------------------------------------------------------------
+
+    def list_application_plugins(self) -> List[Dict[str, Any]]:
+        """Return metadata for all registered application-level plugins.
+
+        Entries are ordered by configuration order.
+        """
+
+        result: List[Dict[str, Any]] = []
+        for plugin_id, wrapper in self._app_plugins.items():
+            plugin_class = wrapper.plugin_class
+            entry: Dict[str, Any] = {
+                "id": plugin_id,
+                "class_path": f"{plugin_class.__module__}.{plugin_class.__qualname__}",
+                "class_name": plugin_class.__name__,
+            }
+            name_attr = getattr(plugin_class, "name", None)
+            if isinstance(name_attr, str) and name_attr:
+                entry["name"] = name_attr
+            result.append(entry)
+        return result
+
+    def get_application_actions(self) -> List[Dict[str, Any]]:
+        """Return all application-level action definitions.
+
+        Each returned action dictionary includes a ``"plugin"`` field naming
+        the contributing plugin.
+        """
+
+        actions: List[Dict[str, Any]] = []
+        for plugin_id, wrapper in self._app_plugins.items():
+            for raw_action in wrapper.get_actions():
+                if not isinstance(raw_action, dict):
+                    continue
+                if "plugin" in raw_action and isinstance(raw_action["plugin"], str):
+                    actions.append(raw_action)
+                else:
+                    action = dict(raw_action)
+                    action["plugin"] = plugin_id
+                    actions.append(action)
+        return actions
+
+    def get_application_ui_schema(self) -> List[Dict[str, Any]]:
+        """Return flattened UI schema elements from application plugins.
+
+        Each element is normalized to include a ``"plugin"`` field naming
+        the contributing plugin.
+        """
+
+        elements: List[Dict[str, Any]] = []
+        for plugin_id, wrapper in self._app_plugins.items():
+            for raw_element in wrapper.get_ui_elements():
+                if not isinstance(raw_element, dict):
+                    continue
+                if "plugin" in raw_element and isinstance(raw_element["plugin"], str):
+                    elements.append(raw_element)
+                else:
+                    element = dict(raw_element)
+                    element["plugin"] = plugin_id
+                    elements.append(element)
+        return elements
+
+    def execute_application_action(
+        self,
+        plugin_id: str,
+        action_id: str,
+        params: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Execute an application-level action.
+
+        This helper validates that the plugin and action id exist and then
+        delegates execution to the corresponding application plugin wrapper.
+        Detailed parameter validation (types/defaults) is performed by the
+        HTTP layer in later stages.
+        """
+
+        if not isinstance(plugin_id, str) or not plugin_id:
+            raise ValueError("plugin_id must be a non-empty string")
+        if not isinstance(action_id, str) or not action_id:
+            raise ValueError("action_id must be a non-empty string")
+        if not isinstance(params, dict):
+            raise ValueError("params must be a mapping of action inputs")
+
+        wrapper = self._app_plugins.get(plugin_id)
+        if wrapper is None:
+            raise KeyError(f"Unknown application plugin {plugin_id!r}")
+
+        # Ensure the action id exists for this plugin. We intentionally keep
+        # this lookup simple; the HTTP layer will cache schemas when needed.
+        available_ids = {
+            a.get("id")
+            for a in wrapper.get_actions()
+            if isinstance(a, dict) and isinstance(a.get("id"), str)
+        }
+        if action_id not in available_ids:
+            raise KeyError(f"Unknown action_id {action_id!r} for plugin {plugin_id!r}")
+
+        return wrapper.execute_action(self, action_id, params)
 
     def load_session(
         self, session_id: str

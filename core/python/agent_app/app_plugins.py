@@ -1,0 +1,175 @@
+from __future__ import annotations
+
+"""Application-level plugin protocol and wrappers.
+
+This module defines the :class:`ApplicationPlugin` protocol and a lightweight
+wrapper used by :class:`agent_app.application_future.AgentApplication`.
+
+Application plugins operate at the application layer (sessions, storage,
+requests) rather than at the core provider/feature/tool layer. They expose
+logical actions and UI schema elements that higher-level applications (HTTP
+server, terminal, mobile) can use to build flows such as copy/fork/delete or
+session summarization.
+"""
+
+from typing import Any, Dict, List, Protocol, TYPE_CHECKING, runtime_checkable
+
+if TYPE_CHECKING:  # pragma: no cover - imported only for type checking
+    from .application_future import AgentApplication
+
+
+@runtime_checkable
+class ApplicationPlugin(Protocol):
+    """Protocol for application-level plugins.
+
+    Application plugins are instantiated once per :class:`AgentApplication`
+    instance. They receive the fully resolved application configuration via
+    :meth:`init` and keep any internal state in an explicit ``state``
+    dictionary passed between lifecycle methods.
+
+    Plugins define logical actions via :meth:`get_actions` and provide
+    application‑level UI schema elements via :meth:`get_ui_elements`.
+    """
+
+    # Identity (attributes on the class)
+    name: str
+    version: str
+
+    # Config/UI -----------------------------------------------------------------
+    def get_config_schema(self) -> Dict[str, Any]:
+        """Return JSON schema describing this plugin's configuration.
+
+        The returned mapping is treated as opaque by the application layer and
+        primarily exists for configuration UIs. Plugins may return an empty
+        dict when they do not require configuration.
+        """
+
+    def get_ui_elements(self) -> List[Dict[str, Any]]:
+        """Return UI element definitions contributed by this plugin.
+
+        Elements describe configuration controls and display elements as well
+        as higher‑level action UI definitions. The application layer treats
+        these as opaque dictionaries and only normalizes cross‑cutting fields
+        such as the ``"plugin"`` identifier.
+        """
+
+    # Lifecycle -----------------------------------------------------------------
+    def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Initialize plugin state from the resolved application config.
+
+        Args:
+            app_config: Fully resolved top‑level configuration mapping.
+
+        Returns:
+            Initial opaque state dictionary owned by the plugin.
+        """
+
+    def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return logical action definitions for this plugin.
+
+        The returned list contains plain dictionaries describing available
+        actions (ids, labels, input schemas). The application layer will attach
+        a ``"plugin"`` field naming the contributing plugin when flattening
+        these definitions.
+        """
+
+    def execute_action(
+        self,
+        app: "AgentApplication",
+        action_id: str,
+        params: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Execute an action with already‑validated parameters.
+
+        Args:
+            app: Owning :class:`AgentApplication` instance.
+            action_id: Action identifier defined by :meth:`get_actions`.
+            params: Final, validated parameters for the action.
+            state: Current plugin state returned from :meth:`init`.
+
+        Returns:
+            Result dictionary describing the outcome of the action. The shape
+            is defined by the plugin; higher‑level layers wrap this in a
+            standardized response envelope when exposing it over HTTP.
+        """
+
+
+class ApplicationPluginWrapper:
+    """Wrapper for an :class:`ApplicationPlugin` instance.
+
+    The wrapper owns the plugin instance and its associated state dictionary.
+    It exposes a minimal, typed surface that :class:`AgentApplication` uses
+    to list actions, UI schema, and execute actions.
+    """
+
+    def __init__(self, plugin_id: str, plugin_class: type[Any]) -> None:
+        if not isinstance(plugin_id, str) or not plugin_id:
+            raise ValueError("plugin_id must be a non-empty string")
+
+        self.plugin_id = plugin_id
+        self.plugin_class = plugin_class
+        # The protocol guarantees a no‑arg constructor.
+        self.plugin: ApplicationPlugin = plugin_class()  # type: ignore[assignment]
+        self._state: Dict[str, Any] = {}
+        self.name = getattr(plugin_class, "name", plugin_id)
+        self.version = getattr(plugin_class, "version", "unknown")
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
+    def init(self, app_config: Dict[str, Any]) -> None:
+        """Initialize the underlying plugin and cache its state."""
+
+        state = self.plugin.init(app_config)
+        if not isinstance(state, dict):
+            # Guard against misbehaving plugins; treat non-dict state as empty.
+            state = {}
+        self._state = state
+
+    @property
+    def state(self) -> Dict[str, Any]:
+        """Return the current plugin state dictionary."""
+
+        return self._state
+
+    # ------------------------------------------------------------------
+    # Introspection helpers
+    # ------------------------------------------------------------------
+
+    def get_actions(self) -> List[Dict[str, Any]]:
+        """Return sanitized action definitions from the plugin."""
+
+        actions = self.plugin.get_actions(self._state)
+        if not isinstance(actions, list):
+            return []
+        return [a for a in actions if isinstance(a, dict)]
+
+    def get_ui_elements(self) -> List[Dict[str, Any]]:
+        """Return sanitized UI element definitions from the plugin."""
+
+        elements = self.plugin.get_ui_elements()
+        if not isinstance(elements, list):
+            return []
+        return [e for e in elements if isinstance(e, dict)]
+
+    # ------------------------------------------------------------------
+    # Action execution
+    # ------------------------------------------------------------------
+
+    def execute_action(
+        self,
+        app: "AgentApplication",
+        action_id: str,
+        params: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Invoke the underlying plugin's :meth:`execute_action` method."""
+
+        result = self.plugin.execute_action(app, action_id, params, self._state)
+        if not isinstance(result, dict):
+            return {}
+        return result
+
+
+__all__ = ["ApplicationPlugin", "ApplicationPluginWrapper"]
