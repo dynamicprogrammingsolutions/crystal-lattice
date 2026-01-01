@@ -196,3 +196,56 @@ def load_plugins(
                 )
 
     return sections, errors
+
+
+def load_application_plugins(
+    plugin_paths: Iterable[Any] | None,
+) -> Tuple[List[type[Any]], List[Dict[str, Any]]]:
+    """Load application-level plugin classes from dotted paths.
+
+    Application plugins live at the application layer (sessions, storage,
+    actions) and are configured via the top-level ``"application_plugins"``
+    list in the resolved configuration.
+
+    Args:
+        plugin_paths: Iterable of dotted class paths
+            (e.g. ``"plugins.session_actions_app.SessionActionsAppPlugin"``).
+
+    Returns:
+        Tuple of ``(classes, errors)`` where ``classes`` is a flat list of
+        imported plugin classes and ``errors`` collects any import or path
+        issues in the same shape as :func:`load_plugins`.
+    """
+
+    classes: List[type[Any]] = []
+    errors: List[Dict[str, Any]] = []
+
+    if not plugin_paths:
+        return classes, errors
+
+    for raw in plugin_paths:
+        if not isinstance(raw, str):
+            errors.append(
+                {
+                    "type": "plugin_path_invalid",
+                    "kind": "application",
+                    "path": raw,
+                    "detail": "Application plugin path must be a string",
+                }
+            )
+            continue
+        try:
+            cls = _import_string(raw)
+            classes.append(cls)
+        except Exception as exc:  # pragma: no cover - defensive
+            errors.append(
+                {
+                    "type": "plugin_import_error",
+                    "kind": "application",
+                    "path": raw,
+                    "detail": str(exc),
+                }
+            )
+
+    return classes, errors
+
