@@ -13,6 +13,7 @@ import SessionsScreen from './SessionsScreen';
 import type { SessionSummary, IndexedMessage } from './api';
 import SessionChatScreen from './SessionChatScreen';
 import { useTheme, type Theme } from './theme';
+import { ApplicationPluginsProvider } from './ApplicationPluginsContext';
 
 interface ConnectedRootProps {
   adapter: ConnectionAdapter | null;
@@ -101,7 +102,8 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
 
   return (
     <View style={styles.container}>
-      <View style={styles.contentArea}>
+      <ApplicationPluginsProvider adapter={adapter} connectionId={activeConnectionId}>
+        <View style={styles.contentArea}>
         {tab === 'connection' && (
           <View style={styles.connectionsTabContainer}>
             {(() => {
@@ -248,7 +250,8 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
             </View>
           )
         )}
-      </View>
+        </View>
+      </ApplicationPluginsProvider>
 
       <View style={styles.navBar}>
         <TouchableOpacity

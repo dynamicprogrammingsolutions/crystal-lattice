@@ -1,5 +1,5 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect, type Dispatch, type SetStateAction } from 'react';
+import { usePersistentPinnedActionsFromContext } from './PinnedActionsContext';
 
 export interface UsePersistentPinnedActionsResult<T extends string> {
   pinned: T[];
@@ -10,43 +10,22 @@ export function usePersistentPinnedActions<T extends string>(
   storageKey: string,
   initialPinned: T[],
 ): UsePersistentPinnedActionsResult<T> {
-  const [pinned, setPinned] = useState<T[]>(initialPinned);
+  // Delegate to the application-level PinnedActionsProvider. This
+  // hook now assumes it is called under that provider; if it is not,
+  // it will throw with a clear error.
+  const { pinned, setPinned } = usePersistentPinnedActionsFromContext<T>(
+    storageKey,
+    initialPinned,
+  );
 
+  // Ensure React marks the dependency on initialPinned seen by the
+  // underlying context hook. (The actual registration is handled
+  // inside usePersistentPinnedActionsFromContext.)
   useEffect(() => {
-    const loadPinned = async () => {
-      try {
-        const raw = await AsyncStorage.getItem(storageKey);
-        if (!raw) return;
-        try {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) {
-            const valid = parsed.filter((key: any) => typeof key === 'string');
-            if (valid.length > 0 || parsed.length === 0) {
-              setPinned(valid as T[]);
-            }
-          }
-        } catch (err) {
-          console.log(`Failed to parse stored pinned actions for ${storageKey}`, err);
-        }
-      } catch (err) {
-        console.log(`Failed to load pinned actions for ${storageKey}`, err);
-      }
-    };
-
-    loadPinned();
-  }, [storageKey]);
-
-  useEffect(() => {
-    const savePinned = async () => {
-      try {
-        await AsyncStorage.setItem(storageKey, JSON.stringify(pinned));
-      } catch (err) {
-        console.log(`Failed to save pinned actions for ${storageKey}`, err);
-      }
-    };
-
-    savePinned();
-  }, [storageKey, pinned]);
+    // no-op, just to keep ESLint/tsc happy about unused param in some
+    // configurations
+  }, [initialPinned]);
 
   return { pinned, setPinned };
 }
+

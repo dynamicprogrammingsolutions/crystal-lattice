@@ -20,6 +20,7 @@ import ConnectionsScreen from './src/ConnectionsScreen';
 import { getConnectionAdditionalInfo } from './src/connectionInfo';
 import type { SessionSummary, IndexedMessage } from './src/api';
 import { ThemeProvider, lightTheme, darkTheme, type Theme } from './src/theme';
+import { PinnedActionsProvider } from './src/PinnedActionsContext';
 
 type ConnectionMethod = 'manual' | 'discovery' | 'bridge';
 
@@ -1470,11 +1471,12 @@ function App(): React.JSX.Element {
 
   return (
     <ThemeProvider theme={theme}>
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
-        {/** Determine active connection info for display components */}
-        {/** This is derived once here and passed down rather than recomputed in children. */}
-        {(() => {
+      <PinnedActionsProvider>
+        <SafeAreaView style={styles.safeArea}>
+          <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
+          {/** Determine active connection info for display components */}
+          {/** This is derived once here and passed down rather than recomputed in children. */}
+          {(() => {
           const activeConnection =
             selectedConnectionId != null
               ? connections.find((c) => c.id === selectedConnectionId) || null
@@ -1512,12 +1514,13 @@ function App(): React.JSX.Element {
               onUpdateSessionsCache={updateSessionsCache}
               messagesCache={messagesCache}
               onUpdateMessagesCache={updateMessagesCache}
-        onSaveMessagesComposeText={saveMessagesComposeText}
-        onSaveMessagesScrollOffset={saveMessagesScrollOffset}
+              onSaveMessagesComposeText={saveMessagesComposeText}
+              onSaveMessagesScrollOffset={saveMessagesScrollOffset}
             />
           );
-        })()}
-      </SafeAreaView>
+          })()}
+        </SafeAreaView>
+      </PinnedActionsProvider>
     </ThemeProvider>
   );
 }
