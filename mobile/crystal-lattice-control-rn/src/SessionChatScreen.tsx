@@ -41,7 +41,7 @@ import { selectDisplayContent } from './messageUtils';
 import { useTheme, type Theme } from './theme';
 import { useSessionEvents } from './useSessionEvents';
 import { extractByPath, renderTemplate } from './uiSchemaUtils';
-import { useApplicationPlugins } from './useApplicationPlugins';
+import { useApplicationPlugins } from './ApplicationPluginsContext';
 import { executeApplicationAction } from './applicationActionsExecutor';
 import { usePersistentPinnedActions } from './usePersistentPinnedActions';
 import { useSessionAgents } from './useSessionAgents';
@@ -149,7 +149,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [uiSchemaElements, setUiSchemaElements] = useState<UiSchemaElement[]>([]);
   const { actionsById, sessionActions: pluginSessionActions, messageActions: pluginMessageActions } =
-    useApplicationPlugins(adapter, connectionId);
+    useApplicationPlugins();
   const scrollViewRef = useRef<ScrollView | null>(null);
   const composeTextRef = useRef<string>(initialComposeText ?? '');
   const scrollOffsetRef = useRef<number>(initialScrollOffset || 0);

@@ -25,7 +25,7 @@ import {
   type SessionSummary,
 } from './api';
 import ApplicationActionDialog from './components/ApplicationActionDialog';
-import { useApplicationPlugins } from './useApplicationPlugins';
+import { useApplicationPlugins } from './ApplicationPluginsContext';
 import { executeApplicationAction } from './applicationActionsExecutor';
 import { usePersistentPinnedActions } from './usePersistentPinnedActions';
 import { useSessionAgents } from './useSessionAgents';
@@ -65,7 +65,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const { availableAgents, agentLoading, ensureAgentsLoaded, setAgentLoading } =
     useSessionAgents();
   const [hasAutoLoaded, setHasAutoLoaded] = useState(false);
-  const { sessionListActions, actionsById } = useApplicationPlugins(adapter, connectionId);
+	  const { sessionListActions, actionsById } = useApplicationPlugins();
   const { pinned: pinnedSessionActions, setPinned: setPinnedSessionActions } =
     usePersistentPinnedActions<SessionActionKey>(
       STORAGE_KEY_SESSION_LIST_ACTIONS,
