@@ -1,4 +1,4 @@
-export type MessageActionKey = 'delete' | 'modify' | 'fork' | 'toggleMarkdown' | 'copy';
+export type MessageActionKey = string;
 
 export interface MessageActionDefinition {
   key: MessageActionKey;
@@ -11,26 +11,12 @@ export interface MessageActionDefinition {
 }
 
 export const MESSAGE_ACTIONS: Record<MessageActionKey, MessageActionDefinition> = {
-  delete: {
-    key: 'delete',
-    label: 'Delete',
-    iconName: 'trash-2',
-    defaultPinnedRoles: ['user', 'assistant', 'system', 'tool'],
-    allowedRoles: ['user', 'assistant', 'system', 'tool'],
-  },
   modify: {
     key: 'modify',
     label: 'Modify',
     iconName: 'edit-3',
     defaultPinnedRoles: ['user', 'assistant', 'system'],
     allowedRoles: ['user', 'assistant', 'system'],
-  },
-  fork: {
-    key: 'fork',
-    label: 'Fork',
-    iconName: 'git-branch',
-    defaultPinnedRoles: ['user', 'assistant'],
-    allowedRoles: ['user', 'assistant', 'system', 'tool'],
   },
   toggleMarkdown: {
     key: 'toggleMarkdown',

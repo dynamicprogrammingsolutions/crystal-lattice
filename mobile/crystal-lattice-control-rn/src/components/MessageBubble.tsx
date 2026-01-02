@@ -10,7 +10,7 @@ import {
 import Icon from 'react-native-vector-icons/Feather';
 import type { ApiMessage, UiSchemaElement } from '../api';
 import MessageActionsBar from './MessageActionsBar';
-import type { MessageActionKey } from '../messageActions';
+import type { MessageActionKey, MessageActionDefinition } from '../messageActions';
 import { selectDisplayContent } from '../messageUtils';
 import MarkdownMessageContent from './MarkdownMessageContent';
 import { useTheme, type Theme } from '../theme';
@@ -30,6 +30,7 @@ export interface MessageBubbleProps {
   onCancelEdit?: () => void;
   renderMode?: 'markdown' | 'raw';
   footerElements?: UiSchemaElement[];
+  pluginActionDefs?: MessageActionDefinition[];
 }
 
 const UserMessageBubble: React.FC<MessageBubbleProps> = ({
@@ -46,6 +47,7 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
   onCancelEdit,
   renderMode,
   footerElements,
+  pluginActionDefs,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -117,6 +119,7 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
             onChangePinned={(next) => onChangePinnedForRole(role, next)}
             onAction={(action) => onAction(action, index, message)}
             availableActions={allowedActions}
+            extraActions={pluginActionDefs}
           />
         )}
       </View>
@@ -138,6 +141,7 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
   onCancelEdit,
   renderMode,
   footerElements,
+  pluginActionDefs,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -209,6 +213,7 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
             onChangePinned={(next) => onChangePinnedForRole(role, next)}
             onAction={(action) => onAction(action, index, message)}
             availableActions={allowedActions}
+            extraActions={pluginActionDefs}
           />
         )}
       </View>
@@ -225,6 +230,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
   allowedActions,
   renderMode,
   footerElements,
+  pluginActionDefs,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -308,6 +314,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
             onChangePinned={(next) => onChangePinnedForRole(role, next)}
             onAction={(action) => onAction(action, index, message)}
             availableActions={allowedActions}
+            extraActions={pluginActionDefs}
           />
         )}
       </View>
@@ -329,6 +336,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
   onCancelEdit,
   renderMode,
   footerElements,
+  pluginActionDefs,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -453,6 +461,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
             onChangePinned={(next) => onChangePinnedForRole(role, next)}
             onAction={(action) => onAction(action, index, message)}
             availableActions={allowedActions}
+            extraActions={pluginActionDefs}
           />
         )}
       </View>
@@ -474,6 +483,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onCancelEdit,
   renderMode,
   footerElements,
+  pluginActionDefs,
 }) => {
   const role = message.role || 'unknown';
 
@@ -492,6 +502,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         onSubmitEdit={onSubmitEdit}
         onCancelEdit={onCancelEdit}
         footerElements={footerElements}
+        pluginActionDefs={pluginActionDefs}
       />
     );
   }
@@ -511,6 +522,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         onCancelEdit={onCancelEdit}
         renderMode={renderMode}
         footerElements={footerElements}
+        pluginActionDefs={pluginActionDefs}
       />
     );
   }
@@ -525,6 +537,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         allowedActions={allowedActions}
         renderMode={renderMode}
         footerElements={footerElements}
+        pluginActionDefs={pluginActionDefs}
       />
     );
   }
@@ -544,6 +557,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         onCancelEdit={onCancelEdit}
         renderMode={renderMode}
         footerElements={footerElements}
+        pluginActionDefs={pluginActionDefs}
       />
     );
   }

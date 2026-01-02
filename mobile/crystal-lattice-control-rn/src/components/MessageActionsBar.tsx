@@ -11,6 +11,7 @@ import Icon from 'react-native-vector-icons/Feather';
 import {
   ALL_MESSAGE_ACTIONS,
   MESSAGE_ACTIONS,
+  type MessageActionDefinition,
   type MessageActionKey,
 } from '../messageActions';
 import { useTheme, type Theme } from '../theme';
@@ -21,6 +22,7 @@ export interface MessageActionsBarProps {
   onAction: (action: MessageActionKey) => void;
   isActionDisabled?: (action: MessageActionKey) => boolean;
   availableActions?: MessageActionKey[];
+  extraActions?: MessageActionDefinition[];
 }
 
 const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
@@ -29,10 +31,26 @@ const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
   onAction,
   isActionDisabled,
   availableActions,
+  extraActions,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [menuVisible, setMenuVisible] = useState(false);
+
+  const allDefs: MessageActionDefinition[] = useMemo(() => {
+    const extras = extraActions ?? [];
+    return [...ALL_MESSAGE_ACTIONS, ...extras];
+  }, [extraActions]);
+
+  const defByKey: Record<string, MessageActionDefinition> = useMemo(() => {
+    const map: Record<string, MessageActionDefinition> = {};
+    allDefs.forEach((def) => {
+      if (def && typeof def.key === 'string') {
+        map[def.key] = def;
+      }
+    });
+    return map;
+  }, [allDefs]);
 
   const togglePinned = (key: MessageActionKey) => {
     if (pinned.includes(key)) {
@@ -43,7 +61,7 @@ const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
   };
 
   const renderIconButton = (key: MessageActionKey) => {
-    const def = MESSAGE_ACTIONS[key];
+    const def = defByKey[key];
     if (!def) {
       return null;
     }
@@ -92,12 +110,15 @@ const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
 	                      <Icon name="x" size={16} color="#8E8E93" />
 	                    </TouchableOpacity>
 	                  </View>
-	                  {(availableActions
-	                    ? ALL_MESSAGE_ACTIONS.filter((def) =>
-	                        availableActions.includes(def.key),
-	                      )
-	                    : ALL_MESSAGE_ACTIONS
-	                  ).map((def) => {
+                  {(() => {
+                    const base = availableActions
+                      ? ALL_MESSAGE_ACTIONS.filter((def) =>
+                          availableActions.includes(def.key),
+                        )
+                      : ALL_MESSAGE_ACTIONS;
+                    const extras = extraActions ?? [];
+                    return [...base, ...extras];
+                  })().map((def) => {
 	                    const pinnedHere = pinned.includes(def.key);
 	                    return (
 	                      <View key={def.key} style={styles.menuItem}>

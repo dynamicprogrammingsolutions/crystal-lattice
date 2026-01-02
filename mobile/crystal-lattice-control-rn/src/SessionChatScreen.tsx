@@ -18,17 +18,20 @@ import Icon from 'react-native-vector-icons/Feather';
 import type { ConnectionAdapter } from '../App';
 import {
   apiAppendMessage,
-  apiDeleteMessagesByIndices,
   apiDeleteMessagesByRange,
-  apiForkSession,
   apiGetSessionAgent,
   apiListAgents,
+  apiListApplicationActions,
+  apiListApplicationUiSchema,
   apiListMessages,
   apiModifyMessage,
   apiSend,
   apiSwitchSessionAgent,
+  apiExecuteAction,
   type ApiMessage,
   type IndexedMessage,
+  type ActionUiElement,
+  type ApplicationActionDefinition,
   apiGetSessionUiSchema,
   type UiSchemaElement,
 } from './api';
@@ -137,6 +140,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   >(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [uiSchemaElements, setUiSchemaElements] = useState<UiSchemaElement[]>([]);
+  const [pluginSessionActions, setPluginSessionActions] = useState<ActionUiElement[]>([]);
+  const [pluginMessageActions, setPluginMessageActions] = useState<ActionUiElement[]>([]);
+  const [pluginActionDefs, setPluginActionDefs] = useState<
+    Record<string, ApplicationActionDefinition>
+  >({});
   const scrollViewRef = useRef<ScrollView | null>(null);
   const composeTextRef = useRef<string>(initialComposeText ?? '');
   const scrollOffsetRef = useRef<number>(initialScrollOffset || 0);
@@ -159,9 +167,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           try {
             const parsed = JSON.parse(sessionRaw);
             if (Array.isArray(parsed)) {
-              const valid = parsed.filter((key: any) =>
-                Object.prototype.hasOwnProperty.call(SESSION_ACTIONS, key),
-              );
+              const valid = parsed.filter((key: any) => typeof key === 'string');
               if (valid.length > 0 || parsed.length === 0) {
                 // Allow empty array (no pinned session actions).
                 setPinnedSessionActions(valid as SessionActionKey[]);
@@ -179,9 +185,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
               const next: Record<string, MessageActionKey[]> = {};
               Object.entries(parsed).forEach(([role, value]) => {
                 if (Array.isArray(value)) {
-                  const filtered = (value as any[]).filter((key) =>
-                    ALL_MESSAGE_ACTIONS.some((def) => def.key === key),
-                  );
+                  const filtered = (value as any[]).filter((key) => typeof key === 'string');
                   next[role] = filtered as MessageActionKey[];
                 }
               });
@@ -223,6 +227,91 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       cancelled = true;
     };
   }, [adapter, sessionId]);
+
+  useEffect(() => {
+    if (!adapter) {
+      setPluginSessionActions([]);
+      setPluginMessageActions([]);
+      setPluginActionDefs({});
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadAppActionsAndUi = async () => {
+      try {
+        const [actions, elements] = await Promise.all([
+          apiListApplicationActions(adapter, 'session_actions'),
+          apiListApplicationUiSchema(adapter, 'session_actions'),
+        ]);
+
+        if (cancelled) return;
+
+        const defs: Record<string, ApplicationActionDefinition> = {};
+        (actions || []).forEach((a) => {
+          if (a && typeof a.id === 'string') {
+            defs[a.id] = a;
+          }
+        });
+        setPluginActionDefs(defs);
+
+        const list = Array.isArray(elements) ? elements : [];
+        const sessionEls = list.filter(
+          (el) =>
+            el &&
+            (el as any).ui_type === 'session_action' &&
+            (el as any).plugin === 'session_actions',
+        ) as ActionUiElement[];
+        const messageEls = list.filter(
+          (el) =>
+            el &&
+            (el as any).ui_type === 'message_action' &&
+            (el as any).plugin === 'session_actions',
+        ) as ActionUiElement[];
+
+        setPluginSessionActions(sessionEls);
+        setPluginMessageActions(messageEls);
+      } catch (err) {
+        console.log('Failed to load application actions/ui-schema', err);
+        if (!cancelled) {
+          setPluginSessionActions([]);
+          setPluginMessageActions([]);
+          setPluginActionDefs({});
+        }
+      }
+    };
+
+    loadAppActionsAndUi().catch(() => {
+      // Error already logged.
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [adapter, connectionId]);
+
+  const pluginSessionActionDefs = useMemo(
+    () =>
+      pluginSessionActions.map((el) => ({
+        key: el.id,
+        label: el.label,
+        iconName: (el as any).icon || 'zap',
+        defaultPinned: false,
+      })),
+    [pluginSessionActions],
+  );
+
+  const pluginMessageActionDefs = useMemo(
+    () =>
+      pluginMessageActions.map((el) => ({
+        key: el.id,
+        label: el.label,
+        iconName: (el as any).icon || 'zap',
+        defaultPinnedRoles: ['user', 'assistant', 'system', 'tool'],
+        allowedRoles: ['user', 'assistant', 'system', 'tool'],
+      })),
+    [pluginMessageActions],
+  );
 
   const applyMessageLimitAndReload = () => {
     setMessageLimitVisible(false);
@@ -478,24 +567,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       setMessageLimitVisible(true);
       return;
     }
-    if (action === 'copy') {
-      if (!adapter) {
-        Alert.alert('No connection', 'Connect to a server to copy sessions.');
-        return;
-      }
-      try {
-        const result = await apiForkSession(adapter, sessionId, -1);
-        const newId = result.session.session_id;
-        if (onNavigateToSession && typeof newId === 'string' && newId) {
-          onNavigateToSession(newId);
-        }
-      } catch (err: any) {
-        console.log('Failed to fork session', err);
-        const message = err?.message || 'Failed to copy session';
-        Alert.alert('Error', message);
-      }
-      return;
-    }
     if (action === 'deleteRange') {
       setDeleteRangeStartText('');
       setDeleteRangeEndText('');
@@ -529,6 +600,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       setSettingsVisible(true);
       return;
     }
+
+    // Fallback: treat as plugin-provided session action when it
+    // does not match any built-in key.
+    const pluginEl = pluginSessionActions.find((el) => el.id === action);
+    if (pluginEl) {
+      await handlePluginSessionActionPress(pluginEl);
+    }
   };
 
   const getPinnedActionsForRole = (role: string): MessageActionKey[] => {
@@ -539,7 +617,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     const existing = pinnedMessageActionsByRole[role];
     if (Array.isArray(existing)) {
       // Respect an explicit empty list (user chose to pin nothing).
-      return existing.filter((key) => allowedKeys.includes(key));
+      return existing;
     }
 
     const defaults: MessageActionKey[] = [];
@@ -602,51 +680,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     index: number,
     message: ApiMessage,
   ) => {
-    if (action === 'delete') {
-      const label = `Delete message [${index}]?`;
-      const confirmed = await new Promise<boolean>((resolve) => {
-        Alert.alert('Confirm delete', label, [
-          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-          { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
-        ]);
-      });
-      if (!confirmed) return;
-      if (!adapter) {
-        Alert.alert('No connection', 'Connect to a server to delete messages.');
-        return;
-      }
-      try {
-        await apiDeleteMessagesByIndices(adapter, sessionId, [index]);
-        await loadMessages();
-      } catch (err: any) {
-        console.log('Failed to delete message', err);
-        const msg = err?.message || 'Failed to delete message';
-        Alert.alert('Error', msg);
-      }
-      return;
-    }
-
     if (action === 'modify') {
       handleStartEditMessage(index, message);
-      return;
-    }
-
-    if (action === 'fork') {
-      if (!adapter) {
-        Alert.alert('No connection', 'Connect to a server to fork sessions.');
-        return;
-      }
-      try {
-        const result = await apiForkSession(adapter, sessionId, index);
-        const newId = result.session.session_id;
-        if (onNavigateToSession && typeof newId === 'string' && newId) {
-          onNavigateToSession(newId);
-        }
-      } catch (err: any) {
-        console.log('Failed to fork session from message', err);
-        const msg = err?.message || 'Failed to fork session';
-        Alert.alert('Error', msg);
-      }
       return;
     }
 
@@ -672,6 +707,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       Clipboard.setString(content);
       Alert.alert('Copied', 'Message content copied to clipboard.');
       return;
+    }
+
+    // Fallback: plugin-provided message actions are routed via
+    // the UI element definitions when the key matches element.id.
+    const pluginEl = pluginMessageActions.find((el) => el.id === action);
+    if (pluginEl) {
+      await handlePluginMessageActionPress(pluginEl, index, message);
     }
   };
 
@@ -855,7 +897,137 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	    return parts;
 	  }, [lastAssistantMessage, statusBarElements, sessionAgentId, sessionId]);
 
-		  return (
+		  const executePluginAction = useCallback(
+	    async (
+	      element: ActionUiElement,
+	      dialogValues: Record<string, any> | undefined,
+	      messageCtx: IndexedMessage | null,
+	    ) => {
+	      if (!adapter) {
+	        Alert.alert('No connection', 'Connect to a server to run actions.');
+	        return;
+	      }
+
+	      const actionId = element.action_id;
+	      const pluginId = element.plugin;
+	      const def = pluginActionDefs[actionId];
+	      const inputs: Record<string, any> = {};
+
+	      if (element.fixed_params && typeof element.fixed_params === 'object') {
+	        Object.entries(element.fixed_params).forEach(([k, v]) => {
+	          inputs[k] = v;
+	        });
+	      }
+
+	      const getFromPath = (root: any, path: string): any => {
+	        if (!root) return undefined;
+	        const parts = path.split('.');
+	        let current: any = root;
+	        for (const part of parts) {
+	          if (current == null) return undefined;
+	          current = current[part];
+	        }
+	        return current;
+	      };
+
+	      if (element.param_map && typeof element.param_map === 'object') {
+	        for (const [paramName, source] of Object.entries(element.param_map)) {
+	          if (typeof source !== 'string') continue;
+	          let value: any;
+	          if (source.startsWith('$session.')) {
+	            const path = source.slice('$session.'.length);
+	            const sessionRoot = { session_id: sessionId } as any;
+	            value = getFromPath(sessionRoot, path);
+	          } else if (source.startsWith('$message.')) {
+	            const path = source.slice('$message.'.length);
+	            const root = messageCtx
+	              ? { index: messageCtx.index, ...(messageCtx.message as any) }
+	              : null;
+	            value = getFromPath(root, path);
+	          } else if (source.startsWith('$dialog.')) {
+	            const path = source.slice('$dialog.'.length);
+	            value = getFromPath(dialogValues || {}, path);
+	          }
+	          if (value !== undefined) {
+	            inputs[paramName] = value;
+	          }
+	        }
+	      }
+
+	      if (def && def.inputs) {
+	        Object.entries(def.inputs).forEach(([name, spec]) => {
+	          if ((spec as any).type === 'array' && name in inputs && !Array.isArray(inputs[name])) {
+	            inputs[name] = [inputs[name]];
+	          }
+	        });
+	      }
+
+	      try {
+	        const resp = await apiExecuteAction(adapter, pluginId, actionId, inputs);
+	        if (resp.status !== 'ok') {
+	          const msg = (resp as any).message || 'Failed to execute action';
+	          Alert.alert('Action error', msg);
+	          return;
+	        }
+	        const result: any = (resp as any).result || {};
+	        const created: string[] = Array.isArray(result.created_session_ids)
+	          ? (result.created_session_ids as string[])
+	          : [];
+	        const selectedId: string | undefined =
+	          typeof result.selected_session_id === 'string'
+	            ? result.selected_session_id
+	            : created.length > 0 && typeof created[0] === 'string'
+	            ? created[0]
+	            : undefined;
+	        if (selectedId && onNavigateToSession) {
+	          onNavigateToSession(selectedId);
+	          return;
+	        }
+	        await loadMessages();
+	      } catch (err: any) {
+	        console.log('Failed to execute plugin action', err);
+	        const msg = err?.message || 'Failed to execute action';
+	        Alert.alert('Action error', msg);
+	      }
+	    },
+	    [adapter, pluginActionDefs, sessionId, loadMessages, onNavigateToSession],
+	  );
+
+	  const handlePluginSessionActionPress = useCallback(
+	    async (element: ActionUiElement) => {
+	      const dialog: any = (element as any).dialog || {};
+	      if (dialog && dialog.kind === 'confirm') {
+	        const confirmed = await new Promise<boolean>((resolve) => {
+	          Alert.alert(dialog.title || element.label || 'Confirm', dialog.message || '', [
+	            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+	            { text: 'OK', onPress: () => resolve(true) },
+	          ]);
+	        });
+	        if (!confirmed) return;
+	      }
+	      await executePluginAction(element, undefined, null);
+	    },
+	    [executePluginAction],
+	  );
+
+	  const handlePluginMessageActionPress = useCallback(
+	    async (element: ActionUiElement, idx: number, msg: ApiMessage) => {
+	      const dialog: any = (element as any).dialog || {};
+	      if (dialog && dialog.kind === 'confirm') {
+	        const confirmed = await new Promise<boolean>((resolve) => {
+	          Alert.alert(dialog.title || element.label || 'Confirm', dialog.message || '', [
+	            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+	            { text: 'OK', onPress: () => resolve(true) },
+	          ]);
+	        });
+	        if (!confirmed) return;
+	      }
+	      await executePluginAction(element, undefined, { index: idx, message: msg });
+	    },
+	    [executePluginAction],
+	  );
+
+	  return (
 	    <KeyboardAvoidingView
 	      style={styles.keyboardAvoiding}
 	      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -877,6 +1049,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
               isActionDisabled={(action) =>
                 sendInProgress && (action === 'reload' || action === 'resend')
               }
+              extraActions={pluginSessionActionDefs}
             />
           </View>
 	        </View>
@@ -916,32 +1089,33 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        }}
       >
       {messages.map((m) => {
-	        const role = m.message.role || 'unknown';
-	        const allowedActions = ALL_MESSAGE_ACTIONS
-	          .filter((def) => def.allowedRoles.includes(role))
-	          .map((def) => def.key as MessageActionKey);
+        const role = m.message.role || 'unknown';
+        const allowedActions = ALL_MESSAGE_ACTIONS
+          .filter((def) => def.allowedRoles.includes(role))
+          .map((def) => def.key as MessageActionKey);
 	        const pinnedForRole = getPinnedActionsForRole(role);
 	        const isEditing = editingIndex === m.index;
 	        const defaultModeForRole: 'markdown' | 'raw' =
 	          role === 'assistant' ? 'markdown' : 'raw';
 	        const renderMode = messageViewModeByIndex[m.index] ?? defaultModeForRole;
 	        return (
-	          <MessageBubble
-	            key={m.index}
-	            index={m.index}
-	            message={m.message}
-	            pinnedActions={pinnedForRole}
-	            allowedActions={allowedActions}
-	            onAction={handleMessageAction}
-	            onChangePinnedForRole={handleChangePinnedForRole}
-	            isEditing={isEditing}
-	            editingText={isEditing ? editingText : undefined}
-	            onChangeEditingText={isEditing ? setEditingText : undefined}
-	            onSubmitEdit={handleSubmitEditMessage}
-	            onCancelEdit={handleCancelEditMessage}
-	            renderMode={renderMode}
-	            footerElements={footerElements}
-	          />
+            <MessageBubble
+              key={m.index}
+              index={m.index}
+              message={m.message}
+              pinnedActions={pinnedForRole}
+              allowedActions={allowedActions}
+              onAction={handleMessageAction}
+              onChangePinnedForRole={handleChangePinnedForRole}
+              isEditing={isEditing}
+              editingText={isEditing ? editingText : undefined}
+              onChangeEditingText={isEditing ? setEditingText : undefined}
+              onSubmitEdit={handleSubmitEditMessage}
+              onCancelEdit={handleCancelEditMessage}
+              renderMode={renderMode}
+              footerElements={footerElements}
+              pluginActionDefs={pluginMessageActionDefs}
+            />
         );
       })}
       {streamingRow && (streamingRow.content || streamingRow.reasoning) && (
@@ -963,6 +1137,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           isEditing={false}
           renderMode="markdown"
           footerElements={footerElements}
+          pluginActionDefs={pluginMessageActionDefs}
         />
       )}
 	      {statusBarParts.length > 0 && (
@@ -1215,6 +1390,11 @@ const createStyles = (theme: Theme) =>
     headerButtons: {
       flexDirection: 'row',
       alignItems: 'center',
+    },
+    pluginSessionActionsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginRight: 4,
     },
     iconButton: {
       paddingHorizontal: 8,

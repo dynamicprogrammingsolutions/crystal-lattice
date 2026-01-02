@@ -1,12 +1,4 @@
-export type SessionActionKey =
-  | 'reload'
-  | 'resend'
-  | 'messageLimit'
-  | 'copy'
-  | 'deleteRange'
-  | 'agentSwitch'
-  | 'debugEvents'
-  | 'settings';
+export type SessionActionKey = string;
 
 export interface SessionActionDefinition {
   key: SessionActionKey;
@@ -32,12 +24,6 @@ export const SESSION_ACTIONS: Record<SessionActionKey, SessionActionDefinition> 
     key: 'messageLimit',
     label: 'Message limit',
     iconName: 'sliders',
-    defaultPinned: false,
-  },
-  copy: {
-    key: 'copy',
-    label: 'Copy (fork last)',
-    iconName: 'copy',
     defaultPinned: false,
   },
   deleteRange: {
