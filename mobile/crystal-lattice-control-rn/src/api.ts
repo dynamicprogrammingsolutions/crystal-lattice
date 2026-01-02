@@ -4,6 +4,7 @@ export interface SessionSummary {
   session_id: string;
   modified: number;
   preview: string;
+  metadata?: Record<string, any>;
 }
 
 export interface ApiMessage {
@@ -348,4 +349,111 @@ export async function apiDeleteSessionOverride(
 ): Promise<void> {
   const path = `/sessions/${encodeURIComponent(sessionId)}/overrides/${encodeURIComponent(key)}`;
   await adapter.delete(path);
+}
+
+// --- Application-level actions & UI schema helpers ---
+
+export interface ActionInputParam {
+  type?: string;
+  required?: boolean;
+  default?: any;
+  description?: string;
+  [k: string]: any;
+}
+
+export interface ApplicationActionDefinition {
+  plugin: string;
+  id: string;
+  label?: string;
+  description?: string;
+  inputs?: Record<string, ActionInputParam>;
+  [k: string]: any;
+}
+
+export interface ListApplicationActionsResponse {
+  actions: ApplicationActionDefinition[];
+}
+
+export interface ActionUiElement {
+  ui_type: string;
+  plugin: string;
+  id: string;
+  label: string;
+  icon?: string;
+  order?: number;
+  action_id: string;
+  fixed_params?: Record<string, any>;
+  param_map?: Record<string, string>;
+  dialog?: any;
+  metadata?: Record<string, any>;
+  [k: string]: any;
+}
+
+export interface SessionListFieldElement {
+  ui_type: string;
+  plugin: string;
+  key?: string;
+  label?: string;
+  description?: string;
+  role?: string;
+  data: string;
+  template?: string;
+  order?: number;
+  metadata?: Record<string, any>;
+  [k: string]: any;
+}
+
+export type ApplicationUiElement = ActionUiElement | SessionListFieldElement | Record<string, any>;
+
+export interface ListApplicationUiSchemaResponse {
+  elements: ApplicationUiElement[];
+}
+
+export interface ExecuteActionResponseOk {
+  status: 'ok';
+  plugin: string;
+  action_id: string;
+  result: any;
+}
+
+export interface ExecuteActionResponseError {
+  status: 'error';
+  plugin?: string;
+  action_id?: string;
+  error_type?: string;
+  message?: string;
+  details?: any;
+}
+
+export type ExecuteActionResponse = ExecuteActionResponseOk | ExecuteActionResponseError;
+
+export async function apiListApplicationActions(
+  adapter: ConnectionAdapter,
+  pluginId?: string,
+): Promise<ApplicationActionDefinition[]> {
+  const query = buildQuery({ plugin: pluginId });
+  const data = (await adapter.get(`/application/actions${query}`)) as ListApplicationActionsResponse;
+  const actions = Array.isArray(data?.actions) ? data.actions : [];
+  return actions;
+}
+
+export async function apiListApplicationUiSchema(
+  adapter: ConnectionAdapter,
+  pluginId?: string,
+): Promise<ApplicationUiElement[]> {
+  const query = buildQuery({ plugin: pluginId });
+  const data = (await adapter.get(`/application/ui-schema${query}`)) as ListApplicationUiSchemaResponse;
+  const elements = Array.isArray(data?.elements) ? data.elements : [];
+  return elements;
+}
+
+export async function apiExecuteAction(
+  adapter: ConnectionAdapter,
+  pluginId: string,
+  actionId: string,
+  inputs: Record<string, any>,
+): Promise<ExecuteActionResponse> {
+  const payload = { plugin: pluginId, action_id: actionId, inputs };
+  const data = (await adapter.post('/actions', payload)) as ExecuteActionResponse;
+  return data;
 }
