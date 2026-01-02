@@ -485,6 +485,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   footerElements,
   pluginActionDefs,
 }) => {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
   const role = message.role || 'unknown';
 
   if (role === 'user') {

@@ -14,24 +14,18 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Clipboard from '@react-native-clipboard/clipboard';
-import Icon from 'react-native-vector-icons/Feather';
 import type { ConnectionAdapter } from '../App';
 import {
   apiAppendMessage,
   apiDeleteMessagesByRange,
   apiGetSessionAgent,
-  apiListAgents,
-  apiListApplicationActions,
-  apiListApplicationUiSchema,
   apiListMessages,
   apiModifyMessage,
   apiSend,
   apiSwitchSessionAgent,
-  apiExecuteAction,
   type ApiMessage,
   type IndexedMessage,
   type ActionUiElement,
-  type ApplicationActionDefinition,
   apiGetSessionUiSchema,
   type UiSchemaElement,
 } from './api';
@@ -40,12 +34,18 @@ import DebugEventsView from './components/DebugEventsView';
 import SessionActionsBar from './components/SessionActionsBar';
 import SessionSettingsModal from './components/SessionSettingsModal';
 import ApplicationActionDialog from './components/ApplicationActionDialog';
+import AgentSwitchModal from './components/AgentSwitchModal';
 import { SESSION_ACTIONS, type SessionActionKey } from './sessionActions';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 import { selectDisplayContent } from './messageUtils';
 import { useTheme, type Theme } from './theme';
 import { useSessionEvents } from './useSessionEvents';
 import { extractByPath, renderTemplate } from './uiSchemaUtils';
+import { useApplicationPlugins } from './useApplicationPlugins';
+import { executeApplicationAction } from './applicationActionsExecutor';
+import { usePersistentPinnedActions } from './usePersistentPinnedActions';
+import { useSessionAgents } from './useSessionAgents';
+import { usePluginActionDialog } from './usePluginActionDialog';
 import type {
   AssistantMessageEvent,
   ErrorEvent,
@@ -75,6 +75,10 @@ interface SessionChatScreenProps {
 const STORAGE_KEY_SESSION_ACTIONS = 'clc_pinned_session_actions_v1';
 const STORAGE_KEY_MESSAGE_ACTIONS = 'clc_pinned_message_actions_by_role_v1';
 
+type PluginActionContext =
+  | { kind: 'session' }
+  | { kind: 'message'; index: number; message: ApiMessage };
+
 const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   adapter,
   connectionId,
@@ -103,15 +107,18 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [deleteRangeVisible, setDeleteRangeVisible] = useState(false);
   const [deleteRangeStartText, setDeleteRangeStartText] = useState('');
   const [deleteRangeEndText, setDeleteRangeEndText] = useState('');
-  const [pinnedSessionActions, setPinnedSessionActions] = useState<SessionActionKey[]>(() =>
-    Object.values(SESSION_ACTIONS)
-      .filter((def) => def.defaultPinned)
-      .map((def) => def.key),
-  );
-  const [availableAgents, setAvailableAgents] = useState<string[]>([]);
+  const defaultPinnedSessionActions: SessionActionKey[] = Object.values(SESSION_ACTIONS)
+    .filter((def) => def.defaultPinned)
+    .map((def) => def.key);
+  const { pinned: pinnedSessionActions, setPinned: setPinnedSessionActions } =
+    usePersistentPinnedActions<SessionActionKey>(
+      STORAGE_KEY_SESSION_ACTIONS,
+      defaultPinnedSessionActions,
+    );
+  const { availableAgents, agentLoading, ensureAgentsLoaded, setAgentLoading } =
+    useSessionAgents();
   const [sessionAgentId, setSessionAgentId] = useState<string | null>(null);
   const [agentModalVisible, setAgentModalVisible] = useState(false);
-  const [agentLoading, setAgentLoading] = useState(false);
   const [pinnedMessageActionsByRole, setPinnedMessageActionsByRole] = useState<
     Record<string, MessageActionKey[]>
   >({});
@@ -141,17 +148,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   >(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [uiSchemaElements, setUiSchemaElements] = useState<UiSchemaElement[]>([]);
-  const [pluginSessionActions, setPluginSessionActions] = useState<ActionUiElement[]>([]);
-  const [pluginMessageActions, setPluginMessageActions] = useState<ActionUiElement[]>([]);
-  const [pluginActionDefs, setPluginActionDefs] = useState<
-    Record<string, ApplicationActionDefinition>
-  >({});
-  const [activePluginDialogElement, setActivePluginDialogElement] = useState<ActionUiElement | null>(
-    null,
-  );
-  const [activePluginDialogMessageCtx, setActivePluginDialogMessageCtx] = useState<
-    IndexedMessage | null
-  >(null);
+  const { actionsById, sessionActions: pluginSessionActions, messageActions: pluginMessageActions } =
+    useApplicationPlugins(adapter, connectionId);
   const scrollViewRef = useRef<ScrollView | null>(null);
   const composeTextRef = useRef<string>(initialComposeText ?? '');
   const scrollOffsetRef = useRef<number>(initialScrollOffset || 0);
@@ -165,26 +163,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   useEffect(() => {
     const loadPinnedFromStorage = async () => {
       try {
-        const [sessionRaw, messageRaw] = await Promise.all([
-          AsyncStorage.getItem(STORAGE_KEY_SESSION_ACTIONS),
-          AsyncStorage.getItem(STORAGE_KEY_MESSAGE_ACTIONS),
-        ]);
-
-        if (sessionRaw) {
-          try {
-            const parsed = JSON.parse(sessionRaw);
-            if (Array.isArray(parsed)) {
-              const valid = parsed.filter((key: any) => typeof key === 'string');
-              if (valid.length > 0 || parsed.length === 0) {
-                // Allow empty array (no pinned session actions).
-                setPinnedSessionActions(valid as SessionActionKey[]);
-              }
-            }
-          } catch (err) {
-            console.log('Failed to parse stored pinned session actions', err);
-          }
-        }
-
+        const messageRaw = await AsyncStorage.getItem(STORAGE_KEY_MESSAGE_ACTIONS);
         if (messageRaw) {
           try {
             const parsed = JSON.parse(messageRaw);
@@ -203,7 +182,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           }
         }
       } catch (err) {
-        console.log('Failed to load pinned actions from storage', err);
+        console.log('Failed to load pinned message actions from storage', err);
       }
     };
 
@@ -234,62 +213,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       cancelled = true;
     };
   }, [adapter, sessionId]);
-
-  useEffect(() => {
-    if (!adapter) {
-      setPluginSessionActions([]);
-      setPluginMessageActions([]);
-      setPluginActionDefs({});
-      return;
-    }
-
-    let cancelled = false;
-
-    const loadAppActionsAndUi = async () => {
-      try {
-        const [actions, elements] = await Promise.all([
-          apiListApplicationActions(adapter),
-          apiListApplicationUiSchema(adapter),
-        ]);
-
-        if (cancelled) return;
-
-        const defs: Record<string, ApplicationActionDefinition> = {};
-        (actions || []).forEach((a) => {
-          if (a && typeof a.id === 'string') {
-            defs[a.id] = a;
-          }
-        });
-        setPluginActionDefs(defs);
-
-        const list = Array.isArray(elements) ? elements : [];
-        const sessionEls = list.filter(
-          (el) => el && (el as any).ui_type === 'session_action',
-        ) as ActionUiElement[];
-        const messageEls = list.filter(
-          (el) => el && (el as any).ui_type === 'message_action',
-        ) as ActionUiElement[];
-
-        setPluginSessionActions(sessionEls);
-        setPluginMessageActions(messageEls);
-      } catch (err) {
-        console.log('Failed to load application actions/ui-schema', err);
-        if (!cancelled) {
-          setPluginSessionActions([]);
-          setPluginMessageActions([]);
-          setPluginActionDefs({});
-        }
-      }
-    };
-
-    loadAppActionsAndUi().catch(() => {
-      // Error already logged.
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [adapter, connectionId]);
 
   const pluginSessionActionDefs = useMemo(
     () =>
@@ -368,6 +291,57 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	    }
   }, [adapter, sessionId, rangeStartText, rangeEndText, onUpdateCache]);
 
+  const {
+    activeElement: activePluginDialogElement,
+    openForElement: openPluginDialogForElement,
+    handleSubmit: handleSubmitPluginDialog,
+    handleCancel: handleCancelPluginDialog,
+  } = usePluginActionDialog<PluginActionContext>(
+    useCallback(
+      async (
+        element: ActionUiElement,
+        context: PluginActionContext,
+        dialogValues: Record<string, any> | undefined,
+      ) => {
+        if (!adapter) {
+          Alert.alert('No connection', 'Connect to a server to run actions.');
+          return;
+        }
+
+        const isMessage = context.kind === 'message';
+        const { ok, response } = await executeApplicationAction(
+          adapter,
+          element,
+          actionsById,
+          {
+            sessionId,
+            messageContext: isMessage
+              ? { index: context.index, message: context.message }
+              : undefined,
+            dialogValues,
+          },
+        );
+        if (!ok) return;
+        const result: any = (response as any)?.result || {};
+        const created: string[] = Array.isArray(result.created_session_ids)
+          ? (result.created_session_ids as string[])
+          : [];
+        const selectedId: string | undefined =
+          typeof result.selected_session_id === 'string'
+            ? result.selected_session_id
+            : created.length > 0 && typeof created[0] === 'string'
+            ? created[0]
+            : undefined;
+        if (selectedId && onNavigateToSession) {
+          onNavigateToSession(selectedId);
+          return;
+        }
+        await loadMessages();
+      },
+      [adapter, actionsById, sessionId, loadMessages, onNavigateToSession],
+    ),
+  );
+
   useEffect(() => {
     setMessages(cachedMessages ?? []);
     if (cachedMessages && lastLoadedAt) {
@@ -387,20 +361,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       loadMessages();
     }
   }, [adapter, cachedMessages, loadMessages]);
-
-  useEffect(() => {
-    const saveSessionPinned = async () => {
-      try {
-        await AsyncStorage.setItem(
-          STORAGE_KEY_SESSION_ACTIONS,
-          JSON.stringify(pinnedSessionActions),
-        );
-      } catch (err) {
-        console.log('Failed to save pinned session actions', err);
-      }
-    };
-    saveSessionPinned();
-  }, [pinnedSessionActions]);
 
   useEffect(() => {
     const saveMessagePinned = async () => {
@@ -576,19 +536,19 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
     if (action === 'agentSwitch') {
       setAgentModalVisible(true);
+      if (!adapter) {
+        Alert.alert('No connection', 'Connect to a server to switch agent.');
+        return;
+      }
       if (availableAgents.length === 0 || sessionAgentId === null) {
         try {
-          setAgentLoading(true);
-          const agents = await apiListAgents(adapter);
-          setAvailableAgents(agents);
+          await ensureAgentsLoaded(adapter);
           const current = await apiGetSessionAgent(adapter, sessionId);
           setSessionAgentId(current);
         } catch (err: any) {
           console.log('Failed to load agents', err);
           const message = err?.message || 'Failed to load agents';
           Alert.alert('Error', message);
-        } finally {
-          setAgentLoading(false);
         }
       }
       return;
@@ -602,11 +562,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       return;
     }
 
-    // Fallback: treat as plugin-provided session action when it
-    // does not match any built-in key.
     const pluginEl = pluginSessionActions.find((el) => el.id === action);
     if (pluginEl) {
-      await handlePluginSessionActionPress(pluginEl);
+      openPluginDialogForElement(pluginEl, { kind: 'session' });
     }
   };
 
@@ -709,12 +667,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       Alert.alert('Copied', 'Message content copied to clipboard.');
       return;
     }
-
-    // Fallback: plugin-provided message actions are routed via
-    // the UI element definitions when the key matches element.id.
     const pluginEl = pluginMessageActions.find((el) => el.id === action);
     if (pluginEl) {
-      await handlePluginMessageActionPress(pluginEl, index, message);
+      openPluginDialogForElement(pluginEl, { kind: 'message', index, message });
     }
   };
 
@@ -733,6 +688,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       const current = [...prev];
       let lastIndex = current.length > 0 ? current[current.length - 1].index : -1;
       for (const msg of ev.messages) {
+	        if (!msg) continue;
         lastIndex += 1;
         current.push({ index: lastIndex, message: msg });
       }
@@ -740,19 +696,21 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     });
   };
 
-  const applyMessageAppendedEvent = (ev: MessageAppendedEvent) => {
-    if (!ev.message) return;
-    setMessages((prev) => {
-      const lastIndex = prev.length > 0 ? prev[prev.length - 1].index : -1;
-      return [...prev, { index: lastIndex + 1, message: ev.message }];
-    });
-  };
+	  const applyMessageAppendedEvent = (ev: MessageAppendedEvent) => {
+	    const message = ev.message;
+	    if (!message) return;
+	    setMessages((prev) => {
+	      const lastIndex = prev.length > 0 ? prev[prev.length - 1].index : -1;
+	      return [...prev, { index: lastIndex + 1, message }];
+	    });
+	  };
   const applyToolResultsEvent = (ev: ToolResultsEvent) => {
     if (!Array.isArray(ev.messages) || ev.messages.length === 0) return;
     setMessages((prev) => {
       const current = [...prev];
       let lastIndex = current.length > 0 ? current[current.length - 1].index : -1;
       for (const msg of ev.messages) {
+	        if (!msg) continue;
         lastIndex += 1;
         current.push({ index: lastIndex, message: msg });
       }
@@ -897,145 +855,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	    });
 	    return parts;
 	  }, [lastAssistantMessage, statusBarElements, sessionAgentId, sessionId]);
-
-	  const executePluginAction = useCallback(
-	    async (
-	      element: ActionUiElement,
-	      dialogValues: Record<string, any> | undefined,
-	      messageCtx: IndexedMessage | null,
-	    ) => {
-	      if (!adapter) {
-	        Alert.alert('No connection', 'Connect to a server to run actions.');
-	        return;
-	      }
-
-	      const actionId = element.action_id;
-	      const pluginId = element.plugin;
-	      const def = pluginActionDefs[actionId];
-	      const inputs: Record<string, any> = {};
-
-	      if (element.fixed_params && typeof element.fixed_params === 'object') {
-	        Object.entries(element.fixed_params).forEach(([k, v]) => {
-	          inputs[k] = v;
-	        });
-	      }
-
-	      const getFromPath = (root: any, path: string): any => {
-	        if (!root) return undefined;
-	        const parts = path.split('.');
-	        let current: any = root;
-	        for (const part of parts) {
-	          if (current == null) return undefined;
-	          current = current[part];
-	        }
-	        return current;
-	      };
-
-	      if (element.param_map && typeof element.param_map === 'object') {
-	        for (const [paramName, source] of Object.entries(element.param_map)) {
-	          if (typeof source !== 'string') continue;
-	          let value: any;
-	          if (source.startsWith('$session.')) {
-	            const path = source.slice('$session.'.length);
-	            const sessionRoot = { session_id: sessionId } as any;
-	            value = getFromPath(sessionRoot, path);
-	          } else if (source.startsWith('$message.')) {
-	            const path = source.slice('$message.'.length);
-	            const root = messageCtx
-	              ? { index: messageCtx.index, ...(messageCtx.message as any) }
-	              : null;
-	            value = getFromPath(root, path);
-	          } else if (source.startsWith('$dialog.')) {
-	            const path = source.slice('$dialog.'.length);
-	            value = getFromPath(dialogValues || {}, path);
-	          }
-	          if (value !== undefined) {
-	            inputs[paramName] = value;
-	          }
-	        }
-	      }
-
-	      if (def && def.inputs) {
-	        Object.entries(def.inputs).forEach(([name, spec]) => {
-	          if ((spec as any).type === 'array' && name in inputs && !Array.isArray(inputs[name])) {
-	            inputs[name] = [inputs[name]];
-	          }
-	        });
-	      }
-
-	      try {
-	        const resp = await apiExecuteAction(adapter, pluginId, actionId, inputs);
-	        if (resp.status !== 'ok') {
-	          const msg = (resp as any).message || 'Failed to execute action';
-	          Alert.alert('Action error', msg);
-	          return;
-	        }
-	        const result: any = (resp as any).result || {};
-	        const created: string[] = Array.isArray(result.created_session_ids)
-	          ? (result.created_session_ids as string[])
-	          : [];
-	        const selectedId: string | undefined =
-	          typeof result.selected_session_id === 'string'
-	            ? result.selected_session_id
-	            : created.length > 0 && typeof created[0] === 'string'
-	            ? created[0]
-	            : undefined;
-	        if (selectedId && onNavigateToSession) {
-	          onNavigateToSession(selectedId);
-	          return;
-	        }
-	        await loadMessages();
-	      } catch (err: any) {
-	        console.log('Failed to execute plugin action', err);
-	        const msg = err?.message || 'Failed to execute action';
-	        Alert.alert('Action error', msg);
-	      }
-	    },
-	    [adapter, pluginActionDefs, sessionId, loadMessages, onNavigateToSession],
-	  );
-
-	  const handlePluginSessionActionPress = useCallback(
-	    (element: ActionUiElement) => {
-	      const dialog: any = (element as any).dialog || {};
-	      if (!dialog || dialog.kind === 'none') {
-	        executePluginAction(element, undefined, null);
-	        return;
-	      }
-	      setActivePluginDialogElement(element);
-	      setActivePluginDialogMessageCtx(null);
-	    },
-	    [executePluginAction],
-	  );
-
-	  const handlePluginMessageActionPress = useCallback(
-	    (element: ActionUiElement, idx: number, msg: ApiMessage) => {
-	      const dialog: any = (element as any).dialog || {};
-	      if (!dialog || dialog.kind === 'none') {
-	        executePluginAction(element, undefined, { index: idx, message: msg });
-	        return;
-	      }
-	      setActivePluginDialogElement(element);
-	      setActivePluginDialogMessageCtx({ index: idx, message: msg });
-	    },
-	    [executePluginAction],
-	  );
-
-	  const handleSubmitPluginDialog = useCallback(
-	    async (values: Record<string, any>) => {
-	      const element = activePluginDialogElement;
-	      const messageCtx = activePluginDialogMessageCtx;
-	      if (!element) return;
-	      setActivePluginDialogElement(null);
-	      setActivePluginDialogMessageCtx(null);
-	      await executePluginAction(element, values, messageCtx);
-	    },
-	    [activePluginDialogElement, activePluginDialogMessageCtx, executePluginAction],
-	  );
-
-	  const handleCancelPluginDialog = useCallback(() => {
-	    setActivePluginDialogElement(null);
-	    setActivePluginDialogMessageCtx(null);
-	  }, []);
 
 	  return (
 	    <KeyboardAvoidingView
@@ -1304,52 +1123,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	          </View>
 	        </View>
 	      </Modal>
-      <Modal
+	      <AgentSwitchModal
 	        visible={agentModalVisible}
-	        transparent
-	        animationType="fade"
+	        loading={agentLoading}
+	        agents={availableAgents}
+	        selectedAgentId={sessionAgentId}
 	        onRequestClose={() => setAgentModalVisible(false)}
-	      >
-	        <View style={styles.modalOverlay}>
-	          <View style={styles.modalContent}>
-	            <Text style={styles.modalTitle}>Switch agent</Text>
-	            {agentLoading && (
-	              <View style={styles.loadingContainer}>
-	                <ActivityIndicator size="small" color={theme.primary} />
-	                <Text style={styles.loadingText}>Loading agents...</Text>
-	              </View>
-	            )}
-	            {!agentLoading && availableAgents.length === 0 && (
-	              <Text style={styles.modalSubtitle}>No agents available.</Text>
-	            )}
-	            {!agentLoading && availableAgents.length > 0 && (
-	              <ScrollView style={styles.agentList}>
-	                {availableAgents.map((agentId) => {
-	                  const selected = sessionAgentId === agentId;
-	                  return (
-	                    <TouchableOpacity
-	                      key={agentId}
-	                      style={[styles.agentItem, selected && styles.agentItemSelected]}
-	                      onPress={() => handleSwitchAgent(agentId)}
-	                    >
-	                      <Text style={styles.agentItemText}>{agentId}</Text>
-	                      {selected && <Icon name="check" size={16} color="#34C759" />}
-	                    </TouchableOpacity>
-	                  );
-	                })}
-	              </ScrollView>
-	            )}
-	            <View style={styles.modalButtonsRow}>
-	              <TouchableOpacity
-	                style={[styles.button, styles.secondaryButton, styles.modalButton]}
-	                onPress={() => setAgentModalVisible(false)}
-	              >
-	                <Text style={styles.buttonTextSecondary}>Close</Text>
-	              </TouchableOpacity>
-	            </View>
-	          </View>
-	        </View>
-	      </Modal>
+	        onSelectAgent={handleSwitchAgent}
+	      />
 
 	      <SessionSettingsModal
 	        adapter={adapter}
@@ -1407,11 +1188,6 @@ const createStyles = (theme: Theme) =>
     headerButtons: {
       flexDirection: 'row',
       alignItems: 'center',
-    },
-    pluginSessionActionsRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginRight: 4,
     },
     iconButton: {
       paddingHorizontal: 8,
