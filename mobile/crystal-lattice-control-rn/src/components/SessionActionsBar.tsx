@@ -11,6 +11,7 @@ import Icon from 'react-native-vector-icons/Feather';
 import {
   ALL_SESSION_ACTIONS,
   SESSION_ACTIONS,
+  type SessionActionDefinition,
   type SessionActionKey,
 } from '../sessionActions';
 import { useTheme, type Theme } from '../theme';
@@ -20,6 +21,7 @@ export interface SessionActionsBarProps {
   onChangePinned: (pinned: SessionActionKey[]) => void;
   onAction: (action: SessionActionKey) => void;
   isActionDisabled?: (action: SessionActionKey) => boolean;
+  extraActions?: SessionActionDefinition[];
 }
 
 const SessionActionsBar: React.FC<SessionActionsBarProps> = ({
@@ -27,10 +29,26 @@ const SessionActionsBar: React.FC<SessionActionsBarProps> = ({
   onChangePinned,
   onAction,
   isActionDisabled,
+  extraActions,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [menuVisible, setMenuVisible] = useState(false);
+
+  const allDefs: SessionActionDefinition[] = useMemo(() => {
+    const extras = extraActions ?? [];
+    return [...ALL_SESSION_ACTIONS, ...extras];
+  }, [extraActions]);
+
+  const defByKey: Record<string, SessionActionDefinition> = useMemo(() => {
+    const map: Record<string, SessionActionDefinition> = {};
+    allDefs.forEach((def) => {
+      if (def && typeof def.key === 'string') {
+        map[def.key] = def;
+      }
+    });
+    return map;
+  }, [allDefs]);
 
   const togglePinned = (key: SessionActionKey) => {
     if (pinned.includes(key)) {
@@ -41,7 +59,7 @@ const SessionActionsBar: React.FC<SessionActionsBarProps> = ({
   };
 
   const renderIconButton = (key: SessionActionKey) => {
-    const def = SESSION_ACTIONS[key];
+    const def = defByKey[key];
     if (!def) {
       return null;
     }
@@ -90,7 +108,7 @@ const SessionActionsBar: React.FC<SessionActionsBarProps> = ({
 	                      <Icon name="x" size={18} color="#8E8E93" />
 	                    </TouchableOpacity>
 	                  </View>
-	                  {ALL_SESSION_ACTIONS.map((def) => {
+                  {allDefs.map((def) => {
 	                    const pinnedHere = pinned.includes(def.key);
 	                    return (
 	                      <View key={def.key} style={styles.menuItem}>

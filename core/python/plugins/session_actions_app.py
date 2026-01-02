@@ -138,6 +138,24 @@ class SessionActionsAppPlugin:
                 "dialog": {"kind": "none"},
             },
             {
+                "ui_type": "message_action",
+                "id": "delete_single_message",
+                "label": "Delete",
+                "icon": "trash-2",
+                "order": 30,
+                "action_id": "delete_messages",
+                "fixed_params": {},
+                "param_map": {
+                    "session_id": "$session.session_id",
+                    "indices": "$message.index",
+                },
+                "dialog": {
+                    "kind": "confirm",
+                    "title": "Delete message",
+                    "message": "Delete this message?",
+                },
+            },
+            {
                 "ui_type": "session_action",
                 "id": "delete_last_messages",
                 "label": "Delete last messages",
