@@ -39,6 +39,7 @@ import MessageBubble from './components/MessageBubble';
 import DebugEventsView from './components/DebugEventsView';
 import SessionActionsBar from './components/SessionActionsBar';
 import SessionSettingsModal from './components/SessionSettingsModal';
+import ApplicationActionDialog from './components/ApplicationActionDialog';
 import { SESSION_ACTIONS, type SessionActionKey } from './sessionActions';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 import { selectDisplayContent } from './messageUtils';
@@ -145,6 +146,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [pluginActionDefs, setPluginActionDefs] = useState<
     Record<string, ApplicationActionDefinition>
   >({});
+  const [activePluginDialogElement, setActivePluginDialogElement] = useState<ActionUiElement | null>(
+    null,
+  );
+  const [activePluginDialogMessageCtx, setActivePluginDialogMessageCtx] = useState<
+    IndexedMessage | null
+  >(null);
   const scrollViewRef = useRef<ScrollView | null>(null);
   const composeTextRef = useRef<string>(initialComposeText ?? '');
   const scrollOffsetRef = useRef<number>(initialScrollOffset || 0);
@@ -241,8 +248,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     const loadAppActionsAndUi = async () => {
       try {
         const [actions, elements] = await Promise.all([
-          apiListApplicationActions(adapter, 'session_actions'),
-          apiListApplicationUiSchema(adapter, 'session_actions'),
+          apiListApplicationActions(adapter),
+          apiListApplicationUiSchema(adapter),
         ]);
 
         if (cancelled) return;
@@ -257,16 +264,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
         const list = Array.isArray(elements) ? elements : [];
         const sessionEls = list.filter(
-          (el) =>
-            el &&
-            (el as any).ui_type === 'session_action' &&
-            (el as any).plugin === 'session_actions',
+          (el) => el && (el as any).ui_type === 'session_action',
         ) as ActionUiElement[];
         const messageEls = list.filter(
-          (el) =>
-            el &&
-            (el as any).ui_type === 'message_action' &&
-            (el as any).plugin === 'session_actions',
+          (el) => el && (el as any).ui_type === 'message_action',
         ) as ActionUiElement[];
 
         setPluginSessionActions(sessionEls);
@@ -897,7 +898,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	    return parts;
 	  }, [lastAssistantMessage, statusBarElements, sessionAgentId, sessionId]);
 
-		  const executePluginAction = useCallback(
+	  const executePluginAction = useCallback(
 	    async (
 	      element: ActionUiElement,
 	      dialogValues: Record<string, any> | undefined,
@@ -994,38 +995,47 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	  );
 
 	  const handlePluginSessionActionPress = useCallback(
-	    async (element: ActionUiElement) => {
+	    (element: ActionUiElement) => {
 	      const dialog: any = (element as any).dialog || {};
-	      if (dialog && dialog.kind === 'confirm') {
-	        const confirmed = await new Promise<boolean>((resolve) => {
-	          Alert.alert(dialog.title || element.label || 'Confirm', dialog.message || '', [
-	            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-	            { text: 'OK', onPress: () => resolve(true) },
-	          ]);
-	        });
-	        if (!confirmed) return;
+	      if (!dialog || dialog.kind === 'none') {
+	        executePluginAction(element, undefined, null);
+	        return;
 	      }
-	      await executePluginAction(element, undefined, null);
+	      setActivePluginDialogElement(element);
+	      setActivePluginDialogMessageCtx(null);
 	    },
 	    [executePluginAction],
 	  );
 
 	  const handlePluginMessageActionPress = useCallback(
-	    async (element: ActionUiElement, idx: number, msg: ApiMessage) => {
+	    (element: ActionUiElement, idx: number, msg: ApiMessage) => {
 	      const dialog: any = (element as any).dialog || {};
-	      if (dialog && dialog.kind === 'confirm') {
-	        const confirmed = await new Promise<boolean>((resolve) => {
-	          Alert.alert(dialog.title || element.label || 'Confirm', dialog.message || '', [
-	            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-	            { text: 'OK', onPress: () => resolve(true) },
-	          ]);
-	        });
-	        if (!confirmed) return;
+	      if (!dialog || dialog.kind === 'none') {
+	        executePluginAction(element, undefined, { index: idx, message: msg });
+	        return;
 	      }
-	      await executePluginAction(element, undefined, { index: idx, message: msg });
+	      setActivePluginDialogElement(element);
+	      setActivePluginDialogMessageCtx({ index: idx, message: msg });
 	    },
 	    [executePluginAction],
 	  );
+
+	  const handleSubmitPluginDialog = useCallback(
+	    async (values: Record<string, any>) => {
+	      const element = activePluginDialogElement;
+	      const messageCtx = activePluginDialogMessageCtx;
+	      if (!element) return;
+	      setActivePluginDialogElement(null);
+	      setActivePluginDialogMessageCtx(null);
+	      await executePluginAction(element, values, messageCtx);
+	    },
+	    [activePluginDialogElement, activePluginDialogMessageCtx, executePluginAction],
+	  );
+
+	  const handleCancelPluginDialog = useCallback(() => {
+	    setActivePluginDialogElement(null);
+	    setActivePluginDialogMessageCtx(null);
+	  }, []);
 
 	  return (
 	    <KeyboardAvoidingView
@@ -1346,6 +1356,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        sessionId={sessionId}
 	        visible={settingsVisible}
 	        onRequestClose={() => setSettingsVisible(false)}
+	      />
+	      <ApplicationActionDialog
+	        visible={!!activePluginDialogElement}
+	        dialog={(activePluginDialogElement as any)?.dialog || null}
+	        titleFallback={activePluginDialogElement?.label}
+	        onSubmit={handleSubmitPluginDialog}
+	        onCancel={handleCancelPluginDialog}
 	      />
 	      {debugVisible && (
 	        <View style={styles.debugOverlay}>

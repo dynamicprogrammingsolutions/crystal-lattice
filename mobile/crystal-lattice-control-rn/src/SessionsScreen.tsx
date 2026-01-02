@@ -10,17 +10,25 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ConnectionAdapter } from '../App';
 import { useTheme, type Theme } from './theme';
+import SessionActionsBar from './components/SessionActionsBar';
+import SessionSettingsModal from './components/SessionSettingsModal';
+import { type SessionActionKey, type SessionActionDefinition } from './sessionActions';
 import {
   apiCreateSession,
   apiListAgents,
   apiListSessions,
+  apiSend,
+  apiGetSessionAgent,
+  apiSwitchSessionAgent,
   apiExecuteAction,
   apiListApplicationUiSchema,
   type ActionUiElement,
   type SessionSummary,
 } from './api';
+import ApplicationActionDialog from './components/ApplicationActionDialog';
 
 interface SessionsScreenProps {
   adapter: ConnectionAdapter | null;
@@ -31,6 +39,12 @@ interface SessionsScreenProps {
   onUpdateCache: (sessions: SessionSummary[]) => void;
   onSelectSession: (sessionId: string) => void;
 }
+
+const STORAGE_KEY_SESSION_LIST_ACTIONS = 'clc_pinned_session_list_actions_v1';
+
+const SESSION_LIST_PLUGIN_CACHE: Record<string, ActionUiElement[] | null> = {};
+
+const BUILTIN_SESSION_LIST_ACTIONS: SessionActionKey[] = ['resend', 'agentSwitch', 'settings'];
 
 const SessionsScreen: React.FC<SessionsScreenProps> = ({
   adapter,
@@ -52,6 +66,17 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const [agentLoading, setAgentLoading] = useState(false);
   const [hasAutoLoaded, setHasAutoLoaded] = useState(false);
   const [sessionListActions, setSessionListActions] = useState<ActionUiElement[] | null>(null);
+  const [pinnedSessionActions, setPinnedSessionActions] = useState<SessionActionKey[]>(
+    BUILTIN_SESSION_LIST_ACTIONS,
+  );
+  const [activePluginDialog, setActivePluginDialog] = useState<
+    { element: ActionUiElement; session: SessionSummary } | null
+  >(null);
+  const [agentSwitchVisible, setAgentSwitchVisible] = useState(false);
+  const [agentSwitchSessionId, setAgentSwitchSessionId] = useState<string | null>(null);
+  const [agentSwitchCurrentId, setAgentSwitchCurrentId] = useState<string | null>(null);
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [settingsSessionId, setSettingsSessionId] = useState<string | null>(null);
 
   const loadSessions = useCallback(async () => {
     if (!adapter) {
@@ -77,6 +102,45 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   }, [adapter, onUpdateCache]);
 
   useEffect(() => {
+    const loadPinned = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY_SESSION_LIST_ACTIONS);
+        if (!raw) return;
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            const valid = parsed.filter((key: any) => typeof key === 'string');
+            if (valid.length > 0 || parsed.length === 0) {
+              setPinnedSessionActions(valid as SessionActionKey[]);
+            }
+          }
+        } catch (err) {
+          console.log('Failed to parse stored session list actions', err);
+        }
+      } catch (err) {
+        console.log('Failed to load session list pinned actions', err);
+      }
+    };
+
+    loadPinned();
+  }, []);
+
+  useEffect(() => {
+    const savePinned = async () => {
+      try {
+        await AsyncStorage.setItem(
+          STORAGE_KEY_SESSION_LIST_ACTIONS,
+          JSON.stringify(pinnedSessionActions),
+        );
+      } catch (err) {
+        console.log('Failed to save session list pinned actions', err);
+      }
+    };
+
+    savePinned();
+  }, [pinnedSessionActions]);
+
+  useEffect(() => {
     if (cachedSessions) {
       setSessions(cachedSessions);
       setError(null);
@@ -90,15 +154,16 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     if (!adapter) return;
 
     const now = Date.now();
-    const isStale = !lastLoadedAt || now - lastLoadedAt > 30000;
+    const hasTimestamp = lastLoadedAt != null;
+    const isStale = hasTimestamp && now - lastLoadedAt > 30000;
 
-    if (!hasAutoLoaded || isStale) {
+    if (!hasTimestamp || isStale) {
       loadSessions().catch(() => {
         // Error is already handled inside loadSessions.
       });
       setHasAutoLoaded(true);
     }
-  }, [isActive, adapter, lastLoadedAt, hasAutoLoaded, loadSessions]);
+  }, [isActive, adapter, lastLoadedAt, loadSessions]);
 
   useEffect(() => {
     if (!isActive || !adapter) {
@@ -110,16 +175,26 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 
     const loadUiSchema = async () => {
       try {
-        const elements = await apiListApplicationUiSchema(adapter, 'session_actions');
+        const cacheKey = `${connectionId || 'default'}:application_ui_schema`;
+        const cached = SESSION_LIST_PLUGIN_CACHE[cacheKey];
+        if (cached !== undefined) {
+          if (!cancelled) {
+            setSessionListActions(cached && cached.length > 0 ? cached : null);
+          }
+          return;
+        }
+
+        const elements = await apiListApplicationUiSchema(adapter);
         if (cancelled) return;
         const listActions = elements.filter((el) => {
           return (
             el &&
             typeof el === 'object' &&
-            (el as any).ui_type === 'session_list_action' &&
-            (el as any).plugin === 'session_actions'
+            (el as any).ui_type === 'session_list_action'
           );
         }) as ActionUiElement[];
+
+        SESSION_LIST_PLUGIN_CACHE[cacheKey] = listActions;
         setSessionListActions(listActions.length > 0 ? listActions : null);
       } catch (err) {
         console.log('Failed to load application UI schema', err);
@@ -178,8 +253,12 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     }
   };
 
-  const handleSessionActionPress = useCallback(
-    async (action: ActionUiElement, s: SessionSummary) => {
+  const executePluginSessionAction = useCallback(
+    async (
+      element: ActionUiElement,
+      s: SessionSummary,
+      dialogValues: Record<string, any> | undefined,
+    ) => {
       if (!adapter) {
         const message = 'No active connection';
         setError(message);
@@ -189,8 +268,8 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 
       const inputs: Record<string, any> = {};
 
-      if (action.fixed_params && typeof action.fixed_params === 'object') {
-        for (const [k, v] of Object.entries(action.fixed_params)) {
+      if (element.fixed_params && typeof element.fixed_params === 'object') {
+        for (const [k, v] of Object.entries(element.fixed_params)) {
           inputs[k] = v;
         }
       }
@@ -205,21 +284,25 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         return current;
       };
 
-      if (action.param_map && typeof action.param_map === 'object') {
-        for (const [paramName, source] of Object.entries(action.param_map)) {
+      if (element.param_map && typeof element.param_map === 'object') {
+        for (const [paramName, source] of Object.entries(element.param_map)) {
           if (typeof source !== 'string') continue;
+          let value: any;
           if (source.startsWith('$session.')) {
             const path = source.slice('$session.'.length);
-            const value = getFromPath(s, path);
-            if (value !== undefined) {
-              inputs[paramName] = value;
-            }
+            value = getFromPath(s, path);
+          } else if (source.startsWith('$dialog.')) {
+            const path = source.slice('$dialog.'.length);
+            value = getFromPath(dialogValues || {}, path);
+          }
+          if (value !== undefined) {
+            inputs[paramName] = value;
           }
         }
       }
 
       try {
-        const resp = await apiExecuteAction(adapter, action.plugin, action.action_id, inputs);
+        const resp = await apiExecuteAction(adapter, element.plugin, element.action_id, inputs);
         if (resp.status !== 'ok') {
           const message = (resp as any).message || 'Failed to execute action';
           Alert.alert('Action error', message);
@@ -243,6 +326,101 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     [adapter, loadSessions, onSelectSession],
   );
 
+  const handlePluginElementForSession = useCallback(
+    (element: ActionUiElement, s: SessionSummary) => {
+      const dialog: any = (element as any).dialog || {};
+      if (!dialog || dialog.kind === 'none') {
+        executePluginSessionAction(element, s, undefined);
+        return;
+      }
+      setActivePluginDialog({ element, session: s });
+    },
+    [executePluginSessionAction],
+  );
+
+  const handleBuiltinSessionAction = useCallback(
+    async (action: SessionActionKey, s: SessionSummary) => {
+      if (action === 'resend') {
+        if (!adapter) {
+          const message = 'No active connection';
+          setError(message);
+          Alert.alert('Error', message);
+          return;
+        }
+        try {
+          setLoading(true);
+          await apiSend(adapter, s.session_id);
+          await loadSessions();
+        } catch (err: any) {
+          console.log('Failed to resend for session', err);
+          const message = err?.message || 'Failed to resend';
+          Alert.alert('Error', message);
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
+
+      if (action === 'settings') {
+        setSettingsSessionId(s.session_id);
+        setSettingsVisible(true);
+        return;
+      }
+
+      if (action === 'agentSwitch') {
+        if (!adapter) {
+          const message = 'No active connection';
+          setError(message);
+          Alert.alert('Error', message);
+          return;
+        }
+        setAgentSwitchSessionId(s.session_id);
+        setAgentSwitchVisible(true);
+        try {
+          setAgentLoading(true);
+          if (availableAgents.length === 0) {
+            const agents = await apiListAgents(adapter);
+            setAvailableAgents(agents);
+          }
+          const current = await apiGetSessionAgent(adapter, s.session_id);
+          setAgentSwitchCurrentId(current);
+        } catch (err: any) {
+          console.log('Failed to load agents for switch', err);
+          const message = err?.message || 'Failed to load agents';
+          Alert.alert('Error', message);
+        } finally {
+          setAgentLoading(false);
+        }
+      }
+    },
+    [adapter, availableAgents.length, loadSessions],
+  );
+
+  const pluginSessionActionDefs: SessionActionDefinition[] = useMemo(
+    () =>
+      (sessionListActions ?? []).map((el) => ({
+        key: el.id,
+        label: el.label,
+        iconName: (el as any).icon || 'zap',
+        defaultPinned: false,
+      })),
+    [sessionListActions],
+  );
+
+  const handleSubmitPluginDialog = useCallback(
+    async (values: Record<string, any>) => {
+      const current = activePluginDialog;
+      if (!current) return;
+      setActivePluginDialog(null);
+      await executePluginSessionAction(current.element, current.session, values);
+    },
+    [activePluginDialog, executePluginSessionAction],
+  );
+
+  const handleCancelPluginDialog = useCallback(() => {
+    setActivePluginDialog(null);
+  }, []);
+
   const filteredSessions = sessions.filter((s) => {
     if (!filterText.trim()) return true;
     const q = filterText.toLowerCase();
@@ -259,6 +437,20 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 
     const actions = sessionListActions ?? [];
 
+    const handleRowAction = (key: SessionActionKey) => {
+      if (BUILTIN_SESSION_LIST_ACTIONS.includes(key)) {
+        handleBuiltinSessionAction(key, s);
+        return;
+      }
+      const element = actions.find((el) => el.id === key);
+      if (element) {
+        handlePluginElementForSession(element, s);
+      }
+    };
+
+    const hasAnyActions =
+      BUILTIN_SESSION_LIST_ACTIONS.length > 0 || (actions && actions.length > 0);
+
     return (
       <TouchableOpacity
         key={s.session_id}
@@ -269,17 +461,15 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         <Text style={styles.sessionId}>{s.session_id}</Text>
         {s.preview ? <Text style={styles.sessionPreview}>{s.preview}</Text> : null}
         <Text style={styles.sessionMeta}>Updated: {modifiedLabel}</Text>
-        {actions.length > 0 && (
+        {hasAnyActions && (
           <View style={styles.sessionActionsRow}>
-            {actions.map((action) => (
-              <TouchableOpacity
-                key={action.id}
-                style={[styles.button, styles.secondaryButton, styles.sessionActionButton]}
-                onPress={() => handleSessionActionPress(action, s)}
-              >
-                <Text style={styles.buttonTextSecondary}>{action.label}</Text>
-              </TouchableOpacity>
-            ))}
+            <SessionActionsBar
+              pinned={pinnedSessionActions}
+              onChangePinned={setPinnedSessionActions}
+              onAction={handleRowAction}
+              extraActions={pluginSessionActionDefs}
+              availableActions={BUILTIN_SESSION_LIST_ACTIONS}
+            />
           </View>
         )}
       </TouchableOpacity>
@@ -391,6 +581,87 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
                     onPress={() => setAgentPickerVisible(false)}
                   >
                     <Text style={styles.buttonTextSecondary}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      <ApplicationActionDialog
+        visible={!!activePluginDialog}
+        dialog={(activePluginDialog?.element as any)?.dialog || null}
+        titleFallback={activePluginDialog?.element?.label}
+        onSubmit={handleSubmitPluginDialog}
+        onCancel={handleCancelPluginDialog}
+      />
+
+      {settingsSessionId && (
+        <SessionSettingsModal
+          adapter={adapter}
+          sessionId={settingsSessionId}
+          visible={settingsVisible}
+          onRequestClose={() => setSettingsVisible(false)}
+        />
+      )}
+
+      <Modal
+        visible={agentSwitchVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAgentSwitchVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Switch agent</Text>
+            {agentLoading && (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color={theme.primary} />
+                <Text style={styles.loadingText}>Loading agents...</Text>
+              </View>
+            )}
+            {!agentLoading && availableAgents.length === 0 && (
+              <Text style={styles.modalSubtitle}>No agents available.</Text>
+            )}
+            {!agentLoading && availableAgents.length > 0 && (
+              <>
+                {agentSwitchCurrentId && (
+                  <Text style={styles.modalSubtitle}>
+                    Current agent: {agentSwitchCurrentId}
+                  </Text>
+                )}
+                <ScrollView style={styles.agentList}>
+                  {availableAgents.map((agentId) => (
+                    <TouchableOpacity
+                      key={agentId}
+                      style={styles.agentItem}
+                      onPress={async () => {
+                        if (!adapter || !agentSwitchSessionId) return;
+                        try {
+                          setAgentLoading(true);
+                          await apiSwitchSessionAgent(adapter, agentSwitchSessionId, agentId);
+                          setAgentSwitchCurrentId(agentId);
+                          setAgentSwitchVisible(false);
+                        } catch (err: any) {
+                          console.log('Failed to switch agent for session', err);
+                          const message = err?.message || 'Failed to switch agent';
+                          Alert.alert('Error', message);
+                        } finally {
+                          setAgentLoading(false);
+                        }
+                      }}
+                    >
+                      <Text style={styles.agentItemText}>{agentId}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <View style={styles.modalButtonsRow}>
+                  <TouchableOpacity
+                    style={[styles.button, styles.secondaryButton, styles.modalButton]}
+                    onPress={() => setAgentSwitchVisible(false)}
+                  >
+                    <Text style={styles.buttonTextSecondary}>Close</Text>
                   </TouchableOpacity>
                 </View>
               </>
