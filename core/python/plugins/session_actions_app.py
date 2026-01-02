@@ -158,26 +158,38 @@ class SessionActionsAppPlugin:
             {
                 "ui_type": "session_action",
                 "id": "delete_last_messages",
-                "label": "Delete last messages",
+                "label": "Delete messages",
                 "icon": "trash-2",
                 "order": 30,
                 "action_id": "delete_messages",
                 "fixed_params": {"source": "session_view"},
                 "param_map": {
                     "session_id": "$session.session_id",
-                    "last": "$dialog.last",
+                    "start": "$dialog.start",
+                    "end": "$dialog.end",
                 },
                 "dialog": {
                     "kind": "form",
-                    "title": "Delete last messages",
+                    "title": "Delete messages",
+                    "message": (
+                        "Python-style range (start:end). Messages in this range "
+                        "will be removed."
+                    ),
                     "inputs": [
                         {
-                            "name": "last",
+                            "name": "start",
                             "type": "integer",
-                            "label": "Number of messages",
-                            "required": True,
-                            "default": 1,
-                        }
+                            "label": "Start index",
+                            "required": False,
+                            "placeholder": "e.g. 0 or -10",
+                        },
+                        {
+                            "name": "end",
+                            "type": "integer",
+                            "label": "End index (optional)",
+                            "required": False,
+                            "placeholder": "leave blank for end",
+                        },
                     ],
                 },
             },

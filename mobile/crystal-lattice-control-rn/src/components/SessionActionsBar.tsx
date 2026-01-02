@@ -22,6 +22,7 @@ export interface SessionActionsBarProps {
   onAction: (action: SessionActionKey) => void;
   isActionDisabled?: (action: SessionActionKey) => boolean;
   extraActions?: SessionActionDefinition[];
+  availableActions?: SessionActionKey[];
 }
 
 const SessionActionsBar: React.FC<SessionActionsBarProps> = ({
@@ -30,15 +31,19 @@ const SessionActionsBar: React.FC<SessionActionsBarProps> = ({
   onAction,
   isActionDisabled,
   extraActions,
+  availableActions,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [menuVisible, setMenuVisible] = useState(false);
 
   const allDefs: SessionActionDefinition[] = useMemo(() => {
+    const base = availableActions
+      ? ALL_SESSION_ACTIONS.filter((def) => availableActions.includes(def.key))
+      : ALL_SESSION_ACTIONS;
     const extras = extraActions ?? [];
-    return [...ALL_SESSION_ACTIONS, ...extras];
-  }, [extraActions]);
+    return [...base, ...extras];
+  }, [availableActions, extraActions]);
 
   const defByKey: Record<string, SessionActionDefinition> = useMemo(() => {
     const map: Record<string, SessionActionDefinition> = {};

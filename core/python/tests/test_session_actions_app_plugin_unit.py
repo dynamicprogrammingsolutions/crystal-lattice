@@ -133,7 +133,7 @@ def test_fork_session_at_copies_prefix_up_to_index(tmp_path: Path) -> None:
     ]
 
 
-def test_delete_messages_by_indices_and_last(tmp_path: Path) -> None:
+def test_delete_messages_by_indices_and_range(tmp_path: Path) -> None:
     app = _build_app(tmp_path)
 
     session_id = _create_session_with_messages(app, ["m0", "m1", "m2", "m3", "m4"])
@@ -154,15 +154,15 @@ def test_delete_messages_by_indices_and_last(tmp_path: Path) -> None:
     remaining_contents = [m.content for m in session.messages]
     assert remaining_contents == ["m0", "m2", "m4"]
 
-    # Delete last two messages.
-    res_last = app.execute_application_action(
+    # Delete using Python-style range semantics: start from index 1 to end.
+    res_range = app.execute_application_action(
         plugin_id="session_actions",
         action_id="delete_messages",
-        params={"session_id": session_id, "last": 2},
+        params={"session_id": session_id, "start": 1},
     )
 
-    deleted_last = sorted(res_last.get("deleted_indices") or [])
-    assert deleted_last == [1, 2]
+    deleted_range = sorted(res_range.get("deleted_indices") or [])
+    assert deleted_range == [1, 2]
 
     ctx2 = app.load_session(session_id)
     assert ctx2 is not None
