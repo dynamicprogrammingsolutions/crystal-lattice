@@ -16,6 +16,9 @@ import {
   apiCreateSession,
   apiListAgents,
   apiListSessions,
+  apiExecuteAction,
+  apiListApplicationUiSchema,
+  type ActionUiElement,
   type SessionSummary,
 } from './api';
 
@@ -48,6 +51,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const [availableAgents, setAvailableAgents] = useState<string[]>([]);
   const [agentLoading, setAgentLoading] = useState(false);
   const [hasAutoLoaded, setHasAutoLoaded] = useState(false);
+  const [sessionListActions, setSessionListActions] = useState<ActionUiElement[] | null>(null);
 
   const loadSessions = useCallback(async () => {
     if (!adapter) {
@@ -96,6 +100,44 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     }
   }, [isActive, adapter, lastLoadedAt, hasAutoLoaded, loadSessions]);
 
+  useEffect(() => {
+    if (!isActive || !adapter) {
+      setSessionListActions(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadUiSchema = async () => {
+      try {
+        const elements = await apiListApplicationUiSchema(adapter, 'session_actions');
+        if (cancelled) return;
+        const listActions = elements.filter((el) => {
+          return (
+            el &&
+            typeof el === 'object' &&
+            (el as any).ui_type === 'session_list_action' &&
+            (el as any).plugin === 'session_actions'
+          );
+        }) as ActionUiElement[];
+        setSessionListActions(listActions.length > 0 ? listActions : null);
+      } catch (err) {
+        console.log('Failed to load application UI schema', err);
+        if (!cancelled) {
+          setSessionListActions(null);
+        }
+      }
+    };
+
+    loadUiSchema().catch(() => {
+      // Error already logged above.
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [adapter, isActive, connectionId]);
+
   const createSessionWithAgent = async (agentId: string | null) => {
     const chosenAgent = agentId && agentId.trim() ? agentId.trim() : 'default';
     setLoading(true);
@@ -136,6 +178,71 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     }
   };
 
+  const handleSessionActionPress = useCallback(
+    async (action: ActionUiElement, s: SessionSummary) => {
+      if (!adapter) {
+        const message = 'No active connection';
+        setError(message);
+        Alert.alert('Error', message);
+        return;
+      }
+
+      const inputs: Record<string, any> = {};
+
+      if (action.fixed_params && typeof action.fixed_params === 'object') {
+        for (const [k, v] of Object.entries(action.fixed_params)) {
+          inputs[k] = v;
+        }
+      }
+
+      const getFromPath = (root: any, path: string): any => {
+        const parts = path.split('.');
+        let current: any = root;
+        for (const part of parts) {
+          if (current == null) return undefined;
+          current = (current as any)[part];
+        }
+        return current;
+      };
+
+      if (action.param_map && typeof action.param_map === 'object') {
+        for (const [paramName, source] of Object.entries(action.param_map)) {
+          if (typeof source !== 'string') continue;
+          if (source.startsWith('$session.')) {
+            const path = source.slice('$session.'.length);
+            const value = getFromPath(s, path);
+            if (value !== undefined) {
+              inputs[paramName] = value;
+            }
+          }
+        }
+      }
+
+      try {
+        const resp = await apiExecuteAction(adapter, action.plugin, action.action_id, inputs);
+        if (resp.status !== 'ok') {
+          const message = (resp as any).message || 'Failed to execute action';
+          Alert.alert('Action error', message);
+          return;
+        }
+
+        const result: any = (resp as any).result || {};
+        const selectedId = result.selected_session_id;
+        if (typeof selectedId === 'string' && selectedId) {
+          onSelectSession(selectedId);
+          return;
+        }
+
+        await loadSessions();
+      } catch (err: any) {
+        console.log('Failed to execute session action', err);
+        const message = err?.message || 'Failed to execute action';
+        Alert.alert('Action error', message);
+      }
+    },
+    [adapter, loadSessions, onSelectSession],
+  );
+
   const filteredSessions = sessions.filter((s) => {
     if (!filterText.trim()) return true;
     const q = filterText.toLowerCase();
@@ -150,6 +257,8 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     const modifiedLabel = modifiedDate.toLocaleString();
     const title = s.preview || `Session ${s.session_id.slice(0, 8)}`;
 
+    const actions = sessionListActions ?? [];
+
     return (
       <TouchableOpacity
         key={s.session_id}
@@ -160,6 +269,19 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         <Text style={styles.sessionId}>{s.session_id}</Text>
         {s.preview ? <Text style={styles.sessionPreview}>{s.preview}</Text> : null}
         <Text style={styles.sessionMeta}>Updated: {modifiedLabel}</Text>
+        {actions.length > 0 && (
+          <View style={styles.sessionActionsRow}>
+            {actions.map((action) => (
+              <TouchableOpacity
+                key={action.id}
+                style={[styles.button, styles.secondaryButton, styles.sessionActionButton]}
+                onPress={() => handleSessionActionPress(action, s)}
+              >
+                <Text style={styles.buttonTextSecondary}>{action.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
@@ -377,6 +499,14 @@ const createStyles = (theme: Theme) =>
     sessionMeta: {
       fontSize: 12,
       color: theme.textSecondary,
+    },
+    sessionActionsRow: {
+      flexDirection: 'row',
+      marginTop: 8,
+    },
+    sessionActionButton: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
     },
     modalOverlay: {
       flex: 1,

@@ -4,7 +4,10 @@
     "tool_output_char_limit": 8000,
     "tool_output_short_char_limit": 200,
     "tool_output_short_one_line": false,
-    "tool_output_short_line_limit": 20
+    "tool_output_short_line_limit": 20,
+    "session_actions": {
+      "allow_delete": true
+    }
   },
   "providers": {
     "openrouter_tools": {
@@ -41,6 +44,9 @@
       "plugins.apply_patch_tool.ApplyPatchTool"
     ]
   },
+  "application_plugins": [
+    "plugins.session_actions_app.SessionActionsAppPlugin"
+  ],
   "agents": {
     "default": {
       "provider": "openrouter_tools",
