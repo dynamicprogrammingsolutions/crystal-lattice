@@ -1172,7 +1172,7 @@ def test_list_sessions_endpoint_returns_metadata_for_created_sessions(tmp_path: 
     The test creates two sessions with user messages via the existing
     create_session and add_message endpoints, then verifies that the
     list_sessions endpoint returns entries for both with appropriate
-    previews.
+    previews and metadata.
     """
 
     from agent_terminal_app import server as server_mod
@@ -1211,6 +1211,12 @@ def test_list_sessions_endpoint_returns_metadata_for_created_sessions(tmp_path: 
     preview_by_id = {entry["session_id"]: entry["preview"] for entry in sessions}
     assert preview_by_id[session_id1] == "first session hello"
     assert preview_by_id[session_id2] == "second session hi"
+
+    # Metadata should also be included for each session (at minimum the
+    # agent_id stored by the application layer).
+    metadata_by_id = {entry["session_id"]: entry.get("metadata") for entry in sessions}
+    assert isinstance(metadata_by_id[session_id1], dict)
+    assert isinstance(metadata_by_id[session_id2], dict)
 
 
 def test_checkpoint_cursor_after_message_appended(tmp_path: Path) -> None:

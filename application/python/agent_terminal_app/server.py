@@ -1138,10 +1138,14 @@ def list_sessions(
 
         session_id = path.stem
         preview = ""
+        metadata: Dict[str, Any] = {}
 
         try:
             data = path.read_text(encoding="utf-8")
             raw = json.loads(data)
+            raw_metadata = raw.get("metadata")
+            if isinstance(raw_metadata, dict):
+                metadata = raw_metadata
             messages = raw.get("messages") or []
             for msg in messages:
                 if not isinstance(msg, dict):
@@ -1164,6 +1168,7 @@ def list_sessions(
                 "session_id": session_id,
                 "modified": float(stat.st_mtime),
                 "preview": preview,
+                "metadata": metadata,
             }
         )
 
@@ -1484,6 +1489,120 @@ def update_session_agent(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     return {"session": new_session.to_dict(), "agent_id": target_agent_id}
+
+
+@app.get("/application/actions")
+def list_application_actions(
+    plugin: Optional[str] = None,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return application-level action definitions.
+
+    The response is a flat list of action dictionaries contributed by
+    all registered application plugins. When ``plugin`` is provided,
+    only actions for that plugin id are returned.
+    """
+
+    actions = app_instance.get_application_actions()
+    if plugin:
+        actions = [a for a in actions if isinstance(a, dict) and a.get("plugin") == plugin]
+    else:
+        actions = [a for a in actions if isinstance(a, dict)]
+    return {"actions": actions}
+
+
+@app.get("/application/ui-schema")
+def list_application_ui_schema(
+    plugin: Optional[str] = None,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return application-level UI schema elements.
+
+    The response is a flat list of UI element dictionaries from all
+    application plugins. When ``plugin`` is provided, the list is
+    filtered to entries whose ``plugin`` field matches the value.
+    """
+
+    elements = app_instance.get_application_ui_schema()
+    if plugin:
+        elements = [e for e in elements if isinstance(e, dict) and e.get("plugin") == plugin]
+    else:
+        elements = [e for e in elements if isinstance(e, dict)]
+    return {"elements": elements}
+
+
+@app.post("/actions")
+def execute_action(
+    payload: Dict[str, Any],
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Execute an application-level action.
+
+    The response always uses an explicit status envelope and never
+    embeds full session objects; callers should observe session
+    changes via the existing /sessions and /sessions/{id}/messages
+    endpoints.
+    """
+
+    body = payload or {}
+    plugin_id = body.get("plugin")
+    action_id = body.get("action_id")
+    raw_inputs = body.get("inputs") or {}
+
+    try:
+        result = app_instance.execute_application_action(
+            plugin_id=plugin_id,
+            action_id=action_id,
+            params=raw_inputs,
+        )
+    except AgentApplication._ApplicationActionValidationError as exc:  # type: ignore[attr-defined]
+        return {
+            "status": "error",
+            "plugin": plugin_id,
+            "action_id": action_id,
+            "error_type": "validation",
+            "message": str(exc),
+            "details": getattr(exc, "details", {}) or {},
+        }
+    except KeyError as exc:
+        return {
+            "status": "error",
+            "plugin": plugin_id,
+            "action_id": action_id,
+            "error_type": "not_found",
+            "message": str(exc),
+            "details": {},
+        }
+    except ValueError as exc:
+        # Includes invalid plugin/action identifiers or non-dict params.
+        return {
+            "status": "error",
+            "plugin": plugin_id,
+            "action_id": action_id,
+            "error_type": "validation",
+            "message": str(exc),
+            "details": {},
+        }
+    except Exception as exc:  # pragma: no cover - defensive
+        _log.exception("unexpected error executing application action")
+        return {
+            "status": "error",
+            "plugin": plugin_id,
+            "action_id": action_id,
+            "error_type": "internal",
+            "message": str(exc),
+            "details": {},
+        }
+
+    if not isinstance(result, dict):
+        result = {}
+
+    return {
+        "status": "ok",
+        "plugin": plugin_id,
+        "action_id": action_id,
+        "result": result,
+    }
 
 
 # ---------------------------------------------------------------------------
