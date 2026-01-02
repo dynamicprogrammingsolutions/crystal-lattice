@@ -120,3 +120,19 @@ def test_execute_application_action_rejects_unknown_plugin_or_action(tmp_path: P
 
     with pytest.raises(KeyError):
         _ = app.execute_application_action("dummy_app_plugin", "no_such_action", {})
+
+
+def test_execute_application_action_validation_errors(tmp_path: Path) -> None:
+    config_path = _make_config_with_app_plugin(tmp_path)
+    session_root = tmp_path / "sessions"
+
+    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+
+    # Missing required parameter.
+    with pytest.raises(AgentApplication._ApplicationActionValidationError):  # type: ignore[attr-defined]
+        _ = app.execute_application_action("dummy_app_plugin", "do_dummy", {})
+
+    # Wrong type for value.
+    with pytest.raises(AgentApplication._ApplicationActionValidationError):  # type: ignore[attr-defined]
+        _ = app.execute_application_action("dummy_app_plugin", "do_dummy", {"value": 123})
+

@@ -673,6 +673,127 @@ class AgentApplication:
                     elements.append(element)
         return elements
 
+    # Internal helpers for action validation ---------------------------------
+
+    class _ApplicationActionValidationError(Exception):
+        """Internal exception used for application action input validation.
+
+        Carries a ``details`` mapping suitable for surfacing in higher-level
+        error envelopes.
+        """
+
+        def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+            super().__init__(message)
+            self.details: Dict[str, Any] = details or {}
+
+    def _find_application_action_definition(
+        self,
+        plugin_id: str,
+        action_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Return the action definition for ``(plugin_id, action_id)`` if present."""
+
+        for action in self.get_application_actions():
+            if not isinstance(action, dict):
+                continue
+            if action.get("plugin") == plugin_id and action.get("id") == action_id:
+                return action
+        return None
+
+    @staticmethod
+    def _action_param_type_matches(value: Any, expected_type: str) -> bool:
+        """Return True when ``value`` matches the declared primitive type.
+
+        Supported types are ``string``, ``integer``, ``number``, and
+        ``boolean``. Unknown types are treated as "accept any" so that
+        application plugins can experiment with richer parameter types
+        without breaking validation.
+        """
+
+        if expected_type == "string":
+            return isinstance(value, str)
+        if expected_type == "integer":
+            # ``bool`` is a subclass of ``int``; treat it separately.
+            return isinstance(value, int) and not isinstance(value, bool)
+        if expected_type == "number":
+            return (isinstance(value, (int, float)) and not isinstance(value, bool))
+        if expected_type == "boolean":
+            return isinstance(value, bool)
+        return True
+
+    def _validate_action_inputs(
+        self,
+        action_def: Dict[str, Any],
+        raw_inputs: Any,
+    ) -> Dict[str, Any]:
+        """Validate and normalize inputs for an application-level action.
+
+        Returns the validated mapping or raises
+        :class:`_ApplicationActionValidationError`.
+        """
+
+        schema = action_def.get("inputs") or {}
+        if not isinstance(schema, dict):
+            schema = {}
+
+        if raw_inputs is None:
+            inputs: Dict[str, Any] = {}
+        elif isinstance(raw_inputs, dict):
+            inputs = raw_inputs
+        else:
+            raise self._ApplicationActionValidationError(
+                "inputs must be an object mapping parameter names to values",
+                {"reason": "inputs_type", "actual_type": type(raw_inputs).__name__},
+            )
+
+        validated: Dict[str, Any] = {}
+        missing: List[str] = []
+        invalid_types: Dict[str, Dict[str, Any]] = {}
+
+        for name, spec in schema.items():
+            if not isinstance(spec, dict):
+                continue
+
+            param_type = spec.get("type")
+            required = bool(spec.get("required", False))
+            has_value = name in inputs
+            value = inputs.get(name)
+
+            if not has_value or value is None:
+                if "default" in spec:
+                    validated[name] = spec["default"]
+                elif required:
+                    missing.append(name)
+                continue
+
+            if isinstance(param_type, str):
+                if not self._action_param_type_matches(value, param_type):
+                    invalid_types[name] = {
+                        "expected": param_type,
+                        "actual_type": type(value).__name__,
+                    }
+                else:
+                    validated[name] = value
+            else:
+                validated[name] = value
+
+        extra = [name for name in inputs.keys() if name not in schema]
+
+        if missing or invalid_types or extra:
+            details: Dict[str, Any] = {}
+            if missing:
+                details["missing_params"] = missing
+            if invalid_types:
+                details["invalid_types"] = invalid_types
+            if extra:
+                details["extra_params"] = extra
+
+            raise self._ApplicationActionValidationError(
+                "action input validation failed", details
+            )
+
+        return validated
+
     def execute_application_action(
         self,
         plugin_id: str,
@@ -681,10 +802,9 @@ class AgentApplication:
     ) -> Dict[str, Any]:
         """Execute an application-level action.
 
-        This helper validates that the plugin and action id exist and then
-        delegates execution to the corresponding application plugin wrapper.
-        Detailed parameter validation (types/defaults) is performed by the
-        HTTP layer in later stages.
+        This helper validates that the plugin, action id, and inputs are
+        valid and then delegates execution to the corresponding application
+        plugin wrapper.
         """
 
         if not isinstance(plugin_id, str) or not plugin_id:
@@ -698,17 +818,13 @@ class AgentApplication:
         if wrapper is None:
             raise KeyError(f"Unknown application plugin {plugin_id!r}")
 
-        # Ensure the action id exists for this plugin. We intentionally keep
-        # this lookup simple; the HTTP layer will cache schemas when needed.
-        available_ids = {
-            a.get("id")
-            for a in wrapper.get_actions()
-            if isinstance(a, dict) and isinstance(a.get("id"), str)
-        }
-        if action_id not in available_ids:
+        action_def = self._find_application_action_definition(plugin_id, action_id)
+        if action_def is None:
             raise KeyError(f"Unknown action_id {action_id!r} for plugin {plugin_id!r}")
 
-        return wrapper.execute_action(self, action_id, params)
+        validated_inputs = self._validate_action_inputs(action_def, params)
+
+        return wrapper.execute_action(self, action_id, validated_inputs)
 
     def load_session(
         self, session_id: str
