@@ -148,6 +148,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   >(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [uiSchemaElements, setUiSchemaElements] = useState<UiSchemaElement[]>([]);
+  const [pluginActionInProgress, setPluginActionInProgress] = useState(false);
   const { actionsById, sessionActions: pluginSessionActions, messageActions: pluginMessageActions } =
     useApplicationPlugins();
   const scrollViewRef = useRef<ScrollView | null>(null);
@@ -308,35 +309,47 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           return;
         }
 
-        const isMessage = context.kind === 'message';
-        const { ok, response } = await executeApplicationAction(
-          adapter,
-          element,
-          actionsById,
-          {
-            sessionId,
-            messageContext: isMessage
-              ? { index: context.index, message: context.message }
-              : undefined,
-            dialogValues,
-          },
-        );
-        if (!ok) return;
-        const result: any = (response as any)?.result || {};
-        const created: string[] = Array.isArray(result.created_session_ids)
-          ? (result.created_session_ids as string[])
-          : [];
-        const selectedId: string | undefined =
-          typeof result.selected_session_id === 'string'
-            ? result.selected_session_id
-            : created.length > 0 && typeof created[0] === 'string'
-            ? created[0]
-            : undefined;
-        if (selectedId && onNavigateToSession) {
-          onNavigateToSession(selectedId);
-          return;
+        setPluginActionInProgress(true);
+        try {
+          const isMessage = context.kind === 'message';
+          const { ok, response } = await executeApplicationAction(
+            adapter,
+            element,
+            actionsById,
+            {
+              sessionId,
+              messageContext: isMessage
+                ? { index: (context as any).index, message: (context as any).message }
+                : undefined,
+              dialogValues,
+            },
+          );
+          if (!ok) return;
+
+          const result: any = (response as any)?.result || {};
+          const created: string[] = Array.isArray(result.created_session_ids)
+            ? (result.created_session_ids as string[])
+            : [];
+          const selectedId: string | undefined =
+            typeof result.selected_session_id === 'string'
+              ? result.selected_session_id
+              : created.length > 0 && typeof created[0] === 'string'
+              ? created[0]
+              : undefined;
+          if (selectedId && onNavigateToSession) {
+            onNavigateToSession(selectedId);
+            return;
+          }
+
+          const updated: string[] = Array.isArray(result.updated_session_ids)
+            ? (result.updated_session_ids as string[])
+            : [];
+          if (updated.includes(sessionId)) {
+            await loadMessages();
+          }
+        } finally {
+          setPluginActionInProgress(false);
         }
-        await loadMessages();
       },
       [adapter, actionsById, sessionId, loadMessages, onNavigateToSession],
     ),
@@ -876,17 +889,20 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
               onChangePinned={setPinnedSessionActions}
               onAction={handleSessionAction}
               isActionDisabled={(action) =>
-                sendInProgress && (action === 'reload' || action === 'resend')
+                pluginActionInProgress ||
+                (sendInProgress && (action === 'reload' || action === 'resend'))
               }
               extraActions={pluginSessionActionDefs}
             />
           </View>
 	        </View>
 
-	      {loadingMessages && (
+	      {(loadingMessages || pluginActionInProgress) && (
 	        <View style={styles.loadingContainer}>
 	          <ActivityIndicator size="small" color={theme.primary} />
-	          <Text style={styles.loadingText}>Loading messages...</Text>
+	          <Text style={styles.loadingText}>
+	            {loadingMessages ? 'Loading messages...' : 'Running action...'}
+	          </Text>
 	        </View>
 	      )}
 	

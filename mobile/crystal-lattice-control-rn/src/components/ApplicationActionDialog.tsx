@@ -171,6 +171,11 @@ const ApplicationActionDialog: React.FC<ApplicationActionDialogProps> = ({
               const placeholder = field.placeholder || '';
               const description = field.description || '';
               const value = valuesByName[name] ?? '';
+              const fType = typeof field.type === 'string' ? field.type : 'string';
+              const isMultiline = fType === 'multiline';
+              const keyboardType =
+                fType === 'integer' || fType === 'number' ? 'numeric' : 'default';
+
               return (
                 <View key={name} style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>{label}</Text>
@@ -178,11 +183,14 @@ const ApplicationActionDialog: React.FC<ApplicationActionDialogProps> = ({
                     <Text style={styles.inputDescription}>{description}</Text>
                   ) : null}
                   <TextInput
-                    style={styles.modalInput}
+                    style={isMultiline ? styles.modalInputMultiline : styles.modalInput}
                     value={value}
                     onChangeText={(text) => handleChange(name, text)}
                     placeholder={placeholder}
                     placeholderTextColor={theme.textSecondary}
+                    keyboardType={keyboardType as any}
+                    multiline={isMultiline}
+                    textAlignVertical={isMultiline ? 'top' : 'center'}
                   />
                 </View>
               );
@@ -243,6 +251,18 @@ const createStyles = (theme: Theme) =>
       fontSize: 14,
       marginTop: 4,
       color: theme.text,
+    },
+    modalInputMultiline: {
+      backgroundColor: theme.surface,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      fontSize: 14,
+      marginTop: 4,
+      color: theme.text,
+      minHeight: 80,
     },
     modalButtonsRow: {
       flexDirection: 'row',

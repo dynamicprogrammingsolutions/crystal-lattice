@@ -97,7 +97,7 @@ class SessionActionsAppPlugin:
             }
         }
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         # A small set of UI elements covering common flows. Frontends
         # may choose to ignore or extend these definitions.
         return [
