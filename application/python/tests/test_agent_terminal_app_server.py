@@ -1219,6 +1219,129 @@ def test_list_sessions_endpoint_returns_metadata_for_created_sessions(tmp_path: 
     assert isinstance(metadata_by_id[session_id2], dict)
 
 
+def test_list_sessions_endpoint_uses_cached_entries_when_unchanged(tmp_path: Path) -> None:
+    """GET /sessions reuses cached summaries when files are unchanged.
+
+    This test exercises the caching layer indirectly by calling the
+    ``list_sessions`` route multiple times and updating only one
+    session between calls. The endpoint must reflect changes to the
+    modified session while keeping previews for unchanged sessions
+    intact.
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    # Create two sessions with a single user message each.
+    create1 = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id1 = create1["session"]["session_id"]
+    server_mod.add_message(
+        session_id1,
+        {"role": "user", "content": "first session before", "metadata": None},
+        app_instance=app,
+    )
+
+    create2 = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id2 = create2["session"]["session_id"]
+    server_mod.add_message(
+        session_id2,
+        {"role": "user", "content": "second session before", "metadata": None},
+        app_instance=app,
+    )
+
+    # Initial listing populates the cache.
+    first = server_mod.list_sessions(app_instance=app)
+    sessions_first = first["sessions"]
+    preview_first = {entry["session_id"]: entry["preview"] for entry in sessions_first}
+
+    assert preview_first[session_id1] == "first session before"
+    assert preview_first[session_id2] == "second session before"
+
+    # Update only the second session on disk so that its file mtime and
+    # preview change. This simulates an external modification and
+    # ensures that the caching layer notices the newer mtime.
+    import json
+
+    session_path2 = session_root / f"{session_id2}.json"
+    raw = json.loads(session_path2.read_text(encoding="utf-8"))
+    messages = raw.get("messages") or []
+    for msg in messages:
+        if isinstance(msg, dict) and msg.get("role") == "user":
+            msg["content"] = "second session after"
+            break
+    session_path2.write_text(json.dumps(raw), encoding="utf-8")
+
+    # Force a strictly newer mtime for environments with coarse
+    # timestamp resolution.
+    stat_before = session_path2.stat()
+    os.utime(session_path2, (stat_before.st_mtime + 2, stat_before.st_mtime + 2))
+
+    second = server_mod.list_sessions(app_instance=app)
+    sessions_second = second["sessions"]
+    preview_second = {entry["session_id"]: entry["preview"] for entry in sessions_second}
+
+    # The first session was not modified; its preview should remain the
+    # same across calls.
+    assert preview_second[session_id1] == "first session before"
+
+    # The second session was updated; the preview should reflect the
+    # latest first user message.
+    assert preview_second[session_id2] == "second session after"
+
+
+def test_list_sessions_endpoint_strips_native_messages_from_metadata(tmp_path: Path) -> None:
+    """GET /sessions does not include heavy native_messages metadata.
+
+    Some providers store a full copy of the conversation under
+    ``metadata.native_messages``. This test ensures that the sessions
+    list endpoint strips that field so the response stays small.
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create["session"]["session_id"]
+
+    # Patch the on-disk session file to include a heavy native_messages
+    # field under metadata.
+    import json
+
+    session_path = session_root / f"{session_id}.json"
+    raw = json.loads(session_path.read_text(encoding="utf-8"))
+    meta = raw.get("metadata") or {}
+    if not isinstance(meta, dict):
+      meta = {}
+    meta["native_messages"] = [
+      {"role": "system", "content": "x" * 1000},
+      {"role": "user", "content": "y" * 1000},
+    ]
+    raw["metadata"] = meta
+    session_path.write_text(json.dumps(raw), encoding="utf-8")
+
+    resp = server_mod.list_sessions(app_instance=app)
+    sessions = resp["sessions"]
+    meta_by_id = {
+      entry["session_id"]: entry.get("metadata") for entry in sessions
+    }
+    assert session_id in meta_by_id
+    meta_out = meta_by_id[session_id]
+    assert isinstance(meta_out, dict)
+    assert "native_messages" not in meta_out
+
+
 def test_checkpoint_cursor_after_message_appended(tmp_path: Path) -> None:
     """After appending a message, cursor_event_id is after the event.
 

@@ -174,6 +174,46 @@ class DataStore:
 _bonjour_data_store = DataStore()
 
 
+class SessionListCache:
+    """In-memory cache for ``/sessions`` summaries.
+
+    Entries are keyed by ``session_id`` and store the file modification
+    time along with the precomputed preview and metadata. The cache is
+    maintained per session-root directory so that tests and multiple
+    AgentApplication instances do not interfere with each other.
+    """
+
+    def __init__(self) -> None:
+        self.entries_by_id: Dict[str, Dict[str, Any]] = {}
+        self.lock = threading.Lock()
+
+
+_session_list_caches_lock = threading.Lock()
+_session_list_caches: Dict[Path, SessionListCache] = {}
+
+
+def _get_session_list_cache(root: Path) -> SessionListCache:
+    """Return (or create) the :class:`SessionListCache` for ``root``."""
+
+    with _session_list_caches_lock:
+        cache = _session_list_caches.get(root)
+        if cache is None:
+            cache = SessionListCache()
+            _session_list_caches[root] = cache
+        return cache
+
+
+def _clear_session_list_cache(root: Path) -> None:
+    """Remove any cached summaries for ``root``.
+
+    Used when the session root directory no longer exists so that stale
+    entries do not accumulate across tests or configuration changes.
+    """
+
+    with _session_list_caches_lock:
+        _session_list_caches.pop(root, None)
+
+
 def _build_default_agent_app() -> AgentApplication:
     """Build a process-wide AgentApplication with default config.
 
@@ -1116,7 +1156,8 @@ def list_sessions(
 
     Response shape mirrors :meth:`TerminalApplication.list_sessions_metadata`:
     each entry contains ``session_id``, ``modified`` (float timestamp),
-    and ``preview`` (first user message snippet).
+    ``preview`` (first user message snippet), and ``metadata`` (session
+    metadata without messages).
     """
 
     root = _get_session_root(app_instance)
@@ -1127,52 +1168,89 @@ def list_sessions(
         exists = False
 
     if not exists:
+        _clear_session_list_cache(root)
         return {"sessions": []}
 
+    cache = _get_session_list_cache(root)
+
     items: List[Dict[str, Any]] = []
-    for path in root.glob("*.json"):
-        try:
-            stat = path.stat()
-        except OSError:  # pragma: no cover - defensive
-            continue
+    paths = list(root.glob("*.json"))
 
-        session_id = path.stem
-        preview = ""
-        metadata: Dict[str, Any] = {}
+    with cache.lock:
+        seen_ids: set[str] = set()
 
-        try:
-            data = path.read_text(encoding="utf-8")
-            raw = json.loads(data)
-            raw_metadata = raw.get("metadata")
-            if isinstance(raw_metadata, dict):
-                metadata = raw_metadata
-            messages = raw.get("messages") or []
-            for msg in messages:
-                if not isinstance(msg, dict):
+        for path in paths:
+            try:
+                stat = path.stat()
+            except OSError:  # pragma: no cover - defensive
+                continue
+
+            session_id = path.stem
+            seen_ids.add(session_id)
+            mtime = float(stat.st_mtime)
+
+            cached = cache.entries_by_id.get(session_id)
+            if cached is not None and isinstance(cached.get("modified"), (int, float)):
+                try:
+                    cached_mtime = float(cached["modified"])
+                except Exception:  # pragma: no cover - defensive
+                    cached_mtime = -1.0
+                if cached_mtime >= mtime:
+                    items.append(cached)
                     continue
-                if msg.get("role") != "user":
-                    continue
-                content = msg.get("content")
-                if isinstance(content, str) and content:
-                    single = " ".join(content.split())
-                    if len(single) > 80:
-                        preview = single[:77] + "..."
-                    else:
-                        preview = single
-                    break
-        except Exception:  # pragma: no cover - defensive
+
             preview = ""
+            metadata: Dict[str, Any] = {}
 
-        items.append(
-            {
+            try:
+                data = path.read_text(encoding="utf-8")
+                raw = json.loads(data)
+                raw_metadata = raw.get("metadata")
+                if isinstance(raw_metadata, dict):
+                    # ``native_messages`` can contain a full copy of
+                    # the conversation in provider-native form and is
+                    # significantly larger than the rest of the
+                    # metadata. It is not needed for the sessions list
+                    # and would unnecessarily bloat the ``/sessions``
+                    # response, so strip it here.
+                    metadata = {
+                        key: value
+                        for key, value in raw_metadata.items()
+                        if key != "native_messages"
+                    }
+                messages = raw.get("messages") or []
+                for msg in messages:
+                    if not isinstance(msg, dict):
+                        continue
+                    if msg.get("role") != "user":
+                        continue
+                    content = msg.get("content")
+                    if isinstance(content, str) and content:
+                        single = " ".join(content.split())
+                        if len(single) > 80:
+                            preview = single[:77] + "..."
+                        else:
+                            preview = single
+                        break
+            except Exception:  # pragma: no cover - defensive
+                preview = ""
+
+            entry = {
                 "session_id": session_id,
-                "modified": float(stat.st_mtime),
+                "modified": mtime,
                 "preview": preview,
                 "metadata": metadata,
             }
-        )
+            cache.entries_by_id[session_id] = entry
+            items.append(entry)
 
-    items.sort(key=lambda entry: entry["modified"], reverse=True)
+        # Drop cache entries whose files have been removed.
+        for session_id in list(cache.entries_by_id.keys()):
+            if session_id not in seen_ids:
+                cache.entries_by_id.pop(session_id, None)
+
+        items.sort(key=lambda entry: entry["modified"], reverse=True)
+
     if limit is not None and limit >= 0:
         items = items[:limit]
 

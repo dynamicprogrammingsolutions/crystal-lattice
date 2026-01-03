@@ -503,7 +503,6 @@ class BridgeAdapter implements ConnectionAdapter {
         body: null,
       }
     );
-
     if (response.body) {
       return JSON.parse(response.body);
     }
