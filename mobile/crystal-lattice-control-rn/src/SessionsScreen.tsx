@@ -31,6 +31,7 @@ import { usePersistentPinnedActions } from './usePersistentPinnedActions';
 import { useSessionAgents } from './useSessionAgents';
 import { usePluginActionDialog } from './usePluginActionDialog';
 import AgentSwitchModal from './components/AgentSwitchModal';
+import { extractByPath, renderTemplate } from './uiSchemaUtils';
 
 interface SessionsScreenProps {
   adapter: ConnectionAdapter | null;
@@ -65,7 +66,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const { availableAgents, agentLoading, ensureAgentsLoaded, setAgentLoading } =
     useSessionAgents();
   const [hasAutoLoaded, setHasAutoLoaded] = useState(false);
-	  const { sessionListActions, actionsById } = useApplicationPlugins();
+  const { sessionListActions, actionsById, sessionListFields } = useApplicationPlugins();
   const { pinned: pinnedSessionActions, setPinned: setPinnedSessionActions } =
     usePersistentPinnedActions<SessionActionKey>(
       STORAGE_KEY_SESSION_LIST_ACTIONS,
@@ -293,6 +294,14 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     [sessionListActions],
   );
 
+  const titleFields = useMemo(
+    () =>
+      (sessionListFields || [])
+        .filter((el) => (el as any).role === 'title')
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    [sessionListFields],
+  );
+
   const filteredSessions = sessions.filter((s) => {
     if (!filterText.trim()) return true;
     const q = filterText.toLowerCase();
@@ -305,7 +314,22 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const renderSessionItem = (s: SessionSummary) => {
     const modifiedDate = new Date(s.modified * 1000);
     const modifiedLabel = modifiedDate.toLocaleString();
-    const title = s.preview || `Session ${s.session_id.slice(0, 8)}`;
+    const deriveTitle = (): string => {
+      for (const field of titleFields) {
+        const path = field.data;
+        if (typeof path !== 'string' || !path) continue;
+        const value = extractByPath(s, path);
+        if (value === null || value === undefined || value === '') continue;
+        const text = renderTemplate(field.template, value);
+        if (text) return text;
+      }
+      if (s.preview && s.preview.trim()) {
+        return s.preview;
+      }
+      return `Session ${s.session_id.slice(0, 8)}`;
+    };
+
+    const title = deriveTitle();
 
     const actions = sessionListActions ?? [];
 
