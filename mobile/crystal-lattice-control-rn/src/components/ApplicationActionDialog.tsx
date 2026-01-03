@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -153,7 +155,11 @@ const ApplicationActionDialog: React.FC<ApplicationActionDialogProps> = ({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <View style={styles.modalOverlay}>
+      <KeyboardAvoidingView
+        style={styles.modalOverlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={16}
+      >
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>{title}</Text>
           {message ? <Text style={styles.modalSubtitle}>{message}</Text> : null}
@@ -177,7 +183,6 @@ const ApplicationActionDialog: React.FC<ApplicationActionDialogProps> = ({
                     onChangeText={(text) => handleChange(name, text)}
                     placeholder={placeholder}
                     placeholderTextColor={theme.textSecondary}
-                    keyboardType={field.type === 'integer' || field.type === 'number' ? 'numeric' : 'default'}
                   />
                 </View>
               );
@@ -198,7 +203,7 @@ const ApplicationActionDialog: React.FC<ApplicationActionDialogProps> = ({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
