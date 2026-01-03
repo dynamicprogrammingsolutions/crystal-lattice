@@ -104,6 +104,32 @@ def test_copy_session_creates_new_session_with_same_messages(tmp_path: Path) -> 
     assert "session_created" in kinds
 
 
+def test_copy_session_selected_session_depends_on_source(tmp_path: Path) -> None:
+    app = _build_app(tmp_path)
+
+    original_id = _create_session_with_messages(app, ["one", "two"])
+
+    # From a non-session-list source, the new session should be
+    # selected by default.
+    res_view = app.execute_application_action(
+        plugin_id="session_actions",
+        action_id="copy_session",
+        params={"session_id": original_id, "source": "session_view"},
+    )
+    created_view = res_view.get("created_session_ids") or []
+    assert len(created_view) == 1
+    assert res_view.get("selected_session_id") == created_view[0]
+
+    # When triggered from the session list, the plugin should not set
+    # a selected session id, allowing callers to stay on the list.
+    res_list = app.execute_application_action(
+        plugin_id="session_actions",
+        action_id="copy_session",
+        params={"session_id": original_id, "source": "session_list"},
+    )
+    assert "selected_session_id" not in res_list or res_list.get("selected_session_id") is None
+
+
 def test_fork_session_at_copies_prefix_up_to_index(tmp_path: Path) -> None:
     app = _build_app(tmp_path)
 

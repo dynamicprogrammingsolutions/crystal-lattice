@@ -113,6 +113,21 @@ class SessionActionsAppPlugin:
                 "dialog": {"kind": "none"},
             },
             {
+                "ui_type": "session_list_action",
+                "id": "delete_session_from_list",
+                "label": "Delete session",
+                "icon": "trash-2",
+                "order": 20,
+                "action_id": "delete_session",
+                "fixed_params": {"source": "session_list"},
+                "param_map": {"session_id": "$session.session_id"},
+                "dialog": {
+                    "kind": "confirm",
+                    "title": "Delete session",
+                    "message": "Delete this session and its messages?",
+                },
+            },
+            {
                 "ui_type": "session_action",
                 "id": "copy_session_from_view",
                 "label": "Copy session",
@@ -285,6 +300,9 @@ class SessionActionsAppPlugin:
         if not isinstance(session_id, str) or not session_id:
             raise ValueError("session_id must be a non-empty string")
 
+        source_val = params.get("source")
+        source = source_val if isinstance(source_val, str) else ""
+
         new_session_id = str(uuid.uuid4())
 
         from agent_core import AgentCore  # local import to avoid cycles
@@ -343,13 +361,20 @@ class SessionActionsAppPlugin:
                 # Checkpoint failures should not make the action fail.
                 pass
 
-        return {
+        result: Dict[str, Any] = {
             "created_session_ids": [new_session_id],
             "updated_session_ids": [],
             "deleted_session_ids": [],
-            "selected_session_id": new_session_id,
             "message": "Session copied successfully.",
         }
+
+        # When triggered from the session list, defer to the caller's
+        # UX (typically: stay on the list and just reload). For other
+        # sources, select the new session by default.
+        if source != "session_list":
+            result["selected_session_id"] = new_session_id
+
+        return result
 
     def _do_fork_session_at(self, app: "AgentApplication", params: Dict[str, Any]) -> Dict[str, Any]:
         session_id = params.get("session_id")
@@ -581,7 +606,6 @@ class SessionActionsAppPlugin:
             "created_session_ids": [],
             "updated_session_ids": [session_id],
             "deleted_session_ids": [],
-            "selected_session_id": session_id,
             "deleted_indices": concrete_indices,
             "message": "Messages deleted.",
         }
