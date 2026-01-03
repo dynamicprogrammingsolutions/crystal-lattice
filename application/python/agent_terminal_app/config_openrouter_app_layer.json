@@ -12,6 +12,12 @@
     "summarize_range_prompt": "Summarize the selected part of this conversation in a concise paragraph.",
     "summarize_range_settings_overrides": {
       "reasoningEffort": "low"
+    },
+    "generate_title_agent_id": "reasoning",
+    "generate_title_prompt_template": "Generate a short (max 8 words) title for this conversation.",
+    "generate_title_max_messages": 50,
+    "generate_title_settings_overrides": {
+      "reasoningEffort": "low"
     }
   },
   "providers": {
@@ -51,7 +57,9 @@
   },
   "application_plugins": [
     "plugins.session_actions_app.SessionActionsAppPlugin",
-    "plugins.summarize_range_app.SummarizeRangeAppPlugin"
+    "plugins.summarize_range_app.SummarizeRangeAppPlugin",
+    "plugins.session_title_app.SessionTitleAppPlugin",
+    "plugins.generate_title_app.GenerateTitleAppPlugin"
   ],
   "agents": {
     "default": {

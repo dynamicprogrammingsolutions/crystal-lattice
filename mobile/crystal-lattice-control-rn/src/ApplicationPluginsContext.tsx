@@ -6,6 +6,7 @@ import {
   type ActionUiElement,
   type ApplicationActionDefinition,
   type ApplicationUiElement,
+  type SessionListFieldElement,
 } from './api';
 
 export interface UseApplicationPluginsResult {
@@ -13,6 +14,7 @@ export interface UseApplicationPluginsResult {
   sessionActions: ActionUiElement[];
   messageActions: ActionUiElement[];
   sessionListActions: ActionUiElement[];
+  sessionListFields: SessionListFieldElement[];
 }
 
 export interface ApplicationPluginsContextValue extends UseApplicationPluginsResult {
@@ -32,6 +34,7 @@ const emptyResult: UseApplicationPluginsResult = {
   sessionActions: [],
   messageActions: [],
   sessionListActions: [],
+  sessionListFields: [],
 };
 
 const defaultContext: ApplicationPluginsContextValue = {
@@ -64,12 +67,16 @@ function buildResultFromEntry(entry: CacheEntry | null | undefined): UseApplicat
   const sessionListActions = elements.filter(
     (el) => el && (el as any).ui_type === 'session_list_action',
   ) as ActionUiElement[];
+  const sessionListFields = elements.filter(
+    (el) => el && (el as any).ui_type === 'session_list_field',
+  ) as SessionListFieldElement[];
 
   return {
     actionsById,
     sessionActions,
     messageActions,
     sessionListActions,
+    sessionListFields,
   };
 }
 
@@ -161,7 +168,12 @@ export function useApplicationPluginsContext(): ApplicationPluginsContextValue {
 // Convenience hook matching the old "useApplicationPlugins" return
 // shape, without exposing loading/error flags.
 export function useApplicationPlugins(): UseApplicationPluginsResult {
-  const { actionsById, sessionActions, messageActions, sessionListActions } =
-    useApplicationPluginsContext();
-  return { actionsById, sessionActions, messageActions, sessionListActions };
+  const {
+    actionsById,
+    sessionActions,
+    messageActions,
+    sessionListActions,
+    sessionListFields,
+  } = useApplicationPluginsContext();
+  return { actionsById, sessionActions, messageActions, sessionListActions, sessionListFields };
 }
