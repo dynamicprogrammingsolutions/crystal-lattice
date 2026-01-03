@@ -79,9 +79,9 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
     try {
       let data;
       if (type === 'GET') {
-        data = await adapter.get('/api/data');
+        data = await adapter?.get('/api/data');
       } else {
-        data = await adapter.put('/api/data', {
+        data = await adapter?.put('/api/data', {
           message: 'Hello from React Native',
           timestamp: new Date().toISOString(),
         });
