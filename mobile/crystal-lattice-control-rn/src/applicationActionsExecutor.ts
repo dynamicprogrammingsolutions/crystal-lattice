@@ -90,7 +90,16 @@ export async function executeApplicationAction(
       Alert.alert('Action error', msg);
       return { ok: false };
     }
-    return { ok: true, response: resp as ExecuteActionResponseOk };
+
+    const okResp = resp as ExecuteActionResponseOk;
+    const result: any = okResp.result || {};
+    if (result && typeof result.status === 'string' && result.status !== 'ok') {
+      const msg = result.message || 'Action failed';
+      Alert.alert('Action error', msg);
+      return { ok: false };
+    }
+
+    return { ok: true, response: okResp };
   } catch (err: any) {
     console.log('Failed to execute application action', err);
     const msg = err?.message || 'Failed to execute action';

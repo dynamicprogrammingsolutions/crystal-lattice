@@ -3,7 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Modal,
+  Modal, ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -119,19 +119,43 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 	          return;
 	        }
 
-	        const { ok, response } = await executeApplicationAction(adapter, element, actionsById, {
-	          sessionId: session.session_id,
-	          sessionSummary: session,
-	          dialogValues,
-	        });
-	        if (!ok) return;
-	        const result: any = (response as any)?.result || {};
-	        const selectedId = result.selected_session_id;
-	        if (typeof selectedId === 'string' && selectedId) {
-	          onSelectSession(selectedId);
-	          return;
+	        setLoading(true);
+	        try {
+	          const { ok, response } = await executeApplicationAction(
+	            adapter,
+	            element,
+	            actionsById,
+	            {
+	              sessionId: session.session_id,
+	              sessionSummary: session,
+	              dialogValues,
+	            },
+	          );
+	          if (!ok) return;
+
+	          const result: any = (response as any)?.result || {};
+	          const selectedId = result.selected_session_id;
+	          if (typeof selectedId === 'string' && selectedId) {
+	            onSelectSession(selectedId);
+	            return;
+	          }
+
+	          const createdIds: string[] = Array.isArray(result.created_session_ids)
+	            ? (result.created_session_ids as string[])
+	            : [];
+	          const updatedIds: string[] = Array.isArray(result.updated_session_ids)
+	            ? (result.updated_session_ids as string[])
+	            : [];
+	          const deletedIds: string[] = Array.isArray(result.deleted_session_ids)
+	            ? (result.deleted_session_ids as string[])
+	            : [];
+
+	          if (createdIds.length || updatedIds.length || deletedIds.length) {
+	            await loadSessions();
+	          }
+	        } finally {
+	          setLoading(false);
 	        }
-	        await loadSessions();
 	      },
 	      [adapter, actionsById, loadSessions, onSelectSession],
 	    ),

@@ -7,6 +7,11 @@
     "tool_output_short_line_limit": 20,
     "session_actions": {
       "allow_delete": true
+    },
+    "summarize_range_agent_id": "reasoning",
+    "summarize_range_prompt": "Summarize the selected part of this conversation in a concise paragraph.",
+    "summarize_range_settings_overrides": {
+      "reasoningEffort": "low"
     }
   },
   "providers": {
@@ -45,7 +50,8 @@
     ]
   },
   "application_plugins": [
-    "plugins.session_actions_app.SessionActionsAppPlugin"
+    "plugins.session_actions_app.SessionActionsAppPlugin",
+    "plugins.summarize_range_app.SummarizeRangeAppPlugin"
   ],
   "agents": {
     "default": {

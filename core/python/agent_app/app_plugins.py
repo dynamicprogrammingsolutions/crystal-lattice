@@ -44,13 +44,16 @@ class ApplicationPlugin(Protocol):
         dict when they do not require configuration.
         """
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return UI element definitions contributed by this plugin.
 
         Elements describe configuration controls and display elements as well
         as higher‑level action UI definitions. The application layer treats
         these as opaque dictionaries and only normalizes cross‑cutting fields
         such as the ``"plugin"`` identifier.
+
+        The ``state`` argument is the plugin state dictionary returned from
+        :meth:`init`.
         """
 
     # Lifecycle -----------------------------------------------------------------
@@ -149,7 +152,7 @@ class ApplicationPluginWrapper:
     def get_ui_elements(self) -> List[Dict[str, Any]]:
         """Return sanitized UI element definitions from the plugin."""
 
-        elements = self.plugin.get_ui_elements()
+        elements = self.plugin.get_ui_elements(self._state)
         if not isinstance(elements, list):
             return []
         return [e for e in elements if isinstance(e, dict)]
