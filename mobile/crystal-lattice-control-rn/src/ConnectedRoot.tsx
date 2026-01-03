@@ -104,49 +104,60 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
     <View style={styles.container}>
       <ApplicationPluginsProvider adapter={adapter} connectionId={activeConnectionId}>
         <View style={styles.contentArea}>
-        {tab === 'connection' && (
-          <View style={styles.connectionsTabContainer}>
-            {(() => {
-              const wizard = renderConnectionWizard();
-              if (wizard) {
-                return <View style={styles.wizardContainer}>{wizard}</View>;
-              }
+        {/* Connection tab content (kept mounted, visibility toggled) */}
+        <View
+          style={[
+            styles.connectionsTabContainer,
+            tab !== 'connection' && { display: 'none' },
+          ]}
+        >
+          {(() => {
+            const wizard = renderConnectionWizard();
+            if (wizard) {
+              return <View style={styles.wizardContainer}>{wizard}</View>;
+            }
 
-              return (
-                <>
-                  {adapter ? (
-                    <ConnectionScreen
-                      adapter={adapter}
-                      onDisconnect={onDisconnect}
-                      additionalInfo={activeConnectionAdditionalInfo}
-                    />
-                  ) : (
-                    <View style={styles.placeholderContainer}>
-                      <Text style={styles.placeholderText}>
-                        No active connection. Select a saved connection below or create a new one.
-                      </Text>
-                    </View>
-                  )}
-
-                  <View style={styles.connectionsListSection}>
-                    <ConnectionsScreen
-                      connections={connections}
-                      loading={connectionsLoading}
-                      onSelectConnection={async (record) => {
-                        await onSelectConnectionRecord(record);
-                        setTab('sessions');
-                      }}
-                      onNewConnection={onNewConnectionRequested}
-                      onDeleteConnection={onDeleteConnectionRecord}
-                    />
+            return (
+              <>
+                {adapter ? (
+                  <ConnectionScreen
+                    adapter={adapter}
+                    onDisconnect={onDisconnect}
+                    additionalInfo={activeConnectionAdditionalInfo}
+                  />
+                ) : (
+                  <View style={styles.placeholderContainer}>
+                    <Text style={styles.placeholderText}>
+                      No active connection. Select a saved connection below or create a new one.
+                    </Text>
                   </View>
-                </>
-              );
-            })()}
-          </View>
-        )}
-        {tab === 'sessions' && (
-          (() => {
+                )}
+
+                <View style={styles.connectionsListSection}>
+                  <ConnectionsScreen
+                    connections={connections}
+                    loading={connectionsLoading}
+                    onSelectConnection={async (record) => {
+                      await onSelectConnectionRecord(record);
+                      setTab('sessions');
+                    }}
+                    onNewConnection={onNewConnectionRequested}
+                    onDeleteConnection={onDeleteConnectionRecord}
+                  />
+                </View>
+              </>
+            );
+          })()}
+        </View>
+
+        {/* Sessions tab content (kept mounted, visibility toggled) */}
+        <View
+          style={[
+            styles.connectionsTabContainer,
+            tab !== 'sessions' && { display: 'none' },
+          ]}
+        >
+          {(() => {
             const connectionId = activeConnectionId;
             const cacheEntry = connectionId
               ? sessionsCache[connectionId] ?? null
@@ -177,10 +188,17 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                 onSelectSession={handleSelectSession}
               />
             );
-          })()
-        )}
-        {tab === 'messages' && (
-          selectedSessionId ? (
+          })()}
+        </View>
+
+        {/* Messages tab content (kept mounted, visibility toggled) */}
+        <View
+          style={[
+            styles.connectionsTabContainer,
+            tab !== 'messages' && { display: 'none' },
+          ]}
+        >
+          {selectedSessionId ? (
             (() => {
               const connectionId = activeConnectionId;
               const bySession = connectionId
@@ -203,7 +221,6 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
 
               return (
                 <SessionChatScreen
-                  key={`${connectionId ?? 'none'}:${selectedSessionId}`}
                   adapter={adapter}
                   connectionId={connectionId}
                   sessionId={selectedSessionId}
@@ -248,8 +265,8 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
             <View style={styles.placeholderContainer}>
               <Text style={styles.placeholderText}>Select a session from the Sessions tab.</Text>
             </View>
-          )
-        )}
+          )}
+        </View>
         </View>
       </ApplicationPluginsProvider>
 

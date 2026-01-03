@@ -890,7 +890,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        </View>
 	      )}
 	
-      <ScrollView
+	      <ScrollView
 	        style={styles.messagesContainer}
 	        ref={scrollViewRef}
 	        onScroll={(event) => {

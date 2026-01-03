@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Modal,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -362,9 +362,12 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         <Text style={styles.emptyText}>No sessions found. Create one to get started.</Text>
       )}
 
-      <ScrollView style={styles.list}>
-        {filteredSessions.map(renderSessionItem)}
-      </ScrollView>
+      <FlatList
+        style={styles.list}
+        data={filteredSessions}
+        keyExtractor={(item) => item.session_id}
+        renderItem={({ item }) => renderSessionItem(item)}
+      />
 
       <Modal
         visible={agentPickerVisible}
