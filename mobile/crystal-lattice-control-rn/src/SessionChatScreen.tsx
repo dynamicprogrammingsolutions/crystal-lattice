@@ -28,6 +28,7 @@ import {
   type ActionUiElement,
   apiGetSessionUiSchema,
   type UiSchemaElement,
+  type SessionSummary,
 } from './api';
 import MessageBubble from './components/MessageBubble';
 import DebugEventsView from './components/DebugEventsView';
@@ -60,6 +61,7 @@ interface SessionChatScreenProps {
   adapter: ConnectionAdapter | null;
   connectionId: string | null;
   sessionId: string;
+  sessionSummary: SessionSummary | null;
   cachedMessages: IndexedMessage[] | null;
   lastLoadedAt: number | null;
   cachedCursorEventId: string | null;
@@ -76,13 +78,14 @@ const STORAGE_KEY_SESSION_ACTIONS = 'clc_pinned_session_actions_v1';
 const STORAGE_KEY_MESSAGE_ACTIONS = 'clc_pinned_message_actions_by_role_v1';
 
 type PluginActionContext =
-  | { kind: 'session' }
-  | { kind: 'message'; index: number; message: ApiMessage };
+  | { kind: 'session'; sessionSummary: SessionSummary | null }
+  | { kind: 'message'; index: number; message: ApiMessage; sessionSummary: SessionSummary | null };
 
 const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   adapter,
   connectionId,
   sessionId,
+  sessionSummary,
   cachedMessages,
   lastLoadedAt,
   cachedCursorEventId,
@@ -149,8 +152,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [uiSchemaElements, setUiSchemaElements] = useState<UiSchemaElement[]>([]);
   const [pluginActionInProgress, setPluginActionInProgress] = useState(false);
-  const { actionsById, sessionActions: pluginSessionActions, messageActions: pluginMessageActions } =
-    useApplicationPlugins();
+  const {
+    actionsById,
+    sessionActions: pluginSessionActions,
+    messageActions: pluginMessageActions,
+    sessionListFields,
+  } = useApplicationPlugins();
   const scrollViewRef = useRef<ScrollView | null>(null);
   const composeTextRef = useRef<string>(initialComposeText ?? '');
   const scrollOffsetRef = useRef<number>(initialScrollOffset || 0);
@@ -294,6 +301,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   const {
     activeElement: activePluginDialogElement,
+    context: activePluginDialogContext,
     openForElement: openPluginDialogForElement,
     handleSubmit: handleSubmitPluginDialog,
     handleCancel: handleCancelPluginDialog,
@@ -577,7 +585,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
     const pluginEl = pluginSessionActions.find((el) => el.id === action);
     if (pluginEl) {
-      openPluginDialogForElement(pluginEl, { kind: 'session' });
+      openPluginDialogForElement(pluginEl, { kind: 'session', sessionSummary });
     }
   };
 
@@ -682,7 +690,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
     const pluginEl = pluginMessageActions.find((el) => el.id === action);
     if (pluginEl) {
-      openPluginDialogForElement(pluginEl, { kind: 'message', index, message });
+      openPluginDialogForElement(pluginEl, {
+        kind: 'message',
+        index,
+        message,
+        sessionSummary,
+      });
     }
   };
 
@@ -816,7 +829,29 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     handleEvents,
   );
 
+	  const titleFields = useMemo(
+	    () =>
+	      (sessionListFields || [])
+	        .filter((el) => (el as any).role === 'title')
+	        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+	    [sessionListFields],
+	  );
+
 	  const sessionLabel = `Session ${sessionId.slice(0, 8)}`;
+
+	  const sessionHeaderTitle = useMemo(() => {
+	    if (sessionSummary) {
+	      for (const field of titleFields) {
+	        const path = field.data;
+	        if (typeof path !== 'string' || !path) continue;
+	        const value = extractByPath(sessionSummary as any, path);
+	        if (value === undefined || value === null || value === '') continue;
+	        const text = renderTemplate(field.template ?? '{{data}}', value);
+	        if (text) return text;
+	      }
+	    }
+	    return sessionLabel;
+	  }, [sessionSummary, titleFields, sessionLabel]);
 
 	  const footerElements = useMemo(
 	    () =>
@@ -881,7 +916,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	            <Text style={styles.backButtonText}>← Sessions</Text>
 	          </TouchableOpacity>
 	          <Text style={styles.title} numberOfLines={1}>
-	            {sessionLabel}
+	            {sessionHeaderTitle}
 	          </Text>
           <View style={styles.headerButtons}>
             <SessionActionsBar
@@ -1158,6 +1193,19 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        visible={!!activePluginDialogElement}
 	        dialog={(activePluginDialogElement as any)?.dialog || null}
 	        titleFallback={activePluginDialogElement?.label}
+	        prefillContext={{
+	          session:
+	            activePluginDialogContext && 'sessionSummary' in activePluginDialogContext
+	              ? activePluginDialogContext.sessionSummary || undefined
+	              : undefined,
+	          message:
+	            activePluginDialogContext && activePluginDialogContext.kind === 'message'
+	              ? {
+	                  index: (activePluginDialogContext as any).index,
+	                  ...(activePluginDialogContext as any).message,
+	                }
+	              : undefined,
+	        }}
 	        onSubmit={handleSubmitPluginDialog}
 	        onCancel={handleCancelPluginDialog}
 	      />

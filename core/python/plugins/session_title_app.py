@@ -86,6 +86,9 @@ class SessionTitleAppPlugin:
                             "label": "Title",
                             "required": False,
                             "placeholder": "e.g. Daily standup notes",
+                            # Hint for UIs to prefill from the current
+                            # session metadata title field.
+                            "prefill_from": f"$session.metadata.{metadata_key}",
                         },
                     ],
                 },
@@ -113,6 +116,7 @@ class SessionTitleAppPlugin:
                             "label": "Title",
                             "required": False,
                             "placeholder": "e.g. Daily standup notes",
+                            "prefill_from": f"$session.metadata.{metadata_key}",
                         },
                     ],
                 },

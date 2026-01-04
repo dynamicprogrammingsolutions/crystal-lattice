@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useTheme, type Theme } from '../theme';
+import { extractByPath } from '../uiSchemaUtils';
 
 interface DialogInputField {
   name: string;
@@ -19,12 +20,19 @@ interface DialogInputField {
   default?: any;
   required?: boolean;
   description?: string;
+  prefill_from?: string;
+}
+
+export interface ApplicationActionDialogPrefillContext {
+  session?: any;
+  message?: any;
 }
 
 export interface ApplicationActionDialogProps {
   visible: boolean;
   dialog: any;
   titleFallback?: string;
+  prefillContext?: ApplicationActionDialogPrefillContext;
   onSubmit: (values: Record<string, any>) => void;
   onCancel: () => void;
 }
@@ -33,6 +41,7 @@ const ApplicationActionDialog: React.FC<ApplicationActionDialogProps> = ({
   visible,
   dialog,
   titleFallback,
+  prefillContext,
   onSubmit,
   onCancel,
 }) => {
@@ -60,17 +69,49 @@ const ApplicationActionDialog: React.FC<ApplicationActionDialogProps> = ({
       const key = field.name;
       if (!key) return;
       const def = field.default;
-      if (def === undefined || def === null) {
-        initial[key] = '';
-      } else if (typeof def === 'string') {
-        initial[key] = def;
-      } else {
-        initial[key] = String(def);
+
+      // Optional prefill resolution based on ``prefill_from`` hints. This
+      // allows dialogs to derive defaults from the current session or
+      // message context without each caller having to rewrite the schema.
+      let prefilled: string | undefined;
+      const src = field.prefill_from;
+      if (typeof src === 'string' && src) {
+        let root: any = null;
+        let path: string | null = null;
+        if (src.startsWith('$session.')) {
+          root = prefillContext?.session;
+          path = src.slice('$session.'.length);
+        } else if (src.startsWith('$message.')) {
+          root = prefillContext?.message;
+          path = src.slice('$message.'.length);
+        }
+        if (root && path) {
+          const value = extractByPath(root, path);
+          if (value !== undefined && value !== null && value !== '') {
+            prefilled = String(value);
+          }
+        }
       }
+
+      let value: string;
+      if (
+        prefilled !== undefined &&
+        (def === undefined || def === null || String(def) === '')
+      ) {
+        value = prefilled;
+      } else if (def === undefined || def === null) {
+        value = '';
+      } else if (typeof def === 'string') {
+        value = def;
+      } else {
+        value = String(def);
+      }
+
+      initial[key] = value;
     });
     setValuesByName(initial);
     setError(null);
-  }, [visible, dialog]);
+  }, [visible, dialog, prefillContext]);
 
   if (!visible || !dialog || kind === 'none') {
     return null;

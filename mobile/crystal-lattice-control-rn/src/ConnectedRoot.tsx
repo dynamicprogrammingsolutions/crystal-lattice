@@ -209,6 +209,13 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                   ? bySession[selectedSessionId] ?? null
                   : null;
 
+              const sessionsEntry = connectionId
+                ? sessionsCache[connectionId] ?? null
+                : null;
+              const sessionSummary: SessionSummary | null = sessionsEntry?.sessions
+                ? sessionsEntry.sessions.find((s) => s.session_id === selectedSessionId) ?? null
+                : null;
+
               if (!adapter && !cacheEntry) {
                 return (
                   <View style={styles.placeholderContainer}>
@@ -224,6 +231,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                   adapter={adapter}
                   connectionId={connectionId}
                   sessionId={selectedSessionId}
+                      sessionSummary={sessionSummary}
                   cachedMessages={cacheEntry?.messages ?? null}
                   lastLoadedAt={cacheEntry?.lastLoadedAt ?? null}
                   cachedCursorEventId={cacheEntry?.cursorEventId ?? null}

@@ -32,6 +32,7 @@ export function usePluginActionDialog<Context = any>(
         });
         return;
       }
+
       setActive({ element, context });
     },
     [runAction],
