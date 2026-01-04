@@ -103,6 +103,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 
 	  const {
 	    activeElement: activePluginDialogElement,
+      context: activePluginDialogContext,
 	    openForElement: openPluginDialogForElement,
 	    handleSubmit: handleSubmitPluginDialog,
 	    handleCancel: handleCancelPluginDialog,
@@ -492,6 +493,9 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         visible={!!activePluginDialogElement}
         dialog={(activePluginDialogElement as any)?.dialog || null}
         titleFallback={activePluginDialogElement?.label}
+        prefillContext={{
+          session: activePluginDialogContext || undefined,
+        }}
         onSubmit={handleSubmitPluginDialog}
         onCancel={handleCancelPluginDialog}
       />
