@@ -214,6 +214,37 @@ def _clear_session_list_cache(root: Path) -> None:
         _session_list_caches.pop(root, None)
 
 
+def _get_session_list_trigger_actions(
+    app_instance: AgentApplication,
+) -> List[Tuple[str, Dict[str, Any]]]:
+    """Return application actions that should run when listing sessions.
+
+    Actions are identified by a ``trigger`` field containing the string
+    ``"session_list"``. The :class:`AgentApplication` treats the
+    ``trigger`` field as opaque; this helper interprets it for the HTTP
+    layer.
+    """
+
+    all_actions = app_instance.get_application_actions()
+    trigger_actions: List[Tuple[str, Dict[str, Any]]] = []
+
+    for action in all_actions:
+        if not isinstance(action, Dict):
+            continue
+        plugin_id = action.get("plugin")
+        if not isinstance(plugin_id, str) or not plugin_id:
+            continue
+        trigger_val = action.get("trigger")
+        if isinstance(trigger_val, str):
+            if trigger_val == "session_list":
+                trigger_actions.append((plugin_id, action))
+        elif isinstance(trigger_val, list):
+            if any(isinstance(t, str) and t == "session_list" for t in trigger_val):
+                trigger_actions.append((plugin_id, action))
+
+    return trigger_actions
+
+
 def _build_default_agent_app() -> AgentApplication:
     """Build a process-wide AgentApplication with default config.
 
@@ -1173,6 +1204,17 @@ def list_sessions(
 
     cache = _get_session_list_cache(root)
 
+    trigger_actions = _get_session_list_trigger_actions(app_instance)
+
+    # Resolve the metadata key used for pinned state once per call.
+    raw_cfg = getattr(app_instance, "_config", {})
+    app_cfg = raw_cfg.get("application") if isinstance(raw_cfg, dict) else {}
+    raw_pinned_key = app_cfg.get("session_pinned_metadata_key") if isinstance(app_cfg, dict) else None
+    if isinstance(raw_pinned_key, str) and raw_pinned_key.strip():
+        pinned_metadata_key = raw_pinned_key.strip()
+    else:
+        pinned_metadata_key = "pinned"
+
     items: List[Dict[str, Any]] = []
     paths = list(root.glob("*.json"))
 
@@ -1235,12 +1277,61 @@ def list_sessions(
             except Exception:  # pragma: no cover - defensive
                 preview = ""
 
-            entry = {
+            pinned_val = metadata.get(pinned_metadata_key, False)
+
+            entry: Dict[str, Any] = {
                 "session_id": session_id,
                 "modified": mtime,
                 "preview": preview,
                 "metadata": metadata,
+                "pinned": bool(pinned_val),
             }
+
+            # Run any application-level actions that are configured to
+            # trigger when listing sessions. These actions can return
+            # lightweight calculated fields (``session_list_fields``)
+            # that are merged into the summary.
+            if trigger_actions:
+                session_obj: Optional[Session] = None
+                for plugin_id, action_def in trigger_actions:
+                    inputs_schema = action_def.get("inputs") or {}
+                    params: Dict[str, Any] = {}
+                    needs_session = False
+
+                    for name, spec in inputs_schema.items():
+                        if name == "session_id":
+                            params[name] = session_id
+                        elif name == "session_summary":
+                            params[name] = entry
+                        elif name == "session":
+                            needs_session = True
+
+                    if needs_session and session_obj is None:
+                        try:
+                            ctx = app_instance.load_session(session_id)
+                        except Exception:  # pragma: no cover - defensive
+                            ctx = None
+                        if ctx is None:
+                            continue
+                        _core, _base, session_obj = ctx
+
+                    if needs_session and session_obj is not None:
+                        params["session"] = session_obj
+
+                    try:
+                        result = app_instance.execute_application_action(
+                            plugin_id,
+                            action_def.get("id", ""),
+                            params,
+                        )
+                    except Exception:  # pragma: no cover - defensive
+                        continue
+
+                    fields = result.get("session_list_fields")
+                    if isinstance(fields, dict):
+                        for k, v in fields.items():
+                            entry[k] = v
+
             cache.entries_by_id[session_id] = entry
             items.append(entry)
 
@@ -1249,7 +1340,14 @@ def list_sessions(
             if session_id not in seen_ids:
                 cache.entries_by_id.pop(session_id, None)
 
+        # Sort primarily by modification time (descending) and then
+        # surface pinned sessions before unpinned ones while preserving
+        # per-group ordering.
         items.sort(key=lambda entry: entry["modified"], reverse=True)
+
+        pinned_items = [e for e in items if bool(e.get("pinned"))]
+        unpinned_items = [e for e in items if not bool(e.get("pinned"))]
+        items = pinned_items + unpinned_items
 
     if limit is not None and limit >= 0:
         items = items[:limit]

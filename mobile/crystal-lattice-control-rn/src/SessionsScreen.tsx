@@ -3,13 +3,15 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Modal, ScrollView,
+  Modal,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/Feather';
 import type { ConnectionAdapter } from '../App';
 import { useTheme, type Theme } from './theme';
 import SessionActionsBar from './components/SessionActionsBar';
@@ -66,7 +68,12 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const { availableAgents, agentLoading, ensureAgentsLoaded, setAgentLoading } =
     useSessionAgents();
   const [hasAutoLoaded, setHasAutoLoaded] = useState(false);
-  const { sessionListActions, actionsById, sessionListFields } = useApplicationPlugins();
+  const {
+    sessionListActions,
+    actionsById,
+    sessionListFields,
+    sessionListPinnedToggles,
+  } = useApplicationPlugins();
   const { pinned: pinnedSessionActions, setPinned: setPinnedSessionActions } =
     usePersistentPinnedActions<SessionActionKey>(
       STORAGE_KEY_SESSION_LIST_ACTIONS,
@@ -303,6 +310,22 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     [sessionListFields],
   );
 
+  const subtitleFields = useMemo(
+    () =>
+      (sessionListFields || [])
+        .filter((el) => (el as any).role === 'subtitle')
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    [sessionListFields],
+  );
+
+  const metaFields = useMemo(
+    () =>
+      (sessionListFields || [])
+        .filter((el) => (el as any).role === 'meta')
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    [sessionListFields],
+  );
+
   const filteredSessions = sessions.filter((s) => {
     if (!filterText.trim()) return true;
     const q = filterText.toLowerCase();
@@ -330,7 +353,45 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       return `Session ${s.session_id.slice(0, 8)}`;
     };
 
+    const deriveSubtitle = (): string | null => {
+      for (const field of subtitleFields) {
+        const path = field.data;
+        if (typeof path !== 'string' || !path) continue;
+        const value = extractByPath(s, path);
+        if (value === null || value === undefined || value === '') continue;
+        const text = renderTemplate(field.template, value);
+        if (text) return text;
+      }
+      return null;
+    };
+
+    const deriveMeta = (): string | null => {
+      const parts: string[] = [];
+      for (const field of metaFields) {
+        const path = field.data;
+        if (typeof path !== 'string' || !path) continue;
+        const rawValue = extractByPath(s, path);
+        let valueForTemplate: any = rawValue;
+        const meta = (field as any).metadata || {};
+        if (meta.format === 'datetime' && typeof rawValue === 'number') {
+          const d = new Date(rawValue * 1000);
+          valueForTemplate = d.toLocaleString();
+        }
+        if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') continue;
+        const text = renderTemplate(field.template, valueForTemplate);
+        if (!text) continue;
+        parts.push(text);
+      }
+      if (parts.length === 0) return null;
+      return parts.join(' · ');
+    };
+
     const title = deriveTitle();
+    const subtitle = deriveSubtitle();
+    const metaText = deriveMeta();
+
+    const isPinned = !!s.pinned;
+    const pinnedToggleElement = sessionListPinnedToggles[0];
 
     const actions = sessionListActions ?? [];
 
@@ -354,10 +415,38 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         style={styles.sessionItem}
         onPress={() => onSelectSession(s.session_id)}
       >
-        <Text style={styles.sessionTitle}>{title}</Text>
+        <View style={styles.sessionHeaderRow}>
+          <View style={styles.sessionHeaderTextColumn}>
+            <Text style={styles.sessionTitle}>{title}</Text>
+          </View>
+          {pinnedToggleElement ? (
+            <TouchableOpacity
+              style={styles.pinIconButton}
+              onPress={() => {
+                if (!adapter) {
+                  const message = 'No active connection';
+                  setError(message);
+                  Alert.alert('Error', message);
+                  return;
+                }
+                openPluginDialogForElement(pinnedToggleElement, s);
+              }}
+            >
+              <Icon
+                name="star"
+                size={18}
+                color={isPinned ? '#FFCC00' : theme.textSecondary}
+              />
+            </TouchableOpacity>
+          ) : null}
+        </View>
         <Text style={styles.sessionId}>{s.session_id}</Text>
-        {s.preview ? <Text style={styles.sessionPreview}>{s.preview}</Text> : null}
-        <Text style={styles.sessionMeta}>Updated: {modifiedLabel}</Text>
+        {subtitle ? (
+          <Text style={styles.sessionSubtitle}>{subtitle}</Text>
+        ) : s.preview ? (
+          <Text style={styles.sessionPreview}>{s.preview}</Text>
+        ) : null}
+        <Text style={styles.sessionMeta}>{metaText || `Updated: ${modifiedLabel}`}</Text>
         {hasAnyActions && (
           <View style={styles.sessionActionsRow}>
             <SessionActionsBar
@@ -615,11 +704,30 @@ const createStyles = (theme: Theme) =>
       borderWidth: 1,
       borderColor: theme.border,
     },
+    sessionHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    sessionHeaderTextColumn: {
+      flex: 1,
+      paddingRight: 8,
+    },
     sessionTitle: {
       fontSize: 16,
       fontWeight: '600',
       marginBottom: 2,
       color: theme.text,
+    },
+    sessionSubtitle: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      marginBottom: 2,
+    },
+    pinIconButton: {
+      paddingHorizontal: 4,
+      paddingVertical: 4,
+      marginLeft: 4,
     },
     sessionId: {
       fontSize: 12,

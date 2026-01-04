@@ -5,6 +5,7 @@ export interface SessionSummary {
   modified: number;
   preview: string;
   metadata?: Record<string, any>;
+  pinned?: boolean;
 }
 
 export interface ApiMessage {
