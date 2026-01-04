@@ -49,6 +49,14 @@ class SessionTitleAppPlugin:
                     "Defaults to 'title' when not set."
                 ),
                 "default": "title",
+            },
+            "session_subtitle_metadata_key": {
+                "type": "string",
+                "description": (
+                    "Metadata key used for storing session subtitles. "
+                    "Defaults to 'subtitle' when not set."
+                ),
+                "default": "subtitle",
             }
         }
 
@@ -56,11 +64,12 @@ class SessionTitleAppPlugin:
         """Return UI schema elements contributed by this plugin.
 
         Elements are generic and do not carry any behaviour beyond wiring
-        parameters for the ``set_session_title`` action and exposing a
-        ``session_list_field`` for the configured metadata key.
+        parameters for the ``set_session_title`` action and exposing
+        ``session_list_field`` entries for the configured metadata keys.
         """
 
         metadata_key = state.get("metadata_key") or "title"
+        subtitle_metadata_key = state.get("subtitle_metadata_key") or "subtitle"
 
         return [
             {
@@ -74,6 +83,7 @@ class SessionTitleAppPlugin:
                 "param_map": {
                     "session_id": "$session.session_id",
                     "title": "$dialog.title",
+                    "subtitle": "$dialog.subtitle",
                 },
                 "dialog": {
                     "kind": "form",
@@ -90,6 +100,14 @@ class SessionTitleAppPlugin:
                             # session metadata title field.
                             "prefill_from": f"$session.metadata.{metadata_key}",
                         },
+                        {
+                            "name": "subtitle",
+                            "type": "string",
+                            "label": "Subtitle",
+                            "required": False,
+                            "placeholder": "Optional subtitle or description",
+                            "prefill_from": f"$session.metadata.{subtitle_metadata_key}",
+                        },
                     ],
                 },
             },
@@ -104,6 +122,7 @@ class SessionTitleAppPlugin:
                 "param_map": {
                     "session_id": "$session.session_id",
                     "title": "$dialog.title",
+                    "subtitle": "$dialog.subtitle",
                 },
                 "dialog": {
                     "kind": "form",
@@ -118,6 +137,14 @@ class SessionTitleAppPlugin:
                             "placeholder": "e.g. Daily standup notes",
                             "prefill_from": f"$session.metadata.{metadata_key}",
                         },
+                        {
+                            "name": "subtitle",
+                            "type": "string",
+                            "label": "Subtitle",
+                            "required": False,
+                            "placeholder": "Optional subtitle or description",
+                            "prefill_from": f"$session.metadata.{subtitle_metadata_key}",
+                        },
                     ],
                 },
             },
@@ -128,6 +155,16 @@ class SessionTitleAppPlugin:
                 "label": "Session title",
                 "role": "title",
                 "data": f"metadata.{metadata_key}",
+                "template": "{{data}}",
+                "order": 0,
+            },
+            {
+                "ui_type": "session_list_field",
+                "id": "session_subtitle_field",
+                "key": "session_subtitle",
+                "label": "Session subtitle",
+                "role": "subtitle",
+                "data": f"metadata.{subtitle_metadata_key}",
                 "template": "{{data}}",
                 "order": 0,
             },
@@ -144,7 +181,16 @@ class SessionTitleAppPlugin:
         else:
             metadata_key = "title"
 
-        self._state = {"metadata_key": metadata_key}
+        raw_subtitle_key = application_cfg.get("session_subtitle_metadata_key")
+        if isinstance(raw_subtitle_key, str) and raw_subtitle_key.strip():
+            subtitle_metadata_key = raw_subtitle_key.strip()
+        else:
+            subtitle_metadata_key = "subtitle"
+
+        self._state = {
+            "metadata_key": metadata_key,
+            "subtitle_metadata_key": subtitle_metadata_key,
+        }
         return dict(self._state)
 
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:  # type: ignore[override]
@@ -156,6 +202,7 @@ class SessionTitleAppPlugin:
                 "inputs": {
                     "session_id": {"type": "string", "required": True},
                     "title": {"type": "string", "required": True},
+                    "subtitle": {"type": "string", "required": False},
                     "source": {"type": "string", "required": False},
                 },
             }
@@ -196,6 +243,11 @@ class SessionTitleAppPlugin:
 
         new_title = title_val.strip()
         metadata_key = state.get("metadata_key") or "title"
+        subtitle_metadata_key = state.get("subtitle_metadata_key") or "subtitle"
+
+        subtitle_supplied = "subtitle" in params
+        subtitle_val = params.get("subtitle")
+        new_subtitle = subtitle_val.strip() if isinstance(subtitle_val, str) else ""
 
         with app.acquire_session_lock(session_id):
             ctx = app.load_session(session_id)
@@ -211,6 +263,12 @@ class SessionTitleAppPlugin:
                 new_metadata = dict(metadata)
                 new_metadata.pop(metadata_key, None)
 
+            if subtitle_supplied:
+                if new_subtitle:
+                    new_metadata[subtitle_metadata_key] = new_subtitle
+                else:
+                    new_metadata.pop(subtitle_metadata_key, None)
+
             new_session = Session(
                 session_id=session.session_id,
                 messages=session.messages,
@@ -218,11 +276,15 @@ class SessionTitleAppPlugin:
             )
             app.save_session(new_session)
 
+            fields = [metadata_key]
+            if subtitle_supplied:
+                fields.append(subtitle_metadata_key)
+
             stored = app.publish_event(
                 {
                     "type": "session_metadata_updated",
                     "session_id": new_session.session_id,
-                    "fields": [metadata_key],
+                    "fields": fields,
                 }
             )
 

@@ -198,3 +198,73 @@ def test_server_generate_title_error_does_not_modify_session(tmp_path: Path) -> 
     entry = next(s for s in summaries if s.get("session_id") == session_id)
     metadata = entry.get("metadata") or {}
     assert "title" not in metadata
+
+
+def test_server_generate_title_sets_description_metadata_when_enabled(
+    tmp_path: Path,
+) -> None:
+    from agent_terminal_app import server as server_mod
+
+    app = _build_app(tmp_path)
+
+    session_id = _create_session_with_messages(app, ["hello", "world"])
+
+    # Monkeypatch send_request to return a two-line assistant reply so that
+    # both title and description are populated.
+    from agent_core import Session as CoreSession
+
+    def _fake_send_request(
+        core_arg: Any,
+        session_arg: CoreSession,
+        base_config_arg: Dict[str, Any],
+        overrides_arg: Dict[str, Any] | None = None,
+        *,
+        stream: bool = False,
+        request_id: str | None = None,
+    ) -> List[Dict[str, Any]]:
+        return [
+            {
+                "type": "request_started",
+                "session_id": session_arg.session_id,
+                "request_id": request_id,
+            },
+            {
+                "type": "final",
+                "session_id": session_arg.session_id,
+                "request_id": request_id,
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "content": "Server Title\nServer description",
+                    }
+                ],
+            },
+            {
+                "type": "request_completed",
+                "session_id": session_arg.session_id,
+                "request_id": request_id,
+            },
+        ]
+
+    app.send_request = _fake_send_request  # type: ignore[assignment]
+
+    resp = server_mod.execute_action(
+        {
+            "plugin": "generate_title",
+            "action_id": "generate_title_for_session",
+            "inputs": {"session_id": session_id},
+        },
+        app_instance=app,
+    )
+
+    assert resp["status"] == "ok"
+    result = resp.get("result") or {}
+    assert result.get("updated_session_ids") == [session_id]
+
+    sessions_resp = server_mod.list_sessions(app_instance=app)
+    summaries = sessions_resp.get("sessions") or []
+    entry = next(s for s in summaries if s.get("session_id") == session_id)
+    metadata = entry.get("metadata") or {}
+    assert metadata.get("title") == "Server Title"
+    # Default description metadata key should be "subtitle".
+    assert metadata.get("subtitle") == "Server description"

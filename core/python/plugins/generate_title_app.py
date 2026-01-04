@@ -32,7 +32,10 @@ if TYPE_CHECKING:  # pragma: no cover - import cycle guard
     from agent_app.application_future import AgentApplication
 
 
-_DEFAULT_PROMPT = "Generate a short (max 8 words) title for this conversation."
+_DEFAULT_PROMPT = (
+    "Generate a short (max 8 words) title for this conversation. "
+    "If appropriate, also provide a one-line plain-text description on a second line."
+)
 
 
 class GenerateTitleAppPlugin:
@@ -80,6 +83,35 @@ class GenerateTitleAppPlugin:
                 "description": (
                     "Request settings overrides (for example model or "
                     "reasoningEffort) applied to title generation requests."
+                ),
+            },
+            "generate_title_enable_description": {
+                "type": "boolean",
+                "description": (
+                    "When true, the plugin expects the model to return a "
+                    "two-line response (title on the first line, optional "
+                    "description on the second) and stores both title and "
+                    "description metadata."
+                ),
+                "default": True,
+            },
+            "generate_title_description_metadata_key": {
+                "type": "string",
+                "description": (
+                    "Metadata key used for storing generated descriptions. "
+                    "When not set, the plugin reuses the application's "
+                    "session_subtitle_metadata_key or falls back to "
+                    "'subtitle'."
+                ),
+            },
+            "generate_title_system_message": {
+                "type": "string",
+                "description": (
+                    "Optional system message used for title generation "
+                    "requests. When set, this replaces any existing system "
+                    "messages in the ephemeral title-generation session so "
+                    "that the model can be instructed (for example to "
+                    "respond with exactly two lines)."
                 ),
             },
         }
@@ -135,6 +167,9 @@ class GenerateTitleAppPlugin:
         prompt_val = application_cfg.get("generate_title_prompt_template")
         max_messages_val = application_cfg.get("generate_title_max_messages")
         overrides_val = application_cfg.get("generate_title_settings_overrides")
+        enable_desc_val = application_cfg.get("generate_title_enable_description")
+        desc_key_val = application_cfg.get("generate_title_description_metadata_key")
+        system_message_val = application_cfg.get("generate_title_system_message")
 
         if isinstance(prompt_val, str) and prompt_val.strip():
             prompt_template = prompt_val.strip()
@@ -167,12 +202,38 @@ class GenerateTitleAppPlugin:
         else:
             metadata_key = "title"
 
+        # Decide whether descriptions are enabled and which metadata key to
+        # use when storing them. When no explicit description key is
+        # configured, reuse the application's subtitle metadata key when
+        # available so that title/description remain aligned.
+        if isinstance(enable_desc_val, bool):
+            enable_description = enable_desc_val
+        else:
+            enable_description = True
+
+        if isinstance(desc_key_val, str) and desc_key_val.strip():
+            description_metadata_key = desc_key_val.strip()
+        else:
+            raw_subtitle = application_cfg.get("session_subtitle_metadata_key")
+            if isinstance(raw_subtitle, str) and raw_subtitle.strip():
+                description_metadata_key = raw_subtitle.strip()
+            else:
+                description_metadata_key = "subtitle"
+
+        if isinstance(system_message_val, str) and system_message_val.strip():
+            system_message = system_message_val.strip()
+        else:
+            system_message = None
+
         self._state = {
             "agent_id": agent_id,
             "prompt_template": prompt_template,
             "max_messages": max_messages,
             "settings_overrides": settings_overrides,
             "metadata_key": metadata_key,
+            "enable_description": enable_description,
+            "description_metadata_key": description_metadata_key,
+            "system_message": system_message,
         }
         return dict(self._state)
 
@@ -313,6 +374,42 @@ class GenerateTitleAppPlugin:
         combined_overrides: Dict[str, Any] = {**md_overrides2, **cfg_overrides}
         config_for_add = resolve_request_config(base_config_title, combined_overrides)
 
+        # Optionally replace any existing system messages in the
+        # title-generation session with a dedicated system message from
+        # configuration. This keeps title/description runs tightly
+        # constrained (for example, to exactly two lines) without affecting
+        # the original session. We use :meth:`AgentCore.modify_message` so
+        # that provider-native history is preserved or cleanly updated when
+        # possible.
+        system_message_text = state.get("system_message")
+        if isinstance(system_message_text, str) and system_message_text.strip():
+            new_text = system_message_text.strip()
+            # Try to modify the first existing system message; if none are
+            # present, fall back to appending a new system message. Both
+            # operations go through the core so that native history is kept
+            # consistent.
+            system_index: Optional[int] = None
+            for idx, msg in enumerate(session_for_title.messages):
+                if msg.role == "system":
+                    system_index = idx
+                    break
+
+            if system_index is not None:
+                session_for_title = core_title.modify_message(
+                    session_for_title,
+                    system_index,
+                    new_text,
+                    config_for_add,
+                )
+            else:
+                session_for_title = core_title.add_message(
+                    session_for_title,
+                    "system",
+                    new_text,
+                    metadata=None,
+                    config=config_for_add,
+                )
+
         prompt_template = state.get("prompt_template") or _DEFAULT_PROMPT
 
         session_with_prompt = core_title.add_message(
@@ -348,6 +445,8 @@ class GenerateTitleAppPlugin:
             }
 
         title_text: Optional[str] = None
+        description_text: Optional[str] = None
+        enable_description = bool(state.get("enable_description", True))
         if last_final_messages:
             for msg in reversed(last_final_messages):
                 if not isinstance(msg, dict):
@@ -356,9 +455,15 @@ class GenerateTitleAppPlugin:
                     continue
                 content = msg.get("content")
                 if isinstance(content, str) and content.strip():
-                    # Use the first line as the title; providers can still
-                    # return longer content if desired.
-                    title_text = content.strip().splitlines()[0]
+                    lines = [ln.strip() for ln in content.splitlines() if ln.strip()]
+                    if not lines:
+                        continue
+                    if enable_description:
+                        title_text = lines[0]
+                        if len(lines) > 1:
+                            description_text = lines[1]
+                    else:
+                        title_text = lines[0]
                     break
 
         if not title_text:
@@ -369,6 +474,8 @@ class GenerateTitleAppPlugin:
             }
 
         metadata_key = state.get("metadata_key") or "title"
+        description_metadata_key = state.get("description_metadata_key") or "subtitle"
+        enable_description = bool(state.get("enable_description", True))
 
         # Apply the title to the original session under a lock.
         with app.acquire_session_lock(session_id):
@@ -384,6 +491,8 @@ class GenerateTitleAppPlugin:
             )
 
             new_metadata = {**md_latest, metadata_key: title_text}
+            if enable_description and description_text:
+                new_metadata[description_metadata_key] = description_text
 
             new_session = Session(
                 session_id=session_latest.session_id,
@@ -392,11 +501,15 @@ class GenerateTitleAppPlugin:
             )
             app.save_session(new_session)
 
+            fields = [metadata_key]
+            if enable_description and description_text:
+                fields.append(description_metadata_key)
+
             stored = app.publish_event(
                 {
                     "type": "session_metadata_updated",
                     "session_id": new_session.session_id,
-                    "fields": [metadata_key],
+                    "fields": fields,
                 }
             )
 
