@@ -214,8 +214,6 @@ const ApplicationActionDialog: React.FC<ApplicationActionDialogProps> = ({
               const value = valuesByName[name] ?? '';
               const fType = typeof field.type === 'string' ? field.type : 'string';
               const isMultiline = fType === 'multiline';
-              const keyboardType =
-                fType === 'integer' || fType === 'number' ? 'numeric' : 'default';
 
               return (
                 <View key={name} style={styles.inputGroup}>
@@ -229,7 +227,6 @@ const ApplicationActionDialog: React.FC<ApplicationActionDialogProps> = ({
                     onChangeText={(text) => handleChange(name, text)}
                     placeholder={placeholder}
                     placeholderTextColor={theme.textSecondary}
-                    keyboardType={keyboardType as any}
                     multiline={isMultiline}
                     textAlignVertical={isMultiline ? 'top' : 'center'}
                   />
