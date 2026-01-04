@@ -24,6 +24,8 @@ field and publishes a lightweight ``session_metadata_updated`` event.
 
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
+import uuid
+
 from agent_core import Session
 
 from agent_app.config import resolve_request_config
@@ -74,9 +76,11 @@ class GenerateTitleAppPlugin:
                 "type": "integer",
                 "description": (
                     "Maximum number of recent messages to include when "
-                    "generating a title."
+                    "generating a title. When omitted or set to a value "
+                    "less than or equal to zero, all messages are "
+                    "included."
                 ),
-                "default": 50,
+                "default": 0,
             },
             "generate_title_settings_overrides": {
                 "type": "object",
@@ -112,6 +116,13 @@ class GenerateTitleAppPlugin:
                     "messages in the ephemeral title-generation session so "
                     "that the model can be instructed (for example to "
                     "respond with exactly two lines)."
+                ),
+            },
+            "generate_title_debug_save_session": {
+                "type": "boolean",
+                "description": (
+                    "When true, the plugin saves the ephemeral "
+                    "title-generation session to storage for debugging."
                 ),
             },
         }
@@ -170,6 +181,7 @@ class GenerateTitleAppPlugin:
         enable_desc_val = application_cfg.get("generate_title_enable_description")
         desc_key_val = application_cfg.get("generate_title_description_metadata_key")
         system_message_val = application_cfg.get("generate_title_system_message")
+        debug_save_val = application_cfg.get("generate_title_debug_save_session")
 
         if isinstance(prompt_val, str) and prompt_val.strip():
             prompt_template = prompt_val.strip()
@@ -182,11 +194,13 @@ class GenerateTitleAppPlugin:
         else:
             agent_id = None
 
-        max_messages: int
         if isinstance(max_messages_val, int) and max_messages_val > 0:
-            max_messages = max_messages_val
+            max_messages: Optional[int] = max_messages_val
         else:
-            max_messages = 50
+            # ``None`` means "no limit" – the full conversation (minus any
+            # provider-native slicing decisions) is available to the title
+            # generation request.
+            max_messages = None
 
         settings_overrides: Dict[str, Any]
         if isinstance(overrides_val, dict):
@@ -225,6 +239,11 @@ class GenerateTitleAppPlugin:
         else:
             system_message = None
 
+        if isinstance(debug_save_val, bool):
+            debug_save_session = debug_save_val
+        else:
+            debug_save_session = False
+
         self._state = {
             "agent_id": agent_id,
             "prompt_template": prompt_template,
@@ -234,6 +253,7 @@ class GenerateTitleAppPlugin:
             "enable_description": enable_description,
             "description_metadata_key": description_metadata_key,
             "system_message": system_message,
+            "debug_save_session": debug_save_session,
         }
         return dict(self._state)
 
@@ -290,9 +310,9 @@ class GenerateTitleAppPlugin:
         # present.
         max_messages_val = state.get("max_messages")
         if isinstance(max_messages_val, int) and max_messages_val > 0:
-            max_messages = max_messages_val
+            max_messages: Optional[int] = max_messages_val
         else:
-            max_messages = 50
+            max_messages = None
 
         system_prefix_end = 0
         for msg in messages:
@@ -301,14 +321,18 @@ class GenerateTitleAppPlugin:
             else:
                 break
 
-        if message_count <= system_prefix_end:
-            start_recent = system_prefix_end
+        if max_messages is None:
+            # No explicit limit: include the full conversation.
+            keep_indices = set(range(message_count))
         else:
-            start_recent = max(system_prefix_end, message_count - max_messages)
+            # When a limit is configured, keep the *first* ``max_messages``
+            # messages after any leading system prefix, not the last.
+            if message_count <= system_prefix_end:
+                end_recent = system_prefix_end
+            else:
+                end_recent = min(message_count, system_prefix_end + max_messages)
 
-        keep_indices = set(range(system_prefix_end)) | set(
-            range(start_recent, message_count)
-        )
+            keep_indices = set(range(end_recent))
         all_indices = set(range(message_count))
         remove_indices = sorted(i for i in all_indices if i not in keep_indices)
 
@@ -419,6 +443,35 @@ class GenerateTitleAppPlugin:
             metadata=None,
             config=config_for_add,
         )
+
+        # Optionally persist the ephemeral title-generation session for
+        # debugging so that it can be inspected via the normal sessions
+        # list APIs. This is controlled purely by configuration and does
+        # not affect normal flows.
+        if state.get("debug_save_session"):
+            debug_metadata: Dict[str, Any]
+            if isinstance(session_with_prompt.metadata, dict):
+                debug_metadata = dict(session_with_prompt.metadata)
+            else:
+                debug_metadata = {}
+
+            debug_info = debug_metadata.get("debug")
+            if isinstance(debug_info, dict):
+                debug_meta = dict(debug_info)
+            else:
+                debug_meta = {}
+            debug_meta.setdefault("plugin", "generate_title")
+            debug_meta.setdefault("kind", "title_generation_ephemeral")
+            debug_meta.setdefault("source_session_id", session_id)
+            debug_metadata["debug"] = debug_meta
+
+            debug_session_id = f"{session_id}-title-debug-{uuid.uuid4().hex[:8]}"
+            debug_session = Session(
+                session_id=debug_session_id,
+                messages=session_with_prompt.messages,
+                metadata=debug_metadata,
+            )
+            app.save_session(debug_session)
 
         # Run the title-generation request using AgentApplication.send_request.
         try:

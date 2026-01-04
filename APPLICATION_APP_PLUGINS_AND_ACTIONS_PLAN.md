@@ -338,6 +338,14 @@ Action definition:
     `"summarize_range"`, etc.).
   - `label` (optional; human-readable).
   - `description` (optional).
+  - `trigger` (optional): how the action is invoked.
+    - When omitted or set to `"manual"`, the action is only executed
+      when explicitly invoked via `/actions` or via a UI element.
+    - When set to `"session_list"` (or includes it in a
+      list-of-strings form), the server may invoke the action
+      automatically while building `/sessions` summaries, providing
+      the session id and summary data as inputs so the plugin can
+      compute calculated fields.
   - `inputs`: mapping from parameter name → `ActionInputParam`.
 
 `AgentApplication.get_application_actions()` returns these with a
@@ -477,6 +485,7 @@ Session-list field roles:
 - `"title"` – preferred primary line for the session.
 - `"subtitle"` – additional lines under the title.
 - `"meta"` – small secondary info (e.g. timestamps, agent name).
+- `"pinned"` – boolean flag indicating that a session is pinned.
 
 Session-list field schema:
 
@@ -486,7 +495,7 @@ Session-list field schema:
   - `key` (optional): stable identifier for the field.
   - `label` (optional): human label; UIs may or may not use it.
   - `description` (optional).
-  - `role` (optional): `"title" | "subtitle" | "meta"`.
+  - `role` (optional): `"title" | "subtitle" | "meta" | "pinned"`.
     - Default: `"meta"`.
   - `data` (required): dotted path into the session summary object, e.g.:
     - `"metadata.title"`
@@ -542,10 +551,24 @@ Example: show last modified time as meta info:
 ```
 
 Frontends apply these field definitions **client-side** by resolving
-`data` on the `/sessions` summary object per session, then selecting the
-first non-empty `role="title"` field as title, accumulating subtitles
-and meta lines ordered by `order`, and falling back to `preview` or
-`Session <id>` when no title fields yield a value.
+`data` on the `/sessions` summary object per session and then:
+
+- Selecting the first non-empty `role="title"` field as the title
+  line, falling back to `preview` or a generated `Session <id>` label
+  when no title fields yield a value.
+- Selecting the first non-empty `role="subtitle"` field as the
+  subtitle line (when present). When no subtitle fields are defined or
+  produce a value, frontends may fall back to rendering `preview` or
+  omit the subtitle line entirely.
+- Accumulating all non-empty `role="meta"` fields ordered by `order`
+  into a single compact meta line (for example
+  `Updated: … · 3 messages`). When no meta fields are available,
+  frontends typically fall back to a simple timestamp line derived from
+  `modified`.
+- Optionally honoring any `role="pinned"` fields as boolean indicators
+  that a session is pinned. Pinned state primarily affects server-side
+  ordering (see Stage 5.5) but can also be reflected in the UI (for
+  example, with a star icon).
 
 
 6. HTTP API Changes
@@ -778,9 +801,19 @@ via `data` paths such as `metadata.title`, `metadata.agent_id`,
 - Mobile (`SessionsScreen.tsx`) and any other session list UIs can:
   - Continue using `session_id`, `modified`, `preview` as today.
   - Optionally adopt `session_list_field` elements to:
-    - Prefer `metadata.title` as the main title when present.
-    - Show additional lines such as the agent id or formatted
-      timestamp.
+    - Prefer the first non-empty `role="title"` field as the main
+      title when present, with a fallback to `preview` or a
+      generated `Session <id>` label.
+    - Render a subtitle row from the first non-empty
+      `role="subtitle"` field when present, or omit the subtitle row
+      when no subtitle fields are defined.
+    - Render a meta row by combining all non-empty `role="meta"`
+      fields ordered by `order` (for example, `Updated: … · 3 messages`).
+      When no meta fields are available, fall back to the current
+      behavior of rendering a simple timestamp derived from `modified`.
+    - Optionally surface pinned state based on `role="pinned"` fields
+      and/or dedicated pinned UI elements added in Stage 5.5 (for
+      example, a star icon or badge).
 - No changes are required to `/sessions` beyond the addition of
   `metadata` per session and any new UIs are opt-in.
 
@@ -1431,6 +1464,399 @@ Verification:
     `generate_title_for_session` and a `session_list_field` for
     `metadata.title`.
   - Trigger the action and confirm the title is updated in the list.
+
+
+### Stage 5.5 – Session Subtitles, Meta Fields, Pinned Sessions & Calculated Fields
+
+This stage expands the title/description and session-list display
+features to cover **subtitles**, **additional meta fields**, and
+**pinned sessions**, and introduces a pattern for cheap calculated
+fields (such as message count) backed by server-side session
+summaries.
+
+Code changes:
+
+- Extend `SessionTitleAppPlugin` to support subtitles.
+- Extend `GenerateTitleAppPlugin` to optionally generate a
+  description/subtitle alongside the title in a single model call.
+- Add lightweight meta-field plugins that contribute `role="meta"`
+  fields for timestamp and message count.
+- Introduce a `SessionPinnedAppPlugin` for pinning/unpinning sessions
+  and a dedicated UI schema element for a pinned toggle in the session
+  list.
+- Extend `/sessions` summaries to support cheap calculated fields
+  (e.g. `message_count`) and server-side ordering by pinned state.
+
+#### 5.5.1 SessionTitleAppPlugin – Subtitle Support
+
+Extend `SessionTitleAppPlugin` (`core/python/plugins/session_title_app.py`):
+
+- Config (under `application`):
+  - Keep existing `session_title_metadata_key` (defaults to
+    `"title"`).
+  - Add `session_subtitle_metadata_key` (string, optional, defaults
+    to `"subtitle"` when unset).
+- State:
+  - Track both `metadata_key` for titles and `subtitle_metadata_key`
+    for subtitles.
+- Actions (`get_actions`):
+  - Extend the existing `set_session_title` action to accept an
+    optional `subtitle` field:
+
+    ```json
+    "inputs": {
+      "session_id": {"type": "string", "required": true},
+      "title": {"type": "string", "required": true},
+      "subtitle": {"type": "string", "required": false},
+      "source": {"type": "string", "required": false}
+    }
+    ```
+
+  - Backwards-compatibility: callers that only send `title` remain
+    valid; subtitles are optional.
+- Execution (`execute_action`):
+  - Continue to trim `title` and set/clear the title metadata key as
+    today.
+  - For `subtitle` (when present):
+    - Trim the value; when non-empty, set
+      `metadata[subtitle_metadata_key] = subtitle`.
+    - When empty or missing, remove the subtitle key so that the
+      absence of a value is clearly distinguishable from an empty
+      string.
+  - Persist the updated session, emit a single
+    `session_metadata_updated` event whose `fields` array includes any
+    updated metadata keys (title and/or subtitle), and record a
+    checkpoint.
+- UI schema (`get_ui_elements`):
+  - Update the existing `session_list_action` and `session_action`
+    "Edit title" elements to become "Edit title & subtitle" with a
+    two-field form dialog (`title` and `subtitle`). Prefill both fields
+    from the current session metadata when present.
+  - Keep the existing `session_list_field` with `role="title"` and
+    `data="metadata.<title-key>"`.
+  - Add a new `session_list_field` with `role="subtitle"` and
+    `data="metadata.<subtitle-key>"`, `template: "{{data}}"`, and
+    `order: 0` so that frontends can render it as the second line under
+    the title.
+
+Core tests:
+
+- Extend `test_session_title_app_plugin_unit.py` with new tests:
+  - `test_set_session_title_can_set_subtitle` – verifies that
+    providing `subtitle` populates the configured subtitle metadata
+    key.
+  - `test_set_session_title_clears_subtitle_when_empty` – verifies
+    that setting `subtitle` to an empty/whitespace-only string removes
+    the subtitle key.
+  - `test_session_title_ui_schema_includes_subtitle_field` – verifies
+    that `get_ui_elements` returns a `session_list_field` entry with
+    `role="subtitle"` and the correct `data` path.
+
+Server tests:
+
+- Extend `test_server_actions_session_title.py` with:
+  - A test that sets both title and subtitle via `/actions` and
+    asserts that `/sessions` summaries expose both under `metadata` and
+    that the application UI schema includes the subtitle
+    `session_list_field` definition.
+
+
+#### 5.5.2 GenerateTitleAppPlugin – Title + Description in One Call
+
+Extend `GenerateTitleAppPlugin` (`core/python/plugins/generate_title_app.py`)
+to optionally generate a short description/summary used as the
+subtitle.
+
+- Config (under `application`):
+  - Reuse existing keys:
+    - `generate_title_agent_id`,
+      `generate_title_prompt_template`,
+      `generate_title_max_messages`,
+      `generate_title_settings_overrides`.
+  - Add:
+    - `generate_title_enable_description` (boolean, default `true`):
+      when true, the plugin expects the model to output a **two-line**
+      response: title on the first line, description on the second.
+    - `generate_title_description_metadata_key` (string, optional):
+      metadata key for the generated description. When unset, the
+      plugin reuses `application["session_subtitle_metadata_key"]`
+      when present, or falls back to `"subtitle"`.
+    - `generate_title_system_message` (string, optional): custom
+      system message used only for title/description generation
+      requests. When set, the plugin injects or replaces the system
+      message in the ephemeral session used for title generation.
+  - Update the **default prompt template** so it explicitly instructs
+    the model to output two plain-text lines when
+    `generate_title_enable_description` is true, for example:
+
+    > Line 1: a concise title for the conversation (max 8 words).
+    > Line 2: a single-sentence plain-text description/subtitle.
+
+- Execution changes:
+  - When `generate_title_enable_description` is `false`, retain the
+    current behavior (single-line title only), ignoring the description
+    metadata key.
+  - When `generate_title_enable_description` is `true`:
+    - Parse the final assistant reply as follows:
+      - `title_text` – first non-empty line.
+      - `description_text` – the next non-empty line (if any).
+    - If `title_text` is missing, treat this as a plugin error as
+      today.
+    - If `description_text` is missing but a title is present, treat
+      this as a partial success: write only the title metadata and omit
+      the subtitle.
+  - Under the session lock, update metadata keys:
+    - `metadata[title_key] = title_text` (as today).
+    - When `description_text` exists and
+      `generate_title_enable_description` is true, set
+      `metadata[description_key] = description_text`.
+    - Emit a single `session_metadata_updated` event listing all
+      touched fields (title and/or description).
+
+Core tests:
+
+- Extend `test_generate_title_app_plugin_unit.py` with:
+  - `test_generate_title_populates_description_when_enabled` – uses a
+    dummy provider that returns two lines and asserts that both title
+    and subtitle metadata keys are written.
+  - `test_generate_title_ignores_description_when_disabled` – with
+    `generate_title_enable_description = false`, asserts that only the
+    title key is written even when the model returns two lines.
+  - `test_generate_title_uses_custom_description_metadata_key` – when
+    `generate_title_description_metadata_key` is set, verifies that
+    description is stored under that key and not under the default.
+
+Server tests:
+
+- Extend `test_server_actions_generate_title.py` with a test that
+  enables description generation, runs `/actions`, and verifies via
+  `/sessions` that both `metadata.title` and the configured
+  description metadata key are present.
+
+
+#### 5.5.3 Meta Field Plugins & Cheap Calculated Fields
+
+Introduce a pattern for meta fields backed by values that are cheap to
+compute on the server using **triggered actions** that run during
+`/sessions` listing and populate cached, calculated fields.
+
+- Extend `/sessions` summaries:
+  - In `list_sessions` (server), after constructing the base summary
+    object for each session (`session_id`, `modified`, `preview`,
+    `metadata`), build a small in-memory cache keyed by session id and
+    last-modified time.
+  - Discover all application actions whose `trigger` includes
+    `"session_list"`.
+  - For each summary and each such action, call
+    `AgentApplication.execute_application_action` directly with
+    **server-side inputs**, for example:
+    - `session_id`: the session id.
+    - `session_summary`: the current summary object
+      (`session_id`, `modified`, `preview`, `metadata`).
+    - `session`: the full in-memory `Session` object backing this
+      summary, passed by reference (no additional copying or
+      serialization is required because plugins run in the same
+      process and language as the server).
+  - An action triggered in this way **must not** return full session
+    objects; instead, plugins that participate in calculated fields
+    return a small result containing a well-known key,
+    for example:
+    - `session_list_fields`: a mapping of one or more calculated
+      fields for this session, such as `{"message_count": 42}` or
+      `{"last_used_at": 1735670000.0}`.
+  - The server inspects this `session_list_fields` dictionary and
+    merges it into the summary object for that session, so that each
+    key becomes a top-level field on the summary. These values are not
+    persisted back into the session file; they live only in the
+    summary cache and are recomputed when the underlying session file
+    changes.
+  - Plugins invoked via `trigger="session_list"` **should** treat the
+    session as read-only and avoid persisting changes; however, the
+    architecture does not hard-forbid writes, so action
+    implementations must be careful.
+
+- Add two small application plugins, each contributing one meta field
+  and one triggered action:
+
+  1. `SessionTimestampMetaPlugin` (timestamp meta field):
+     - No config required beyond the fact that `modified` is present in
+       session summaries.
+     - `get_ui_elements` returns a single `session_list_field`:
+       - `role="meta"`, `data="modified"`, `template="{{data}}"`,
+         `order=0`, and metadata indicating `format="datetime"` and a
+         human label (e.g. "Updated").
+     - Defines a `compute_session_timestamp_meta` action with
+       `trigger="session_list"` that accepts `session_id` and
+       `session_summary` and returns a `session_list_fields` payload
+       (for example `{ "last_modified": <normalized timestamp> }`)
+       that the server merges into the summary for potential
+       post-processing.
+
+  2. `SessionMessageCountMetaPlugin` (message-count meta field):
+     - `get_ui_elements` returns a single `session_list_field` with
+       `role="meta"`, `data="message_count"`,
+       `template="{{data}} messages"`, and `order=10`.
+     - Defines a `compute_session_message_count_meta` action with
+       `trigger="session_list"` that accepts `session_id`,
+       `session_summary`, and/or full `session` and returns a
+       `session_list_fields` payload indicating the `message_count`
+       value for that session (for example `{ "message_count": 42 }`).
+     - `list_sessions` then merges this `session_list_fields` dict
+       into the summary object so that `SessionListFieldElement.data`
+       can refer to `message_count` directly.
+
+- Frontend behavior:
+  - In `SessionsScreen`, compute `metaFields` by taking all
+    `session_list_field` elements with `role="meta"`, sorted by
+    `order`.
+  - For each summary, derive the meta line by:
+    - Resolving each field’s `data` against the **augmented** session
+      summary (including any cached calculated fields such as
+      `message_count`).
+    - Skipping fields whose value is null/empty.
+    - Rendering the non-empty values using `renderTemplate` and
+      combining them (for example with a `·` separator) into a single
+      meta line.
+  - When at least one meta field produces a value, render that as the
+    meta row and **do not** fall back to the legacy timestamp line.
+  - When no meta fields produce a value, keep the current behavior of
+    rendering a simple `Updated: <timestamp>` line based on
+    `modified`.
+
+Tests:
+
+- New core tests for each meta plugin verifying that their
+  `session_list_field` elements reference the correct `data` paths and
+  that the corresponding `trigger="session_list"` actions return a
+  `session_list_fields` result dictionary with the expected
+  key/value pairs.
+- New server tests ensuring that `/sessions` uses the
+  `trigger="session_list"` actions to augment summaries with
+  calculated fields (e.g. `message_count`) and that
+  `/application/ui-schema` exposes the expected meta fields when the
+  plugins are configured.
+
+
+#### 5.5.4 Pinned Sessions – Server Ordering & Toggle UI
+
+Introduce pinned sessions as a cross-cutting concern: pinned state is
+stored as boolean metadata, used by the server to order `/sessions`
+results and by frontends to render a pinned toggle.
+
+- Config (under `application`):
+  - Add `session_pinned_metadata_key` (string, default `"pinned"`)
+    indicating which metadata field marks a pinned session.
+
+- New plugin `SessionPinnedAppPlugin`:
+  - State:
+    - Reads `session_pinned_metadata_key` from `application` and stores
+      it as `pinned_metadata_key`.
+  - Actions (`get_actions`):
+    - `toggle_session_pinned`:
+
+      ```json
+      {
+        "id": "toggle_session_pinned",
+        "label": "Toggle pinned state",
+        "description": "Toggle whether a session is pinned.",
+        "inputs": {
+          "session_id": {"type": "string", "required": true},
+          "source": {"type": "string", "required": false}
+        }
+      }
+      ```
+
+  - Execution:
+    - Under `app.acquire_session_lock(session_id)`, load the session.
+    - Read current pinned state as a boolean from
+      `metadata[pinned_metadata_key]` (truthy values considered pinned).
+    - Compute `new_pinned = not current_pinned`.
+    - Write `metadata[pinned_metadata_key] = new_pinned`.
+    - Save the session, emit a `session_metadata_updated` event with
+      `fields: [pinned_metadata_key]`, and record a checkpoint.
+    - Return
+
+      ```json
+      {
+        "created_session_ids": [],
+        "updated_session_ids": [session_id],
+        "deleted_session_ids": [],
+        "message": "Session pinned state updated."
+      }
+      ```
+
+  - UI schema:
+    - Provide a dedicated UI element for the pinned toggle in the
+      session list. This is intentionally **not** a generic
+      `session_list_action`; instead, frontends can look for this
+      explicit type to render a clickable star icon:
+
+      ```json
+      {
+        "ui_type": "session_list_toggle_pinned",
+        "plugin": "session_pinned",
+        "id": "toggle_pinned_star",
+        "label": "Toggle pinned",
+        "action_id": "toggle_session_pinned",
+        "param_map": {"session_id": "$session.session_id"},
+        "dialog": {"kind": "none"}
+      }
+      ```
+
+    - Optionally, the plugin may also contribute a `session_list_field`
+      with `role="pinned"` and `data` pointing at the pinned metadata
+      key so that frontends that prefer not to hard-code the key can
+      discover it via UI schema.
+
+- Server ordering (`/sessions`):
+  - Extend `list_sessions` to be aware of pinned state:
+    - Obtain the resolved `session_pinned_metadata_key` from the
+      application configuration (falling back to `"pinned"` when unset).
+    - When building each summary entry, check whether
+      `metadata[pinned_metadata_key]` is truthy and attach a derived
+      boolean `"pinned": true/false` to the summary object.
+    - After scanning all sessions, partition the list into pinned and
+      unpinned summaries, sort each partition by `modified` descending
+      (as today), and then concatenate pinned + unpinned so that all
+      pinned sessions appear first.
+  - This ordering is entirely server-side; frontends receive a
+    pre-sorted list and do not need to reimplement pinning semantics.
+
+- Frontend behavior (mobile `SessionsScreen`):
+  - Extend the `ApplicationUiElement` union and
+    `ApplicationPluginsContext` types to include
+    `ui_type: "session_list_toggle_pinned"` elements.
+  - When rendering each session row:
+    - Determine the current pinned state either from the
+      `summary.pinned` boolean or from the `role="pinned"`
+      `session_list_field` (if present).
+    - If any `session_list_toggle_pinned` element is present:
+      - Render a star icon in the row; filled when pinned, outline when
+        not pinned.
+      - When the icon is tapped, invoke `executeApplicationAction`
+        using the pinned toggle element and current session summary.
+      - On success, reload sessions via `/sessions` so that the new
+        ordering is reflected (the toggled session may move between the
+        pinned and unpinned partitions).
+
+Tests:
+
+- Core tests for `SessionPinnedAppPlugin` verifying that toggling
+  pinned flips the metadata boolean and publishes
+  `session_metadata_updated`.
+- Server tests that:
+  - Confirm `/sessions` includes a `pinned` boolean for each summary
+    when the configuration is present.
+  - Confirm that pinned sessions appear first and that their relative
+    order is still based on `modified`.
+  - Confirm that `/application/ui-schema` exposes the
+    `session_list_toggle_pinned` element when the plugin is wired in.
+- Mobile Jest tests that:
+  - Mock `/application/ui-schema` to include a pinned toggle element
+    and summaries with mixed pinned/unpinned entries.
+  - Verify that pinned sessions render with a filled star and appear at
+    the top of the list, and that tapping the star triggers `/actions`
+    as expected.
 
 
 ### Stage 6 – Terminal UI Adoption

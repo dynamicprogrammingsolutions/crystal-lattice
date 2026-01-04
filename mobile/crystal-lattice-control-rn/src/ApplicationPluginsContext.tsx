@@ -15,6 +15,7 @@ export interface UseApplicationPluginsResult {
   messageActions: ActionUiElement[];
   sessionListActions: ActionUiElement[];
   sessionListFields: SessionListFieldElement[];
+  sessionListPinnedToggles: ActionUiElement[];
 }
 
 export interface ApplicationPluginsContextValue extends UseApplicationPluginsResult {
@@ -35,6 +36,7 @@ const emptyResult: UseApplicationPluginsResult = {
   messageActions: [],
   sessionListActions: [],
   sessionListFields: [],
+  sessionListPinnedToggles: [],
 };
 
 const defaultContext: ApplicationPluginsContextValue = {
@@ -70,6 +72,9 @@ function buildResultFromEntry(entry: CacheEntry | null | undefined): UseApplicat
   const sessionListFields = elements.filter(
     (el) => el && (el as any).ui_type === 'session_list_field',
   ) as SessionListFieldElement[];
+  const sessionListPinnedToggles = elements.filter(
+    (el) => el && (el as any).ui_type === 'session_list_toggle_pinned',
+  ) as ActionUiElement[];
 
   return {
     actionsById,
@@ -77,6 +82,7 @@ function buildResultFromEntry(entry: CacheEntry | null | undefined): UseApplicat
     messageActions,
     sessionListActions,
     sessionListFields,
+    sessionListPinnedToggles,
   };
 }
 
@@ -174,6 +180,14 @@ export function useApplicationPlugins(): UseApplicationPluginsResult {
     messageActions,
     sessionListActions,
     sessionListFields,
+    sessionListPinnedToggles,
   } = useApplicationPluginsContext();
-  return { actionsById, sessionActions, messageActions, sessionListActions, sessionListFields };
+  return {
+    actionsById,
+    sessionActions,
+    messageActions,
+    sessionListActions,
+    sessionListFields,
+    sessionListPinnedToggles,
+  };
 }
