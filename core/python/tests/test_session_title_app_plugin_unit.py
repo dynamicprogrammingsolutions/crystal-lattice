@@ -148,6 +148,94 @@ def test_set_session_title_publishes_metadata_updated_event(tmp_path: Path) -> N
     assert "title" in fields
 
 
+def test_set_session_title_can_set_subtitle(tmp_path: Path) -> None:
+    app = _build_app(tmp_path)
+
+    session_id = _create_session(app)
+
+    result = app.execute_application_action(
+        plugin_id="session_title",
+        action_id="set_session_title",
+        params={
+            "session_id": session_id,
+            "title": "Project planning",
+            "subtitle": "Daily standup notes",
+        },
+    )
+
+    updated = result.get("updated_session_ids") or []
+    assert updated == [session_id]
+
+    ctx = app.load_session(session_id)
+    assert ctx is not None
+    _core, _base, session = ctx
+
+    metadata = session.metadata if isinstance(session.metadata, dict) else {}
+    assert metadata.get("title") == "Project planning"
+    assert metadata.get("subtitle") == "Daily standup notes"
+
+
+def test_set_session_title_clears_subtitle_when_empty(tmp_path: Path) -> None:
+    app = _build_app(tmp_path)
+
+    session_id = _create_session(app)
+
+    _ = app.execute_application_action(
+        plugin_id="session_title",
+        action_id="set_session_title",
+        params={
+            "session_id": session_id,
+            "title": "With subtitle",
+            "subtitle": "Initial subtitle",
+        },
+    )
+
+    ctx1 = app.load_session(session_id)
+    assert ctx1 is not None
+    _core1, _base1, session1 = ctx1
+    md1 = session1.metadata if isinstance(session1.metadata, dict) else {}
+    assert md1.get("subtitle") == "Initial subtitle"
+
+    result = app.execute_application_action(
+        plugin_id="session_title",
+        action_id="set_session_title",
+        params={
+            "session_id": session_id,
+            "title": "With subtitle",
+            "subtitle": "   ",
+        },
+    )
+
+    updated = result.get("updated_session_ids") or []
+    assert updated == [session_id]
+
+    ctx2 = app.load_session(session_id)
+    assert ctx2 is not None
+    _core2, _base2, session2 = ctx2
+    md2 = session2.metadata if isinstance(session2.metadata, dict) else {}
+    assert "subtitle" not in md2
+
+
+def test_session_title_ui_schema_includes_subtitle_field(tmp_path: Path) -> None:
+    config_path = _make_config_with_session_title(tmp_path)
+    session_root = tmp_path / "sessions"
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    elements = app.get_application_ui_schema()
+    subtitle_fields = [
+        el
+        for el in elements
+        if isinstance(el, dict)
+        and el.get("plugin") == "session_title"
+        and el.get("ui_type") == "session_list_field"
+        and el.get("role") == "subtitle"
+    ]
+
+    assert subtitle_fields
+    assert any(el.get("data") == "metadata.subtitle" for el in subtitle_fields)
+
+
 def test_set_session_title_from_session_list_does_not_request_navigation(
     tmp_path: Path,
 ) -> None:

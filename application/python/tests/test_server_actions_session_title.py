@@ -155,3 +155,26 @@ def test_application_ui_schema_includes_session_list_field_for_title(
     assert title_fields
     # Default metadata key is "title".
     assert any(el.get("data") == "metadata.title" for el in title_fields)
+
+
+def test_application_ui_schema_includes_session_list_field_for_subtitle(
+    tmp_path: Path,
+) -> None:
+    from agent_terminal_app import server as server_mod
+
+    app = _build_app(tmp_path)
+
+    resp = server_mod.list_application_ui_schema(app_instance=app)
+    elements = resp.get("elements") or []
+
+    subtitle_fields = [
+        el
+        for el in elements
+        if isinstance(el, dict)
+        and el.get("plugin") == "session_title"
+        and el.get("ui_type") == "session_list_field"
+        and el.get("role") == "subtitle"
+    ]
+
+    assert subtitle_fields
+    assert any(el.get("data") == "metadata.subtitle" for el in subtitle_fields)
