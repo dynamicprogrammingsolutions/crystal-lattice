@@ -17,6 +17,7 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import type { ConnectionAdapter } from '../App';
 import {
   apiAppendMessage,
+  apiCancelRequest,
   apiDeleteMessagesByRange,
   apiGetSessionAgent,
   apiListMessages,
@@ -152,6 +153,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [uiSchemaElements, setUiSchemaElements] = useState<UiSchemaElement[]>([]);
   const [pluginActionInProgress, setPluginActionInProgress] = useState(false);
+  const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
   const {
     actionsById,
     sessionActions: pluginSessionActions,
@@ -274,7 +276,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 		          end = parsedEnd;
 		        }
 		      }
-      const { messages: list, cursor_event_id } = await apiListMessages(
+      const { messages: list, cursor_event_id, active_request_id } = await apiListMessages(
 		        adapter,
 		        sessionId,
 		        start,
@@ -282,6 +284,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 		      );
 		      setMessages(list);
       setInitialCheckpointId(cursor_event_id ?? null);
+      setActiveRequestId(active_request_id ?? null);
       setStreamingRow(null);
 		      if (!hasAutoScrolledRef.current) {
 		        setShouldAutoScroll(true);
@@ -405,7 +408,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     };
   }, []);
 
-	  const handleAppend = async () => {
+  const handleAppend = async () => {
     const text = composeText.trim();
     if (!text) {
       return;
@@ -451,6 +454,47 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       Alert.alert('Error', message);
     } finally {
       setSendInProgress(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setSendInProgress(true);
+    if (!adapter) {
+      Alert.alert('No connection', 'Connect to a server to resend.');
+      setSendInProgress(false);
+      return;
+    }
+    try {
+      setActiveError(null);
+      setStreamingRow(null);
+      await apiSend(adapter, sessionId);
+      await loadMessages();
+    } catch (err: any) {
+      console.log('Failed to resend request', err);
+      const message = err?.message || 'Failed to resend request';
+      Alert.alert('Error', message);
+    } finally {
+      setSendInProgress(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!adapter) {
+      Alert.alert('No connection', 'Connect to a server to cancel.');
+      return;
+    }
+    if (!activeRequestId) {
+      Alert.alert('No active request', 'There is no active request to cancel.');
+      return;
+    }
+    try {
+      await apiCancelRequest(adapter, activeRequestId);
+      // We rely on subsequent events (request_cancelled / request_completed)
+      // to clear activeRequestId and update any streaming state.
+    } catch (err: any) {
+      console.log('Failed to cancel request', err);
+      const message = err?.message || 'Failed to cancel request';
+      Alert.alert('Error', message);
     }
   };
   const confirmDeleteRange = async () => {
@@ -522,27 +566,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       setActiveError(null);
       setStreamingRow(null);
       await loadMessages();
-      return;
-    }
-    if (action === 'resend') {
-      setSendInProgress(true);
-      if (!adapter) {
-        Alert.alert('No connection', 'Connect to a server to resend.');
-        setSendInProgress(false);
-        return;
-      }
-      try {
-        setActiveError(null);
-        setStreamingRow(null);
-        await apiSend(adapter, sessionId);
-        await loadMessages();
-      } catch (err: any) {
-        console.log('Failed to resend request', err);
-        const message = err?.message || 'Failed to resend request';
-        Alert.alert('Error', message);
-      } finally {
-        setSendInProgress(false);
-      }
       return;
     }
     if (action === 'messageLimit') {
@@ -753,11 +776,19 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     relevant.forEach((ev) => {
       if (ev.type === 'request_started') {
         // New request: clear error and streaming state.
+        const rid = typeof ev.request_id === 'string' ? ev.request_id : null;
+        if (rid) {
+          setActiveRequestId(rid);
+        }
         setActiveError(null);
         setStreamingRow(null);
       } else if (ev.type === 'assistant_message') {
         const msgEv = ev as AssistantMessageEvent;
         if (msgEv.phase === 'start') {
+          const rid = typeof msgEv.request_id === 'string' ? msgEv.request_id : null;
+          if (rid) {
+            setActiveRequestId((prev) => prev || rid || prev);
+          }
           setStreamingRow({
             requestId: msgEv.request_id ?? 'unknown',
             reasoning: '',
@@ -775,6 +806,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           typeof rawMessage.content === 'string' ? rawMessage.content : '';
         if (!reasoningDelta && !contentDelta) return;
         const evRequestId = p.request_id ?? null;
+        if (typeof evRequestId === 'string' && evRequestId) {
+          setActiveRequestId((prev) => prev || evRequestId || prev);
+        }
         setStreamingRow((prev) => {
           const base =
             prev && (!evRequestId || prev.requestId === evRequestId)
@@ -810,8 +844,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         const detail =
           (typeof err.detail === 'string' && err.detail) || 'Request failed with an error.';
         setActiveError({ detail, requestId: err.request_id ?? null });
-      } else if (ev.type === 'request_completed' && AUTO_RELOAD_ON_REQUEST_COMPLETED) {
-        loadMessages();
+      } else if (ev.type === 'request_completed' || ev.type === 'request_cancelled') {
+        const rid = ev.request_id;
+        setActiveRequestId((current) => (current == null || current === rid ? null : current));
+        if (AUTO_RELOAD_ON_REQUEST_COMPLETED) {
+          loadMessages();
+        }
       }
     });
 
@@ -908,7 +946,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	    <KeyboardAvoidingView
 	      style={styles.keyboardAvoiding}
 	      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-	      keyboardVerticalOffset={8}
+	      keyboardVerticalOffset={64}
 	    >
 	      <View style={styles.container}>
 	        <View style={styles.headerRow}>
@@ -925,7 +963,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
               onAction={handleSessionAction}
               isActionDisabled={(action) =>
                 pluginActionInProgress ||
-                (sendInProgress && (action === 'reload' || action === 'resend'))
+                (sendInProgress && action === 'reload')
               }
               extraActions={pluginSessionActionDefs}
             />
@@ -1034,7 +1072,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         </View>
       )}
 
-	      <View style={styles.composer}>
+      <View style={styles.composer}>
         <TextInput
           style={styles.composerInput}
           placeholder="Type your message..."
@@ -1048,23 +1086,79 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           }}
           multiline
         />
+        {/** Compute per-button enablement so we can style text when disabled. */}
+        {(() => {
+          const canAppend = !!adapter && !sendInProgress && !activeRequestId;
+          const canResend = !!adapter && !sendInProgress && !activeRequestId;
+          const canCancel = !!adapter && !sendInProgress && !!activeRequestId;
+          const canSend = !!adapter && !sendInProgress && !activeRequestId;
+
+          return (
         <View style={styles.composerButtonsRow}>
           <TouchableOpacity
             style={[styles.button, styles.secondaryButton, styles.composerButton]}
             onPress={handleAppend}
-            disabled={sendInProgress}
+            disabled={!canAppend}
           >
-            <Text style={styles.buttonTextSecondary}>Append</Text>
+            <Text
+              style={[
+                styles.buttonTextSecondary,
+                !canAppend && styles.buttonTextDisabled,
+              ]}
+            >
+              Append
+            </Text>
+          </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.button, styles.secondaryButton, styles.composerButton]}
+        onPress={handleResend}
+            disabled={!canResend}
+      >
+            <Text
+              style={[
+                styles.buttonTextSecondary,
+                !canResend && styles.buttonTextDisabled,
+              ]}
+            >
+              Resend
+            </Text>
+      </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, styles.secondaryButton, styles.composerButton]}
+            onPress={handleCancel}
+            disabled={!canCancel}
+          >
+            <Text
+              style={[
+                styles.buttonTextSecondary,
+                !canCancel && styles.buttonTextDisabled,
+              ]}
+            >
+              Cancel
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.button, styles.primaryButton, styles.composerButton]}
             onPress={handleSend}
-            disabled={sendInProgress}
+            disabled={!canSend}
           >
-            <Text style={styles.buttonText}>Send</Text>
+            {sendInProgress || activeRequestId ? (
+              <ActivityIndicator size="small" color={theme.textOnPrimary} />
+            ) : (
+              <Text
+                style={[
+                  styles.buttonText,
+                  !canSend && styles.buttonTextDisabled,
+                ]}
+              >
+                Send
+              </Text>
+            )}
           </TouchableOpacity>
         </View>
-	      </View>
+          );
+        })()}
+      </View>
 
 	      <Modal
 	        visible={messageLimitVisible}
@@ -1285,6 +1379,9 @@ const createStyles = (theme: Theme) =>
       fontSize: 14,
       fontWeight: '600',
     },
+    buttonTextDisabled: {
+      color: theme.textSecondary,
+    },
     loadingContainer: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1339,11 +1436,13 @@ const createStyles = (theme: Theme) =>
     },
     composerButtonsRow: {
       flexDirection: 'row',
-      justifyContent: 'flex-end',
+      justifyContent: 'space-between',
     },
     composerButton: {
-      minWidth: 90,
+      flex: 1,
+      minWidth: 0,
       alignItems: 'center',
+      marginHorizontal: 4,
     },
     modalOverlay: {
       flex: 1,

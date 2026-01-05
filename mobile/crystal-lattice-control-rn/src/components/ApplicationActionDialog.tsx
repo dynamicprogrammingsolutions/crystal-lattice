@@ -199,7 +199,7 @@ const ApplicationActionDialog: React.FC<ApplicationActionDialogProps> = ({
       <KeyboardAvoidingView
         style={styles.modalOverlay}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={16}
+        keyboardVerticalOffset={0}
       >
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>{title}</Text>

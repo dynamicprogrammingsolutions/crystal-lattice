@@ -36,6 +36,10 @@ class EventStore(Protocol):
         """
         ...
 
+    def get_event_by_id(self, event_id: str) -> Optional[Dict[str, Any]]:  # pragma: no cover - interface
+        """Return the stored event with the given ``event_id``, if any."""
+        ...
+
     # Cursor and locking helpers
 
     def advance_session_cursor(self, session_id: str, event_id: str) -> None:  # pragma: no cover - interface
@@ -140,6 +144,23 @@ class InMemoryEventStore(EventStore):
                 except Exception:  # pragma: no cover - defensive
                     pass
             return None
+
+    def get_event_by_id(self, event_id: str) -> Optional[Dict[str, Any]]:
+        """Return the stored event with the given ``event_id``, if any.
+
+        Event ids are assigned monotonically increasing integer-like strings,
+        but this helper performs a simple linear search over the in-memory
+        list so callers do not need to depend on that representation.
+        """
+
+        if not isinstance(event_id, str) or not event_id:
+            return None
+
+        with self._lock:
+            for ev in self._events:
+                if ev.get("event_id") == event_id:
+                    return ev
+        return None
 
     # ------------------------------------------------------------------
     # Optional helpers: per-session cursor and lock coordination

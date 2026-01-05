@@ -30,6 +30,7 @@ export interface ListSessionsResponse {
 export interface ListMessagesResponse {
   messages: IndexedMessage[];
   cursor_event_id?: string | null;
+  active_request_id?: string | null;
 }
 
 export interface SendResponse {
@@ -105,6 +106,7 @@ export async function apiListMessages(
   return {
     messages,
     cursor_event_id: data.cursor_event_id ?? null,
+    active_request_id: data.active_request_id ?? null,
   };
 }
 
@@ -241,6 +243,14 @@ export async function apiDeleteMessagesByRange(
   }
   const data = await adapter.delete(path, payload);
   return data as DeleteMessagesResponse;
+}
+
+export async function apiCancelRequest(
+  adapter: ConnectionAdapter,
+  requestId: string,
+): Promise<void> {
+  const path = `/requests/${encodeURIComponent(requestId)}/cancel`;
+  await adapter.post(path, {});
 }
 
 // --- Session configuration helpers ---

@@ -14,12 +14,6 @@ export const SESSION_ACTIONS: Record<SessionActionKey, SessionActionDefinition> 
     iconName: 'refresh-ccw',
     defaultPinned: true,
   },
-  resend: {
-    key: 'resend',
-    label: 'Resend',
-    iconName: 'repeat',
-    defaultPinned: true,
-  },
   messageLimit: {
     key: 'messageLimit',
     label: 'Message limit',

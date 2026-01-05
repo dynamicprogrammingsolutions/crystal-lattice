@@ -553,6 +553,16 @@ def _run_send_request_background(
         # here; callers are expected to observe results via the event
         # store and session history.
 
+        # Publish a post-completion checkpoint so that frontends can
+        # observe that there is no active request at/after this point
+        # when loading a session snapshot by cursor.
+        try:
+            app_instance.record_checkpoint(session_id, None)
+        except Exception:  # pragma: no cover - defensive
+            _log.exception(
+                "failed to publish post-completion checkpoint for %r", session_id,
+            )
+
     except Exception:  # pragma: no cover - defensive
         _log.exception(
             "unexpected error in send_request background worker for session %r",
@@ -1477,10 +1487,29 @@ def list_session_messages(
 
             cursor_event_id = app_instance.get_session_cursor_event_id(session_id)
 
+            # Derive the active_request_id for this snapshot from the
+            # checkpoint event at cursor_event_id, if any. The
+            # AgentApplication guarantees that the per-session cursor
+            # corresponds to the event_id of a published "checkpoint"
+            # event created via record_checkpoint(session_id,
+            # request_id).
+            active_request_id: Optional[str] = None
+            if cursor_event_id is not None:
+                store = app_instance.get_event_store()
+                ev = store.get_event_by_id(cursor_event_id)
+                if ev is not None and ev.get("type") == "checkpoint":
+                    rid = ev.get("request_id")
+                    if isinstance(rid, str) and rid:
+                        active_request_id = rid
+
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    return {"messages": results, "cursor_event_id": cursor_event_id}
+    return {
+        "messages": results,
+        "cursor_event_id": cursor_event_id,
+        "active_request_id": active_request_id,
+    }
 
 
 @app.get("/events")
