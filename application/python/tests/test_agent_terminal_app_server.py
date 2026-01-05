@@ -29,6 +29,8 @@ CORE_PY = ROOT / "core/python"
 if str(CORE_PY) not in sys.path:
     sys.path.insert(0, str(CORE_PY))
 
+from typing import Any, Dict
+
 from agent_app.application_future import AgentApplication
 from agent_app.events import InMemoryEventStore
 
@@ -686,6 +688,116 @@ def test_list_session_messages_includes_cursor_event_id_after_request(tmp_path: 
 
     resp = server_mod.list_session_messages(session_id, app_instance=app)
     assert resp["cursor_event_id"] == last_id
+
+
+def test_list_session_messages_exposes_active_request_id_during_and_after_request(
+    tmp_path: Path,
+) -> None:
+    """GET /sessions/{id}/messages exposes active_request_id semantics.
+
+    During an in-flight request, the last checkpoint's request_id
+    should be surfaced as active_request_id. After the request has
+    completed and a post-completion checkpoint has been recorded, the
+    messages endpoint should report active_request_id as null.
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+
+    # Create a session and append a single user message.
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    server_mod.add_message(
+        session_id,
+        {"role": "user", "content": "hello", "metadata": None},
+        app_instance=app,
+    )
+
+    # Monkeypatch AgentApplication.send_request to capture the generated
+    # events without running a real provider. We simulate the core
+    # contract: initial request_started, one session_checkpoint, final,
+    # request_completed.
+    captured_events: list[Dict[str, Any]] = []
+
+    def _fake_send_request(
+        core_arg: Any,
+        session_arg: Any,
+        base_config_arg: Any,
+        overrides_arg: Dict[str, Any] | None,
+        *,
+        stream: bool = True,
+        request_id: str | None = None,
+    ) -> list[Dict[str, Any]]:
+        rid = request_id or "req-test"
+        # request_started
+        captured_events.append(
+            {
+                "type": "request_started",
+                "session_id": session_id,
+                "request_id": rid,
+                "stream": bool(stream),
+            }
+        )
+        # internal session_checkpoint carrying the live Session
+        captured_events.append(
+            {
+                "type": "session_checkpoint",
+                "session_id": session_id,
+                "request_id": rid,
+                "session": session_arg,
+            }
+        )
+        # final
+        captured_events.append(
+            {
+                "type": "final",
+                "session_id": session_id,
+                "request_id": rid,
+                "messages": [],
+            }
+        )
+        # request_completed
+        captured_events.append(
+            {
+                "type": "request_completed",
+                "session_id": session_id,
+                "request_id": rid,
+            }
+        )
+        # The helper iterates over this list.
+        return iter(captured_events)  # type: ignore[return-value]
+
+    app.send_request = _fake_send_request  # type: ignore[assignment]
+
+    # Drive the background helper once. This should:
+    # - persist a checkpoint with request_id == rid during the request
+    # - then record a post-completion checkpoint with request_id None
+    server_mod._run_send_request_background(app, session_id, {})
+
+    # Verify that at least one checkpoint exists with a non-null request_id
+    # (during the request) and that the last checkpoint has request_id None
+    # due to the post-completion marker.
+    evs = app.get_event_store().list(session_id=session_id, limit=200)
+    checkpoints = [ev for ev in evs if ev.get("type") == "checkpoint"]
+    assert checkpoints, "expected checkpoint events for the session"
+
+    request_ids = [ev.get("request_id") for ev in checkpoints]
+    assert any(isinstance(rid, str) and rid for rid in request_ids)
+    assert checkpoints[-1].get("request_id") is None
+
+    # The messages endpoint should now expose the last checkpoint as the
+    # cursor and report active_request_id as null, since the request has
+    # completed.
+    resp = server_mod.list_session_messages(session_id, app_instance=app)
+    assert resp["cursor_event_id"] == checkpoints[-1].get("event_id")
+    assert resp.get("active_request_id") is None
 
 
 def test_events_endpoint_bootstrap_returns_latest_event_id(tmp_path: Path) -> None:

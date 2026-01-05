@@ -47,7 +47,7 @@ interface SessionsScreenProps {
 
 const STORAGE_KEY_SESSION_LIST_ACTIONS = 'clc_pinned_session_list_actions_v1';
 
-const BUILTIN_SESSION_LIST_ACTIONS: SessionActionKey[] = ['resend', 'agentSwitch', 'settings'];
+const BUILTIN_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settings'];
 
 const SessionsScreen: React.FC<SessionsScreenProps> = ({
   adapter,
@@ -239,26 +239,6 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 
   const handleBuiltinSessionAction = useCallback(
     async (action: SessionActionKey, s: SessionSummary) => {
-      if (action === 'resend') {
-        if (!adapter) {
-          const message = 'No active connection';
-          setError(message);
-          Alert.alert('Error', message);
-          return;
-        }
-        try {
-          setLoading(true);
-          await apiSend(adapter, s.session_id);
-          await loadSessions();
-        } catch (err: any) {
-          console.log('Failed to resend for session', err);
-          const message = err?.message || 'Failed to resend';
-          Alert.alert('Error', message);
-        } finally {
-          setLoading(false);
-        }
-        return;
-      }
 
       if (action === 'settings') {
         setSettingsSessionId(s.session_id);
