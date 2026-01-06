@@ -101,6 +101,13 @@ class OpenAIToolsExtension:
             extra = native.get("_metadata") if isinstance(native, dict) else None
             if isinstance(extra, dict) and extra:
                 metadata.update(extra)
+            # Preserve provider-native tool_call_id on core messages so that
+            # operations that rebuild from native history (e.g. slice_session,
+            # modify_message) keep the explicit link between assistant
+            # tool_calls[*].id and role=="tool" messages.
+            tcid = native.get("tool_call_id") if isinstance(native, dict) else None
+            if isinstance(tcid, str) and tcid and "tool_call_id" not in metadata:
+                metadata["tool_call_id"] = tcid
             if metadata:
                 enhanced.append({**msg, "metadata": metadata})
             else:

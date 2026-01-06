@@ -327,6 +327,223 @@ class AgentCore:
             global_indices,
         )
 
+    def _insert_single_message_with_native(
+        self,
+        session,
+        message_dict,
+        insert_at: int,
+        config,
+    ):
+        #TODO: Refactor with using slice+append+join to reduce code duplication
+
+        base_metadata = dict(session.metadata) if isinstance(session.metadata, dict) else {}
+
+        role_value = message_dict.get("role", "user")
+        role = role_value
+        content = message_dict.get("content", "")
+        raw_md = message_dict.get("metadata") or {}
+        md_new = dict(raw_md) if isinstance(raw_md, dict) else {}
+
+        from agent_core.types import Message  # local import to avoid cycles
+
+        existing_messages = session.messages
+        message_count = len(existing_messages)
+
+        # Clamp insert_at to [0, message_count]. Caller is expected to
+        # validate bounds; this is a defensive guard.
+        if insert_at < 0:
+            insert_at = 0
+        if insert_at > message_count:
+            insert_at = message_count
+
+        # Capture existing per-message metadata (excluding native_indices) so
+        # that application-supplied fields such as reasoning or tool_calls are
+        # preserved across native-history rebuilds.
+        existing_metadata: List[Dict[str, Any]] = []
+        for msg in existing_messages:
+            data = msg.to_dict()
+            raw = data.get("metadata") or {}
+            md_existing = dict(raw) if isinstance(raw, dict) else {}
+            md_existing.pop("native_indices", None)
+            existing_metadata.append(md_existing)
+
+        # When there is no retained native history, treat insertion as a
+        # core-only operation.
+        retained_native = None
+        if isinstance(session.metadata, dict):
+            rn = session.metadata.get("native_messages")
+            if isinstance(rn, list):
+                retained_native = rn
+
+        if retained_native is None:
+            new_messages: List[Message] = []
+            for idx, msg in enumerate(existing_messages):
+                if idx == insert_at:
+                    new_messages.append(
+                        Message(
+                            role=role,
+                            content=content,
+                            metadata=md_new or None,
+                        )
+                    )
+                new_messages.append(msg)
+            if insert_at == message_count:
+                new_messages.append(
+                    Message(
+                        role=role,
+                        content=content,
+                        metadata=md_new or None,
+                    )
+                )
+
+            new_session_metadata = dict(base_metadata)
+            new_session_metadata.pop("native_messages", None)
+            new_session_metadata.pop("native_messages_integrity", None)
+
+            return (
+                type(session)(
+                    session_id=session.session_id,
+                    messages=new_messages,
+                    metadata=new_session_metadata,
+                ),
+                [],
+            )
+
+        # Verify integrity before attempting a native-preserving update.
+        self._verify_native_integrity(session)
+
+        # --------- Native-preserving insertion path ---------
+
+        # Compute provider-native suffix for the new message only.
+        core_suffix: List[Dict[str, Any]] = [
+            {
+                "role": role,
+                "content": content,
+                "metadata": md_new,
+            }
+        ]
+        suffix_native = self._core_messages_to_native_for_config(core_suffix, config or {})
+
+        # Determine native insertion position based on existing native_indices.
+        retained_native: List[Dict[str, Any]] = list(retained_native)
+        native_insert_pos = -1
+
+        if insert_at == 0:
+            # Prepend: insert before the first native message.
+            native_insert_pos = -1
+        else:
+            # Insert after the message at index insert_at - 1. When multiple
+            # messages share native indices, treat that equivalence class as a
+            # unit so that insertion does not split shared native ownership.
+            after_idx = insert_at - 1
+
+            # Build mapping from native index to owning message indices.
+            native_to_owners: Dict[int, List[int]] = {}
+            for i, msg in enumerate(existing_messages):
+                md_existing = msg.metadata if isinstance(msg.metadata, dict) else {}
+                idxs = md_existing.get("native_indices") or []
+                if not isinstance(idxs, list):
+                    continue
+                for j in idxs:
+                    if not isinstance(j, int):
+                        continue
+                    native_to_owners.setdefault(j, []).append(i)
+
+            # Union-find over message indices: messages that share any native
+            # index belong to the same equivalence class.
+            parent: List[int] = list(range(message_count))
+
+            def _find(x: int) -> int:
+                while parent[x] != x:
+                    parent[x] = parent[parent[x]]
+                    x = parent[x]
+                return x
+
+            def _union(a: int, b: int) -> None:
+                ra, rb = _find(a), _find(b)
+                if ra != rb:
+                    parent[rb] = ra
+
+            for owners in native_to_owners.values():
+                if len(owners) < 2:
+                    continue
+                first = owners[0]
+                for other in owners[1:]:
+                    _union(first, other)
+
+            root_after = _find(after_idx)
+            block_indices = [i for i in range(message_count) if _find(i) == root_after]
+
+            block_native_indices: List[int] = []
+            for i in block_indices:
+                md_existing = existing_messages[i].metadata or {}
+                idxs = md_existing.get("native_indices") or []
+                if isinstance(idxs, list):
+                    block_native_indices.extend([
+                        j for j in idxs if isinstance(j, int)
+                    ])
+
+            if block_native_indices:
+                native_insert_pos = max(block_native_indices)
+            else:
+                native_insert_pos = -1
+
+        # Splice the provider-native suffix into the retained native history.
+        if native_insert_pos < 0:
+            new_native = list(suffix_native) + retained_native
+        else:
+            cut = native_insert_pos + 1
+            new_native = retained_native[:cut] + list(suffix_native) + retained_native[cut:]
+
+        # Rebuild core messages from the updated native history so that
+        # features/providers can adjust structure and native_indices.
+        rebuilt_messages = self._rebuild_core_from_native(new_native, config or {})
+
+        merged_messages: List[Message] = []
+        for idx_new, msg in enumerate(rebuilt_messages):
+            data = msg.to_dict()
+            base_md = dict(data.get("metadata") or {})
+
+            # Map new index back to original index for existing messages.
+            if idx_new < insert_at:
+                orig_idx = idx_new
+            elif idx_new > insert_at:
+                orig_idx = idx_new - 1
+            else:
+                orig_idx = None
+
+            if orig_idx is not None and 0 <= orig_idx < len(existing_metadata):
+                extra = existing_metadata[orig_idx]
+                if extra:
+                    base_md = {**base_md, **extra}
+
+            # For the inserted message, layer in the provided metadata.
+            if idx_new == insert_at and md_new:
+                base_md = {**base_md, **md_new}
+
+            merged_messages.append(
+                Message(
+                    role=data.get("role", role),
+                    content=data.get("content", ""),
+                    metadata=base_md or None,
+                )
+            )
+
+        new_session_metadata = {
+            **base_metadata,
+            "native_messages": new_native,
+            "native_messages_integrity": self._compute_native_integrity(merged_messages),
+        }
+
+        return (
+            type(session)(
+                session_id=session.session_id,
+                messages=merged_messages,
+                metadata=new_session_metadata,
+            ),
+            [],
+        )
+
     def _modify_single_message_with_native(self, session, index, content, config):
         from agent_core.types import Message  # local import to avoid cycles
 
@@ -535,6 +752,8 @@ class AgentCore:
         content: str,
         metadata: Optional[Dict[str, Any]] = None,
         config: Optional[Dict[str, Any]] = None,
+        *,
+        after_index: Optional[int] = None,
     ) -> Session:
         """Add a message to the session (pure function).
 
@@ -549,9 +768,14 @@ class AgentCore:
             content: Message content.
             metadata: Optional per-message metadata.
             config: Optional configuration used to resolve provider and plugins.
+            after_index: Optional index after which to insert the message.
+                When ``None`` (default), the message is appended at the end.
+                ``after_index == -1`` inserts at the beginning. Negative
+                indices follow Python semantics relative to the end of the
+                message list.
 
         Returns:
-            New Session with the message appended (immutable update).
+            New Session with the message added (immutable update).
         """
         msg_md = dict(metadata) if isinstance(metadata, dict) else {}
         message_dict: Dict[str, Any] = {
@@ -559,13 +783,40 @@ class AgentCore:
             "content": content,
             "metadata": msg_md,
         }
-        # Always prefer the native-preserving helper; when native history
-        # cannot be safely updated, it falls back to a core-only append.
-        
-        # TODO: Legacy behavior with no config should be removed.
-        new_session, _ = self._append_single_message_with_native(
+        # Compute insertion point. When after_index is None, append at end.
+        message_count = len(session.messages)
+        if after_index is None:
+            insert_at = message_count
+        else:
+            if after_index == -1:
+                insert_at = 0
+            else:
+                idx = after_index
+                if idx < 0:
+                    idx = message_count + idx
+                if idx < 0 or idx >= message_count:
+                    raise IndexError("after_index out of range")
+                insert_at = idx + 1
+
+        # Append uses the existing native-preserving helper. Insert at other
+        # positions rebuilds native history so that provider-native messages
+        # stay consistent with the updated core sequence.
+        if insert_at == message_count:
+            # Always prefer the native-preserving helper; when native history
+            # cannot be safely updated, it falls back to a core-only append.
+
+            # TODO: Legacy behavior with no config should be removed.
+            new_session, _ = self._append_single_message_with_native(
+                session,
+                message_dict,
+                config or {},
+            )
+            return new_session
+
+        new_session, _ = self._insert_single_message_with_native(
             session,
             message_dict,
+            insert_at,
             config or {},
         )
         return new_session

@@ -109,6 +109,12 @@ class OpenRouterToolsExtension(ProviderExtensionPlugin):
             extra = native.get("_metadata") if isinstance(native, dict) else None
             if isinstance(extra, dict) and extra:
                 metadata.update(extra)
+            # Preserve provider-native tool_call_id on core messages so that
+            # operations rebuilding from native history keep the explicit
+            # association between assistant.tool_calls[*].id and tool messages.
+            tcid = native.get("tool_call_id") if isinstance(native, dict) else None
+            if isinstance(tcid, str) and tcid and "tool_call_id" not in metadata:
+                metadata["tool_call_id"] = tcid
             if metadata:
                 enhanced.append({**msg, "metadata": metadata})
             else:
