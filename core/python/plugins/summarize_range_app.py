@@ -244,52 +244,11 @@ class SummarizeRangeAppPlugin:
         end_idx: int,
         summary_text: str,
     ) -> Session:
-        messages = session.messages
-        message_count = len(messages)
-
-        if start_idx < 0 or end_idx > message_count or start_idx >= end_idx:
-            raise ValueError("invalid range for summarization")
-
-        kept: List[Message] = []
-        for idx, msg in enumerate(messages):
-            if start_idx <= idx < end_idx:
-                continue
-            kept.append(self._clone_message_without_native_indices(msg))
-
-        # Insert the summary at the original start index position.
-        prefix = kept[: start_idx]
-        suffix = kept[start_idx:]
-
-        summary_metadata: Dict[str, Any] = {
-            "summarized_range": {
-                "start_index": start_idx,
-                "end_index": end_idx,
-            }
-        }
-        summary_message = Message(
-            role="assistant",
-            content=summary_text,
-            metadata=summary_metadata,
-        )
-
-        new_messages: List[Message] = []
-        new_messages.extend(prefix)
-        new_messages.append(summary_message)
-        new_messages.extend(suffix)
-
-        new_metadata: Dict[str, Any] = (
-            dict(session.metadata) if isinstance(session.metadata, dict) else {}
-        )
-        # Drop provider-native history; the modified session no longer matches
-        # any previously stored native state and should be rebuilt on demand.
-        new_metadata.pop("native_messages", None)
-        new_metadata.pop("native_messages_integrity", None)
-
-        return Session(
-            session_id=session.session_id,
-            messages=new_messages,
-            metadata=new_metadata,
-        )
+        # Legacy helper retained for backwards compatibility; no longer used.
+        # The new implementation applies range replacement via AgentCore
+        # slice_session and add_message to keep provider-native history
+        # consistent. This stub is kept to avoid breaking external imports.
+        raise NotImplementedError("_replace_range_with_summary is no longer used")
 
     def _do_summarize_range(
         self,
@@ -456,7 +415,7 @@ class SummarizeRangeAppPlugin:
             if ctx_latest is None:
                 raise KeyError(f"Session {session_id!r} not found")
 
-            core_latest, _base_cfg_latest, session_latest = ctx_latest
+            core_latest, base_cfg_latest, session_latest = ctx_latest
             message_count2 = len(session_latest.messages)
             start_idx2, end_idx2 = _normalize_slice_bounds(
                 message_count2,
@@ -464,11 +423,48 @@ class SummarizeRangeAppPlugin:
                 end_int,
             )
 
-            new_session = self._replace_range_with_summary(
+            # Build a config for editing that mirrors the original slice
+            # semantics, including per-session overrides.
+            md_latest = (
+                session_latest.metadata
+                if isinstance(session_latest.metadata, dict)
+                else {}
+            )
+            md_overrides_latest_val = md_latest.get("overrides")
+            md_overrides_latest: Dict[str, Any] = (
+                md_overrides_latest_val
+                if isinstance(md_overrides_latest_val, dict)
+                else {}
+            )
+            edit_config = resolve_request_config(base_cfg_latest, md_overrides_latest)
+
+            # Step 1: remove the original range using slice_session. This
+            # keeps provider-native history aligned with the remaining
+            # messages.
+            remove_indices = list(range(start_idx2, end_idx2))
+            session_after_delete = core_latest.slice_session(
                 session_latest,
-                start_idx2,
-                end_idx2,
+                edit_config,
+                remove_indices=remove_indices,
+            )
+
+            # Step 2: insert the summary assistant message at the original
+            # start index position using the native-aware add_message API.
+            insert_after = start_idx2 - 1
+            summary_metadata: Dict[str, Any] = {
+                "summarized_range": {
+                    "start_index": start_idx2,
+                    "end_index": end_idx2,
+                }
+            }
+
+            new_session = core_latest.add_message(
+                session_after_delete,
+                "assistant",
                 summary_text,
+                metadata=summary_metadata,
+                config=edit_config,
+                after_index=insert_after,
             )
 
             app.save_session(new_session)
