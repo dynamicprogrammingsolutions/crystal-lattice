@@ -1044,6 +1044,55 @@ class AgentCore:
             metadata=new_metadata,
         )
 
+    def rebuild_native_history(
+        self,
+        session: Session,
+        config: Optional[Dict[str, Any]] = None,
+    ) -> Session:
+        """Rebuild provider-native history from the current core messages.
+
+        This helper converts the session's core messages to provider-native
+        form using the configured provider, extensions, and features, then
+        rebuilds the full core message sequence from that native history.
+        The resulting session contains a fresh ``native_messages`` array and
+        matching integrity metadata.
+
+        Args:
+            session: Current session.
+            config: Configuration used to resolve provider and plugins.
+
+        Returns:
+            New Session with native history rebuilt from core messages.
+        """
+
+        if config is None:
+            raise ValueError("config must be provided to rebuild native history")
+
+        if not isinstance(config, dict):
+            raise TypeError("config must be a dict when rebuilding native history")
+
+        # Convert core messages to provider-native history.
+        core_dicts: List[Dict[str, Any]] = [m.to_dict() for m in session.messages]
+        new_native = self._core_messages_to_native_for_config(core_dicts, config)
+
+        # Rebuild canonical core messages from the new native history so that
+        # provider/feature transformations and native_indices are normalized.
+        rebuilt_messages = self._rebuild_core_from_native(new_native, config)
+
+        new_metadata: Dict[str, Any] = (
+            dict(session.metadata) if isinstance(session.metadata, dict) else {}
+        )
+        new_metadata["native_messages"] = new_native
+        new_metadata["native_messages_integrity"] = self._compute_native_integrity(
+            rebuilt_messages
+        )
+
+        return Session(
+            session_id=session.session_id,
+            messages=rebuilt_messages,
+            metadata=new_metadata,
+        )
+
     def _normalize_config(self, config: Dict[str, Any]) -> str:
         """Normalize config for use in cache keys.
 
