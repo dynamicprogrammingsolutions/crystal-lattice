@@ -190,17 +190,9 @@ class AgentCore:
 
         from agent_core.types import Message  # local import to avoid cycles
 
-        # Capture existing per-message metadata (excluding native_indices) so
-        # that application-supplied fields such as reasoning or tool_calls are
-        # preserved across native-history rebuilds.
-        existing_messages = session.messages
-        existing_metadata: List[Dict[str, Any]] = []
-        for msg in existing_messages:
-            data = msg.to_dict()
-            raw_md = data.get("metadata") or {}
-            md_existing = dict(raw_md) if isinstance(raw_md, dict) else {}
-            md_existing.pop("native_indices", None)
-            existing_metadata.append(md_existing)
+        # Existing per-message metadata is preserved via provider/extension
+        # pipelines using the `_metadata` convention. We no longer manually
+        # merge application metadata back after rebuilding from native.
 
         def _core_only_session(clean_metadata):
             cleaned = dict(clean_metadata)
@@ -277,34 +269,11 @@ class AgentCore:
         except Exception as e:
             raise e
 
-        # Preserve application-supplied metadata (e.g., tool_calls, reasoning)
-        # on existing messages and the newly appended message while keeping
-        # provider-assigned fields such as native_indices from the rebuild
-        # step. Existing per-message metadata is merged back in by index,
-        # excluding native_indices which are owned by the core.
-        merged_messages: List[Message] = []
-        last_index = len(rebuilt_messages) - 1
-        for idx, msg in enumerate(rebuilt_messages):
-            data = msg.to_dict()
-            base_md = dict(data.get("metadata") or {})
-
-            if 0 <= idx < len(existing_metadata):
-                extra = existing_metadata[idx]
-                if extra:
-                    base_md = {**base_md, **extra}
-
-            if idx == last_index and md:
-                base_md = {**base_md, **md}
-
-            merged_messages.append(
-                Message(
-                    role=data["role"],
-                    content=data["content"],
-                    metadata=base_md or None,
-                )
-            )
-
-        new_messages: List[Message] = merged_messages
+        # Provider/extension pipelines (including the `_metadata` convention)
+        # are responsible for reconstructing per-message metadata.
+        new_messages: List[Message] = [
+            Message.from_dict(m.to_dict()) for m in rebuilt_messages
+        ]
 
         new_session_metadata = {
             **base_metadata,
@@ -334,8 +303,6 @@ class AgentCore:
         insert_at: int,
         config,
     ):
-        #TODO: Refactor with using slice+append+join to reduce code duplication
-
         base_metadata = dict(session.metadata) if isinstance(session.metadata, dict) else {}
 
         role_value = message_dict.get("role", "user")
@@ -356,26 +323,11 @@ class AgentCore:
         if insert_at > message_count:
             insert_at = message_count
 
-        # Capture existing per-message metadata (excluding native_indices) so
-        # that application-supplied fields such as reasoning or tool_calls are
-        # preserved across native-history rebuilds.
-        existing_metadata: List[Dict[str, Any]] = []
-        for msg in existing_messages:
-            data = msg.to_dict()
-            raw = data.get("metadata") or {}
-            md_existing = dict(raw) if isinstance(raw, dict) else {}
-            md_existing.pop("native_indices", None)
-            existing_metadata.append(md_existing)
-
         # When there is no retained native history, treat insertion as a
         # core-only operation.
-        retained_native = None
-        if isinstance(session.metadata, dict):
-            rn = session.metadata.get("native_messages")
-            if isinstance(rn, list):
-                retained_native = rn
-
-        if retained_native is None:
+        if not isinstance(session.metadata, dict) or not isinstance(
+            session.metadata.get("native_messages"), list
+        ):
             new_messages: List[Message] = []
             for idx, msg in enumerate(existing_messages):
                 if idx == insert_at:
@@ -409,140 +361,26 @@ class AgentCore:
                 [],
             )
 
-        # Verify integrity before attempting a native-preserving update.
-        self._verify_native_integrity(session)
-
-        # --------- Native-preserving insertion path ---------
-
-        # Compute provider-native suffix for the new message only.
-        core_suffix: List[Dict[str, Any]] = [
-            {
-                "role": role,
-                "content": content,
-                "metadata": md_new,
-            }
-        ]
-        suffix_native = self._core_messages_to_native_for_config(core_suffix, config or {})
-
-        # Determine native insertion position based on existing native_indices.
-        retained_native: List[Dict[str, Any]] = list(retained_native)
-        native_insert_pos = -1
-
-        if insert_at == 0:
-            # Prepend: insert before the first native message.
-            native_insert_pos = -1
-        else:
-            # Insert after the message at index insert_at - 1. When multiple
-            # messages share native indices, treat that equivalence class as a
-            # unit so that insertion does not split shared native ownership.
-            after_idx = insert_at - 1
-
-            # Build mapping from native index to owning message indices.
-            native_to_owners: Dict[int, List[int]] = {}
-            for i, msg in enumerate(existing_messages):
-                md_existing = msg.metadata if isinstance(msg.metadata, dict) else {}
-                idxs = md_existing.get("native_indices") or []
-                if not isinstance(idxs, list):
-                    continue
-                for j in idxs:
-                    if not isinstance(j, int):
-                        continue
-                    native_to_owners.setdefault(j, []).append(i)
-
-            # Union-find over message indices: messages that share any native
-            # index belong to the same equivalence class.
-            parent: List[int] = list(range(message_count))
-
-            def _find(x: int) -> int:
-                while parent[x] != x:
-                    parent[x] = parent[parent[x]]
-                    x = parent[x]
-                return x
-
-            def _union(a: int, b: int) -> None:
-                ra, rb = _find(a), _find(b)
-                if ra != rb:
-                    parent[rb] = ra
-
-            for owners in native_to_owners.values():
-                if len(owners) < 2:
-                    continue
-                first = owners[0]
-                for other in owners[1:]:
-                    _union(first, other)
-
-            root_after = _find(after_idx)
-            block_indices = [i for i in range(message_count) if _find(i) == root_after]
-
-            block_native_indices: List[int] = []
-            for i in block_indices:
-                md_existing = existing_messages[i].metadata or {}
-                idxs = md_existing.get("native_indices") or []
-                if isinstance(idxs, list):
-                    block_native_indices.extend([
-                        j for j in idxs if isinstance(j, int)
-                    ])
-
-            if block_native_indices:
-                native_insert_pos = max(block_native_indices)
-            else:
-                native_insert_pos = -1
-
-        # Splice the provider-native suffix into the retained native history.
-        if native_insert_pos < 0:
-            new_native = list(suffix_native) + retained_native
-        else:
-            cut = native_insert_pos + 1
-            new_native = retained_native[:cut] + list(suffix_native) + retained_native[cut:]
-
-        # Rebuild core messages from the updated native history so that
-        # features/providers can adjust structure and native_indices.
-        rebuilt_messages = self._rebuild_core_from_native(new_native, config or {})
-
-        merged_messages: List[Message] = []
-        for idx_new, msg in enumerate(rebuilt_messages):
-            data = msg.to_dict()
-            base_md = dict(data.get("metadata") or {})
-
-            # Map new index back to original index for existing messages.
-            if idx_new < insert_at:
-                orig_idx = idx_new
-            elif idx_new > insert_at:
-                orig_idx = idx_new - 1
-            else:
-                orig_idx = None
-
-            if orig_idx is not None and 0 <= orig_idx < len(existing_metadata):
-                extra = existing_metadata[orig_idx]
-                if extra:
-                    base_md = {**base_md, **extra}
-
-            # For the inserted message, layer in the provided metadata.
-            if idx_new == insert_at and md_new:
-                base_md = {**base_md, **md_new}
-
-            merged_messages.append(
-                Message(
-                    role=data.get("role", role),
-                    content=data.get("content", ""),
-                    metadata=base_md or None,
-                )
-            )
-
-        new_session_metadata = {
-            **base_metadata,
-            "native_messages": new_native,
-            "native_messages_integrity": self._compute_native_integrity(merged_messages),
-        }
-
-        return (
-            type(session)(
-                session_id=session.session_id,
-                messages=merged_messages,
-                metadata=new_session_metadata,
-            ),
-            [],
+        # Native-preserving insertion: split using slice_session and then
+        # append+join using public helpers so that native indices and
+        # provider-native extras are handled consistently.
+        kept_prefix, removed_suffix = self.slice_session(
+            session,
+            config,
+            start=0,
+            end=insert_at,
+            return_removed=True,
         )
+
+        prefix_with_insert, _ = self._append_single_message_with_native(
+            kept_prefix,
+            message_dict,
+            config or {},
+        )
+
+        joined = self.join_sessions(prefix_with_insert, removed_suffix, config or {})
+
+        return (joined, [])
 
     def _modify_single_message_with_native(self, session, index, content, config):
         from agent_core.types import Message  # local import to avoid cycles
@@ -907,6 +745,7 @@ class AgentCore:
         start: Optional[int] = None,
         end: Optional[int] = None,
         remove_indices: Optional[List[int]] = None,
+        return_removed: bool = False,
     ) -> Session:
         """Return a new session with messages sliced/removed.
 
@@ -955,26 +794,39 @@ class AgentCore:
         else:
             keep_set = all_indices.difference(remove_set)
 
+        remove_set: Set[int] = all_indices.difference(keep_set)
+
         if keep_set == all_indices:
-            return session
+            if not return_removed:
+                return session
+            # No messages removed; return an empty complement session that
+            # mirrors the original metadata shape but without native history.
+            empty = self._slice_session_core_only(session, set())
+            return (session, empty)  # type: ignore[return-value]
 
-        if config is None:
-            return self._slice_session_core_only(session, keep_set)
-
-        if not isinstance(session.metadata, dict):
-            return self._slice_session_core_only(session, keep_set)
-
-        if len(self._providers) != 1:
-            return self._slice_session_core_only(session, keep_set)
+        if config is None or not isinstance(session.metadata, dict) or len(self._providers) != 1:
+            kept = self._slice_session_core_only(session, keep_set)
+            if not return_removed:
+                return kept
+            removed = self._slice_session_core_only(session, remove_set)
+            return (kept, removed)  # type: ignore[return-value]
 
         original_native = session.metadata.get("native_messages")
         if not isinstance(original_native, list):
-            return self._slice_session_core_only(session, keep_set)
+            kept = self._slice_session_core_only(session, keep_set)
+            if not return_removed:
+                return kept
+            removed = self._slice_session_core_only(session, remove_set)
+            return (kept, removed)  # type: ignore[return-value]
 
         try:
             self._verify_native_integrity(session)
         except Exception:
-            return self._slice_session_core_only(session, keep_set)
+            kept = self._slice_session_core_only(session, keep_set)
+            if not return_removed:
+                return kept
+            removed = self._slice_session_core_only(session, remove_set)
+            return (kept, removed)  # type: ignore[return-value]
 
         native_len = len(original_native)
 
@@ -989,11 +841,19 @@ class AgentCore:
             if not isinstance(native_indices, list) or not all(
                 isinstance(j, int) for j in native_indices
             ):
-                return self._slice_session_core_only(session, keep_set)
+                kept = self._slice_session_core_only(session, keep_set)
+                if not return_removed:
+                    return kept
+                removed = self._slice_session_core_only(session, remove_set)
+                return (kept, removed)  # type: ignore[return-value]
             normalized_indices: List[int] = []
             for j in native_indices:
                 if j < 0 or j >= native_len:
-                    return self._slice_session_core_only(session, keep_set)
+                    kept = self._slice_session_core_only(session, keep_set)
+                    if not return_removed:
+                        return kept
+                    removed = self._slice_session_core_only(session, remove_set)
+                    return (kept, removed)  # type: ignore[return-value]
                 if j not in normalized_indices:
                     normalized_indices.append(j)
             if not normalized_indices:
@@ -1008,40 +868,87 @@ class AgentCore:
 
         for idx in keep_set:
             if idx not in core_to_native:
-                return self._slice_session_core_only(session, keep_set)
+                kept = self._slice_session_core_only(session, keep_set)
+                if not return_removed:
+                    return kept
+                removed = self._slice_session_core_only(session, remove_set)
+                return (kept, removed)  # type: ignore[return-value]
 
-        native_candidates: Set[int] = set()
+        # Build native subsets for kept and removed halves in one pass so we
+        # can support split-like operations without duplicating logic.
+        native_candidates_keep: Set[int] = set()
+        native_candidates_remove: Set[int] = set()
         for idx in keep_set:
             for j in core_to_native.get(idx, []):
-                native_candidates.add(j)
+                native_candidates_keep.add(j)
+        for idx in remove_set:
+            for j in core_to_native.get(idx, []):
+                native_candidates_remove.add(j)
 
-        if not native_candidates:
-            new_native: List[Dict[str, Any]] = []
+        if not native_candidates_keep:
+            new_native_keep: List[Dict[str, Any]] = []
         else:
-            final_native_indices = {
+            final_native_indices_keep = {
                 j
-                for j in native_candidates
+                for j in native_candidates_keep
                 if native_to_core.get(j, set()).issubset(keep_set)
             }
-            sorted_indices = sorted(final_native_indices)
-            new_native = [original_native[j] for j in sorted_indices]
+            sorted_keep = sorted(final_native_indices_keep)
+            new_native_keep = [original_native[j] for j in sorted_keep]
+
+        if not native_candidates_remove:
+            new_native_remove: List[Dict[str, Any]] = []
+        else:
+            final_native_indices_remove = {
+                j
+                for j in native_candidates_remove
+                if native_to_core.get(j, set()).issubset(remove_set)
+            }
+            sorted_remove = sorted(final_native_indices_remove)
+            new_native_remove = [original_native[j] for j in sorted_remove]
 
         try:
-            new_messages = self._rebuild_core_from_native(new_native, config)
+            new_messages_keep = self._rebuild_core_from_native(new_native_keep, config)
+            new_messages_remove = (
+                self._rebuild_core_from_native(new_native_remove, config)
+                if new_native_remove
+                else []
+            )
         except Exception:
-            return self._slice_session_core_only(session, keep_set)
+            kept = self._slice_session_core_only(session, keep_set)
+            if not return_removed:
+                return kept
+            removed = self._slice_session_core_only(session, remove_set)
+            return (kept, removed)  # type: ignore[return-value]
 
-        new_metadata = dict(session.metadata)
-        new_metadata["native_messages"] = new_native
-        new_metadata["native_messages_integrity"] = self._compute_native_integrity(
-            new_messages
+        new_metadata_keep = dict(session.metadata)
+        new_metadata_keep["native_messages"] = new_native_keep
+        new_metadata_keep["native_messages_integrity"] = self._compute_native_integrity(
+            new_messages_keep
         )
 
-        return Session(
+        kept_session = Session(
             session_id=session.session_id,
-            messages=new_messages,
-            metadata=new_metadata,
+            messages=new_messages_keep,
+            metadata=new_metadata_keep,
         )
+
+        if not return_removed:
+            return kept_session
+
+        new_metadata_remove = dict(session.metadata)
+        new_metadata_remove["native_messages"] = new_native_remove
+        new_metadata_remove["native_messages_integrity"] = self._compute_native_integrity(
+            new_messages_remove
+        )
+
+        removed_session = Session(
+            session_id=session.session_id,
+            messages=new_messages_remove,
+            metadata=new_metadata_remove,
+        )
+
+        return (kept_session, removed_session)  # type: ignore[return-value]
 
     def fork_session(
         self,
@@ -1064,6 +971,77 @@ class AgentCore:
             session_id=new_session_id,
             messages=sliced.messages,
             metadata=sliced.metadata,
+        )
+
+    def join_sessions(
+        self,
+        prefix: Session,
+        suffix: Session,
+        config: Optional[Dict[str, Any]] = None,
+    ) -> Session:
+        """Join two sessions end-to-end, preserving native history when possible.
+
+        This helper concatenates the core messages from ``prefix`` and
+        ``suffix`` and, when both sessions contain provider-native history,
+        combines their native histories and rebuilds core messages from the
+        merged native sequence. Application-level metadata on messages (such as
+        tool_calls or reasoning traces) is preserved by merging it back onto
+        the rebuilt messages by index, excluding ``native_indices`` which are
+        owned by the core.
+
+        Args:
+            prefix: First session segment.
+            suffix: Second session segment that should follow ``prefix``.
+            config: Optional configuration used when rebuilding from native
+                history. When omitted, joins are performed in core-only mode.
+
+        Returns:
+            New Session instance representing the concatenation of ``prefix``
+            and ``suffix``.
+        """
+
+        from agent_core.types import Message  # local import to avoid cycles
+
+        # Core-only join when native history is not consistently available on
+        # both sessions or when no configuration is provided.
+        has_prefix_native = isinstance(prefix.metadata, dict) and isinstance(
+            prefix.metadata.get("native_messages"), list
+        )
+        has_suffix_native = isinstance(suffix.metadata, dict) and isinstance(
+            suffix.metadata.get("native_messages"), list
+        )
+
+        if not config or not (has_prefix_native and has_suffix_native):
+            combined_messages: List[Message] = [*prefix.messages, *suffix.messages]
+            new_metadata: Dict[str, Any] = (
+                dict(prefix.metadata) if isinstance(prefix.metadata, dict) else {}
+            )
+            new_metadata.pop("native_messages", None)
+            new_metadata.pop("native_messages_integrity", None)
+            return Session(
+                session_id=prefix.session_id,
+                messages=combined_messages,
+                metadata=new_metadata,
+            )
+
+        # Native-preserving join: concatenate native histories and rebuild
+        # core messages from the combined native sequence.
+        native_prefix = prefix.metadata.get("native_messages") or []
+        native_suffix = suffix.metadata.get("native_messages") or []
+        new_native: List[Dict[str, Any]] = list(native_prefix) + list(native_suffix)
+
+        rebuilt_messages = self._rebuild_core_from_native(new_native, config or {})
+
+        new_metadata = dict(prefix.metadata) if isinstance(prefix.metadata, dict) else {}
+        new_metadata["native_messages"] = new_native
+        new_metadata["native_messages_integrity"] = self._compute_native_integrity(
+            rebuilt_messages
+        )
+
+        return Session(
+            session_id=prefix.session_id,
+            messages=rebuilt_messages,
+            metadata=new_metadata,
         )
 
     def _normalize_config(self, config: Dict[str, Any]) -> str:
