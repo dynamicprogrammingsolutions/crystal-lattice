@@ -225,24 +225,25 @@ class OpenRouterProvider(ProviderPlugin):
 
         message = obj.get("choices", [{}])[0].get("message", {})
 
+        # TODO: Check why this was added here instead of in ClaudeCachingExtension - maybe an agent wasn't able to make a test working without it?
         # Attach cached_tokens from usage.prompt_tokens_details (when present)
         # as provider-native internal metadata on the assistant message. This
         # is later surfaced into core message metadata by provider extensions
         # (for example, ClaudeCachingExtension).
-        try:  # pragma: no cover - defensive, best-effort only
-            usage = obj.get("usage") or {}
-            cached_tokens = None
-            if isinstance(usage, dict):
-                details = usage.get("prompt_tokens_details") or {}
-                if isinstance(details, dict) and "cached_tokens" in details:
-                    cached_tokens = details.get("cached_tokens")
-            if cached_tokens is not None and isinstance(message, dict):
-                internal_md = dict(message.get("_metadata") or {})
-                internal_md["cached_tokens"] = cached_tokens
-                message["_metadata"] = internal_md
-        except Exception:
-            # Never allow usage-metadata extraction to break the provider.
-            pass
+        # try:  # pragma: no cover - defensive, best-effort only
+        #     usage = obj.get("usage") or {}
+        #     cached_tokens = None
+        #     if isinstance(usage, dict):
+        #         details = usage.get("prompt_tokens_details") or {}
+        #         if isinstance(details, dict) and "cached_tokens" in details:
+        #             cached_tokens = details.get("cached_tokens")
+        #     if cached_tokens is not None and isinstance(message, dict):
+        #         internal_md = dict(message.get("_metadata") or {})
+        #         internal_md["cached_tokens"] = cached_tokens
+        #         message["_metadata"] = internal_md
+        # except Exception:
+        #     # Never allow usage-metadata extraction to break the provider.
+        #     pass
 
         return [message], [], [*native_messages, message], state
 
