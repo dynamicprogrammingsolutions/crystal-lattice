@@ -65,6 +65,13 @@ class ShellTool(ToolPlugin):
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         config = state.get("config", {})
         base_workdir = config.get("working_directory", ".")
+        """
+        - With the newer GPT/o-models *when tools are validated in strict mode*, the `parameters` schema for a tool must:
+        - Have a `required` field, and
+        - That `required` array must include **every key in `properties`**. Optional parameters (in the classical JSON‑Schema sense) are not allowed under strict validation. ([gist.github.com](https://gist.github.com/dani139/71426968509bb45df23592690e203a81?utm_source=openai))
+        - If strict mode is **not** enabled for tools, you can still use optional fields, but OpenAI’s newer models + structured/strict modes are increasingly defaulting to this validation, so in practice you should assume “all properties must be in `required`”.
+        - If you conceptually want an “optional” argument, represent that as something like `type: ["string", "null"]` and still keep it in `required`, or accept a sentinel value (e.g. empty string) and treat that as “use default” in your tool implementation. ([gist.github.com](https://gist.github.com/dani139/71426968509bb45df23592690e203a81?utm_source=openai))
+        """
         return [
             {
                 "type": "function",
@@ -85,21 +92,21 @@ class ShellTool(ToolPlugin):
                                 ),
                             },
                             "workdir": {
-                                "type": "string",
+                                "type": ["string","null"],
                                 "description": (
                                     "Working directory for the command. If omitted, "
                                     f"the tool uses the configured working_directory: {base_workdir}"
                                 ),
                             },
                             "timeout_seconds": {
-                                "type": "integer",
+                                "type": ["integer","null"],
                                 "description": (
                                     "Optional per-call timeout override in seconds. "
                                     "Defaults to the 60s."
                                 ),
                             },
                             "env": {
-                                "type": "object",
+                                "type": ["object","null"],
                                 "description": (
                                     "Optional additional environment variables as a "
                                     "string-to-string map."
@@ -107,7 +114,7 @@ class ShellTool(ToolPlugin):
                                 "additionalProperties": {"type": "string"},
                             },
                         },
-                        "required": ["command"],
+                        "required": ["command", "workdir", "timeout_seconds", "env"],
                     },
                 },
             }
