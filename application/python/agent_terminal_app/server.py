@@ -185,6 +185,10 @@ class SessionListCache:
 
     def __init__(self) -> None:
         self.entries_by_id: Dict[str, Dict[str, Any]] = {}
+        # Per-session ordering specs returned by ``session_list`` actions.
+        # Each value is a list of raw spec descriptors as consumed by
+        # ``_apply_session_list_ordering``.
+        self.order_specs_by_id: Dict[str, List[Dict[str, Any]]] = {}
         self.lock = threading.Lock()
 
 
@@ -1260,12 +1264,17 @@ def list_sessions(
     items: List[Dict[str, Any]] = []
     paths = list(root.glob("*.json"))
 
-    # Global ordering specifications contributed by session_list actions.
+    # Global ordering specifications contributed by session_list actions
+    # across all sessions (combining cached and freshly computed entries).
     order_specs_raw: List[Dict[str, Any]] = []
-    order_spec_sources_seen: set[Tuple[str, str]] = set()
 
     with cache.lock:
         seen_ids: set[str] = set()
+
+        # When no trigger actions are configured, clear any previously
+        # cached ordering specs so legacy ordering is used.
+        if not trigger_actions:
+            cache.order_specs_by_id.clear()
 
         for path in paths:
             try:
@@ -1285,6 +1294,9 @@ def list_sessions(
                     cached_mtime = -1.0
                 if cached_mtime >= mtime:
                     items.append(cached)
+                    # Reuse any cached ordering specs for this session.
+                    cached_specs = cache.order_specs_by_id.get(session_id) or []
+                    order_specs_raw.extend(cached_specs)
                     continue
 
             preview = ""
@@ -1339,6 +1351,7 @@ def list_sessions(
             # that are merged into the summary.
             if trigger_actions:
                 session_obj: Optional[Session] = None
+                per_session_specs: List[Dict[str, Any]] = []
                 for plugin_id, plugin_index, action_def in trigger_actions:
                     inputs_schema = action_def.get("inputs") or {}
                     params: Dict[str, Any] = {}
@@ -1378,13 +1391,10 @@ def list_sessions(
                         for k, v in fields.items():
                             entry[k] = v
 
-                    # Optional ordering specifications (global, per-plugin).
+                    # Optional ordering specifications contributed by this
+                    # action for this specific session.
                     raw_specs = result.get("session_list_order")
                     if raw_specs:
-                        source_key = (plugin_id, action_def.get("id", ""))
-                        if source_key in order_spec_sources_seen:
-                            continue
-                        order_spec_sources_seen.add(source_key)
                         if isinstance(raw_specs, dict):
                             specs_iter = [raw_specs]
                         elif isinstance(raw_specs, list):
@@ -1392,22 +1402,33 @@ def list_sessions(
                         else:
                             specs_iter = []
                         for spec_index, spec in enumerate(specs_iter):
-                            order_specs_raw.append(
-                                {
-                                    "spec": dict(spec),
-                                    "plugin_id": plugin_id,
-                                    "plugin_index": plugin_index,
-                                    "spec_index": spec_index,
-                                }
-                            )
+                            record = {
+                                "spec": dict(spec),
+                                "plugin_id": plugin_id,
+                                "plugin_index": plugin_index,
+                                "spec_index": spec_index,
+                            }
+                            order_specs_raw.append(record)
+                            per_session_specs.append(record)
+
+                # Cache per-session ordering specs so that future /sessions
+                # calls can reuse them even when the entry itself is served
+                # entirely from cache.
+                cache.order_specs_by_id[session_id] = per_session_specs
+            else:
+                # No trigger actions configured; ensure we do not retain
+                # stale per-session ordering specs for this session.
+                cache.order_specs_by_id.pop(session_id, None)
 
             cache.entries_by_id[session_id] = entry
             items.append(entry)
 
-        # Drop cache entries whose files have been removed.
+        # Drop cache entries (and their ordering specs) whose files have
+        # been removed.
         for session_id in list(cache.entries_by_id.keys()):
             if session_id not in seen_ids:
                 cache.entries_by_id.pop(session_id, None)
+                cache.order_specs_by_id.pop(session_id, None)
 
         # Apply plugin-driven ordering when available; otherwise fall back
         # to legacy behaviour (modified desc + pinned-first grouping).

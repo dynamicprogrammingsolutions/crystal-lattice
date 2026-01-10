@@ -155,3 +155,11 @@ def test_sessions_ordered_by_24h_pinned_and_recency(monkeypatch, tmp_path: Path)
     #   2) recent_unpinned (24h bucket 0, unpinned)
     #   3) old_pinned (24h bucket 1, pinned)
     assert ids_in_order[:3] == [s_recent_pinned, s_recent_unpinned, s_old_pinned]
+
+    # Second request should use only cached summaries but preserve the
+    # same ordering (plugins still drive ordering even when cached).
+    resp2 = client.get("/sessions")
+    assert resp2.status_code == 200
+    sessions2 = resp2.json().get("sessions") or []
+    ids_in_order_2: List[str] = [s["session_id"] for s in sessions2]
+    assert ids_in_order_2[:3] == [s_recent_pinned, s_recent_unpinned, s_old_pinned]
