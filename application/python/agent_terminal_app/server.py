@@ -192,6 +192,9 @@ _session_list_caches_lock = threading.Lock()
 _session_list_caches: Dict[Path, SessionListCache] = {}
 
 
+_MISSING = object()
+
+
 def _get_session_list_cache(root: Path) -> SessionListCache:
     """Return (or create) the :class:`SessionListCache` for ``root``."""
 
@@ -214,9 +217,30 @@ def _clear_session_list_cache(root: Path) -> None:
         _session_list_caches.pop(root, None)
 
 
+def _resolve_dotted_path(data: Dict[str, Any], path: str) -> Any:
+    """Resolve a dotted-path (e.g. ``"metadata.title"``) on ``data``.
+
+    Returns a sentinel object when the path cannot be resolved so callers
+    can distinguish between ``None`` values and missing paths.
+    """
+
+    if not isinstance(path, str) or not path:
+        return _MISSING
+
+    parts = path.split(".")
+    current: Any = data
+    for part in parts:
+        if not isinstance(current, dict):
+            return _MISSING
+        if part not in current:
+            return _MISSING
+        current = current[part]
+    return current
+
+
 def _get_session_list_trigger_actions(
     app_instance: AgentApplication,
-) -> List[Tuple[str, Dict[str, Any]]]:
+) -> List[Tuple[str, int, Dict[str, Any]]]:
     """Return application actions that should run when listing sessions.
 
     Actions are identified by a ``trigger`` field containing the string
@@ -226,7 +250,14 @@ def _get_session_list_trigger_actions(
     """
 
     all_actions = app_instance.get_application_actions()
-    trigger_actions: List[Tuple[str, Dict[str, Any]]] = []
+    trigger_actions: List[Tuple[str, int, Dict[str, Any]]] = []
+
+    # Preserve configuration order when multiple plugins contribute actions.
+    plugin_index_map: Dict[str, int] = {}
+    for idx, meta in enumerate(app_instance.list_application_plugins()):
+        pid = meta.get("id")
+        if isinstance(pid, str) and pid not in plugin_index_map:
+            plugin_index_map[pid] = idx
 
     for action in all_actions:
         if not isinstance(action, Dict):
@@ -234,13 +265,14 @@ def _get_session_list_trigger_actions(
         plugin_id = action.get("plugin")
         if not isinstance(plugin_id, str) or not plugin_id:
             continue
+        plugin_index = plugin_index_map.get(plugin_id, 0)
         trigger_val = action.get("trigger")
         if isinstance(trigger_val, str):
             if trigger_val == "session_list":
-                trigger_actions.append((plugin_id, action))
+                trigger_actions.append((plugin_id, plugin_index, action))
         elif isinstance(trigger_val, list):
             if any(isinstance(t, str) and t == "session_list" for t in trigger_val):
-                trigger_actions.append((plugin_id, action))
+                trigger_actions.append((plugin_id, plugin_index, action))
 
     return trigger_actions
 
@@ -1228,6 +1260,10 @@ def list_sessions(
     items: List[Dict[str, Any]] = []
     paths = list(root.glob("*.json"))
 
+    # Global ordering specifications contributed by session_list actions.
+    order_specs_raw: List[Dict[str, Any]] = []
+    order_spec_sources_seen: set[Tuple[str, str]] = set()
+
     with cache.lock:
         seen_ids: set[str] = set()
 
@@ -1303,7 +1339,7 @@ def list_sessions(
             # that are merged into the summary.
             if trigger_actions:
                 session_obj: Optional[Session] = None
-                for plugin_id, action_def in trigger_actions:
+                for plugin_id, plugin_index, action_def in trigger_actions:
                     inputs_schema = action_def.get("inputs") or {}
                     params: Dict[str, Any] = {}
                     needs_session = False
@@ -1342,6 +1378,29 @@ def list_sessions(
                         for k, v in fields.items():
                             entry[k] = v
 
+                    # Optional ordering specifications (global, per-plugin).
+                    raw_specs = result.get("session_list_order")
+                    if raw_specs:
+                        source_key = (plugin_id, action_def.get("id", ""))
+                        if source_key in order_spec_sources_seen:
+                            continue
+                        order_spec_sources_seen.add(source_key)
+                        if isinstance(raw_specs, dict):
+                            specs_iter = [raw_specs]
+                        elif isinstance(raw_specs, list):
+                            specs_iter = [s for s in raw_specs if isinstance(s, dict)]
+                        else:
+                            specs_iter = []
+                        for spec_index, spec in enumerate(specs_iter):
+                            order_specs_raw.append(
+                                {
+                                    "spec": dict(spec),
+                                    "plugin_id": plugin_id,
+                                    "plugin_index": plugin_index,
+                                    "spec_index": spec_index,
+                                }
+                            )
+
             cache.entries_by_id[session_id] = entry
             items.append(entry)
 
@@ -1350,19 +1409,157 @@ def list_sessions(
             if session_id not in seen_ids:
                 cache.entries_by_id.pop(session_id, None)
 
-        # Sort primarily by modification time (descending) and then
-        # surface pinned sessions before unpinned ones while preserving
-        # per-group ordering.
-        items.sort(key=lambda entry: entry["modified"], reverse=True)
-
-        pinned_items = [e for e in items if bool(e.get("pinned"))]
-        unpinned_items = [e for e in items if not bool(e.get("pinned"))]
-        items = pinned_items + unpinned_items
+        # Apply plugin-driven ordering when available; otherwise fall back
+        # to legacy behaviour (modified desc + pinned-first grouping).
+        if order_specs_raw:
+            items = _apply_session_list_ordering(items, order_specs_raw)
+        else:
+            items = _legacy_sort_sessions(items)
 
     if limit is not None and limit >= 0:
         items = items[:limit]
 
     return {"sessions": items}
+
+
+def _legacy_sort_sessions(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Return sessions ordered by legacy semantics.
+
+    Legacy ordering sorts by ``modified`` (descending) and then surfaces
+    pinned sessions before unpinned ones while preserving per-group
+    ordering. This remains the fallback when no valid plugin ordering
+    specs are provided.
+    """
+
+    if not items:
+        return items
+
+    items.sort(key=lambda entry: entry.get("modified", 0.0), reverse=True)
+
+    pinned_items = [e for e in items if bool(e.get("pinned"))]
+    unpinned_items = [e for e in items if not bool(e.get("pinned"))]
+    return pinned_items + unpinned_items
+
+
+def _apply_session_list_ordering(
+    items: List[Dict[str, Any]],
+    order_specs_raw: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Apply plugin-driven ordering to ``items`` when specs are valid.
+
+    When no valid specs remain after validation, this falls back to
+    :func:`_legacy_sort_sessions`.
+    """
+
+    if not items:
+        return items
+
+    if not order_specs_raw:
+        return _legacy_sort_sessions(items)
+
+    # Normalise and sort specs by (priority, plugin_index, spec_index).
+    normalised: List[Dict[str, Any]] = []
+    for raw in order_specs_raw:
+        spec = raw.get("spec")
+        if not isinstance(spec, dict):
+            continue
+        key = spec.get("key")
+        direction = spec.get("direction")
+        if not isinstance(key, str) or not key:
+            _log.warning("Ignoring session_list_order spec with invalid key: %r", spec)
+            continue
+        if direction not in ("asc", "desc"):
+            _log.warning(
+                "Normalising invalid session_list_order direction %r to 'asc' for key %r",
+                direction,
+                key,
+            )
+            direction = "asc"
+        has_fallback = "fallback" in spec
+        fallback_value = spec.get("fallback") if has_fallback else None
+        raw_priority = spec.get("priority")
+        if isinstance(raw_priority, int) and not isinstance(raw_priority, bool):
+            priority = raw_priority
+        else:
+            try:
+                priority = int(raw_priority)
+            except Exception:  # pragma: no cover - defensive
+                priority = 100
+        plugin_id = raw.get("plugin_id") or ""
+        plugin_index = raw.get("plugin_index") or 0
+        spec_index = raw.get("spec_index") or 0
+
+        normalised.append(
+            {
+                "key": key,
+                "direction": direction,
+                "has_fallback": has_fallback,
+                "fallback": fallback_value,
+                "priority": priority,
+                "plugin_id": plugin_id,
+                "plugin_index": int(plugin_index),
+                "spec_index": int(spec_index),
+            }
+        )
+
+    if not normalised:
+        return _legacy_sort_sessions(items)
+
+    normalised.sort(key=lambda s: (s["priority"], s["plugin_index"], s["spec_index"]))
+
+    # Global direction is taken from the highest-priority spec.
+    global_direction = normalised[0]["direction"]
+
+    # Filter out specs that violate the fallback contract.
+    valid_specs: List[Dict[str, Any]] = []
+    for spec in normalised:
+        key = spec["key"]
+        has_fallback = spec["has_fallback"]
+        any_missing_without_fallback = False
+
+        for entry in items:
+            value = _resolve_dotted_path(entry, key)
+            if value is _MISSING and not has_fallback:
+                any_missing_without_fallback = True
+                break
+
+        if any_missing_without_fallback:
+            _log.error(
+                "Ignoring session_list_order spec from plugin %r: key %r missing for some sessions and no fallback provided.",
+                spec.get("plugin_id"),
+                key,
+            )
+            continue
+
+        valid_specs.append(spec)
+
+    if not valid_specs:
+        # No usable specs; fall back to legacy ordering.
+        return _legacy_sort_sessions(items)
+
+    def _composite_key(entry: Dict[str, Any]) -> Tuple[Any, ...]:
+        values: List[Any] = []
+        for spec in valid_specs:
+            key = spec["key"]
+            has_fallback = spec["has_fallback"]
+            fallback_value = spec["fallback"]
+            value = _resolve_dotted_path(entry, key)
+            if value is _MISSING:
+                if has_fallback:
+                    value = fallback_value
+            values.append(value)
+
+        # Always include legacy fields as final tiebreakers.
+        values.append(entry.get("modified", 0.0))
+        values.append(entry.get("session_id", ""))
+        return tuple(values)
+
+    # Sort ascending by composite key, then reverse if direction is desc.
+    items.sort(key=_composite_key)
+    if global_direction == "desc":
+        items.reverse()
+
+    return items
 
 
 @app.post("/sessions/{session_id}/fork")
