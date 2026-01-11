@@ -465,11 +465,9 @@ class SessionActionsAppPlugin:
             raise ValueError("session deletion is disabled by configuration")
 
         with app.acquire_session_lock(session_id):
-            ctx = app.load_session(session_id)
-            if ctx is None:
+            session = app.load_session_record(session_id)
+            if session is None:
                 raise KeyError(f"Session {session_id!r} not found")
-
-            _core, _base_config, session = ctx
 
             app.delete_session(session.session_id)
 

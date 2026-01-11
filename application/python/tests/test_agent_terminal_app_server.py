@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import sys
+import json
 from pathlib import Path
 
 import threading
@@ -2132,6 +2133,89 @@ def test_agent_endpoints_list_and_switch_agents(tmp_path: Path) -> None:
     _core, _base_config, session = ctx
     md = session.metadata or {}
     assert md.get("agent_id") == "alt"
+
+
+def test_get_session_agent_returns_value_even_if_agent_is_unknown(tmp_path: Path) -> None:
+    """GET /sessions/{id}/agent should not require agent config resolution."""
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create["session"]["session_id"]
+
+    session_path = session_root / f"{session_id}.json"
+    raw = json.loads(session_path.read_text(encoding="utf-8"))
+    metadata = raw.get("metadata")
+    assert isinstance(metadata, dict)
+    metadata["agent_id"] = "missing-agent"
+    session_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
+
+    agent_resp = server_mod.get_session_agent(session_id, app_instance=app)
+    assert agent_resp["agent_id"] == "missing-agent"
+
+
+def test_list_session_messages_succeeds_when_agent_is_unknown(tmp_path: Path) -> None:
+    from agent_terminal_app import server as server_mod
+    from agent_core import AgentCore
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    core, base_config, session = app.create_session("default")
+    assert isinstance(core, AgentCore)
+
+    session = core.add_message(session, "user", "hello", None, base_config)
+    app.save_session(session)
+    session_id = session.session_id
+
+    session_path = session_root / f"{session_id}.json"
+    raw = json.loads(session_path.read_text(encoding="utf-8"))
+    metadata = raw.get("metadata")
+    assert isinstance(metadata, dict)
+    metadata["agent_id"] = "missing-agent"
+    session_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
+
+    resp = server_mod.list_session_messages(session_id, app_instance=app)
+    messages = resp.get("messages") or []
+    assert len(messages) == 1
+    assert messages[0]["message"]["content"] == "hello"
+
+
+def test_send_request_returns_400_when_agent_is_unknown(tmp_path: Path) -> None:
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create["session"]["session_id"]
+
+    session_path = session_root / f"{session_id}.json"
+    raw = json.loads(session_path.read_text(encoding="utf-8"))
+    metadata = raw.get("metadata")
+    assert isinstance(metadata, dict)
+    metadata["agent_id"] = "missing-agent"
+    session_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
+
+    with pytest.raises(server_mod.HTTPException) as excinfo:
+        server_mod.send_request(session_id, app_instance=app)
+    assert excinfo.value.status_code == 400
+    assert "Unknown agent_id" in str(excinfo.value.detail)
 
 
 
