@@ -161,8 +161,12 @@ class ProviderPlugin(BasePlugin, Protocol):
                 # Provider state is an opaque dict; this minimal example
                 # only stores configuration.
                 return {"config": config}
-            def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
-                return state
+            def initialize_request(
+                self,
+                native_messages: List[Dict[str, Any]],
+                state: Dict[str, Any],
+            ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+                return native_messages, state
             def to_native_messages(self, messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
                 return list(messages)
             def from_native_messages(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -177,6 +181,12 @@ class ProviderPlugin(BasePlugin, Protocol):
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize provider state from application config.
+
+        Note:
+            In the default ``AgentCore`` request flow, this hook is called once
+            per request. Provider extensions run their ``init`` hooks after the
+            provider initializes, and features run their ``init`` hooks after
+            the provider+extensions init chain completes.
 
         Args:
             config: Application-supplied configuration for the provider.
@@ -197,6 +207,10 @@ class ProviderPlugin(BasePlugin, Protocol):
             containing only that single message in "messages". Implementations must handle both
             full-history lists and single-message lists.
 
+            In the default ``AgentCore`` request flow, this conversion runs
+            first. Active provider extensions and features may then apply
+            stateless transforms via their own ``to_native_messages`` hooks.
+
         Args:
             messages: Core session messages (may be a single-element list for add_message).
             state: Current shared provider state.
@@ -214,6 +228,11 @@ class ProviderPlugin(BasePlugin, Protocol):
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """Convert provider-native messages into core message dictionaries.
+
+        Note:
+            In the default ``AgentCore`` request flow, this conversion runs
+            first. Active provider extensions and features may then apply
+            stateless transforms via their own ``from_native_messages`` hooks.
 
         This base implementation intentionally ignores provider-specific
         reasoning fields. Providers and extensions that work with
@@ -247,6 +266,13 @@ class ProviderPlugin(BasePlugin, Protocol):
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Prepare for a new request with provider-native messages.
 
+        Note:
+            In the default ``AgentCore`` request flow, this hook runs first in
+            the ``initialize_request`` chain. Active provider extensions run
+            their ``initialize_request`` hooks next (in order), and feature
+            ``initialize_request`` hooks run after the provider (and
+            extensions) complete.
+
         Args:
             native_messages: Provider-native messages for this request.
             state: Current shared provider state.
@@ -266,6 +292,11 @@ class ProviderPlugin(BasePlugin, Protocol):
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
     ]:
         """Process a streaming chunk from the provider on the hot path.
+
+        Note:
+            In the default ``AgentCore`` request flow, the provider processes
+            each chunk first; provider extensions are then invoked (in order)
+            to observe and adjust partials/finals/native history.
 
         Args:
             native_chunk: Provider-native streaming chunk.
@@ -289,6 +320,9 @@ class ProviderPlugin(BasePlugin, Protocol):
         The provider runs first in the finalize chain. Both final_messages and
         native_messages are provider-native. final_messages contains only the
         new messages for this turn; native_messages MUST be full history.
+
+        Active provider extensions run their ``finalize`` hooks next (in order),
+        followed by feature ``finalize`` hooks.
 
         Args:
             native_messages: Full provider-native message history (all prior turns plus any for this turn).
@@ -329,6 +363,11 @@ class ProviderPlugin(BasePlugin, Protocol):
         models: List[Dict[str, Any]],
     ) -> List[str]:
         """Return capability/environment tags for this provider.
+
+        Note:
+            In the default ``AgentCore`` dependency-resolution flow, these tags
+            are aggregated with tags from provider extensions, features, and
+            tools to decide which plugins are enabled for a request.
 
         Implementations must be pure and deterministic for a given
         (config, models) pair.
@@ -401,6 +440,10 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize with application config and shared provider state.
+
+        Note:
+            In the default ``AgentCore`` request flow, provider extensions are
+            initialized after the provider's ``init`` hook.
  
         Args:
             config: Application-supplied configuration.
@@ -420,6 +463,11 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
  
         Implementations must not mutate the incoming models list; they
         should instead return a new list.
+
+        Note:
+            In the default ``AgentCore`` request flow, model discovery starts
+            with the provider's ``get_models`` hook and then passes through each
+            extension's ``get_models`` hook.
         """
         return list(models)
  
@@ -428,7 +476,13 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         config: Dict[str, Any],
         models: List[Dict[str, Any]],
     ) -> List[str]:
-        """Return capability/environment tags contributed by this extension."""
+        """Return capability/environment tags contributed by this extension.
+
+        Note:
+            In the default ``AgentCore`` dependency-resolution flow, these tags
+            are aggregated with tags from the provider, other extensions,
+            features, and tools to decide which plugins are enabled.
+        """
         return []
  
     def required_tags(self) -> List[str]:
@@ -446,6 +500,10 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
             When the core converts a single new message (e.g., via add_message), it passes a list containing only
             that single message in "messages". Implementations must handle both full-history lists and single-message lists.
 
+            In the default ``AgentCore`` request flow, extension transforms run
+            after the provider's ``to_native_messages`` conversion and before
+            feature transforms.
+
         Args:
             messages: Core session messages for context (may be a single-element list for add_message).
             native_messages: Current provider-native messages.
@@ -460,6 +518,11 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
     ) -> List[Dict[str, Any]]:
         """Transform provider-native messages back into core messages (stateless).
 
+        Note:
+            In the default ``AgentCore`` request flow, extension transforms run
+            after the provider's ``from_native_messages`` conversion and before
+            feature transforms.
+
         Args:
             native_messages: Provider-native messages to transform.
             messages: Core session messages for context.
@@ -473,6 +536,11 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Prepare for a new request with provider-native messages.
+
+        Note:
+            In the default ``AgentCore`` request flow, this hook runs after the
+            provider's ``initialize_request`` hook and before any feature
+            ``initialize_request`` hooks.
 
         Args:
             native_messages: Provider-native messages for this request.
@@ -498,6 +566,11 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
 
         Called on the hot path for each provider-native chunk. May be called with
         native_chunk=None during provider finalize.
+
+        Note:
+            In the default ``AgentCore`` request flow, extensions run after the
+            provider's ``process_chunk`` hook. Multiple extensions are invoked
+            in order; features are not invoked on the hot path.
 
         Args:
             native_chunk: Provider-native streaming chunk, or None during finalize.
@@ -554,7 +627,7 @@ class FeaturePlugin(BasePlugin, Protocol):
             def from_native_messages(self, native_messages, messages):
                 return messages
             def initialize_request(self, native_messages, state):
-                return state
+                return native_messages, state
             def finalize(self, final_messages, native_messages, state):
                 finals = [{**m, "metadata": {**m.get("metadata", {}), "tag": True}} for m in final_messages]
                 return finals, native_messages, state
@@ -563,6 +636,11 @@ class FeaturePlugin(BasePlugin, Protocol):
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize with application config and shared provider state.
+
+        Note:
+            In the default ``AgentCore`` request flow, feature init hooks run
+            after the provider (and any active provider extensions) have
+            initialized.
  
         Args:
             config: Application-supplied configuration.
@@ -578,7 +656,13 @@ class FeaturePlugin(BasePlugin, Protocol):
         config: Dict[str, Any],
         models: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        """Statelessly transform or provide model descriptors."""
+        """Statelessly transform or provide model descriptors.
+
+        Note:
+            In the default ``AgentCore`` request flow, model discovery starts
+            with the provider's ``get_models`` hook, then passes through provider
+            extensions, and finally through feature ``get_models`` hooks.
+        """
         return list(models)
  
     def get_tags(
@@ -586,7 +670,13 @@ class FeaturePlugin(BasePlugin, Protocol):
         config: Dict[str, Any],
         models: List[Dict[str, Any]],
     ) -> List[str]:
-        """Return capability/environment tags contributed by this feature."""
+        """Return capability/environment tags contributed by this feature.
+
+        Note:
+            In the default ``AgentCore`` dependency-resolution flow, these tags
+            are aggregated with tags from the provider, provider extensions, and
+            tools to decide which plugins are enabled.
+        """
         return []
  
     def required_tags(self) -> List[str]:
@@ -604,6 +694,10 @@ class FeaturePlugin(BasePlugin, Protocol):
             When the core converts a single new message (e.g., via add_message), it passes a list containing only
             that single message in "messages". Implementations must handle both full-history lists and single-message lists.
 
+            In the default ``AgentCore`` request flow, feature transforms run
+            after the provider and provider extension ``to_native_messages``
+            transforms.
+
         Args:
             messages: Core session messages for context (may be a single-element list for add_message).
             native_messages: Current provider-native messages.
@@ -618,6 +712,11 @@ class FeaturePlugin(BasePlugin, Protocol):
     ) -> List[Dict[str, Any]]:
         """Transform provider-native messages back into core messages (stateless).
 
+        Note:
+            In the default ``AgentCore`` request flow, feature transforms run
+            after the provider and provider extension ``from_native_messages``
+            transforms.
+
         Args:
             native_messages: Provider-native messages to transform.
             messages: Core session messages for context.
@@ -631,6 +730,11 @@ class FeaturePlugin(BasePlugin, Protocol):
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Prepare for a new request with provider-native messages.
+
+        Note:
+            In the default ``AgentCore`` request flow, feature hooks run after
+            the provider (and any provider extensions) have run their
+            ``initialize_request`` hooks.
 
         Args:
             native_messages: Provider-native messages for this request.
@@ -771,6 +875,11 @@ class ToolPlugin(BasePlugin, Protocol):
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize internal tool state from application config.
 
+        Note:
+            In the default ``AgentCore`` request flow, tools are initialized
+            before the provider so their tool schemas can be injected into the
+            provider config under the ``"tools"`` key.
+
         Args:
             config: Application-supplied configuration for the tool.
 
@@ -785,7 +894,13 @@ class ToolPlugin(BasePlugin, Protocol):
         config: Dict[str, Any],
         models: List[Dict[str, Any]],
     ) -> List[str]:
-        """Return capability/environment tags contributed by this tool."""
+        """Return capability/environment tags contributed by this tool.
+
+        Note:
+            In the default ``AgentCore`` dependency-resolution flow, these tags
+            are aggregated with tags from the provider, provider extensions, and
+            features to decide which tools are exposed.
+        """
         return []
 
     def required_tags(self) -> List[str]:
