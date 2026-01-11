@@ -389,7 +389,15 @@ def create_session(
     """
 
     data = payload or {}
-    agent_id = data.get("agent_id") or "default"
+    raw_agent_id = data.get("agent_id")
+    agent_id = raw_agent_id if isinstance(raw_agent_id, str) else ""
+    agent_id = agent_id.strip()
+
+    if not agent_id:
+        agents = [a for a in app_instance.list_agents() if isinstance(a, str) and a]
+        if not agents:
+            raise HTTPException(status_code=400, detail="no agents configured")
+        agent_id = agents[0]
     system_message = data.get("system_message")
 
     try:
@@ -1651,9 +1659,7 @@ def fork_session(
                 new_session.metadata if isinstance(new_session.metadata, dict) else {}
             )
             agent_val = md.get("agent_id")
-            agent_id = (
-                agent_val if isinstance(agent_val, str) and agent_val else "default"
-            )
+            agent_id = agent_val.strip() if isinstance(agent_val, str) else ""
             stored = app_instance.publish_event(
                 {
                     "type": "session_created",

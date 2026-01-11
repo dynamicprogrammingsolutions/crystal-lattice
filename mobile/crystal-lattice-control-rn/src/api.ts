@@ -73,7 +73,7 @@ function buildQuery(params: Record<string, string | number | undefined>): string
 
 export async function apiCreateSession(
   adapter: ConnectionAdapter,
-  agentId: string = 'default',
+  agentId: string,
   systemMessage?: string,
 ): Promise<CreateSessionResponse> {
   const payload: any = { agent_id: agentId };

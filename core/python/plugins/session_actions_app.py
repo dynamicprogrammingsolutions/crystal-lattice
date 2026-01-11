@@ -344,7 +344,7 @@ class SessionActionsAppPlugin:
 
             md = new_session.metadata if isinstance(new_session.metadata, dict) else {}
             agent_val = md.get("agent_id")
-            agent_id = agent_val if isinstance(agent_val, str) and agent_val else "default"
+            agent_id = agent_val.strip() if isinstance(agent_val, str) else ""
 
             stored = app.publish_event(
                 {
@@ -426,7 +426,7 @@ class SessionActionsAppPlugin:
 
             md = new_session.metadata if isinstance(new_session.metadata, dict) else {}
             agent_val = md.get("agent_id")
-            agent_id = agent_val if isinstance(agent_val, str) and agent_val else "default"
+            agent_id = agent_val.strip() if isinstance(agent_val, str) else ""
 
             stored = app.publish_event(
                 {
