@@ -766,7 +766,7 @@ class TerminalRenderContext:
         ]
 
     def render_event(self, event: Dict[str, Any], write: WriteFn) -> None:
-        self._log.debug("event received", ev=event)
+        # self._log.debug("event received", ev=event)
         for renderer in self._renderers:
             try:
                 renderer.render_event(event, write)
