@@ -70,9 +70,10 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
                 "key": "reasoning_effort",
                 "label": "Reasoning Effort",
                 "options": [
-                    {"value": "low", "label": "Low"},
-                    {"value": "medium", "label": "Medium"},
-                    {"value": "high", "label": "High"},
+                    {"value": "low", "label": "low"},
+                    {"value": "medium", "label": "medium"},
+                    {"value": "high", "label": "high"},
+                    {"value": "xhigh", "label": "xhigh"},
                 ],
             },
         ]
@@ -209,17 +210,39 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
 
             # Find matching detail in accumulated list
             matching_idx = None
-            for idx, acc_detail in enumerate(accumulated):
-                # Match by id if present, otherwise by index and type
-                if detail_id and acc_detail.get("id") == detail_id:
-                    matching_idx = idx
-                    break
-                elif (
-                    acc_detail.get("index") == detail_index
-                    and acc_detail.get("type") == detail_type
-                ):
-                    matching_idx = idx
-                    break
+
+            if detail_id:
+                # If the incoming delta has an id, ONLY match on that id.
+                # Do not fall back to (index, type), because providers can reuse
+                # index values across different ids (e.g. multiple encrypted
+                # blobs), and merging those corrupts the data.
+                for idx, acc_detail in enumerate(accumulated):
+                    if acc_detail.get("id") == detail_id:
+                        matching_idx = idx
+                        break
+
+                # If we didn't find a match by id, we still allow a single
+                # upgrade path: match a prior entry that has no id yet but
+                # shares (type, index). This supports providers that emit id
+                # later in the stream.
+                if matching_idx is None:
+                    for idx, acc_detail in enumerate(accumulated):
+                        if (
+                            acc_detail.get("id") is None
+                            and acc_detail.get("index") == detail_index
+                            and acc_detail.get("type") == detail_type
+                        ):
+                            matching_idx = idx
+                            break
+            else:
+                # No id available: best-effort match by (type, index).
+                for idx, acc_detail in enumerate(accumulated):
+                    if (
+                        acc_detail.get("index") == detail_index
+                        and acc_detail.get("type") == detail_type
+                    ):
+                        matching_idx = idx
+                        break
 
             if matching_idx is not None:
                 # Update existing detail
@@ -229,14 +252,17 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
                 for key, value in delta_detail.items():
                     if key in CONTENT_FIELDS:
                         # Accumulate content fields
-                        acc_detail[key] = acc_detail.get(key, "") + value
+                        if isinstance(value, str):
+                            acc_detail[key] = (acc_detail.get(key, "") or "") + value
+                        else:
+                            acc_detail[key] = value
                     elif key in METADATA_FIELDS:
                         # Override metadata fields with latest value
                         acc_detail[key] = value
                     else:
                         # Unknown field - accumulate to be safe
                         if isinstance(value, str):
-                            acc_detail[key] = acc_detail.get(key, "") + value
+                            acc_detail[key] = (acc_detail.get(key, "") or "") + value
                         else:
                             acc_detail[key] = value
 

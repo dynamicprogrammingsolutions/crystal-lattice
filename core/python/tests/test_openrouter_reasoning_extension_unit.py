@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from agent_core import AgentCore, Session, Message
 from plugins.openrouter_provider import OpenRouterProvider
 from plugins.openrouter_reasoning_extension import OpenRouterReasoningExtension
@@ -208,8 +206,6 @@ def test_process_delta_full_message():
             "reasoning": "Complete reasoning",
         }
     }
-    current_final = {"role": "assistant", "content": "Answer"}
-
     partial, accumulated = ext.process_delta(
         delta, current_partial={}, accumulated={}
     )
@@ -403,6 +399,39 @@ def test_accumulate_reasoning_details_match_by_id():
     assert len(result) == 2
     assert result[0]["data"] == "d1"
     assert result[1]["data"] == "d2_more"  # Matched by id
+
+
+def test_accumulate_reasoning_details_different_id_same_index_does_not_merge():
+    """Do not merge details with different ids even if (type, index) match."""
+    ext = OpenRouterReasoningExtension()
+
+    current_details = [
+        {
+            "type": "reasoning.encrypted",
+            "data": "chunk1_",
+            "id": "rs_111",
+            "format": "openai-responses-v1",
+            "index": 0,
+        }
+    ]
+
+    delta_details = [
+        {
+            "type": "reasoning.encrypted",
+            "data": "chunk2_",
+            "id": "rs_222",
+            "format": "openai-responses-v1",
+            "index": 0,
+        }
+    ]
+
+    result = ext._accumulate_reasoning_details(current_details, delta_details)
+
+    assert len(result) == 2
+    assert result[0]["id"] == "rs_111"
+    assert result[0]["data"] == "chunk1_"
+    assert result[1]["id"] == "rs_222"
+    assert result[1]["data"] == "chunk2_"
 
 
 def test_accumulate_reasoning_details_empty_current():
