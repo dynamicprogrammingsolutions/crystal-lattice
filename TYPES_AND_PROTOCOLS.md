@@ -162,8 +162,9 @@ ProviderPlugin:
   init(config: dict) → state: dict
     # Initialize with config, return provider state (owned by provider wrapper)
   
-  initialize_request(native_messages: list, state: dict) → dict
-    # Called with provider-native messages; MUST return shared state (updated or unchanged)
+  initialize_request(native_messages: list, state: dict)
+    → (native_messages: list, state: dict)
+    # Called with provider-native messages; MUST return (native_messages, shared state)
   
   # Message Conversion (pure)
   to_native_messages(messages: list, state: dict) → list
@@ -194,7 +195,7 @@ ProviderPlugin:
   
   # I/O Functions
   call_api(native_messages: list, state: dict)
-    → (final_messages: list, partial_messages: list, native_messages: list, new_state: dict)
+    → (partial_messages: list, final_messages: list, native_messages: list, new_state: dict)
     # Make non-streaming API call; may also return partials
   
   stream_api(native_messages: list, state: dict) → Iterator[dict]
@@ -221,8 +222,9 @@ Enhances provider streaming with additional processing (citations, reasoning ext
   init(config: dict, state: dict) → dict
     # Initialize with config and shared state; return updated shared state (or the same state)
   
-  initialize_request(native_messages: list, state: dict) (optional) → dict
-    # Prepare for a new turn; MUST return a shared state (updated or unchanged)
+  initialize_request(native_messages: list, state: dict) (optional)
+    → (native_messages: list, state: dict)
+    # Prepare for a new turn; MUST return (native_messages, shared state)
   
   # Models and capabilities
   get_models(config: dict, models: list[ModelDescriptor]) → list[ModelDescriptor]
@@ -246,11 +248,10 @@ Enhances provider streaming with additional processing (citations, reasoning ext
   # Chunk Processing (Hot Path)
   process_chunk(
     native_chunk: dict | None,
-    messages: list,
-    state: dict,
     partial_messages: list,
     final_messages: list,
-    native_messages: list
+    native_messages: list,
+    state: dict
   ) → (
     updated_partial_messages: list,
     updated_final_messages: list,
@@ -291,8 +292,9 @@ FeaturePlugin:
   init(config: dict, state: dict) → dict
     # Initialize with config and shared state; return updated shared state (or the same state)
   
-  initialize_request(native_messages: list, state: dict) (optional) → dict
-    # Called with provider-native messages; MUST return shared state (updated or unchanged)
+  initialize_request(native_messages: list, state: dict) (optional)
+    → (native_messages: list, state: dict)
+    # Called with provider-native messages; MUST return (native_messages, shared state)
   
   # Models and capabilities
   get_models(config: dict, models: list[ModelDescriptor]) → list[ModelDescriptor]
@@ -483,6 +485,10 @@ Important principles:
 3. Application calls send_request(session, config)
 4. Core orchestration per turn:
    - Initialize (in order):
+     - For each Tool (optional):
+       - tool_state = tool.init(config)
+       - tool_schemas += tool.get_tool_schemas(tool_state)
+       - (Core injects tool_schemas into provider config under `tools`)
      - Provider.init(config) → state
      - For each Provider Extension: state = ext.init(config, state)
      - For each Feature: state = feat.init(config, state)
@@ -491,10 +497,11 @@ Important principles:
      - For each Provider Extension: native_messages = ext.to_native_messages(messages, native_messages)
      - For each Feature: native_messages = feat.to_native_messages(messages, native_messages)
    - Initialize request (no change in order):
-     - Provider.initialize_request(native_messages, state) → state
-     - For each Provider Extension (optional): state = ext.initialize_request(native_messages, state)
-     - For each Feature (optional): state = feat.initialize_request(native_messages, state)
-   - Provider.call_api(native_messages, state) → (final, partial, native, state)
+     - (native_messages, state) = Provider.initialize_request(native_messages, state)
+       - Provider plugin runs first, then each enabled Provider Extension runs (in order).
+     - For each Feature (optional):
+       - (native_messages, state) = feat.initialize_request(native_messages, state)
+   - Provider.call_api(native_messages, state) → (partial, final, native, state)
     - Provider.finalize(native_messages, state) → (final_messages, native_messages, state)
     - Provider Extensions.finalize(final_messages, native_messages, state) in order
       → (final_messages, native_messages, state)
@@ -518,9 +525,12 @@ current configuration, ensuring request independence (REST-style).
 3. Core yields partial events as they arrive:
    {"type": "partial", "message": {...}}
 4. During streaming (hot path):
-   - For each provider-native chunk, ProviderExtension.process_chunk(
-       native_chunk, messages, state, partial_messages, final_messages, native_messages)
-     → (partial_messages, final_messages, native_messages, state)
+   - For each provider-native chunk:
+     - Provider.process_chunk(native_chunk, native_messages, state)
+       → (partial_messages, final_messages, native_messages, state)
+     - For each Provider Extension (in order):
+       - ext.process_chunk(native_chunk, partial_messages, final_messages, native_messages, state)
+         → (partial_messages, final_messages, native_messages, state)
    - Shared state is updated by the provider wrapper if returned
 5. After stream completes (cold path):
    - Provider.finalize(native_messages, state) → (final_messages, native_messages, state)
