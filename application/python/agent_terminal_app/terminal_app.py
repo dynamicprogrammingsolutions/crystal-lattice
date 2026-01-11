@@ -99,9 +99,14 @@ class TerminalApplication:
         if agent_id is None and self._session is not None:
             metadata = self._session.metadata or {}
             current_agent = metadata.get("agent_id")
-            agent_id = current_agent if isinstance(current_agent, str) and current_agent else "default"
-        elif agent_id is None:
-            agent_id = "default"
+            if isinstance(current_agent, str) and current_agent.strip():
+                agent_id = current_agent.strip()
+
+        if agent_id is None:
+            agents = self.available_agents()
+            if not agents:
+                raise TerminalUserError("no agents configured")
+            agent_id = agents[0]
 
         if persist:
             core, base_config, session = self._app.create_session(agent_id)
@@ -352,7 +357,7 @@ class TerminalApplication:
         # and advance the session cursor via a checkpoint marker.
         md = new_session.metadata if isinstance(new_session.metadata, dict) else {}
         agent = md.get("agent_id")
-        agent_id = agent if isinstance(agent, str) and agent else "default"
+        agent_id = agent.strip() if isinstance(agent, str) else ""
         self._app.publish_event(
             {
                 "type": "session_created",
@@ -809,7 +814,7 @@ class TerminalApplication:
         session = self.session
         metadata = session.metadata or {}
         agent = metadata.get("agent_id")
-        return agent if isinstance(agent, str) and agent else "default"
+        return agent.strip() if isinstance(agent, str) else ""
 
     def available_agents(self) -> List[str]:
         agents = self._app.list_agents()
@@ -1025,8 +1030,12 @@ class TerminalApplication:
             source = "session"
         else:
             agent_val = metadata.get("agent_id")
-            agent_id = agent_val if isinstance(agent_val, str) and agent_val else "default"
-            default_ids = self._app.get_agent_plugins(agent_id)
+            agent_id = agent_val.strip() if isinstance(agent_val, str) else ""
+            if not agent_id:
+                agents = self.available_agents()
+                agent_id = agents[0] if agents else ""
+
+            default_ids = self._app.get_agent_plugins(agent_id) if agent_id else None
             if default_ids is None:
                 enabled_ids = None  # treat as "all enabled"
                 source = "implicit"
