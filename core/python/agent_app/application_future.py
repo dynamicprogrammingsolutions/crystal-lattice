@@ -859,6 +859,18 @@ class AgentApplication:
         core = self._build_core_with_enabled_ids(enabled_ids)
         return core, base_cfg, session
 
+    def load_session_record(self, session_id: str) -> Optional[Session]:
+        """Load a session from the underlying store.
+
+        Unlike :meth:`load_session`, this does not require resolving the
+        session's ``agent_id`` to a configured agent.
+        """
+
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("session_id must be a non-empty string")
+
+        return self._session_store.load(session_id)
+
     def save_session(self, session: Session) -> None:
         """Persist a session using the configured session store."""
 

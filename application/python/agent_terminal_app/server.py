@@ -1064,11 +1064,22 @@ def send_request(
         # Validate that the session exists before starting the
         # background worker so that clients receive an immediate 404 for
         # unknown sessions.
-        ctx = app_instance.load_session(session_id)
-        if ctx is None:
+        session = app_instance.load_session_record(session_id)
+        if session is None:
             raise KeyError(f"Session {session_id!r} not found")
+
+        # Validate that the session's agent configuration is resolvable.
+        # If an agent referenced by the stored session metadata is no
+        # longer configured, return a 400 rather than a 404 (the session
+        # exists, but it is not runnable).
+        _ = app_instance.load_session(session_id)
     except KeyError as exc:
+        detail = exc.args[0] if exc.args and isinstance(exc.args[0], str) else str(exc)
+        if isinstance(detail, str) and detail.startswith("Unknown agent_id"):
+            raise HTTPException(status_code=400, detail=detail) from exc
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     # Start the send_request flow in a background thread so that the
     # HTTP response can return immediately.
@@ -1678,11 +1689,9 @@ def list_session_messages(
 
     try:
         with app_instance.acquire_session_lock(session_id):
-            ctx = app_instance.load_session(session_id)
-            if ctx is None:
+            session = app_instance.load_session_record(session_id)
+            if session is None:
                 raise KeyError(f"Session {session_id!r} not found")
-
-            _core, _base_config, session = ctx
             message_count = len(session.messages)
 
             if message_count == 0:
@@ -1836,14 +1845,13 @@ def get_session_agent(
     """Return the current agent id for a session."""
 
     try:
-        ctx = app_instance.load_session(session_id)
-        if ctx is None:
+        session = app_instance.load_session_record(session_id)
+        if session is None:
             raise KeyError(f"Session {session_id!r} not found")
-
-        _core, _base_config, session = ctx
         metadata = session.metadata or {}
         agent_val = metadata.get("agent_id")
-        agent_id = agent_val if isinstance(agent_val, str) and agent_val else "default"
+        agent_id = agent_val if isinstance(agent_val, str) else ""
+        agent_id = agent_id.strip()
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
