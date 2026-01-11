@@ -24,8 +24,18 @@ Key methods (subset):
 - `finalize(native_messages, state) -> (final, native, state)` (required)
 - `to_native_messages(messages, state) -> list` (optional in Python; adapter defaults to identity mapping of `role` and `content`)
 - `from_native_messages(native_messages, state) -> list` (optional in Python; adapter maps to core messages with empty `metadata`)
-- `initialize_request(native_messages, state) -> state` (optional in Python; adapter returns state unchanged)
+- `initialize_request(native_messages, state) -> (native_messages, state)` (optional in Python; adapter returns inputs unchanged)
 - `stream_api(native_messages, state) -> Iterator[chunk]` (optional but recommended for streaming providers)
+
+Default execution order (per request):
+- Tool schemas: each tool runs `init`, then `get_tool_schemas`; schemas are injected into provider config under `tools`.
+- Init chain (shared provider state): provider `init`, then extension `init` (in order), then feature `init`.
+- Stateless message transforms:
+  - Core → native: provider `to_native_messages`, then extension `to_native_messages`, then feature `to_native_messages`.
+  - Native → core: provider `from_native_messages`, then extension `from_native_messages`, then feature `from_native_messages`.
+- Stateful request setup: provider `initialize_request`, then extension `initialize_request` (in order), then feature `initialize_request`.
+- Streaming hot path: provider `process_chunk`, then extension `process_chunk` (in order); features are not invoked per-chunk.
+- Cold-path finalization: provider `finalize`, then extension `finalize` (in order), then feature `finalize`.
 
 Minimal example (echo):
 ```python
@@ -155,7 +165,7 @@ Key methods (subset):
 - `finalize(final_messages, native_messages, state) -> (finals, native, state)` (required)
 - `to_native_messages(messages, native_messages) -> list` (optional in Python; adapter defaults to identity)
 - `from_native_messages(native_messages, messages) -> list` (optional in Python; adapter defaults to identity)
-- `initialize_request(native_messages, state) -> state` (optional in Python; adapter returns state unchanged)
+- `initialize_request(native_messages, state) -> (native_messages, state)` (optional in Python; adapter returns inputs unchanged)
 
 Minimal example (prefix finals):
 ```python
@@ -285,7 +295,7 @@ Key methods (subset):
 - `finalize(final_messages, native_messages, state) -> (finals, native, state)` (required)
 - `to_native_messages(messages, native_messages) -> list` (optional in Python; adapter defaults to identity)
 - `from_native_messages(native_messages, messages) -> list` (optional in Python; adapter defaults to identity)
-- `initialize_request(native_messages, state) -> state` (optional in Python; adapter returns state unchanged)
+- `initialize_request(native_messages, state) -> (native_messages, state)` (optional in Python; adapter returns inputs unchanged)
 - `get_template(config) -> str` (optional; returns a feature-specific template string for UIs)
 - `get_completions(config, text) -> list[dict]` (optional; returns completion suggestions for interactive apps)
 - `apply_completion(config, text, completion) -> str` (optional; turns an accepted completion into a final snippet)
@@ -498,6 +508,9 @@ Key methods (subset):
 - `format_tool_result(result, state) -> str`
  - `stream_tool(tool_name, arguments, state) -> Iterator[dict]` (optional)
  - `to_display_format(text, result, state) -> dict` (optional)
+
+Request-time ordering note:
+- In the default `AgentCore` request flow, tools run `init`/`get_tool_schemas` before the provider initializes, so the provider sees the current tool schemas in its `config`.
 
 Minimal example (calculator):
 ```python
