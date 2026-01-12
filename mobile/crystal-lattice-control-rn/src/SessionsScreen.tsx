@@ -85,6 +85,20 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [settingsSessionId, setSettingsSessionId] = useState<string | null>(null);
 
+  const closeNonPluginOverlays = useCallback(() => {
+    setAgentPickerVisible(false);
+    setAgentSwitchVisible(false);
+    setSettingsVisible(false);
+  }, []);
+
+  const navigateToSession = useCallback(
+    (sessionId: string) => {
+      closeNonPluginOverlays();
+      onSelectSession(sessionId);
+    },
+    [closeNonPluginOverlays, onSelectSession],
+  );
+
 	  const loadSessions = useCallback(async () => {
     if (!adapter) {
       const message = 'No active connection';
@@ -145,7 +159,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 	          const result: any = (response as any)?.result || {};
 	          const selectedId = result.selected_session_id;
 	          if (typeof selectedId === 'string' && selectedId) {
-	            onSelectSession(selectedId);
+	            navigateToSession(selectedId);
 	            return;
 	          }
 
@@ -166,9 +180,17 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 	          setLoading(false);
 	        }
 	      },
-	      [adapter, actionsById, loadSessions, onSelectSession],
+	      [adapter, actionsById, loadSessions, navigateToSession],
 	    ),
 	  );
+
+  const closeAllOverlays = useCallback(() => {
+    closeNonPluginOverlays();
+    handleCancelPluginDialog();
+    setSettingsSessionId(null);
+    setAgentSwitchSessionId(null);
+    setAgentSwitchCurrentId(null);
+  }, [closeNonPluginOverlays, handleCancelPluginDialog]);
 
   useEffect(() => {
     if (cachedSessions) {
@@ -195,6 +217,11 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     }
   }, [isActive, adapter, lastLoadedAt, loadSessions]);
 
+  useEffect(() => {
+    if (isActive) return;
+    closeAllOverlays();
+  }, [isActive, closeAllOverlays]);
+
   const createSessionWithAgent = async (agentId: string | null) => {
     setAgentPickerVisible(false); // Fix: If we don't close the picker first, the SessionsScreen become unresponsive.
     if (!adapter) {
@@ -217,7 +244,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       const result = await apiCreateSession(adapter, chosenAgent);
       const newId = result.session.session_id;
       if (typeof newId === 'string' && newId) {
-        onSelectSession(newId);
+	        navigateToSession(newId);
       } else {
         // Fallback: reload list if for some reason session id is missing.
         await loadSessions();
@@ -401,7 +428,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       <TouchableOpacity
         key={s.session_id}
         style={styles.sessionItem}
-        onPress={() => onSelectSession(s.session_id)}
+	      onPress={() => navigateToSession(s.session_id)}
       >
         <View style={styles.sessionHeaderRow}>
           <View style={styles.sessionHeaderTextColumn}>
@@ -443,6 +470,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
               onAction={handleRowAction}
               extraActions={pluginSessionActionDefs}
               availableActions={BUILTIN_SESSION_LIST_ACTIONS}
+              isActive={isActive}
             />
           </View>
         )}
@@ -495,67 +523,69 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         renderItem={({ item }) => renderSessionItem(item)}
       />
 
-      <Modal
-        visible={agentPickerVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setAgentPickerVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>New session</Text>
-            {agentLoading && (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color={theme.primary} />
-                <Text style={styles.loadingText}>Loading agents...</Text>
-              </View>
-            )}
-            {!agentLoading && availableAgents.length === 0 && (
-              <>
-                <Text style={styles.modalSubtitle}>
-                  No agents are available from the server.
-                </Text>
-                <View style={styles.modalButtonsRow}>
-                  <TouchableOpacity
-                    style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                    onPress={() => setAgentPickerVisible(false)}
-                  >
-                    <Text style={styles.buttonTextSecondary}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-            {!agentLoading && availableAgents.length > 0 && (
-              <>
-                <Text style={styles.modalSubtitle}>
-                  Choose an agent to start a new session.
-                </Text>
-                <ScrollView style={styles.agentList}>
-                  {availableAgents.map((agentId) => (
-                    <TouchableOpacity
-                      key={agentId}
-                      style={styles.agentItem}
-                      onPress={() => {
-                        createSessionWithAgent(agentId);
-                      }}
-                    >
-                      <Text style={styles.agentItemText}>{agentId}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-                <View style={styles.modalButtonsRow}>
-                  <TouchableOpacity
-                    style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                    onPress={() => setAgentPickerVisible(false)}
-                  >
-                    <Text style={styles.buttonTextSecondary}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
+	  {agentPickerVisible && (
+	    <Modal
+	      visible={agentPickerVisible}
+	      transparent
+	      animationType="fade"
+	      onRequestClose={() => setAgentPickerVisible(false)}
+	    >
+	      <View style={styles.modalOverlay}>
+	        <View style={styles.modalContent}>
+	          <Text style={styles.modalTitle}>New session</Text>
+	          {agentLoading && (
+	            <View style={styles.loadingContainer}>
+	              <ActivityIndicator size="small" color={theme.primary} />
+	              <Text style={styles.loadingText}>Loading agents...</Text>
+	            </View>
+	          )}
+	          {!agentLoading && availableAgents.length === 0 && (
+	            <>
+	              <Text style={styles.modalSubtitle}>
+	                No agents are available from the server.
+	              </Text>
+	              <View style={styles.modalButtonsRow}>
+	                <TouchableOpacity
+	                  style={[styles.button, styles.secondaryButton, styles.modalButton]}
+	                  onPress={() => setAgentPickerVisible(false)}
+	                >
+	                  <Text style={styles.buttonTextSecondary}>Cancel</Text>
+	                </TouchableOpacity>
+	              </View>
+	            </>
+	          )}
+	          {!agentLoading && availableAgents.length > 0 && (
+	            <>
+	              <Text style={styles.modalSubtitle}>
+	                Choose an agent to start a new session.
+	              </Text>
+	              <ScrollView style={styles.agentList}>
+	                {availableAgents.map((agentId) => (
+	                  <TouchableOpacity
+	                    key={agentId}
+	                    style={styles.agentItem}
+	                    onPress={() => {
+	                      createSessionWithAgent(agentId);
+	                    }}
+	                  >
+	                    <Text style={styles.agentItemText}>{agentId}</Text>
+	                  </TouchableOpacity>
+	                ))}
+	              </ScrollView>
+	              <View style={styles.modalButtonsRow}>
+	                <TouchableOpacity
+	                  style={[styles.button, styles.secondaryButton, styles.modalButton]}
+	                  onPress={() => setAgentPickerVisible(false)}
+	                >
+	                  <Text style={styles.buttonTextSecondary}>Cancel</Text>
+	                </TouchableOpacity>
+	              </View>
+	            </>
+	          )}
+	        </View>
+	      </View>
+	    </Modal>
+	  )}
 
       <ApplicationActionDialog
         visible={!!activePluginDialogElement}

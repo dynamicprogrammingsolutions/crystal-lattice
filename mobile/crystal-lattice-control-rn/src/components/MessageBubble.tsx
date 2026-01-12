@@ -19,6 +19,7 @@ import { extractByPath, renderTemplate } from '../uiSchemaUtils';
 export interface MessageBubbleProps {
   index: number;
   message: ApiMessage;
+  isActive?: boolean;
   pinnedActions?: MessageActionKey[];
   onAction?: (action: MessageActionKey, index: number, message: ApiMessage) => void;
   onChangePinnedForRole?: (role: string, pinned: MessageActionKey[]) => void;
@@ -36,6 +37,7 @@ export interface MessageBubbleProps {
 const UserMessageBubble: React.FC<MessageBubbleProps> = ({
   index,
   message,
+  isActive,
   pinnedActions,
   onAction,
   onChangePinnedForRole,
@@ -120,6 +122,7 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
             onAction={(action) => onAction(action, index, message)}
             availableActions={allowedActions}
             extraActions={pluginActionDefs}
+            isActive={isActive}
           />
         )}
       </View>
@@ -130,6 +133,7 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
 const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
   index,
   message,
+  isActive,
   pinnedActions,
   onAction,
   onChangePinnedForRole,
@@ -214,6 +218,7 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
             onAction={(action) => onAction(action, index, message)}
             availableActions={allowedActions}
             extraActions={pluginActionDefs}
+            isActive={isActive}
           />
         )}
       </View>
@@ -224,6 +229,7 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
 const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
   index,
   message,
+  isActive,
   pinnedActions,
   onAction,
   onChangePinnedForRole,
@@ -315,6 +321,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
             onAction={(action) => onAction(action, index, message)}
             availableActions={allowedActions}
             extraActions={pluginActionDefs}
+            isActive={isActive}
           />
         )}
       </View>
@@ -325,6 +332,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
 const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
   index,
   message,
+  isActive,
   pinnedActions,
   onAction,
   onChangePinnedForRole,
@@ -462,6 +470,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
             onAction={(action) => onAction(action, index, message)}
             availableActions={allowedActions}
             extraActions={pluginActionDefs}
+            isActive={isActive}
           />
         )}
       </View>
@@ -472,6 +481,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   index,
   message,
+  isActive,
   pinnedActions,
   onAction,
   onChangePinnedForRole,
@@ -495,6 +505,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <UserMessageBubble
         index={index}
         message={message}
+        isActive={isActive}
         pinnedActions={pinnedActions}
         onAction={onAction}
         onChangePinnedForRole={onChangePinnedForRole}
@@ -514,6 +525,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <SystemMessageBubble
         index={index}
         message={message}
+        isActive={isActive}
         pinnedActions={pinnedActions}
         onAction={onAction}
         onChangePinnedForRole={onChangePinnedForRole}
@@ -534,6 +546,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <ToolMessageBubble
         index={index}
         message={message}
+        isActive={isActive}
         pinnedActions={pinnedActions}
         onAction={onAction}
         onChangePinnedForRole={onChangePinnedForRole}
@@ -549,6 +562,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <AssistantMessageBubble
         index={index}
         message={message}
+        isActive={isActive}
         pinnedActions={pinnedActions}
         onAction={onAction}
         onChangePinnedForRole={onChangePinnedForRole}
@@ -586,6 +600,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             onChangePinned={(next) => onChangePinnedForRole(role, next)}
             onAction={(action) => onAction(action, index, message)}
             availableActions={allowedActions}
+            isActive={isActive}
           />
         )}
       </View>

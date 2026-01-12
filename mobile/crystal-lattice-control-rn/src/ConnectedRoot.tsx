@@ -230,6 +230,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                 <SessionChatScreen
                   adapter={adapter}
                   connectionId={connectionId}
+                  isActive={tab === 'messages'}
                   sessionId={selectedSessionId}
                       sessionSummary={sessionSummary}
                   cachedMessages={cacheEntry?.messages ?? null}

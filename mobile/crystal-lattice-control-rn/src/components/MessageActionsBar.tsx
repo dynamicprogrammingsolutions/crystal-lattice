@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Modal,
   StyleSheet,
@@ -23,6 +23,7 @@ export interface MessageActionsBarProps {
   isActionDisabled?: (action: MessageActionKey) => boolean;
   availableActions?: MessageActionKey[];
   extraActions?: MessageActionDefinition[];
+  isActive?: boolean;
 }
 
 const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
@@ -32,10 +33,17 @@ const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
   isActionDisabled,
   availableActions,
   extraActions,
+  isActive,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [menuVisible, setMenuVisible] = useState(false);
+
+  useEffect(() => {
+    if (isActive === false) {
+      setMenuVisible(false);
+    }
+  }, [isActive]);
 
   const allDefs: MessageActionDefinition[] = useMemo(() => {
     const extras = extraActions ?? [];

@@ -433,6 +433,10 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     );
   };
 
+  if (!visible) {
+    return null;
+  }
+
   return (
     <Modal
       visible={visible}
