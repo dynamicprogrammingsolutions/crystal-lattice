@@ -35,6 +35,10 @@ const AgentSwitchModal: React.FC<AgentSwitchModalProps> = ({
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
+  if (!visible) {
+    return null;
+  }
+
   return (
     <Modal
       visible={visible}

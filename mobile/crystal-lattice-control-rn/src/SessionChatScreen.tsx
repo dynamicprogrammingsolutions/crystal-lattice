@@ -61,6 +61,7 @@ import type {
 interface SessionChatScreenProps {
   adapter: ConnectionAdapter | null;
   connectionId: string | null;
+  isActive: boolean;
   sessionId: string;
   sessionSummary: SessionSummary | null;
   cachedMessages: IndexedMessage[] | null;
@@ -85,6 +86,7 @@ type PluginActionContext =
 const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   adapter,
   connectionId,
+  isActive,
   sessionId,
   sessionSummary,
   cachedMessages,
@@ -382,6 +384,25 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       [adapter, actionsById, sessionId, loadMessages, onNavigateToSession],
     ),
   );
+
+  const closeOverlays = useCallback(() => {
+    setMessageLimitVisible(false);
+    setDeleteRangeVisible(false);
+    setAgentModalVisible(false);
+    setSettingsVisible(false);
+    setDebugVisible(false);
+    handleCancelPluginDialog();
+  }, [handleCancelPluginDialog]);
+
+  useEffect(() => {
+    if (isActive) return;
+    closeOverlays();
+  }, [closeOverlays, isActive]);
+
+  const handleBack = useCallback(() => {
+    closeOverlays();
+    onBack();
+  }, [closeOverlays, onBack]);
 
   useEffect(() => {
     setMessages(cachedMessages ?? []);
@@ -980,7 +1001,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	    >
 	      <View style={styles.container}>
 	        <View style={styles.headerRow}>
-	          <TouchableOpacity style={styles.backButton} onPress={onBack}>
+	          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
 	            <Text style={styles.backButtonText}>← Sessions</Text>
 	          </TouchableOpacity>
 	          <Text style={styles.title} numberOfLines={1}>
@@ -996,6 +1017,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 (sendInProgress && action === 'reload')
               }
               extraActions={pluginSessionActionDefs}
+              isActive={isActive}
             />
           </View>
 	        </View>
@@ -1050,6 +1072,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
             <MessageBubble
               key={m.index}
               index={m.index}
+              isActive={isActive}
               message={m.message}
               pinnedActions={pinnedForRole}
               allowedActions={allowedActions}
@@ -1070,6 +1093,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         <MessageBubble
           key={`stream-${streamingRow.requestId}`}
           index={messages.length > 0 ? messages[messages.length - 1].index + 1 : 0}
+          isActive={isActive}
           message={{
             role: 'assistant',
             content: streamingRow.content,
@@ -1190,114 +1214,118 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         })()}
       </View>
 
-	      <Modal
-	        visible={messageLimitVisible}
-	        transparent
-	        animationType="fade"
-	        onRequestClose={() => setMessageLimitVisible(false)}
-	      >
-	        <View style={styles.modalOverlay}>
-	          <View style={styles.modalContent}>
-	            <Text style={styles.modalTitle}>Message range</Text>
-	            <Text style={styles.modalSubtitle}>
-	              Python-style range (start:end). Example: -50: for last 50 messages.
-	            </Text>
-	            <View style={styles.rangeRow}>
-	              <View style={styles.rangeInputContainer}>
-	                <Text style={styles.rangeLabel}>Start</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  value={rangeStartText}
-                  onChangeText={setRangeStartText}
-                  placeholder="e.g. -50"
-                  keyboardType="default"
-                />
-	              </View>
-	              <View style={styles.rangeInputContainer}>
-	                <Text style={styles.rangeLabel}>End</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  value={rangeEndText}
-                  onChangeText={setRangeEndText}
-                  placeholder="optional"
-                  keyboardType="default"
-                />
-	              </View>
-	            </View>
-	            <View style={styles.modalButtonsRow}>
-	              <TouchableOpacity
-	                style={[styles.button, styles.secondaryButton, styles.modalButton]}
-	                onPress={() => setMessageLimitVisible(false)}
-	              >
-	                <Text style={styles.buttonTextSecondary}>Cancel</Text>
-	              </TouchableOpacity>
-	              <TouchableOpacity
-	                style={[styles.button, styles.primaryButton, styles.modalButton]}
-	                onPress={applyMessageLimitAndReload}
-	              >
-	                <Text style={styles.buttonText}>Apply</Text>
-	              </TouchableOpacity>
-	            </View>
-	            {lastReloadAt && (
-	              <Text style={styles.modalHelperText}>
-	                Last reload at {lastReloadAt.toLocaleTimeString()}
+	      {messageLimitVisible && (
+	        <Modal
+	          visible={messageLimitVisible}
+	          transparent
+	          animationType="fade"
+	          onRequestClose={() => setMessageLimitVisible(false)}
+	        >
+	          <View style={styles.modalOverlay}>
+	            <View style={styles.modalContent}>
+	              <Text style={styles.modalTitle}>Message range</Text>
+	              <Text style={styles.modalSubtitle}>
+	                Python-style range (start:end). Example: -50: for last 50 messages.
 	              </Text>
-	            )}
+	              <View style={styles.rangeRow}>
+	                <View style={styles.rangeInputContainer}>
+	                  <Text style={styles.rangeLabel}>Start</Text>
+	                  <TextInput
+	                    style={styles.modalInput}
+	                    value={rangeStartText}
+	                    onChangeText={setRangeStartText}
+	                    placeholder="e.g. -50"
+	                    keyboardType="default"
+	                  />
+	                </View>
+	                <View style={styles.rangeInputContainer}>
+	                  <Text style={styles.rangeLabel}>End</Text>
+	                  <TextInput
+	                    style={styles.modalInput}
+	                    value={rangeEndText}
+	                    onChangeText={setRangeEndText}
+	                    placeholder="optional"
+	                    keyboardType="default"
+	                  />
+	                </View>
+	              </View>
+	              <View style={styles.modalButtonsRow}>
+	                <TouchableOpacity
+	                  style={[styles.button, styles.secondaryButton, styles.modalButton]}
+	                  onPress={() => setMessageLimitVisible(false)}
+	                >
+	                  <Text style={styles.buttonTextSecondary}>Cancel</Text>
+	                </TouchableOpacity>
+	                <TouchableOpacity
+	                  style={[styles.button, styles.primaryButton, styles.modalButton]}
+	                  onPress={applyMessageLimitAndReload}
+	                >
+	                  <Text style={styles.buttonText}>Apply</Text>
+	                </TouchableOpacity>
+	              </View>
+	              {lastReloadAt && (
+	                <Text style={styles.modalHelperText}>
+	                  Last reload at {lastReloadAt.toLocaleTimeString()}
+	                </Text>
+	              )}
+	            </View>
 	          </View>
-	        </View>
-	      </Modal>
+	        </Modal>
+	      )}
 
-	      <Modal
-	        visible={deleteRangeVisible}
-	        transparent
-	        animationType="fade"
-	        onRequestClose={() => setDeleteRangeVisible(false)}
-	      >
-	        <View style={styles.modalOverlay}>
-	          <View style={styles.modalContent}>
-	            <Text style={styles.modalTitle}>Delete range</Text>
-	            <Text style={styles.modalSubtitle}>
-	              Python-style range (start:end). Messages in this range will be removed.
-	            </Text>
-	            <View style={styles.rangeRow}>
-	              <View style={styles.rangeInputContainer}>
-	                <Text style={styles.rangeLabel}>Start</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  value={deleteRangeStartText}
-                  onChangeText={setDeleteRangeStartText}
-                  placeholder="e.g. 0 or -10"
-                  keyboardType="default"
-                />
+	      {deleteRangeVisible && (
+	        <Modal
+	          visible={deleteRangeVisible}
+	          transparent
+	          animationType="fade"
+	          onRequestClose={() => setDeleteRangeVisible(false)}
+	        >
+	          <View style={styles.modalOverlay}>
+	            <View style={styles.modalContent}>
+	              <Text style={styles.modalTitle}>Delete range</Text>
+	              <Text style={styles.modalSubtitle}>
+	                Python-style range (start:end). Messages in this range will be removed.
+	              </Text>
+	              <View style={styles.rangeRow}>
+	                <View style={styles.rangeInputContainer}>
+	                  <Text style={styles.rangeLabel}>Start</Text>
+	                  <TextInput
+	                    style={styles.modalInput}
+	                    value={deleteRangeStartText}
+	                    onChangeText={setDeleteRangeStartText}
+	                    placeholder="e.g. 0 or -10"
+	                    keyboardType="default"
+	                  />
+	                </View>
+	                <View style={styles.rangeInputContainer}>
+	                  <Text style={styles.rangeLabel}>End</Text>
+	                  <TextInput
+	                    style={styles.modalInput}
+	                    value={deleteRangeEndText}
+	                    onChangeText={setDeleteRangeEndText}
+	                    placeholder="optional"
+	                    keyboardType="default"
+	                  />
+	                </View>
 	              </View>
-	              <View style={styles.rangeInputContainer}>
-	                <Text style={styles.rangeLabel}>End</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  value={deleteRangeEndText}
-                  onChangeText={setDeleteRangeEndText}
-                  placeholder="optional"
-                  keyboardType="default"
-                />
+	              <View style={styles.modalButtonsRow}>
+	                <TouchableOpacity
+	                  style={[styles.button, styles.secondaryButton, styles.modalButton]}
+	                  onPress={() => setDeleteRangeVisible(false)}
+	                >
+	                  <Text style={styles.buttonTextSecondary}>Cancel</Text>
+	                </TouchableOpacity>
+	                <TouchableOpacity
+	                  style={[styles.button, styles.primaryButton, styles.modalButton]}
+	                  onPress={confirmDeleteRange}
+	                >
+	                  <Text style={styles.buttonText}>Delete</Text>
+	                </TouchableOpacity>
 	              </View>
-	            </View>
-	            <View style={styles.modalButtonsRow}>
-	              <TouchableOpacity
-	                style={[styles.button, styles.secondaryButton, styles.modalButton]}
-	                onPress={() => setDeleteRangeVisible(false)}
-	              >
-	                <Text style={styles.buttonTextSecondary}>Cancel</Text>
-	              </TouchableOpacity>
-	              <TouchableOpacity
-	                style={[styles.button, styles.primaryButton, styles.modalButton]}
-	                onPress={confirmDeleteRange}
-	              >
-	                <Text style={styles.buttonText}>Delete</Text>
-	              </TouchableOpacity>
 	            </View>
 	          </View>
-	        </View>
-	      </Modal>
+	        </Modal>
+	      )}
 	      <AgentSwitchModal
 	        visible={agentModalVisible}
 	        loading={agentLoading}
