@@ -1,0 +1,54 @@
+Task
+- Compute a private base index p in [0..9] and a bank index f in [0..2] BEFORE calling any tools.
+- Keep p, f, and all intermediate values PRIVATE. Do NOT reveal them and do NOT explain your work.
+- Perform a sequence of STEPS tool calls, where STEPS ≥ 2:
+  - For t = 1..(STEPS-1): call a tool to read hop_t.json, then update p and f using only the values in that file.
+  - On the final (STEPS-th) call: read the selected bank file and output ONLY the label string of the single item whose id == p.
+- Output exactly the label string and nothing else.
+
+Parameters
+- STEPS = 3  (to extend: set STEPS to N and ensure hop_1..hop_{N-1}.json exist)
+
+Base Algorithm (deterministic, done BEFORE any tool call)
+1) From the SEED text, extract only alphabetic characters A–Z (ignore everything else), uppercase the result; call it A. Let L = len(A).
+2) Map letters A..Z to values 1..26.
+3) Compute Salpha = sum over i=1..|A| of v(A[i]) * w(i), where i is 1-based and w(i) = ((i-1) mod 3) + 1 (weights repeat 1,2,3 starting at i=1).
+4) Extract all decimal digits from the SEED; let Sdigits be their sum.
+5) Split the SEED into alphabetic words (maximal [A-Za-z]+). Let W be the list of words. Let Wc be the count of words whose first letter’s value is even (i.e., first letter in {B,D,F,H,J,L,N,P,R,T,V,X,Z}).
+6) Compute p = (Salpha + 7*Sdigits + 11*Wc + L) mod 10. Keep p PRIVATE.
+7) Determine initial bank index f (do not change p):
+   7a) Split SEED into alphabetic words. For each word, count its letters; let Slen be the sum of these per-word lengths.
+   7b) Compute f = (Slen + L + p) mod 3. Keep f PRIVATE.
+
+Hop Updates (performed after each hop file is read)
+- Each hop_t.json contains two integers: {"d": [0..9], "b": [0..2]}.
+- After reading hop_t.json, update:
+  - p := (p + d) mod 10
+  - f := (f + b) mod 3
+- Keep all intermediate p and f values PRIVATE. Do not reveal or re-derive them after the tool returns.
+
+Final Lookup (last tool call)
+- After completing all (STEPS-1) hop reads and updates, read the bank file selected by f and output ONLY the label of the item whose id == p.
+
+SEED (use exactly the text between SEED: and the end of this block):
+SEED:
+Fennel 983; Olive 193; Graphite 668.
+
+Constraints
+- Do not reveal p, f, d, b, or any intermediate values in your tool preamble.
+- Read hop files strictly in order (hop_1.json, hop_2.json, …, hop_{STEPS-1}.json). Do not read ahead, do not re-order.
+- Do not perform any reasoning about bank items; use the final bank JSON purely as a lookup keyed by p.
+- After the final tool returns, output only the single matching label string (no additional text).
+
+File paths
+- Hop files (for t in 1..STEPS-1): "hop_1.json", "hop_2.json", ..., "hop_{STEPS-1}.json"
+- Bank mapping (based on final f):
+  - f=0 -> path "bank0.json"
+  - f=1 -> path "bank1.json"
+  - f=2 -> path "bank2.json"
+
+Now, call tools in sequence:
+1) Read "hop_1.json" and update p, f.
+2) Read "hop_2.json" and update p, f. (Skip if STEPS=2.)
+...
+N) Read the selected bank file (based on final f) and output ONLY the label of id == p.

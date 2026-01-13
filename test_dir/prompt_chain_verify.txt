@@ -1,0 +1,61 @@
+SEED (edit here; use exactly this text below):
+Fennel 983; Olive 193; Graphite 668; Mango.
+
+Task
+- Compute values from the SEED BEFORE calling any tools: base index p ∈ [0..9], bank index f ∈ [0..2], and a secret s ∈ [0..9]. You MAY disclose these values in tool preambles or as part of tool calls (if supported) to aid verification, and again in the final reasoning.
+- Perform HOPS sequential file reads where each next path depends on your private s and the previously read file’s contents. After the HOPS reads, load a bank JSON and output ONLY the label of the item whose id == final p.
+- After the final tool returns, output only the single matching label string in the first line, then the whole reasoning sequence on subsequent lines.
+
+Parameters
+- HOPS = 2  (Total tool calls = HOPS + 1; raise HOPS to add more steps.)
+
+Base Algorithm (deterministic, done BEFORE any tool call)
+1) From the SEED text, extract only alphabetic characters A–Z (ignore everything else), uppercase the result; call it A. Let L = len(A).
+2) Map letters A..Z to values 1..26.
+3) Compute Salpha = sum over i=1..|A| of v(A[i]) * w(i), where i is 1-based and w(i) = ((i-1) mod 3) + 1 (weights repeat 1,2,3 starting at i=1).
+4) Extract all decimal digits from the SEED; let Sdigits be their sum.
+5) Split the SEED into alphabetic words (maximal [A-Za-z]+). Let W be the list of words. Let Wc be the count of words whose first letter’s value is even (i.e., first letter in {B,D,F,H,J,L,N,P,R,T,V,X,Z}).
+6) Compute p = (Salpha + 7*Sdigits + 11*Wc + L) mod 10. Keep p PRIVATE.
+7) Determine initial bank index f (do not change p):
+   7a) Split SEED into alphabetic words. For each word, count its letters; let Slen be the sum of these per-word lengths.
+   7b) Compute f = (Slen + L + p) mod 3. Keep f PRIVATE.
+8) Compute a secret s = (3*p + 2*f + L) mod 10. Keep s PRIVATE.
+
+Sequential Hop Reads (each hop updates p and f, and determines the next path)
+- Hop 1 (first tool call):
+  - Compute a = (s + L) mod 5. Read path: "chain/start_" + a + ".json".
+  - The file returns JSON with fields: {"token": T, "d": d, "b": b, "k": k, "m": m}.
+  - Update p := (p + d) mod 10; update f := (f + b) mod 3. Keep all values PRIVATE.
+  - If HOPS == 1, skip to Final Lookup. Otherwise compute next index j = (T + s + k) mod m and proceed.
+  - For verification, you MAY state in the tool preamble the values you are using (e.g., p, f, s, L, a) and any derived indices.
+
+- Hop t (for t in 2..HOPS):
+  - Read path: "chain/step" + t + "_" + j + ".json" where j was computed from the previous hop’s T, k, and m together with your private s.
+  - The file returns JSON with the same fields {"token": T, "d": d, "b": b, "k": k, "m": m}.
+  - Update p := (p + d) mod 10; update f := (f + b) mod 3. Keep all values PRIVATE.
+  - If t < HOPS, compute the next j = (T + s + k) mod m and continue.
+  - For verification, you MAY state in the tool preamble the current values (e.g., p, f, s, j, and prior T, k, m) and how j was derived.
+
+Final Lookup (last tool call)
+- After completing all HOPS, read the bank file selected by final f and then produce the final output:
+  - First line: ONLY the label string of the item whose id == final p (no extra text or punctuation).
+  - Subsequent lines: the full reasoning sequence, including the SEED used, and all private values (p, f, s) and per-hop values (T, d, b, k, m, j) and how they led to the final result.
+
+Constraints
+- You MAY reveal and recompute any values (p, f, s) from the SEED at any time, including before tool calls. You MAY include these values (and derived indices like a, j) in tool preambles or as part of tool call parameters if supported.
+- Read exactly one file per hop in strict order. Do not read ahead. Do not attempt to list files.
+- Use the final bank JSON purely as a lookup keyed by p; do not reason about its items.
+- Output format must be exactly: first line label string only; subsequent lines contain the reasoning and revealed values.
+
+File paths
+- Hop 1: "chain/start_{a}.json" where a = (s + L) mod 5.
+- Hop t≥2: "chain/step{t}_{j}.json" where j = (T + s + k) mod m from the previous hop file.
+- Bank mapping (based on final f):
+  - f=0 -> path "bank0.json"
+  - f=1 -> path "bank1.json"
+  - f=2 -> path "bank2.json"
+
+Now, call tools in sequence:
+1) Read "chain/start_{a}.json".
+2) For t = 2..HOPS, read "chain/step{t}_{j}.json" using j derived from the previous hop and your private s.
+3) Read the selected bank file and output in the required two-part format.
