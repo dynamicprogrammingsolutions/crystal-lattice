@@ -1,9 +1,7 @@
 Task
-- Compute a private index p in [0..9] BEFORE calling any tools.
-- Keep p and all intermediate steps PRIVATE. Do NOT reveal them and do NOT explain your work.
+- Compute an index p in [0..9] BEFORE calling any tools.
 - After computing p, call a tool to load a JSON bank from disk (see file paths mapping below).
 - From the returned JSON, output ONLY the label (string) of the single item whose id == p. Use the file content purely as a lookup keyed by p.
-- Do NOT recompute p after the tool returns. Do NOT perform any additional reasoning about the items.
 - Output exactly the label string and nothing else.
 
 Algorithm (deterministic):
@@ -24,8 +22,7 @@ SEED:
 Fennel 983; Olive 193; Graphite 668.
 
 Constraints
-- Do not reveal p or any steps.
-- Do not re-derive or adjust p after the tool returns.
+- Do not reveal p in your tool preamble
 - After the tool returns, output only the single matching label (id == p), with no additional text.
 
 File paths mapping for the tool call (based on f computed in the Algorithm):
