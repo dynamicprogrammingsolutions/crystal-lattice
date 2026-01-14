@@ -1,4 +1,0 @@
-/Users/ferenci84/Dev/Mine/bonjour-example-1/react-native-app/android/app/.cxx/Debug/4n3k5b41/armeabi-v7a/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/foo.dir
-/Users/ferenci84/Dev/Mine/bonjour-example-1/react-native-app/android/app/.cxx/Debug/4n3k5b41/armeabi-v7a/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/boo.dir
-/Users/ferenci84/Dev/Mine/bonjour-example-1/react-native-app/android/app/.cxx/Debug/4n3k5b41/armeabi-v7a/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/edit_cache.dir
-/Users/ferenci84/Dev/Mine/bonjour-example-1/react-native-app/android/app/.cxx/Debug/4n3k5b41/armeabi-v7a/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/rebuild_cache.dir
