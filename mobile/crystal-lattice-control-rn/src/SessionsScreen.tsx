@@ -196,18 +196,26 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   }, [isActive, adapter, lastLoadedAt, loadSessions]);
 
   const createSessionWithAgent = async (agentId: string | null) => {
-	    if (!adapter) {
-	      const message = 'No active connection';
-	      setError(message);
-	      Alert.alert('Error', message);
-	      return;
-	    }
-    const chosenAgent = agentId && agentId.trim() ? agentId.trim() : 'default';
+    setAgentPickerVisible(false); // Fix: If we don't close the picker first, the SessionsScreen become unresponsive.
+    if (!adapter) {
+      const message = 'No active connection';
+      setError(message);
+      Alert.alert('Error', message);
+      return;
+    }
+    let chosenAgent = agentId && agentId.trim() ? agentId.trim() : '';
+    if (!chosenAgent) {
+      if (availableAgents.length > 0) {
+        chosenAgent = availableAgents[0];
+      } else {
+        Alert.alert('Error', 'No agents are available from the server.');
+        return;
+      }
+    }
     setLoading(true);
     try {
       const result = await apiCreateSession(adapter, chosenAgent);
       const newId = result.session.session_id;
-      setAgentPickerVisible(false);
       if (typeof newId === 'string' && newId) {
         onSelectSession(newId);
       } else {
@@ -505,8 +513,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
             {!agentLoading && availableAgents.length === 0 && (
               <>
                 <Text style={styles.modalSubtitle}>
-                  No agents are available from the server. A session can still be
-                  created with the default agent.
+                  No agents are available from the server.
                 </Text>
                 <View style={styles.modalButtonsRow}>
                   <TouchableOpacity
@@ -514,14 +521,6 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
                     onPress={() => setAgentPickerVisible(false)}
                   >
                     <Text style={styles.buttonTextSecondary}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.button, styles.primaryButton, styles.modalButton]}
-                    onPress={() => {
-                      createSessionWithAgent('default');
-                    }}
-                  >
-                    <Text style={styles.buttonText}>Create</Text>
                   </TouchableOpacity>
                 </View>
               </>
