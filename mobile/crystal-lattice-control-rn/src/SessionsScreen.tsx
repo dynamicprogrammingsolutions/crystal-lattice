@@ -196,12 +196,13 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   }, [isActive, adapter, lastLoadedAt, loadSessions]);
 
   const createSessionWithAgent = async (agentId: string | null) => {
-	    if (!adapter) {
-	      const message = 'No active connection';
-	      setError(message);
-	      Alert.alert('Error', message);
-	      return;
-	    }
+    setAgentPickerVisible(false); // Fix: If we don't close the picker first, the SessionsScreen become unresponsive.
+    if (!adapter) {
+      const message = 'No active connection';
+      setError(message);
+      Alert.alert('Error', message);
+      return;
+    }
     let chosenAgent = agentId && agentId.trim() ? agentId.trim() : '';
     if (!chosenAgent) {
       if (availableAgents.length > 0) {
@@ -215,7 +216,6 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     try {
       const result = await apiCreateSession(adapter, chosenAgent);
       const newId = result.session.session_id;
-      setAgentPickerVisible(false);
       if (typeof newId === 'string' && newId) {
         onSelectSession(newId);
       } else {
