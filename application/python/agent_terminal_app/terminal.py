@@ -202,9 +202,12 @@ def _status_bar_text(app: TerminalApplication) -> str:
     try:
         agent = app.current_agent_id()
     except RuntimeError:
-        agent = "default"
-    
-    parts = [f"Agent: {agent}", f"Session: {session_id}"]
+        agent = ""
+
+    parts: list[str] = []
+    if isinstance(agent, str) and agent:
+        parts.append(f"Agent: {agent}")
+    parts.append(f"Session: {session_id}")
     
     # Add plugin-contributed status_bar elements from last assistant message
     try:
@@ -1254,7 +1257,10 @@ async def _cmd_plugins(
         enabled_ids = [p for p in plugins_from_session if isinstance(p, str)]
     else:
         agent_val = metadata.get("agent_id")
-        agent_id = agent_val if isinstance(agent_val, str) and agent_val else "default"
+        agent_id = agent_val.strip() if isinstance(agent_val, str) else ""
+        if not agent_id:
+            agents = app.available_agents()
+            agent_id = agents[0] if agents else ""
         try:
             default_ids = app.agent_app.get_agent_plugins(agent_id)
         except Exception:  # pragma: no cover - defensive

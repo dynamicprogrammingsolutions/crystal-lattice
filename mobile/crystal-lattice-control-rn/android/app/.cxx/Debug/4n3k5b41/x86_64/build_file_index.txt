@@ -1,2 +1,0 @@
-/Users/ferenci84/Dev/Mine/bonjour-example-1/react-native-app/node_modules/react-native-safe-area-context/android/src/main/jni/CMakeLists.txt
-/Users/ferenci84/Dev/Mine/bonjour-example-1/react-native-app/node_modules/react-native/ReactAndroid/cmake-utils/default-app-setup/CMakeLists.txt

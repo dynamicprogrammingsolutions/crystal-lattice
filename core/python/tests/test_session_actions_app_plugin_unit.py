@@ -255,3 +255,27 @@ def test_delete_session_respects_allow_delete_flag(tmp_path: Path) -> None:
             action_id="delete_session",
             params={"session_id": session.session_id},
         )
+
+
+def test_delete_session_works_even_if_agent_id_is_unknown(tmp_path: Path) -> None:
+    app = _build_app(tmp_path)
+
+    session_id = _create_session_with_messages(app, ["m0"])
+
+    # Corrupt the stored metadata so that it references an agent id that is no
+    # longer present in the configuration.
+    session_path = tmp_path / "sessions" / f"{session_id}.json"
+    data = json.loads(session_path.read_text(encoding="utf-8"))
+    metadata = data.get("metadata")
+    assert isinstance(metadata, dict)
+    metadata["agent_id"] = "missing-agent"
+    session_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    res = app.execute_application_action(
+        plugin_id="session_actions",
+        action_id="delete_session",
+        params={"session_id": session_id},
+    )
+
+    assert res.get("deleted_session_ids") == [session_id]
+    assert app.load_session_record(session_id) is None

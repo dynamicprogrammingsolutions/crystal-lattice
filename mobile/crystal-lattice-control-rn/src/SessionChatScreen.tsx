@@ -171,6 +171,23 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   }, [composeText]);
 
   useEffect(() => {
+    if (!adapter) return;
+    ensureAgentsLoaded(adapter).catch(() => {
+      // Non-fatal; status bar should still render.
+    });
+  }, [adapter, ensureAgentsLoaded]);
+
+  useEffect(() => {
+    const md = sessionSummary?.metadata;
+    const raw = (md as any)?.agent_id;
+    if (typeof raw === 'string' && raw.trim()) {
+      setSessionAgentId(raw.trim());
+    } else {
+      setSessionAgentId(null);
+    }
+  }, [sessionId, sessionSummary]);
+
+  useEffect(() => {
     const loadPinnedFromStorage = async () => {
       try {
         const messageRaw = await AsyncStorage.getItem(STORAGE_KEY_MESSAGE_ACTIONS);
@@ -541,7 +558,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	    try {
 	      setAgentLoading(true);
 	      await apiSwitchSessionAgent(adapter, sessionId, agentId);
-	      setSessionAgentId(agentId);
+	      setSessionAgentId(agentId && agentId.trim() ? agentId.trim() : null);
 	      setAgentModalVisible(false);
 	    } catch (err: any) {
 	      console.log('Failed to switch agent', err);
@@ -588,7 +605,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         try {
           await ensureAgentsLoaded(adapter);
           const current = await apiGetSessionAgent(adapter, sessionId);
-          setSessionAgentId(current);
+	          setSessionAgentId(current && current.trim() ? current.trim() : null);
         } catch (err: any) {
           console.log('Failed to load agents', err);
           const message = err?.message || 'Failed to load agents';
@@ -926,8 +943,15 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
 	  const statusBarParts = useMemo(() => {
 	    const parts: string[] = [];
-	    const agentLabel = sessionAgentId || 'default';
-	    parts.push(`Agent: ${agentLabel}`);
+	    const agentLabel =
+	      sessionAgentId &&
+	      sessionAgentId !== 'default' &&
+	      availableAgents.includes(sessionAgentId)
+	        ? sessionAgentId
+	        : null;
+	    if (agentLabel) {
+	      parts.push(`Agent: ${agentLabel}`);
+	    }
 	    parts.push(`Session: ${sessionId.slice(0, 8)}`);
 	    if (!lastAssistantMessage || !statusBarElements.length) {
 	      return parts;
@@ -940,7 +964,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	      if (text) parts.push(text);
 	    });
 	    return parts;
-	  }, [lastAssistantMessage, statusBarElements, sessionAgentId, sessionId]);
+	  }, [
+	    lastAssistantMessage,
+	    statusBarElements,
+	    sessionAgentId,
+	    availableAgents,
+	    sessionId,
+	  ]);
 
 	  return (
 	    <KeyboardAvoidingView

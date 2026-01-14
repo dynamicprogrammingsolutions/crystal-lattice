@@ -1,0 +1,7 @@
+# React Native Android – build artifacts and caches
+.gradle/
+.kotlin/
+build/
+app/build/
+app/debug.keystore
+app/.cxx/
