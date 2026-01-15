@@ -22,6 +22,7 @@ from .config import (
 from .events import EventStore, InMemoryEventStore
 from .sessions import FilesystemSessionStore
 from .tool_loop import ToolLoopRunner
+from .plugin_manager import PluginManager
 
 
 @dataclass(frozen=True)
@@ -75,7 +76,13 @@ class AgentApplication:
         self._config_errors: List[Dict[str, Any]] = placeholder_errors
 
         plugins_cfg = resolved_config.get("plugins") or {}
-        plugin_classes, plugin_errors = load_plugins(plugins_cfg)
+        plugin_cache_dir = resolved_config.get("plugin_cache_dir")
+        plugin_policy = resolved_config.get("plugin_policy") or {}
+        if isinstance(plugin_cache_dir, str) and plugin_cache_dir:
+            mgr = PluginManager(cache_dir=Path(plugin_cache_dir), policy=plugin_policy)
+            plugin_classes, plugin_errors = mgr.load_plugins_config(plugins_cfg)
+        else:
+            plugin_classes, plugin_errors = load_plugins(plugins_cfg)
         self._plugin_classes: Dict[str, List[type[Any]]] = plugin_classes
         self._config_errors.extend(plugin_errors)
 
@@ -105,7 +112,11 @@ class AgentApplication:
         # provider/feature/tool plugins. They operate on the
         # :class:`AgentApplication` level (sessions, storage, actions).
         raw_app_plugins = resolved_config.get("application_plugins") or []
-        app_plugin_classes, app_plugin_errors = load_application_plugins(raw_app_plugins)
+        if isinstance(plugin_cache_dir, str) and plugin_cache_dir:
+            mgr = PluginManager(cache_dir=Path(plugin_cache_dir), policy=plugin_policy)
+            app_plugin_classes, app_plugin_errors = mgr.load_application_plugins(raw_app_plugins)
+        else:
+            app_plugin_classes, app_plugin_errors = load_application_plugins(raw_app_plugins)
         self._app_plugin_classes: List[type[Any]] = app_plugin_classes
         self._config_errors.extend(app_plugin_errors)
 
