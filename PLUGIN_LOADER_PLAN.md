@@ -331,6 +331,52 @@ Stage 3 — Application: GitInstallerSource (integration)
 - NEW: implement module-only `entry` and multi-class loading (`entries` list / module discovery). If descriptor `agent_plugin.json` exists, use it to populate multiple classes when explicit entries are not provided.
 - Add integration tests as described above; mark them `integration` and ensure CI configuration can run them when requested.
 
+Stage 3.5 — E2E Integration: LocalPath + GitInstaller with permanent fixtures
+- Permanent fixtures (two plugins in one directory):
+  - Create a persistent test fixture directory under `core/python/tests/fixtures/dev_plugins/` that contains two plugins
+    implemented as if they lived in their own repos but colocated for convenience:
+    - `dev_plugins/file_reader_tool.py` — copy of the built-in file reader tool plugin (namespaced under `dev_plugins`).
+    - `dev_plugins/file_writer_tool.py` — copy of the built-in file writer tool plugin (namespaced under `dev_plugins`).
+  - Include `__init__.py` so they import as `dev_plugins.file_reader_tool.FileReaderTool` and `dev_plugins.file_writer_tool.FileWriterTool`.
+
+- Config fixtures (on-disk, real files):
+  - `core/python/tests/fixtures/configs/localpath_plugins.json` — application config using LocalPathSource, e.g.:
+    - `plugin_cache_dir`: set to `${env:PLUGIN_CACHE_DIR}` (tests set env var to a temp dir).
+    - `plugins`: flat list canonical entries using `path:${env:DEV_PLUGINS_DIR}::dev_plugins.file_reader_tool.FileReaderTool` and `.file_writer_tool.FileWriterTool`.
+  - `core/python/tests/fixtures/configs/git_plugins.json` — application config using GitInstallerSource, e.g.:
+    - `plugin_cache_dir`: `${env:PLUGIN_CACHE_DIR}`.
+    - `plugins`: flat list canonical git entries with `${env:DEV_PLUGINS_GIT_DIR}` for the repo path and `entry` fields pointing
+      to the two classes (two items referencing the same repo to exercise multi-class import and single install).
+
+- Test harness behavior:
+  - Tests read the config fixture, resolve placeholders via the app’s existing `resolve_placeholders` (env + file placeholders),
+    set `DEV_PLUGINS_DIR` to the permanent fixture path, and `PLUGIN_CACHE_DIR` to a fresh temp dir.
+  - For the git test, copy the `dev_plugins` fixture to a temp location, `git init && git add . && git commit -m init` to produce a
+    local repository; set `DEV_PLUGINS_GIT_DIR` to that path.
+  - Invoke the application (AgentApplication) with the resolved config to verify that plugins load and register correctly via
+    LocalPathSource and GitInstallerSource, respectively.
+
+- End-to-end scenario (with Ollama):
+  - Base the scenario on an existing working test that uses qwen 0.6B with tools and reasoning enabled:
+    - Reference: `core/python/tests/test_application_layer_integration.py`
+      - `test_application_layer_ollama_file_reader_non_streaming`
+      - `test_application_layer_ollama_file_reader_streaming`
+    - These use `qwen3:0.6b` (MODEL env default), `OpenAIToolsExtension` + `OllamaThinkingExtension`, and exercise `FileReaderTool`.
+  - Adapt the scenario to also use `FileWriterTool` from fixtures and verify a read-then-write flow (optional small delta to the base scenario).
+  - Mark these tests with `@pytest.mark.ollama` (and optionally `@pytest.mark.integration`).
+  - Skip when Ollama is unavailable (reuse the existing `ensure_model`/`MODEL_TOOLS` patterns) to keep CI stable.
+
+- Assertions and validations:
+  - Confirm both tools load from the same repo path (GitInstaller installs only once; two canonical entries import both classes).
+  - Confirm tool schemas are surfaced and both tools can be executed.
+  - Confirm end-to-end behavior: target file is created with expected contents.
+  - Confirm metadata written for Git installs (`plugin_metadata.json` present, `entry` fields as expected).
+
+- Notes:
+  - Ensure sys.path core_first remains honored (LocalPathSource/GitInstallerSource append to sys.path, not insert at front).
+  - Use canonical plugin entries in configs to match the new `load_plugins` API; tests are responsible for converting
+    any raw placeholders to canonical entries via the application’s config resolution.
+
 Stage 4 — Migration & cleanup
 - Update examples and docs to show new plugin spec forms and `plugin_cache_dir` config.
 - Update or remove tests that previously relied on `discover_and_register` to use PluginManager-produced classes.

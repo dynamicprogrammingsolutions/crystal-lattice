@@ -22,6 +22,7 @@ from .config import (
 from .events import EventStore, InMemoryEventStore
 from .sessions import FilesystemSessionStore
 from .tool_loop import ToolLoopRunner
+from agent_core.utils import get_logger
 from .plugin_manager import PluginManager
 
 
@@ -59,6 +60,7 @@ class AgentApplication:
         core_factory: Callable[[], AgentCore] = AgentCore,
         event_store: Optional[EventStore] = None,
     ) -> None:
+        logger = get_logger("AgentApplication")
         # Core factory is stored so that per-session cores can be created
         # without sharing state across requests.
         self._core_factory = core_factory
@@ -81,11 +83,15 @@ class AgentApplication:
         if isinstance(plugin_cache_dir, str) and plugin_cache_dir:
             mgr = PluginManager(cache_dir=Path(plugin_cache_dir), policy=plugin_policy)
             canonical_core = mgr.normalize_plugins(plugins_cfg)
+            if canonical_core:
+                logger.info("plugin_manager_normalized_core", items=canonical_core)
             raw_app_plugins = resolved_config.get("application_plugins") or []
             canonical_all = list(canonical_core)
             for raw in raw_app_plugins:
                 canonical_all.append({"spec": raw, "kind": "application"})
             core_kinds, app_plugin_classes, plugin_errors = mgr.load_plugins(canonical_all)
+            if plugin_errors:
+                logger.error("plugin_manager_load_errors", errors=plugin_errors)
             plugin_classes = core_kinds
             app_plugin_errors: List[Dict[str, Any]] = []
         else:

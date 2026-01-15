@@ -5,6 +5,7 @@ from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Tuple
 import json
 import os
 import importlib
+import re
 
 
 JsonMapping = Mapping[str, Any]
@@ -25,14 +26,17 @@ def load_raw_config(path: str | Path) -> Dict[str, Any]:
 def _resolve_value(value: Any, path: str, env: Mapping[str, str], errors: List[Dict[str, Any]]) -> Any:
     """Resolve a single value, handling ${env:...} and ${file:...} placeholders.
 
-    Only whole-string placeholders are supported in the MVP.
+    - ${env:VAR} placeholders are now supported anywhere within a string.
+    - ${file:...} remains whole-string only to avoid surprising concatenations.
     """
 
     if not isinstance(value, str):
         return value
 
-    if value.startswith("${env:") and value.endswith("}"):
-        var_name = value[len("${env:") : -1]
+    # Replace embedded ${env:VAR} placeholders anywhere within the string.
+    # Record an error for each missing variable and substitute empty string.
+    def _env_repl(match: re.Match[str]) -> str:
+        var_name = match.group(1)
         resolved = env.get(var_name, "")
         if resolved == "":
             errors.append(
@@ -43,6 +47,9 @@ def _resolve_value(value: Any, path: str, env: Mapping[str, str], errors: List[D
                 }
             )
         return resolved
+
+    if "${env:" in value:
+        value = re.sub(r"\$\{env:([^}]+)\}", _env_repl, value)
 
     if value.startswith("${file:") and value.endswith("}"):
         file_ref = value[len("${file:") : -1]
