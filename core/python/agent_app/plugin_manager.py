@@ -18,6 +18,8 @@ import shutil
 import subprocess
 import tempfile
 from datetime import datetime
+import pkgutil
+import inspect
 
 from agent_core.plugin.loader import (
     DottedPathSource,
@@ -41,8 +43,28 @@ class LocalPathSource:
         if isinstance(raw_spec, str):
             return raw_spec.strip().startswith("path:") and "::" in raw_spec
         if isinstance(raw_spec, dict):
-            return isinstance(raw_spec.get("path"), str) and isinstance(raw_spec.get("entry"), str)
+            has_path = isinstance(raw_spec.get("path"), str)
+            has_entry = isinstance(raw_spec.get("entry"), str)
+            has_entries = isinstance(raw_spec.get("entries"), list)
+            return has_path and (has_entry or has_entries)
         return False
+
+    def prepare(self, raw_spec: Any, *, cache_dir: Path, policy: Mapping[str, Any]) -> Tuple[Optional[Path], Optional[Dict[str, Any]]]:
+        """Make the local path importable (append to sys.path)."""
+        if isinstance(raw_spec, str):
+            left, _, _entry = raw_spec.partition("::")
+            path = left.split(":", 1)[1]
+        elif isinstance(raw_spec, dict):
+            path = str(raw_spec.get("path"))
+        else:
+            return None, {"type": "plugin_path_invalid", "detail": "LocalPathSource requires string 'path:...::...' or dict with 'path'", "path": raw_spec}
+        base = Path(os.path.expanduser(path)).resolve()
+        if not base.exists():
+            return None, {"type": "plugin_path_invalid", "detail": f"Local path {str(base)!r} does not exist", "path": path}
+        s = str(base)
+        if s not in sys.path:
+            sys.path.append(s)
+        return base, None
 
     def load(self, raw_spec: Any, *, cache_dir: Path, policy: Mapping[str, Any]) -> PluginLoadResult:  # type: ignore[override]
         if isinstance(raw_spec, str):
@@ -135,6 +157,15 @@ class PluginManager:
             "path": raw_spec,
         })
 
+    def _find_loader(self, raw_spec: Any) -> Optional[PluginSource]:
+        for loader in self.loaders:
+            try:
+                if loader.supports(raw_spec):
+                    return loader
+            except Exception:
+                continue
+        return None
+
     # ------------------------ canonicalization helper --------------------
     def normalize_plugins(self, plugins_raw: Any) -> List[Dict[str, Any]]:
         """Rewrite raw config into canonical list items: [{"spec": ..., "kind": kind_or_none}, ...].
@@ -191,12 +222,177 @@ class PluginManager:
                     return k
             return "features"
 
+        def _import_dotted(entry: str) -> Tuple[Optional[type], Optional[Dict[str, Any]]]:
+            module_path, sep, attr = entry.rpartition(".")
+            if not sep:
+                return None, {"type": "plugin_path_invalid", "detail": "Invalid entry: expected 'module.Class'", "path": entry}
+            try:
+                module = importlib.import_module(module_path)
+                cls = getattr(module, attr)
+                return cls, None
+            except Exception as exc:
+                return None, {"type": "plugin_import_error", "detail": str(exc), "path": entry}
+
+        def _discover_module(module_name: str) -> List[type]:
+            """Import a module or package and discover plugin classes.
+
+            - If it's a package, recursively walk submodules.
+            - Collect classes defined in each module.
+            """
+            out: List[type] = []
+            try:
+                root_mod = importlib.import_module(module_name)
+            except Exception:
+                return out
+            modules_to_scan = [root_mod]
+            # If package, walk submodules
+            try:
+                is_pkg = hasattr(root_mod, "__path__")
+            except Exception:
+                is_pkg = False
+            if is_pkg:  # type: ignore[truthy-function]
+                prefix = module_name + "."
+                for _finder, name, _ispkg in pkgutil.walk_packages(root_mod.__path__, prefix):  # type: ignore[arg-type]
+                    try:
+                        subm = importlib.import_module(name)
+                        modules_to_scan.append(subm)
+                    except Exception:
+                        continue
+            for m in modules_to_scan:
+                for _, obj in inspect.getmembers(m, inspect.isclass):
+                    out.append(obj)
+            # Deduplicate while preserving order
+            seen = set()
+            deduped: List[type] = []
+            for cls in out:
+                if cls in seen:
+                    continue
+                seen.add(cls)
+                deduped.append(cls)
+            return deduped
+
         for item in list(canonical_items or []):
             if not isinstance(item, dict) or "spec" not in item:
                 errors.append({"type": "plugin_path_invalid", "detail": "Canonical item must be a dict with 'spec'", "path": item})
                 continue
             spec = item.get("spec")
             kind = item.get("kind") if isinstance(item.get("kind"), str) else None
+            # Multi-entry support via dict {path|git, entries: [...]}
+            if isinstance(spec, dict) and isinstance(spec.get("entries"), list):
+                base_spec = dict(spec)
+                entries = [e for e in spec.get("entries") if isinstance(e, str)]
+                loader = self._find_loader(spec)
+                if loader is None:
+                    errors.append({"type": "plugin_path_invalid", "detail": "No loader supports base spec for entries", "path": base_spec})
+                    continue
+                # Prepare once
+                prepare_fn = getattr(loader, "prepare", None)
+                if callable(prepare_fn):
+                    _prep_path, prep_err = prepare_fn(spec, cache_dir=self.cache_dir, policy=self.policy)
+                    if prep_err:
+                        errors.append(prep_err)
+                        continue
+                # Import each entry class
+                for entry in entries:
+                    cls, err = _import_dotted(entry)
+                    if err is not None or cls is None:
+                        errors.append(err or {"type": "plugin_import_error", "detail": "unknown", "path": entry})
+                        continue
+                    assigned_kind = kind or _auto_kind(cls)
+                    if assigned_kind == "application":
+                        app_classes.append(cls)
+                    elif assigned_kind in core_kinds:
+                        core_kinds[assigned_kind].append(cls)
+                    else:
+                        core_kinds["features"].append(cls)
+                continue
+
+            # Module-only entry: e.g. "path:...::dev_plugins" or dict with entry module
+            module_name: Optional[str] = None
+            if isinstance(spec, str) and spec.startswith("path:") and "::" in spec:
+                _left, _, entry = spec.partition("::")
+                if entry and "." not in entry:
+                    module_name = entry
+                    base_spec = {"path": spec.split(":", 1)[1], "entry": entry}
+                else:
+                    module_name = None
+            elif isinstance(spec, str) and spec.startswith("git+") and "::" in spec:
+                _left, _, entry = spec.partition("::")
+                if entry and "." not in entry:
+                    module_name = entry
+                    base_spec = {"git": spec[len("git+") :].split("#")[0], "entry": entry}
+                else:
+                    module_name = None
+            elif isinstance(spec, dict) and isinstance(spec.get("entry"), str):
+                entry_val = str(spec.get("entry"))
+                # Try to import entry as a module; if it succeeds, treat as module-only
+                try:
+                    importlib.import_module(entry_val)
+                    module_name = entry_val
+                    base_spec = spec
+                except Exception:
+                    module_name = None
+            else:
+                module_name = None
+
+            if module_name:
+                loader = self._find_loader(base_spec)
+                if loader is None:
+                    errors.append({"type": "plugin_path_invalid", "detail": "No loader supports module-only spec", "path": base_spec})
+                    continue
+                prepare_fn = getattr(loader, "prepare", None)
+                install_dir: Optional[Path] = None
+                if callable(prepare_fn):
+                    install_dir, prep_err = prepare_fn(base_spec, cache_dir=self.cache_dir, policy=self.policy)
+                    if prep_err:
+                        errors.append(prep_err)
+                        continue
+                # Descriptor support
+                entries_from_descriptor: List[str] = []
+                if install_dir is not None:
+                    desc = install_dir / "agent_plugin.json"
+                    if desc.exists():
+                        try:
+                            desc_data = json.loads(desc.read_text(encoding="utf-8"))
+                            entries_from_descriptor = [e for e in desc_data.get("entries", []) if isinstance(e, str)]
+                            kinds_map = desc_data.get("kinds", {}) if isinstance(desc_data.get("kinds"), dict) else {}
+                        except Exception:
+                            entries_from_descriptor = []
+                            kinds_map = {}
+                    else:
+                        kinds_map = {}
+                else:
+                    kinds_map = {}
+
+                classes: List[type] = []
+                if entries_from_descriptor:
+                    targets = entries_from_descriptor
+                    for entry in targets:
+                        cls, err = _import_dotted(entry)
+                        if err is not None or cls is None:
+                            errors.append(err or {"type": "plugin_import_error", "detail": "unknown", "path": entry})
+                            continue
+                        classes.append(cls)
+                        assigned_kind = kinds_map.get(entry) or kind or _auto_kind(cls)
+                        if assigned_kind == "application":
+                            app_classes.append(cls)
+                        elif assigned_kind in core_kinds:
+                            core_kinds[assigned_kind].append(cls)
+                        else:
+                            core_kinds["features"].append(cls)
+                else:
+                    # Auto-discover classes from module
+                    for cls in _discover_module(module_name):
+                        assigned_kind = kind or _auto_kind(cls)
+                        if assigned_kind == "application":
+                            app_classes.append(cls)
+                        elif assigned_kind in core_kinds:
+                            core_kinds[assigned_kind].append(cls)
+                        else:
+                            core_kinds["features"].append(cls)
+                continue
+
+            # Default single-class path
             result = self.load_one(spec, kind=kind)
             if result.error is not None or result.cls is None:
                 err = dict(result.error or {})
@@ -212,7 +408,6 @@ class PluginManager:
             elif assigned_kind in core_kinds:
                 core_kinds[assigned_kind].append(cls)
             else:
-                # Fallback to features
                 core_kinds["features"].append(cls)
 
         return core_kinds, app_classes, errors
@@ -268,7 +463,10 @@ class GitInstallerSource:
             s = raw_spec.strip()
             return s.startswith("git+") and "::" in s
         if isinstance(raw_spec, dict):
-            return isinstance(raw_spec.get("git"), str) and isinstance(raw_spec.get("entry"), str)
+            has_git = isinstance(raw_spec.get("git"), str)
+            has_entry = isinstance(raw_spec.get("entry"), str)
+            has_entries = isinstance(raw_spec.get("entries"), list)
+            return has_git and (has_entry or has_entries)
         return False
 
     def _parse_string(self, spec: str) -> Tuple[str, Optional[str], str]:
@@ -301,6 +499,75 @@ class GitInstallerSource:
     def _pip_install(self, target: Path, src: Path, extra_args: List[str]) -> None:
         cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "--target", str(target), str(src), *extra_args]
         subprocess.check_call(cmd)
+
+    def prepare(self, raw_spec: Any, *, cache_dir: Path, policy: Mapping[str, Any]) -> Tuple[Optional[Path], Optional[Dict[str, Any]]]:
+        """Clone/install the repo into cache (if not present) and make it importable (sys.path append)."""
+        pip_args: List[str] = list(policy.get("pip_args") or [])
+        allow_remote = bool(policy.get("allow_remote", True))
+        if isinstance(raw_spec, str):
+            url, ref, entry = self._parse_string(raw_spec)
+        elif isinstance(raw_spec, dict):
+            url = str(raw_spec.get("git"))
+            ref = raw_spec.get("ref")
+            entry = str(raw_spec.get("entry", ""))
+        else:
+            return None, {"type": "plugin_path_invalid", "detail": "GitInstallerSource requires string 'git+...::...' or dict with 'git'", "path": raw_spec}
+        is_remote = url.startswith("http://") or url.startswith("https://") or url.startswith("ssh://") or "@" in url
+        if is_remote and not allow_remote:
+            return None, {"type": "plugin_install_error", "detail": "Remote git URLs are disabled by policy", "path": url}
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        src_root = cache_dir / "src"
+        src_root.mkdir(parents=True, exist_ok=True)
+        tmp_clone = Path(tempfile.mkdtemp(prefix="plugin_clone_", dir=str(src_root)))
+        try:
+            try:
+                self._git("clone", url, str(tmp_clone))
+            except Exception as exc:
+                return None, {"type": "plugin_install_error", "detail": f"git clone failed: {exc}", "path": url}
+            if ref:
+                try:
+                    self._git("-C", str(tmp_clone), "checkout", str(ref))
+                except Exception as exc:
+                    return None, {"type": "plugin_install_error", "detail": f"git checkout {ref} failed: {exc}", "path": url}
+            try:
+                commit = self._git_output("-C", str(tmp_clone), "rev-parse", "HEAD")
+            except Exception:
+                commit = "unknown"
+            safe_id = self._safe_id(url, raw_spec.get("id") if isinstance(raw_spec, dict) else None)  # type: ignore[arg-type]
+            final_dir = cache_dir / f"{safe_id}@{commit}"
+            if final_dir.exists():
+                install_dir = final_dir
+            else:
+                temp_dir = cache_dir / f".{safe_id}@{commit}.tmp"
+                if temp_dir.exists():
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                temp_dir.mkdir(parents=True, exist_ok=True)
+                try:
+                    subdir = raw_spec.get("subdirectory") if isinstance(raw_spec, dict) else None
+                    src_path = tmp_clone / subdir if subdir else tmp_clone
+                    self._pip_install(temp_dir, src_path, pip_args)
+                    meta = {
+                        "git": url,
+                        "ref": ref,
+                        "commit": commit,
+                        "installed_at": datetime.utcnow().isoformat() + "Z",
+                        "id": safe_id,
+                    }
+                    (temp_dir / "plugin_metadata.json").write_text(json.dumps(meta), encoding="utf-8")
+                    temp_dir.replace(final_dir)
+                    install_dir = final_dir
+                except Exception as exc:
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                    return None, {"type": "plugin_install_error", "detail": f"pip install failed: {exc}", "path": url}
+            sdir = str(install_dir)
+            if sdir not in sys.path:
+                sys.path.append(sdir)
+            return install_dir, None
+        finally:
+            try:
+                shutil.rmtree(tmp_clone, ignore_errors=True)
+            except Exception:
+                pass
 
     def load(self, raw_spec: Any, *, cache_dir: Path, policy: Mapping[str, Any]) -> PluginLoadResult:  # type: ignore[override]
         pip_args: List[str] = list(policy.get("pip_args") or [])
