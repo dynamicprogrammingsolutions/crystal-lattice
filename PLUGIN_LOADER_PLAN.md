@@ -126,10 +126,16 @@ Class: PluginManager
   - If result.cls is present, call core.validate_plugin_for_kind(cls, kind) if kind provided
     and return PluginLoadResult (error populated on mismatch).
 
-- load_plugins_config(self, plugin_config: Mapping[str, Any]) -> Tuple[Dict[str, List[type]], List[Dict[str,Any]]]
-  - Iterate over configured plugin kinds (providers, features, tools, extensions)
-    and call load_one for each raw spec. Collect classes and errors in the
-    same shape as existing `config.load_plugins` (so application_future can reuse logic).
+ - normalize_plugins(self, plugins_raw: Any) -> List[Dict[str, Any]]
+  - NEW helper (optional for applications): rewrites input configuration into a canonical list
+    `[{ "spec": <string|object>, "kind": <"providers"|"extensions"|"features"|"tools"|"application"|null> }, ...]`.
+  - Accept mapping form (rewrite with known kind), flat list form (wrap with `kind=None`), or canonical items.
+  - Short canonical entries (plain strings/objects) are treated as `{ "spec": value, "kind": null }`.
+
+ - load_plugins(self, canonical_items: Iterable[Dict[str, Any]]) -> Tuple[Dict[str, List[type]], List[type], List[Dict[str,Any]]]
+  - NEW main method. Expects the canonical list described above. For each item, loads classes from `spec` via loaders.
+  - If an item includes `kind`, enforce via `validate_plugin_for_kind`; otherwise auto-detect.
+  - Returns `(core_kinds, application_classes, errors)`.
 
 - prefetch_all(self) -> List[Dict[str,Any]]
   - Trigger installs for every configured plugin (used when install_on_startup True).
@@ -183,7 +189,16 @@ Config keys (application-level)
   "editable_local_installs": false
 }
 ```
-  - `plugins`: section unchanged but allowed plugin spec forms expanded (see below)
+  - `plugins` (auto-detected by default):
+    - Mapping form (backwards compatible): `{ "providers": [...], "features": [...], "tools": [...], "extensions": [...] }`.
+    - NEW flat list form: `plugins: [ <spec>, <spec>, ... ]` — kinds are auto-detected (including application plugins).
+      In this mode, application plugins may be listed together with core plugins; the manager returns them separately
+      so the app can register appropriately.
+  - `application_plugins` (back-compat): still accepted; when `plugins` is a flat list containing application plugins,
+    this separate key can be omitted.
+  - Canonical form (advanced/explicit; input to `load_plugins`): `plugins: [ { "spec": <string|object>, "kind": <string|null> }, ... ]`.
+    - The application is responsible for parsing raw config into this canonical list (optionally using `normalize_plugins`).
+    - When `kind` is provided for an item, validation is enforced for that item. Plain strings/objects are equivalent to canonical items with `kind=null`.
 
 Plugin spec formats supported (recommended)
 - Dotted path (backwards compatible):
@@ -209,6 +224,27 @@ Plugin spec formats supported (recommended)
   "id": "myplugin"
 }
 ```
+
+- Multiple classes and module-only entries (NEW):
+  - `entry` may be a module without class (e.g., `"mypkg.plugins"`); the loader imports the module
+    and auto-discovers all plugin classes by duck-typing.
+  - Dict form may include `entries` as a list of dotted class strings to import multiple classes.
+
+```json
+{
+  "git": "https://github.com/org/myplugin.git",
+  "ref": "v1.2.3",
+  "entry": "mypkg.plugins",
+  "entries": ["mypkg.a.ProviderA", "mypkg.b.FeatureB"],
+  "id": "myplugin"
+}
+```
+
+- Optional plugin descriptor (NEW):
+  - Repos may include `agent_plugin.json` (or `.yaml`) with an `entries` array of dotted classes and
+    optional metadata. When a spec omits class entries (e.g., provides only repo/module), the loader
+    will attempt to read this descriptor to load multiple classes. If the user config points to a single
+    class directly, the descriptor is skipped (it may still be read for metadata only).
 
 Error types (standardized)
 - `plugin_path_invalid` — malformed spec or missing required fields
@@ -236,7 +272,11 @@ Install lifecycle & startup sequence (application)
 1. Read raw config and resolve placeholders (application is responsible for resolving env and file placeholders).
 2. Extract `plugin_cache_dir` and `plugin_policy` and instantiate `PluginManager(loaders=..., cache_dir=Path(plugin_cache_dir), policy=plugin_policy)`.
 3. If `policy["install_on_startup"]` is True (per your choice), call `manager.prefetch_all()`; collect errors and populate `application._config_errors`.
-4. After prefetch completes, create the core (AgentCore) and register plugin classes returned by `manager.load_plugins_config(...)`.
+4. Build a canonical plugins list and register via a unified path:
+   - Convert raw `plugins` config (mapping or flat list) to canonical items (either within your app config code or by
+     calling `manager.normalize_plugins(plugins_raw)`).
+   - Call `manager.load_plugins(canonical_items)`; the manager enforces `kind` when provided and auto-detects otherwise.
+   - Register returned `core_kinds` on `AgentCore` and wrap `application_classes` with `ApplicationPluginWrapper`.
 
 Concurrency / atomic install notes
 - To avoid race conditions, install into a temporary target directory and rename/move atomically into the final `<safe_id>@<commit>` directory when install succeeds.
@@ -265,7 +305,7 @@ Test notes by your choice (#16)
 - Do not mock git/pip. The GitInstallerSource invocation layer (the code that calls subprocess) is not unit-tested; instead rely on integration tests to validate full install flow.
 
 Implementation stages (concrete tasks)
------------------------------------
+--------------------------------------
 Stage 0 — Design & plan
 - (this file) PLUGIN_LOADER_PLAN.md (done)
 
@@ -278,7 +318,9 @@ Stage 1 — Core: interfaces & lightweight loader (low risk)
 
 Stage 2 — Application: PluginManager and LocalPathSource
 - Add `core/python/agent_app/plugin_manager.py` implementing `PluginManager` and `LocalPathSource`.
-- Wire `agent_app/config.py` and `application_future.py` to call into `PluginManager` to load plugins, but DO NOT change registration semantics: the app should still register plugin classes with `AgentCore` as before.
+- Wire `agent_app/config.py` and `application_future.py` to call into `PluginManager` to load plugins.
+  - NEW: implement canonicalization helper `normalize_plugins` and the unified `load_plugins(canonical_items)` (expects canonical list only).
+    Ensure multiple entries for the same plugin (same repo) are handled: cache install once; import multiple classes; maintain first-wins policy for duplicate ids while allowing distinct classes to load.
 - Add unit tests for pure computation helpers (safe_id generation etc.).
 
 Stage 3 — Application: GitInstallerSource (integration)
@@ -286,6 +328,7 @@ Stage 3 — Application: GitInstallerSource (integration)
 - Implement caching and atomic install semantics.
 - Implement metadata file writing (`plugin_metadata.json`).
 - Implement `prefetch_all()` integration path (called during app startup before core init).
+- NEW: implement module-only `entry` and multi-class loading (`entries` list / module discovery). If descriptor `agent_plugin.json` exists, use it to populate multiple classes when explicit entries are not provided.
 - Add integration tests as described above; mark them `integration` and ensure CI configuration can run them when requested.
 
 Stage 4 — Migration & cleanup
@@ -301,7 +344,9 @@ Stage 5 — Ops & extras (optional)
 Backwards compatibility & migration notes
 - Existing dotted-path plugin specs remain supported unchanged.
 - Add support for the new `git+...::entry` forms and dict form for richer workflows.
-- Because `discover_and_register` is removed from core, any usage relying on module scanning must be updated to provide explicit plugin specs in configuration or use the `LocalPathSource` with clear module entry strings.
+- When `discover_and_register` is removed from core, use the unified `load_plugins` path: supply the canonical list
+  (the application should convert mapping/flat-list config to canonical first). The manager handles discovery and
+  categorization (module-only entries allowed).
 
 Open issues (recommendations applied)
 - The manager will not attempt to read/resolve environment variables. The application must resolve placeholders and pass resolved parameter values (cache_dir and policy) into the manager API.
