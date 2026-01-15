@@ -77,11 +77,12 @@ def test_git_installer_installs_and_imports(tmp_path: Path) -> None:
     spec = f"git+{repo}::{entry}"
     mgr = PluginManager(cache_dir=cache_dir)
 
-    # Load via plugins config path (providers list)
-    sections, errors = mgr.load_plugins_config({"providers": [spec]})
+    # Load via canonicalized config
+    canonical = mgr.normalize_plugins({"providers": [spec]})
+    core_kinds, app_classes, errors = mgr.load_plugins(canonical)
     assert errors == []
-    assert len(sections["providers"]) == 1
-    cls = sections["providers"][0]
+    assert len(core_kinds["providers"]) == 1
+    cls = core_kinds["providers"][0]
     assert getattr(cls, "__name__", "") == "GitDevProvider"
 
     # Verify cache directory exists and metadata recorded

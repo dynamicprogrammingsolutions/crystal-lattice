@@ -57,8 +57,9 @@ def test_manager_loads_mixed_dotted_and_localpath(tmp_path: Path) -> None:
     mgr = PluginManager(cache_dir=tmp_path, loaders=[DottedPathSource(), LocalPathSource()])
 
     plugins_cfg: Dict[str, Any] = {"providers": [spec_local, spec_dotted], "features": [], "tools": [], "extensions": []}
-    sections, errors = mgr.load_plugins_config(plugins_cfg)
+    canonical = mgr.normalize_plugins(plugins_cfg)
+    core_kinds, app_classes, errors = mgr.load_plugins(canonical)
     assert errors == []
-    assert len(sections["providers"]) == 2
-    names = [cls.__name__ for cls in sections["providers"]]
+    assert len(core_kinds["providers"]) == 2
+    names = [cls.__name__ for cls in core_kinds["providers"]]
     assert set(names) == {"DevProvider", "OpenAICompatibleProvider"}

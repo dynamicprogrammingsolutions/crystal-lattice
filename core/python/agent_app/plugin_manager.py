@@ -135,39 +135,87 @@ class PluginManager:
             "path": raw_spec,
         })
 
-    # ------------------------ config integrations ------------------------
-    def load_plugins_config(self, plugin_config: Mapping[str, Any]) -> Tuple[Dict[str, List[type]], List[Dict[str, Any]]]:
-        sections: Dict[str, List[type]] = {"providers": [], "features": [], "tools": [], "extensions": []}
-        errors: List[Dict[str, Any]] = []
-        if not plugin_config:
-            return sections, errors
+    # ------------------------ canonicalization helper --------------------
+    def normalize_plugins(self, plugins_raw: Any) -> List[Dict[str, Any]]:
+        """Rewrite raw config into canonical list items: [{"spec": ..., "kind": kind_or_none}, ...].
 
-        for kind in sections.keys():
-            entries = plugin_config.get(kind) or []
-            for raw in entries:
-                result = self.load_one(raw, kind=kind)
-                if result.error is not None or result.cls is None:
-                    err = dict(result.error or {})
-                    err.setdefault("kind", kind)
-                    err.setdefault("path", raw)
-                    errors.append(err)
-                    continue
-                sections[kind].append(result.cls)
-        return sections, errors
+        Accepts mapping form with keys for kinds, flat list, or canonical items. Plain strings/objects
+        inside a list are wrapped as short canonical entries with kind=None.
+        """
 
-    def load_application_plugins(self, plugin_paths: Iterable[Any]) -> Tuple[List[type], List[Dict[str, Any]]]:
-        classes: List[type] = []
+        canonical: List[Dict[str, Any]] = []
+        if plugins_raw is None:
+            return canonical
+        # Mapping form with per-kind arrays
+        if isinstance(plugins_raw, dict):
+            for kind in ("providers", "features", "tools", "extensions"):
+                entries = plugins_raw.get(kind) or []
+                if isinstance(entries, list):
+                    for entry in entries:
+                        canonical.append({"spec": entry, "kind": kind})
+            # Also accept application plugins under mapping for convenience
+            entries = plugins_raw.get("application") or plugins_raw.get("application_plugins") or []
+            if isinstance(entries, list):
+                for entry in entries:
+                    canonical.append({"spec": entry, "kind": "application"})
+            # If mapping had no known keys, treat as a single spec mapping
+            if not canonical and plugins_raw:
+                canonical.append({"spec": plugins_raw, "kind": None})
+            return canonical
+
+        # Flat list form
+        if isinstance(plugins_raw, list):
+            for item in plugins_raw:
+                if isinstance(item, dict) and "spec" in item:
+                    spec = item.get("spec")
+                    kind = item.get("kind") if isinstance(item.get("kind"), str) else None
+                    canonical.append({"spec": spec, "kind": kind})
+                else:
+                    canonical.append({"spec": item, "kind": None})
+            return canonical
+
+        # Single value
+        canonical.append({"spec": plugins_raw, "kind": None})
+        return canonical
+
+    # ------------------------ canonical loader ---------------------------
+    def load_plugins(self, canonical_items: Iterable[Dict[str, Any]]) -> Tuple[Dict[str, List[type]], List[type], List[Dict[str, Any]]]:
+        core_kinds: Dict[str, List[type]] = {"providers": [], "features": [], "tools": [], "extensions": []}
+        app_classes: List[type] = []
         errors: List[Dict[str, Any]] = []
-        for raw in plugin_paths or []:
-            result = self.load_one(raw, kind="application")
+
+        def _auto_kind(cls: type) -> str:
+            # Try in the same order used by core's deduction logic
+            for k in ("providers", "tools", "extensions", "application", "features"):
+                if validate_plugin_for_kind(cls, k) is None:
+                    return k
+            return "features"
+
+        for item in list(canonical_items or []):
+            if not isinstance(item, dict) or "spec" not in item:
+                errors.append({"type": "plugin_path_invalid", "detail": "Canonical item must be a dict with 'spec'", "path": item})
+                continue
+            spec = item.get("spec")
+            kind = item.get("kind") if isinstance(item.get("kind"), str) else None
+            result = self.load_one(spec, kind=kind)
             if result.error is not None or result.cls is None:
                 err = dict(result.error or {})
-                err.setdefault("kind", "application")
-                err.setdefault("path", raw)
+                if kind:
+                    err.setdefault("kind", kind)
+                err.setdefault("path", spec)
                 errors.append(err)
                 continue
-            classes.append(result.cls)
-        return classes, errors
+            cls = result.cls
+            assigned_kind = kind or _auto_kind(cls)
+            if assigned_kind == "application":
+                app_classes.append(cls)
+            elif assigned_kind in core_kinds:
+                core_kinds[assigned_kind].append(cls)
+            else:
+                # Fallback to features
+                core_kinds["features"].append(cls)
+
+        return core_kinds, app_classes, errors
 
     # ------------------------------ lifecycle ----------------------------
     def prefetch_all(
@@ -181,12 +229,14 @@ class PluginManager:
         """
 
         errors: List[Dict[str, Any]] = []
+        canonical = []
         if plugin_config:
-            _sections, errs = self.load_plugins_config(plugin_config)
-            errors.extend(errs)
+            canonical.extend(self.normalize_plugins(plugin_config))
         if application_plugins:
-            _classes, errs = self.load_application_plugins(application_plugins)
-            errors.extend(errs)
+            for raw in application_plugins:
+                canonical.append({"spec": raw, "kind": "application"})
+        _core, _apps, errs = self.load_plugins(canonical)
+        errors.extend(errs)
         return errors
 
     # Stubs for future cache management (implemented with GitInstallerSource)

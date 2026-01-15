@@ -80,9 +80,19 @@ class AgentApplication:
         plugin_policy = resolved_config.get("plugin_policy") or {}
         if isinstance(plugin_cache_dir, str) and plugin_cache_dir:
             mgr = PluginManager(cache_dir=Path(plugin_cache_dir), policy=plugin_policy)
-            plugin_classes, plugin_errors = mgr.load_plugins_config(plugins_cfg)
+            canonical_core = mgr.normalize_plugins(plugins_cfg)
+            raw_app_plugins = resolved_config.get("application_plugins") or []
+            canonical_all = list(canonical_core)
+            for raw in raw_app_plugins:
+                canonical_all.append({"spec": raw, "kind": "application"})
+            core_kinds, app_plugin_classes, plugin_errors = mgr.load_plugins(canonical_all)
+            plugin_classes = core_kinds
+            app_plugin_errors: List[Dict[str, Any]] = []
         else:
             plugin_classes, plugin_errors = load_plugins(plugins_cfg)
+            raw_app_plugins = resolved_config.get("application_plugins") or []
+            app_plugin_classes, app_plugin_errors = load_application_plugins(raw_app_plugins)
+
         self._plugin_classes: Dict[str, List[type[Any]]] = plugin_classes
         self._config_errors.extend(plugin_errors)
 
@@ -111,12 +121,7 @@ class AgentApplication:
         # Application-level plugins are configured separately from core
         # provider/feature/tool plugins. They operate on the
         # :class:`AgentApplication` level (sessions, storage, actions).
-        raw_app_plugins = resolved_config.get("application_plugins") or []
-        if isinstance(plugin_cache_dir, str) and plugin_cache_dir:
-            mgr = PluginManager(cache_dir=Path(plugin_cache_dir), policy=plugin_policy)
-            app_plugin_classes, app_plugin_errors = mgr.load_application_plugins(raw_app_plugins)
-        else:
-            app_plugin_classes, app_plugin_errors = load_application_plugins(raw_app_plugins)
+        # app_plugin_classes and app_plugin_errors set above in both branches
         self._app_plugin_classes: List[type[Any]] = app_plugin_classes
         self._config_errors.extend(app_plugin_errors)
 
