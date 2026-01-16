@@ -20,6 +20,7 @@ import tempfile
 from datetime import datetime
 import pkgutil
 import inspect
+import importlib.resources as ilr
 
 from agent_core.plugin.loader import (
     DottedPathSource,
@@ -260,7 +261,17 @@ class PluginManager:
                         continue
             for m in modules_to_scan:
                 for _, obj in inspect.getmembers(m, inspect.isclass):
-                    out.append(obj)
+                    # Only keep classes defined in this module (avoid imported bases)
+                    if getattr(obj, "__module__", None) != m.__name__:
+                        continue
+                    # Only keep classes that clearly look like plugin implementations
+                    k = None
+                    for candidate in ("providers", "tools", "extensions", "application"):
+                        if validate_plugin_for_kind(obj, candidate) is None:
+                            k = candidate
+                            break
+                    if k is not None:
+                        out.append(obj)
             # Deduplicate while preserving order
             seen = set()
             deduped: List[type] = []
@@ -307,35 +318,43 @@ class PluginManager:
                         core_kinds["features"].append(cls)
                 continue
 
-            # Module-only entry: e.g. "path:...::dev_plugins" or dict with entry module
+            # Module-only entry: strings (path/git) or dict with entry module
             module_name: Optional[str] = None
-            if isinstance(spec, str) and spec.startswith("path:") and "::" in spec:
-                _left, _, entry = spec.partition("::")
-                if entry and "." not in entry:
-                    module_name = entry
-                    base_spec = {"path": spec.split(":", 1)[1], "entry": entry}
+            base_spec: Optional[Dict[str, Any]] = None
+            if isinstance(spec, str) and "::" in spec and (spec.startswith("path:") or spec.startswith("git+")):
+                left, _, entry = spec.partition("::")
+                # Build a base spec and prepare before import attempt
+                if spec.startswith("path:"):
+                    base_spec = {"path": left.split(":", 1)[1], "entry": entry}
                 else:
-                    module_name = None
-            elif isinstance(spec, str) and spec.startswith("git+") and "::" in spec:
-                _left, _, entry = spec.partition("::")
-                if entry and "." not in entry:
-                    module_name = entry
-                    base_spec = {"git": spec[len("git+") :].split("#")[0], "entry": entry}
-                else:
-                    module_name = None
+                    base_spec = {"git": left[len("git+") :].split("#")[0], "entry": entry}
+                loader = self._find_loader(base_spec)
+                if loader is not None:
+                    prepare_fn = getattr(loader, "prepare", None)
+                    if callable(prepare_fn):
+                        _p, prep_err = prepare_fn(base_spec, cache_dir=self.cache_dir, policy=self.policy)
+                        if prep_err is None:
+                            try:
+                                importlib.import_module(entry)
+                                module_name = entry
+                            except Exception:
+                                module_name = None
             elif isinstance(spec, dict) and isinstance(spec.get("entry"), str):
                 entry_val = str(spec.get("entry"))
-                # Try to import entry as a module; if it succeeds, treat as module-only
-                try:
-                    importlib.import_module(entry_val)
-                    module_name = entry_val
-                    base_spec = spec
-                except Exception:
-                    module_name = None
-            else:
-                module_name = None
+                loader = self._find_loader(spec)
+                if loader is not None:
+                    prepare_fn = getattr(loader, "prepare", None)
+                    if callable(prepare_fn):
+                        _p, prep_err = prepare_fn(spec, cache_dir=self.cache_dir, policy=self.policy)
+                        if prep_err is None:
+                            try:
+                                importlib.import_module(entry_val)
+                                module_name = entry_val
+                                base_spec = spec
+                            except Exception:
+                                module_name = None
 
-            if module_name:
+            if module_name and base_spec:
                 loader = self._find_loader(base_spec)
                 if loader is None:
                     errors.append({"type": "plugin_path_invalid", "detail": "No loader supports module-only spec", "path": base_spec})
@@ -350,17 +369,31 @@ class PluginManager:
                 # Descriptor support
                 entries_from_descriptor: List[str] = []
                 if install_dir is not None:
-                    desc = install_dir / "agent_plugin.json"
-                    if desc.exists():
+                    kinds_map: Dict[str, str] = {}
+                    # Prefer descriptor relative to module package root; fallback to install_dir
+                    try:
+                        mod = importlib.import_module(module_name)
                         try:
-                            desc_data = json.loads(desc.read_text(encoding="utf-8"))
-                            entries_from_descriptor = [e for e in desc_data.get("entries", []) if isinstance(e, str)]
-                            kinds_map = desc_data.get("kinds", {}) if isinstance(desc_data.get("kinds"), dict) else {}
+                            root = ilr.files(mod)
+                            desc_path = root / "agent_plugin.json"
+                            if desc_path.is_file():
+                                desc_data = json.loads(desc_path.read_text(encoding="utf-8"))
+                                entries_from_descriptor = [e for e in desc_data.get("entries", []) if isinstance(e, str)]
+                                kinds_map = desc_data.get("kinds", {}) if isinstance(desc_data.get("kinds"), dict) else {}
                         except Exception:
-                            entries_from_descriptor = []
-                            kinds_map = {}
-                    else:
-                        kinds_map = {}
+                            pass
+                    except Exception:
+                        pass
+                    if not entries_from_descriptor:
+                        desc = install_dir / "agent_plugin.json"
+                        if desc.exists():
+                            try:
+                                desc_data = json.loads(desc.read_text(encoding="utf-8"))
+                                entries_from_descriptor = [e for e in desc_data.get("entries", []) if isinstance(e, str)]
+                                kinds_map = desc_data.get("kinds", {}) if isinstance(desc_data.get("kinds"), dict) else {}
+                            except Exception:
+                                entries_from_descriptor = []
+                                kinds_map = {}
                 else:
                     kinds_map = {}
 
@@ -381,15 +414,22 @@ class PluginManager:
                         else:
                             core_kinds["features"].append(cls)
                 else:
-                    # Auto-discover classes from module
-                    for cls in _discover_module(module_name):
-                        assigned_kind = kind or _auto_kind(cls)
-                        if assigned_kind == "application":
-                            app_classes.append(cls)
-                        elif assigned_kind in core_kinds:
-                            core_kinds[assigned_kind].append(cls)
-                        else:
-                            core_kinds["features"].append(cls)
+                    # Auto-discover classes from module (providers/tools/extensions/application only)
+                    discovered = _discover_module(module_name)
+                    if not discovered:
+                        # If nothing discovered, fall back to default single-class path handling below
+                        pass
+                    else:
+                        for cls in discovered:
+                            assigned_kind = kind or _auto_kind(cls)
+                            if assigned_kind == "application":
+                                app_classes.append(cls)
+                            elif assigned_kind in core_kinds:
+                                core_kinds[assigned_kind].append(cls)
+                            else:
+                                # Skip non-plugin classes rather than forcing 'features'
+                                continue
+                        continue
                 continue
 
             # Default single-class path
@@ -503,7 +543,7 @@ class GitInstallerSource:
     def prepare(self, raw_spec: Any, *, cache_dir: Path, policy: Mapping[str, Any]) -> Tuple[Optional[Path], Optional[Dict[str, Any]]]:
         """Clone/install the repo into cache (if not present) and make it importable (sys.path append)."""
         pip_args: List[str] = list(policy.get("pip_args") or [])
-        allow_remote = bool(policy.get("allow_remote", True))
+        allow_remote = bool(policy.get("allow_remote", False))
         if isinstance(raw_spec, str):
             url, ref, entry = self._parse_string(raw_spec)
         elif isinstance(raw_spec, dict):
@@ -571,7 +611,7 @@ class GitInstallerSource:
 
     def load(self, raw_spec: Any, *, cache_dir: Path, policy: Mapping[str, Any]) -> PluginLoadResult:  # type: ignore[override]
         pip_args: List[str] = list(policy.get("pip_args") or [])
-        allow_remote = bool(policy.get("allow_remote", True))
+        allow_remote = bool(policy.get("allow_remote", False))
 
         if isinstance(raw_spec, str):
             url, ref, entry = self._parse_string(raw_spec)
