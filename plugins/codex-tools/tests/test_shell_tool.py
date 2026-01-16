@@ -1,8 +1,7 @@
 """Unit tests for ShellTool plugin."""
 
 from agent_core.plugin import ToolWrapper
-from plugins.shell_tool import ShellTool
-
+from codex_tools.shell_tool import ShellTool
 
 def test_shell_tool_runs_basic_command(tmp_path):
     wrapper = ToolWrapper(ShellTool)

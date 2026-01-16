@@ -1,0 +1,10 @@
+{
+  "entries": [
+    "codex_tools.shell_tool.ShellTool",
+    "codex_tools.apply_patch_tool.ApplyPatchTool"
+  ],
+  "kinds": {
+    "codex_tools.shell_tool.ShellTool": "tools",
+    "codex_tools.apply_patch_tool.ApplyPatchTool": "tools"
+  }
+}

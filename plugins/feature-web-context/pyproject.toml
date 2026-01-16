@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "feature-web-context"
+version = "0.1.0"
+description = "Web context feature plugin (supports @web: URL expansion and completions)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "trafilatura>=1.6.0"
+]
+
+
+[tool.setuptools]
+packages = ["feature_web_context"]
+
+
+[tool.setuptools.package-data]
+feature_web_context = ["agent_plugin.json"]

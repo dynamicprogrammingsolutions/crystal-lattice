@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from importlib import import_module
 from textwrap import dedent
 
 from agent_core.plugin import ToolWrapper
 
-ApplyPatchTool = import_module("plugins.apply_patch_tool").ApplyPatchTool
+from codex_tools.apply_patch_tool import ApplyPatchTool
 
 
 def _build_wrapper(tmp_path):

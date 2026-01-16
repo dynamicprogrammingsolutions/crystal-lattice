@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from plugins.openrouter_provider import OpenRouterProvider
+from openrouter_plugins.openrouter_provider import OpenRouterProvider
 
 
 def test_provider_name_and_version():

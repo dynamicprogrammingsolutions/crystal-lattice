@@ -12,7 +12,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from plugins.openrouter_tools_extension import OpenRouterToolsExtension as Ext  # noqa: E402
+from openrouter_plugins.openrouter_tools_extension import OpenRouterToolsExtension as Ext  # noqa: E402
 
 
 def test_extension_metadata():

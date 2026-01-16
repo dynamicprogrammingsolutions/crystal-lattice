@@ -1,0 +1,8 @@
+{
+  "entries": [
+    "feature_system_message.system_message_feature.SystemMessageFeature"
+  ],
+  "kinds": {
+    "feature_system_message.system_message_feature.SystemMessageFeature": "features"
+  }
+}

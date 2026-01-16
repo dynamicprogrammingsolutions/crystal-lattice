@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Tuple
 
 import pytest
 
-from plugins.file_context_feature import FileContextFeature
+from feature_file_context.file_context_feature import FileContextFeature
 
 
 def _run_initialize(
