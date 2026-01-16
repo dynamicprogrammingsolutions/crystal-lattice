@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "feature-file-context"
+version = "0.1.0"
+description = "File context feature plugin (supports @file: markers and completions)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "GitPython>=3.1.0"
+]
+
+
+[tool.setuptools]
+packages = ["feature_file_context"]
+
+
+[tool.setuptools.package-data]
+feature_file_context = ["agent_plugin.json"]

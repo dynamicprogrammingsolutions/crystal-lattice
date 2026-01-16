@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from agent_core import AgentCore, Session, Message
-from plugins.openrouter_provider import OpenRouterProvider
-from plugins.openrouter_reasoning_extension import OpenRouterReasoningExtension
+from openrouter_plugins.openrouter_provider import OpenRouterProvider
+from openrouter_plugins.openrouter_reasoning_extension import OpenRouterReasoningExtension
 
 
 
@@ -570,7 +570,7 @@ def test_reasoning_details_round_trip_non_streaming(monkeypatch):
             }
         return _DummyResponse(response_obj)
 
-    monkeypatch.setattr("plugins.openrouter_provider.requests.post", fake_post)
+    monkeypatch.setattr("openrouter_plugins.openrouter_provider.requests.post", fake_post)
 
     core = AgentCore()
     core.register_provider(OpenRouterProvider, extensions=[OpenRouterReasoningExtension])

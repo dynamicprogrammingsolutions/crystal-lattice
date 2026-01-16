@@ -7,6 +7,7 @@ import uuid
 from contextlib import contextmanager
 from datetime import datetime
 from threading import Lock
+import os
 
 from agent_core import AgentCore, MessageRole, Session
 
@@ -73,15 +74,21 @@ class AgentApplication:
         self._core = core
 
         raw_config = load_raw_config(config_path)
+        config_base_dir = str(Path(config_path).resolve().parent)
         resolved_config, placeholder_errors = resolve_placeholders(raw_config)
         self._config: Dict[str, Any] = resolved_config
         self._config_errors: List[Dict[str, Any]] = placeholder_errors
 
         plugins_cfg = resolved_config.get("plugins") or {}
         plugin_cache_dir = resolved_config.get("plugin_cache_dir")
-        plugin_policy = resolved_config.get("plugin_policy") or {}
+        plugin_policy_in = resolved_config.get("plugin_policy") or {}
+        plugin_policy: Dict[str, Any] = dict(plugin_policy_in) if isinstance(plugin_policy_in, dict) else {}
+        plugin_policy.setdefault("base_dir", config_base_dir)
         if isinstance(plugin_cache_dir, str) and plugin_cache_dir:
-            mgr = PluginManager(cache_dir=Path(plugin_cache_dir), policy=plugin_policy)
+            cache_path = Path(os.path.expanduser(plugin_cache_dir))
+            if not cache_path.is_absolute():
+                cache_path = Path(config_base_dir) / cache_path
+            mgr = PluginManager(cache_dir=cache_path, policy=plugin_policy)
             canonical_core = mgr.normalize_plugins(plugins_cfg)
             if canonical_core:
                 logger.info("plugin_manager_normalized_core", items=canonical_core)

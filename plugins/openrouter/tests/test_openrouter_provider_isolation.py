@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from plugins.openai_provider import OpenAICompatibleProvider
 from plugins.ollama_thinking_extension import OllamaThinkingExtension
-from plugins.openrouter_provider import OpenRouterProvider
-from plugins.openrouter_reasoning_extension import OpenRouterReasoningExtension
+from openrouter_plugins.openrouter_provider import OpenRouterProvider
+from openrouter_plugins.openrouter_reasoning_extension import OpenRouterReasoningExtension
 
 
 def test_openrouter_provider_tags_exclude_ollama_extension():

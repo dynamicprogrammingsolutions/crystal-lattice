@@ -1,4 +1,5 @@
 {
+  "plugin_cache_dir": "~/.crystal/cache/plugins",
   "application": {
     "tool_output_line_limit": 100,
     "tool_output_char_limit": 8000,
@@ -42,23 +43,13 @@
       "system_message": "You are a helpful coding assistant. Respond concisely."
     }
   },
-  "plugins": {
-    "providers": ["plugins.openrouter_provider.OpenRouterProvider"],
-    "extensions": [
-      "plugins.openrouter_reasoning_extension.OpenRouterReasoningExtension",
-      "plugins.openrouter_tools_extension.OpenRouterToolsExtension",
-      "plugins.openrouter_websearch_extension.OpenRouterWebSearchExtension"
-    ],
-    "features": [
-      "plugins.system_message_feature.SystemMessageFeature",
-      "plugins.file_context_feature.FileContextFeature",
-      "plugins.web_context_feature.WebContextFeature"
-    ],
-    "tools": [
-      "plugins.shell_tool.ShellTool",
-      "plugins.apply_patch_tool.ApplyPatchTool"
-    ]
-  },
+  "plugins": [
+    "path:../../../plugins/openrouter::openrouter_plugins",
+    "path:../../../plugins/codex-tools::codex_tools",
+    "path:../../../plugins/feature-system-message::feature_system_message",
+    "path:../../../plugins/feature-file-context::feature_file_context",
+    "path:../../../plugins/feature-web-context::feature_web_context"
+  ],
   "application_plugins": [
     "plugins.session_actions_app.SessionActionsAppPlugin",
     "plugins.summarize_range_app.SummarizeRangeAppPlugin",

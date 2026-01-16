@@ -67,7 +67,11 @@ class LocalPathSource:
             path = str(raw_spec.get("path"))
         else:
             return None, {"type": "plugin_path_invalid", "detail": "LocalPathSource requires string 'path:...::...' or dict with 'path'", "path": raw_spec}
-        base = Path(os.path.expanduser(path)).resolve()
+        base_dir = policy.get("base_dir")
+        base_path = Path(os.path.expanduser(path))
+        if not base_path.is_absolute() and isinstance(base_dir, str) and base_dir:
+            base_path = Path(base_dir) / base_path
+        base = base_path.resolve()
         if not base.exists():
             return None, {"type": "plugin_path_invalid", "detail": f"Local path {str(base)!r} does not exist", "path": path}
         s = str(base)
@@ -89,7 +93,11 @@ class LocalPathSource:
                 "path": raw_spec,
             })
 
-        base = Path(os.path.expanduser(path)).resolve()
+        base_dir = policy.get("base_dir")
+        base_path = Path(os.path.expanduser(path))
+        if not base_path.is_absolute() and isinstance(base_dir, str) and base_dir:
+            base_path = Path(base_dir) / base_path
+        base = base_path.resolve()
         if not base.exists():
             return PluginLoadResult(cls=None, metadata=None, error={
                 "type": "plugin_path_invalid",
@@ -604,6 +612,15 @@ class GitInstallerSource:
             entry = str(raw_spec.get("entry", ""))
         else:
             return None, {"type": "plugin_path_invalid", "detail": "GitInstallerSource requires string 'git+...::...' or dict with 'git'", "path": raw_spec}
+        base_dir = policy.get("base_dir")
+        if not (url.startswith("http://") or url.startswith("https://") or url.startswith("ssh://") or "@" in url):
+            try:
+                url_path = Path(url)
+                if not url_path.is_absolute() and isinstance(base_dir, str) and base_dir:
+                    url = str((Path(base_dir) / url_path).resolve())
+            except Exception:
+                pass
+
         is_remote = url.startswith("http://") or url.startswith("https://") or url.startswith("ssh://") or "@" in url
         if is_remote and not allow_remote:
             return None, {"type": "plugin_install_error", "detail": "Remote git URLs are disabled by policy", "path": url}
@@ -690,6 +707,15 @@ class GitInstallerSource:
                 "detail": "GitInstallerSource requires string 'git+...::module.Class' or dict with 'git' and 'entry'",
                 "path": raw_spec,
             })
+
+        base_dir = policy.get("base_dir")
+        if not (url.startswith("http://") or url.startswith("https://") or url.startswith("ssh://") or "@" in url):
+            try:
+                url_path = Path(url)
+                if not url_path.is_absolute() and isinstance(base_dir, str) and base_dir:
+                    url = str((Path(base_dir) / url_path).resolve())
+            except Exception:
+                pass
 
         # Simple local/remote detection (http/ssh considered remote)
         is_remote = url.startswith("http://") or url.startswith("https://") or url.startswith("ssh://") or "@" in url

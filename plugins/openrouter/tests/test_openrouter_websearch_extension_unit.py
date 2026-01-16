@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from plugins.openrouter_websearch_extension import OpenRouterWebSearchExtension
+from openrouter_plugins.openrouter_websearch_extension import OpenRouterWebSearchExtension
 
 
 def _make_annotation(url: str, title: str | None = None) -> Dict[str, Any]:

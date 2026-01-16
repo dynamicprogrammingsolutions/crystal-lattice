@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Dict, Any, List
 
-from plugins.system_message_feature import SystemMessageFeature
+from feature_system_message.system_message_feature import SystemMessageFeature
 
 
 def _simple_native(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

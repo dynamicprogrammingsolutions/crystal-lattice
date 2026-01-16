@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
-from plugins.web_context_feature import WebContextFeature, _WEB_CACHE, _get_or_fetch_content
+from feature_web_context.web_context_feature import WebContextFeature, _WEB_CACHE, _get_or_fetch_content
 
 
 def _run_initialize(
@@ -73,7 +73,7 @@ def test_web_context_per_request_fetch_cache_resets(monkeypatch) -> None:
         return f"CONTENT({url})"
 
     monkeypatch.setattr(
-        "plugins.web_context_feature._get_or_fetch_content", _fake_get, raising=True
+        "feature_web_context.web_context_feature._get_or_fetch_content", _fake_get, raising=True
     )
 
     native = [{"role": "user", "content": "@web:https://example.com @web:https://example.com"}]
@@ -153,7 +153,7 @@ def test_initialize_request_expands_web_markers(monkeypatch) -> None:
         return f"CONTENT({url})"
 
     monkeypatch.setattr(
-        "plugins.web_context_feature._get_or_fetch_content", _fake_get, raising=True
+        "feature_web_context.web_context_feature._get_or_fetch_content", _fake_get, raising=True
     )
 
     native = [{"role": "user", "content": "Check this: @web:https://example.com"}]
@@ -175,7 +175,7 @@ def test_initialize_request_expands_web_markers_with_space(monkeypatch) -> None:
         return f"CONTENT({url})"
 
     monkeypatch.setattr(
-        "plugins.web_context_feature._get_or_fetch_content", _fake_get, raising=True
+        "feature_web_context.web_context_feature._get_or_fetch_content", _fake_get, raising=True
     )
 
     native = [{"role": "user", "content": "Check this: @web: https://example.com"}]
@@ -197,7 +197,7 @@ def test_web_context_custom_template(monkeypatch) -> None:
         return "BODY"
 
     monkeypatch.setattr(
-        "plugins.web_context_feature._get_or_fetch_content", _fake_get, raising=True
+        "feature_web_context.web_context_feature._get_or_fetch_content", _fake_get, raising=True
     )
 
     # Simulate an accepted completion: apply_completion should wrap the
@@ -227,7 +227,7 @@ def test_web_context_fetch_on_completion_uses_content(monkeypatch) -> None:
         return "BODY"
 
     monkeypatch.setattr(
-        "plugins.web_context_feature._get_or_fetch_content", _fake_get, raising=True
+        "feature_web_context.web_context_feature._get_or_fetch_content", _fake_get, raising=True
     )
 
     config: Dict[str, Any] = {

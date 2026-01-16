@@ -1,0 +1,8 @@
+{
+  "entries": [
+    "feature_file_context.file_context_feature.FileContextFeature"
+  ],
+  "kinds": {
+    "feature_file_context.file_context_feature.FileContextFeature": "features"
+  }
+}
