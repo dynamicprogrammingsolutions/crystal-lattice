@@ -32,6 +32,7 @@ nav:
   - Overview: index.md
   - Guides:
     - Plugin Development: plugins/development.md
+    - Application Configuration: plugins/application-config.md
   - Reference:
     - AgentCore: reference/agent_core/core.md
     - Types & Protocols: reference/agent_core/types.md

@@ -190,6 +190,69 @@ class MyProvider(ProviderPlugin):
 This pattern keeps all accumulation in `state["partial"]` and makes it easy for
 extensions to collaborate by reading and updating the same accumulator.
 
+## Packaging & Layout
+
+- Minimal package layout for a tools package:
+  - `dev_plugins/__init__.py`
+  - `dev_plugins/file_reader_tool.py` (class `FileReaderTool`)
+  - `dev_plugins/file_writer_tool.py` (class `FileWriterTool`)
+  - Optional `agent_plugin.json` in the package root (see below)
+
+- Packaging options
+  - `pyproject.toml` (PEP 517/518) with setuptools, or minimal `setup.py` for local development.
+  - The application installs Git-based plugins using `pip install --target <cache_dir>`; ensure your package is installable.
+
+- Example `setup.py` (minimal):
+```
+from setuptools import setup
+setup(name='dev_plugins', version='0.0.1', packages=['dev_plugins'])
+```
+
+## Descriptor (agent_plugin.json)
+
+When loading a package in module-only mode, the application prefers an optional descriptor to declare explicit entries and kinds. Place `agent_plugin.json` under the importable package root.
+
+- Schema:
+```
+{
+  "entries": ["dev_plugins.file_reader_tool.FileReaderTool", "dev_plugins.file_writer_tool.FileWriterTool"],
+  "kinds": { "dev_plugins.file_reader_tool.FileReaderTool": "tools" }
+}
+```
+
+If `entries` are provided, the loader does not auto-discover additional classes; only listed entries are loaded. If `kinds` are given, they take precedence over auto-kind detection for those entries.
+
+## Wiring Each Plugin Kind
+
+You can wire plugins via dotted paths, local paths, or Git installers. See also `docs/plugins/application-config.md` for the full configuration reference.
+
+- Providers (examples):
+  - Dotted class: `"plugins.openai_provider.OpenAICompatibleProvider"`
+  - Local path: `"path:/abs/or/rel::pkg.provider.MyProvider"`
+  - Git: `"git+https://github.com/acme/ai-providers.git#v1.0.0::acme.provider.MyProvider"`
+
+- Extensions:
+  - Dotted class: `"plugins.openai_tools_extension.OpenAIToolsExtension"`
+  - Config ordering is preserved; extensions run in list order.
+
+- Features:
+  - Dotted class or local path; typically optional enrichments.
+
+- Tools:
+  - Single class: `"path:${env:DEV_PLUGINS_DIR}::dev_plugins.file_reader_tool.FileReaderTool"`
+  - Entries list: `{ "path": "/abs/or/rel", "entries": ["dev_plugins.file_reader_tool.FileReaderTool", "dev_plugins.file_writer_tool.FileWriterTool"] }`
+  - Module-only + descriptor: `{ "git": "https://github.com/acme/dev-plugins.git", "ref": "v1.0.0", "entry": "dev_plugins" }` with `agent_plugin.json` in repo
+
+- Application plugins:
+  - Dotted class or local path/Git entry; listed under the `application` kind.
+
+## Best Practices
+- Keep implementations side-effect-light; use adapter defaults where possible.
+- Treat shared state (provider/extensions/features) as immutable per-turn.
+- For Git distribution:
+  - Prefer pinned refs; remote installs are disabled by default and must be explicitly allowed.
+  - Consider host allowlists and internal repositories.
+
 ## Provider Extension Plugin
 
 Provider extensions run beside the provider on the hot path and the cold path. They do not own separate state; they receive and update the shared provider state.
