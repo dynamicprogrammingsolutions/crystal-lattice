@@ -6,6 +6,7 @@ import json
 import shutil
 
 from agent_app.plugin_manager import PluginManager
+import sys
 
 
 def _fixtures_dir() -> Path:
@@ -145,3 +146,59 @@ def test_git_remote_disallowed_by_default(tmp_path: Path) -> None:
     core_kinds, app_classes, errors = mgr.load_plugins([{"spec": spec, "kind": None}])
     assert errors, "expected error for remote git without allow_remote policy"
     assert any(e.get("type") == "plugin_install_error" for e in errors)
+
+
+def test_localpath_discovery_excludes_non_plugins(tmp_path: Path) -> None:
+    mgr = PluginManager(cache_dir=tmp_path)
+    fixtures = _fixtures_dir()
+    # Ensure path is appended during test
+    spec = {"path": str(fixtures), "entry": "dev_plugins"}
+    core_kinds, app_classes, errors = mgr.load_plugins([{"spec": spec, "kind": None}])
+    assert errors == []
+    # Collect all discovered class names
+    names = set()
+    for kind_list in core_kinds.values():
+        names.update(cls.__name__ for cls in kind_list)
+    assert "NotAPlugin" not in names
+
+
+def test_localpath_sys_path_append_policy(tmp_path: Path) -> None:
+    mgr = PluginManager(cache_dir=tmp_path)
+    fixtures = _fixtures_dir()
+    p = str(fixtures)
+    # Remove if present for deterministic assertion
+    try:
+        while p in sys.path:
+            sys.path.remove(p)
+    except ValueError:
+        pass
+    before = list(sys.path)
+    spec = {"path": p, "entries": ["dev_plugins.file_reader_tool.FileReaderTool"]}
+    core_kinds, app_classes, errors = mgr.load_plugins([{"spec": spec, "kind": None}])
+    assert errors == []
+    assert sys.path[-1] == p, "expected local path to be appended (core-first)"
+    assert sys.path[0] == before[0], "should not prepend path"
+
+
+def test_localpath_module_only_with_descriptor(tmp_path: Path) -> None:
+    # Copy fixtures to a temp dir and add agent_plugin.json
+    src = _fixtures_dir()
+    dst = tmp_path / "local_plugins"
+    shutil.copytree(src, dst, dirs_exist_ok=True)
+    (dst / "agent_plugin.json").write_text(
+        json.dumps(
+            {
+                "entries": [
+                    "dev_plugins.file_reader_tool.FileReaderTool",
+                    "dev_plugins.file_writer_tool.FileWriterTool",
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    mgr = PluginManager(cache_dir=tmp_path)
+    spec = {"path": str(dst), "entry": "dev_plugins"}
+    core_kinds, app_classes, errors = mgr.load_plugins([{"spec": spec, "kind": None}])
+    assert errors == []
+    tools = [cls.__name__ for cls in core_kinds.get("tools", [])]
+    assert set(tools) == {"FileReaderTool", "FileWriterTool"}

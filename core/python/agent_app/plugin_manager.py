@@ -21,6 +21,8 @@ from datetime import datetime
 import pkgutil
 import inspect
 import importlib.resources as ilr
+from urllib.parse import urlsplit
+from agent_core.utils import get_logger
 
 from agent_core.plugin.loader import (
     DottedPathSource,
@@ -542,8 +544,10 @@ class GitInstallerSource:
 
     def prepare(self, raw_spec: Any, *, cache_dir: Path, policy: Mapping[str, Any]) -> Tuple[Optional[Path], Optional[Dict[str, Any]]]:
         """Clone/install the repo into cache (if not present) and make it importable (sys.path append)."""
+        logger = get_logger("PluginManager")
         pip_args: List[str] = list(policy.get("pip_args") or [])
         allow_remote = bool(policy.get("allow_remote", False))
+        allowed_hosts = policy.get("allowed_git_hosts") or []
         if isinstance(raw_spec, str):
             url, ref, entry = self._parse_string(raw_spec)
         elif isinstance(raw_spec, dict):
@@ -555,6 +559,17 @@ class GitInstallerSource:
         is_remote = url.startswith("http://") or url.startswith("https://") or url.startswith("ssh://") or "@" in url
         if is_remote and not allow_remote:
             return None, {"type": "plugin_install_error", "detail": "Remote git URLs are disabled by policy", "path": url}
+        if is_remote and allow_remote and allowed_hosts:
+            host = None
+            if url.startswith("http://") or url.startswith("https://") or url.startswith("ssh://"):
+                host = urlsplit(url).hostname
+            elif "@" in url and ":" in url:
+                # git@host:org/repo
+                host = url.split("@", 1)[1].split(":", 1)[0]
+            if host and host not in allowed_hosts:
+                return None, {"type": "plugin_install_error", "detail": f"Git host '{host}' not allowed by policy", "path": url}
+        if is_remote and allow_remote and not (raw_spec.get("ref") if isinstance(raw_spec, dict) else None):
+            logger.warning("plugin_remote_unpinned", url=url)
         cache_dir.mkdir(parents=True, exist_ok=True)
         src_root = cache_dir / "src"
         src_root.mkdir(parents=True, exist_ok=True)
@@ -610,8 +625,10 @@ class GitInstallerSource:
                 pass
 
     def load(self, raw_spec: Any, *, cache_dir: Path, policy: Mapping[str, Any]) -> PluginLoadResult:  # type: ignore[override]
+        logger = get_logger("PluginManager")
         pip_args: List[str] = list(policy.get("pip_args") or [])
         allow_remote = bool(policy.get("allow_remote", False))
+        allowed_hosts = policy.get("allowed_git_hosts") or []
 
         if isinstance(raw_spec, str):
             url, ref, entry = self._parse_string(raw_spec)
@@ -634,6 +651,20 @@ class GitInstallerSource:
                 "detail": "Remote git URLs are disabled by policy",
                 "path": url,
             })
+        if is_remote and allow_remote and allowed_hosts:
+            host = None
+            if url.startswith("http://") or url.startswith("https://") or url.startswith("ssh://"):
+                host = urlsplit(url).hostname
+            elif "@" in url and ":" in url:
+                host = url.split("@", 1)[1].split(":", 1)[0]
+            if host and host not in allowed_hosts:
+                return PluginLoadResult(cls=None, metadata=None, error={
+                    "type": "plugin_install_error",
+                    "detail": f"Git host '{host}' not allowed by policy",
+                    "path": url,
+                })
+        if is_remote and allow_remote and not (ref if isinstance(ref, str) and ref else None):
+            logger.warning("plugin_remote_unpinned", url=url)
 
         cache_dir.mkdir(parents=True, exist_ok=True)
         src_root = cache_dir / "src"

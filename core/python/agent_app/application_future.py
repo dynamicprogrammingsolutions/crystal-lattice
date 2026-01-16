@@ -124,6 +124,10 @@ class AgentApplication:
         for tool_cls in plugin_classes.get("tools") or []:
             core.register_tool(tool_cls)
 
+    def get_config_errors(self) -> List[Dict[str, Any]]:
+        """Return configuration and plugin loading errors captured at startup."""
+        return list(self._config_errors)
+
         # Application-level plugins are configured separately from core
         # provider/feature/tool plugins. They operate on the
         # :class:`AgentApplication` level (sessions, storage, actions).

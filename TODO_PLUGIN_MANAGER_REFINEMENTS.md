@@ -14,9 +14,9 @@
 12. [x] Tests: descriptor precedence (git repo with `agent_plugin.json`)
 13. [x] Tests: env substitution embedded placeholders
 14. [x] Tests: remote git disallowed by default
-15. [ ] Tests: negative discovery (decoy non-plugin class excluded)
-16. [ ] Tests: sys.path precedence remains core-first (append), optional policy coverage
-17. [ ] Descriptor search robustness doc and optional module-root search for local path as well
-18. [ ] Documentation updates for spec forms and security (expanded examples)
-19. [ ] Consider host allowlist policy and pinned ref warnings
-20. [ ] Consider exposing `AgentApplication._config_errors` via accessor for tests
+15. [x] Tests: negative discovery (decoy non-plugin class excluded)
+16. [x] Tests: sys.path precedence remains core-first (append), optional policy coverage
+17. [x] Descriptor search robustness doc and optional module-root search for local path as well
+18. [x] Documentation updates for spec forms and security (expanded examples)
+19. [x] Consider host allowlist policy and pinned ref warnings
+20. [x] Consider exposing `AgentApplication._config_errors` via accessor for tests
