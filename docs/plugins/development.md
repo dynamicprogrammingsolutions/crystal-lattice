@@ -27,6 +27,41 @@ Key methods (subset):
 - `initialize_request(native_messages, state) -> (native_messages, state)` (optional in Python; adapter returns inputs unchanged)
 - `stream_api(native_messages, state) -> Iterator[chunk]` (optional but recommended for streaming providers)
 
+## Plugin Spec Forms (Application Layer)
+
+When wiring plugins in the application configuration, you can reference implementations using several convenient forms:
+
+- Single class (dotted path)
+  - Example: `"plugins.openai_tools_extension.OpenAIToolsExtension"`
+  - Loaded via the core dotted-path loader with no side effects.
+
+- Local path (single class)
+  - Example: `"path:/abs/or/rel::dev_plugins.file_reader_tool.FileReaderTool"` or `{ "path": "/abs/or/rel", "entry": "dev_plugins.file_reader_tool.FileReaderTool" }`
+  - The directory is appended to `sys.path` (core-first); then the entry class is imported.
+
+- Local path (module-only or multi-class)
+  - Module-only: `"path:/abs/or/rel::dev_plugins"` or `{ "path": "/abs/or/rel", "entry": "dev_plugins" }`
+  - Entries list: `{ "path": "/abs/or/rel", "entries": ["dev_plugins.file_reader_tool.FileReaderTool", "dev_plugins.file_writer_tool.FileWriterTool"] }`
+  - For module-only, the manager attempts to discover plugin classes under the package (including submodules). Only providers, tools, extensions, and application plugins are auto-registered by discovery.
+  - If `agent_plugin.json` exists in the package root, its `entries` list is honored and discovery is skipped.
+
+- Git installer (single class)
+  - Example: `"git+<url-or-local>[#<ref>]::dev_plugins.file_reader_tool.FileReaderTool"` or `{ "git": "<url-or-local>", "ref": "optional-tag-or-commit", "entry": "dev_plugins.file_reader_tool.FileReaderTool" }`
+  - The repo is cloned and installed into a cache dir; the install dir is appended to `sys.path` (core-first), and the class is imported.
+
+- Git installer (module-only or multi-class)
+  - Module-only: `{ "git": "<url-or-local>", "entry": "dev_plugins" }` (string form also supported)
+  - Entries list: `{ "git": "<url-or-local>", "entries": ["dev_plugins.file_reader_tool.FileReaderTool", "dev_plugins.file_writer_tool.FileWriterTool"] }`
+  - `agent_plugin.json` support mirrors local path behavior.
+
+Notes
+- Embedded environment variables in strings are supported: `path:${env:DEV_PLUGINS_DIR}::dev_plugins.file_reader_tool.FileReaderTool`.
+- `${file:...}` placeholders remain whole-string only.
+- `sys.path` precedence is core-first (append); you can control policy via `plugin_policy.sys_path_precedence` if needed.
+
+Security
+- Git installs execute arbitrary code via `pip install`; by default, `allow_remote` is disabled. To enable remote URLs, set `plugin_policy.allow_remote: true` and prefer pinned tags/commits. Consider an allowlist for repository hosts.
+
 Default execution order (per request):
 - Tool schemas: each tool runs `init`, then `get_tool_schemas`; schemas are injected into provider config under `tools`.
 - Init chain (shared provider state): provider `init`, then extension `init` (in order), then feature `init`.
