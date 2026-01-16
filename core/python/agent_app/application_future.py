@@ -124,10 +124,6 @@ class AgentApplication:
         for tool_cls in plugin_classes.get("tools") or []:
             core.register_tool(tool_cls)
 
-    def get_config_errors(self) -> List[Dict[str, Any]]:
-        """Return configuration and plugin loading errors captured at startup."""
-        return list(self._config_errors)
-
         # Application-level plugins are configured separately from core
         # provider/feature/tool plugins. They operate on the
         # :class:`AgentApplication` level (sessions, storage, actions).
@@ -324,9 +320,22 @@ class AgentApplication:
     # ------------------------------------------------------------------
 
     def get_config_errors(self) -> List[Dict[str, Any]]:
-        """Return configuration and plugin loading errors."""
+        """Return configuration and plugin loading errors captured at startup.
 
-        return self._config_errors
+        This accessor is useful in tests or diagnostics to surface
+        placeholder resolution problems and plugin loader errors
+        (e.g., invalid local paths or import failures).
+
+        Example:
+            >>> app = AgentApplication("config.json", "./sessions")
+            >>> for err in app.get_config_errors():
+            ...     print(err.get("type"), err.get("detail"))
+
+        See also:
+            - docs/plugins/application-config.md (Troubleshooting)
+        """
+
+        return list(self._config_errors)
 
     def get_event_store(self) -> EventStore:
         """Return the configured event store for this application."""

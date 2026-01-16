@@ -35,11 +35,17 @@ from agent_core.plugin.loader import (
 
 
 class LocalPathSource:
-    """Load plugin classes from a local directory in development.
+    """Load plugin classes from a local directory (development/install-free).
 
-    Supported specs:
-      - String: "path:/abs/or/rel::module.Class"
-      - Dict: {"path": "/abs/or/rel", "entry": "module.Class"}
+    Supported spec forms:
+      - String (single class): ``"path:/abs/or/rel::pkg.module.Class"``
+      - Dict (single class): ``{"path": "/abs/or/rel", "entry": "pkg.module.Class"}``
+      - Dict (entries list): ``{"path": "/abs/or/rel", "entries": ["pkg.module.ClassA", ...]}``
+
+    Side effects:
+      - Appends the directory to ``sys.path`` (core-first, not prepended).
+
+    See also: docs/plugins/application-config.md
     """
 
     def supports(self, raw_spec: Any) -> bool:  # type: ignore[override]
@@ -171,10 +177,21 @@ class PluginManager:
 
     # ------------------------ canonicalization helper --------------------
     def normalize_plugins(self, plugins_raw: Any) -> List[Dict[str, Any]]:
-        """Rewrite raw config into canonical list items: [{"spec": ..., "kind": kind_or_none}, ...].
+        """Normalize raw plugin config into canonical list entries.
 
-        Accepts mapping form with keys for kinds, flat list, or canonical items. Plain strings/objects
-        inside a list are wrapped as short canonical entries with kind=None.
+        Returns:
+            List of dicts: ``[{"spec": <string|object>, "kind": <str|None>}, ...]``
+
+        Accepted inputs:
+            - Mapping by kind: keys ``providers|extensions|features|tools|application`` with array values.
+            - Flat list: strings/objects/canonical items; kind is auto-filled as ``None`` unless present.
+            - Single value: wrapped as one canonical item.
+
+        Example:
+            >>> mgr.normalize_plugins({"tools": ["path:/p::pkg.mod.Tool"]})
+            [{'spec': 'path:/p::pkg.mod.Tool', 'kind': 'tools'}]
+
+        See also: docs/plugins/application-config.md
         """
 
         canonical: List[Dict[str, Any]] = []
@@ -214,6 +231,26 @@ class PluginManager:
 
     # ------------------------ canonical loader ---------------------------
     def load_plugins(self, canonical_items: Iterable[Dict[str, Any]]) -> Tuple[Dict[str, List[type]], List[type], List[Dict[str, Any]]]:
+        """Load all plugins from canonical items.
+
+        Supports spec forms:
+            - Dotted class: ``pkg.module.Class``
+            - Local path (string/object): single class, module-only, entries list
+            - Git (string/object): single class, module-only, entries list
+            - Module-only discovery reads ``agent_plugin.json`` when present (preferred) or auto-discovers
+              provider/tool/extension/application classes defined in the package and submodules.
+
+        Args:
+            canonical_items: iterable of canonical items ``{"spec": ..., "kind": optional}``
+
+        Returns:
+            (core_kinds, app_classes, errors)
+            - core_kinds: mapping of kind -> list of classes
+            - app_classes: list of application plugin classes
+            - errors: list of error dicts with ``type/detail/path``
+
+        See also: docs/plugins/development.md, docs/plugins/application-config.md
+        """
         core_kinds: Dict[str, List[type]] = {"providers": [], "features": [], "tools": [], "extensions": []}
         app_classes: List[type] = []
         errors: List[Dict[str, Any]] = []
@@ -237,10 +274,14 @@ class PluginManager:
                 return None, {"type": "plugin_import_error", "detail": str(exc), "path": entry}
 
         def _discover_module(module_name: str) -> List[type]:
-            """Import a module or package and discover plugin classes.
+            """Import a package/module and discover plugin classes.
 
-            - If it's a package, recursively walk submodules.
-            - Collect classes defined in each module.
+            Rules:
+              - If a package, recursively walk submodules.
+              - Only classes defined in the scanned module are considered
+                (skip re-exports and imported bases).
+              - Only classes that match a plugin protocol are returned
+                (providers/tools/extensions/application).
             """
             out: List[type] = []
             try:
@@ -491,13 +532,20 @@ class GitInstallerSource:
     """Install plugins from a git repo into a per-plugin cache dir and import.
 
     Supported specs:
-      - String: "git+<url>[#<ref>]::module.Class"
-      - Dict: {"git": url, "ref": opt, "subdirectory": opt, "entry": "module.Class", "id": opt}
+      - String (single class): ``"git+<url-or-local>[#<ref>]::pkg.module.Class"``
+      - Dict (single class): ``{"git": "<url-or-local>", "ref": "tag|commit", "entry": "pkg.module.Class"}``
+      - Dict (entries list): ``{"git": "<url-or-local>", "entries": ["pkg.module.ClassA", ...]}``
 
-    Policy respected:
-      - allow_remote: bool (default True) — if False, only local paths allowed
-      - pip_args: List[str] (optional) — extra pip args appended to install command
-      - sys_path_precedence: "core_first" — honored by appending install_dir to sys.path
+    Policy:
+      - ``allow_remote`` (default False) — remote URLs require explicit opt-in
+      - ``allowed_git_hosts`` — optional allowlist for remote hosts
+      - ``pip_args`` — extra args for pip install
+      - sys.path precedence is core-first (append)
+
+    Security:
+      - Git installs execute arbitrary code via pip install; always prefer pinned refs.
+
+    See also: docs/plugins/application-config.md
     """
 
     def supports(self, raw_spec: Any) -> bool:  # type: ignore[override]
