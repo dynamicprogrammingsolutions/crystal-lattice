@@ -6,7 +6,7 @@ from agent_app.config import resolve_placeholders
 def test_embedded_env_substitution_multiple(monkeypatch):
     raw = {
         "plugins": [
-            "path:${env:BASE}/x/${env:NAME}::dev_plugins.file_reader_tool.FileReaderTool",
+            "path:${env:BASE}/x/${env:NAME}",
         ]
     }
     monkeypatch.setenv("BASE", "/tmp/base")
@@ -15,7 +15,7 @@ def test_embedded_env_substitution_multiple(monkeypatch):
     assert errors == []
     items = resolved["plugins"]
     assert isinstance(items, list)
-    assert items[0].startswith("path:/tmp/base/x/pkg::")
+    assert items[0] == "path:/tmp/base/x/pkg"
 
 
 def test_embedded_env_substitution_missing(monkeypatch):

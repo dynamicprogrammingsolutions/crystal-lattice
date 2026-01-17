@@ -153,7 +153,7 @@ class LocalPathSource:
             has_path = isinstance(raw_spec.get("path"), str)
             has_entry = isinstance(raw_spec.get("entry"), str)
             has_entries = isinstance(raw_spec.get("entries"), list)
-            return has_path and (has_entry or has_entries)
+            return has_path
         return False
 
     def _safe_id(self, path: Path, explicit_id: Optional[str]) -> str:
@@ -591,12 +591,192 @@ class PluginManager:
                 deduped.append(cls)
             return deduped
 
+        def _read_descriptor(
+            install_dir: Path,
+            *,
+            raw_spec_for_error: Any,
+        ) -> Tuple[Optional[List[str]], Dict[str, str], Optional[Dict[str, Any]]]:
+            desc = install_dir / "agent_plugin.json"
+            if not desc.exists():
+                return None, {}, {
+                    "type": "plugin_descriptor_missing",
+                    "detail": "Module-only source specs require agent_plugin.json (missing at install root)",
+                    "path": raw_spec_for_error,
+                }
+            try:
+                desc_data = json.loads(desc.read_text(encoding="utf-8"))
+            except Exception as exc:
+                return None, {}, {
+                    "type": "plugin_descriptor_invalid",
+                    "detail": f"Could not parse agent_plugin.json: {exc}",
+                    "path": raw_spec_for_error,
+                }
+            if not isinstance(desc_data, dict):
+                return None, {}, {
+                    "type": "plugin_descriptor_invalid",
+                    "detail": "agent_plugin.json must contain a JSON object",
+                    "path": raw_spec_for_error,
+                }
+            entries = [e for e in (desc_data.get("entries") or []) if isinstance(e, str)]
+            if not entries:
+                return None, {}, {
+                    "type": "plugin_descriptor_invalid",
+                    "detail": "agent_plugin.json must contain a non-empty 'entries' list",
+                    "path": raw_spec_for_error,
+                }
+            kinds_map = desc_data.get("kinds", {}) if isinstance(desc_data.get("kinds"), dict) else {}
+            kinds: Dict[str, str] = {
+                str(k): str(v) for k, v in kinds_map.items() if isinstance(k, str) and isinstance(v, str)
+            }
+            return entries, kinds, None
+
+        def _load_entries(
+            entries: List[str],
+            kinds_map: Dict[str, str],
+            *,
+            kind_override: Optional[str],
+        ) -> None:
+            for entry in entries:
+                cls, err = _import_dotted(entry)
+                if err is not None or cls is None:
+                    errors.append(err or {"type": "plugin_import_error", "detail": "unknown", "path": entry})
+                    continue
+                assigned_kind = kinds_map.get(entry) or kind_override or _auto_kind(cls)
+                if assigned_kind == "application":
+                    app_classes.append(cls)
+                elif assigned_kind in core_kinds:
+                    core_kinds[assigned_kind].append(cls)
+                else:
+                    core_kinds["features"].append(cls)
+
         for item in list(canonical_items or []):
             if not isinstance(item, dict) or "spec" not in item:
                 errors.append({"type": "plugin_path_invalid", "detail": "Canonical item must be a dict with 'spec'", "path": item})
                 continue
             spec = item.get("spec")
             kind = item.get("kind") if isinstance(item.get("kind"), str) else None
+
+            # Shorthand module-only specs:
+            # - "path:/abs/or/rel" (no ::)
+            # - "git+<url-or-local>[#ref]" (no ::)
+            # These require a descriptor at the install root and load its entries.
+            if isinstance(spec, str):
+                s = spec.strip()
+                if s.startswith("path:") and "::" not in s:
+                    path_val = s.split(":", 1)[1]
+                    base_spec = {"path": path_val}
+                    loader = self._find_loader(base_spec)
+                    if loader is None:
+                        errors.append({
+                            "type": "plugin_path_invalid",
+                            "detail": "No loader supports module-only path spec",
+                            "path": spec,
+                        })
+                        continue
+                    prepare_fn = getattr(loader, "prepare", None)
+                    if not callable(prepare_fn):
+                        errors.append({
+                            "type": "plugin_install_error",
+                            "detail": "Loader does not support installation",
+                            "path": spec,
+                        })
+                        continue
+                    install_dir, prep_err = prepare_fn(base_spec, cache_dir=self.cache_dir, policy=self.policy)
+                    if prep_err or install_dir is None:
+                        errors.append(prep_err or {"type": "plugin_install_error", "detail": "install failed", "path": spec})
+                        continue
+                    entries, kinds_map, desc_err = _read_descriptor(install_dir, raw_spec_for_error=spec)
+                    if desc_err is not None or entries is None:
+                        errors.append(desc_err or {"type": "plugin_descriptor_invalid", "detail": "invalid descriptor", "path": spec})
+                        continue
+                    _load_entries(entries, kinds_map, kind_override=kind)
+                    continue
+
+                if s.startswith("git+") and "::" not in s:
+                    url_ref = s[len("git+") :]
+                    if "#" in url_ref:
+                        url, ref = url_ref.split("#", 1)
+                    else:
+                        url, ref = url_ref, ""
+                    base_spec: Dict[str, Any] = {"git": url}
+                    if ref:
+                        base_spec["ref"] = ref
+                    loader = self._find_loader(base_spec)
+                    if loader is None:
+                        errors.append({
+                            "type": "plugin_path_invalid",
+                            "detail": "No loader supports module-only git spec",
+                            "path": spec,
+                        })
+                        continue
+                    prepare_fn = getattr(loader, "prepare", None)
+                    if not callable(prepare_fn):
+                        errors.append({
+                            "type": "plugin_install_error",
+                            "detail": "Loader does not support installation",
+                            "path": spec,
+                        })
+                        continue
+                    install_dir, prep_err = prepare_fn(base_spec, cache_dir=self.cache_dir, policy=self.policy)
+                    if prep_err or install_dir is None:
+                        errors.append(prep_err or {"type": "plugin_install_error", "detail": "install failed", "path": spec})
+                        continue
+                    entries, kinds_map, desc_err = _read_descriptor(install_dir, raw_spec_for_error=spec)
+                    if desc_err is not None or entries is None:
+                        errors.append(desc_err or {"type": "plugin_descriptor_invalid", "detail": "invalid descriptor", "path": spec})
+                        continue
+                    _load_entries(entries, kinds_map, kind_override=kind)
+                    continue
+
+            # Dict shorthand module-only specs:
+            # - {"path": "..."} (no entry/entries)
+            # - {"git": "...", "ref": "..."} (no entry/entries)
+            if isinstance(spec, dict):
+                has_path = isinstance(spec.get("path"), str)
+                has_git = isinstance(spec.get("git"), str)
+                if has_path and not isinstance(spec.get("entry"), str) and not isinstance(spec.get("entries"), list):
+                    base_spec = dict(spec)
+                    loader = self._find_loader(base_spec)
+                    prepare_fn = getattr(loader, "prepare", None) if loader is not None else None
+                    if not callable(prepare_fn):
+                        errors.append({
+                            "type": "plugin_path_invalid",
+                            "detail": "No loader supports module-only path spec",
+                            "path": spec,
+                        })
+                        continue
+                    install_dir, prep_err = prepare_fn(base_spec, cache_dir=self.cache_dir, policy=self.policy)
+                    if prep_err or install_dir is None:
+                        errors.append(prep_err or {"type": "plugin_install_error", "detail": "install failed", "path": spec})
+                        continue
+                    entries, kinds_map, desc_err = _read_descriptor(install_dir, raw_spec_for_error=spec)
+                    if desc_err is not None or entries is None:
+                        errors.append(desc_err or {"type": "plugin_descriptor_invalid", "detail": "invalid descriptor", "path": spec})
+                        continue
+                    _load_entries(entries, kinds_map, kind_override=kind)
+                    continue
+
+                if has_git and not isinstance(spec.get("entry"), str) and not isinstance(spec.get("entries"), list):
+                    base_spec = dict(spec)
+                    loader = self._find_loader(base_spec)
+                    prepare_fn = getattr(loader, "prepare", None) if loader is not None else None
+                    if not callable(prepare_fn):
+                        errors.append({
+                            "type": "plugin_path_invalid",
+                            "detail": "No loader supports module-only git spec",
+                            "path": spec,
+                        })
+                        continue
+                    install_dir, prep_err = prepare_fn(base_spec, cache_dir=self.cache_dir, policy=self.policy)
+                    if prep_err or install_dir is None:
+                        errors.append(prep_err or {"type": "plugin_install_error", "detail": "install failed", "path": spec})
+                        continue
+                    entries, kinds_map, desc_err = _read_descriptor(install_dir, raw_spec_for_error=spec)
+                    if desc_err is not None or entries is None:
+                        errors.append(desc_err or {"type": "plugin_descriptor_invalid", "detail": "invalid descriptor", "path": spec})
+                        continue
+                    _load_entries(entries, kinds_map, kind_override=kind)
+                    continue
             # Multi-entry support via dict {path|git, entries: [...]}
             if isinstance(spec, dict) and isinstance(spec.get("entries"), list):
                 base_spec = dict(spec)
@@ -812,7 +992,7 @@ class GitInstallerSource:
             has_git = isinstance(raw_spec.get("git"), str)
             has_entry = isinstance(raw_spec.get("entry"), str)
             has_entries = isinstance(raw_spec.get("entries"), list)
-            return has_git and (has_entry or has_entries)
+            return has_git
         return False
 
     def _parse_string(self, spec: str) -> Tuple[str, Optional[str], str]:

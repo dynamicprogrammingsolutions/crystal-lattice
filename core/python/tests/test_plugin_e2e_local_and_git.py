@@ -210,7 +210,7 @@ def test_agent_application_with_localpath_plugins_module_only_descriptor(
 
     mgr = PluginManager(cache_dir=Path(env["PLUGIN_CACHE_DIR"]))
     core_kinds, _apps, errs = mgr.load_plugins(
-        [{"spec": f"path:{env['DEV_PLUGINS_DESC_DIR']}::dev_plugins", "kind": None}]
+        [{"spec": f"path:{env['DEV_PLUGINS_DESC_DIR']}", "kind": None}]
     )
     assert errs == []
     tool_class_names = {cls.__name__ for cls in core_kinds.get("tools", [])}
@@ -350,7 +350,7 @@ def test_agent_application_with_git_plugins_module_only_descriptor(
 
     mgr = PluginManager(cache_dir=Path(env["PLUGIN_CACHE_DIR"]))
     core_kinds, _apps, errs = mgr.load_plugins(
-        [{"spec": f"git+{env['DEV_PLUGINS_GIT_DIR']}::dev_plugins", "kind": None}]
+        [{"spec": f"git+{env['DEV_PLUGINS_GIT_DIR']}", "kind": None}]
     )
     assert errs == []
     tool_class_names = {cls.__name__ for cls in core_kinds.get("tools", [])}

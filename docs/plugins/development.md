@@ -40,22 +40,24 @@ When wiring plugins in the application configuration, you can reference implemen
   - The directory is installed into `plugin_cache_dir` via `pip install --target ...` (core-first); then the entry class is imported.
 
 - Local path (module-only or multi-class)
-  - Module-only: `"path:/abs/or/rel::dev_plugins"` or `{ "path": "/abs/or/rel", "entry": "dev_plugins" }`
+  - Descriptor-driven module-only (recommended): `"path:/abs/or/rel"` or `{ "path": "/abs/or/rel" }`
+  - Explicit module-only (legacy): `"path:/abs/or/rel::dev_plugins"` or `{ "path": "/abs/or/rel", "entry": "dev_plugins" }`
   - Entries list: `{ "path": "/abs/or/rel", "entries": ["dev_plugins.file_reader_tool.FileReaderTool", "dev_plugins.file_writer_tool.FileWriterTool"] }`
-  - For module-only, the manager attempts to discover plugin classes under the package (including submodules). Only providers, tools, extensions, and application plugins are auto-registered by discovery.
-  - If `agent_plugin.json` exists in the install dir, its `entries` list is honored and discovery is skipped.
+  - Descriptor-driven module-only specs require `agent_plugin.json` and load exactly its `entries`.
+  - Explicit module-only specs fall back to discovery when no descriptor is present.
 
 - Git installer (single class)
   - Example: `"git+<url-or-local>[#<ref>]::dev_plugins.file_reader_tool.FileReaderTool"` or `{ "git": "<url-or-local>", "ref": "optional-tag-or-commit", "entry": "dev_plugins.file_reader_tool.FileReaderTool" }`
   - The repo is cloned and installed into a cache dir; the install dir is appended to `sys.path` (core-first), and the class is imported.
 
 - Git installer (module-only or multi-class)
-  - Module-only: `{ "git": "<url-or-local>", "entry": "dev_plugins" }` (string form also supported)
+  - Descriptor-driven module-only (recommended): `"git+<url-or-local>[#<ref>]"` or `{ "git": "<url-or-local>", "ref": "optional-tag-or-commit" }`
+  - Explicit module-only (legacy): `{ "git": "<url-or-local>", "entry": "dev_plugins" }` (string form also supported)
   - Entries list: `{ "git": "<url-or-local>", "entries": ["dev_plugins.file_reader_tool.FileReaderTool", "dev_plugins.file_writer_tool.FileWriterTool"] }`
   - `agent_plugin.json` support mirrors local path behavior.
 
 Notes
-- Embedded environment variables in strings are supported: `path:${env:DEV_PLUGINS_DIR}::dev_plugins.file_reader_tool.FileReaderTool`.
+- Embedded environment variables in strings are supported: `path:${env:DEV_PLUGINS_DIR}::dev_plugins.file_reader_tool.FileReaderTool` and module-only `path:${env:DEV_PLUGINS_DESC_DIR}`.
 - `${file:...}` placeholders remain whole-string only.
 - `sys.path` precedence is core-first (append); you can control policy via `plugin_policy.sys_path_precedence` if needed.
 - Installs default to `--no-deps`; set `plugin_policy.install_deps: true` to install dependencies.

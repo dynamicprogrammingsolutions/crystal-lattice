@@ -23,17 +23,20 @@ Each plugin reference is a “spec” that can take one of the following forms:
   then loaded from the installed cache directory.
 
 - Local path (module-only or multiple classes)
-  - Module-only: `"path:/abs/or/rel::pkg"` or `{ "path": "/abs/or/rel", "entry": "pkg" }`
+  - Descriptor-driven module-only (recommended): `"path:/abs/or/rel"` or `{ "path": "/abs/or/rel" }`
+  - Explicit module-only (legacy): `"path:/abs/or/rel::pkg"` or `{ "path": "/abs/or/rel", "entry": "pkg" }`
   - Entries list: `{ "path": "/abs/or/rel", "entries": ["pkg.module.ClassA", "pkg.module.ClassB"] }`
   - Local path plugin directories must be `pip` installable (`pyproject.toml` or `setup.py`).
-  - If `agent_plugin.json` is present in the install dir, its `entries` take precedence over auto-discovery (see Descriptor).
+  - Descriptor-driven module-only specs require `agent_plugin.json` (see Descriptor) and load exactly its `entries`.
+  - Explicit module-only specs fall back to auto-discovery when no descriptor is present.
 
 - Git installer (single class)
   - String: `"git+<url-or-local>[#<ref>]::pkg.module.Class"`
   - Object: `{ "git": "<url-or-local>", "ref": "tag-or-commit", "entry": "pkg.module.Class" }`
 
 - Git installer (module-only or multiple classes)
-  - Module-only: `{ "git": "<url-or-local>", "entry": "pkg" }` or `"git+<url-or-local>[#<ref>]::pkg"`
+  - Descriptor-driven module-only (recommended): `"git+<url-or-local>[#<ref>]"` or `{ "git": "<url-or-local>", "ref": "optional-tag-or-commit" }`
+  - Explicit module-only (legacy): `{ "git": "<url-or-local>", "entry": "pkg" }` or `"git+<url-or-local>[#<ref>]::pkg"`
   - Entries list: `{ "git": "<url-or-local>", "entries": ["pkg.module.ClassA", "pkg.module.ClassB"] }`
 
 Both local path and git object specs accept an optional `subdirectory` field
@@ -86,7 +89,8 @@ If `entries` is present, only those classes are loaded (no extra discovery). Opt
     "plugins.openai_provider.OpenAICompatibleProvider",
     "plugins.openai_tools_extension.OpenAIToolsExtension",
     "path:${env:DEV_PLUGINS_DIR}::dev_plugins.file_reader_tool.FileReaderTool",
-    { "git": "https://github.com/acme/dev-plugins.git", "ref": "v1.0.0", "entry": "dev_plugins" }
+    "path:${env:DEV_PLUGINS_DESC_DIR}",
+    "git+https://github.com/acme/dev-plugins.git#v1.0.0"
   ]
 }
 ```

@@ -44,18 +44,18 @@
     }
   },
   "plugins": [
-    "path:../../../plugins/openrouter::openrouter_plugins",
-    "path:../../../plugins/codex-tools::codex_tools",
-    "path:../../../plugins/feature-system-message::feature_system_message",
-    "path:../../../plugins/feature-file-context::feature_file_context",
-    "path:../../../plugins/feature-web-context::feature_web_context",
-    "path:../../../plugins/session-actions-app::session_actions_app",
-    "path:../../../plugins/summarize-range-app::summarize_range_app",
-    "path:../../../plugins/session-title-app::session_title_app",
-    "path:../../../plugins/generate-title-app::generate_title_app",
-    "path:../../../plugins/session-timestamp-meta-app::session_timestamp_meta_app",
-    "path:../../../plugins/session-message-count-meta-app::session_message_count_meta_app",
-    "path:../../../plugins/session-pinned-app::session_pinned_app"
+    "path:../../../plugins/openrouter",
+    "path:../../../plugins/codex-tools",
+    "path:../../../plugins/feature-system-message",
+    "path:../../../plugins/feature-file-context",
+    "path:../../../plugins/feature-web-context",
+    "path:../../../plugins/session-actions-app",
+    "path:../../../plugins/summarize-range-app",
+    "path:../../../plugins/session-title-app",
+    "path:../../../plugins/generate-title-app",
+    "path:../../../plugins/session-timestamp-meta-app",
+    "path:../../../plugins/session-message-count-meta-app",
+    "path:../../../plugins/session-pinned-app"
   ],
   "agents": {
     "default": {
