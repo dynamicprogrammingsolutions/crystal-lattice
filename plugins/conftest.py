@@ -30,5 +30,11 @@ for repo_name in (
     "feature-web-context",
 ):
     repo_dir = PLUGIN_REPOS / repo_name
-    if repo_dir.is_dir() and str(repo_dir) not in sys.path:
+    if not repo_dir.is_dir():
+        continue
+
+    src_dir = repo_dir / "src"
+    if src_dir.is_dir() and str(src_dir) not in sys.path:
+        sys.path.insert(0, str(src_dir))
+    elif str(repo_dir) not in sys.path:
         sys.path.insert(0, str(repo_dir))

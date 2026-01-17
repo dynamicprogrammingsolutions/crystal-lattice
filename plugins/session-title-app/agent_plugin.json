@@ -1,0 +1,10 @@
+{
+  "module": "session_title_app",
+  "subdirectory": ".",
+  "entries": [
+    "session_title_app.SessionTitleAppPlugin"
+  ],
+  "kinds": {
+    "session_title_app.SessionTitleAppPlugin": "application"
+  }
+}

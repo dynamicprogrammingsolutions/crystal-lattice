@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "session-message-count-meta-app"
+version = "0.1.0"
+description = "Application plugin providing message-count metadata fields for sessions"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "agent-core>=0.3.0"
+]
+
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["session_message_count_meta_app*"]
+
+
+[tool.setuptools.data-files]
+"" = ["agent_plugin.json"]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

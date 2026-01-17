@@ -16,7 +16,12 @@ dependencies = [
 
 
 [tool.setuptools]
-packages = ["openrouter_plugins"]
+package-dir = {"" = "src"}
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["openrouter_plugins*"]
 
 
 [tool.setuptools.data-files]

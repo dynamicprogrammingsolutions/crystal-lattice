@@ -1,0 +1,10 @@
+{
+  "module": "session_ordering_buckets_app",
+  "subdirectory": ".",
+  "entries": [
+    "session_ordering_buckets_app.SessionOrderingBucketsAppPlugin"
+  ],
+  "kinds": {
+    "session_ordering_buckets_app.SessionOrderingBucketsAppPlugin": "application"
+  }
+}

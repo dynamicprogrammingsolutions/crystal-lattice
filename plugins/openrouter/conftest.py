@@ -6,7 +6,10 @@ from pathlib import Path
 
 # Ensure this plugin repository is importable.
 REPO_DIR = Path(__file__).resolve().parent
-if str(REPO_DIR) not in sys.path:
+SRC_DIR = REPO_DIR / "src"
+if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+elif str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 
 

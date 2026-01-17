@@ -15,7 +15,12 @@ dependencies = [
 
 
 [tool.setuptools]
-packages = ["feature_system_message"]
+package-dir = {"" = "src"}
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["feature_system_message*"]
 
 
 [tool.setuptools.data-files]

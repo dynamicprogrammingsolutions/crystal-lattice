@@ -1,0 +1,10 @@
+{
+  "module": "session_message_count_meta_app",
+  "subdirectory": ".",
+  "entries": [
+    "session_message_count_meta_app.SessionMessageCountMetaAppPlugin"
+  ],
+  "kinds": {
+    "session_message_count_meta_app.SessionMessageCountMetaAppPlugin": "application"
+  }
+}
