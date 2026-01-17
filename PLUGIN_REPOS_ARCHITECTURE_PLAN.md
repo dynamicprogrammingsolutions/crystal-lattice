@@ -10,9 +10,9 @@ Important note:
 ## Target Layout
 
 - `plugins/codex-tools/`
-  - Python package: `codex_tools`
+  - Python package: `codex_tools` (src layout: `src/codex_tools/`)
   - Contents: `ShellTool`, `ApplyPatchTool`
-  - Descriptor: `codex_tools/agent_plugin.json`
+  - Descriptor: `agent_plugin.json` (repo root; includes `module` + `source_path`)
 
 - `plugins/openrouter/`
   - Python package: `openrouter_plugins`

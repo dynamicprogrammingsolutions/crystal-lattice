@@ -3,6 +3,7 @@
 from agent_core.plugin import ToolWrapper
 from codex_tools.shell_tool import ShellTool
 
+
 def test_shell_tool_runs_basic_command(tmp_path):
     wrapper = ToolWrapper(ShellTool)
     state = wrapper.init({"working_directory": str(tmp_path)})
