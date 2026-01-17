@@ -272,6 +272,10 @@ dist
 *.sublime-workspace
 *.sublime-project
 
+# Xcode
+*.xcuserstate
+xcuserdata/
+
 # OS
 .DS_Store
 .DS_Store?

@@ -1,0 +1,10 @@
+{
+  "module": "rebuild_native_app",
+  "subdirectory": ".",
+  "entries": [
+    "rebuild_native_app.RebuildNativeAppPlugin"
+  ],
+  "kinds": {
+    "rebuild_native_app.RebuildNativeAppPlugin": "application"
+  }
+}

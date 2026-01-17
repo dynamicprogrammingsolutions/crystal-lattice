@@ -16,7 +16,12 @@ dependencies = [
 
 
 [tool.setuptools]
-packages = ["feature_web_context"]
+package-dir = {"" = "src"}
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["feature_web_context*"]
 
 
 [tool.setuptools.data-files]
