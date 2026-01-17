@@ -1,15 +1,21 @@
 from __future__ import annotations
 
-"""Application-level plugin manager and local-path loader.
+"""Application-level plugin manager and plugin sources.
 
 This module composes core loader interfaces with application-provided policy
-and parameters (cache_dir, precedence). It deliberately avoids any network or
-package installation logic in this stage; a GitInstallerSource will be added in
-the next stage.
+and parameters (cache_dir, precedence). It provides concrete sources for:
+
+- Dotted-path imports (no side effects)
+- Local path plugins (installed into a cache dir via pip)
+- Git plugins (cloned then installed into a cache dir via pip)
+
+The shared install-to-cache behavior is implemented via an install strategy so
+it can be replaced independently later.
 """
 
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Protocol, Tuple
 import importlib
 import hashlib
 import os
@@ -34,6 +40,87 @@ from agent_core.plugin.loader import (
 )
 
 
+class PluginInstallError(Exception):
+    def __init__(self, *, detail: str, path: str) -> None:
+        super().__init__(detail)
+        self.detail = detail
+        self.path = path
+
+
+@dataclass(frozen=True)
+class InstallRequest:
+    cache_dir: Path
+    safe_id: str
+    revision: str
+    project_dir: Path
+    policy: Mapping[str, Any]
+    metadata: Dict[str, Any]
+
+
+class InstallStrategy(Protocol):
+    def ensure_installed(self, request: InstallRequest) -> Path:
+        """Ensure the plugin is installed into the cache and importable."""
+
+
+class PipTargetInstallStrategy:
+    """Install an on-disk project into a cache dir via `pip install --target`.
+
+    This strategy owns:
+    - Cache install directory naming and atomic temp-dir swap
+    - pip invocation (`pip_args`, `install_deps` -> `--no-deps`)
+    - Writing `plugin_metadata.json`
+    - `sys.path` activation (core-first append)
+    """
+
+    def ensure_installed(self, request: InstallRequest) -> Path:  # type: ignore[override]
+        cache_dir = request.cache_dir
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
+        install_dir = cache_dir / f"{request.safe_id}@{request.revision}"
+        if install_dir.exists():
+            self._activate_sys_path(install_dir)
+            return install_dir
+
+        temp_dir = cache_dir / f".{request.safe_id}@{request.revision}.tmp"
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
+        pip_args: List[str] = list(request.policy.get("pip_args") or [])
+        install_deps = bool(request.policy.get("install_deps", False))
+        cmd = [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--upgrade",
+            "--target",
+            str(temp_dir),
+            *([] if install_deps else ["--no-deps"]),
+            str(request.project_dir),
+            *pip_args,
+        ]
+
+        try:
+            subprocess.check_call(cmd)
+            meta = dict(request.metadata)
+            meta.setdefault("id", request.safe_id)
+            meta.setdefault("installed_at", datetime.utcnow().isoformat() + "Z")
+            (temp_dir / "plugin_metadata.json").write_text(json.dumps(meta), encoding="utf-8")
+            temp_dir.replace(install_dir)
+        except Exception as exc:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            raise PluginInstallError(detail=f"pip install failed: {exc}", path=str(request.project_dir))
+
+        self._activate_sys_path(install_dir)
+        return install_dir
+
+    def _activate_sys_path(self, install_dir: Path) -> None:
+        sdir = str(install_dir)
+        if sdir not in sys.path:
+            sys.path.append(sdir)
+
+
 class LocalPathSource:
     """Install and load plugin classes from a local directory.
 
@@ -56,6 +143,9 @@ class LocalPathSource:
     See also: docs/plugins/application-config.md
     """
 
+    def __init__(self, *, installer: InstallStrategy | None = None) -> None:
+        self._installer = installer or PipTargetInstallStrategy()
+
     def supports(self, raw_spec: Any) -> bool:  # type: ignore[override]
         if isinstance(raw_spec, str):
             return raw_spec.strip().startswith("path:") and "::" in raw_spec
@@ -65,28 +155,6 @@ class LocalPathSource:
             has_entries = isinstance(raw_spec.get("entries"), list)
             return has_path and (has_entry or has_entries)
         return False
-
-    def _pip_install(
-        self,
-        target: Path,
-        src: Path,
-        extra_args: List[str],
-        *,
-        install_deps: bool,
-    ) -> None:
-        cmd = [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "--upgrade",
-            "--target",
-            str(target),
-            *(["--no-deps"] if not install_deps else []),
-            str(src),
-            *extra_args,
-        ]
-        subprocess.check_call(cmd)
 
     def _safe_id(self, path: Path, explicit_id: Optional[str]) -> str:
         if explicit_id:
@@ -174,9 +242,6 @@ class LocalPathSource:
     def prepare(self, raw_spec: Any, *, cache_dir: Path, policy: Mapping[str, Any]) -> Tuple[Optional[Path], Optional[Dict[str, Any]]]:
         """Install from local path into cache and make it importable."""
         logger = get_logger("PluginManager")
-        pip_args: List[str] = list(policy.get("pip_args") or [])
-        install_deps = bool(policy.get("install_deps", False))
-        install_deps = bool(policy.get("install_deps", False))
         if isinstance(raw_spec, str):
             left, _, _entry = raw_spec.partition("::")
             path = left.split(":", 1)[1]
@@ -203,12 +268,32 @@ class LocalPathSource:
         fp_hash = hashlib.sha256(fp.encode("utf-8", errors="ignore")).hexdigest()
 
         safe_id = self._safe_id(base, raw_spec.get("id") if isinstance(raw_spec, dict) else None)
-        install_dir = cache_dir / f"{safe_id}@{fp_hash}"
-        if install_dir.exists():
-            sdir = str(install_dir)
-            if sdir not in sys.path:
-                sys.path.append(sdir)
-            return install_dir, None
+        expected_install_dir = cache_dir / f"{safe_id}@{fp_hash}"
+        already_installed = expected_install_dir.exists()
+        if already_installed:
+            meta: Dict[str, Any] = {
+                "path": str(base),
+                "project_dir": str(project_dir),
+                "fingerprint": fp,
+            }
+            if isinstance(git_fp, str) and git_fp.startswith("git:"):
+                _tag, commit, status_hash = git_fp.split(":", 2)
+                meta["commit"] = commit
+                meta["status_hash"] = status_hash
+            try:
+                install_dir = self._installer.ensure_installed(
+                    InstallRequest(
+                        cache_dir=cache_dir,
+                        safe_id=safe_id,
+                        revision=fp_hash,
+                        project_dir=project_dir,
+                        policy=policy,
+                        metadata=meta,
+                    )
+                )
+                return install_dir, None
+            except PluginInstallError as exc:
+                return None, {"type": "plugin_install_error", "detail": exc.detail, "path": str(project_dir)}
 
         tmp_copy = Path(tempfile.mkdtemp(prefix="plugin_copy_", dir=str(src_root)))
         try:
@@ -217,32 +302,30 @@ class LocalPathSource:
             except Exception as exc:
                 return None, {"type": "plugin_install_error", "detail": f"copy failed: {exc}", "path": str(project_dir)}
 
-            temp_dir = cache_dir / f".{safe_id}@{fp_hash}.tmp"
-            if temp_dir.exists():
-                shutil.rmtree(temp_dir, ignore_errors=True)
-            temp_dir.mkdir(parents=True, exist_ok=True)
-            try:
-                self._pip_install(temp_dir, tmp_copy, pip_args, install_deps=install_deps)
-                meta = {
-                    "path": str(base),
-                    "project_dir": str(project_dir),
-                    "fingerprint": fp,
-                    "installed_at": datetime.utcnow().isoformat() + "Z",
-                    "id": safe_id,
-                }
-                if isinstance(git_fp, str) and git_fp.startswith("git:"):
-                    _tag, commit, status_hash = git_fp.split(":", 2)
-                    meta["commit"] = commit
-                    meta["status_hash"] = status_hash
-                (temp_dir / "plugin_metadata.json").write_text(json.dumps(meta), encoding="utf-8")
-                temp_dir.replace(install_dir)
-            except Exception as exc:
-                shutil.rmtree(temp_dir, ignore_errors=True)
-                return None, {"type": "plugin_install_error", "detail": f"pip install failed: {exc}", "path": str(project_dir)}
+            meta: Dict[str, Any] = {
+                "path": str(base),
+                "project_dir": str(project_dir),
+                "fingerprint": fp,
+            }
+            if isinstance(git_fp, str) and git_fp.startswith("git:"):
+                _tag, commit, status_hash = git_fp.split(":", 2)
+                meta["commit"] = commit
+                meta["status_hash"] = status_hash
 
-            sdir = str(install_dir)
-            if sdir not in sys.path:
-                sys.path.append(sdir)
+            try:
+                install_dir = self._installer.ensure_installed(
+                    InstallRequest(
+                        cache_dir=cache_dir,
+                        safe_id=safe_id,
+                        revision=fp_hash,
+                        project_dir=tmp_copy,
+                        policy=policy,
+                        metadata=meta,
+                    )
+                )
+            except PluginInstallError as exc:
+                return None, {"type": "plugin_install_error", "detail": exc.detail, "path": str(project_dir)}
+
             logger.info("plugin_local_installed", path=str(base), install_dir=str(install_dir))
             return install_dir, None
         finally:
@@ -316,7 +399,15 @@ class PluginManager:
     ) -> None:
         self.cache_dir = cache_dir
         self.policy: Mapping[str, Any] = policy or {}
-        self.loaders: List[PluginSource] = loaders or [DottedPathSource(), LocalPathSource(), GitInstallerSource()]
+        if loaders is None:
+            installer = PipTargetInstallStrategy()
+            self.loaders = [
+                DottedPathSource(),
+                LocalPathSource(installer=installer),
+                GitInstallerSource(installer=installer),
+            ]
+        else:
+            self.loaders = loaders
 
     # ------------------------- loading primitives -------------------------
     def load_one(self, raw_spec: Any, kind: Optional[str] = None) -> PluginLoadResult:
@@ -710,6 +801,9 @@ class GitInstallerSource:
     See also: docs/plugins/application-config.md
     """
 
+    def __init__(self, *, installer: InstallStrategy | None = None) -> None:
+        self._installer = installer or PipTargetInstallStrategy()
+
     def supports(self, raw_spec: Any) -> bool:  # type: ignore[override]
         if isinstance(raw_spec, str):
             s = raw_spec.strip()
@@ -748,26 +842,11 @@ class GitInstallerSource:
     def _git_output(self, *args: str, cwd: Optional[Path] = None) -> str:
         return subprocess.check_output(["git", *args], cwd=str(cwd) if cwd else None).decode().strip()
 
-    def _pip_install(self, target: Path, src: Path, extra_args: List[str], *, install_deps: bool) -> None:
-        cmd = [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "--upgrade",
-            "--target",
-            str(target),
-            *(["--no-deps"] if not install_deps else []),
-            str(src),
-            *extra_args,
-        ]
-        subprocess.check_call(cmd)
+    # Installation is delegated to InstallStrategy.
 
     def prepare(self, raw_spec: Any, *, cache_dir: Path, policy: Mapping[str, Any]) -> Tuple[Optional[Path], Optional[Dict[str, Any]]]:
         """Clone/install the repo into cache (if not present) and make it importable (sys.path append)."""
         logger = get_logger("PluginManager")
-        pip_args: List[str] = list(policy.get("pip_args") or [])
-        install_deps = bool(policy.get("install_deps", False))
         allow_remote = bool(policy.get("allow_remote", False))
         allowed_hosts = policy.get("allowed_git_hosts") or []
         if isinstance(raw_spec, str):
@@ -820,46 +899,38 @@ class GitInstallerSource:
             except Exception:
                 commit = "unknown"
             safe_id = self._safe_id(url, raw_spec.get("id") if isinstance(raw_spec, dict) else None)  # type: ignore[arg-type]
-            final_dir = cache_dir / f"{safe_id}@{commit}"
-            if final_dir.exists():
-                install_dir = final_dir
-            else:
-                temp_dir = cache_dir / f".{safe_id}@{commit}.tmp"
-                if temp_dir.exists():
-                    shutil.rmtree(temp_dir, ignore_errors=True)
-                temp_dir.mkdir(parents=True, exist_ok=True)
+            subdir = raw_spec.get("subdirectory") if isinstance(raw_spec, dict) else None
+            if not (isinstance(subdir, str) and subdir.strip()):
                 try:
-                    subdir = raw_spec.get("subdirectory") if isinstance(raw_spec, dict) else None
-                    if not (isinstance(subdir, str) and subdir.strip()):
-                        try:
-                            desc_path = tmp_clone / "agent_plugin.json"
-                            if desc_path.is_file():
-                                desc = json.loads(desc_path.read_text(encoding="utf-8"))
-                                desc_subdir = desc.get("subdirectory")
-                                if isinstance(desc_subdir, str) and desc_subdir.strip():
-                                    subdir = desc_subdir
-                        except Exception:
-                            pass
-                    src_path = tmp_clone / subdir if isinstance(subdir, str) and subdir.strip() else tmp_clone
-                    self._pip_install(temp_dir, src_path, pip_args, install_deps=install_deps)
-                    meta = {
-                        "git": url,
-                        "ref": ref,
-                        "commit": commit,
-                        "entry": entry,
-                        "installed_at": datetime.utcnow().isoformat() + "Z",
-                        "id": safe_id,
-                    }
-                    (temp_dir / "plugin_metadata.json").write_text(json.dumps(meta), encoding="utf-8")
-                    temp_dir.replace(final_dir)
-                    install_dir = final_dir
-                except Exception as exc:
-                    shutil.rmtree(temp_dir, ignore_errors=True)
-                    return None, {"type": "plugin_install_error", "detail": f"pip install failed: {exc}", "path": url}
-            sdir = str(install_dir)
-            if sdir not in sys.path:
-                sys.path.append(sdir)
-            return install_dir, None
+                    desc_path = tmp_clone / "agent_plugin.json"
+                    if desc_path.is_file():
+                        desc = json.loads(desc_path.read_text(encoding="utf-8"))
+                        desc_subdir = desc.get("subdirectory")
+                        if isinstance(desc_subdir, str) and desc_subdir.strip():
+                            subdir = desc_subdir
+                except Exception:
+                    pass
+            src_path = tmp_clone / subdir if isinstance(subdir, str) and subdir.strip() else tmp_clone
+
+            try:
+                install_dir = self._installer.ensure_installed(
+                    InstallRequest(
+                        cache_dir=cache_dir,
+                        safe_id=safe_id,
+                        revision=commit,
+                        project_dir=src_path,
+                        policy=policy,
+                        metadata={
+                            "git": url,
+                            "ref": ref,
+                            "commit": commit,
+                            "entry": entry,
+                        },
+                    )
+                )
+                return install_dir, None
+            except PluginInstallError as exc:
+                return None, {"type": "plugin_install_error", "detail": exc.detail, "path": url}
         finally:
             try:
                 shutil.rmtree(tmp_clone, ignore_errors=True)
@@ -867,18 +938,19 @@ class GitInstallerSource:
                 pass
 
     def load(self, raw_spec: Any, *, cache_dir: Path, policy: Mapping[str, Any]) -> PluginLoadResult:  # type: ignore[override]
-        logger = get_logger("PluginManager")
-        pip_args: List[str] = list(policy.get("pip_args") or [])
-        install_deps = bool(policy.get("install_deps", False))
-        allow_remote = bool(policy.get("allow_remote", False))
-        allowed_hosts = policy.get("allowed_git_hosts") or []
-
         if isinstance(raw_spec, str):
             url, ref, entry = self._parse_string(raw_spec)
         elif isinstance(raw_spec, dict):
             url = str(raw_spec.get("git"))
             ref = raw_spec.get("ref")
-            entry = str(raw_spec.get("entry"))
+            entry_val = raw_spec.get("entry")
+            if not isinstance(entry_val, str) or not entry_val:
+                return PluginLoadResult(cls=None, metadata=None, error={
+                    "type": "plugin_path_invalid",
+                    "detail": "GitInstallerSource requires dict specs to include string 'entry'",
+                    "path": raw_spec,
+                })
+            entry = entry_val
         else:
             return PluginLoadResult(cls=None, metadata=None, error={
                 "type": "plugin_path_invalid",
@@ -886,149 +958,60 @@ class GitInstallerSource:
                 "path": raw_spec,
             })
 
-        base_dir = policy.get("base_dir")
-        if not (url.startswith("http://") or url.startswith("https://") or url.startswith("ssh://") or "@" in url):
-            try:
-                url_path = Path(url)
-                if not url_path.is_absolute() and isinstance(base_dir, str) and base_dir:
-                    url = str((Path(base_dir) / url_path).resolve())
-            except Exception:
-                pass
-
-        # Simple local/remote detection (http/ssh considered remote)
-        is_remote = url.startswith("http://") or url.startswith("https://") or url.startswith("ssh://") or "@" in url
-        if is_remote and not allow_remote:
-            return PluginLoadResult(cls=None, metadata=None, error={
+        install_dir, prep_err = self.prepare(raw_spec, cache_dir=cache_dir, policy=policy)
+        if prep_err is not None or install_dir is None:
+            return PluginLoadResult(cls=None, metadata=None, error=prep_err or {
                 "type": "plugin_install_error",
-                "detail": "Remote git URLs are disabled by policy",
+                "detail": "install failed",
                 "path": url,
             })
-        if is_remote and allow_remote and allowed_hosts:
-            host = None
-            if url.startswith("http://") or url.startswith("https://") or url.startswith("ssh://"):
-                host = urlsplit(url).hostname
-            elif "@" in url and ":" in url:
-                host = url.split("@", 1)[1].split(":", 1)[0]
-            if host and host not in allowed_hosts:
-                return PluginLoadResult(cls=None, metadata=None, error={
-                    "type": "plugin_install_error",
-                    "detail": f"Git host '{host}' not allowed by policy",
-                    "path": url,
-                })
-        if is_remote and allow_remote and not (ref if isinstance(ref, str) and ref else None):
-            logger.warning("plugin_remote_unpinned", url=url)
 
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        src_root = cache_dir / "src"
-        src_root.mkdir(parents=True, exist_ok=True)
-
-        tmp_clone = Path(tempfile.mkdtemp(prefix="plugin_clone_", dir=str(src_root)))
-        install_dir: Optional[Path] = None
+        module_path, sep, attr = entry.rpartition(".")
+        if not sep:
+            return PluginLoadResult(cls=None, metadata=None, error={
+                "type": "plugin_path_invalid",
+                "detail": "Invalid entry: expected 'module.Class'",
+                "path": entry,
+            })
         try:
-            # Clone and checkout
-            try:
-                self._git("clone", url, str(tmp_clone))
-            except Exception as exc:
-                return PluginLoadResult(cls=None, metadata=None, error={
-                    "type": "plugin_install_error",
-                    "detail": f"git clone failed: {exc}",
-                    "path": url,
-                })
-            if ref:
-                try:
-                    self._git("-C", str(tmp_clone), "checkout", str(ref))
-                except Exception as exc:
-                    return PluginLoadResult(cls=None, metadata=None, error={
-                        "type": "plugin_install_error",
-                        "detail": f"git checkout {ref} failed: {exc}",
-                        "path": url,
-                    })
-            try:
-                commit = self._git_output("-C", str(tmp_clone), "rev-parse", "HEAD")
-            except Exception:
-                commit = "unknown"
+            module = importlib.import_module(module_path)
+            cls = getattr(module, attr)
+        except Exception as exc:
+            return PluginLoadResult(cls=None, metadata=None, error={
+                "type": "plugin_import_error",
+                "detail": str(exc),
+                "path": entry,
+            })
 
-            safe_id = self._safe_id(url, raw_spec.get("id") if isinstance(raw_spec, dict) else None)  # type: ignore[arg-type]
-            final_dir = cache_dir / f"{safe_id}@{commit}"
-            if final_dir.exists():
-                install_dir = final_dir
-            else:
-                temp_dir = cache_dir / f".{safe_id}@{commit}.tmp"
-                if temp_dir.exists():
-                    shutil.rmtree(temp_dir, ignore_errors=True)
-                temp_dir.mkdir(parents=True, exist_ok=True)
-                try:
-                    subdir = raw_spec.get("subdirectory") if isinstance(raw_spec, dict) else None
-                    if not (isinstance(subdir, str) and subdir.strip()):
-                        try:
-                            desc_path = tmp_clone / "agent_plugin.json"
-                            if desc_path.is_file():
-                                desc = json.loads(desc_path.read_text(encoding="utf-8"))
-                                desc_subdir = desc.get("subdirectory")
-                                if isinstance(desc_subdir, str) and desc_subdir.strip():
-                                    subdir = desc_subdir
-                        except Exception:
-                            pass
-                    src_path = tmp_clone / subdir if isinstance(subdir, str) and subdir.strip() else tmp_clone
-                    self._pip_install(temp_dir, src_path, pip_args, install_deps=install_deps)
-                    # Write metadata
-                    meta = {
-                        "git": url,
-                        "ref": ref,
-                        "commit": commit,
-                        "entry": entry,
-                        "installed_at": datetime.utcnow().isoformat() + "Z",
-                        "id": safe_id,
-                    }
-                    (temp_dir / "plugin_metadata.json").write_text(json.dumps(meta), encoding="utf-8")
-                    # Atomic move
-                    temp_dir.replace(final_dir)
-                    install_dir = final_dir
-                except Exception as exc:
-                    shutil.rmtree(temp_dir, ignore_errors=True)
-                    return PluginLoadResult(cls=None, metadata=None, error={
-                        "type": "plugin_install_error",
-                        "detail": f"pip install failed: {exc}",
-                        "path": url,
-                    })
+        commit: Optional[str] = None
+        origin_url = url
+        meta_ref = ref
+        try:
+            meta_path = install_dir / "plugin_metadata.json"
+            if meta_path.exists():
+                meta_data = json.loads(meta_path.read_text(encoding="utf-8"))
+                if isinstance(meta_data, dict):
+                    origin_val = meta_data.get("git")
+                    commit_val = meta_data.get("commit")
+                    ref_val = meta_data.get("ref")
+                    if isinstance(origin_val, str) and origin_val:
+                        origin_url = origin_val
+                    if isinstance(commit_val, str) and commit_val:
+                        commit = commit_val
+                    if isinstance(ref_val, str) and ref_val:
+                        meta_ref = ref_val
+        except Exception:
+            pass
 
-            # Core-first: append install_dir to sys.path
-            sdir = str(install_dir)
-            if sdir not in sys.path:
-                sys.path.append(sdir)
-
-            # Import entry
-            module_path, sep, attr = entry.rpartition(".")
-            if not sep:
-                return PluginLoadResult(cls=None, metadata=None, error={
-                    "type": "plugin_path_invalid",
-                    "detail": "Invalid entry: expected 'module.Class'",
-                    "path": entry,
-                })
-            try:
-                module = importlib.import_module(module_path)
-                cls = getattr(module, attr)
-            except Exception as exc:
-                return PluginLoadResult(cls=None, metadata=None, error={
-                    "type": "plugin_import_error",
-                    "detail": str(exc),
-                    "path": entry,
-                })
-
-            metadata = PluginMetadata(
-                id=get_plugin_id(cls),
-                kind=None,
-                origin=url,
-                entry=entry,
-                raw_spec=raw_spec,
-                ref=ref,
-                commit=commit,
-                install_dir=install_dir,
-            )
-            return PluginLoadResult(cls=cls, metadata=metadata, error=None)
-        finally:
-            try:
-                shutil.rmtree(tmp_clone, ignore_errors=True)
-            except Exception:
-                pass
+        metadata = PluginMetadata(
+            id=get_plugin_id(cls),
+            kind=None,
+            origin=origin_url,
+            entry=entry,
+            raw_spec=raw_spec,
+            ref=meta_ref if isinstance(meta_ref, str) and meta_ref else None,
+            commit=commit,
+            install_dir=install_dir,
+        )
+        return PluginLoadResult(cls=cls, metadata=metadata, error=None)
 
