@@ -9,12 +9,15 @@ version = "0.1.0"
 description = "OpenRouter provider + extensions for the AI Agent Platform"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["requests>=2.0.0"]
+dependencies = [
+  "agent-core>=0.3.0",
+  "requests>=2.0.0"
+]
 
 
 [tool.setuptools]
 packages = ["openrouter_plugins"]
 
 
-[tool.setuptools.package-data]
-openrouter_plugins = ["agent_plugin.json"]
+[tool.setuptools.data-files]
+"" = ["agent_plugin.json"]

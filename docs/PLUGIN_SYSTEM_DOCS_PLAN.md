@@ -22,7 +22,7 @@
 2) Packaging & layout
 - Package layout (example):
   - `dev_plugins/` with `__init__.py`, one or more modules that define plugin classes
-  - Optional `agent_plugin.json` descriptor in package root
+  - Optional `agent_plugin.json` descriptor at repo root (installed as a top-level data file)
 - Distributable packaging options:
   - Using `pyproject.toml` (PEP 517/518) with setuptools
   - Minimal `setup.py` for local development
@@ -30,7 +30,7 @@
 
 3) Descriptor (agent_plugin.json)
 - Purpose: declare entries and optional kinds; overrides auto-discovery
-- Location: under the importable package root (preferred) or install dir
+- Location: installed as `agent_plugin.json` at the plugin install root (for example via setuptools `data_files`)
 - Schema:
   - `entries: string[]` — dotted paths to plugin classes
   - `kinds: Record<string, "providers"|"tools"|"extensions"|"features"|"application">` (optional)

@@ -10,6 +10,7 @@ description = "File context feature plugin (supports @file: markers and completi
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+  "agent-core>=0.3.0",
   "GitPython>=3.1.0"
 ]
 
@@ -18,5 +19,5 @@ dependencies = [
 packages = ["feature_file_context"]
 
 
-[tool.setuptools.package-data]
-feature_file_context = ["agent_plugin.json"]
+[tool.setuptools.data-files]
+"" = ["agent_plugin.json"]

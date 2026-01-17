@@ -10,6 +10,7 @@ description = "Web context feature plugin (supports @web: URL expansion and comp
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+  "agent-core>=0.3.0",
   "trafilatura>=1.6.0"
 ]
 
@@ -18,5 +19,5 @@ dependencies = [
 packages = ["feature_web_context"]
 
 
-[tool.setuptools.package-data]
-feature_web_context = ["agent_plugin.json"]
+[tool.setuptools.data-files]
+"" = ["agent_plugin.json"]

@@ -12,29 +12,29 @@ Important note:
 - `plugins/codex-tools/`
   - Python package: `codex_tools` (src layout: `src/codex_tools/`)
   - Contents: `ShellTool`, `ApplyPatchTool`
-  - Descriptor: `agent_plugin.json` (repo root; includes `module` + `source_path`)
+  - Descriptor: `agent_plugin.json` (repo root; includes `module` + `subdirectory`)
 
 - `plugins/openrouter/`
   - Python package: `openrouter_plugins`
   - Contents: `OpenRouterProvider`, OpenRouter extensions (reasoning, tools, websearch)
-  - Descriptor: `openrouter_plugins/agent_plugin.json` with `entries` + `kinds`
+  - Descriptor: `agent_plugin.json` (repo root; includes `module` + `entries` + `kinds`)
 
 - `plugins/feature-system-message/`
   - Python package: `feature_system_message`
   - Contents: `SystemMessageFeature`
-  - Descriptor: `feature_system_message/agent_plugin.json`
+  - Descriptor: `agent_plugin.json` (repo root)
 
 - `plugins/feature-file-context/`
   - Python package: `feature_file_context`
   - Contents: `FileContextFeature`
   - Dependencies: includes heavy deps in packaging metadata (e.g. `GitPython`)
-  - Descriptor: `feature_file_context/agent_plugin.json`
+  - Descriptor: `agent_plugin.json` (repo root)
 
 - `plugins/feature-web-context/`
   - Python package: `feature_web_context`
   - Contents: `WebContextFeature`
   - Dependencies: includes heavy deps in packaging metadata (e.g. `trafilatura`)
-  - Descriptor: `feature_web_context/agent_plugin.json`
+  - Descriptor: `agent_plugin.json` (repo root)
 
 ## Config Target
 

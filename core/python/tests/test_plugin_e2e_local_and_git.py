@@ -198,7 +198,8 @@ def test_agent_application_with_localpath_plugins_module_only_descriptor(
     pkg_dir = desc_root / "dev_plugins"
     shutil.copytree(Path(env["DEV_PLUGINS_DIR"]) / "dev_plugins", pkg_dir, dirs_exist_ok=True)
     _copy_repo_file("dev_plugins/extra_tool.py", dest=pkg_dir / "extra_tool.py")
-    _copy_repo_file("dev_plugins/agent_plugin.json", dest=pkg_dir / "agent_plugin.json")
+    _copy_repo_file("dev_plugins/agent_plugin.json", dest=desc_root / "agent_plugin.json")
+    _copy_repo_file("setup_with_descriptor.py", dest=desc_root / "setup.py")
 
     env["DEV_PLUGINS_DESC_DIR"] = str(desc_root)
     for k, v in env.items():
@@ -258,17 +259,12 @@ def _init_git_repo_from_fixture(src_dir: Path, repo_dir: Path) -> str:
 
 
 def _init_git_repo_from_fixture_with_descriptor(src_dir: Path, repo_dir: Path) -> str:
-    """Create a local git repo with a package descriptor and an extra tool.
-
-    The descriptor is stored under the ``dev_plugins`` package directory and is
-    explicitly included in the wheel via ``package_data`` so that it is
-    available after installation.
-    """
+    """Create a local git repo with a root plugin descriptor and an extra tool."""
 
     shutil.copytree(src_dir / "dev_plugins", repo_dir / "dev_plugins", dirs_exist_ok=True)
     pkg_dir = repo_dir / "dev_plugins"
     _copy_repo_file("dev_plugins/extra_tool.py", dest=pkg_dir / "extra_tool.py")
-    _copy_repo_file("dev_plugins/agent_plugin.json", dest=pkg_dir / "agent_plugin.json")
+    _copy_repo_file("dev_plugins/agent_plugin.json", dest=repo_dir / "agent_plugin.json")
     _copy_repo_file("setup_with_descriptor.py", dest=repo_dir / "setup.py")
     subprocess.check_call(["git", "init"], cwd=str(repo_dir))
     subprocess.check_call(["git", "add", "."], cwd=str(repo_dir))

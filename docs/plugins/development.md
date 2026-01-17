@@ -37,13 +37,13 @@ When wiring plugins in the application configuration, you can reference implemen
 
 - Local path (single class)
   - Example: `"path:/abs/or/rel::dev_plugins.file_reader_tool.FileReaderTool"` or `{ "path": "/abs/or/rel", "entry": "dev_plugins.file_reader_tool.FileReaderTool" }`
-  - The directory is appended to `sys.path` (core-first); then the entry class is imported.
+  - The directory is installed into `plugin_cache_dir` via `pip install --target ...` (core-first); then the entry class is imported.
 
 - Local path (module-only or multi-class)
   - Module-only: `"path:/abs/or/rel::dev_plugins"` or `{ "path": "/abs/or/rel", "entry": "dev_plugins" }`
   - Entries list: `{ "path": "/abs/or/rel", "entries": ["dev_plugins.file_reader_tool.FileReaderTool", "dev_plugins.file_writer_tool.FileWriterTool"] }`
   - For module-only, the manager attempts to discover plugin classes under the package (including submodules). Only providers, tools, extensions, and application plugins are auto-registered by discovery.
-  - If `agent_plugin.json` exists in the package root, its `entries` list is honored and discovery is skipped.
+  - If `agent_plugin.json` exists in the install dir, its `entries` list is honored and discovery is skipped.
 
 - Git installer (single class)
   - Example: `"git+<url-or-local>[#<ref>]::dev_plugins.file_reader_tool.FileReaderTool"` or `{ "git": "<url-or-local>", "ref": "optional-tag-or-commit", "entry": "dev_plugins.file_reader_tool.FileReaderTool" }`
@@ -58,6 +58,7 @@ Notes
 - Embedded environment variables in strings are supported: `path:${env:DEV_PLUGINS_DIR}::dev_plugins.file_reader_tool.FileReaderTool`.
 - `${file:...}` placeholders remain whole-string only.
 - `sys.path` precedence is core-first (append); you can control policy via `plugin_policy.sys_path_precedence` if needed.
+- Installs default to `--no-deps`; set `plugin_policy.install_deps: true` to install dependencies.
 
 Security
 - Git installs execute arbitrary code via `pip install`; by default, `allow_remote` is disabled. To enable remote URLs, set `plugin_policy.allow_remote: true` and prefer pinned tags/commits. Consider an allowlist for repository hosts.
@@ -196,27 +197,37 @@ extensions to collaborate by reading and updating the same accumulator.
   - `dev_plugins/__init__.py`
   - `dev_plugins/file_reader_tool.py` (class `FileReaderTool`)
   - `dev_plugins/file_writer_tool.py` (class `FileWriterTool`)
-  - Optional `agent_plugin.json` in the package root (see below)
+  - `agent_plugin.json` at the repo root (installed as a top-level data file)
 
 - Packaging options
   - `pyproject.toml` (PEP 517/518) with setuptools, or minimal `setup.py` for local development.
   - The application installs Git-based plugins using `pip install --target <cache_dir>`; ensure your package is installable.
 
-- Example `setup.py` (minimal):
+- Example `setup.py` (minimal, with root descriptor):
 ```
 from setuptools import setup
-setup(name='dev_plugins', version='0.0.1', packages=['dev_plugins'])
+
+setup(
+    name="dev_plugins",
+    version="0.0.1",
+    packages=["dev_plugins"],
+    data_files=[("", ["agent_plugin.json"])],
+)
 ```
 
 ## Descriptor (agent_plugin.json)
 
-When loading a package in module-only mode, the application prefers an optional descriptor to declare explicit entries and kinds. Place `agent_plugin.json` under the importable package root.
+When loading a package in module-only mode, the application prefers an optional
+descriptor to declare explicit entries and kinds. Install `agent_plugin.json` as
+a top-level data file in the plugin install directory (for example via
+setuptools `data_files`).
 
 - Schema:
 ```
 {
   "entries": ["dev_plugins.file_reader_tool.FileReaderTool", "dev_plugins.file_writer_tool.FileWriterTool"],
-  "kinds": { "dev_plugins.file_reader_tool.FileReaderTool": "tools" }
+  "kinds": { "dev_plugins.file_reader_tool.FileReaderTool": "tools" },
+  "subdirectory": "."
 }
 ```
 

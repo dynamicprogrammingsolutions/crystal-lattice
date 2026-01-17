@@ -37,7 +37,7 @@ High-level architecture
 
 - agent_app (application)
   - Provide: PluginManager that composes concrete PluginSource implementations:
-    - LocalPathSource (dev-only sys.path insertion or optional editable install)
+    - LocalPathSource (local pip install --target into per-plugin cache)
     - GitInstallerSource (clone + pip install --target into per-plugin cache)
     - WheelSource (future)
   - Own configuration and policy; read resolved config and pass explicit parameters to manager.
@@ -146,10 +146,10 @@ Class: PluginManager
 Loader implementations (application-side)
 - LocalPathSource
   - supports: raw_spec string starting with `path:` or dict with `path` key.
-  - behavior: if path points to a package dir, default behavior is fast-dev mode:
-    append path to sys.path (append to end to keep core_first). Optionally support
-    `editable_install: true` via policy to run `pip install -e` into a dedicated
-    per-plugin dir if application requests reproducibility.
+  - behavior: mirrors GitInstallerSource without cloning:
+    - Resolve the local directory to a pip-installable project.
+    - Install into `cache_dir` using `pip install --upgrade --target <install_dir> <src>`.
+    - Append `<install_dir>` to `sys.path` (core-first).
 
 - GitInstallerSource
   - supports: dict with `git` key or string `git+<url>[#<ref>]::module.Class`.
@@ -185,8 +185,7 @@ Config keys (application-level)
   "allow_remote": true,
   "install_on_startup": true,   # you chose install-on-startup
   "sys_path_precedence": "core_first",  # fixed
-  "pip_args": [],
-  "editable_local_installs": false
+  "pip_args": []
 }
 ```
   - `plugins` (auto-detected by default):

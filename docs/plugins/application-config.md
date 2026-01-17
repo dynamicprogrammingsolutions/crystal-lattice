@@ -5,7 +5,7 @@ This page explains how to configure plugins in the application. It covers the `p
 ## Overview
 
 - `plugins`: defines provider(s), extensions, features, tools, and application plugins.
-- `plugin_cache_dir`: enables Git installs and caching.
+- `plugin_cache_dir`: enables plugin installs and caching (for both `git+...` and `path:...`).
 - `plugin_policy`: controls installation and security policy (see Policy & Security).
 
 ## Spec Formats
@@ -19,10 +19,14 @@ Each plugin reference is a “spec” that can take one of the following forms:
   - String: `"path:/abs/or/rel::pkg.module.Class"`
   - Object: `{ "path": "/abs/or/rel", "entry": "pkg.module.Class" }`
 
+  Local path specs are installed into `plugin_cache_dir` via `pip install --target ...`,
+  then loaded from the installed cache directory.
+
 - Local path (module-only or multiple classes)
   - Module-only: `"path:/abs/or/rel::pkg"` or `{ "path": "/abs/or/rel", "entry": "pkg" }`
   - Entries list: `{ "path": "/abs/or/rel", "entries": ["pkg.module.ClassA", "pkg.module.ClassB"] }`
-  - If `agent_plugin.json` is present under `pkg`, its `entries` take precedence over auto-discovery (see Descriptor).
+  - Local path plugin directories must be `pip` installable (`pyproject.toml` or `setup.py`).
+  - If `agent_plugin.json` is present in the install dir, its `entries` take precedence over auto-discovery (see Descriptor).
 
 - Git installer (single class)
   - String: `"git+<url-or-local>[#<ref>]::pkg.module.Class"`
@@ -32,9 +36,16 @@ Each plugin reference is a “spec” that can take one of the following forms:
   - Module-only: `{ "git": "<url-or-local>", "entry": "pkg" }` or `"git+<url-or-local>[#<ref>]::pkg"`
   - Entries list: `{ "git": "<url-or-local>", "entries": ["pkg.module.ClassA", "pkg.module.ClassB"] }`
 
+Both local path and git object specs accept an optional `subdirectory` field
+that selects a subfolder within the repo to install (useful for monorepos).
+
 ### Descriptor (agent_plugin.json)
 
-When a module-only spec is used, the loader looks for an optional descriptor under the package root (preferred) or in the install dir:
+When a module-only spec is used, the loader looks for an optional descriptor in
+the install directory as `agent_plugin.json`.
+
+This means the plugin's packaging should install `agent_plugin.json` as a
+top-level data file (for example, via setuptools `data_files`).
 
 ```
 {
@@ -42,6 +53,9 @@ When a module-only spec is used, the loader looks for an optional descriptor und
   "kinds": { "dev_plugins.file_reader_tool.FileReaderTool": "tools" }
 }
 ```
+
+Optional fields:
+- `subdirectory`: default install subdirectory for the repo (used when the config spec does not provide `subdirectory`).
 
 If `entries` is present, only those classes are loaded (no extra discovery). Optional `kinds` overrides are applied per entry.
 
@@ -97,15 +111,19 @@ If `entries` is present, only those classes are loaded (no extra discovery). Opt
 
 ## Policy & Security
 
-- `plugin_cache_dir`: enables Git installs and caching.
+- `plugin_cache_dir`: enables installs and caching.
 - `plugin_policy`:
   - `allow_remote` (default false): allow `https/ssh` and similar remote Git URLs.
   - `allowed_git_hosts`: optional allowlist of hosts for remote Git (enforced when `allow_remote` is true).
-  - `pip_args`: extra pip args for Git installs.
+  - `pip_args`: extra pip args for Git and local installs.
+  - `install_deps` (default false): when false, installs run with `--no-deps`.
   - `sys_path_precedence`: core-first (append) by default.
 
 Security guidance:
 - Git installs run arbitrary code via pip; prefer pinned refs (tags/commits), and use `allowed_git_hosts` where possible.
+
+Local path installs are also executed via `pip install` (against local source
+trees), so treat them as code execution in the current environment.
 
 ## Troubleshooting
 

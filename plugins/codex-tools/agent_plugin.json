@@ -1,6 +1,6 @@
 {
   "module": "codex_tools",
-  "source_path": "src",
+  "subdirectory": ".",
   "entries": [
     "codex_tools.shell_tool.ShellTool",
     "codex_tools.apply_patch_tool.ApplyPatchTool"

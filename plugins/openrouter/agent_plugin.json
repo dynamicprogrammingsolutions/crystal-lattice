@@ -1,4 +1,6 @@
 {
+  "module": "openrouter_plugins",
+  "subdirectory": ".",
   "entries": [
     "openrouter_plugins.openrouter_provider.OpenRouterProvider",
     "openrouter_plugins.openrouter_reasoning_extension.OpenRouterReasoningExtension",
