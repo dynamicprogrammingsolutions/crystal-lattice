@@ -5,12 +5,14 @@
     "openrouter_plugins.openrouter_provider.OpenRouterProvider",
     "openrouter_plugins.openrouter_reasoning_extension.OpenRouterReasoningExtension",
     "openrouter_plugins.openrouter_tools_extension.OpenRouterToolsExtension",
-    "openrouter_plugins.openrouter_websearch_extension.OpenRouterWebSearchExtension"
+    "openrouter_plugins.openrouter_websearch_extension.OpenRouterWebSearchExtension",
+    "openrouter_plugins.openrouter_usage_extension.OpenRouterUsageExtension"
   ],
   "kinds": {
     "openrouter_plugins.openrouter_provider.OpenRouterProvider": "providers",
     "openrouter_plugins.openrouter_reasoning_extension.OpenRouterReasoningExtension": "extensions",
     "openrouter_plugins.openrouter_tools_extension.OpenRouterToolsExtension": "extensions",
-    "openrouter_plugins.openrouter_websearch_extension.OpenRouterWebSearchExtension": "extensions"
+    "openrouter_plugins.openrouter_websearch_extension.OpenRouterWebSearchExtension": "extensions",
+    "openrouter_plugins.openrouter_usage_extension.OpenRouterUsageExtension": "extensions"
   }
 }
