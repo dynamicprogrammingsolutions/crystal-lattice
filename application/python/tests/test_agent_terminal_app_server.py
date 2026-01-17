@@ -1219,16 +1219,10 @@ def test_system_message_feature_adds_system_message_after_second_user_message(tm
                 "system_message": system_template,
             }
         },
-        "plugins": {
-            "providers": [
-                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            ],
-            "extensions": [],
-            "features": [
-                "plugins.system_message_feature.SystemMessageFeature",
-            ],
-            "tools": [],
-        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.system_message_feature.SystemMessageFeature",
+        ],
         "agents": {
             "default": {
                 "provider": "echo_with_system",
@@ -1745,14 +1739,12 @@ def test_http_flow_with_tools_and_reasoning(ensure_ollama_model: None, tmp_path:
                 "max_file_size": 1024 * 1024,
             }
         },
-        "plugins": {
-            "providers": ["plugins.openai_provider.OpenAICompatibleProvider"],
-            "extensions": [
-                "plugins.openai_tools_extension.OpenAIToolsExtension",
-                "plugins.ollama_thinking_extension.OllamaThinkingExtension",
-            ],
-            "tools": ["plugins.file_reader_tool.FileReaderTool"],
-        },
+        "plugins": [
+            "plugins.openai_provider.OpenAICompatibleProvider",
+            "plugins.openai_tools_extension.OpenAIToolsExtension",
+            "plugins.ollama_thinking_extension.OllamaThinkingExtension",
+            "plugins.file_reader_tool.FileReaderTool",
+        ],
         "agents": {
             "default": {"provider": "ollama_tools"},
         },

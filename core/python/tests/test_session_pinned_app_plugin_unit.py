@@ -23,20 +23,13 @@ def _make_config_with_session_pinned(tmp_path: Path) -> Path:
       "providers": {
           "echo": {"provider": "echo_openai_like", "model": "test-model"}
       },
-      "plugins": {
-          "providers": [
-              "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-          ],
-          "features": [],
-          "tools": [],
-          "extensions": [],
-      },
+      "plugins": [
+          "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+          "plugins.session_pinned_app.SessionPinnedAppPlugin",
+      ],
       "agents": {
           "default": {"provider": "echo"},
       },
-      "application_plugins": [
-          "plugins.session_pinned_app.SessionPinnedAppPlugin",
-      ],
       "application": {},
   }
 

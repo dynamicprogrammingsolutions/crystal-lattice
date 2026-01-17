@@ -12,98 +12,51 @@ This page explains how to configure plugins in the application. It covers the `p
 
 Each plugin reference is a “spec” that can take one of the following forms:
 
-- Dotted class (no side effects)
+- Dotted class (no installation)
   - `"pkg.module.Class"`
 
-- Local path (single class)
-  - String: `"path:/abs/or/rel::pkg.module.Class"`
-  - Object: `{ "path": "/abs/or/rel", "entry": "pkg.module.Class" }`
+- Local plugin repo (descriptor-driven; recommended)
+  - `"path:/abs/or/rel"`
 
-  Local path specs are installed into `plugin_cache_dir` via `pip install --target ...`,
-  then loaded from the installed cache directory.
+  The repo is installed into `plugin_cache_dir` via `pip install --target ...`, then
+  plugin classes are loaded from `agent_plugin.json`.
 
-- Local path (module-only or multiple classes)
-  - Descriptor-driven module-only (recommended): `"path:/abs/or/rel"` or `{ "path": "/abs/or/rel" }`
-  - Explicit module-only (legacy): `"path:/abs/or/rel::pkg"` or `{ "path": "/abs/or/rel", "entry": "pkg" }`
-  - Entries list: `{ "path": "/abs/or/rel", "entries": ["pkg.module.ClassA", "pkg.module.ClassB"] }`
-  - Local path plugin directories must be `pip` installable (`pyproject.toml` or `setup.py`).
-  - Descriptor-driven module-only specs require `agent_plugin.json` (see Descriptor) and load exactly its `entries`.
-  - Explicit module-only specs fall back to auto-discovery when no descriptor is present.
+- Git plugin repo (descriptor-driven; recommended)
+  - `"git+<url-or-local>[#<ref>]"`
 
-- Git installer (single class)
-  - String: `"git+<url-or-local>[#<ref>]::pkg.module.Class"`
-  - Object: `{ "git": "<url-or-local>", "ref": "tag-or-commit", "entry": "pkg.module.Class" }`
+- Verbose object spec (explicit single-class target)
+  - Local: `{ "path": "/abs/or/rel", "subdirectory": "optional/subdir", "entry": "pkg.module.Class" }`
+  - Git: `{ "git": "<url-or-local>", "ref": "tag-or-commit", "subdirectory": "optional/subdir", "entry": "pkg.module.Class" }`
 
-- Git installer (module-only or multiple classes)
-  - Descriptor-driven module-only (recommended): `"git+<url-or-local>[#<ref>]"` or `{ "git": "<url-or-local>", "ref": "optional-tag-or-commit" }`
-  - Explicit module-only (legacy): `{ "git": "<url-or-local>", "entry": "pkg" }` or `"git+<url-or-local>[#<ref>]::pkg"`
-  - Entries list: `{ "git": "<url-or-local>", "entries": ["pkg.module.ClassA", "pkg.module.ClassB"] }`
-
-Both local path and git object specs accept an optional `subdirectory` field
-that selects a subfolder within the repo to install (useful for monorepos).
+For repos, `subdirectory` selects a subfolder within the repo to install (useful for monorepos).
 
 ### Descriptor (agent_plugin.json)
 
-When a module-only spec is used, the loader looks for an optional descriptor in
-the install directory as `agent_plugin.json`.
-
-This means the plugin's packaging should install `agent_plugin.json` as a
-top-level data file (for example, via setuptools `data_files`).
+For repo specs (`path:...` or `git+...`), the loader reads `agent_plugin.json`.
+The plugin's packaging should install it as a top-level data file.
 
 ```
 {
   "entries": ["dev_plugins.file_reader_tool.FileReaderTool", "dev_plugins.file_writer_tool.FileWriterTool"],
-  "kinds": { "dev_plugins.file_reader_tool.FileReaderTool": "tools" }
 }
 ```
 
 Optional fields:
-- `subdirectory`: default install subdirectory for the repo (used when the config spec does not provide `subdirectory`).
+- `subdirectory`: default install subdirectory (used when the config spec does not provide `subdirectory`).
 
-If `entries` is present, only those classes are loaded (no extra discovery). Optional `kinds` overrides are applied per entry.
+Other fields may exist for authoring convenience; the loader only requires `entries`.
 
 ## Config Forms
 
-- Mapping-by-kind (per-kind arrays):
-```
-{
-  "plugins": {
-    "providers": ["plugins.openai_provider.OpenAICompatibleProvider"],
-    "extensions": ["plugins.openai_tools_extension.OpenAIToolsExtension"],
-    "tools": [
-      "path:${env:DEV_PLUGINS_DIR}::dev_plugins.file_reader_tool.FileReaderTool",
-      { "path": "${env:DEV_PLUGINS_DIR}", "entries": [
-        "dev_plugins.file_reader_tool.FileReaderTool",
-        "dev_plugins.file_writer_tool.FileWriterTool"
-      ]}
-    ],
-    "application": ["my_app.plugins.CustomAppPlugin"]
-  }
-}
-```
-
-- Flat list (auto-kind):
+- Flat list (auto-kind via duck-typing):
 ```
 {
   "plugins": [
     "plugins.openai_provider.OpenAICompatibleProvider",
     "plugins.openai_tools_extension.OpenAIToolsExtension",
-    "path:${env:DEV_PLUGINS_DIR}::dev_plugins.file_reader_tool.FileReaderTool",
+    { "path": "${env:DEV_PLUGINS_DIR}", "entry": "dev_plugins.file_reader_tool.FileReaderTool" },
     "path:${env:DEV_PLUGINS_DESC_DIR}",
     "git+https://github.com/acme/dev-plugins.git#v1.0.0"
-  ]
-}
-```
-
-- Canonical items (with optional kind):
-```
-{
-  "plugins": [
-    { "spec": "plugins.openai_provider.OpenAICompatibleProvider", "kind": "providers" },
-    { "spec": { "git": "/local/repo", "entries": [
-      "dev_plugins.file_reader_tool.FileReaderTool",
-      "dev_plugins.file_writer_tool.FileWriterTool"
-    ]}}
   ]
 }
 ```
@@ -121,7 +74,6 @@ If `entries` is present, only those classes are loaded (no extra discovery). Opt
   - `allowed_git_hosts`: optional allowlist of hosts for remote Git (enforced when `allow_remote` is true).
   - `pip_args`: extra pip args for Git and local installs.
   - `install_deps` (default false): when false, installs run with `--no-deps`.
-  - `sys_path_precedence`: core-first (append) by default.
 
 Security guidance:
 - Git installs run arbitrary code via pip; prefer pinned refs (tags/commits), and use `allowed_git_hosts` where possible.
@@ -131,7 +83,7 @@ trees), so treat them as code execution in the current environment.
 
 ## Troubleshooting
 
-- Errors are logged during normalization and loading (e.g., `plugin_manager_load_errors`).
+- Errors are logged during resolution (e.g., `plugin_manager_resolve_errors`).
 - You can also access them programmatically:
 ```
 app = AgentApplication("config.json", "./sessions")

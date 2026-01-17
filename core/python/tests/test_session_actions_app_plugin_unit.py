@@ -27,20 +27,13 @@ def _make_config_with_session_actions(tmp_path: Path) -> Path:
         "providers": {
             "echo": {"provider": "echo_openai_like", "model": "test-model"}
         },
-        "plugins": {
-            "providers": [
-                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            ],
-            "features": [],
-            "tools": [],
-            "extensions": [],
-        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.session_actions_app.SessionActionsAppPlugin",
+        ],
         "agents": {
             "default": {"provider": "echo"},
         },
-        "application_plugins": [
-            "plugins.session_actions_app.SessionActionsAppPlugin",
-        ],
         "application": {
             "session_actions": {"allow_delete": True},
         },
@@ -219,20 +212,13 @@ def test_delete_session_respects_allow_delete_flag(tmp_path: Path) -> None:
         "providers": {
             "echo": {"provider": "echo_openai_like", "model": "test-model"}
         },
-        "plugins": {
-            "providers": [
-                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            ],
-            "features": [],
-            "tools": [],
-            "extensions": [],
-        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.session_actions_app.SessionActionsAppPlugin",
+        ],
         "agents": {
             "default": {"provider": "echo"},
         },
-        "application_plugins": [
-            "plugins.session_actions_app.SessionActionsAppPlugin",
-        ],
         "application": {
             "session_actions": {"allow_delete": False},
         },

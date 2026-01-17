@@ -29,20 +29,13 @@ def _make_config_with_generate_title(tmp_path: Path) -> Path:
         "providers": {
             "echo": {"provider": "echo_openai_like", "model": "test-model"}
         },
-        "plugins": {
-            "providers": [
-                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            ],
-            "features": [],
-            "tools": [],
-            "extensions": [],
-        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.generate_title_app.GenerateTitleAppPlugin",
+        ],
         "agents": {
             "default": {"provider": "echo"},
         },
-        "application_plugins": [
-            "plugins.generate_title_app.GenerateTitleAppPlugin",
-        ],
         "application": {
             "generate_title_agent_id": "default",
             "generate_title_prompt_template": "Generate a concise title.",

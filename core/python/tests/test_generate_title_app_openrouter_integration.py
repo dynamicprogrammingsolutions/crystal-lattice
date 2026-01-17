@@ -53,18 +53,11 @@ def _make_config(tmp_path: Path) -> Path:
                 "timeout": 120,
             }
         },
-        "plugins": {
-            "providers": [
-                "plugins.openrouter_provider.OpenRouterProvider",
-            ],
-            "features": [],
-            "tools": [],
-            "extensions": [],
-        },
         "agents": {
             "default": {"provider": "openrouter_title"},
         },
-        "application_plugins": [
+        "plugins": [
+            "plugins.openrouter_provider.OpenRouterProvider",
             "plugins.generate_title_app.GenerateTitleAppPlugin",
         ],
         "application": {

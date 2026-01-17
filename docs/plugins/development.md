@@ -33,33 +33,23 @@ When wiring plugins in the application configuration, you can reference implemen
 
 - Single class (dotted path)
   - Example: `"plugins.openai_tools_extension.OpenAIToolsExtension"`
-  - Loaded via the core dotted-path loader with no side effects.
+  - Imported directly with no installation.
 
-- Local path (single class)
-  - Example: `"path:/abs/or/rel::dev_plugins.file_reader_tool.FileReaderTool"` or `{ "path": "/abs/or/rel", "entry": "dev_plugins.file_reader_tool.FileReaderTool" }`
-  - The directory is installed into `plugin_cache_dir` via `pip install --target ...` (core-first); then the entry class is imported.
+- Local repo (descriptor-driven; recommended)
+  - Example: `"path:/abs/or/rel"`
+  - The repo is installed into `plugin_cache_dir` via `pip install --target ...`; then plugin classes are loaded from `agent_plugin.json`.
 
-- Local path (module-only or multi-class)
-  - Descriptor-driven module-only (recommended): `"path:/abs/or/rel"` or `{ "path": "/abs/or/rel" }`
-  - Explicit module-only (legacy): `"path:/abs/or/rel::dev_plugins"` or `{ "path": "/abs/or/rel", "entry": "dev_plugins" }`
-  - Entries list: `{ "path": "/abs/or/rel", "entries": ["dev_plugins.file_reader_tool.FileReaderTool", "dev_plugins.file_writer_tool.FileWriterTool"] }`
-  - Descriptor-driven module-only specs require `agent_plugin.json` and load exactly its `entries`.
-  - Explicit module-only specs fall back to discovery when no descriptor is present.
+- Git repo (descriptor-driven; recommended)
+  - Example: `"git+https://github.com/acme/dev-plugins.git#v1.0.0"`
+  - The repo is cloned and installed into `plugin_cache_dir`.
 
-- Git installer (single class)
-  - Example: `"git+<url-or-local>[#<ref>]::dev_plugins.file_reader_tool.FileReaderTool"` or `{ "git": "<url-or-local>", "ref": "optional-tag-or-commit", "entry": "dev_plugins.file_reader_tool.FileReaderTool" }`
-  - The repo is cloned and installed into a cache dir; the install dir is appended to `sys.path` (core-first), and the class is imported.
-
-- Git installer (module-only or multi-class)
-  - Descriptor-driven module-only (recommended): `"git+<url-or-local>[#<ref>]"` or `{ "git": "<url-or-local>", "ref": "optional-tag-or-commit" }`
-  - Explicit module-only (legacy): `{ "git": "<url-or-local>", "entry": "dev_plugins" }` (string form also supported)
-  - Entries list: `{ "git": "<url-or-local>", "entries": ["dev_plugins.file_reader_tool.FileReaderTool", "dev_plugins.file_writer_tool.FileWriterTool"] }`
-  - `agent_plugin.json` support mirrors local path behavior.
+- Verbose object spec (explicit single class)
+  - Local: `{ "path": "/abs/or/rel", "subdirectory": "optional/subdir", "entry": "pkg.module.Class" }`
+  - Git: `{ "git": "<url-or-local>", "ref": "tag-or-commit", "subdirectory": "optional/subdir", "entry": "pkg.module.Class" }`
 
 Notes
-- Embedded environment variables in strings are supported: `path:${env:DEV_PLUGINS_DIR}::dev_plugins.file_reader_tool.FileReaderTool` and module-only `path:${env:DEV_PLUGINS_DESC_DIR}`.
+- Embedded environment variables in strings are supported: `path:${env:DEV_PLUGINS_DESC_DIR}`.
 - `${file:...}` placeholders remain whole-string only.
-- `sys.path` precedence is core-first (append); you can control policy via `plugin_policy.sys_path_precedence` if needed.
 - Installs default to `--no-deps`; set `plugin_policy.install_deps: true` to install dependencies.
 
 Security
@@ -219,8 +209,8 @@ setup(
 
 ## Descriptor (agent_plugin.json)
 
-When loading a package in module-only mode, the application prefers an optional
-descriptor to declare explicit entries and kinds. Install `agent_plugin.json` as
+When loading a plugin repo via `path:...` or `git+...`, the application reads an
+optional descriptor to declare explicit entries. Install `agent_plugin.json` as
 a top-level data file in the plugin install directory (for example via
 setuptools `data_files`).
 
@@ -228,12 +218,11 @@ setuptools `data_files`).
 ```
 {
   "entries": ["dev_plugins.file_reader_tool.FileReaderTool", "dev_plugins.file_writer_tool.FileWriterTool"],
-  "kinds": { "dev_plugins.file_reader_tool.FileReaderTool": "tools" },
   "subdirectory": "."
 }
 ```
 
-If `entries` are provided, the loader does not auto-discover additional classes; only listed entries are loaded. If `kinds` are given, they take precedence over auto-kind detection for those entries.
+If `entries` are provided, the loader does not auto-discover additional classes; only listed entries are loaded.
 
 ## Wiring Each Plugin Kind
 
@@ -241,8 +230,9 @@ You can wire plugins via dotted paths, local paths, or Git installers. See also 
 
 - Providers (examples):
   - Dotted class: `"plugins.openai_provider.OpenAICompatibleProvider"`
-  - Local path: `"path:/abs/or/rel::pkg.provider.MyProvider"`
-  - Git: `"git+https://github.com/acme/ai-providers.git#v1.0.0::acme.provider.MyProvider"`
+  - Local repo (descriptor-driven): `"path:/abs/or/rel"`
+  - Git repo (descriptor-driven): `"git+https://github.com/acme/ai-providers.git#v1.0.0"`
+  - Explicit single class (verbose): `{ "git": "https://github.com/acme/ai-providers.git", "ref": "v1.0.0", "entry": "acme.provider.MyProvider" }`
 
 - Extensions:
   - Dotted class: `"plugins.openai_tools_extension.OpenAIToolsExtension"`
@@ -252,12 +242,11 @@ You can wire plugins via dotted paths, local paths, or Git installers. See also 
   - Dotted class or local path; typically optional enrichments.
 
 - Tools:
-  - Single class: `"path:${env:DEV_PLUGINS_DIR}::dev_plugins.file_reader_tool.FileReaderTool"`
-  - Entries list: `{ "path": "/abs/or/rel", "entries": ["dev_plugins.file_reader_tool.FileReaderTool", "dev_plugins.file_writer_tool.FileWriterTool"] }`
-  - Module-only + descriptor: `{ "git": "https://github.com/acme/dev-plugins.git", "ref": "v1.0.0", "entry": "dev_plugins" }` with `agent_plugin.json` in repo
+  - Repo shorthand (descriptor-driven): `"path:/abs/or/rel"`
+  - Single class (verbose): `{ "path": "/abs/or/rel", "entry": "dev_plugins.file_reader_tool.FileReaderTool" }`
 
 - Application plugins:
-  - Dotted class or local path/Git entry; listed under the `application` kind.
+  - Dotted class or repo spec; plugin type is inferred by duck-typing.
 
 ## Best Practices
 - Keep implementations side-effect-light; use adapter defaults where possible.

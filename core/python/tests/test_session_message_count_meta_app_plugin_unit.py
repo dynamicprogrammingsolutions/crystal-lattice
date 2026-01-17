@@ -25,20 +25,13 @@ def _make_config_with_message_count(tmp_path: Path) -> Path:
         "providers": {
             "echo": {"provider": "echo_openai_like", "model": "test-model"}
         },
-        "plugins": {
-            "providers": [
-                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            ],
-            "features": [],
-            "tools": [],
-            "extensions": [],
-        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.session_message_count_meta_app.SessionMessageCountMetaAppPlugin",
+        ],
         "agents": {
             "default": {"provider": "echo"},
         },
-        "application_plugins": [
-            "plugins.session_message_count_meta_app.SessionMessageCountMetaAppPlugin",
-        ],
         "application": {},
     }
 

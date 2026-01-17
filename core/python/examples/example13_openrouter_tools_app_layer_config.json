@@ -1,4 +1,5 @@
 {
+  "plugin_cache_dir": "~/.crystal/cache/plugins",
   "providers": {
     "openrouter_tools": {
       "provider": "openrouter",
@@ -13,19 +14,13 @@
       "reasoning_effort": "low"
     }
   },
-  "plugins": {
-    "providers": [
-      "plugins.openrouter_provider.OpenRouterProvider"
-    ],
-    "extensions": [
-      "plugins.openrouter_reasoning_extension.OpenRouterReasoningExtension",
-      "plugins.openrouter_tools_extension.OpenRouterToolsExtension"
-    ],
-    "tools": [
-      "plugins.file_reader_tool.FileReaderTool",
-      "plugins.file_writer_tool.FileWriterTool"
-    ]
-  },
+  "plugins": [
+    "plugins.openrouter_provider.OpenRouterProvider",
+    "plugins.openrouter_reasoning_extension.OpenRouterReasoningExtension",
+    "plugins.openrouter_tools_extension.OpenRouterToolsExtension",
+    "plugins.file_reader_tool.FileReaderTool",
+    "plugins.file_writer_tool.FileWriterTool"
+  ],
   "agents": {
     "default": {
       "provider": "openrouter_tools"

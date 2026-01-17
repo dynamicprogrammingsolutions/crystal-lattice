@@ -61,7 +61,7 @@ def test_namespace_plugins_dir_does_not_shadow_regular_package(tmp_path: Path) -
 def test_path_plugins_still_load_with_namespace_plugins_present(tmp_path: Path) -> None:
     """Ensure LocalPath plugin loading still works alongside a `plugins/` namespace.
 
-    This verifies that using LocalPath specs ("path:...::package") is not
+    This verifies that using LocalPath repo specs ("path:..." / dict with `entry`) is not
     affected by unrelated namespace-package candidates earlier in sys.path.
     """
 
@@ -73,6 +73,10 @@ def test_path_plugins_still_load_with_namespace_plugins_present(tmp_path: Path) 
 
     # A separate plugin package loaded via LocalPath
     _write_file(plugin_root / "tool_pkg" / "__init__.py", "")
+    _write_file(
+        plugin_root / "setup.py",
+        "from setuptools import setup\nsetup(name='tool_pkg', version='0.0.1', packages=['tool_pkg'])\n",
+    )
     _write_file(
         plugin_root / "tool_pkg" / "my_tool.py",
         """from __future__ import annotations
@@ -109,12 +113,11 @@ class MyTool(ToolPlugin):
         importlib.invalidate_caches()
 
         mgr = PluginManager(cache_dir=tmp_path, policy={"base_dir": str(tmp_path)})
-        core_kinds, _apps, errors = mgr.load_plugins(
-            [{"spec": f"path:{plugin_root}::tool_pkg.my_tool.MyTool", "kind": None}]
+        res = mgr.resolve_all(
+            [{"path": str(plugin_root), "entry": "tool_pkg.my_tool.MyTool"}]
         )
-        assert errors == []
-        tools = [cls.__name__ for cls in core_kinds.get("tools", [])]
-        assert tools == ["MyTool"]
+        assert res.errors == []
+        assert [cls.__name__ for cls in res.classes] == ["MyTool"]
     finally:
         sys.path[:] = orig_sys_path
         sys.modules.pop("tool_pkg.my_tool", None)

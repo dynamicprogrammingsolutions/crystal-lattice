@@ -31,25 +31,16 @@ def _make_config_with_time_and_ordering(tmp_path: Path) -> Path:
         "providers": {
             "echo": {"provider": "echo_openai_like", "model": "test-model"}
         },
-        "plugins": {
-            "providers": [
-                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            ],
-            "features": [
-                # Enable timestamp extension so message metadata carries timestamps.
-                "plugins.timestamp_extension.TimestampExtension",
-            ],
-            "tools": [],
-            "extensions": [],
-        },
-        "agents": {
-            "default": {"provider": "echo"},
-        },
-        "application_plugins": [
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.timestamp_extension.TimestampExtension",
             "plugins.session_timestamp_meta_app.SessionTimestampMetaAppPlugin",
             "plugins.session_pinned_app.SessionPinnedAppPlugin",
             "plugins.session_ordering_buckets_app.SessionOrderingBucketsAppPlugin",
         ],
+        "agents": {
+            "default": {"provider": "echo"},
+        },
         "application": {
             "session_pinned_metadata_key": "pinned",
             "session_order_24h_window_seconds": 86400,
