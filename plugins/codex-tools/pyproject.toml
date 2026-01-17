@@ -25,11 +25,16 @@ dev = [
 
 
 [tool.setuptools]
-packages = ["codex_tools"]
+package-dir = {"" = "src"}
 
 
-[tool.setuptools.package-data]
-codex_tools = ["agent_plugin.json"]
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["codex_tools*"]
+
+
+[tool.setuptools.data-files]
+"" = ["agent_plugin.json"]
 
 
 [tool.pytest.ini_options]

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-import importlib.resources as ilr
+from pathlib import Path
 
 
 def test_can_import_tools() -> None:
@@ -13,10 +13,8 @@ def test_can_import_tools() -> None:
 
 
 def test_descriptor_is_present() -> None:
-    import codex_tools
-
-    desc = ilr.files(codex_tools) / "agent_plugin.json"
-    assert desc.is_file()
+    desc = Path(__file__).resolve().parents[1] / "agent_plugin.json"
     data = json.loads(desc.read_text(encoding="utf-8"))
     assert "entries" in data
+    assert data.get("module") == "codex_tools"
     assert "codex_tools.shell_tool.ShellTool" in data["entries"]

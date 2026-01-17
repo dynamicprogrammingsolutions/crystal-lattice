@@ -21,6 +21,9 @@ from datetime import datetime
 import pkgutil
 import inspect
 import importlib.resources as ilr
+import types
+import uuid
+import importlib.machinery
 from urllib.parse import urlsplit
 from agent_core.utils import get_logger
 
@@ -55,8 +58,60 @@ class LocalPathSource:
             has_path = isinstance(raw_spec.get("path"), str)
             has_entry = isinstance(raw_spec.get("entry"), str)
             has_entries = isinstance(raw_spec.get("entries"), list)
-            return has_path and (has_entry or has_entries)
+            has_module = "module" in raw_spec
+            return has_path and (has_entry or has_entries or has_module)
         return False
+
+    def _ensure_isolated_package(self, module_name: str, root: Path) -> None:
+        existing = sys.modules.get(module_name)
+        if existing is not None:
+            return
+
+        pkg = types.ModuleType(module_name)
+        pkg.__path__ = [str(root)]
+        spec = importlib.machinery.ModuleSpec(module_name, loader=None, is_package=True)
+        spec.submodule_search_locations = [str(root)]
+        pkg.__spec__ = spec
+        pkg.__package__ = module_name
+        sys.modules[module_name] = pkg
+
+    def _import_root(self, base: Path) -> Path:
+        """Return the directory that should be added to sys.path for imports.
+
+        Resolution order:
+
+        1) If an `agent_plugin.json` exists at the plugin root and defines a
+           `source_path`, use that directory.
+        2) Otherwise, support the common `src/` layout when the plugin repo has
+           a `pyproject.toml` and a `src/` directory.
+        """
+
+        try:
+            desc_path = base / "agent_plugin.json"
+            if desc_path.is_file():
+                desc = json.loads(desc_path.read_text(encoding="utf-8"))
+                source_path = desc.get("source_path")
+                if isinstance(source_path, str) and source_path.strip():
+                    candidate = (base / source_path).resolve()
+                    if candidate.is_dir():
+                        return candidate
+        except Exception:
+            pass
+
+        try:
+            src_dir = base / "src"
+            if (base / "pyproject.toml").is_file() and src_dir.is_dir():
+                return src_dir
+        except Exception:
+            pass
+        return base
+
+    def _resolve_base_dir(self, path: str, policy: Mapping[str, Any]) -> Path:
+        base_dir = policy.get("base_dir")
+        base_path = Path(os.path.expanduser(path))
+        if not base_path.is_absolute() and isinstance(base_dir, str) and base_dir:
+            base_path = Path(base_dir) / base_path
+        return base_path.resolve()
 
     def prepare(self, raw_spec: Any, *, cache_dir: Path, policy: Mapping[str, Any]) -> Tuple[Optional[Path], Optional[Dict[str, Any]]]:
         """Make the local path importable (append to sys.path)."""
@@ -67,16 +122,23 @@ class LocalPathSource:
             path = str(raw_spec.get("path"))
         else:
             return None, {"type": "plugin_path_invalid", "detail": "LocalPathSource requires string 'path:...::...' or dict with 'path'", "path": raw_spec}
-        base_dir = policy.get("base_dir")
-        base_path = Path(os.path.expanduser(path))
-        if not base_path.is_absolute() and isinstance(base_dir, str) and base_dir:
-            base_path = Path(base_dir) / base_path
-        base = base_path.resolve()
+        base = self._resolve_base_dir(path, policy)
         if not base.exists():
             return None, {"type": "plugin_path_invalid", "detail": f"Local path {str(base)!r} does not exist", "path": path}
-        s = str(base)
-        if s not in sys.path:
-            sys.path.append(s)
+
+        import_root = self._import_root(base)
+
+        if isinstance(raw_spec, dict) and bool(raw_spec.get("isolate", False)):
+            module_val = raw_spec.get("module")
+            module_name: Optional[str] = module_val if isinstance(module_val, str) and module_val else None
+            if module_name is None:
+                module_name = f"_agent_plugin_{uuid.uuid4().hex}"
+                raw_spec["module"] = module_name
+            self._ensure_isolated_package(module_name, import_root)
+        else:
+            s = str(import_root)
+            if s not in sys.path:
+                sys.path.append(s)
         return base, None
 
     def load(self, raw_spec: Any, *, cache_dir: Path, policy: Mapping[str, Any]) -> PluginLoadResult:  # type: ignore[override]
@@ -93,11 +155,7 @@ class LocalPathSource:
                 "path": raw_spec,
             })
 
-        base_dir = policy.get("base_dir")
-        base_path = Path(os.path.expanduser(path))
-        if not base_path.is_absolute() and isinstance(base_dir, str) and base_dir:
-            base_path = Path(base_dir) / base_path
-        base = base_path.resolve()
+        base = self._resolve_base_dir(path, policy)
         if not base.exists():
             return PluginLoadResult(cls=None, metadata=None, error={
                 "type": "plugin_path_invalid",
@@ -105,10 +163,20 @@ class LocalPathSource:
                 "path": path,
             })
 
+        import_root = self._import_root(base)
+
         # Core-first precedence: append to end of sys.path, do not insert at front.
-        s = str(base)
-        if s not in sys.path:
-            sys.path.append(s)
+        if isinstance(raw_spec, dict) and bool(raw_spec.get("isolate", False)):
+            module_val = raw_spec.get("module")
+            module_name: Optional[str] = module_val if isinstance(module_val, str) and module_val else None
+            if module_name is None:
+                module_name = f"_agent_plugin_{uuid.uuid4().hex}"
+                raw_spec["module"] = module_name
+            self._ensure_isolated_package(module_name, import_root)
+        else:
+            s = str(import_root)
+            if s not in sys.path:
+                sys.path.append(s)
 
         module_path, sep, attr = entry.rpartition(".")
         if not sep:
@@ -369,7 +437,7 @@ class PluginManager:
                         core_kinds["features"].append(cls)
                 continue
 
-            # Module-only entry: strings (path/git) or dict with entry module
+            # Module-only entry: strings (path/git) or dict with module/entry
             module_name: Optional[str] = None
             base_spec: Optional[Dict[str, Any]] = None
             if isinstance(spec, str) and "::" in spec and (spec.startswith("path:") or spec.startswith("git+")):
@@ -390,6 +458,21 @@ class PluginManager:
                                 module_name = entry
                             except Exception:
                                 module_name = None
+            elif isinstance(spec, dict) and "module" in spec:
+                loader = self._find_loader(spec)
+                if loader is not None:
+                    prepare_fn = getattr(loader, "prepare", None)
+                    if callable(prepare_fn):
+                        _p, prep_err = prepare_fn(spec, cache_dir=self.cache_dir, policy=self.policy)
+                        if prep_err is None:
+                            entry_val = spec.get("module")
+                            if isinstance(entry_val, str) and entry_val:
+                                try:
+                                    importlib.import_module(entry_val)
+                                    module_name = entry_val
+                                    base_spec = spec
+                                except Exception:
+                                    module_name = None
             elif isinstance(spec, dict) and isinstance(spec.get("entry"), str):
                 entry_val = str(spec.get("entry"))
                 loader = self._find_loader(spec)
@@ -421,6 +504,7 @@ class PluginManager:
                 entries_from_descriptor: List[str] = []
                 if install_dir is not None:
                     kinds_map: Dict[str, str] = {}
+                    relative_entries = False
                     # Prefer descriptor relative to module package root; fallback to install_dir
                     try:
                         mod = importlib.import_module(module_name)
@@ -431,6 +515,7 @@ class PluginManager:
                                 desc_data = json.loads(desc_path.read_text(encoding="utf-8"))
                                 entries_from_descriptor = [e for e in desc_data.get("entries", []) if isinstance(e, str)]
                                 kinds_map = desc_data.get("kinds", {}) if isinstance(desc_data.get("kinds"), dict) else {}
+                                relative_entries = bool(desc_data.get("relative_entries", False))
                         except Exception:
                             pass
                     except Exception:
@@ -442,11 +527,28 @@ class PluginManager:
                                 desc_data = json.loads(desc.read_text(encoding="utf-8"))
                                 entries_from_descriptor = [e for e in desc_data.get("entries", []) if isinstance(e, str)]
                                 kinds_map = desc_data.get("kinds", {}) if isinstance(desc_data.get("kinds"), dict) else {}
+                                relative_entries = bool(desc_data.get("relative_entries", False))
                             except Exception:
                                 entries_from_descriptor = []
                                 kinds_map = {}
                 else:
                     kinds_map = {}
+                    relative_entries = False
+
+                if relative_entries and module_name and entries_from_descriptor:
+                    prefixed: List[str] = []
+                    new_kinds: Dict[str, str] = {}
+                    for entry in entries_from_descriptor:
+                        if entry.startswith(module_name + "."):
+                            full_entry = entry
+                        else:
+                            full_entry = f"{module_name}.{entry.lstrip('.')}"
+                        prefixed.append(full_entry)
+                        kind_for_entry = kinds_map.get(entry) or kinds_map.get(full_entry)
+                        if isinstance(kind_for_entry, str) and kind_for_entry:
+                            new_kinds[full_entry] = kind_for_entry
+                    entries_from_descriptor = prefixed
+                    kinds_map = new_kinds or kinds_map
 
                 classes: List[type] = []
                 if entries_from_descriptor:
