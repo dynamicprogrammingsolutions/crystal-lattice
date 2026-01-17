@@ -147,10 +147,7 @@ class ExtraTool:\n    name = 'extra_tool'\n\n    def get_tool_schemas(self, stat
 
     cache_dir = tmp_path / "cache"
     mgr = PluginManager(cache_dir=cache_dir)
-    spec = {
-        "git": str(repo),
-        "entry": "dev_plugins",
-    }
+    spec = f"git+{repo}"
     core_kinds, app_classes, errors = mgr.load_plugins([{"spec": spec, "kind": None}])
     assert errors == []
     tools = [cls.__name__ for cls in core_kinds.get("tools", [])]
@@ -160,7 +157,7 @@ class ExtraTool:\n    name = 'extra_tool'\n\n    def get_tool_schemas(self, stat
 def test_git_remote_disallowed_by_default(tmp_path: Path) -> None:
     cache_dir = tmp_path / "cache"
     mgr = PluginManager(cache_dir=cache_dir)
-    spec = {"git": "https://example.com/repo.git", "entry": "dev_plugins"}
+    spec = "git+https://example.com/repo.git"
     core_kinds, app_classes, errors = mgr.load_plugins([{"spec": spec, "kind": None}])
     assert errors, "expected error for remote git without allow_remote policy"
     assert any(e.get("type") == "plugin_install_error" for e in errors)
@@ -228,8 +225,19 @@ class ExtraTool:\n    name = 'extra_tool'\n\n    def get_tool_schemas(self, stat
     )
     cache_dir = tmp_path / "cache"
     mgr = PluginManager(cache_dir=cache_dir)
-    spec = {"path": str(dst), "entry": "dev_plugins"}
+    spec = f"path:{dst}"
     core_kinds, app_classes, errors = mgr.load_plugins([{"spec": spec, "kind": None}])
     assert errors == []
     tools = [cls.__name__ for cls in core_kinds.get("tools", [])]
     assert set(tools) == {"FileReaderTool", "FileWriterTool"}
+
+
+def test_localpath_shorthand_requires_descriptor(tmp_path: Path) -> None:
+    cache_dir = tmp_path / "cache"
+    mgr = PluginManager(cache_dir=cache_dir)
+    fixtures = _fixtures_dir()
+    # The base fixtures directory is installable but intentionally does not
+    # include a descriptor at the install root.
+    spec = f"path:{fixtures}"
+    core_kinds, app_classes, errors = mgr.load_plugins([{"spec": spec, "kind": None}])
+    assert any(e.get("type") == "plugin_descriptor_missing" for e in errors)
