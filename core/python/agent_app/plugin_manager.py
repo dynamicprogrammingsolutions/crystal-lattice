@@ -11,6 +11,7 @@ the next stage.
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
 import importlib
+import hashlib
 import os
 import sys
 import json
@@ -20,10 +21,6 @@ import tempfile
 from datetime import datetime
 import pkgutil
 import inspect
-import importlib.resources as ilr
-import types
-import uuid
-import importlib.machinery
 from urllib.parse import urlsplit
 from agent_core.utils import get_logger
 
@@ -38,15 +35,23 @@ from agent_core.plugin.loader import (
 
 
 class LocalPathSource:
-    """Load plugin classes from a local directory (development/install-free).
+    """Install and load plugin classes from a local directory.
 
     Supported spec forms:
       - String (single class): ``"path:/abs/or/rel::pkg.module.Class"``
       - Dict (single class): ``{"path": "/abs/or/rel", "entry": "pkg.module.Class"}``
       - Dict (entries list): ``{"path": "/abs/or/rel", "entries": ["pkg.module.ClassA", ...]}``
 
+    Notes:
+      - Unlike the earlier "install-free" LocalPath behavior, this source
+        now mirrors GitInstallerSource: it performs a local `pip install
+        --target ...` into `cache_dir`.
+      - The only conceptual difference from the git source is that there is no
+        cloning step (the source is already on disk).
+
     Side effects:
-      - Appends the directory to ``sys.path`` (core-first, not prepended).
+      - Appends the installed cache directory to ``sys.path`` (core-first, not
+        prepended).
 
     See also: docs/plugins/application-config.md
     """
@@ -58,53 +63,35 @@ class LocalPathSource:
             has_path = isinstance(raw_spec.get("path"), str)
             has_entry = isinstance(raw_spec.get("entry"), str)
             has_entries = isinstance(raw_spec.get("entries"), list)
-            has_module = "module" in raw_spec
-            return has_path and (has_entry or has_entries or has_module)
+            return has_path and (has_entry or has_entries)
         return False
 
-    def _ensure_isolated_package(self, module_name: str, root: Path) -> None:
-        existing = sys.modules.get(module_name)
-        if existing is not None:
-            return
+    def _pip_install(
+        self,
+        target: Path,
+        src: Path,
+        extra_args: List[str],
+        *,
+        install_deps: bool,
+    ) -> None:
+        cmd = [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--upgrade",
+            "--target",
+            str(target),
+            *(["--no-deps"] if not install_deps else []),
+            str(src),
+            *extra_args,
+        ]
+        subprocess.check_call(cmd)
 
-        pkg = types.ModuleType(module_name)
-        pkg.__path__ = [str(root)]
-        spec = importlib.machinery.ModuleSpec(module_name, loader=None, is_package=True)
-        spec.submodule_search_locations = [str(root)]
-        pkg.__spec__ = spec
-        pkg.__package__ = module_name
-        sys.modules[module_name] = pkg
-
-    def _import_root(self, base: Path) -> Path:
-        """Return the directory that should be added to sys.path for imports.
-
-        Resolution order:
-
-        1) If an `agent_plugin.json` exists at the plugin root and defines a
-           `source_path`, use that directory.
-        2) Otherwise, support the common `src/` layout when the plugin repo has
-           a `pyproject.toml` and a `src/` directory.
-        """
-
-        try:
-            desc_path = base / "agent_plugin.json"
-            if desc_path.is_file():
-                desc = json.loads(desc_path.read_text(encoding="utf-8"))
-                source_path = desc.get("source_path")
-                if isinstance(source_path, str) and source_path.strip():
-                    candidate = (base / source_path).resolve()
-                    if candidate.is_dir():
-                        return candidate
-        except Exception:
-            pass
-
-        try:
-            src_dir = base / "src"
-            if (base / "pyproject.toml").is_file() and src_dir.is_dir():
-                return src_dir
-        except Exception:
-            pass
-        return base
+    def _safe_id(self, path: Path, explicit_id: Optional[str]) -> str:
+        if explicit_id:
+            return explicit_id
+        return path.name or "plugin"
 
     def _resolve_base_dir(self, path: str, policy: Mapping[str, Any]) -> Path:
         base_dir = policy.get("base_dir")
@@ -113,8 +100,83 @@ class LocalPathSource:
             base_path = Path(base_dir) / base_path
         return base_path.resolve()
 
+    def _read_descriptor(self, base: Path) -> Dict[str, Any] | None:
+        desc_path = base / "agent_plugin.json"
+        if not desc_path.is_file():
+            return None
+        try:
+            data = json.loads(desc_path.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else None
+        except Exception:
+            return None
+
+    def _project_dir(self, base: Path, raw_spec: Any) -> Path:
+        subdir = raw_spec.get("subdirectory") if isinstance(raw_spec, dict) else None
+        if not (isinstance(subdir, str) and subdir.strip()):
+            desc = self._read_descriptor(base)
+            if desc is not None:
+                desc_subdir = desc.get("subdirectory")
+                if isinstance(desc_subdir, str) and desc_subdir.strip():
+                    subdir = desc_subdir
+        if isinstance(subdir, str) and subdir.strip():
+            return (base / subdir).resolve()
+        return base
+
+    def _is_installable_project(self, project_dir: Path) -> bool:
+        return (project_dir / "pyproject.toml").is_file() or (project_dir / "setup.py").is_file()
+
+    def _fingerprint_git(self, base: Path) -> Optional[str]:
+        try:
+            commit = subprocess.check_output(["git", "-C", str(base), "rev-parse", "HEAD"]).decode().strip()
+        except Exception:
+            return None
+        try:
+            status = subprocess.check_output(
+                ["git", "-C", str(base), "status", "--porcelain", "--", "."]
+            ).decode()
+        except Exception:
+            status = ""
+        status_hash = hashlib.sha256(status.encode("utf-8", errors="ignore")).hexdigest()
+        return f"git:{commit}:{status_hash}"
+
+    def _fingerprint_files(self, project_dir: Path) -> str:
+        hasher = hashlib.sha256()
+
+        def _ignore_dir(name: str) -> bool:
+            return name in {
+                ".git",
+                "__pycache__",
+                ".pytest_cache",
+                ".mypy_cache",
+                "build",
+                "dist",
+                ".venv",
+                "venv",
+            } or name.endswith(".egg-info")
+
+        for root, dirs, files in os.walk(project_dir):
+            dirs[:] = [d for d in dirs if not _ignore_dir(d)]
+            rel_root = os.path.relpath(root, project_dir)
+            for filename in sorted(files):
+                if filename.endswith(".pyc"):
+                    continue
+                full = Path(root) / filename
+                try:
+                    st = full.stat()
+                except Exception:
+                    continue
+                rel = str(Path(rel_root) / filename)
+                hasher.update(rel.encode("utf-8", errors="ignore"))
+                hasher.update(str(getattr(st, "st_mtime_ns", int(st.st_mtime * 1e9))).encode("utf-8"))
+                hasher.update(str(st.st_size).encode("utf-8"))
+        return hasher.hexdigest()
+
     def prepare(self, raw_spec: Any, *, cache_dir: Path, policy: Mapping[str, Any]) -> Tuple[Optional[Path], Optional[Dict[str, Any]]]:
-        """Make the local path importable (append to sys.path)."""
+        """Install from local path into cache and make it importable."""
+        logger = get_logger("PluginManager")
+        pip_args: List[str] = list(policy.get("pip_args") or [])
+        install_deps = bool(policy.get("install_deps", False))
+        install_deps = bool(policy.get("install_deps", False))
         if isinstance(raw_spec, str):
             left, _, _entry = raw_spec.partition("::")
             path = left.split(":", 1)[1]
@@ -126,20 +188,68 @@ class LocalPathSource:
         if not base.exists():
             return None, {"type": "plugin_path_invalid", "detail": f"Local path {str(base)!r} does not exist", "path": path}
 
-        import_root = self._import_root(base)
+        project_dir = self._project_dir(base, raw_spec)
+        if not project_dir.exists() or not project_dir.is_dir():
+            return None, {"type": "plugin_path_invalid", "detail": f"Project directory {str(project_dir)!r} does not exist", "path": str(project_dir)}
+        if not self._is_installable_project(project_dir):
+            return None, {"type": "plugin_install_error", "detail": "Local path plugins must be pip-installable (pyproject.toml or setup.py)", "path": str(project_dir)}
 
-        if isinstance(raw_spec, dict) and bool(raw_spec.get("isolate", False)):
-            module_val = raw_spec.get("module")
-            module_name: Optional[str] = module_val if isinstance(module_val, str) and module_val else None
-            if module_name is None:
-                module_name = f"_agent_plugin_{uuid.uuid4().hex}"
-                raw_spec["module"] = module_name
-            self._ensure_isolated_package(module_name, import_root)
-        else:
-            s = str(import_root)
-            if s not in sys.path:
-                sys.path.append(s)
-        return base, None
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        src_root = cache_dir / "src"
+        src_root.mkdir(parents=True, exist_ok=True)
+
+        git_fp = self._fingerprint_git(base)
+        fp = git_fp or self._fingerprint_files(project_dir)
+        fp_hash = hashlib.sha256(fp.encode("utf-8", errors="ignore")).hexdigest()
+
+        safe_id = self._safe_id(base, raw_spec.get("id") if isinstance(raw_spec, dict) else None)
+        install_dir = cache_dir / f"{safe_id}@{fp_hash}"
+        if install_dir.exists():
+            sdir = str(install_dir)
+            if sdir not in sys.path:
+                sys.path.append(sdir)
+            return install_dir, None
+
+        tmp_copy = Path(tempfile.mkdtemp(prefix="plugin_copy_", dir=str(src_root)))
+        try:
+            try:
+                shutil.copytree(project_dir, tmp_copy, dirs_exist_ok=True)
+            except Exception as exc:
+                return None, {"type": "plugin_install_error", "detail": f"copy failed: {exc}", "path": str(project_dir)}
+
+            temp_dir = cache_dir / f".{safe_id}@{fp_hash}.tmp"
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                self._pip_install(temp_dir, tmp_copy, pip_args, install_deps=install_deps)
+                meta = {
+                    "path": str(base),
+                    "project_dir": str(project_dir),
+                    "fingerprint": fp,
+                    "installed_at": datetime.utcnow().isoformat() + "Z",
+                    "id": safe_id,
+                }
+                if isinstance(git_fp, str) and git_fp.startswith("git:"):
+                    _tag, commit, status_hash = git_fp.split(":", 2)
+                    meta["commit"] = commit
+                    meta["status_hash"] = status_hash
+                (temp_dir / "plugin_metadata.json").write_text(json.dumps(meta), encoding="utf-8")
+                temp_dir.replace(install_dir)
+            except Exception as exc:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                return None, {"type": "plugin_install_error", "detail": f"pip install failed: {exc}", "path": str(project_dir)}
+
+            sdir = str(install_dir)
+            if sdir not in sys.path:
+                sys.path.append(sdir)
+            logger.info("plugin_local_installed", path=str(base), install_dir=str(install_dir))
+            return install_dir, None
+        finally:
+            try:
+                shutil.rmtree(tmp_copy, ignore_errors=True)
+            except Exception:
+                pass
 
     def load(self, raw_spec: Any, *, cache_dir: Path, policy: Mapping[str, Any]) -> PluginLoadResult:  # type: ignore[override]
         if isinstance(raw_spec, str):
@@ -163,20 +273,9 @@ class LocalPathSource:
                 "path": path,
             })
 
-        import_root = self._import_root(base)
-
-        # Core-first precedence: append to end of sys.path, do not insert at front.
-        if isinstance(raw_spec, dict) and bool(raw_spec.get("isolate", False)):
-            module_val = raw_spec.get("module")
-            module_name: Optional[str] = module_val if isinstance(module_val, str) and module_val else None
-            if module_name is None:
-                module_name = f"_agent_plugin_{uuid.uuid4().hex}"
-                raw_spec["module"] = module_name
-            self._ensure_isolated_package(module_name, import_root)
-        else:
-            s = str(import_root)
-            if s not in sys.path:
-                sys.path.append(s)
+        install_dir, prep_err = self.prepare(raw_spec, cache_dir=cache_dir, policy=policy)
+        if prep_err is not None or install_dir is None:
+            return PluginLoadResult(cls=None, metadata=None, error=prep_err or {"type": "plugin_install_error", "detail": "install failed", "path": path})
 
         module_path, sep, attr = entry.rpartition(".")
         if not sep:
@@ -198,7 +297,7 @@ class LocalPathSource:
         metadata = PluginMetadata(
             id=get_plugin_id(cls),
             kind=None,
-            origin=str(base),
+            origin=str(install_dir),
             entry=entry,
             raw_spec=raw_spec,
         )
@@ -442,35 +541,24 @@ class PluginManager:
             base_spec: Optional[Dict[str, Any]] = None
             if isinstance(spec, str) and "::" in spec and (spec.startswith("path:") or spec.startswith("git+")):
                 left, _, entry = spec.partition("::")
-                # Build a base spec and prepare before import attempt
-                if spec.startswith("path:"):
-                    base_spec = {"path": left.split(":", 1)[1], "entry": entry}
-                else:
-                    base_spec = {"git": left[len("git+") :].split("#")[0], "entry": entry}
-                loader = self._find_loader(base_spec)
-                if loader is not None:
-                    prepare_fn = getattr(loader, "prepare", None)
-                    if callable(prepare_fn):
-                        _p, prep_err = prepare_fn(base_spec, cache_dir=self.cache_dir, policy=self.policy)
-                        if prep_err is None:
-                            try:
-                                importlib.import_module(entry)
-                                module_name = entry
-                            except Exception:
-                                module_name = None
-            elif isinstance(spec, dict) and "module" in spec:
-                loader = self._find_loader(spec)
-                if loader is not None:
-                    prepare_fn = getattr(loader, "prepare", None)
-                    if callable(prepare_fn):
-                        _p, prep_err = prepare_fn(spec, cache_dir=self.cache_dir, policy=self.policy)
-                        if prep_err is None:
-                            entry_val = spec.get("module")
-                            if isinstance(entry_val, str) and entry_val:
+                last_seg = entry.rsplit(".", 1)[-1] if isinstance(entry, str) else ""
+                # Heuristic: treat CamelCase suffixes as single-class specs.
+                # Module-only string specs typically end in a module/package name.
+                if not (isinstance(last_seg, str) and last_seg[:1].isupper()):
+                    # Build a base spec and prepare before import attempt
+                    if spec.startswith("path:"):
+                        base_spec = {"path": left.split(":", 1)[1], "entry": entry}
+                    else:
+                        base_spec = {"git": left[len("git+") :].split("#")[0], "entry": entry}
+                    loader = self._find_loader(base_spec)
+                    if loader is not None:
+                        prepare_fn = getattr(loader, "prepare", None)
+                        if callable(prepare_fn):
+                            _p, prep_err = prepare_fn(base_spec, cache_dir=self.cache_dir, policy=self.policy)
+                            if prep_err is None:
                                 try:
-                                    importlib.import_module(entry_val)
-                                    module_name = entry_val
-                                    base_spec = spec
+                                    importlib.import_module(entry)
+                                    module_name = entry
                                 except Exception:
                                     module_name = None
             elif isinstance(spec, dict) and isinstance(spec.get("entry"), str):
@@ -500,55 +588,19 @@ class PluginManager:
                     if prep_err:
                         errors.append(prep_err)
                         continue
-                # Descriptor support
+                # Descriptor support (single descriptor file at install root)
                 entries_from_descriptor: List[str] = []
+                kinds_map: Dict[str, str] = {}
                 if install_dir is not None:
-                    kinds_map: Dict[str, str] = {}
-                    relative_entries = False
-                    # Prefer descriptor relative to module package root; fallback to install_dir
-                    try:
-                        mod = importlib.import_module(module_name)
+                    desc = install_dir / "agent_plugin.json"
+                    if desc.exists():
                         try:
-                            root = ilr.files(mod)
-                            desc_path = root / "agent_plugin.json"
-                            if desc_path.is_file():
-                                desc_data = json.loads(desc_path.read_text(encoding="utf-8"))
-                                entries_from_descriptor = [e for e in desc_data.get("entries", []) if isinstance(e, str)]
-                                kinds_map = desc_data.get("kinds", {}) if isinstance(desc_data.get("kinds"), dict) else {}
-                                relative_entries = bool(desc_data.get("relative_entries", False))
+                            desc_data = json.loads(desc.read_text(encoding="utf-8"))
+                            entries_from_descriptor = [e for e in desc_data.get("entries", []) if isinstance(e, str)]
+                            kinds_map = desc_data.get("kinds", {}) if isinstance(desc_data.get("kinds"), dict) else {}
                         except Exception:
-                            pass
-                    except Exception:
-                        pass
-                    if not entries_from_descriptor:
-                        desc = install_dir / "agent_plugin.json"
-                        if desc.exists():
-                            try:
-                                desc_data = json.loads(desc.read_text(encoding="utf-8"))
-                                entries_from_descriptor = [e for e in desc_data.get("entries", []) if isinstance(e, str)]
-                                kinds_map = desc_data.get("kinds", {}) if isinstance(desc_data.get("kinds"), dict) else {}
-                                relative_entries = bool(desc_data.get("relative_entries", False))
-                            except Exception:
-                                entries_from_descriptor = []
-                                kinds_map = {}
-                else:
-                    kinds_map = {}
-                    relative_entries = False
-
-                if relative_entries and module_name and entries_from_descriptor:
-                    prefixed: List[str] = []
-                    new_kinds: Dict[str, str] = {}
-                    for entry in entries_from_descriptor:
-                        if entry.startswith(module_name + "."):
-                            full_entry = entry
-                        else:
-                            full_entry = f"{module_name}.{entry.lstrip('.')}"
-                        prefixed.append(full_entry)
-                        kind_for_entry = kinds_map.get(entry) or kinds_map.get(full_entry)
-                        if isinstance(kind_for_entry, str) and kind_for_entry:
-                            new_kinds[full_entry] = kind_for_entry
-                    entries_from_descriptor = prefixed
-                    kinds_map = new_kinds or kinds_map
+                            entries_from_descriptor = []
+                            kinds_map = {}
 
                 classes: List[type] = []
                 if entries_from_descriptor:
@@ -696,14 +748,26 @@ class GitInstallerSource:
     def _git_output(self, *args: str, cwd: Optional[Path] = None) -> str:
         return subprocess.check_output(["git", *args], cwd=str(cwd) if cwd else None).decode().strip()
 
-    def _pip_install(self, target: Path, src: Path, extra_args: List[str]) -> None:
-        cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "--target", str(target), str(src), *extra_args]
+    def _pip_install(self, target: Path, src: Path, extra_args: List[str], *, install_deps: bool) -> None:
+        cmd = [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--upgrade",
+            "--target",
+            str(target),
+            *(["--no-deps"] if not install_deps else []),
+            str(src),
+            *extra_args,
+        ]
         subprocess.check_call(cmd)
 
     def prepare(self, raw_spec: Any, *, cache_dir: Path, policy: Mapping[str, Any]) -> Tuple[Optional[Path], Optional[Dict[str, Any]]]:
         """Clone/install the repo into cache (if not present) and make it importable (sys.path append)."""
         logger = get_logger("PluginManager")
         pip_args: List[str] = list(policy.get("pip_args") or [])
+        install_deps = bool(policy.get("install_deps", False))
         allow_remote = bool(policy.get("allow_remote", False))
         allowed_hosts = policy.get("allowed_git_hosts") or []
         if isinstance(raw_spec, str):
@@ -766,12 +830,23 @@ class GitInstallerSource:
                 temp_dir.mkdir(parents=True, exist_ok=True)
                 try:
                     subdir = raw_spec.get("subdirectory") if isinstance(raw_spec, dict) else None
-                    src_path = tmp_clone / subdir if subdir else tmp_clone
-                    self._pip_install(temp_dir, src_path, pip_args)
+                    if not (isinstance(subdir, str) and subdir.strip()):
+                        try:
+                            desc_path = tmp_clone / "agent_plugin.json"
+                            if desc_path.is_file():
+                                desc = json.loads(desc_path.read_text(encoding="utf-8"))
+                                desc_subdir = desc.get("subdirectory")
+                                if isinstance(desc_subdir, str) and desc_subdir.strip():
+                                    subdir = desc_subdir
+                        except Exception:
+                            pass
+                    src_path = tmp_clone / subdir if isinstance(subdir, str) and subdir.strip() else tmp_clone
+                    self._pip_install(temp_dir, src_path, pip_args, install_deps=install_deps)
                     meta = {
                         "git": url,
                         "ref": ref,
                         "commit": commit,
+                        "entry": entry,
                         "installed_at": datetime.utcnow().isoformat() + "Z",
                         "id": safe_id,
                     }
@@ -794,6 +869,7 @@ class GitInstallerSource:
     def load(self, raw_spec: Any, *, cache_dir: Path, policy: Mapping[str, Any]) -> PluginLoadResult:  # type: ignore[override]
         logger = get_logger("PluginManager")
         pip_args: List[str] = list(policy.get("pip_args") or [])
+        install_deps = bool(policy.get("install_deps", False))
         allow_remote = bool(policy.get("allow_remote", False))
         allowed_hosts = policy.get("allowed_git_hosts") or []
 
@@ -883,8 +959,18 @@ class GitInstallerSource:
                 temp_dir.mkdir(parents=True, exist_ok=True)
                 try:
                     subdir = raw_spec.get("subdirectory") if isinstance(raw_spec, dict) else None
-                    src_path = tmp_clone / subdir if subdir else tmp_clone
-                    self._pip_install(temp_dir, src_path, pip_args)
+                    if not (isinstance(subdir, str) and subdir.strip()):
+                        try:
+                            desc_path = tmp_clone / "agent_plugin.json"
+                            if desc_path.is_file():
+                                desc = json.loads(desc_path.read_text(encoding="utf-8"))
+                                desc_subdir = desc.get("subdirectory")
+                                if isinstance(desc_subdir, str) and desc_subdir.strip():
+                                    subdir = desc_subdir
+                        except Exception:
+                            pass
+                    src_path = tmp_clone / subdir if isinstance(subdir, str) and subdir.strip() else tmp_clone
+                    self._pip_install(temp_dir, src_path, pip_args, install_deps=install_deps)
                     # Write metadata
                     meta = {
                         "git": url,

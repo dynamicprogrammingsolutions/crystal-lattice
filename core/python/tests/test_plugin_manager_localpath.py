@@ -1,7 +1,8 @@
-"""Unit tests for application-level PluginManager and LocalPathSource.
+"""Tests for application-level PluginManager and LocalPathSource.
 
-These tests avoid git/pip and validate the local-path development workflow and
-manager orchestration for dotted-path and local-path specs.
+LocalPathSource mirrors GitInstallerSource: it installs a local source tree via
+`pip install --target ...` into the plugin cache, then imports from the
+installed target.
 """
 
 from __future__ import annotations
@@ -14,12 +15,20 @@ from agent_app.plugin_manager import PluginManager, LocalPathSource
 from agent_core.plugin.loader import DottedPathSource
 
 
-def _make_dev_package(tmp_path: Path) -> str:
-    """Create a minimal dev package with a provider plugin class."""
+def _make_dev_repo(tmp_path: Path) -> Path:
+    """Create a minimal installable repo with a provider plugin class."""
 
-    pkg = tmp_path / "myplugins"
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+
+    (repo / "setup.py").write_text(
+        "from setuptools import setup\nsetup(name='myplugins', version='0.0.1', packages=['myplugins'])\n",
+        encoding="utf-8",
+    )
+
+    pkg = repo / "myplugins"
     pkg.mkdir(parents=True)
-    (pkg / "__init__.py").write_text("")
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
     (pkg / "provider_mod.py").write_text(
         textwrap.dedent(
             """
@@ -32,15 +41,19 @@ def _make_dev_package(tmp_path: Path) -> str:
                 def call_api(self, native_messages, state):
                     return [], [], [], state
             """
-        )
+        ),
+        encoding="utf-8",
     )
-    return str(tmp_path)
+    return repo
 
 
 def test_localpath_source_loads_provider(tmp_path: Path) -> None:
-    base = _make_dev_package(tmp_path)
-    spec = f"path:{base}::myplugins.provider_mod.DevProvider"
-    mgr = PluginManager(cache_dir=tmp_path, loaders=[LocalPathSource()])
+    repo = _make_dev_repo(tmp_path)
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir(parents=True)
+
+    spec = f"path:{repo}::myplugins.provider_mod.DevProvider"
+    mgr = PluginManager(cache_dir=cache_dir, loaders=[LocalPathSource()])
 
     result = mgr.load_one(spec, kind="providers")
     assert result.error is None
@@ -49,12 +62,15 @@ def test_localpath_source_loads_provider(tmp_path: Path) -> None:
 
 
 def test_manager_loads_mixed_dotted_and_localpath(tmp_path: Path) -> None:
-    base = _make_dev_package(tmp_path)
-    spec_local = f"path:{base}::myplugins.provider_mod.DevProvider"
+    repo = _make_dev_repo(tmp_path)
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir(parents=True)
+
+    spec_local = f"path:{repo}::myplugins.provider_mod.DevProvider"
     # Known dotted-path provider class from repo
     spec_dotted = "plugins.openai_provider.OpenAICompatibleProvider"
 
-    mgr = PluginManager(cache_dir=tmp_path, loaders=[DottedPathSource(), LocalPathSource()])
+    mgr = PluginManager(cache_dir=cache_dir, loaders=[DottedPathSource(), LocalPathSource()])
 
     plugins_cfg: Dict[str, Any] = {"providers": [spec_local, spec_dotted], "features": [], "tools": [], "extensions": []}
     canonical = mgr.normalize_plugins(plugins_cfg)

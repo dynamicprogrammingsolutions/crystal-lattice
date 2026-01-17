@@ -1,4 +1,6 @@
 {
+  "module": "feature_file_context",
+  "subdirectory": ".",
   "entries": [
     "feature_file_context.file_context_feature.FileContextFeature"
   ],
