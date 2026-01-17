@@ -10,12 +10,11 @@ from threading import Lock
 import os
 
 from agent_core import AgentCore, MessageRole, Session
+from agent_core.plugin.loader import validate_plugin_for_kind
 
 from .app_plugins import ApplicationPluginWrapper
 from .config import (
     build_agent_config,
-    load_plugins,
-    load_application_plugins,
     load_raw_config,
     resolve_placeholders,
     resolve_request_config,
@@ -79,35 +78,72 @@ class AgentApplication:
         self._config: Dict[str, Any] = resolved_config
         self._config_errors: List[Dict[str, Any]] = placeholder_errors
 
-        plugins_cfg = resolved_config.get("plugins") or {}
+        plugins_raw = resolved_config.get("plugins")
+        if plugins_raw is None:
+            plugin_specs: List[Any] = []
+        elif isinstance(plugins_raw, list):
+            plugin_specs = plugins_raw
+        else:
+            plugin_specs = [plugins_raw]
+            self._config_errors.append(
+                {
+                    "type": "plugin_config_invalid",
+                    "detail": "'plugins' should be a list; coerced single value into list",
+                    "path": "plugins",
+                }
+            )
+
         plugin_cache_dir = resolved_config.get("plugin_cache_dir")
-        plugin_policy_in = resolved_config.get("plugin_policy") or {}
-        plugin_policy: Dict[str, Any] = dict(plugin_policy_in) if isinstance(plugin_policy_in, dict) else {}
-        plugin_policy.setdefault("base_dir", config_base_dir)
-        if isinstance(plugin_cache_dir, str) and plugin_cache_dir:
+        if not (isinstance(plugin_cache_dir, str) and plugin_cache_dir.strip()):
+            self._config_errors.append(
+                {
+                    "type": "plugin_cache_dir_missing",
+                    "detail": "plugin_cache_dir is required when using the application plugin manager",
+                    "path": "plugin_cache_dir",
+                }
+            )
+            # Use a deterministic directory near the config so tests and
+            # local runs do not write into the developer's home unexpectedly.
+            cache_path = Path(config_base_dir) / ".plugin_cache" / "plugins"
+        else:
             cache_path = Path(os.path.expanduser(plugin_cache_dir))
             if not cache_path.is_absolute():
                 cache_path = Path(config_base_dir) / cache_path
-            mgr = PluginManager(cache_dir=cache_path, policy=plugin_policy)
-            canonical_core = mgr.normalize_plugins(plugins_cfg)
-            if canonical_core:
-                logger.info("plugin_manager_normalized_core", items=canonical_core)
-            raw_app_plugins = resolved_config.get("application_plugins") or []
-            canonical_all = list(canonical_core)
-            for raw in raw_app_plugins:
-                canonical_all.append({"spec": raw, "kind": "application"})
-            core_kinds, app_plugin_classes, plugin_errors = mgr.load_plugins(canonical_all)
-            if plugin_errors:
-                logger.error("plugin_manager_load_errors", errors=plugin_errors)
-            plugin_classes = core_kinds
-            app_plugin_errors: List[Dict[str, Any]] = []
-        else:
-            plugin_classes, plugin_errors = load_plugins(plugins_cfg)
-            raw_app_plugins = resolved_config.get("application_plugins") or []
-            app_plugin_classes, app_plugin_errors = load_application_plugins(raw_app_plugins)
 
-        self._plugin_classes: Dict[str, List[type[Any]]] = plugin_classes
-        self._config_errors.extend(plugin_errors)
+        plugin_policy_in = resolved_config.get("plugin_policy") or {}
+        plugin_policy: Dict[str, Any] = dict(plugin_policy_in) if isinstance(plugin_policy_in, dict) else {}
+        plugin_policy.setdefault("base_dir", config_base_dir)
+
+        mgr = PluginManager(cache_dir=cache_path, policy=plugin_policy)
+        resolution = mgr.resolve_all(plugin_specs)
+        if resolution.errors:
+            logger.error("plugin_manager_resolve_errors", errors=resolution.errors)
+        self._config_errors.extend(resolution.errors)
+
+        plugin_classes: Dict[str, List[type[Any]]] = {
+            "providers": [],
+            "features": [],
+            "tools": [],
+            "extensions": [],
+        }
+        app_plugin_classes: List[type[Any]] = []
+
+        for cls in resolution.classes:
+            kind = self._classify_plugin_class(cls)
+            if kind == "application":
+                app_plugin_classes.append(cls)
+            elif kind in plugin_classes:
+                plugin_classes[kind].append(cls)
+            else:
+                self._config_errors.append(
+                    {
+                        "type": "plugin_type_unknown",
+                        "detail": "Could not classify plugin by duck-typing",
+                        "path": f"{getattr(cls, '__module__', '')}.{getattr(cls, '__qualname__', '')}",
+                    }
+                )
+
+        self._plugin_classes = plugin_classes
 
         # Build a catalog of plugins keyed by kind and plugin id (name attribute).
         self._plugins_by_kind_and_id: Dict[str, Dict[str, type[Any]]] = {}
@@ -123,20 +159,19 @@ class AgentApplication:
         # Manual registration from config: providers with shared extensions,
         # then features and tools. This mirrors ``application.AgentApplication``
         # so the two versions can be compared easily.
-        provider_exts = plugin_classes.get("extensions") or []
-        for provider_cls in plugin_classes.get("providers") or []:
+        provider_exts = self._plugin_classes.get("extensions") or []
+        for provider_cls in self._plugin_classes.get("providers") or []:
             core.register_provider(provider_cls, extensions=provider_exts)
-        for feature_cls in plugin_classes.get("features") or []:
+        for feature_cls in self._plugin_classes.get("features") or []:
             core.register_feature(feature_cls)
-        for tool_cls in plugin_classes.get("tools") or []:
+        for tool_cls in self._plugin_classes.get("tools") or []:
             core.register_tool(tool_cls)
 
         # Application-level plugins are configured separately from core
         # provider/feature/tool plugins. They operate on the
         # :class:`AgentApplication` level (sessions, storage, actions).
         # app_plugin_classes and app_plugin_errors set above in both branches
-        self._app_plugin_classes: List[type[Any]] = app_plugin_classes
-        self._config_errors.extend(app_plugin_errors)
+        self._app_plugin_classes = app_plugin_classes
 
         self._app_plugins: Dict[str, ApplicationPluginWrapper] = {}
         for plugin_class in self._app_plugin_classes:
@@ -207,6 +242,18 @@ class AgentApplication:
         if not isinstance(plugin_id, str) or not plugin_id:
             plugin_id = plugin_class.__name__
         return plugin_id
+
+    def _classify_plugin_class(self, plugin_class: type[Any]) -> Optional[str]:
+        """Return a plugin kind for the class via duck-typing.
+
+        Kinds are checked in priority order so providers/tools/extensions do not
+        accidentally get classified as features.
+        """
+
+        for kind in ("providers", "tools", "extensions", "application", "features"):
+            if validate_plugin_for_kind(plugin_class, kind) is None:
+                return kind
+        return None
 
     def _build_core_with_enabled_ids(
         self,

@@ -162,7 +162,10 @@ def _import_string(path: str) -> type[Any]:
 def load_plugins(
     plugin_config: Mapping[str, Any] | None,
 ) -> Tuple[Dict[str, List[type[Any]]], List[Dict[str, Any]]]:
-    """Load plugin classes from dotted paths listed in config.
+    """Deprecated: load plugin classes from dotted paths listed by kind.
+
+    The application now prefers a flat `plugins` list that is resolved via
+    :class:`agent_app.plugin_manager.PluginManager`.
 
     Returns (plugins, errors) where ``plugins`` is a dict with keys
     ``providers``, ``features``, ``tools``, ``extensions`` mapped to lists
@@ -208,11 +211,10 @@ def load_plugins(
 def load_application_plugins(
     plugin_paths: Iterable[Any] | None,
 ) -> Tuple[List[type[Any]], List[Dict[str, Any]]]:
-    """Load application-level plugin classes from dotted paths.
+    """Deprecated: load application-level plugin classes from dotted paths.
 
-    Application plugins live at the application layer (sessions, storage,
-    actions) and are configured via the top-level ``"application_plugins"``
-    list in the resolved configuration.
+    Application plugins are now configured in the main `plugins` list and
+    classified by duck-typing.
 
     Args:
         plugin_paths: Iterable of dotted class paths

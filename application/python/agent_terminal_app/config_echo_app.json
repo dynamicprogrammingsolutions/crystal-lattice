@@ -1,4 +1,5 @@
 {
+  "plugin_cache_dir": "~/.crystal/cache/plugins",
   "application": {
     "tool_output_line_limit": 100,
     "tool_output_char_limit": 8000,
@@ -13,17 +14,11 @@
       "timeout": 60
     }
   },
-  "plugins": {
-    "providers": [
-      "plugins.echo_openai_like_provider.EchoOpenAILikeProvider"
-    ],
-    "extensions": [
-      "plugins.delay_extension.DelayExtension",
-      "plugins.random_failure_extension.RandomFailureExtension"
-    ],
-    "features": [],
-    "tools": []
-  },
+  "plugins": [
+    "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+    "plugins.delay_extension.DelayExtension",
+    "plugins.random_failure_extension.RandomFailureExtension"
+  ],
   "agents": {
     "default": {
       "provider": "echo_openai_like_default"

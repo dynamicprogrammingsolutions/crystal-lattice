@@ -25,15 +25,13 @@ def _make_config_with_app_plugin(tmp_path: Path) -> Path:
         "providers": {
             "dummy": {"provider": "dummy_provider", "model": "test-model"}
         },
-        "plugins": {
-            "providers": ["tests.dummy_provider.DummyProvider"],
-        },
+        "plugins": [
+            "tests.dummy_provider.DummyProvider",
+            "tests.dummy_app_plugin.DummyAppPlugin",
+        ],
         "agents": {
             "default": {"provider": "dummy"},
         },
-        "application_plugins": [
-            "tests.dummy_app_plugin.DummyAppPlugin",
-        ],
         "application": {
             "ui_theme": "light",
             "dummy_flag": True,

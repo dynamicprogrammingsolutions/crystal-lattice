@@ -25,20 +25,13 @@ def _make_config_with_generate_title(tmp_path: Path) -> Path:
         "providers": {
             "echo": {"provider": "echo_openai_like", "model": "test-model"}
         },
-        "plugins": {
-            "providers": [
-                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            ],
-            "features": [],
-            "tools": [],
-            "extensions": [],
-        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.generate_title_app.GenerateTitleAppPlugin",
+        ],
         "agents": {
             "default": {"provider": "echo"},
         },
-        "application_plugins": [
-            "plugins.generate_title_app.GenerateTitleAppPlugin",
-        ],
         "application": {
             "generate_title_agent_id": "default",
             "generate_title_prompt_template": "Generate a concise title.",
@@ -63,20 +56,13 @@ def _build_app_with_system_message(tmp_path: Path, system_message: str) -> Agent
         "providers": {
             "echo": {"provider": "echo_openai_like", "model": "test-model"}
         },
-        "plugins": {
-            "providers": [
-                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            ],
-            "features": [],
-            "tools": [],
-            "extensions": [],
-        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.generate_title_app.GenerateTitleAppPlugin",
+        ],
         "agents": {
             "default": {"provider": "echo"},
         },
-        "application_plugins": [
-            "plugins.generate_title_app.GenerateTitleAppPlugin",
-        ],
         "application": {
             "generate_title_agent_id": "default",
             "generate_title_system_message": system_message,
@@ -134,20 +120,13 @@ def test_generate_title_respects_session_title_metadata_key(tmp_path: Path) -> N
         "providers": {
             "echo": {"provider": "echo_openai_like", "model": "test-model"}
         },
-        "plugins": {
-            "providers": [
-                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            ],
-            "features": [],
-            "tools": [],
-            "extensions": [],
-        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.generate_title_app.GenerateTitleAppPlugin",
+        ],
         "agents": {
             "default": {"provider": "echo"},
         },
-        "application_plugins": [
-            "plugins.generate_title_app.GenerateTitleAppPlugin",
-        ],
         "application": {
             "generate_title_agent_id": "default",
             "session_title_metadata_key": "custom_title",
@@ -319,20 +298,13 @@ def test_generate_title_ignores_description_when_disabled(tmp_path: Path) -> Non
         "providers": {
             "echo": {"provider": "echo_openai_like", "model": "test-model"}
         },
-        "plugins": {
-            "providers": [
-                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            ],
-            "features": [],
-            "tools": [],
-            "extensions": [],
-        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.generate_title_app.GenerateTitleAppPlugin",
+        ],
         "agents": {
             "default": {"provider": "echo"},
         },
-        "application_plugins": [
-            "plugins.generate_title_app.GenerateTitleAppPlugin",
-        ],
         "application": {
             "generate_title_agent_id": "default",
             "generate_title_enable_description": False,
@@ -401,20 +373,13 @@ def test_generate_title_uses_custom_description_metadata_key(tmp_path: Path) -> 
         "providers": {
             "echo": {"provider": "echo_openai_like", "model": "test-model"}
         },
-        "plugins": {
-            "providers": [
-                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            ],
-            "features": [],
-            "tools": [],
-            "extensions": [],
-        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.generate_title_app.GenerateTitleAppPlugin",
+        ],
         "agents": {
             "default": {"provider": "echo"},
         },
-        "application_plugins": [
-            "plugins.generate_title_app.GenerateTitleAppPlugin",
-        ],
         "application": {
             "generate_title_agent_id": "default",
             "generate_title_description_metadata_key": "custom_subtitle",

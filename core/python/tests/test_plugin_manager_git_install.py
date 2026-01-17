@@ -1,4 +1,4 @@
-"""Integration test for GitInstallerSource using a local git repo.
+"""Integration test for GitRepoSource using a local git repo.
 
 This test creates a minimal Python package, commits it to a local git repo,
 then uses the PluginManager to install it into a cache directory and import
@@ -10,7 +10,6 @@ from __future__ import annotations
 from pathlib import Path
 import textwrap
 import subprocess
-import sys
 import json
 
 import pytest
@@ -74,15 +73,13 @@ def test_git_installer_installs_and_imports(tmp_path: Path) -> None:
     cache_dir.mkdir()
 
     entry = "mydevplugin.provider_mod.GitDevProvider"
-    spec = f"git+{repo}::{entry}"
+    spec = {"git": str(repo), "ref": commit, "entry": entry}
     mgr = PluginManager(cache_dir=cache_dir)
 
-    # Load via canonicalized config
-    canonical = mgr.normalize_plugins({"providers": [spec]})
-    core_kinds, app_classes, errors = mgr.load_plugins(canonical)
-    assert errors == []
-    assert len(core_kinds["providers"]) == 1
-    cls = core_kinds["providers"][0]
+    res = mgr.resolve_all([spec])
+    assert res.errors == []
+    assert len(res.classes) == 1
+    cls = res.classes[0]
     assert getattr(cls, "__name__", "") == "GitDevProvider"
 
     # Verify cache directory exists and metadata recorded

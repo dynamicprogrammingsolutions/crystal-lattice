@@ -58,9 +58,7 @@
 - Descriptor interaction and precedence vs discovery
 
 3) Full config forms
-- Mapping-by-kind with arrays
-- Flat list with auto-kind
-- Canonical list entries with optional `kind`
+- Flat list with auto-kind (duck-typing)
 
 4) Placeholders & resolution
 - `${env:VAR}` (embedded supported), `${file:...}` (whole-string)
@@ -68,13 +66,13 @@
 
 5) Policy & security
 - `allow_remote` (default false), `allowed_git_hosts` allowlist
-- `pip_args`, `sys_path_precedence` (append default; core-first)
+- `pip_args`, `install_deps` (`--no-deps` default)
 - Guidance: pin refs, vet repositories
 
 6) Examples (copy/paste ready)
-- Local path (mixed single class and entries list)
-- Git module-only with descriptor
-- Canonical-only config with explicit kinds
+- Local repo (descriptor-driven shorthand)
+- Git repo (descriptor-driven shorthand)
+- Verbose object specs (explicit `entry`, optional `subdirectory`)
 
 7) Troubleshooting
 - Common loader errors; how they’re logged; how to surface from `AgentApplication.get_config_errors()`
@@ -82,12 +80,12 @@
 ### C. Code Docstrings (new/improved)
 - `core/python/agent_app/plugin_manager.py`
   - Class `PluginManager`: purpose, usage, policy fields
-  - Method `normalize_plugins(plugins_raw)`: accepted forms, return shape, example
-  - Method `load_plugins(canonical_items)`: behavior, supported spec forms, return structure, examples (entries list, module-only, descriptor)
-  - Helper `_discover_module`: discovery rules (only providers/tools/extensions/application; module-defined classes only)
-  - Classes `LocalPathSource` and `GitInstallerSource`: supports/prepare/load docstrings with spec examples and side effects
+  - Method `resolve_all(specs)`: supported spec forms, error aggregation, example
 - `core/python/agent_app/application_future.py`
   - Method `get_config_errors()`: description and example usage for debugging
+
+- `core/python/agent_app/plugin_sources/*`
+  - Sources own install/clone/descriptor/import behavior
 
 - Cross-reference docstrings: link to `docs/plugins/development.md` and `docs/plugins/application-config.md`
 
@@ -99,7 +97,7 @@
 ## TODO (ordered)
 1. [x] Expand `docs/plugins/development.md` with packaging, descriptor, and wiring sections (A.1–A.5)
 2. [x] Add new `docs/plugins/application-config.md` with full structure (B.1–B.7)
-3. [x] Add/expand docstrings in `agent_app/plugin_manager.py` (PluginManager, LocalPathSource, GitInstallerSource, normalize_plugins, load_plugins, _discover_module)
+3. [ ] Update docs and docstrings to match the thin PluginManager + plugin_sources architecture
 4. [x] Add docstring to `AgentApplication.get_config_errors()` with usage snippet
 5. [x] Add cross-links in docstrings to the two docs pages
 6. [x] Update `mkdocs.yml` navigation to include the new page under Plugins
@@ -108,9 +106,8 @@
 
 ## Examples To Include (snippets)
 - Packaging (pyproject.toml) for `dev_plugins`, minimal `setup.py`
-- Agent plugin descriptor `agent_plugin.json` with two entries and kind override
-- Config mapping-by-kind + local path entries list
-- Config canonical list with dotted class + git module-only
+- Agent plugin descriptor `agent_plugin.json` with two entries
+- Config flat list with dotted class + local/git repo shorthand
 - Debugging: retrieving `get_config_errors()` output
 
 ## Acceptance

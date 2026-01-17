@@ -11,22 +11,16 @@
     }
   },
   "plugins": [
-    { "spec": "plugins.openai_provider.OpenAICompatibleProvider", "kind": "providers" },
-    { "spec": "plugins.openai_tools_extension.OpenAIToolsExtension", "kind": "extensions" },
-    { "spec": "plugins.ollama_thinking_extension.OllamaThinkingExtension", "kind": "extensions" },
+    "plugins.openai_provider.OpenAICompatibleProvider",
+    "plugins.openai_tools_extension.OpenAIToolsExtension",
+    "plugins.ollama_thinking_extension.OllamaThinkingExtension",
     {
-      "spec": {
-        "git": "${env:DEV_PLUGINS_GIT_DIR}",
-        "entry": "dev_plugins.file_reader_tool.FileReaderTool"
-      },
-      "kind": "tools"
+      "git": "${env:DEV_PLUGINS_GIT_DIR}",
+      "entry": "dev_plugins.file_reader_tool.FileReaderTool"
     },
     {
-      "spec": {
-        "git": "${env:DEV_PLUGINS_GIT_DIR}",
-        "entry": "dev_plugins.file_writer_tool.FileWriterTool"
-      },
-      "kind": "tools"
+      "git": "${env:DEV_PLUGINS_GIT_DIR}",
+      "entry": "dev_plugins.file_writer_tool.FileWriterTool"
     }
   ],
   "agents": {

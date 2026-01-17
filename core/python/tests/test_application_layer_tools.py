@@ -21,10 +21,10 @@ def _make_tool_config(tmp_path: Path) -> Path:
         "providers": {
             "dummy": {"provider": "dummy_provider", "model": "test-model"}
         },
-        "plugins": {
-            "providers": ["tests.dummy_provider.DummyProvider"],
-            "tools": ["tests.dummy_tool.DummyCalculator"],
-        },
+        "plugins": [
+            "tests.dummy_provider.DummyProvider",
+            "tests.dummy_tool.DummyCalculator",
+        ],
         "agents": {
             "default": {"provider": "dummy"},
         },

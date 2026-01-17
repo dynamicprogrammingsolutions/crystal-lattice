@@ -16,10 +16,11 @@
     "plugins.ollama_thinking_extension.OllamaThinkingExtension",
     {
       "git": "${env:DEV_PLUGINS_GIT_DIR}",
-      "entries": [
-        "dev_plugins.file_reader_tool.FileReaderTool",
-        "dev_plugins.file_writer_tool.FileWriterTool"
-      ]
+      "entry": "dev_plugins.file_reader_tool.FileReaderTool"
+    },
+    {
+      "git": "${env:DEV_PLUGINS_GIT_DIR}",
+      "entry": "dev_plugins.file_writer_tool.FileWriterTool"
     }
   ],
   "agents": {

@@ -1,10 +1,10 @@
-"""E2E tests that verify plugin loading via LocalPathSource and GitInstallerSource
+"""E2E tests that verify plugin loading via local path and git repo specs
 using a permanent fixture directory with two tool plugins (file_reader, file_writer)
 and an AgentApplication configured with Ollama + tools + reasoning.
 
 These tests mirror the application-layer Ollama tools integration tests but load
-tools from a local path and from a local git repository to exercise the plugin
-manager/loaders.
+tools from a local path and from a local git repository to exercise the
+install-and-load flow.
 """
 
 from __future__ import annotations
@@ -146,22 +146,22 @@ def _copy_repo_file(rel_path: str, *, dest: Path) -> None:
 
 @pytest.mark.ollama
 def test_agent_application_with_localpath_plugins(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ensure_model: None) -> None:
-    """Verify loading dev plugins via LocalPathSource and execute a read-file scenario."""
+    """Verify loading dev plugins via a local path repo and execute a tool scenario."""
 
     env = _make_local_env(tmp_path)
     for k, v in env.items():
         monkeypatch.setenv(k, v)
 
-    # Sanity-check: manager loads dev tools from LocalPathSource into 'tools' kind
+    # Sanity-check: manager loads dev tools from local path repo.
     from agent_app.plugin_manager import PluginManager
     mgr = PluginManager(cache_dir=Path(env["PLUGIN_CACHE_DIR"]))
-    canonical_tools = [
-        {"spec": f"path:{env['DEV_PLUGINS_DIR']}::dev_plugins.file_reader_tool.FileReaderTool", "kind": None},
-        {"spec": f"path:{env['DEV_PLUGINS_DIR']}::dev_plugins.file_writer_tool.FileWriterTool", "kind": None},
+    sanity_specs = [
+        {"path": env["DEV_PLUGINS_DIR"], "entry": "dev_plugins.file_reader_tool.FileReaderTool"},
+        {"path": env["DEV_PLUGINS_DIR"], "entry": "dev_plugins.file_writer_tool.FileWriterTool"},
     ]
-    core_kinds, app_classes, errs = mgr.load_plugins(canonical_tools)
-    assert errs == []
-    assert len(core_kinds.get("tools", [])) == 2
+    res = mgr.resolve_all(sanity_specs)
+    assert res.errors == []
+    assert {cls.__name__ for cls in res.classes} == {"FileReaderTool", "FileWriterTool"}
 
     config_path = _resolve_config_path("localpath_plugins.json")
     session_root = tmp_path / "sessions_local"
@@ -209,11 +209,9 @@ def test_agent_application_with_localpath_plugins_module_only_descriptor(
     from agent_app.plugin_manager import PluginManager
 
     mgr = PluginManager(cache_dir=Path(env["PLUGIN_CACHE_DIR"]))
-    core_kinds, _apps, errs = mgr.load_plugins(
-        [{"spec": f"path:{env['DEV_PLUGINS_DESC_DIR']}", "kind": None}]
-    )
-    assert errs == []
-    tool_class_names = {cls.__name__ for cls in core_kinds.get("tools", [])}
+    res = mgr.resolve_all([f"path:{env['DEV_PLUGINS_DESC_DIR']}"])
+    assert res.errors == []
+    tool_class_names = {cls.__name__ for cls in res.classes}
     assert tool_class_names == {"FileReaderTool", "FileWriterTool"}
 
     config_path = _resolve_config_path("localpath_module_only_plugins.json")
@@ -287,7 +285,7 @@ def _init_git_repo_from_fixture_with_descriptor(src_dir: Path, repo_dir: Path) -
 
 @pytest.mark.ollama
 def test_agent_application_with_git_plugins(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ensure_model: None) -> None:
-    """Verify loading dev plugins via GitInstallerSource and execute a read-file scenario."""
+    """Verify loading dev plugins via a local git repo and execute a tool scenario."""
 
     env = _make_local_env(tmp_path)
     repo_dir = tmp_path / "dev_plugins_repo"
@@ -296,16 +294,17 @@ def test_agent_application_with_git_plugins(tmp_path: Path, monkeypatch: pytest.
     for k, v in env.items():
         monkeypatch.setenv(k, v)
 
-    # Sanity-check: manager loads dev tools from GitInstallerSource into 'tools' kind
+    # Sanity-check: manager loads dev tools from git repo.
     from agent_app.plugin_manager import PluginManager as _PM
     mgr2 = _PM(cache_dir=Path(env["PLUGIN_CACHE_DIR"]))
-    canonical_git = [
-        {"spec": f"git+{env['DEV_PLUGINS_GIT_DIR']}::dev_plugins.file_reader_tool.FileReaderTool", "kind": None},
-        {"spec": f"git+{env['DEV_PLUGINS_GIT_DIR']}::dev_plugins.file_writer_tool.FileWriterTool", "kind": None},
-    ]
-    core_kinds_git, app_classes_git, errs_git = mgr2.load_plugins(canonical_git)
-    assert errs_git == []
-    assert len(core_kinds_git.get("tools", [])) == 2
+    res_git = mgr2.resolve_all(
+        [
+            {"git": env["DEV_PLUGINS_GIT_DIR"], "entry": "dev_plugins.file_reader_tool.FileReaderTool"},
+            {"git": env["DEV_PLUGINS_GIT_DIR"], "entry": "dev_plugins.file_writer_tool.FileWriterTool"},
+        ]
+    )
+    assert res_git.errors == []
+    assert {cls.__name__ for cls in res_git.classes} == {"FileReaderTool", "FileWriterTool"}
 
     config_path = _resolve_config_path("git_plugins.json")
     session_root = tmp_path / "sessions_git"
@@ -349,11 +348,9 @@ def test_agent_application_with_git_plugins_module_only_descriptor(
     from agent_app.plugin_manager import PluginManager
 
     mgr = PluginManager(cache_dir=Path(env["PLUGIN_CACHE_DIR"]))
-    core_kinds, _apps, errs = mgr.load_plugins(
-        [{"spec": f"git+{env['DEV_PLUGINS_GIT_DIR']}", "kind": None}]
-    )
-    assert errs == []
-    tool_class_names = {cls.__name__ for cls in core_kinds.get("tools", [])}
+    res = mgr.resolve_all([f"git+{env['DEV_PLUGINS_GIT_DIR']}"])
+    assert res.errors == []
+    tool_class_names = {cls.__name__ for cls in res.classes}
     assert tool_class_names == {"FileReaderTool", "FileWriterTool"}
 
     config_path = _resolve_config_path("git_module_only_plugins.json")
