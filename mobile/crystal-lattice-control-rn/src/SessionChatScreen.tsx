@@ -15,19 +15,11 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Clipboard from '@react-native-clipboard/clipboard';
 import type { ConnectionAdapter } from '../App';
+import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import {
-  apiAppendMessage,
-  apiCancelRequest,
-  apiDeleteMessagesByRange,
-  apiGetSessionAgent,
-  apiListMessages,
-  apiModifyMessage,
-  apiSend,
-  apiSwitchSessionAgent,
   type ApiMessage,
   type IndexedMessage,
   type ActionUiElement,
-  apiGetSessionUiSchema,
   type UiSchemaElement,
   type SessionSummary,
 } from './api';
@@ -60,6 +52,7 @@ import type {
 
 interface SessionChatScreenProps {
   adapter: ConnectionAdapter | null;
+  backend: AgentBackend | null;
   connectionId: string | null;
   isActive: boolean;
   sessionId: string;
@@ -85,6 +78,7 @@ type PluginActionContext =
 
 const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   adapter,
+  backend,
   connectionId,
   isActive,
   sessionId,
@@ -173,11 +167,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   }, [composeText]);
 
   useEffect(() => {
-    if (!adapter) return;
-    ensureAgentsLoaded(adapter).catch(() => {
+    if (!backend) return;
+    ensureAgentsLoaded(backend).catch(() => {
       // Non-fatal; status bar should still render.
     });
-  }, [adapter, ensureAgentsLoaded]);
+  }, [backend, ensureAgentsLoaded]);
 
   useEffect(() => {
     const md = sessionSummary?.metadata;
@@ -219,14 +213,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   }, []);
 
   useEffect(() => {
-    if (!adapter) {
+    if (!backend) {
       setUiSchemaElements([]);
       return;
     }
     let cancelled = false;
     const loadSchema = async () => {
       try {
-        const els = await apiGetSessionUiSchema(adapter, sessionId);
+        const els = await backend.getSessionUiSchema(sessionId);
         if (!cancelled) {
           setUiSchemaElements(Array.isArray(els) ? els : []);
         }
@@ -241,7 +235,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [adapter, sessionId]);
+  }, [backend, sessionId]);
 
   const pluginSessionActionDefs = useMemo(
     () =>
@@ -272,7 +266,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   };
 
   const loadMessages = useCallback(async () => {
-    if (!adapter) {
+    if (!backend) {
       const message = 'No active connection';
       Alert.alert('Error', message);
       return;
@@ -295,22 +289,20 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 		          end = parsedEnd;
 		        }
 		      }
-      const { messages: list, cursor_event_id, active_request_id } = await apiListMessages(
-		        adapter,
-		        sessionId,
-		        start,
-		        end,
-		      );
-		      setMessages(list);
-      setInitialCheckpointId(cursor_event_id ?? null);
-      setActiveRequestId(active_request_id ?? null);
+	    const { messages: list, cursorEventId, activeRequestId } = await backend.listMessages(
+	      sessionId,
+	      { start, end },
+	    );
+	    setMessages(list);
+	    setInitialCheckpointId(cursorEventId ?? null);
+	    setActiveRequestId(activeRequestId ?? null);
       setStreamingRow(null);
 		      if (!hasAutoScrolledRef.current) {
 		        setShouldAutoScroll(true);
 		        hasAutoScrolledRef.current = true;
 		      }
 		      setLastReloadAt(new Date());
-      onUpdateCache(list, cursor_event_id ?? null);
+	    onUpdateCache(list, cursorEventId ?? null);
       setSnapshotReady(true);
     } catch (err: any) {
       console.log('Failed to load messages', err);
@@ -319,7 +311,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     } finally {
       setLoadingMessages(false);
 	    }
-  }, [adapter, sessionId, rangeStartText, rangeEndText, onUpdateCache]);
+  }, [backend, sessionId, rangeStartText, rangeEndText, onUpdateCache]);
 
   const {
     activeElement: activePluginDialogElement,
@@ -334,7 +326,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         context: PluginActionContext,
         dialogValues: Record<string, any> | undefined,
       ) => {
-        if (!adapter) {
+        if (!backend) {
           Alert.alert('No connection', 'Connect to a server to run actions.');
           return;
         }
@@ -343,7 +335,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         try {
           const isMessage = context.kind === 'message';
           const { ok, response } = await executeApplicationAction(
-            adapter,
+            backend,
             element,
             actionsById,
             {
@@ -381,7 +373,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           setPluginActionInProgress(false);
         }
       },
-      [adapter, actionsById, sessionId, loadMessages, onNavigateToSession],
+      [backend, actionsById, sessionId, loadMessages, onNavigateToSession],
     ),
   );
 
@@ -419,10 +411,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   }, [cachedCursorEventId, cachedMessages, sessionId, connectionId]);
 
   useEffect(() => {
-    if (!cachedMessages && adapter) {
+    if (!cachedMessages && backend) {
       loadMessages();
     }
-  }, [adapter, cachedMessages, loadMessages]);
+  }, [backend, cachedMessages, loadMessages]);
 
   useEffect(() => {
     const saveMessagePinned = async () => {
@@ -451,13 +443,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     if (!text) {
       return;
     }
-    if (!adapter) {
+    if (!backend) {
       Alert.alert('No connection', 'Connect to a server to append messages.');
       return;
     }
     setSendInProgress(true);
     try {
-      await apiAppendMessage(adapter, sessionId, 'user', text);
+      await backend.appendMessage(sessionId, { role: 'user', content: text });
       await loadMessages();
     } catch (err: any) {
       console.log('Failed to append message', err);
@@ -471,18 +463,18 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const handleSend = async () => {
     const text = composeText.trim();
     setSendInProgress(true);
-    if (!adapter) {
+    if (!backend) {
       Alert.alert('No connection', 'Connect to a server to send messages.');
       setSendInProgress(false);
       return;
     }
     try {
       if (text) {
-        await apiAppendMessage(adapter, sessionId, 'user', text);
+        await backend.appendMessage(sessionId, { role: 'user', content: text });
       }
       setActiveError(null);
       setStreamingRow(null);
-      await apiSend(adapter, sessionId);
+      await backend.send(sessionId);
       await loadMessages();
         setComposeText('');
         onSaveComposeText('');
@@ -497,7 +489,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   const handleResend = async () => {
     setSendInProgress(true);
-    if (!adapter) {
+    if (!backend) {
       Alert.alert('No connection', 'Connect to a server to resend.');
       setSendInProgress(false);
       return;
@@ -505,7 +497,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     try {
       setActiveError(null);
       setStreamingRow(null);
-      await apiSend(adapter, sessionId);
+      await backend.send(sessionId);
       await loadMessages();
     } catch (err: any) {
       console.log('Failed to resend request', err);
@@ -517,7 +509,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   };
 
   const handleCancel = async () => {
-    if (!adapter) {
+    if (!backend) {
       Alert.alert('No connection', 'Connect to a server to cancel.');
       return;
     }
@@ -526,7 +518,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       return;
     }
     try {
-      await apiCancelRequest(adapter, activeRequestId);
+      await backend.cancelRequest(activeRequestId);
       // We rely on subsequent events (request_cancelled / request_completed)
       // to clear activeRequestId and update any streaming state.
     } catch (err: any) {
@@ -556,12 +548,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       Alert.alert('Invalid range', 'Provide at least a start or end index.');
       return;
     }
-    if (!adapter) {
+    if (!backend) {
       Alert.alert('No connection', 'Connect to a server to delete messages.');
       return;
     }
     try {
-      await apiDeleteMessagesByRange(adapter, sessionId, start, end);
+      await backend.deleteMessages(sessionId, { range: { start, end } });
       setDeleteRangeVisible(false);
       await loadMessages();
     } catch (err: any) {
@@ -572,13 +564,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   };
 
   const handleSwitchAgent = async (agentId: string) => {
-	    if (!adapter) {
+	    if (!backend) {
 	      Alert.alert('No connection', 'Connect to a server to switch agent.');
 	      return;
 	    }
 	    try {
 	      setAgentLoading(true);
-	      await apiSwitchSessionAgent(adapter, sessionId, agentId);
+	      await backend.switchSessionAgent(sessionId, agentId);
 	      setSessionAgentId(agentId && agentId.trim() ? agentId.trim() : null);
 	      setAgentModalVisible(false);
 	    } catch (err: any) {
@@ -618,14 +610,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
     if (action === 'agentSwitch') {
       setAgentModalVisible(true);
-      if (!adapter) {
+      if (!backend) {
         Alert.alert('No connection', 'Connect to a server to switch agent.');
         return;
       }
       if (availableAgents.length === 0 || sessionAgentId === null) {
         try {
-          await ensureAgentsLoaded(adapter);
-          const current = await apiGetSessionAgent(adapter, sessionId);
+	        await ensureAgentsLoaded(backend);
+	        const current = await backend.getSessionAgent(sessionId);
 	          setSessionAgentId(current && current.trim() ? current.trim() : null);
         } catch (err: any) {
           console.log('Failed to load agents', err);
@@ -695,12 +687,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       Alert.alert('Invalid content', 'Message content cannot be empty.');
       return;
     }
-    if (!adapter) {
+    if (!backend) {
       Alert.alert('No connection', 'Connect to a server to modify messages.');
       return;
     }
     try {
-      await apiModifyMessage(adapter, sessionId, index, trimmed);
+      await backend.modifyMessage(sessionId, index, trimmed);
       setEditingIndex(null);
       setEditingText('');
       await loadMessages();
@@ -894,10 +886,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     appendEventsToDebugBuffer(events);
   };
 
-  const eventsEnabled = !!(adapter && sessionId && snapshotReady);
+  const eventsEnabled = !!(backend && sessionId && snapshotReady);
   const { lastEventId: _lastEventId, status: _eventsStatus } = useSessionEvents(
     {
-      adapter,
+      backend,
       sessionId,
       enabled: eventsEnabled,
       initialSinceId: initialCheckpointId,
@@ -1142,10 +1134,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         />
         {/** Compute per-button enablement so we can style text when disabled. */}
         {(() => {
-          const canAppend = !!adapter && !sendInProgress && !activeRequestId;
-          const canResend = !!adapter && !sendInProgress && !activeRequestId;
-          const canCancel = !!adapter && !sendInProgress && !!activeRequestId;
-          const canSend = !!adapter && !sendInProgress && !activeRequestId;
+          const canAppend = !!backend && !sendInProgress && !activeRequestId;
+          const canResend = !!backend && !sendInProgress && !activeRequestId;
+          const canCancel = !!backend && !sendInProgress && !!activeRequestId;
+          const canSend = !!backend && !sendInProgress && !activeRequestId;
 
           return (
         <View style={styles.composerButtonsRow}>
@@ -1337,6 +1329,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
 	      <SessionSettingsModal
 	        adapter={adapter}
+	        backend={backend}
 	        sessionId={sessionId}
 	        visible={settingsVisible}
 	        onRequestClose={() => setSettingsVisible(false)}

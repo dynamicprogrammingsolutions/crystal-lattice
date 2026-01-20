@@ -1,7 +1,6 @@
 import { Alert } from 'react-native';
-import type { ConnectionAdapter } from '../App';
+import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import {
-  apiExecuteAction,
   type ActionUiElement,
   type ApiMessage,
   type ApplicationActionDefinition,
@@ -22,7 +21,7 @@ export interface ApplicationActionExecutionResult {
 }
 
 export async function executeApplicationAction(
-  adapter: ConnectionAdapter,
+  backend: AgentBackend,
   element: ActionUiElement,
   actionDefsById: Record<string, ApplicationActionDefinition>,
   context: ApplicationActionExecutionContext,
@@ -84,7 +83,11 @@ export async function executeApplicationAction(
   }
 
   try {
-    const resp = await apiExecuteAction(adapter, pluginId, actionId, inputs);
+    const resp = await backend.executeAction({
+      pluginId,
+      actionId,
+      inputs,
+    });
     if (resp.status !== 'ok') {
       const msg = (resp as any).message || 'Failed to execute action';
       Alert.alert('Action error', msg);

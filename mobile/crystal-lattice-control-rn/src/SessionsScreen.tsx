@@ -13,16 +13,12 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import type { ConnectionAdapter } from '../App';
+import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import { useTheme, type Theme } from './theme';
 import SessionActionsBar from './components/SessionActionsBar';
 import SessionSettingsModal from './components/SessionSettingsModal';
 import { type SessionActionKey, type SessionActionDefinition } from './sessionActions';
 import {
-  apiCreateSession,
-  apiListSessions,
-  apiSend,
-  apiGetSessionAgent,
-  apiSwitchSessionAgent,
   type ActionUiElement,
   type SessionSummary,
 } from './api';
@@ -37,6 +33,7 @@ import { extractByPath, renderTemplate } from './uiSchemaUtils';
 
 interface SessionsScreenProps {
   adapter: ConnectionAdapter | null;
+  backend: AgentBackend | null;
   connectionId: string | null;
   cachedSessions: SessionSummary[] | null;
   lastLoadedAt: number | null;
@@ -51,6 +48,7 @@ const BUILTIN_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settin
 
 const SessionsScreen: React.FC<SessionsScreenProps> = ({
   adapter,
+  backend,
   connectionId,
   cachedSessions,
   lastLoadedAt,
@@ -100,7 +98,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   );
 
 	  const loadSessions = useCallback(async () => {
-    if (!adapter) {
+    if (!backend) {
       const message = 'No active connection';
       setError(message);
       Alert.alert('Error', message);
@@ -108,7 +106,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     }
     setLoading(true);
     try {
-      const list = await apiListSessions(adapter);
+      const list = await backend.listSessions();
       setSessions(list);
       onUpdateCache(list);
       setError(null);
@@ -120,7 +118,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     } finally {
       setLoading(false);
     }
-	  }, [adapter, onUpdateCache]);
+	  }, [backend, onUpdateCache]);
 
 	  const {
 	    activeElement: activePluginDialogElement,
@@ -135,7 +133,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 	        session: SessionSummary,
 	        dialogValues: Record<string, any> | undefined,
 	      ) => {
-	        if (!adapter) {
+	        if (!backend) {
 	          const message = 'No active connection';
 	          setError(message);
 	          Alert.alert('Error', message);
@@ -145,7 +143,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 	        setLoading(true);
 	        try {
 	          const { ok, response } = await executeApplicationAction(
-	            adapter,
+	            backend,
 	            element,
 	            actionsById,
 	            {
@@ -180,7 +178,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 	          setLoading(false);
 	        }
 	      },
-	      [adapter, actionsById, loadSessions, navigateToSession],
+	      [backend, actionsById, loadSessions, navigateToSession],
 	    ),
 	  );
 
@@ -203,7 +201,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 
   useEffect(() => {
     if (!isActive) return;
-    if (!adapter) return;
+    if (!backend) return;
 
     const now = Date.now();
     const hasTimestamp = lastLoadedAt != null;
@@ -215,7 +213,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       });
       setHasAutoLoaded(true);
     }
-  }, [isActive, adapter, lastLoadedAt, loadSessions]);
+  }, [isActive, backend, lastLoadedAt, loadSessions]);
 
   useEffect(() => {
     if (isActive) return;
@@ -224,7 +222,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 
   const createSessionWithAgent = async (agentId: string | null) => {
     setAgentPickerVisible(false); // Fix: If we don't close the picker first, the SessionsScreen become unresponsive.
-    if (!adapter) {
+    if (!backend) {
       const message = 'No active connection';
       setError(message);
       Alert.alert('Error', message);
@@ -241,7 +239,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     }
     setLoading(true);
     try {
-      const result = await apiCreateSession(adapter, chosenAgent);
+      const result = await backend.createSession({ agentId: chosenAgent });
       const newId = result.session.session_id;
       if (typeof newId === 'string' && newId) {
 	        navigateToSession(newId);
@@ -264,7 +262,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       return;
     }
     try {
-      await ensureAgentsLoaded(adapter);
+      await ensureAgentsLoaded(backend);
     } catch (err: any) {
       console.log('Failed to load agents for new session', err);
       const message = err?.message || 'Failed to load agents';
@@ -282,7 +280,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       }
 
       if (action === 'agentSwitch') {
-        if (!adapter) {
+        if (!backend) {
           const message = 'No active connection';
           setError(message);
           Alert.alert('Error', message);
@@ -292,9 +290,9 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         setAgentSwitchVisible(true);
         try {
           if (availableAgents.length === 0) {
-            await ensureAgentsLoaded(adapter);
+            await ensureAgentsLoaded(backend);
           }
-          const current = await apiGetSessionAgent(adapter, s.session_id);
+          const current = await backend.getSessionAgent(s.session_id);
           setAgentSwitchCurrentId(current);
         } catch (err: any) {
           console.log('Failed to load agents for switch', err);
@@ -303,8 +301,32 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         }
       }
     },
-    [adapter, availableAgents.length, ensureAgentsLoaded, loadSessions],
+    [backend, availableAgents.length, ensureAgentsLoaded, loadSessions],
   );
+
+  const handleConfirmAgentSwitch = async (agentId: string) => {
+    const sid = agentSwitchSessionId;
+    if (!sid) {
+      setAgentSwitchVisible(false);
+      return;
+    }
+    if (!backend) {
+      Alert.alert('No connection', 'Connect to a server to switch agent.');
+      return;
+    }
+    try {
+      setAgentLoading(true);
+      await backend.switchSessionAgent(sid, agentId);
+      setAgentSwitchVisible(false);
+      setAgentSwitchCurrentId(agentId);
+    } catch (err: any) {
+      console.log('Failed to switch agent', err);
+      const message = err?.message || 'Failed to switch agent';
+      Alert.alert('Error', message);
+    } finally {
+      setAgentLoading(false);
+    }
+  };
 
   const pluginSessionActionDefs: SessionActionDefinition[] = useMemo(
     () =>
@@ -601,6 +623,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       {settingsSessionId && (
         <SessionSettingsModal
           adapter={adapter}
+          backend={backend}
           sessionId={settingsSessionId}
           visible={settingsVisible}
           onRequestClose={() => setSettingsVisible(false)}
@@ -615,21 +638,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         currentAgentId={agentSwitchCurrentId}
         showCurrentLabel
         onRequestClose={() => setAgentSwitchVisible(false)}
-        onSelectAgent={async (agentId: string) => {
-          if (!adapter || !agentSwitchSessionId) return;
-          try {
-            setAgentLoading(true);
-            await apiSwitchSessionAgent(adapter, agentSwitchSessionId, agentId);
-            setAgentSwitchCurrentId(agentId);
-            setAgentSwitchVisible(false);
-          } catch (err: any) {
-            console.log('Failed to switch agent for session', err);
-            const message = err?.message || 'Failed to switch agent';
-            Alert.alert('Error', message);
-          } finally {
-            setAgentLoading(false);
-          }
-        }}
+        onSelectAgent={handleConfirmAgentSwitch}
       />
     </View>
   );

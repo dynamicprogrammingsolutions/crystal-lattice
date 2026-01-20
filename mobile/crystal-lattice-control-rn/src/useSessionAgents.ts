@@ -1,11 +1,10 @@
 import { useCallback, useState } from 'react';
-import type { ConnectionAdapter } from '../App';
-import { apiListAgents } from './api';
+import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 
 export interface UseSessionAgentsResult {
   availableAgents: string[];
   agentLoading: boolean;
-  ensureAgentsLoaded: (adapter: ConnectionAdapter | null) => Promise<string[]>;
+  ensureAgentsLoaded: (backend: AgentBackend | null) => Promise<string[]>;
   setAgentLoading: (value: boolean) => void;
 }
 
@@ -14,8 +13,8 @@ export function useSessionAgents(): UseSessionAgentsResult {
   const [agentLoading, setAgentLoading] = useState(false);
 
   const ensureAgentsLoaded = useCallback(
-    async (adapter: ConnectionAdapter | null): Promise<string[]> => {
-      if (!adapter) {
+    async (backend: AgentBackend | null): Promise<string[]> => {
+      if (!backend) {
         throw new Error('No active connection');
       }
       if (availableAgents.length > 0) {
@@ -23,7 +22,7 @@ export function useSessionAgents(): UseSessionAgentsResult {
       }
       setAgentLoading(true);
       try {
-        const agents = await apiListAgents(adapter);
+        const agents = await backend.listAgents();
         setAvailableAgents(agents);
         return agents;
       } finally {

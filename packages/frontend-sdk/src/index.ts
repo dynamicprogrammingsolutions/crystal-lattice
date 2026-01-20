@@ -44,3 +44,19 @@ export {
 } from './utils/uiSchema';
 
 export { selectDisplayContent } from './utils/messages';
+
+export type {
+  Transport,
+  HttpMethod,
+} from './transport/transport';
+
+export { FetchTransport } from './transport/fetchTransport';
+
+export type {
+  AgentBackend,
+  BackendCapabilities,
+  ListMessagesResult,
+  FeatureCompletion,
+} from './backend/backend';
+
+export { RestAgentBackend } from './backend/restBackend';
