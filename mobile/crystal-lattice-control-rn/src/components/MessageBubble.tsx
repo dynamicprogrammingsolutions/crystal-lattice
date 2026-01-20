@@ -11,7 +11,7 @@ import Icon from 'react-native-vector-icons/Feather';
 import type { ApiMessage, UiSchemaElement } from '../api';
 import MessageActionsBar from './MessageActionsBar';
 import type { MessageActionKey, MessageActionDefinition } from '../messageActions';
-import { selectDisplayContent } from '../messageUtils';
+import { selectDisplayContent, selectSingleLineContent } from '../messageUtils';
 import MarkdownMessageContent from './MarkdownMessageContent';
 import { useTheme, type Theme } from '../theme';
 import { extractByPath, renderTemplate } from '../uiSchemaUtils';
@@ -242,6 +242,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [expanded, setExpanded] = useState(false);
   const content = selectDisplayContent(message);
+  const singleLine = selectSingleLineContent(message);
   const hasContent = !!content;
   const role = 'tool';
   const footerParts = useMemo(() => {
@@ -297,7 +298,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
             style={styles.collapsedHintText}
             selectable
           >
-            Tool result hidden (tap to expand).
+            {singleLine || 'Tool result hidden (tap to expand).'}
           </Text>
         )}
 
