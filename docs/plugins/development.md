@@ -576,6 +576,9 @@ class Calculator(ToolPlugin):
     #     can show richer output (for example, the executed shell
     #     command, working directory, or full patch text) without
     #     changing what the model sees in ``content``.
+    #
+    #     Optionally include a ``single_line`` field for compact/collapsed views:
+    #     ``{"type": "text", "content": <full>, "single_line": <compact>}``
     #     """
     #     return {"type": "text", "content": text}
 ```
