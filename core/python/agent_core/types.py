@@ -971,6 +971,15 @@ class ToolPlugin(BasePlugin, Protocol):
 
         Default implementation wraps the formatted text in a simple
         ``{"type": "text", "content": text}`` payload suitable for UIs.
+
+        Tools may optionally include a ``"single_line"`` field in the returned
+        dict to provide a compact summary for collapsed/short views:
+        ``{"type": "text", "content": <full>, "single_line": <compact>}``.
+
+        The ``single_line`` field should contain a brief preview (e.g., just the
+        command for shell tools, or a list of changed files for patch tools)
+        that UIs can display when tool results are collapsed or shown in short
+        mode. When expanded, UIs should use ``content`` for the full result.
         """
         return {"type": "text", "content": text}
 
