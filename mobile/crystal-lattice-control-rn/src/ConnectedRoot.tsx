@@ -14,6 +14,7 @@ import type { SessionSummary, IndexedMessage } from './api';
 import SessionChatScreen from './SessionChatScreen';
 import { useTheme, type Theme } from './theme';
 import { ApplicationPluginsProvider } from './ApplicationPluginsContext';
+import { createAgentBackend } from './backend';
 
 interface ConnectedRootProps {
   adapter: ConnectionAdapter | null;
@@ -72,6 +73,8 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoResponse, setDemoResponse] = useState('');
 
+  const backend = useMemo(() => (adapter ? createAgentBackend(adapter) : null), [adapter]);
+
   const executeDemoRequest = async (type: 'GET' | 'PUT') => {
     setDemoLoading(true);
     setDemoResponse('');
@@ -102,7 +105,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
 
   return (
     <View style={styles.container}>
-      <ApplicationPluginsProvider adapter={adapter} connectionId={activeConnectionId}>
+      <ApplicationPluginsProvider backend={backend} connectionId={activeConnectionId}>
         <View style={styles.contentArea}>
         {/* Connection tab content (kept mounted, visibility toggled) */}
         <View
@@ -176,6 +179,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
             return (
               <SessionsScreen
                 adapter={adapter}
+                backend={backend}
                 connectionId={connectionId}
                 cachedSessions={cacheEntry?.sessions ?? null}
                 lastLoadedAt={cacheEntry?.lastLoadedAt ?? null}
@@ -229,6 +233,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
               return (
                 <SessionChatScreen
                   adapter={adapter}
+                  backend={backend}
                   connectionId={connectionId}
                   isActive={tab === 'messages'}
                   sessionId={selectedSessionId}

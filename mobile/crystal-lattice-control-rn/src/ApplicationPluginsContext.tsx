@@ -1,8 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { ConnectionAdapter } from '../App';
+import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import {
-  apiListApplicationActions,
-  apiListApplicationUiSchema,
   type ActionUiElement,
   type ApplicationActionDefinition,
   type ApplicationUiElement,
@@ -87,13 +85,13 @@ function buildResultFromEntry(entry: CacheEntry | null | undefined): UseApplicat
 }
 
 export interface ApplicationPluginsProviderProps {
-  adapter: ConnectionAdapter | null;
+  backend: AgentBackend | null;
   connectionId: string | null;
   children: ReactNode;
 }
 
 export const ApplicationPluginsProvider: React.FC<ApplicationPluginsProviderProps> = ({
-  adapter,
+  backend,
   connectionId,
   children,
 }) => {
@@ -107,7 +105,7 @@ export const ApplicationPluginsProvider: React.FC<ApplicationPluginsProviderProp
   }));
 
   useEffect(() => {
-    if (!adapter || !connectionId) {
+    if (!backend || !connectionId) {
       setState({ ...emptyResult, loading: false, error: null });
       return;
     }
@@ -127,8 +125,8 @@ export const ApplicationPluginsProvider: React.FC<ApplicationPluginsProviderProp
     const load = async () => {
       try {
         const [actions, elements] = await Promise.all([
-          apiListApplicationActions(adapter),
-          apiListApplicationUiSchema(adapter),
+          backend.listApplicationActions(),
+          backend.listApplicationUiSchema(),
         ]);
 
         if (cancelled) {
@@ -158,7 +156,7 @@ export const ApplicationPluginsProvider: React.FC<ApplicationPluginsProviderProp
     return () => {
       cancelled = true;
     };
-  }, [adapter, connectionId]);
+  }, [backend, connectionId]);
 
   return (
     <ApplicationPluginsContext.Provider value={state}>

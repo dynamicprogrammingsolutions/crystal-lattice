@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ConnectionAdapter } from '../App';
-import { apiListEvents, type ListEventsParams } from './api';
+import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import type { Event } from './eventsTypes';
 
 type SourceStatus = 'idle' | 'running' | 'error';
@@ -17,7 +16,7 @@ interface SessionEventSource {
 }
 
 class PollingEventSource implements SessionEventSource {
-  private adapter: ConnectionAdapter;
+  private backend: AgentBackend;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private sessionId: string | null = null;
   private sinceId: string | null = null;
@@ -28,8 +27,8 @@ class PollingEventSource implements SessionEventSource {
   private readonly intervalMs: number;
   private readonly backoffMs: number;
 
-  constructor(adapter: ConnectionAdapter, intervalMs = 1000, backoffMs = 5000) {
-    this.adapter = adapter;
+  constructor(backend: AgentBackend, intervalMs = 1000, backoffMs = 5000) {
+    this.backend = backend;
     this.intervalMs = intervalMs;
     this.backoffMs = backoffMs;
   }
@@ -85,16 +84,13 @@ class PollingEventSource implements SessionEventSource {
       return;
     }
 
-    const params: ListEventsParams = {
-      sessionId: this.sessionId,
-      sinceId: this.sinceId ?? undefined,
-      // Leave ``limit`` undefined here so that the server uses its
-      // default compacted batch size, while ``apiListEvents`` always
-      // requests a large ``internal_limit`` for the raw window.
-    };
-
     try {
-      const events = await apiListEvents(this.adapter, params);
+      const events = await this.backend.listEvents({
+        sessionId: this.sessionId,
+        sinceId: this.sinceId ?? undefined,
+        // Leave ``limit`` undefined here so that the server uses its
+        // default compacted batch size.
+      });
       if (events.length > 0) {
         // Compute the maximum event_id as a number where possible.
         let maxId: string | null = this.sinceId;
@@ -126,7 +122,7 @@ class PollingEventSource implements SessionEventSource {
 }
 
 export interface UseSessionEventsOptions {
-  adapter: ConnectionAdapter | null;
+  backend: AgentBackend | null;
   sessionId: string | null;
   enabled: boolean;
   initialSinceId: string | null;
@@ -142,7 +138,7 @@ export function useSessionEvents(
   options: UseSessionEventsOptions,
   onEvents: (events: Event[]) => void,
 ): UseSessionEventsResult {
-  const { adapter, sessionId, enabled, initialSinceId } = options;
+  const { backend, sessionId, enabled, initialSinceId } = options;
   const [lastEventId, setLastEventId] = useState<string | null>(initialSinceId);
   const [status, setStatus] = useState<SourceStatus>('idle');
   const [error, setError] = useState<Error | null>(null);
@@ -163,12 +159,12 @@ export function useSessionEvents(
       sourceRef.current = null;
     }
 
-    if (!adapter || !enabled || !sessionId) {
+    if (!backend || !enabled || !sessionId) {
       setStatus('idle');
       return;
     }
 
-    const source = new PollingEventSource(adapter);
+    const source = new PollingEventSource(backend);
     sourceRef.current = source;
 
     const handleEvents = (events: Event[]) => {
@@ -192,7 +188,7 @@ export function useSessionEvents(
       source.stop();
       sourceRef.current = null;
     };
-  }, [adapter, sessionId, enabled, initialSinceId]);
+  }, [backend, sessionId, enabled, initialSinceId]);
 
   return { lastEventId, status, error };
 }
