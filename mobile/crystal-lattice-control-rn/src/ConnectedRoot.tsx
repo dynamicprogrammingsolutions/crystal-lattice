@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import type {
   ConnectionAdapter,
@@ -66,7 +67,8 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   onSaveMessagesScrollOffset,
 }) => {
   const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(theme, insets), [theme, insets]);
   const [tab, setTab] = useState<'connection' | 'sessions' | 'messages'>('connection');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [demoLoading, setDemoLoading] = useState(false);
@@ -316,7 +318,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
     </View>
   );
 };
-const createStyles = (theme: Theme) =>
+const createStyles = (theme: Theme, insets: { top: number; bottom: number; left: number; right: number }) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -325,7 +327,7 @@ const createStyles = (theme: Theme) =>
     contentArea: {
       flex: 1,
       paddingHorizontal: 16,
-      paddingTop: 8,
+      paddingTop: Math.max(8, insets.top),
       paddingBottom: 4,
     },
     connectionsTabContainer: {
@@ -386,6 +388,7 @@ const createStyles = (theme: Theme) =>
       borderTopWidth: 1,
       borderTopColor: theme.navBarBorder,
       paddingVertical: 6,
+      paddingBottom: Math.max(6, insets.bottom),
       backgroundColor: theme.navBarBg,
     },
     navItem: {
