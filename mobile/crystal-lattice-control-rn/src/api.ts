@@ -1,23 +1,36 @@
 import type { ConnectionAdapter } from '../App';
 
-export interface SessionSummary {
-  session_id: string;
-  modified: number;
-  preview: string;
-  metadata?: Record<string, any>;
-  pinned?: boolean;
-}
+import type {
+  ApiMessage,
+  IndexedMessage,
+  SessionSummary,
+  UiSchemaElement,
+  ConfigSchemaEntry,
+  ActionInputParam,
+  ApplicationActionDefinition,
+  ActionUiElement,
+  SessionListFieldElement,
+  ApplicationUiElement,
+  ExecuteActionResponse,
+  ExecuteActionResponseOk,
+  ExecuteActionResponseError,
+} from '@crystal-lattice/frontend-sdk';
 
-export interface ApiMessage {
-  role: string;
-  content: string;
-  metadata?: Record<string, any> | null;
-}
-
-export interface IndexedMessage {
-  index: number;
-  message: ApiMessage;
-}
+export type {
+  ApiMessage,
+  IndexedMessage,
+  SessionSummary,
+  UiSchemaElement,
+  ConfigSchemaEntry,
+  ActionInputParam,
+  ApplicationActionDefinition,
+  ActionUiElement,
+  SessionListFieldElement,
+  ApplicationUiElement,
+  ExecuteActionResponse,
+  ExecuteActionResponseOk,
+  ExecuteActionResponseError,
+} from '@crystal-lattice/frontend-sdk';
 
 export interface CreateSessionResponse {
   session: { session_id: string; [key: string]: any };
@@ -255,37 +268,12 @@ export async function apiCancelRequest(
 
 // --- Session configuration helpers ---
 
-export interface UiSchemaElement {
-  ui_type?: string;
-  // Config-oriented fields
-  key?: string;
-  type?: string;
-  label?: string;
-  description?: string;
-  options?: any;
-  // Footer / status bar fields
-  data?: string;
-  template?: string;
-  // Plugin / misc
-  plugin?: string;
-  [k: string]: any;
-}
-
 export interface UiSchemaResponse {
   elements: UiSchemaElement[];
 }
 
 export interface SessionOverridesResponse {
   overrides: Record<string, any>;
-}
-
-export interface ConfigSchemaEntry {
-  key: string;
-  plugin?: string;
-  type?: string;
-  default?: any;
-  description?: string;
-  [k: string]: any;
 }
 
 export interface SessionConfigSchemaResponse {
@@ -364,79 +352,15 @@ export async function apiDeleteSessionOverride(
 
 // --- Application-level actions & UI schema helpers ---
 
-export interface ActionInputParam {
-  type?: string;
-  required?: boolean;
-  default?: any;
-  description?: string;
-  [k: string]: any;
-}
-
-export interface ApplicationActionDefinition {
-  plugin: string;
-  id: string;
-  label?: string;
-  description?: string;
-  inputs?: Record<string, ActionInputParam>;
-  [k: string]: any;
-}
-
 export interface ListApplicationActionsResponse {
   actions: ApplicationActionDefinition[];
 }
 
-export interface ActionUiElement {
-  ui_type: string;
-  plugin: string;
-  id: string;
-  label: string;
-  icon?: string;
-  order?: number;
-  action_id: string;
-  fixed_params?: Record<string, any>;
-  param_map?: Record<string, string>;
-  dialog?: any;
-  metadata?: Record<string, any>;
-  [k: string]: any;
-}
-
-export interface SessionListFieldElement {
-  ui_type: string;
-  plugin: string;
-  key?: string;
-  label?: string;
-  description?: string;
-  role?: string;
-  data: string;
-  template?: string;
-  order?: number;
-  metadata?: Record<string, any>;
-  [k: string]: any;
-}
-
-export type ApplicationUiElement = ActionUiElement | SessionListFieldElement | Record<string, any>;
 
 export interface ListApplicationUiSchemaResponse {
   elements: ApplicationUiElement[];
 }
 
-export interface ExecuteActionResponseOk {
-  status: 'ok';
-  plugin: string;
-  action_id: string;
-  result: any;
-}
-
-export interface ExecuteActionResponseError {
-  status: 'error';
-  plugin?: string;
-  action_id?: string;
-  error_type?: string;
-  message?: string;
-  details?: any;
-}
-
-export type ExecuteActionResponse = ExecuteActionResponseOk | ExecuteActionResponseError;
 
 export async function apiListApplicationActions(
   adapter: ConnectionAdapter,
