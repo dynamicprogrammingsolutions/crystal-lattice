@@ -17,7 +17,8 @@
   "plugins": [
     "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
     "plugins.delay_extension.DelayExtension",
-    "plugins.random_failure_extension.RandomFailureExtension"
+    "plugins.random_failure_extension.RandomFailureExtension",
+    "plugins.echo_provider_metadata_preserver.EchoProviderMetadataPreserver"
   ],
   "agents": {
     "default": {
