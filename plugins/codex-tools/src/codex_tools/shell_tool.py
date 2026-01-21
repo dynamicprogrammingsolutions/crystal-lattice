@@ -309,17 +309,23 @@ class ShellTool(ToolPlugin):
 
         return "\n\n".join(parts)
 
-    def to_display_format(self, text: str, result: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def to_display_format(
+        self, text: str, result: Dict[str, Any], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Add the executed command to the top of the display content.
 
         Workdir is only shown when explicitly overridden via the
         ``workdir`` tool argument so that default working-directory
         behaviour remains compact.
+        Returns a display payload with type "text" containing the full content,
+        and an optional "single_line" field with just the command (first line
+        if multi-line) for use in collapsed/short views.
         """
 
         command = result.get("command")
         if isinstance(command, str) and command.strip():
             cmd = command.strip()
+            single_line_cmd = cmd.splitlines()[0] if "\n" in cmd else cmd
             # Detect whether the caller explicitly changed workdir for
             # this invocation. This flag is injected by execute_tool /
             # stream_tool.
@@ -333,7 +339,12 @@ class ShellTool(ToolPlugin):
         else:
             content = text
 
-        return {"type": "text", "content": content}
+            single_line_cmd = None
+
+        display: Dict[str, Any] = {"type": "text", "content": content}
+        if single_line_cmd:
+            display["single_line"] = single_line_cmd
+        return display
 
     def stream_tool(
         self,

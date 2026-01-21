@@ -28,6 +28,10 @@ def test_shell_tool_runs_basic_command(tmp_path):
     assert "Command succeeded" not in formatted
     assert "STDOUT" not in formatted
 
+    display = wrapper.to_display_format(formatted, result, state)
+    assert display.get("type") == "text"
+    assert display.get("single_line") == "echo 'hello from shell'"
+
 
 def test_shell_tool_includes_headers_on_failure(tmp_path):
     wrapper = ToolWrapper(ShellTool)
