@@ -190,9 +190,18 @@ class AgentCore:
 
         from agent_core.types import Message  # local import to avoid cycles
 
-        # Existing per-message metadata is preserved via provider/extension
-        # pipelines using the `_metadata` convention. We no longer manually
-        # merge application metadata back after rebuilding from native.
+        # Note on metadata preservation:
+        #
+        # When provider-native history is enabled (session.metadata contains
+        # ``native_messages``), this helper rebuilds the full core message list
+        # from the provider-native sequence.
+        #
+        # By design, arbitrary application-level ``Message.metadata`` is NOT
+        # automatically preserved across the native -> core rebuild step.
+        # If metadata must survive a native-history rebuild, providers/
+        # extensions/features should explicitly persist it into the provider-
+        # native message dicts under the ``_metadata`` key in
+        # ``to_native_messages`` and restore it in ``from_native_messages``.
 
         def _core_only_session(clean_metadata):
             cleaned = dict(clean_metadata)
@@ -605,6 +614,12 @@ class AgentCore:
             role: Message role ("system", "user", "assistant", or "tool").
             content: Message content.
             metadata: Optional per-message metadata.
+                Note: when provider-native history is enabled (session metadata
+                contains ``native_messages``) and the core rebuilds messages
+                from the provider-native sequence, arbitrary metadata is not
+                preserved by default. Persist metadata explicitly via the
+                provider/feature/extension pipelines using the ``_metadata``
+                key on provider-native messages.
             config: Optional configuration used to resolve provider and plugins.
             after_index: Optional index after which to insert the message.
                 When ``None`` (default), the message is appended at the end.
@@ -984,10 +999,13 @@ class AgentCore:
         This helper concatenates the core messages from ``prefix`` and
         ``suffix`` and, when both sessions contain provider-native history,
         combines their native histories and rebuilds core messages from the
-        merged native sequence. Application-level metadata on messages (such as
-        tool_calls or reasoning traces) is preserved by merging it back onto
-        the rebuilt messages by index, excluding ``native_indices`` which are
-        owned by the core.
+        merged native sequence.
+
+        Note: arbitrary per-message ``Message.metadata`` is not preserved by
+        default across the native-history rebuild step. If metadata must
+        survive native rebuilds, it must be persisted into provider-native
+        messages via the ``_metadata`` key and reconstructed in
+        ``from_native_messages``.
 
         Args:
             prefix: First session segment.
@@ -1519,6 +1537,11 @@ class AgentCore:
         Uses the same provider, extensions, features, and tools that would
         be active for a normal request with this config, but skips
         core-to-native conversion and starts from the given native history.
+
+        Note: any per-message metadata that should survive this rebuild must
+        be persisted into the provider-native message dicts under the
+        ``_metadata`` key and reconstructed by the provider/extensions/
+        features in ``from_native_messages``.
         """
         (
             provider,
