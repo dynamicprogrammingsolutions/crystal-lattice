@@ -775,9 +775,59 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       const current = [...prev];
       let lastIndex = current.length > 0 ? current[current.length - 1].index : -1;
       for (const msg of ev.messages) {
-	        if (!msg) continue;
-        lastIndex += 1;
-        current.push({ index: lastIndex, message: msg });
+        if (!msg) continue;
+        
+        const msgContent = msg.content || '';
+        const msgRole = msg.role || 'unknown';
+        const msgMetadata = msg.metadata || {};
+        const toolCalls = Array.isArray(msgMetadata.tool_calls) ? msgMetadata.tool_calls : [];
+        
+        // For assistant messages with tool_calls, check if we already have one with the same tool_calls
+        // (even if content/metadata differ slightly, e.g., tool_call_previews added)
+        let isDuplicate = false;
+        if (msgRole === 'assistant' && toolCalls.length > 0) {
+          // Find existing assistant message with matching tool_calls
+          const existingIdx = current.findIndex((existing) => {
+            const existingMsg = existing.message;
+            if (existingMsg.role !== 'assistant') return false;
+            const existingToolCalls = Array.isArray((existingMsg.metadata as any)?.tool_calls)
+              ? (existingMsg.metadata as any).tool_calls
+              : [];
+            if (toolCalls.length !== existingToolCalls.length) return false;
+            // Check if tool call IDs match
+            const existingIds = new Set(existingToolCalls.map((tc: any) => tc.id || tc.tool_call_id).filter(Boolean));
+            const newIds = new Set(toolCalls.map((tc: any) => tc.id || tc.tool_call_id).filter(Boolean));
+            if (existingIds.size !== newIds.size || existingIds.size === 0) return false;
+            for (const id of newIds) {
+              if (!existingIds.has(id)) return false;
+            }
+            return true;
+          });
+          
+          if (existingIdx >= 0) {
+            // Update existing message with new metadata (e.g., tool_call_previews)
+            current[existingIdx] = {
+              ...current[existingIdx],
+              message: {
+                ...current[existingIdx].message,
+                content: msgContent, // Update content in case it changed
+                metadata: { ...current[existingIdx].message.metadata, ...msgMetadata }, // Merge metadata
+              },
+            };
+            isDuplicate = true;
+          }
+        } else {
+          // For non-assistant or assistant without tool_calls, check exact match
+          isDuplicate = current.some((existing) => {
+            const existingMsg = existing.message;
+            return existingMsg.role === msgRole && existingMsg.content === msgContent;
+          });
+        }
+        
+        if (!isDuplicate) {
+          lastIndex += 1;
+          current.push({ index: lastIndex, message: msg });
+        }
       }
       return current;
     });
@@ -858,9 +908,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                   metadata: null,
                 };
           const nextReasoning = base.reasoning + reasoningDelta;
+          // Exclude tool_calls and tool_call_previews from streaming metadata
+          // They will only appear in the final event after streaming completes
+          const { tool_calls, tool_call_previews, ...restMetadata } = rawMessage.metadata || {};
           const mergedMetadata = {
             ...(base.metadata || {}),
-            ...(rawMessage.metadata || {}),
+            ...restMetadata,
             reasoning: nextReasoning,
           } as Record<string, any>;
           return {
