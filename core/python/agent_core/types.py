@@ -961,6 +961,30 @@ class ToolPlugin(BasePlugin, Protocol):
         """
         return iter(())
 
+    def format_tool_call_preview(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> str:
+        """Generate a pre-execution one-line preview for a tool call.
+
+        This method is called when an assistant message containing tool calls
+        is finalized, before the tools are executed. It should return a brief
+        one-line summary of what the tool call will do, suitable for display
+        in collapsed/expanded tool call views.
+
+        Args:
+            tool_name: Name of the tool/function being called.
+            arguments: Structured arguments for the tool call.
+            state: Current tool state.
+
+        Returns:
+            A brief one-line string preview (e.g., "ls -la", "modify poem.txt; create readme.md").
+            If the tool doesn't provide a preview, return an empty string.
+        """
+        return ""
+
     def to_display_format(
         self,
         text: str,

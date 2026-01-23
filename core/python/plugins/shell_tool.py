@@ -120,6 +120,25 @@ class ShellTool(ToolPlugin):
             }
         ]
 
+    def format_tool_call_preview(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> str:
+        """Generate a pre-execution preview for a shell tool call.
+        
+        Returns just the command (first line if multi-line), same as single_line display.
+        """
+        if tool_name != "shell":
+            return ""
+        command = arguments.get("command", "")
+        if isinstance(command, str) and command.strip():
+            cmd = command.strip()
+            # Return first line if multi-line, same as single_line display
+            return cmd.splitlines()[0] if "\n" in cmd else cmd
+        return ""
+
     def execute_tool(
         self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:

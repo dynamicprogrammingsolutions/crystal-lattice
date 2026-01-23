@@ -83,6 +83,18 @@ class ToolWrapper(ToolPlugin):
         working_state = state or self.state
         return self.plugin.format_tool_result(result, working_state)
 
+    def format_tool_call_preview(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> str:
+        """Generate pre-execution preview via plugin; requires initialized state."""
+        if self.state is None:
+            raise RuntimeError(f"Tool {self.name} not initialized")
+        working_state = state or self.state
+        return self.plugin.format_tool_call_preview(tool_name, arguments, working_state)
+
     def stream_tool(
         self,
         tool_name: str,
