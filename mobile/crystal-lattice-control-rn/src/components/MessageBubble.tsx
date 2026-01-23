@@ -239,6 +239,9 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
   const singleLine = selectSingleLineContent(message);
   const hasContent = !!content;
   const role = 'tool';
+  const toolName = typeof (message.metadata as any)?.tool_name === 'string'
+    ? (message.metadata as any).tool_name
+    : undefined;
   const footerParts = useMemo(() => {
     const elements = footerElements || [];
     const parts: string[] = [];
@@ -256,7 +259,10 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
     <View style={styles.row}>
       <View style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}>
         <View style={styles.headerRow}>
-          <Text style={styles.headerText}>{`[${index}] Tool`}</Text>
+          <Text style={styles.headerText}>
+            {`[${index}] Tool`}
+            {toolName && ` (${toolName})`}
+          </Text>
           {hasContent && (
             <TouchableOpacity
               style={styles.collapseIconButton}
@@ -342,6 +348,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [reasoningExpanded, setReasoningExpanded] = useState(false);
+  const [toolCallsExpanded, setToolCallsExpanded] = useState(false);
   const content = selectDisplayContent(message);
   const reasoning = typeof (message.metadata as any)?.reasoning === 'string'
     ? (message.metadata as any).reasoning
@@ -415,6 +422,19 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
       <View style={[styles.bubble, styles.otherBubble]}>
         <View style={styles.headerRow}>
           <Text style={styles.headerText}>{`[${index}] Assistant`}</Text>
+          <View style={styles.headerIconsRow}>
+            {toolCallNames.length > 0 && (
+              <TouchableOpacity
+                style={styles.collapseIconButton}
+                onPress={() => setToolCallsExpanded((prev) => !prev)}
+              >
+                <Icon
+                  name={toolCallsExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={14}
+                  color={theme.textSecondary}
+                />
+              </TouchableOpacity>
+            )}
           {reasoning && (
             <TouchableOpacity
               style={styles.collapseIconButton}
@@ -427,6 +447,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
               />
             </TouchableOpacity>
           )}
+          </View>
         </View>
 
         {reasoning && reasoningExpanded && (
@@ -469,8 +490,51 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
             />
           )
         ) : null}
-        {toolCallNames.length > 0 && (
-          <Text style={styles.toolCallsText}>
+        {toolCallNames.length > 0 && toolCallsExpanded && (
+          <View style={styles.collapsibleContainerTool}>
+            <ScrollView
+              style={styles.collapsibleScroll}
+              nestedScrollEnabled
+            >
+              {toolCalls.map((tc: any, idx: number) => {
+                const func = tc.function || {};
+                const toolName = typeof func === 'object' && func !== null && typeof func.name === 'string'
+                  ? func.name
+                  : typeof tc.type === 'string'
+                  ? tc.type
+                  : 'tool';
+                const callId = tc.id || tc.tool_call_id;
+                
+                // Get pre-execution preview from metadata
+                const toolCallPreviews = Array.isArray((message.metadata as any)?.tool_call_previews)
+                  ? (message.metadata as any).tool_call_previews
+                  : [];
+                const previewObj = toolCallPreviews.find((p: any) => p.id === callId);
+                const preview = previewObj?.preview || '';
+                
+                // Fallback to showing arguments if no preview available
+                const displayText = preview || (
+                  typeof func === 'object' && func !== null && func.arguments
+                    ? (typeof func.arguments === 'string' ? func.arguments : JSON.stringify(func.arguments, null, 2))
+                    : typeof tc.arguments === 'string'
+                    ? tc.arguments
+                    : JSON.stringify(tc.arguments || {}, null, 2)
+                );
+                
+                return (
+                  <View key={callId || idx} style={styles.toolCallItem}>
+                    <Text style={styles.toolCallName}>{toolName}</Text>
+                    <Text style={styles.toolCallArgs} selectable>
+                      {displayText}
+                    </Text>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+        {toolCallNames.length > 0 && !toolCallsExpanded && (
+          <Text style={styles.collapsedHintText}>
             {toolCallNames.length} tool call{toolCallNames.length !== 1 ? 's' : ''}: {toolCallNames.join(', ')}
           </Text>
         )}
@@ -643,6 +707,10 @@ const createStyles = (theme: Theme) =>
       justifyContent: 'space-between',
       marginBottom: 4,
     },
+    headerIconsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
     headerText: {
       fontSize: 12,
       color: theme.textSecondary,
@@ -659,12 +727,21 @@ const createStyles = (theme: Theme) =>
       fontStyle: 'italic',
       fontFamily: 'Courier',
     },
-    toolCallsText: {
-      fontSize: 12,
+    toolCallItem: {
+      marginBottom: 8,
+    },
+    toolCallName: {
+      fontSize: 13,
+      color: theme.text,
+      fontWeight: '600',
+      marginBottom: 2,
+      fontFamily: 'Courier',
+    },
+    toolCallArgs: {
+      fontSize: 11,
       color: theme.textSecondary,
-      fontStyle: 'italic',
-      marginTop: 4,
-      marginBottom: 4,
+      fontFamily: 'Courier',
+      marginLeft: 8,
     },
     contentText: {
       fontSize: 14,
