@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, Iterator, List
+import json
 
 from agent_core import AgentCore, MessageRole, Session
 
@@ -84,6 +85,99 @@ class ToolLoopRunner:
         except Exception:
             return False
 
+    def _get_tool_for_name(self, name: str, config: Dict[str, Any]) -> tuple[Any, Dict[str, Any]] | None:
+        """Get tool wrapper and its initialized state for a given tool name.
+        
+        This method resolves which tools are enabled for the given config
+        (respecting tag-based dependencies), then searches through their schemas
+        to find a match by name. The tool is initialized with fresh state before
+        schema lookup, as required by the plugin protocol.
+        
+        Args:
+            name: The tool name to search for (as it appears in tool schemas).
+            config: Request configuration dict used for tool initialization.
+            
+        Returns:
+            A tuple of (tool_wrapper, tool_state) if found, None otherwise.
+        """
+        core = self._core
+        
+        if not core._tools:
+            enabled_tools: List = []
+        elif not core._providers:
+            enabled_tools = list(core._tools)
+        else:
+            try:
+                _provider, _exts, _features, tools, _tags = core._resolve_plugins_for_config(config)
+                enabled_tools = list(tools)
+            except Exception:
+                enabled_tools = list(core._tools)
+        
+        # Search through enabled tools to find one matching the requested name.
+        for tool in enabled_tools:
+            tool_state = tool.init(config)
+            try:
+                schemas = tool.get_tool_schemas(tool_state)
+            except Exception:
+                schemas = []
+
+            for schema in schemas or []:
+                if not isinstance(schema, dict):
+                    continue
+                
+                # Extract tool name from schema. OpenAI-style schemas have the name
+                # nested under "function.name", while some simpler formats may have
+                # it directly under "name". We check both locations for compatibility.
+                fn = schema.get("function") or {}
+                schema_name = fn.get("name") if isinstance(fn, dict) else None
+                if not isinstance(schema_name, str) or not schema_name:
+                    # Fallback: check top-level "name" field
+                    schema_name = schema.get("name") if isinstance(schema, dict) else None
+                
+                if isinstance(schema_name, str) and schema_name == name:
+                    return (tool, tool_state)
+ 
+        return None
+
+    def _generate_tool_call_previews(
+        self,
+        tool_calls: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Generate pre-execution previews for tool calls.
+        
+        Returns a list of preview dicts with "id" and "preview" keys.
+        """
+        if not tool_calls:
+            return []
+        
+        previews: List[Dict[str, Any]] = []
+        for call in tool_calls:
+            call_id = call.get("id") or call.get("tool_call_id")
+            func = call.get("function") or {}
+            name = call.get("name") or (func.get("name") if isinstance(func, dict) else None)
+            args = call.get("arguments") or (func.get("arguments") if isinstance(func, dict) else {}) or {}
+            
+            # Parse JSON string arguments if needed
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except Exception:
+                    args = {}
+            
+            preview = ""
+            if isinstance(name, str) and name:
+                tool_result = self._get_tool_for_name(name, self._config)
+                if tool_result:
+                    tool, tool_state = tool_result
+                    try:
+                        preview = tool.format_tool_call_preview(name, args, tool_state)
+                    except Exception:
+                        preview = ""
+            
+            previews.append({"id": call_id, "preview": preview})
+        
+        return previews
+
     def _run_llm_phase(
         self,
         session: Session,
@@ -119,6 +213,18 @@ class ToolLoopRunner:
                 return session, []
 
             next_session, final_messages = core.send_request(session, config)
+
+            # Generate pre-execution previews for tool calls and add to assistant message metadata
+            tool_calls = self._extract_tool_calls(final_messages)
+            if tool_calls:
+                tool_call_previews = self._generate_tool_call_previews(tool_calls)
+                for msg in final_messages:
+                    if msg.get("role") == "assistant":
+                        metadata = dict(msg.get("metadata") or {})
+                        if tool_call_previews:
+                            metadata["tool_call_previews"] = tool_call_previews
+                            msg["metadata"] = metadata
+                        break
 
             # Emit the public final event first so that external
             # consumers see the completed assistant reply before any
@@ -180,6 +286,19 @@ class ToolLoopRunner:
             elif ctype == "final":
                 final_session = chunk["session"]
                 final_messages = chunk.get("messages") or []
+
+                # Generate pre-execution previews for tool calls and add to assistant message metadata
+                tool_calls = self._extract_tool_calls(final_messages)
+                if tool_calls:
+                    tool_call_previews = self._generate_tool_call_previews(tool_calls)
+                    # Add previews to assistant message in final_messages (for the final event)
+                    for msg in final_messages:
+                        if msg.get("role") == "assistant":
+                            metadata = dict(msg.get("metadata") or {})
+                            if tool_call_previews:
+                                metadata["tool_call_previews"] = tool_call_previews
+                                msg["metadata"] = metadata
+                            break
 
                 # If no partials were seen, still emit a synthetic
                 # assistant_message start so UIs can treat this as a
@@ -316,7 +435,7 @@ class ToolLoopRunner:
             else:
                 role = "tool"  # type: ignore[assignment]
             content = last_final.get("content", "")
-            metadata = last_final.get("metadata")
+            metadata = last_final.get("metadata") or {}
             current_session = core.add_message(
                 current_session,
                 role,

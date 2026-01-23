@@ -518,6 +518,61 @@ class ApplyPatchTool(ToolPlugin):
             }
         ]
 
+    def format_tool_call_preview(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> str:
+        """Generate a pre-execution preview for an apply_patch tool call.
+        
+        Parses the patch text to extract file operations without executing the patch.
+        Returns a summary like "add: file1.py; update: file2.py; delete: file3.py"
+        """
+        if tool_name != "apply_patch":
+            return ""
+        
+        patch_text = arguments.get("patch_text", "")
+        if not isinstance(patch_text, str) or not patch_text.strip():
+            return ""
+        
+        # Parse patch to extract file operations
+        lines = patch_text.strip().split("\n")
+        if len(lines) < 2 or not lines[0].startswith("*** Begin Patch"):
+            return ""
+        
+        preview_parts: List[str] = []
+        i = 1
+        while i < len(lines) - 1:  # Skip Begin Patch and End Patch
+            line = lines[i].strip()
+            if line == "*** Add File:":
+                i += 1
+                if i < len(lines):
+                    path = lines[i].strip()
+                    if path:
+                        preview_parts.append(f"add: {path}")
+            elif line == "*** Update File:":
+                i += 1
+                if i < len(lines):
+                    path = lines[i].strip()
+                    if path:
+                        # Check for move
+                        if i + 1 < len(lines) and lines[i + 1].strip().startswith("*** Move to:"):
+                            i += 1
+                            move_to = lines[i].strip().replace("*** Move to:", "").strip()
+                            preview_parts.append(f"update: {path} -> {move_to}")
+                        else:
+                            preview_parts.append(f"update: {path}")
+            elif line == "*** Delete File:":
+                i += 1
+                if i < len(lines):
+                    path = lines[i].strip()
+                    if path:
+                        preview_parts.append(f"delete: {path}")
+            i += 1
+        
+        return "; ".join(preview_parts) if preview_parts else ""
+
     def execute_tool(
         self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
