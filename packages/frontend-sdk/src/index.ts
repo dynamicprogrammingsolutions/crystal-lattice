@@ -51,6 +51,9 @@ export type {
 } from './transport/transport';
 
 export { FetchTransport } from './transport/fetchTransport';
+export { BridgeTransport } from './transport/bridgeTransport';
+
+export type { BridgeServer, WebSocketLike, WebSocketFactory } from './transport/bridgeTransport';
 
 export type {
   AgentBackend,

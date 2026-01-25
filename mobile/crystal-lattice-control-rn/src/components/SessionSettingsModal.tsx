@@ -13,31 +13,26 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
-import type { ConnectionAdapter } from '../../App';
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import {
   type ConfigSchemaEntry,
   type UiSchemaElement,
 } from '../api';
 import { useTheme, type Theme } from '../theme';
-import { createAgentBackend } from '../backend';
 
 export interface SessionSettingsModalProps {
-  adapter: ConnectionAdapter | null;
-  backend?: AgentBackend | null;
+  backend: AgentBackend | null;
   sessionId: string;
   visible: boolean;
   onRequestClose: () => void;
 }
 
 const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
-  adapter,
-  backend: backendProp,
+  backend,
   sessionId,
   visible,
   onRequestClose,
 }) => {
-  const backend = backendProp || (adapter ? createAgentBackend(adapter) : null);
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 

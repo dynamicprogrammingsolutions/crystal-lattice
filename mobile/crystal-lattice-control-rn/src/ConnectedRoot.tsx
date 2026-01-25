@@ -2,11 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import type {
-  ConnectionAdapter,
   ConnectionRecord,
   SessionsCache,
   MessagesCache,
 } from '../App';
+import type { AgentBackend, Transport } from '@crystal-lattice/frontend-sdk';
 import ConnectionScreen from './ConnectionScreen';
 import ConnectionsScreen from './ConnectionsScreen';
 import SessionsScreen from './SessionsScreen';
@@ -14,10 +14,10 @@ import type { SessionSummary, IndexedMessage } from './api';
 import SessionChatScreen from './SessionChatScreen';
 import { useTheme, type Theme } from './theme';
 import { ApplicationPluginsProvider } from './ApplicationPluginsContext';
-import { createAgentBackend } from './backend';
 
 interface ConnectedRootProps {
-  adapter: ConnectionAdapter | null;
+  backend: AgentBackend | null;
+  transport: Transport | null;
   onDisconnect: () => void;
   connections: ConnectionRecord[];
   connectionsLoading: boolean;
@@ -26,6 +26,7 @@ interface ConnectedRootProps {
   renderConnectionWizard: () => React.ReactNode;
   onDeleteConnectionRecord: (record: ConnectionRecord) => void;
   activeConnectionId: string | null;
+  activeConnectionName: string | null;
   activeConnectionAdditionalInfo: string | null;
   sessionsCache: SessionsCache;
   onUpdateSessionsCache: (connectionId: string, sessions: SessionSummary[]) => void;
@@ -49,7 +50,8 @@ interface ConnectedRootProps {
 }
 
 const ConnectedRoot: React.FC<ConnectedRootProps> = ({
-  adapter,
+  backend,
+  transport,
   onDisconnect,
   connections,
   connectionsLoading,
@@ -58,6 +60,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   renderConnectionWizard,
   onDeleteConnectionRecord,
   activeConnectionId,
+  activeConnectionName,
   activeConnectionAdditionalInfo,
   sessionsCache,
   onUpdateSessionsCache,
@@ -73,23 +76,29 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoResponse, setDemoResponse] = useState('');
 
-  const backend = useMemo(() => (adapter ? createAgentBackend(adapter) : null), [adapter]);
-
   const executeDemoRequest = async (type: 'GET' | 'PUT') => {
     setDemoLoading(true);
     setDemoResponse('');
 
     try {
-      let data;
-      if (type === 'GET') {
-        data = await adapter?.get('/api/data');
-      } else {
-        data = await adapter?.put('/api/data', {
-          message: 'Hello from React Native',
-          timestamp: new Date().toISOString(),
-        });
+      if (!transport) {
+        throw new Error('No active connection');
       }
-      setDemoResponse(JSON.stringify(data, null, 2));
+
+      const payload =
+        type === 'PUT'
+          ? {
+              message: 'Hello from React Native',
+              timestamp: new Date().toISOString(),
+            }
+          : undefined;
+      const resp = await transport.request({
+        method: type,
+        path: '/api/data',
+        body: payload,
+      });
+
+      setDemoResponse(JSON.stringify(resp.data, null, 2));
     } catch (err: any) {
       const message = err?.message || 'Demo request failed';
       setDemoResponse(`Error: ${message}`);
@@ -122,9 +131,10 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
 
             return (
               <>
-                {adapter ? (
+                {backend && transport ? (
                   <ConnectionScreen
-                    adapter={adapter}
+                    transport={transport}
+                    displayName={activeConnectionName || 'Connected'}
                     onDisconnect={onDisconnect}
                     additionalInfo={activeConnectionAdditionalInfo}
                   />
@@ -166,7 +176,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
               ? sessionsCache[connectionId] ?? null
               : null;
 
-            if (!adapter && !cacheEntry) {
+            if (!backend && !cacheEntry) {
               return (
                 <View style={styles.placeholderContainer}>
                   <Text style={styles.placeholderText}>
@@ -178,7 +188,6 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
 
             return (
               <SessionsScreen
-                adapter={adapter}
                 backend={backend}
                 connectionId={connectionId}
                 cachedSessions={cacheEntry?.sessions ?? null}
@@ -220,7 +229,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                 ? sessionsEntry.sessions.find((s) => s.session_id === selectedSessionId) ?? null
                 : null;
 
-              if (!adapter && !cacheEntry) {
+              if (!backend && !cacheEntry) {
                 return (
                   <View style={styles.placeholderContainer}>
                     <Text style={styles.placeholderText}>
@@ -232,7 +241,6 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
 
               return (
                 <SessionChatScreen
-                  adapter={adapter}
                   backend={backend}
                   connectionId={connectionId}
                   isActive={tab === 'messages'}

@@ -12,7 +12,8 @@ These guidelines apply to everything under `mobile/crystal-lattice-control-rn/`.
 
 - **Entry point**: `App.tsx`
   - Handles connection method selection (manual IP, Bonjour discovery, bridge).
-  - Owns the `ConnectionAdapter` abstraction used by all screens.
+  - Owns the active SDK `Transport` + `AgentBackend` instances.
+  - Creates a `RestAgentBackend` over either `FetchTransport` (direct HTTP) or `BridgeTransport` (Phoenix/WebSocket proxy).
   - On successful connect, renders `src/ConnectedRoot.tsx`.
 - **Main navigation**: `src/ConnectedRoot.tsx`
   - Bottom tab navigation with three tabs: `Connection`, `Sessions`, `Messages`.
@@ -23,10 +24,9 @@ These guidelines apply to everything under `mobile/crystal-lattice-control-rn/`.
   - `SessionsScreen.tsx`: lists sessions from `/sessions`, provides filter, reload, and "New Session" actions.
   - `SessionChatScreen.tsx`: shows messages for the active session, lets users append, send, and resend requests.
 - **HTTP / API wiring**:
-  - `src/api.ts` wraps all HTTP calls over `ConnectionAdapter`:
-    - `apiListSessions`, `apiCreateSession`.
-    - `apiListMessages` (supports `start`/`end` windowing; used for "last N messages").
-    - `apiAppendMessage`, `apiSend`.
+  - Screens call the backend through the SDK `AgentBackend` interface.
+  - The concrete implementation used today is `RestAgentBackend` (which maps to the Python server routes).
+  - `src/api.ts` is now **types only** (re-exported from `@crystal-lattice/frontend-sdk`) to keep local imports stable.
   - The backend endpoints are implemented in `application/python/agent_terminal_app/server.py`.
   - **Do not change API paths or semantics from this app**; instead, update the backend first if the API needs to evolve.
 - **Message rendering**:
@@ -85,12 +85,11 @@ refer to `application/python/agent_terminal_app/event_rendering.py` and the core
 **App‑level connection flow** (`App.tsx`):
 
 - Connection methods are enumerated as `ConnectionMethod = 'manual' | 'discovery' | 'bridge'`.
-- `ConnectionAdapter` interface is the **only thing screens should use** for backend access:
-  - `connect()`, `get(path)`, `put(path, data)`, `post(path, data)`, `disconnect()`, `getDisplayName()`.
-- Implementations:
-  - `HttpAdapter` (direct HTTP to the Python app).
-  - `BridgeAdapter` (Phoenix WebSocket, `http_request` messages over the Elixir bridge).
-- `App.tsx` decides which adapter to construct and when to call `connect`, then passes a ready `adapter` into `ConnectedRoot`.
+- `App.tsx` constructs an SDK `Transport` and an `AgentBackend`:
+  - Direct connections: `FetchTransport({ baseUrl })`
+  - Bridge connections: `BridgeTransport({ bridgeUrl, serverId, pairingToken })`
+  - Backend implementation: `new RestAgentBackend({ transport })`
+- `App.tsx` passes the ready `backend` (and `transport` for generic health checks) into `ConnectedRoot`.
 
 **Connected navigation shell** (`src/ConnectedRoot.tsx`):
 
@@ -115,7 +114,7 @@ refer to `application/python/agent_terminal_app/event_rendering.py` and the core
 
 **Session chat** (`src/SessionChatScreen.tsx`):
 
-- Accepts `adapter`, `sessionId`, `onBack`.
+- Accepts `backend`, `sessionId`, `onBack`.
 - Message loading:
   - Uses `apiListMessages` with a `start` parameter derived from the configurable "message limit".
   - Default limit is 25 messages; limit can be set to "all".
@@ -198,7 +197,7 @@ For bridge mode, ensure the Elixir bridge is up and reachable at the WebSocket U
 
 - Use the existing Jest setup (`npm test`).
 - Prefer **component‑level tests** for new screens/components using `react-test-renderer`.
-- Test UI states that involve network errors by mocking `ConnectionAdapter` and `src/api.ts`.
+- Test UI states that involve network errors by mocking `AgentBackend` (and/or a `Transport` passed into `RestAgentBackend`).
 - Do not add new test frameworks; extend the current Jest configuration in `jest.config.js`.
 
 When you make a behavior change that affects message rendering, session loading, or

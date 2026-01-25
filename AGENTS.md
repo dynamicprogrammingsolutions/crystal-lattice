@@ -53,9 +53,9 @@ See `application/python/agent_terminal_app/AGENTS.md` for directory-specific gui
 - React Native app (Crystal Lattice Control) that talks to the terminal/HTTP app and bridge.
 - Connection methods: manual IP/port, Bonjour/mDNS discovery, and bridge WebSocket.
 - Main pieces:
-  - `App.tsx`: connection flow + `ConnectionAdapter` implementations.
+  - `App.tsx`: connection flow; constructs SDK transports (`FetchTransport` / `BridgeTransport`) and a backend (`RestAgentBackend`).
   - `src/ConnectedRoot.tsx`: bottom-tab navigation (Connection / Sessions / Messages).
-  - `src/api.ts`: typed wrapper around the terminal HTTP API (sessions, messages, send).
+  - `src/api.ts`: type-only re-export shim (SDK types).
   - `src/components/MessageBubble.tsx`: per-role message renderers (user/system/tool/assistant) including collapsible tool results and reasoning.
   - `src/SessionsScreen.tsx`, `src/SessionChatScreen.tsx`, `src/ConnectionScreen.tsx`: screens for listing sessions, viewing messages, and connection status.
 

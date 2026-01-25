@@ -12,7 +12,6 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
-import type { ConnectionAdapter } from '../App';
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import { useTheme, type Theme } from './theme';
 import SessionActionsBar from './components/SessionActionsBar';
@@ -32,7 +31,6 @@ import AgentSwitchModal from './components/AgentSwitchModal';
 import { extractByPath, renderTemplate } from './uiSchemaUtils';
 
 interface SessionsScreenProps {
-  adapter: ConnectionAdapter | null;
   backend: AgentBackend | null;
   connectionId: string | null;
   cachedSessions: SessionSummary[] | null;
@@ -47,7 +45,6 @@ const STORAGE_KEY_SESSION_LIST_ACTIONS = 'clc_pinned_session_list_actions_v1';
 const BUILTIN_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settings'];
 
 const SessionsScreen: React.FC<SessionsScreenProps> = ({
-  adapter,
   backend,
   connectionId,
   cachedSessions,
@@ -194,10 +191,10 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     if (cachedSessions) {
       setSessions(cachedSessions);
       setError(null);
-    } else if (!adapter) {
+    } else if (!backend) {
       setSessions([]);
     }
-  }, [cachedSessions, connectionId, adapter]);
+  }, [cachedSessions, connectionId, backend]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -460,7 +457,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
             <TouchableOpacity
               style={styles.pinIconButton}
               onPress={() => {
-                if (!adapter) {
+                if (!backend) {
                   const message = 'No active connection';
                   setError(message);
                   Alert.alert('Error', message);
@@ -622,7 +619,6 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 
       {settingsSessionId && (
         <SessionSettingsModal
-          adapter={adapter}
           backend={backend}
           sessionId={settingsSessionId}
           visible={settingsVisible}
