@@ -379,6 +379,10 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
     }
     return names;
   }, [toolCalls]);
+  
+  const distinctToolCallNames = useMemo(() => {
+    return Array.from(new Set(toolCallNames));
+  }, [toolCallNames]);
   const role = 'assistant';
   const footerParts = useMemo(() => {
     const elements = footerElements || [];
@@ -543,7 +547,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
         )}
         {toolCallNames.length > 0 && !toolCallsExpanded && (
           <Text style={styles.collapsedHintText}>
-            {toolCallNames.length} tool call{toolCallNames.length !== 1 ? 's' : ''}: {toolCallNames.join(', ')}
+            {toolCallNames.length} tool call{toolCallNames.length !== 1 ? 's' : ''}: {distinctToolCallNames.join(', ')}
           </Text>
         )}
         {footerParts.length > 0 && (
