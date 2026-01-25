@@ -6,7 +6,7 @@ This maps *existing* code in `mobile/crystal-lattice-control-rn/` to the propose
 
 | Current file | What it contains | SDK target |
 |---|---|---|
-| `mobile/crystal-lattice-control-rn/src/api.ts` | Typed wrapper around the Python HTTP API. Includes UI schema + plugins endpoints. | `packages/frontend-sdk/src/rest/apiClient.ts` (split by domain) |
+| `mobile/crystal-lattice-control-rn/src/api.ts` | Type-only re-export shim (keeps mobile imports stable). | `packages/frontend-sdk/src/types/*` (already extracted) |
 | `mobile/crystal-lattice-control-rn/src/eventsTypes.ts` | Client-side event types. | `packages/frontend-sdk/src/events/types.ts` |
 | `mobile/crystal-lattice-control-rn/src/messageUtils.ts` | `selectDisplayContent(message)` fallback logic. | `packages/frontend-sdk/src/messages/displayContent.ts` |
 | `mobile/crystal-lattice-control-rn/src/uiSchemaUtils.ts` | `extractByPath`, `renderTemplate`, footer/status filters. | `packages/frontend-sdk/src/ui-schema/utils.ts` |
@@ -16,7 +16,7 @@ This maps *existing* code in `mobile/crystal-lattice-control-rn/` to the propose
 
 | Current file | What it contains | SDK target |
 |---|---|---|
-| `mobile/crystal-lattice-control-rn/App.tsx` | `ConnectionAdapter` interface + `HttpAdapter` + `BridgeAdapter` implementations. | `packages/frontend-sdk/src/transport/httpTransport.ts`, `packages/frontend-sdk/src/transport/bridgeTransport.ts`, `packages/frontend-sdk/src/backend/restBackend.ts` |
+| `mobile/crystal-lattice-control-rn/App.tsx` | Connection wizard + constructs SDK transports/backends (`FetchTransport`/`BridgeTransport` + `RestAgentBackend`). | `packages/frontend-sdk/src/transport/fetchTransport.ts`, `packages/frontend-sdk/src/transport/bridgeTransport.ts`, `packages/frontend-sdk/src/backend/restBackend.ts` |
 
 Notes:
 

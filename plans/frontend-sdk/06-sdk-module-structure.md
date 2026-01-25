@@ -17,7 +17,7 @@ packages/frontend-sdk/
 
     transport/
       transport.ts
-      httpTransport.ts
+      fetchTransport.ts
       bridgeTransport.ts
 
     backend/

@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Clipboard from '@react-native-clipboard/clipboard';
-import type { ConnectionAdapter } from '../App';
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import {
   type ApiMessage,
@@ -51,7 +50,6 @@ import type {
 } from './eventsTypes';
 
 interface SessionChatScreenProps {
-  adapter: ConnectionAdapter | null;
   backend: AgentBackend | null;
   connectionId: string | null;
   isActive: boolean;
@@ -77,7 +75,6 @@ type PluginActionContext =
   | { kind: 'message'; index: number; message: ApiMessage; sessionSummary: SessionSummary | null };
 
 const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
-  adapter,
   backend,
   connectionId,
   isActive,
@@ -1328,7 +1325,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	      />
 
 	      <SessionSettingsModal
-	        adapter={adapter}
 	        backend={backend}
 	        sessionId={sessionId}
 	        visible={settingsVisible}

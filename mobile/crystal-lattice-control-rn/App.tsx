@@ -15,8 +15,15 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Zeroconf from 'react-native-zeroconf';
+import {
+  BridgeTransport,
+  FetchTransport,
+  RestAgentBackend,
+  type AgentBackend,
+  type BridgeServer,
+  type Transport,
+} from '@crystal-lattice/frontend-sdk';
 import ConnectedRoot from './src/ConnectedRoot';
-import ConnectionsScreen from './src/ConnectionsScreen';
 import { getConnectionAdditionalInfo } from './src/connectionInfo';
 import type { SessionSummary, IndexedMessage } from './src/api';
 import { ThemeProvider, lightTheme, darkTheme, type Theme } from './src/theme';
@@ -29,24 +36,6 @@ interface Service {
   host: string;
   port: number;
   addresses: string[];
-}
-
-interface BridgeServer {
-  server_id: string;
-  display_name: string;
-  computer_name: string;
-  location?: string;
-}
-
-export interface ConnectionAdapter {
-  connect(): Promise<void>;
-  get(path: string): Promise<any>;
-  put(path: string, data: any): Promise<any>;
-  post(path: string, data: any): Promise<any>;
-  patch(path: string, data: any): Promise<any>;
-  delete(path: string, data?: any): Promise<any>;
-  disconnect(): void;
-  getDisplayName(): string;
 }
 
 export type ConnectionKind = 'manual' | 'discovery' | 'bridge';
@@ -119,521 +108,14 @@ function generateId(): string {
   });
 }
 
-class HttpAdapter implements ConnectionAdapter {
-  private host: string;
-  private port: number;
-  private name: string;
-
-  constructor(host: string, port: number, name: string) {
-    this.host = host;
-    this.port = port;
-    this.name = name;
-  }
-
-  async connect(): Promise<void> {
-    const url = `http://${this.host}:${this.port}/api/data`;
-    const response = await fetch(url, { method: 'GET', timeout: 5000 } as any);
-    if (!response.ok) {
-      throw new Error(`Connection failed: ${response.status}`);
-    }
-  }
-
-  async get(path: string): Promise<any> {
-    const url = `http://${this.host}:${this.port}${path}`;
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    return await response.json();
-  }
-
-  async put(path: string, data: any): Promise<any> {
-    const url = `http://${this.host}:${this.port}${path}`;
-    const response = await fetch(url, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return await response.json();
-  }
-
-  async post(path: string, data: any): Promise<any> {
-    const url = `http://${this.host}:${this.port}${path}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data ?? {}),
-    });
-    return await response.json();
-  }
-
-  async patch(path: string, data: any): Promise<any> {
-    const url = `http://${this.host}:${this.port}${path}`;
-    const response = await fetch(url, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data ?? {}),
-    });
-    return await response.json();
-  }
-
-  async delete(path: string, data?: any): Promise<any> {
-    const url = `http://${this.host}:${this.port}${path}`;
-    const init: any = {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-    };
-    if (data !== undefined) {
-      init.body = JSON.stringify(data);
-    }
-    const response = await fetch(url, init);
-    if (!response.ok) {
-      // Try to surface JSON error body when available
-      let message = `Request failed: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        if (typeof errorData === 'object' && errorData && typeof (errorData as any).detail === 'string') {
-          message = (errorData as any).detail;
-        }
-      } catch {
-        // ignore JSON parse errors
-      }
-      throw new Error(message);
-    }
-    try {
-      return await response.json();
-    } catch {
-      return null;
-    }
-  }
-
-  disconnect(): void {
-  }
-
-  getDisplayName(): string {
-    return this.name;
-  }
-}
-
-class BridgeAdapter implements ConnectionAdapter {
-  private bridgeUrl: string;
-  private ws: WebSocket | null = null;
-  private clientId: string;
-  private refCounter: number = 0;
-  private sessionId: string | null = null;
-  private serverId: string | null = null;
-  private serverName: string = '';
-  private pairingToken: string | null = null;
-  private connectPromise: Promise<void> | null = null;
-  private responseHandlers: Map<string, (data: any) => void> = new Map();
-
-  constructor(
-    bridgeUrl: string,
-    opts?: { serverId?: string; serverName?: string; pairingToken?: string | null },
-  ) {
-    this.bridgeUrl = bridgeUrl;
-    this.clientId = this.generateUuid();
-    if (opts) {
-      this.serverId = opts.serverId ?? null;
-      this.serverName = opts.serverName ?? '';
-      this.pairingToken = opts.pairingToken ?? null;
-    }
-  }
-
-  private generateUuid(): string {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-      // eslint-disable-next-line no-bitwise
-      const r = Math.random() * 16 | 0;
-      // eslint-disable-next-line no-bitwise
-      const v = c === 'x' ? r : ((r & 0x3) | 0x8);
-      return v.toString(16);
-    });
-  }
-
-  private getRef(): string {
-    this.refCounter++;
-    return this.refCounter.toString();
-  }
-
-  private phoenixMessage(topic: string, event: string, payload: any): string {
-    return JSON.stringify({
-      topic,
-      event,
-      payload,
-      ref: this.getRef(),
-    });
-  }
-
-  private async ensureConnected(): Promise<void> {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      return;
-    }
-
-    if (!this.connectPromise) {
-      this.connectPromise = this.connectInternal();
-    }
-
-    try {
-      await this.connectPromise;
-    } finally {
-      this.connectPromise = null;
-    }
-  }
-
-  async connect(): Promise<void> {
-    await this.ensureConnected();
-  }
-
-  private connectInternal(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      console.log('🔌 Connecting to bridge:', this.bridgeUrl);
-      
-      const connectionTimeout = setTimeout(() => {
-        if (this.ws && this.ws.readyState !== WebSocket.OPEN) {
-          console.log('⏰ Connection timeout');
-          this.ws.close();
-          reject(new Error('Connection timeout - bridge is not responding. Check that:\n1. Bridge is running (docker-compose ps)\n2. URL is correct\n3. Device can reach the bridge (try curl from terminal)'));
-        }
-      }, 10000);
-
-      try {
-        const fullUrl = `${this.bridgeUrl}?type=app`;
-        console.log('📡 Full WebSocket URL:', fullUrl);
-        
-        this.ws = new WebSocket(fullUrl);
-        console.log('📞 WebSocket created, waiting for connection...');
-
-        this.ws.onopen = async () => {
-          console.log('✅ WebSocket opened successfully');
-          clearTimeout(connectionTimeout);
-          
-          this.ws!.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            console.log('📨 Received:', data);
-            
-            if (data.ref && this.responseHandlers.has(data.ref)) {
-              const handler = this.responseHandlers.get(data.ref)!;
-              this.responseHandlers.delete(data.ref);
-              handler(data);
-            }
-          };
-
-          try {
-            await this.joinChannel();
-
-            if (this.pairingToken && this.serverId && !this.sessionId) {
-              console.log('🔁 Attempting to resume bridge session');
-              await this.resumeSessionRaw();
-            }
-
-            console.log('✅ Bridge connection complete');
-            resolve();
-          } catch (err: any) {
-            console.log('❌ Failed to complete bridge handshake:', err);
-            clearTimeout(connectionTimeout);
-            this.ws?.close();
-            reject(new Error(`Failed to complete bridge handshake: ${err.message}`));
-          }
-        };
-
-        this.ws.onerror = (error: any) => {
-          console.log('❌ WebSocket error event:', JSON.stringify(error));
-          console.log('❌ WebSocket error type:', error.type);
-          console.log('❌ WebSocket error message:', error.message);
-          clearTimeout(connectionTimeout);
-          
-          let errorMessage = 'WebSocket connection failed.\n\n';
-          errorMessage += 'Possible causes:\n';
-          errorMessage += '1. Bridge service not running\n';
-          errorMessage += '2. Incorrect URL (check IP address)\n';
-          errorMessage += '3. Network connectivity issue\n';
-          errorMessage += '4. Firewall blocking connection\n\n';
-          errorMessage += `URL: ${this.bridgeUrl}`;
-          
-          reject(new Error(errorMessage));
-        };
-
-        this.ws.onclose = (event: any) => {
-          console.log('🔌 WebSocket closed:', {
-            code: event.code,
-            reason: event.reason,
-            wasClean: event.wasClean,
-          });
-          clearTimeout(connectionTimeout);
-          this.ws = null;
-          this.sessionId = null;
-          
-          if (event.code !== 1000 && event.code !== 1005) {
-            const errorMsg = `Connection closed unexpectedly (code: ${event.code})`;
-            if (!this.sessionId) {
-              reject(new Error(errorMsg));
-            }
-          }
-        };
-      } catch (error: any) {
-        console.log('❌ Exception creating WebSocket:', error);
-        clearTimeout(connectionTimeout);
-        reject(new Error(`Failed to create WebSocket: ${error.message}`));
-      }
-    });
-  }
-
-  private sendMessageRaw(topic: string, event: string, payload: any): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-        reject(new Error('WebSocket not connected'));
-        return;
-      }
-
-      const ref = this.getRef();
-      const message = JSON.stringify({ topic, event, payload, ref });
-
-      this.responseHandlers.set(ref, (data) => {
-        if (data.event === 'phx_reply' && data.payload.status === 'ok') {
-          resolve(data.payload.response);
-        } else {
-          reject(new Error(data.payload.response?.error || 'Request failed'));
-        }
-      });
-
-      this.ws.send(message);
-
-      setTimeout(() => {
-        if (this.responseHandlers.has(ref)) {
-          this.responseHandlers.delete(ref);
-          reject(new Error('Request timeout'));
-        }
-      }, 30000);
-    });
-  }
-
-  private async sendMessage(topic: string, event: string, payload: any): Promise<any> {
-    await this.ensureConnected();
-    return this.sendMessageRaw(topic, event, payload);
-  }
-
-  private async joinChannel(): Promise<void> {
-    const topic = `app:${this.clientId}`;
-    const ref = this.getRef();
-    const msg = JSON.stringify({ topic, event: 'phx_join', payload: {}, ref });
-
-    return new Promise((resolve, reject) => {
-      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-        reject(new Error('WebSocket not connected'));
-        return;
-      }
-
-      this.responseHandlers.set(ref, (data) => {
-        if (data.event === 'phx_reply' && data.payload.status === 'ok') {
-          console.log('✅ Joined app channel');
-          resolve();
-        } else {
-          reject(new Error('Failed to join channel'));
-        }
-      });
-
-      this.ws.send(msg);
-    });
-  }
-
-  async listServers(): Promise<BridgeServer[]> {
-    const response = await this.sendMessage(
-      `app:${this.clientId}`,
-      'list_servers',
-      {}
-    );
-    return response.servers || [];
-  }
-
-  async requestPairing(serverId: string): Promise<void> {
-    this.serverId = serverId;
-    await this.sendMessage(
-      `app:${this.clientId}`,
-      'pair_request',
-      { server_id: serverId }
-    );
-  }
-
-  async submitPairingCode(serverId: string, code: string, serverName: string): Promise<void> {
-    const response = await this.sendMessage(
-      `app:${this.clientId}`,
-      'pair_submit',
-      { server_id: serverId, code: code }
-    );
-    this.sessionId = response.session_id;
-    this.pairingToken = response.pairing_token || null;
-    this.serverId = serverId;
-    this.serverName = serverName;
-  }
-
-  private async resumeSessionRaw(): Promise<void> {
-    if (!this.pairingToken || !this.serverId) {
-      return;
-    }
-
-    const response = await this.sendMessageRaw(
-      `app:${this.clientId}`,
-      'resume_session',
-      {
-        pairing_token: this.pairingToken,
-        server_id: this.serverId,
-      }
-    );
-
-    this.sessionId = response.session_id;
-  }
-
-  async get(path: string): Promise<any> {
-    await this.ensureConnected();
-
-    if (!this.sessionId) {
-      throw new Error('Not paired with any server');
-    }
-
-    const requestId = this.generateUuid();
-    const response = await this.sendMessage(
-      `app:${this.clientId}`,
-      'http_request',
-      {
-        request_id: requestId,
-        session_id: this.sessionId,
-        method: 'GET',
-        path,
-        headers: {},
-        body: null,
-      }
-    );
-    if (response.body) {
-      return JSON.parse(response.body);
-    }
-    return response;
-  }
-
-  async put(path: string, data: any): Promise<any> {
-    await this.ensureConnected();
-
-    if (!this.sessionId) {
-      throw new Error('Not paired with any server');
-    }
-
-    const requestId = this.generateUuid();
-    const response = await this.sendMessage(
-      `app:${this.clientId}`,
-      'http_request',
-      {
-        request_id: requestId,
-        session_id: this.sessionId,
-        method: 'PUT',
-        path,
-        headers: {},
-        body: JSON.stringify(data),
-      }
-    );
-
-    if (response.body) {
-      return JSON.parse(response.body);
-    }
-    return response;
-  }
-
-  async post(path: string, data: any): Promise<any> {
-    await this.ensureConnected();
-
-    if (!this.sessionId) {
-      throw new Error('Not paired with any server');
-    }
-
-    const requestId = this.generateUuid();
-    const response = await this.sendMessage(
-      `app:${this.clientId}`,
-      'http_request',
-      {
-        request_id: requestId,
-        session_id: this.sessionId,
-        method: 'POST',
-        path,
-        headers: {},
-        body: JSON.stringify(data ?? {}),
-      }
-    );
-
-    if (response.body) {
-      return JSON.parse(response.body);
-    }
-    return response;
-  }
-
-  async patch(path: string, data: any): Promise<any> {
-    if (!this.sessionId) {
-      throw new Error('Not paired with any server');
-    }
-
-    const requestId = this.generateUuid();
-    const response = await this.sendMessage(
-      `app:${this.clientId}`,
-      'http_request',
-      {
-        request_id: requestId,
-        session_id: this.sessionId,
-        method: 'PATCH',
-        path,
-        headers: {},
-        body: JSON.stringify(data ?? {}),
-      }
-    );
-
-    if (response.body) {
-      return JSON.parse(response.body);
-    }
-    return response;
-  }
-
-  async delete(path: string, data?: any): Promise<any> {
-    if (!this.sessionId) {
-      throw new Error('Not paired with any server');
-    }
-
-    const requestId = this.generateUuid();
-    const response = await this.sendMessage(
-      `app:${this.clientId}`,
-      'http_request',
-      {
-        request_id: requestId,
-        session_id: this.sessionId,
-        method: 'DELETE',
-        path,
-        headers: {},
-        body: data === undefined ? null : JSON.stringify(data),
-      }
-    );
-
-    if (response.body) {
-      return JSON.parse(response.body);
-    }
-    return response;
-  }
-
-  disconnect(): void {
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
-    this.sessionId = null;
-    this.serverId = null;
-  }
-
-  getDisplayName(): string {
-    return this.serverName || 'Bridge Server';
-  }
-}
-
 function App(): React.JSX.Element {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
 
   const [connectionMethod, setConnectionMethod] = useState<ConnectionMethod | null>(null);
   const [showConnectionWizard, setShowConnectionWizard] = useState(false);
-  const [adapter, setAdapter] = useState<ConnectionAdapter | null>(null);
+  const [transport, setTransport] = useState<Transport | null>(null);
+  const [backend, setBackend] = useState<AgentBackend | null>(null);
   const [connections, setConnections] = useState<ConnectionRecord[]>([]);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [connectionsLoading, setConnectionsLoading] = useState(false);
@@ -651,7 +133,7 @@ function App(): React.JSX.Element {
   const [bridgeServers, setBridgeServers] = useState<BridgeServer[]>([]);
   const [selectedBridgeServer, setSelectedBridgeServer] = useState<BridgeServer | null>(null);
   const [pairingCode, setPairingCode] = useState('');
-  const [bridgeAdapter, setBridgeAdapter] = useState<BridgeAdapter | null>(null);
+  const [connectingBridgeTransport, setConnectingBridgeTransport] = useState<BridgeTransport | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
 
@@ -974,16 +456,19 @@ function App(): React.JSX.Element {
 
     setIsLoading(true);
     try {
-      const httpAdapter = new HttpAdapter(manualHost, parseInt(manualPort, 10), `${manualHost}:${manualPort}`);
-      await httpAdapter.connect();
-      setAdapter(httpAdapter);
+      const port = parseInt(manualPort, 10);
+      const baseUrl = `http://${manualHost}:${port}`;
+      const nextTransport = new FetchTransport({ baseUrl });
+      await nextTransport.request({ method: 'GET', path: '/api/data' });
+      setTransport(nextTransport);
+      setBackend(new RestAgentBackend({ transport: nextTransport }));
       const id = generateId();
       const record: ManualConnectionRecord = {
         id,
         kind: 'manual',
         name: `${manualHost}:${manualPort}`,
         host: manualHost,
-        port: parseInt(manualPort, 10),
+        port,
         lastUsedAt: Date.now(),
       };
       upsertConnection(record);
@@ -1000,9 +485,11 @@ function App(): React.JSX.Element {
   const connectToService = async (service: Service) => {
     setIsLoading(true);
     try {
-      const httpAdapter = new HttpAdapter(service.host, service.port, service.name);
-      await httpAdapter.connect();
-      setAdapter(httpAdapter);
+      const baseUrl = `http://${service.host}:${service.port}`;
+      const nextTransport = new FetchTransport({ baseUrl });
+      await nextTransport.request({ method: 'GET', path: '/api/data' });
+      setTransport(nextTransport);
+      setBackend(new RestAgentBackend({ transport: nextTransport }));
       stopDiscovery();
       const id = generateId();
       const record: DiscoveryConnectionRecord = {
@@ -1040,11 +527,11 @@ function App(): React.JSX.Element {
     try {
       console.log('🚀 Starting bridge connection...');
       
-      const bridge = new BridgeAdapter(bridgeUrl);
+      const bridge = new BridgeTransport({ bridgeUrl });
       await bridge.connect();
       console.log('✅ Bridge connected, fetching servers...');
       
-      setBridgeAdapter(bridge);
+      setConnectingBridgeTransport(bridge);
       
       const servers = await bridge.listServers();
       console.log(`📋 Found ${servers.length} servers:`, servers);
@@ -1060,19 +547,19 @@ function App(): React.JSX.Element {
         error.message,
         [{ text: 'OK' }]
       );
-      setBridgeAdapter(null);
+      setConnectingBridgeTransport(null);
     } finally {
       setIsLoading(false);
     }
   };
 
   const requestPairing = async (server: BridgeServer) => {
-    if (!bridgeAdapter) return;
+    if (!connectingBridgeTransport) return;
 
     setSelectedBridgeServer(server);
     setIsLoading(true);
     try {
-      await bridgeAdapter.requestPairing(server.server_id);
+      await connectingBridgeTransport.requestPairing(server.server_id);
       Alert.alert(
         'Pairing Requested',
         'Check the server terminal for the 6-digit pairing code',
@@ -1086,19 +573,20 @@ function App(): React.JSX.Element {
   };
 
   const submitPairing = async () => {
-    if (!bridgeAdapter || !selectedBridgeServer || !pairingCode) {
+    if (!connectingBridgeTransport || !selectedBridgeServer || !pairingCode) {
       Alert.alert('Error', 'Please enter pairing code');
       return;
     }
 
     setIsLoading(true);
     try {
-      await bridgeAdapter.submitPairingCode(
+      await connectingBridgeTransport.submitPairingCode(
         selectedBridgeServer.server_id,
-        pairingCode,
-        selectedBridgeServer.display_name
+        pairingCode
       );
-      setAdapter(bridgeAdapter);
+
+      setTransport(connectingBridgeTransport);
+      setBackend(new RestAgentBackend({ transport: connectingBridgeTransport }));
       const id = generateId();
       const record: BridgeConnectionRecord = {
         id,
@@ -1107,7 +595,7 @@ function App(): React.JSX.Element {
         bridgeUrl,
         serverId: selectedBridgeServer.server_id,
         serverName: selectedBridgeServer.display_name,
-        pairingToken: (bridgeAdapter as any).pairingToken ?? null,
+        pairingToken: connectingBridgeTransport.getPairingToken(),
         lastUsedAt: Date.now(),
       };
       upsertConnection(record);
@@ -1115,6 +603,7 @@ function App(): React.JSX.Element {
       setShowConnectionWizard(false);
       setConnectionMethod(null);
       setPairingCode('');
+      setConnectingBridgeTransport(null);
     } catch (error: any) {
       Alert.alert('Pairing Failed', error.message);
     } finally {
@@ -1123,14 +612,19 @@ function App(): React.JSX.Element {
   };
 
   const handleDisconnect = () => {
-    if (adapter) {
-      adapter.disconnect();
-      setAdapter(null);
+    if (transport && 'disconnect' in transport && typeof (transport as any).disconnect === 'function') {
+      (transport as any).disconnect();
     }
-    if (bridgeAdapter) {
-      bridgeAdapter.disconnect();
-      setBridgeAdapter(null);
+    if (
+      connectingBridgeTransport &&
+      'disconnect' in connectingBridgeTransport &&
+      typeof (connectingBridgeTransport as any).disconnect === 'function'
+    ) {
+      (connectingBridgeTransport as any).disconnect();
     }
+    setTransport(null);
+    setBackend(null);
+    setConnectingBridgeTransport(null);
     cancelConnectionWizard();
   };
 
@@ -1156,14 +650,11 @@ function App(): React.JSX.Element {
     });
 
     if (selectedConnectionId === record.id) {
-      if (adapter) {
-        adapter.disconnect();
-        setAdapter(null);
+      if (transport && 'disconnect' in transport && typeof (transport as any).disconnect === 'function') {
+        (transport as any).disconnect();
       }
-      if (bridgeAdapter) {
-        bridgeAdapter.disconnect();
-        setBridgeAdapter(null);
-      }
+      setTransport(null);
+      setBackend(null);
       setSelectedConnectionId(null);
     }
   };
@@ -1327,7 +818,7 @@ function App(): React.JSX.Element {
     <View style={styles.container}>
       <Text style={styles.title}>Bridge Connection</Text>
       
-      {!bridgeAdapter && (
+      {!connectingBridgeTransport && (
         <>
           <Text style={styles.infoText}>
             For testing on a physical device, use your computer's IP address (not localhost).
@@ -1364,7 +855,7 @@ function App(): React.JSX.Element {
         </>
       )}
 
-      {bridgeAdapter && !selectedBridgeServer && (
+      {connectingBridgeTransport && !selectedBridgeServer && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
             Available Servers ({bridgeServers.length})
@@ -1439,24 +930,30 @@ function App(): React.JSX.Element {
   const handleSelectSavedConnection = async (record: ConnectionRecord) => {
     setIsLoading(true);
     try {
-      let nextAdapter: ConnectionAdapter | null = null;
+      if (transport && 'disconnect' in transport && typeof (transport as any).disconnect === 'function') {
+        (transport as any).disconnect();
+      }
+
+      let nextTransport: Transport | null = null;
 
       if (record.kind === 'manual' || record.kind === 'discovery') {
-        const httpAdapter = new HttpAdapter(record.host, record.port, record.name);
-        await httpAdapter.connect();
-        nextAdapter = httpAdapter;
+        const baseUrl = `http://${record.host}:${record.port}`;
+        const httpTransport = new FetchTransport({ baseUrl });
+        await httpTransport.request({ method: 'GET', path: '/api/data' });
+        nextTransport = httpTransport;
       } else if (record.kind === 'bridge') {
-        const bridge = new BridgeAdapter(record.bridgeUrl, {
+        const bridge = new BridgeTransport({
+          bridgeUrl: record.bridgeUrl,
           serverId: record.serverId,
-          serverName: record.serverName,
           pairingToken: record.pairingToken,
         });
         await bridge.connect();
-        nextAdapter = bridge;
+        nextTransport = bridge;
       }
 
-      if (nextAdapter) {
-        setAdapter(nextAdapter);
+      if (nextTransport) {
+        setTransport(nextTransport);
+        setBackend(new RestAgentBackend({ transport: nextTransport }));
         setSelectedConnectionId(record.id);
         upsertConnection({ ...record, lastUsedAt: Date.now() });
       }
@@ -1482,16 +979,18 @@ function App(): React.JSX.Element {
               : null;
           const activeConnectionAdditionalInfo =
             activeConnection != null ? getConnectionAdditionalInfo(activeConnection) : null;
+          const activeConnectionName = activeConnection != null ? activeConnection.name : null;
 
           return (
             <ConnectedRoot
-              adapter={adapter}
+              backend={backend}
+              transport={transport}
               onDisconnect={handleDisconnect}
               connections={connections}
               connectionsLoading={connectionsLoading}
               onSelectConnectionRecord={handleSelectSavedConnection}
               onNewConnectionRequested={() => {
-                if (adapter) {
+                if (backend) {
                   handleDisconnect();
                 }
                 setConnectionMethod(null);
@@ -1508,6 +1007,7 @@ function App(): React.JSX.Element {
               }}
               onDeleteConnectionRecord={handleDeleteConnection}
               activeConnectionId={selectedConnectionId}
+              activeConnectionName={activeConnectionName}
               activeConnectionAdditionalInfo={activeConnectionAdditionalInfo}
               sessionsCache={sessionsCache}
               onUpdateSessionsCache={updateSessionsCache}
