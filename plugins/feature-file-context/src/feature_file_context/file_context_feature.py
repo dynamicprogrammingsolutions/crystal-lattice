@@ -456,7 +456,7 @@ class FileContextFeature(FeaturePlugin):
             # content is left untouched to avoid surprising modifications of
             # prompts or model outputs.
             role = msg.get("role")
-            if role != "user":
+            if role != "user" and role != "system":
                 new_messages.append(msg)
                 continue
             content = msg.get("content")
@@ -518,10 +518,10 @@ class FileContextFeature(FeaturePlugin):
         for msg in candidate_native:
             if not isinstance(msg, dict):
                 continue
-            # Residual-marker guarding only cares about user messages; markers
-            # in system/assistant/tool content are ignored.
+            # Residual-marker guarding only cares about user/system messages; markers
+            # in assistant/tool content are ignored.
             role = msg.get("role")
-            if role != "user":
+            if role != "user" and role != "system":
                 continue
             content = msg.get("content")
             if not isinstance(content, str):
