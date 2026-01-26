@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import type {
@@ -328,7 +328,6 @@ const createStyles = (theme: Theme, insets: { top: number; bottom: number; left:
     contentArea: {
       flex: 1,
       paddingHorizontal: 16,
-      paddingTop: Math.max(8, insets.top),
       paddingBottom: 4,
     },
     connectionsTabContainer: {
