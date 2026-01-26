@@ -61,7 +61,7 @@ A task file MUST include enough information for another agent to start and finis
 - Use gaps in numbering to allow inserting additional subtasks later without renaming.
 
 ### References (required when used)
-- Any time a task references another task file (parent/child/dependency), it MUST use the full file path.
+- Any time a task references another task file (parent/child/dependency), it MUST use the full (relative) file path.
 
 ### Main task file (`000-main.md`) requirements
 
