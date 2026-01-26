@@ -8,13 +8,13 @@ import {
   Text,
   View,
   TouchableOpacity,
-  ActivityIndicator,
   useColorScheme,
   Alert,
   TextInput,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Zeroconf from 'react-native-zeroconf';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import ConnectedRoot from './src/ConnectedRoot';
 import ConnectionsScreen from './src/ConnectionsScreen';
 import { getConnectionAdditionalInfo } from './src/connectionInfo';
@@ -1469,9 +1469,10 @@ function App(): React.JSX.Element {
   };
 
   return (
-    <ThemeProvider theme={theme}>
-      <PinnedActionsProvider>
-        <SafeAreaView style={styles.safeArea}>
+    <SafeAreaProvider>
+      <ThemeProvider theme={theme}>
+        <PinnedActionsProvider>
+          <SafeAreaView style={styles.safeArea}>
           <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
           {/** Determine active connection info for display components */}
           {/** This is derived once here and passed down rather than recomputed in children. */}
@@ -1519,8 +1520,9 @@ function App(): React.JSX.Element {
           );
           })()}
         </SafeAreaView>
-      </PinnedActionsProvider>
-    </ThemeProvider>
+        </PinnedActionsProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 const createStyles = (theme: Theme) =>

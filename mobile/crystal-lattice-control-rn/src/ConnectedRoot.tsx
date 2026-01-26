@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import type {
   ConnectionAdapter,
@@ -66,7 +67,8 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   onSaveMessagesScrollOffset,
 }) => {
   const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(theme, insets), [theme, insets]);
   const [tab, setTab] = useState<'connection' | 'sessions' | 'messages'>('connection');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [demoLoading, setDemoLoading] = useState(false);
@@ -317,7 +319,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
     </View>
   );
 };
-const createStyles = (theme: Theme) =>
+const createStyles = (theme: Theme, insets: { top: number; bottom: number; left: number; right: number }) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -326,7 +328,9 @@ const createStyles = (theme: Theme) =>
     contentArea: {
       flex: 1,
       paddingHorizontal: 16,
-      paddingTop: 8,
+      // Apply additional top padding only on Android to prevent overlap with status bar
+      // iOS already handles this via SafeAreaView, so we don't add extra padding there
+      paddingTop: Platform.OS === 'android' ? Math.max(8, insets.top) : 8,
       paddingBottom: 4,
     },
     connectionsTabContainer: {
