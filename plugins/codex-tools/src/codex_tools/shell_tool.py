@@ -120,6 +120,25 @@ class ShellTool(ToolPlugin):
             }
         ]
 
+    def format_tool_call_preview(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> str:
+        """Generate a pre-execution preview for a shell tool call.
+        
+        Returns just the command (first line if multi-line), same as single_line display.
+        """
+        if tool_name != "shell":
+            return ""
+        command = arguments.get("command", "")
+        if isinstance(command, str) and command.strip():
+            cmd = command.strip()
+            # Return first line if multi-line, same as single_line display
+            return cmd.splitlines()[0] if "\n" in cmd else cmd
+        return ""
+
     def execute_tool(
         self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
@@ -317,15 +336,17 @@ class ShellTool(ToolPlugin):
         Workdir is only shown when explicitly overridden via the
         ``workdir`` tool argument so that default working-directory
         behaviour remains compact.
+
         Returns a display payload with type "text" containing the full content,
         and an optional "single_line" field with just the command (first line
         if multi-line) for use in collapsed/short views.
         """
-
         command = result.get("command")
         if isinstance(command, str) and command.strip():
             cmd = command.strip()
+            # For single-line display: show only the command, first line if multi-line
             single_line_cmd = cmd.splitlines()[0] if "\n" in cmd else cmd
+            
             # Detect whether the caller explicitly changed workdir for
             # this invocation. This flag is injected by execute_tool /
             # stream_tool.
@@ -338,9 +359,10 @@ class ShellTool(ToolPlugin):
             content = f"{header}\n{text}" if text else header
         else:
             content = text
-
             single_line_cmd = None
 
+        # Return full content with type "text" (for backward compatibility)
+        # and include single_line field for collapsed/short views
         display: Dict[str, Any] = {"type": "text", "content": content}
         if single_line_cmd:
             display["single_line"] = single_line_cmd
