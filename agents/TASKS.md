@@ -14,12 +14,12 @@ Task files are a handoff mechanism between agents. The executing agent will not 
 ## Task Files (single handoff tasks)
 
 ### Where they live (required)
-- Single handoff tasks live directly under `tasks/` as: `tasks/<NNN>-<kebab-case-slug>.md`
+- Single handoff tasks live directly under `tasks/` as: `tasks/<YYYYMMDD>-<kebab-case-slug>.md`
 - Create `tasks/` if it does not exist.
 
 ### Naming (required)
-- `<NNN>` MUST be a 3-digit number used for stable reference.
-- Choose numbers deterministically based on existing files under `tasks/` (avoid renaming existing task files).
+- `<YYYYMMDD>` MUST be the current date in `YYYYMMDD` format.
+- If the resulting filename already exists, append a numeric suffix (e.g. `-2`, `-3`) without renaming existing task files.
 
 ### Required content (minimal, non-negotiable)
 
@@ -44,15 +44,17 @@ A task file MUST include enough information for another agent to start and finis
 
 ---
 
-## Subtasks (main + subtasks under `tasks/<slug>/`)
+## Subtasks (main + subtasks under `tasks/<task-dir>/`)
 
 **Trigger (required)**
 - Only when the user explicitly requests subtasks, you MUST create a main task plus subtask files.
 
 ### Directory + file layout (required)
-- Create a dedicated subdirectory: `tasks/<kebab-case-slug>/` (subdirectories are for subtasks).
-- Create exactly one primary task file: `tasks/<slug>/000-main.md`.
-- Create one file per subtask: `tasks/<slug>/<NNN>-<subtask-slug>.md`.
+- Create a dedicated subdirectory: `tasks/<task-dir>/` (subdirectories are for subtasks).
+  - `<task-dir>` can be `<kebab-case-slug>` or `<YYYYMMDD>-<kebab-case-slug>` (timestamp prefix recommended).
+  - If the directory already exists, append a numeric suffix without renaming existing directories.
+- Create exactly one primary task file: `tasks/<task-dir>/000-main.md`.
+- Create one file per subtask: `tasks/<task-dir>/<NNN>-<subtask-slug>.md`.
 - Default depth is two levels only (main + subtasks). Do not create sub-subtasks unless the user explicitly asks.
 
 ### Naming + ordering (required)
@@ -65,7 +67,7 @@ A task file MUST include enough information for another agent to start and finis
 
 ### Main task file (`000-main.md`) requirements
 
-`tasks/<slug>/000-main.md` MUST include:
+`tasks/<task-dir>/000-main.md` MUST include:
 
 - Immediately after any optional title/heading, include a standalone, human-readable description of the overall work. This must be clear without conversation history; include brief context inline if needed. Additional goals/context/details can follow elsewhere in the file.
 - The overall goal/outcome (what “done” means), if it is not already clear from the description.
@@ -108,7 +110,7 @@ Optional in subtask files:
 - For a single task file: if a checklist exists, mark the relevant items `[x]`.
 - For subtasks:
   - mark completion in the subtask file (if a checklist exists)
-  - also mark the corresponding subtask line in `tasks/<slug>/000-main.md` if it uses a checklist
+  - also mark the corresponding subtask line in `tasks/<task-dir>/000-main.md` if it uses a checklist
 
 ### Optional implementation notes (recommended when helpful)
 - The executing agent MAY add a short `## Implementation Notes` section when information discovered during execution could help future maintenance or completion of dependent tasks.
