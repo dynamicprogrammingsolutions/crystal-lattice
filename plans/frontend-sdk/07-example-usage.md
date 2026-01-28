@@ -17,18 +17,18 @@ SDK responsibilities:
 Pseudo-code:
 
 ```ts
-import { RestAgentBackend, HttpTransport, ChatControllerImpl } from '@crystal-lattice/frontend-sdk';
-import { useSubscribableState } from '@crystal-lattice/frontend-sdk-react';
+import { RestAgentBackend, FetchTransport, ChatController } from '@crystal-lattice/frontend-sdk';
+import { useSubscribableSnapshot } from '@crystal-lattice/frontend-sdk-react';
 
-const transport = new HttpTransport({ baseUrl: 'http://192.168.1.10:8000', fetch });
+const transport = new FetchTransport({ baseUrl: 'http://192.168.1.10:8000' });
 const backend = new RestAgentBackend({ transport });
 
-const chat = new ChatControllerImpl({ backend, sessionId });
+const chat = new ChatController({ backend, sessionId });
 chat.startEventStreaming({ initialSinceId: null });
 
 function ChatView() {
-  const state = useSubscribableState(chat, () => chat.getState());
-  return <MessagesList messages={state.messages} streaming={state.streaming} />;
+  const state = useSubscribableSnapshot(chat);
+  return <MessagesList messages={state.messages} streaming={state.streamingRow} />;
 }
 ```
 
@@ -37,8 +37,10 @@ function ChatView() {
 ### 2.1 Initial REST
 
 ```ts
-const backend = new RestAgentBackend({ transport: new HttpTransport({ baseUrl, fetch }) });
-const sessions = new SessionsControllerImpl({ backend });
+import { FetchTransport, RestAgentBackend, SessionsController } from '@crystal-lattice/frontend-sdk';
+
+const backend = new RestAgentBackend({ transport: new FetchTransport({ baseUrl }) });
+const sessions = new SessionsController({ backend });
 ```
 
 ### 2.2 Later in-process
