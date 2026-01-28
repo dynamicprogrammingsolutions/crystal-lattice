@@ -8,9 +8,10 @@ const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
  * @type {import('@react-native/metro-config').MetroConfig}
  */
 const sdkRoot = path.resolve(__dirname, '../../packages/frontend-sdk');
+const sdkReactRoot = path.resolve(__dirname, '../../packages/frontend-sdk-react');
 
 const config = {
-  watchFolders: [sdkRoot],
+  watchFolders: [sdkRoot, sdkReactRoot],
   resolver: {
     unstable_enableSymlinks: true,
     nodeModulesPaths: [

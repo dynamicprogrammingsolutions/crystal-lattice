@@ -55,6 +55,21 @@ export { BridgeTransport } from './transport/bridgeTransport';
 
 export type { BridgeServer, WebSocketLike, WebSocketFactory } from './transport/bridgeTransport';
 
+export type { Subscribable, Unsubscribe } from './util/subscribable';
+export { SimpleSubscribable } from './util/subscribable';
+
+export type { PollingStatus, PollingEventSourceOptions } from './events/pollingEventSource';
+export { PollingEventSource } from './events/pollingEventSource';
+
+export type { PluginsResult, PluginsRegistryState } from './plugins/pluginsRegistry';
+export { PluginsRegistry } from './plugins/pluginsRegistry';
+
+export type { SessionsControllerState } from './sessions/sessionsController';
+export { SessionsController } from './sessions/sessionsController';
+
+export type { ChatControllerState, StreamingRow, RequestErrorState } from './chat/chatController';
+export { ChatController } from './chat/chatController';
+
 export type {
   AgentBackend,
   BackendCapabilities,
