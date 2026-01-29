@@ -14,6 +14,10 @@ const config = {
   watchFolders: [sdkRoot, sdkReactRoot],
   resolver: {
     unstable_enableSymlinks: true,
+    extraNodeModules: {
+      '@crystal-lattice/frontend-sdk': sdkRoot,
+      '@crystal-lattice/frontend-sdk-react': sdkReactRoot,
+    },
     nodeModulesPaths: [
       path.resolve(__dirname, 'node_modules'),
       path.resolve(__dirname, '../../node_modules'),
