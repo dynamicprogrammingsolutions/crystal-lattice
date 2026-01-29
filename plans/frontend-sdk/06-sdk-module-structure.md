@@ -52,6 +52,9 @@ packages/frontend-sdk/
     sessions/
       sessionsController.ts
 
+    agents/
+      agentsController.ts     # list/caching of available agents
+
     util/
       observable.ts
       errors.ts
@@ -88,6 +91,8 @@ packages/frontend-sdk-react/
     useSessionsController.ts
     usePluginsRegistry.ts
     useHydrateControllerFromCache.ts
+    useAgentsController.ts
+    usePluginActionDialog.ts
 ```
 
 This package depends on `react` and `@crystal-lattice/frontend-sdk`.

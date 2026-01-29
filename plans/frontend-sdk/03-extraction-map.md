@@ -47,6 +47,11 @@ Additional SDK targets to make the RN screen representation-only:
 - `packages/frontend-sdk/src/plugins/actionRunner.ts` (execute plugin action and return typed `effects`)
 - `packages/frontend-sdk-react/src/useHydrateControllerFromCache.ts` (deduplicate hydration boilerplate in UIs)
 
+Agent list caching target:
+
+- `packages/frontend-sdk/src/agents/agentsController.ts` (headless cache + loader)
+- `packages/frontend-sdk-react/src/useAgentsController.ts` (React bindings)
+
 ### 3.2 Sessions controller
 
 Source of logic today:
