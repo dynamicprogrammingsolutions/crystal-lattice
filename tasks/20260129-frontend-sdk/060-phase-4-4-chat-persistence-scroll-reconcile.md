@@ -25,6 +25,17 @@ This phase is not implemented yet; it’s the next intended cleanup step.
 - The app persists a raw `scrollOffset` and uses `0` as the default.
 - `0` is ambiguous (top vs unknown) so the UI tends to restore to top.
 
+Current restore logic (for reference):
+
+- `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx:805`
+  - `onScroll` updates `scrollOffsetRef.current`
+  - `onContentSizeChange` restores only when `initialScrollOffset > 0` and otherwise tends to fall back to the top
+
+Current persistence wiring (for reference):
+
+- `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx:411` (unmount effect calls `onSaveScrollOffset(scrollOffsetRef.current)`)
+- `mobile/crystal-lattice-control-rn/App.tsx:358` (`saveMessagesScrollOffset` writes `scrollOffset` into `messagesCache`)
+
 ### 2) Auto-scroll fights restoration / user reading
 
 - Auto-scroll on new content can fight the user's reading position.
