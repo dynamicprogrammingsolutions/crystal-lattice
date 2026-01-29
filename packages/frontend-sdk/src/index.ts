@@ -60,6 +60,9 @@ export type { BridgeServer, WebSocketLike, WebSocketFactory } from './transport/
 export type { Subscribable, Unsubscribe } from './util/subscribable';
 export { SimpleSubscribable } from './util/subscribable';
 
+export type { AgentsControllerState } from './agents/agentsController';
+export { AgentsController, pickDefaultAgentId } from './agents/agentsController';
+
 export type { PollingStatus, PollingEventSourceOptions } from './events/pollingEventSource';
 export { PollingEventSource } from './events/pollingEventSource';
 

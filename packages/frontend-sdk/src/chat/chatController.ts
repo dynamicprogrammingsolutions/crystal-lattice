@@ -9,6 +9,7 @@ import type {
   ToolResultsEvent,
 } from '../types/events';
 import type { ApiMessage, IndexedMessage } from '../types/messages';
+import { parseIndexRangeText } from '../utils/range';
 import { PollingEventSource, type PollingStatus } from '../events/pollingEventSource';
 import { SimpleSubscribable } from '../util/subscribable';
 
@@ -129,6 +130,14 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     }
   }
 
+  async loadMessagesFromRangeText(options: { startText: string; endText: string }): Promise<void> {
+    const { start, end } = parseIndexRangeText({
+      startText: options.startText,
+      endText: options.endText,
+    });
+    await this.loadMessages({ start, end });
+  }
+
   async appendMessage(message: {
     role: 'user' | 'assistant' | 'system' | 'tool';
     content: string;
@@ -155,6 +164,17 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
 
   async deleteMessages(params: { indices?: number[]; range?: { start?: number; end?: number } }): Promise<void> {
     await this.backend.deleteMessages(this.sessionId, params);
+  }
+
+  async deleteMessagesFromRangeText(options: { startText: string; endText: string }): Promise<void> {
+    const { start, end } = parseIndexRangeText({
+      startText: options.startText,
+      endText: options.endText,
+    });
+    if (start === undefined && end === undefined) {
+      throw new Error('Provide at least a start or end index.');
+    }
+    await this.deleteMessages({ range: { start, end } });
   }
 
   startEventStreaming(options: { initialSinceId: string | null } = { initialSinceId: null }): void {

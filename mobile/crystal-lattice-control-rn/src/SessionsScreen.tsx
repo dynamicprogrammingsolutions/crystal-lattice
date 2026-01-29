@@ -16,10 +16,14 @@ import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import {
   deriveSessionListPresentationFromGroups,
   groupSessionListFields,
+  pickDefaultAgentId,
   runApplicationAction,
 } from '@crystal-lattice/frontend-sdk';
-import { useSessionsController } from '@crystal-lattice/frontend-sdk-react';
-import { useHydrateControllerFromCache } from '@crystal-lattice/frontend-sdk-react';
+import {
+  useAgentsController,
+  useHydrateControllerFromCache,
+  useSessionsController,
+} from '@crystal-lattice/frontend-sdk-react';
 import { useTheme, type Theme } from './theme';
 import SessionActionsBar from './components/SessionActionsBar';
 import SessionSettingsModal from './components/SessionSettingsModal';
@@ -31,7 +35,6 @@ import {
 import ApplicationActionDialog from './components/ApplicationActionDialog';
 import { useApplicationPlugins } from './ApplicationPluginsContext';
 import { usePersistentPinnedActions } from './usePersistentPinnedActions';
-import { useSessionAgents } from './useSessionAgents';
 import { usePluginActionDialog } from './usePluginActionDialog';
 import AgentSwitchModal from './components/AgentSwitchModal';
 
@@ -51,6 +54,7 @@ const BUILTIN_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settin
 
 const SessionsScreen: React.FC<SessionsScreenProps> = ({
   backend,
+  connectionId,
   cachedSessions,
   lastLoadedAt,
   isActive,
@@ -79,7 +83,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 
   useHydrateControllerFromCache({
     controller: sessionsController,
-    cache: cachedSessions ? { sessions: cachedSessions, lastLoadedAt } : null,
+    cache: cachedSessions != null ? { sessions: cachedSessions, lastLoadedAt } : null,
     hydrate: hydrateSessionsCache,
   });
 
@@ -88,8 +92,14 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const loading = sessionsLoading || actionLoading;
   const error = sessionsState?.error ?? (!backend ? 'No active connection' : null);
   const [agentPickerVisible, setAgentPickerVisible] = useState(false);
-  const { availableAgents, agentLoading, ensureAgentsLoaded, setAgentLoading } =
-    useSessionAgents();
+  const { controller: agentsController, state: agentsState } = useAgentsController({
+    backend,
+    cacheKey: connectionId ?? 'default',
+    enabled: !!(backend && isActive),
+  });
+  const availableAgents = agentsState?.agents ?? [];
+  const agentsLoading = agentsState?.loading ?? false;
+  const [agentSwitchInProgress, setAgentSwitchInProgress] = useState(false);
   const {
     sessionListActions,
     actionsById,
@@ -226,9 +236,10 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     }
     let chosenAgent = agentId && agentId.trim() ? agentId.trim() : '';
     if (!chosenAgent) {
-      if (availableAgents.length > 0) {
-        chosenAgent = availableAgents[0];
-      } else {
+	      const fallback = pickDefaultAgentId(availableAgents);
+	      if (fallback) {
+	        chosenAgent = fallback;
+	      } else {
         Alert.alert('Error', 'No agents are available from the server.');
         return;
       }
@@ -252,7 +263,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       return;
     }
     try {
-      await ensureAgentsLoaded(backend);
+	      await agentsController?.ensureLoaded();
     } catch (err: any) {
       console.log('Failed to load agents for new session', err);
       const message = err?.message || 'Failed to load agents';
@@ -278,7 +289,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         setAgentSwitchVisible(true);
         try {
           if (availableAgents.length === 0) {
-            await ensureAgentsLoaded(backend);
+	            await agentsController?.ensureLoaded();
           }
           const current = await backend.getSessionAgent(s.session_id);
           setAgentSwitchCurrentId(current);
@@ -289,7 +300,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         }
       }
     },
-    [backend, availableAgents.length, ensureAgentsLoaded, loadSessions],
+	    [backend, availableAgents.length, agentsController],
   );
 
   const handleConfirmAgentSwitch = async (agentId: string) => {
@@ -303,7 +314,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       return;
     }
     try {
-      setAgentLoading(true);
+	      setAgentSwitchInProgress(true);
       await backend.switchSessionAgent(sid, agentId);
       setAgentSwitchVisible(false);
       setAgentSwitchCurrentId(agentId);
@@ -312,7 +323,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       const message = err?.message || 'Failed to switch agent';
       Alert.alert('Error', message);
     } finally {
-      setAgentLoading(false);
+	      setAgentSwitchInProgress(false);
     }
   };
 
@@ -476,13 +487,13 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 	      <View style={styles.modalOverlay}>
 	        <View style={styles.modalContent}>
 	          <Text style={styles.modalTitle}>New session</Text>
-	          {agentLoading && (
+	          {agentsLoading && (
 	            <View style={styles.loadingContainer}>
 	              <ActivityIndicator size="small" color={theme.primary} />
 	              <Text style={styles.loadingText}>Loading agents...</Text>
 	            </View>
 	          )}
-	          {!agentLoading && availableAgents.length === 0 && (
+	          {!agentsLoading && availableAgents.length === 0 && (
 	            <>
 	              <Text style={styles.modalSubtitle}>
 	                No agents are available from the server.
@@ -497,7 +508,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 	              </View>
 	            </>
 	          )}
-	          {!agentLoading && availableAgents.length > 0 && (
+	          {!agentsLoading && availableAgents.length > 0 && (
 	            <>
 	              <Text style={styles.modalSubtitle}>
 	                Choose an agent to start a new session.
@@ -552,7 +563,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 
       <AgentSwitchModal
         visible={agentSwitchVisible}
-        loading={agentLoading}
+	        loading={agentsLoading || agentSwitchInProgress}
         agents={availableAgents}
         selectedAgentId={agentSwitchCurrentId}
         currentAgentId={agentSwitchCurrentId}

@@ -21,12 +21,10 @@ import {
   filterFooterElements,
   filterStatusBarElements,
   groupSessionListFields,
-  parseIndexRangeText,
-  parseOptionalInt,
   runApplicationAction,
   selectLastAssistantMessage,
 } from '@crystal-lattice/frontend-sdk';
-import { useChatController } from '@crystal-lattice/frontend-sdk-react';
+import { useChatController, useAgentsController } from '@crystal-lattice/frontend-sdk-react';
 import {
   useHydrateControllerFromCache,
   useSessionUiSchemaController,
@@ -50,7 +48,6 @@ import { selectDisplayContent } from './messageUtils';
 import { useTheme, type Theme } from './theme';
 import { useApplicationPlugins } from './ApplicationPluginsContext';
 import { usePersistentPinnedActions } from './usePersistentPinnedActions';
-import { useSessionAgents } from './useSessionAgents';
 import { usePluginActionDialog } from './usePluginActionDialog';
 import type { Event } from './eventsTypes';
 
@@ -115,8 +112,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       STORAGE_KEY_SESSION_ACTIONS,
       defaultPinnedSessionActions,
     );
-  const { availableAgents, agentLoading, ensureAgentsLoaded, setAgentLoading } =
-    useSessionAgents();
+  const { controller: agentsController, state: agentsState } = useAgentsController({
+    backend,
+    cacheKey: connectionId ?? 'default',
+    enabled: !!(backend && isActive),
+  });
+  const availableAgents = agentsState?.agents ?? [];
+  const agentsLoading = agentsState?.loading ?? false;
+  const [agentSwitchInProgress, setAgentSwitchInProgress] = useState(false);
   const [sessionAgentId, setSessionAgentId] = useState<string | null>(null);
   const [agentModalVisible, setAgentModalVisible] = useState(false);
   const [pinnedMessageActionsByRole, setPinnedMessageActionsByRole] = useState<
@@ -180,9 +183,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   useHydrateControllerFromCache({
     controller: chatController,
-    cache: cachedMessages
-      ? { messages: cachedMessages, cursorEventId: cachedCursorEventId ?? null }
-      : null,
+    cache:
+      cachedMessages != null
+        ? { messages: cachedMessages, cursorEventId: cachedCursorEventId ?? null }
+        : null,
     hydrate: hydrateChatCache,
   });
 
@@ -192,10 +196,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   useEffect(() => {
     if (!backend) return;
-    ensureAgentsLoaded(backend).catch(() => {
+    agentsController?.ensureLoaded().catch(() => {
       // Non-fatal; status bar should still render.
     });
-  }, [backend, ensureAgentsLoaded]);
+  }, [agentsController, backend]);
 
   useEffect(() => {
     const md = sessionSummary?.metadata;
@@ -279,12 +283,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       return;
     }
     try {
-		      const { start, end } = parseIndexRangeText({
-		        startText: rangeStartText,
-		        endText: rangeEndText,
-		      });
-
-	    await chatController.loadMessages({ start, end });
+	    await chatController.loadMessagesFromRangeText({
+	      startText: rangeStartText,
+	      endText: rangeEndText,
+	    });
 	    const snapshot = chatController.getSnapshot();
 		      if (!hasAutoScrolledRef.current) {
 		        setShouldAutoScroll(true);
@@ -502,25 +504,27 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       Alert.alert('Error', message);
     }
   };
-  const confirmDeleteRange = async () => {
-	    const start = parseOptionalInt(deleteRangeStartText);
-	    const end = parseOptionalInt(deleteRangeEndText);
-    if (start === undefined && end === undefined) {
-      Alert.alert('Invalid range', 'Provide at least a start or end index.');
-      return;
-    }
-    if (!chatController) {
+	  const confirmDeleteRange = async () => {
+	    if (!chatController) {
       Alert.alert('No connection', 'Connect to a server to delete messages.');
       return;
     }
     try {
-      await chatController.deleteMessages({ range: { start, end } });
+	      await chatController.deleteMessagesFromRangeText({
+	        startText: deleteRangeStartText,
+	        endText: deleteRangeEndText,
+	      });
       setDeleteRangeVisible(false);
       await loadMessages();
     } catch (err: any) {
-      console.log('Failed to delete range', err);
-      const message = err?.message || 'Failed to delete messages';
-      Alert.alert('Error', message);
+	      const rawMessage = err?.message;
+	      if (typeof rawMessage === 'string' && rawMessage.includes('Provide at least')) {
+	        Alert.alert('Invalid range', rawMessage);
+	        return;
+	      }
+	      console.log('Failed to delete range', err);
+	      const message = rawMessage || 'Failed to delete messages';
+	      Alert.alert('Error', message);
     }
   };
 
@@ -530,7 +534,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	      return;
 	    }
 	    try {
-	      setAgentLoading(true);
+		      setAgentSwitchInProgress(true);
 	      await backend.switchSessionAgent(sessionId, agentId);
 	      setSessionAgentId(agentId && agentId.trim() ? agentId.trim() : null);
 	      setAgentModalVisible(false);
@@ -539,7 +543,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	      const message = err?.message || 'Failed to switch agent';
 	      Alert.alert('Error', message);
 	    } finally {
-	      setAgentLoading(false);
+		      setAgentSwitchInProgress(false);
 	    }
 	  };
 
@@ -576,7 +580,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }
       if (availableAgents.length === 0 || sessionAgentId === null) {
         try {
-	        await ensureAgentsLoaded(backend);
+		        await agentsController?.ensureLoaded();
 	        const current = await backend.getSessionAgent(sessionId);
 	          setSessionAgentId(current && current.trim() ? current.trim() : null);
         } catch (err: any) {
@@ -1095,7 +1099,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	      )}
 	      <AgentSwitchModal
 	        visible={agentModalVisible}
-	        loading={agentLoading}
+	        loading={agentsLoading || agentSwitchInProgress}
 	        agents={availableAgents}
 	        selectedAgentId={sessionAgentId}
 	        onRequestClose={() => setAgentModalVisible(false)}
