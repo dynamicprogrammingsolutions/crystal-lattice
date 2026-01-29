@@ -128,17 +128,31 @@ Additional targets:
 
 - Consider consolidating action/dialog plumbing into an SDK "action runner" that can be driven by different UIs.
 
-### 4.4 Chat persistence, scrolling, and reconcile-on-completion
+### 4.4 Chat scrolling and restoration (no behavior reloads)
 
-This is a cleanup stage that makes chat behavior both correct and fast across representations.
+This is a UI-focused cleanup stage.
 
-- Persist controller-derived chat snapshots (including event-applied messages and the poller cursor).
 - Replace raw scroll offset persistence with a bottom-anchor model.
-- Make send event-driven (no immediate reload) and reconcile once on completion.
+- Default to bottom when scroll state is missing/unreliable.
+- Ensure auto-scroll behavior doesn’t fight user reading position.
 
 See:
 
 - `plans/frontend-sdk/09-chat-persistence-scroll-and-reconcile.md`
+
+### 4.5 Event contract + reducer-driven message state (no full session in events)
+
+This stage hardens correctness and removes reliance on full reloads.
+
+- Events must never embed full session history.
+- `session_created` delivers only `session_id`; clients bootstrap by fetching messages once.
+- All message mutations (`append`, `modify`, `delete`) must be reducible from prior state.
+- Add an SDK pure reducer and a `dirty` fallback for cases where events can’t be applied.
+- Remove unconditional message reloads from the frontend.
+
+Tracked as a standalone task (touches Python + TS + RN):
+
+- `tasks/20260129-events-no-full-session/000-main.md`
 
 Success criteria:
 
