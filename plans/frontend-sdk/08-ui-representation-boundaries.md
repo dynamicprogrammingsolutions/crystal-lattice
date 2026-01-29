@@ -18,6 +18,7 @@ Goal: enable multiple representations (mobile layout, desktop layout, editor UI)
 - Chat/session lifecycle: load, send/resend/cancel, apply events, track `activeRequestId` and error state.
 - Sessions list lifecycle: load, staleness policy, create/fork (where supported).
 - Plugin registry loading/caching and categorization (actions and UI elements).
+- Agents list loading/caching.
 
 ### 2) View-model derivation helpers (pure)
 
@@ -46,6 +47,7 @@ Each frontend maps effects to its own navigation and refresh UI.
 
 - Reusable hooks for controller lifecycle (`useChatController`, `useSessionsController`).
 - Reusable one-shot cache hydration helper hook to avoid duplication across screens.
+- Reusable hooks for agent list loading/caching and action-dialog state.
 
 ## What belongs in the UI (screen/component)
 

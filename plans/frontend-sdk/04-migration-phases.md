@@ -94,6 +94,8 @@ Additional extraction targets to make screens representation-only:
 - **Chat view-model helpers**: move status bar/footer derivation (template + `extractByPath`) into SDK pure helpers.
 - **Action semantics**: move “interpret plugin action result and decide reload/navigate” into SDK as an `effects`-returning helper.
 - **Cache hydration helper**: provide a reusable hook/helper so screens don’t duplicate "hydrate cached props into controller" boilerplate.
+- **Agents list controller**: move listAgents caching/loading out of screens.
+- **Dialog helper**: move the small “auto-run vs open dialog” decision out of screens (reusable hook/controller).
 
 The RN screen becomes mostly:
 

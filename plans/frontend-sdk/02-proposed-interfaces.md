@@ -337,7 +337,23 @@ export interface SessionUiSchemaController extends Subscribable<SessionUiSchemaS
 }
 ```
 
-### 5.5 View-model derivation helpers (pure)
+### 5.5 Agents controller
+
+```ts
+export interface AgentsControllerState {
+  loading: boolean;
+  error: string | null;
+  agents: string[];
+}
+
+export interface AgentsController extends Subscribable<AgentsControllerState> {
+  load(): Promise<string[]>;
+  ensureLoaded(): Promise<string[]>;
+  invalidate(): void;
+}
+```
+
+### 5.6 View-model derivation helpers (pure)
 
 ```ts
 export interface SessionListPresentation {
@@ -358,7 +374,7 @@ export function deriveStatusBarParts(
 ): string[];
 ```
 
-### 5.6 Application action runner returning effects
+### 5.7 Application action runner returning effects
 
 UI should not duplicate “interpret response and decide what to refresh.”
 
