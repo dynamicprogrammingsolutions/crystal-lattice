@@ -13,7 +13,8 @@ This task directory is a standalone handoff of the *current plan* (with all phas
 - [x] Phase 4.1: Chat controller + representation-only chat screen
 - [x] Phase 4.2: Sessions controller + representation-only sessions screen
 - [x] Phase 4.3: Plugins registry + action runner + React wrappers
-- [ ] Phase 4.4: Chat persistence + scroll anchoring + reconcile-on-completion (planned, not implemented)
+- [ ] Phase 4.4: Chat scroll anchoring and restoration (planned, not implemented)
+- [ ] Phase 4.5: Event contract + reducer-driven message state (planned, not implemented)
 - [ ] Phase 5: Desktop frontend (RN macOS)
 - [ ] Phase 6: VS Code extension (future)
 
@@ -25,6 +26,7 @@ This task directory is a standalone handoff of the *current plan* (with all phas
 - `tasks/20260129-frontend-sdk/040-phase-3-bridge-transport.md`
 - `tasks/20260129-frontend-sdk/050-phase-4-headless-controllers.md`
 - `tasks/20260129-frontend-sdk/060-phase-4-4-chat-persistence-scroll-reconcile.md`
+- `tasks/20260129-frontend-sdk/065-phase-4-5-event-contract-and-reducer.md`
 - `tasks/20260129-frontend-sdk/070-phase-5-desktop-frontend.md`
 - `tasks/20260129-frontend-sdk/080-phase-6-vscode-extension.md`
 
@@ -77,3 +79,7 @@ The tasks are self-contained, but these plan docs contain deeper rationale:
 - `plans/frontend-sdk/04-migration-phases.md`
 - `plans/frontend-sdk/08-ui-representation-boundaries.md`
 - `plans/frontend-sdk/09-chat-persistence-scroll-and-reconcile.md`
+
+Related standalone task (Phase 4.5 implementation tracking):
+
+- `tasks/20260129-events-no-full-session/000-main.md`
