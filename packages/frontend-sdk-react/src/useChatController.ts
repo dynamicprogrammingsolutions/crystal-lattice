@@ -78,13 +78,18 @@ export function useChatController(options: UseChatControllerOptions): UseChatCon
       return;
     }
 
-    const sinceId = initialSinceId ?? state?.cursorEventId ?? controller.getSnapshot().cursorEventId;
-    if (!sinceId) {
+    // Avoid starting polling before we have an initial snapshot.
+    // This keeps UI transitions snappier while still guaranteeing that
+    // request lifecycle events will eventually clear `activeRequestId`.
+    const hasInitialSnapshot =
+      (state?.cursorEventId != null) || (Array.isArray(state?.messages) && state!.messages.length > 0);
+    if (!hasInitialSnapshot) {
       return;
     }
 
+    const sinceId = initialSinceId ?? state?.cursorEventId ?? controller.getSnapshot().cursorEventId ?? null;
     controller.startEventStreaming({ initialSinceId: sinceId });
-  }, [controller, eventsEnabled, initialSinceId, state?.cursorEventId]);
+  }, [controller, eventsEnabled, initialSinceId, state?.cursorEventId, state?.messages]);
 
   return { controller, state };
 }
