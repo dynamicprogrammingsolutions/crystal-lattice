@@ -128,6 +128,18 @@ Additional targets:
 
 - Consider consolidating action/dialog plumbing into an SDK "action runner" that can be driven by different UIs.
 
+### 4.4 Chat persistence, scrolling, and reconcile-on-completion
+
+This is a cleanup stage that makes chat behavior both correct and fast across representations.
+
+- Persist controller-derived chat snapshots (including event-applied messages and the poller cursor).
+- Replace raw scroll offset persistence with a bottom-anchor model.
+- Make send event-driven (no immediate reload) and reconcile once on completion.
+
+See:
+
+- `plans/frontend-sdk/09-chat-persistence-scroll-and-reconcile.md`
+
 Success criteria:
 
 - RN UI files shrink and become UI-only.
