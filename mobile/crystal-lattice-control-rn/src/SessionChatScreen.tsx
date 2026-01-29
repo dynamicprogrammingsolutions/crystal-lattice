@@ -15,6 +15,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Clipboard from '@react-native-clipboard/clipboard';
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
+import { useChatController } from '@crystal-lattice/frontend-sdk-react';
 import {
   type ApiMessage,
   type IndexedMessage,
@@ -32,22 +33,13 @@ import { SESSION_ACTIONS, type SessionActionKey } from './sessionActions';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 import { selectDisplayContent } from './messageUtils';
 import { useTheme, type Theme } from './theme';
-import { useSessionEvents } from './useSessionEvents';
 import { extractByPath, renderTemplate } from './uiSchemaUtils';
 import { useApplicationPlugins } from './ApplicationPluginsContext';
 import { executeApplicationAction } from './applicationActionsExecutor';
 import { usePersistentPinnedActions } from './usePersistentPinnedActions';
 import { useSessionAgents } from './useSessionAgents';
 import { usePluginActionDialog } from './usePluginActionDialog';
-import type {
-  AssistantMessageEvent,
-  ErrorEvent,
-  Event,
-  FinalEvent,
-  MessageAppendedEvent,
-  PartialEvent,
-  ToolResultsEvent,
-} from './eventsTypes';
+import type { Event } from './eventsTypes';
 
 interface SessionChatScreenProps {
   backend: AgentBackend | null;
@@ -93,8 +85,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const [messages, setMessages] = useState<IndexedMessage[]>(cachedMessages ?? []);
-  const [loadingMessages, setLoadingMessages] = useState(false);
   const [sendInProgress, setSendInProgress] = useState(false);
   const [composeText, setComposeText] = useState(initialComposeText ?? '');
   const [rangeStartText, setRangeStartText] = useState('-50');
@@ -131,22 +121,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [snapshotReady, setSnapshotReady] = useState<boolean>(!!cachedMessages);
   const [debugVisible, setDebugVisible] = useState(false);
   const [debugEvents, setDebugEvents] = useState<Event[]>([]);
-  const [activeError, setActiveError] = useState<
-    { detail: string; requestId: string | null } | null
-  >(null);
-  const [streamingRow, setStreamingRow] = useState<
-    | {
-        requestId: string;
-        reasoning: string;
-        content: string;
-        metadata?: Record<string, any> | null;
-      }
-    | null
-  >(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [uiSchemaElements, setUiSchemaElements] = useState<UiSchemaElement[]>([]);
   const [pluginActionInProgress, setPluginActionInProgress] = useState(false);
-  const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
   const {
     actionsById,
     sessionActions: pluginSessionActions,
@@ -158,6 +135,55 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const scrollOffsetRef = useRef<number>(initialScrollOffset || 0);
   const hasRestoredScrollRef = useRef(false);
   const hasAutoScrolledRef = useRef(false);
+  const hasHydratedCacheRef = useRef(false);
+
+  const appendEventsToDebugBuffer = useCallback((events: Event[]) => {
+    if (!events || events.length === 0) return;
+    setDebugEvents((prev) => {
+      const combined = [...prev, ...events];
+      const max = 200;
+      return combined.length > max ? combined.slice(combined.length - max) : combined;
+    });
+  }, []);
+
+  const eventsEnabled = !!(backend && sessionId && snapshotReady);
+  const { controller: chatController, state: chatState } = useChatController({
+    backend,
+    sessionId,
+    initialMessages: cachedMessages ?? [],
+    initialCursorEventId: cachedCursorEventId ?? null,
+    eventsEnabled,
+    initialSinceId: initialCheckpointId,
+    onEvents: appendEventsToDebugBuffer,
+  });
+
+  const messages: IndexedMessage[] = chatState?.messages ?? cachedMessages ?? [];
+  const streamingRow = chatState?.streamingRow ?? null;
+  const activeRequestId = chatState?.activeRequestId ?? null;
+  const activeError = chatState?.requestError ?? null;
+  const loadingMessages = chatState?.loading ?? false;
+
+  useEffect(() => {
+    hasHydratedCacheRef.current = false;
+  }, [chatController]);
+
+  useEffect(() => {
+    if (!chatController) {
+      return;
+    }
+    if (hasHydratedCacheRef.current) {
+      return;
+    }
+    if (cachedMessages == null) {
+      return;
+    }
+
+    chatController.hydrateFromCache({
+      messages: cachedMessages,
+      cursorEventId: cachedCursorEventId ?? null,
+    });
+    hasHydratedCacheRef.current = true;
+  }, [chatController, cachedMessages, cachedCursorEventId]);
 
   useEffect(() => {
     composeTextRef.current = composeText;
@@ -263,12 +289,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   };
 
   const loadMessages = useCallback(async () => {
-    if (!backend) {
+    if (!chatController) {
       const message = 'No active connection';
       Alert.alert('Error', message);
       return;
     }
-    setLoadingMessages(true);
     try {
 		      let start: number | undefined;
 		      let end: number | undefined;
@@ -286,29 +311,23 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 		          end = parsedEnd;
 		        }
 		      }
-	    const { messages: list, cursorEventId, activeRequestId } = await backend.listMessages(
-	      sessionId,
-	      { start, end },
-	    );
-	    setMessages(list);
-	    setInitialCheckpointId(cursorEventId ?? null);
-	    setActiveRequestId(activeRequestId ?? null);
-      setStreamingRow(null);
+
+	    await chatController.loadMessages({ start, end });
+	    const snapshot = chatController.getSnapshot();
+	    setInitialCheckpointId(snapshot.cursorEventId ?? null);
 		      if (!hasAutoScrolledRef.current) {
 		        setShouldAutoScroll(true);
 		        hasAutoScrolledRef.current = true;
 		      }
 		      setLastReloadAt(new Date());
-	    onUpdateCache(list, cursorEventId ?? null);
+	    onUpdateCache(snapshot.messages, snapshot.cursorEventId ?? null);
       setSnapshotReady(true);
     } catch (err: any) {
       console.log('Failed to load messages', err);
       const message = err?.message || 'Failed to load messages';
       Alert.alert('Error', message);
-    } finally {
-      setLoadingMessages(false);
-	    }
-  }, [backend, sessionId, rangeStartText, rangeEndText, onUpdateCache]);
+    }
+  }, [chatController, rangeStartText, rangeEndText, onUpdateCache]);
 
   const {
     activeElement: activePluginDialogElement,
@@ -394,8 +413,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   }, [closeOverlays, onBack]);
 
   useEffect(() => {
-    setMessages(cachedMessages ?? []);
-    if (cachedMessages && lastLoadedAt) {
+    if (cachedMessages != null && lastLoadedAt) {
       setLastReloadAt(new Date(lastLoadedAt));
     }
   }, [cachedMessages, connectionId, sessionId, lastLoadedAt]);
@@ -408,10 +426,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   }, [cachedCursorEventId, cachedMessages, sessionId, connectionId]);
 
   useEffect(() => {
-    if (!cachedMessages && backend) {
+    if (!cachedMessages && chatController) {
       loadMessages();
     }
-  }, [backend, cachedMessages, loadMessages]);
+  }, [chatController, cachedMessages, loadMessages]);
 
   useEffect(() => {
     const saveMessagePinned = async () => {
@@ -440,13 +458,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     if (!text) {
       return;
     }
-    if (!backend) {
+    if (!chatController) {
       Alert.alert('No connection', 'Connect to a server to append messages.');
       return;
     }
     setSendInProgress(true);
     try {
-      await backend.appendMessage(sessionId, { role: 'user', content: text });
+      await chatController.appendMessage({ role: 'user', content: text });
       await loadMessages();
     } catch (err: any) {
       console.log('Failed to append message', err);
@@ -460,18 +478,18 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const handleSend = async () => {
     const text = composeText.trim();
     setSendInProgress(true);
-    if (!backend) {
+    if (!chatController) {
       Alert.alert('No connection', 'Connect to a server to send messages.');
       setSendInProgress(false);
       return;
     }
     try {
       if (text) {
-        await backend.appendMessage(sessionId, { role: 'user', content: text });
+        await chatController.appendMessage({ role: 'user', content: text });
       }
-      setActiveError(null);
-      setStreamingRow(null);
-      await backend.send(sessionId);
+
+      chatController.clearRequestState();
+      await chatController.send();
       await loadMessages();
         setComposeText('');
         onSaveComposeText('');
@@ -486,15 +504,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   const handleResend = async () => {
     setSendInProgress(true);
-    if (!backend) {
+    if (!chatController) {
       Alert.alert('No connection', 'Connect to a server to resend.');
       setSendInProgress(false);
       return;
     }
     try {
-      setActiveError(null);
-      setStreamingRow(null);
-      await backend.send(sessionId);
+      chatController.clearRequestState();
+      await chatController.send();
       await loadMessages();
     } catch (err: any) {
       console.log('Failed to resend request', err);
@@ -506,7 +523,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   };
 
   const handleCancel = async () => {
-    if (!backend) {
+    if (!chatController) {
       Alert.alert('No connection', 'Connect to a server to cancel.');
       return;
     }
@@ -515,7 +532,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       return;
     }
     try {
-      await backend.cancelRequest(activeRequestId);
+      await chatController.cancelActiveRequest();
       // We rely on subsequent events (request_cancelled / request_completed)
       // to clear activeRequestId and update any streaming state.
     } catch (err: any) {
@@ -545,12 +562,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       Alert.alert('Invalid range', 'Provide at least a start or end index.');
       return;
     }
-    if (!backend) {
+    if (!chatController) {
       Alert.alert('No connection', 'Connect to a server to delete messages.');
       return;
     }
     try {
-      await backend.deleteMessages(sessionId, { range: { start, end } });
+      await chatController.deleteMessages({ range: { start, end } });
       setDeleteRangeVisible(false);
       await loadMessages();
     } catch (err: any) {
@@ -590,8 +607,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   const handleSessionAction = async (action: SessionActionKey) => {
     if (action === 'reload') {
-      setActiveError(null);
-      setStreamingRow(null);
+      chatController?.clearRequestState();
       await loadMessages();
       return;
     }
@@ -684,12 +700,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       Alert.alert('Invalid content', 'Message content cannot be empty.');
       return;
     }
-    if (!backend) {
+    if (!chatController) {
       Alert.alert('No connection', 'Connect to a server to modify messages.');
       return;
     }
     try {
-      await backend.modifyMessage(sessionId, index, trimmed);
+      await chatController.modifyMessage(index, trimmed);
       setEditingIndex(null);
       setEditingText('');
       await loadMessages();
@@ -748,151 +764,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       });
     }
   };
-
-  const appendEventsToDebugBuffer = (events: Event[]) => {
-    if (!events || events.length === 0) return;
-    setDebugEvents((prev) => {
-      const combined = [...prev, ...events];
-      const max = 200;
-      return combined.length > max ? combined.slice(combined.length - max) : combined;
-    });
-  };
-
-  const applyFinalEvent = (ev: FinalEvent) => {
-    if (!Array.isArray(ev.messages) || ev.messages.length === 0) return;
-    setMessages((prev) => {
-      const current = [...prev];
-      let lastIndex = current.length > 0 ? current[current.length - 1].index : -1;
-      for (const msg of ev.messages) {
-	        if (!msg) continue;
-        lastIndex += 1;
-        current.push({ index: lastIndex, message: msg });
-      }
-      return current;
-    });
-  };
-
-	  const applyMessageAppendedEvent = (ev: MessageAppendedEvent) => {
-	    const message = ev.message;
-	    if (!message) return;
-	    setMessages((prev) => {
-	      const lastIndex = prev.length > 0 ? prev[prev.length - 1].index : -1;
-	      return [...prev, { index: lastIndex + 1, message }];
-	    });
-	  };
-  const applyToolResultsEvent = (ev: ToolResultsEvent) => {
-    if (!Array.isArray(ev.messages) || ev.messages.length === 0) return;
-    setMessages((prev) => {
-      const current = [...prev];
-      let lastIndex = current.length > 0 ? current[current.length - 1].index : -1;
-      for (const msg of ev.messages) {
-	        if (!msg) continue;
-        lastIndex += 1;
-        current.push({ index: lastIndex, message: msg });
-      }
-      return current;
-    });
-  };
-
-  const AUTO_RELOAD_ON_REQUEST_COMPLETED = false;
-
-  const handleEvents = (events: Event[]) => {
-    if (!events || events.length === 0) return;
-    const relevant = events.filter((ev) => ev.session_id === sessionId);
-
-    relevant.forEach((ev) => {
-      if (ev.type === 'request_started') {
-        // New request: clear error and streaming state.
-        const rid = typeof ev.request_id === 'string' ? ev.request_id : null;
-        if (rid) {
-          setActiveRequestId(rid);
-        }
-        setActiveError(null);
-        setStreamingRow(null);
-      } else if (ev.type === 'assistant_message') {
-        const msgEv = ev as AssistantMessageEvent;
-        if (msgEv.phase === 'start') {
-          const rid = typeof msgEv.request_id === 'string' ? msgEv.request_id : null;
-          if (rid) {
-            setActiveRequestId((prev) => prev || rid || prev);
-          }
-          setStreamingRow({
-            requestId: msgEv.request_id ?? 'unknown',
-            reasoning: '',
-            content: '',
-            metadata: null,
-          });
-        }
-      } else if (ev.type === 'partial') {
-        const p = ev as PartialEvent;
-        const rawMessage = p.message || ({} as ApiMessage);
-        const rawMetadata = (rawMessage.metadata || {}) as Record<string, any>;
-        const reasoningDelta =
-          typeof rawMetadata.reasoning === 'string' ? rawMetadata.reasoning : '';
-        const contentDelta =
-          typeof rawMessage.content === 'string' ? rawMessage.content : '';
-        if (!reasoningDelta && !contentDelta) return;
-        const evRequestId = p.request_id ?? null;
-        if (typeof evRequestId === 'string' && evRequestId) {
-          setActiveRequestId((prev) => prev || evRequestId || prev);
-        }
-        setStreamingRow((prev) => {
-          const base =
-            prev && (!evRequestId || prev.requestId === evRequestId)
-              ? prev
-              : {
-                  requestId: evRequestId || 'unknown',
-                  reasoning: '',
-                  content: '',
-                  metadata: null,
-                };
-          const nextReasoning = base.reasoning + reasoningDelta;
-          const mergedMetadata = {
-            ...(base.metadata || {}),
-            ...(rawMessage.metadata || {}),
-            reasoning: nextReasoning,
-          } as Record<string, any>;
-          return {
-            requestId: base.requestId,
-            reasoning: nextReasoning,
-            content: base.content + contentDelta,
-            metadata: mergedMetadata,
-          };
-        });
-      } else if (ev.type === 'final') {
-        applyFinalEvent(ev as FinalEvent);
-        setStreamingRow(null);
-      } else if (ev.type === 'message_appended') {
-        applyMessageAppendedEvent(ev as MessageAppendedEvent);
-      } else if (ev.type === 'tool_results') {
-        applyToolResultsEvent(ev as ToolResultsEvent);
-      } else if (ev.type === 'error') {
-        const err = ev as ErrorEvent;
-        const detail =
-          (typeof err.detail === 'string' && err.detail) || 'Request failed with an error.';
-        setActiveError({ detail, requestId: err.request_id ?? null });
-      } else if (ev.type === 'request_completed' || ev.type === 'request_cancelled') {
-        const rid = ev.request_id;
-        setActiveRequestId((current) => (current == null || current === rid ? null : current));
-        if (AUTO_RELOAD_ON_REQUEST_COMPLETED) {
-          loadMessages();
-        }
-      }
-    });
-
-    appendEventsToDebugBuffer(events);
-  };
-
-  const eventsEnabled = !!(backend && sessionId && snapshotReady);
-  const { lastEventId: _lastEventId, status: _eventsStatus } = useSessionEvents(
-    {
-      backend,
-      sessionId,
-      enabled: eventsEnabled,
-      initialSinceId: initialCheckpointId,
-    },
-    handleEvents,
-  );
 
 	  const titleFields = useMemo(
 	    () =>

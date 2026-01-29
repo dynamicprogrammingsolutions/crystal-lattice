@@ -24,6 +24,20 @@ export class SessionsController extends SimpleSubscribable<SessionsControllerSta
     this.limit = options.limit;
   }
 
+  hydrateFromCache(options: { sessions: SessionSummary[]; lastLoadedAt?: number | null }): void {
+    const snapshot = this.getSnapshot();
+    if (snapshot.loading) {
+      return;
+    }
+
+    this.setSnapshot({
+      ...snapshot,
+      sessions: options.sessions,
+      error: null,
+      lastLoadedAt: options.lastLoadedAt ?? snapshot.lastLoadedAt,
+    });
+  }
+
   async load(options: { force?: boolean } = {}): Promise<SessionSummary[]> {
     const snapshot = this.getSnapshot();
     if (!options.force && snapshot.loading) {

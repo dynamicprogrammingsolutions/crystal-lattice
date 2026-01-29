@@ -1,7 +1,6 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import type { AgentBackend, SessionsControllerState } from '@crystal-lattice/frontend-sdk';
 import { SessionsController } from '@crystal-lattice/frontend-sdk';
-import { useSubscribableSnapshot } from './useSubscribable';
 
 export interface UseSessionsControllerOptions {
   backend: AgentBackend | null;
@@ -22,12 +21,16 @@ export function useSessionsController(options: UseSessionsControllerOptions): Us
       return null;
     }
     return new SessionsController({ backend, initialSessions, limit });
-  }, [backend, initialSessions, limit]);
+  }, [backend]);
 
   useEffect(() => {
     // No long-lived resources today.
   }, [controller]);
 
-  const state = controller ? useSubscribableSnapshot(controller) : null;
+  const state = useSyncExternalStore(
+    (onStoreChange) => (controller ? controller.subscribe(onStoreChange) : () => {}),
+    () => (controller ? controller.getSnapshot() : null),
+    () => (controller ? controller.getSnapshot() : null),
+  );
   return { controller, state };
 }

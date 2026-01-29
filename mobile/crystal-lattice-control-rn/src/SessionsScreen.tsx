@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
+import { useSessionsController } from '@crystal-lattice/frontend-sdk-react';
 import { useTheme, type Theme } from './theme';
 import SessionActionsBar from './components/SessionActionsBar';
 import SessionSettingsModal from './components/SessionSettingsModal';
@@ -55,14 +56,45 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const [sessions, setSessions] = useState<SessionSummary[]>(cachedSessions ?? []);
+
+  const { controller: sessionsController, state: sessionsState } = useSessionsController({
+    backend,
+    initialSessions: cachedSessions ?? [],
+  });
+  const sessions = sessionsState?.sessions ?? cachedSessions ?? [];
+  const sessionsLoading = sessionsState?.loading ?? false;
+
+  const hasHydratedCacheRef = useRef(false);
+
+  useEffect(() => {
+    hasHydratedCacheRef.current = false;
+  }, [sessionsController]);
+
+  useEffect(() => {
+    if (!sessionsController) {
+      return;
+    }
+    if (hasHydratedCacheRef.current) {
+      return;
+    }
+    if (cachedSessions == null) {
+      return;
+    }
+
+    sessionsController.hydrateFromCache({
+      sessions: cachedSessions,
+      lastLoadedAt,
+    });
+    hasHydratedCacheRef.current = true;
+  }, [sessionsController, cachedSessions, lastLoadedAt]);
+
   const [filterText, setFilterText] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const loading = sessionsLoading || actionLoading;
   const [error, setError] = useState<string | null>(null);
   const [agentPickerVisible, setAgentPickerVisible] = useState(false);
   const { availableAgents, agentLoading, ensureAgentsLoaded, setAgentLoading } =
     useSessionAgents();
-  const [hasAutoLoaded, setHasAutoLoaded] = useState(false);
   const {
     sessionListActions,
     actionsById,
@@ -95,16 +127,14 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   );
 
 	  const loadSessions = useCallback(async () => {
-    if (!backend) {
+    if (!sessionsController) {
       const message = 'No active connection';
       setError(message);
       Alert.alert('Error', message);
       return;
     }
-    setLoading(true);
     try {
-      const list = await backend.listSessions();
-      setSessions(list);
+      const list = await sessionsController.load({ force: true });
       onUpdateCache(list);
       setError(null);
     } catch (err: any) {
@@ -112,10 +142,8 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       const message = err?.message || 'Failed to load sessions';
       setError(message);
       Alert.alert('Error', message);
-    } finally {
-      setLoading(false);
     }
-	  }, [backend, onUpdateCache]);
+	  }, [sessionsController, onUpdateCache]);
 
 	  const {
 	    activeElement: activePluginDialogElement,
@@ -137,7 +165,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 	          return;
 	        }
 
-	        setLoading(true);
+	        setActionLoading(true);
 	        try {
 	          const { ok, response } = await executeApplicationAction(
 	            backend,
@@ -172,7 +200,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 	            await loadSessions();
 	          }
 	        } finally {
-	          setLoading(false);
+	          setActionLoading(false);
 	        }
 	      },
 	      [backend, actionsById, loadSessions, navigateToSession],
@@ -188,17 +216,8 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   }, [closeNonPluginOverlays, handleCancelPluginDialog]);
 
   useEffect(() => {
-    if (cachedSessions) {
-      setSessions(cachedSessions);
-      setError(null);
-    } else if (!backend) {
-      setSessions([]);
-    }
-  }, [cachedSessions, connectionId, backend]);
-
-  useEffect(() => {
     if (!isActive) return;
-    if (!backend) return;
+    if (!sessionsController) return;
 
     const now = Date.now();
     const hasTimestamp = lastLoadedAt != null;
@@ -208,9 +227,8 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       loadSessions().catch(() => {
         // Error is already handled inside loadSessions.
       });
-      setHasAutoLoaded(true);
     }
-  }, [isActive, backend, lastLoadedAt, loadSessions]);
+  }, [isActive, sessionsController, lastLoadedAt, loadSessions]);
 
   useEffect(() => {
     if (isActive) return;
@@ -219,7 +237,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 
   const createSessionWithAgent = async (agentId: string | null) => {
     setAgentPickerVisible(false); // Fix: If we don't close the picker first, the SessionsScreen become unresponsive.
-    if (!backend) {
+    if (!sessionsController || !backend) {
       const message = 'No active connection';
       setError(message);
       Alert.alert('Error', message);
@@ -234,22 +252,16 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         return;
       }
     }
-    setLoading(true);
+    setActionLoading(true);
     try {
-      const result = await backend.createSession({ agentId: chosenAgent });
-      const newId = result.session.session_id;
-      if (typeof newId === 'string' && newId) {
-	        navigateToSession(newId);
-      } else {
-        // Fallback: reload list if for some reason session id is missing.
-        await loadSessions();
-      }
+      const result = await sessionsController.createSession({ agentId: chosenAgent });
+      navigateToSession(result.sessionId);
     } catch (err: any) {
       console.log('Failed to create session', err);
       const message = err?.message || 'Failed to create session';
       Alert.alert('Error', message);
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
