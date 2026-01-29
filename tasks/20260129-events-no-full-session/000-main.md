@@ -26,6 +26,7 @@ This is a standalone task (not a subtask of the frontend SDK extraction), becaus
 
 ## Subtasks
 
+- `tasks/20260129-events-no-full-session/005-sdk-reducer-prep-no-ux-change.md`
 - `tasks/20260129-events-no-full-session/010-event-contract.md`
 - `tasks/20260129-events-no-full-session/020-python-event-producers.md`
 - `tasks/20260129-events-no-full-session/030-python-tests-and-docs.md`
