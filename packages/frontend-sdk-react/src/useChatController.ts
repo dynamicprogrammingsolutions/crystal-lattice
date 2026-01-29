@@ -31,7 +31,7 @@ export function useChatController(options: UseChatControllerOptions): UseChatCon
     initialCursorEventId,
     initialActiveRequestId,
     onEvents,
-    eventsEnabled,
+    eventsEnabled = false,
     initialSinceId,
   } = options;
 
@@ -61,19 +61,30 @@ export function useChatController(options: UseChatControllerOptions): UseChatCon
     };
   }, [controller, onEvents]);
 
-  useEffect(() => {
-    if (!controller) return;
-    if (eventsEnabled) {
-      controller.startEventStreaming({ initialSinceId: initialSinceId ?? null });
-    } else {
-      controller.stopEventStreaming();
-    }
-  }, [controller, eventsEnabled, initialSinceId]);
-
   const state = useSyncExternalStore(
     (onStoreChange) => (controller ? controller.subscribe(onStoreChange) : () => {}),
     () => (controller ? controller.getSnapshot() : null),
     () => (controller ? controller.getSnapshot() : null),
   );
+
+  useEffect(() => {
+    if (!controller) return;
+    if (!eventsEnabled) {
+      controller.stopEventStreaming();
+      return;
+    }
+
+    if (controller.isEventStreaming()) {
+      return;
+    }
+
+    const sinceId = initialSinceId ?? state?.cursorEventId ?? controller.getSnapshot().cursorEventId;
+    if (!sinceId) {
+      return;
+    }
+
+    controller.startEventStreaming({ initialSinceId: sinceId });
+  }, [controller, eventsEnabled, initialSinceId, state?.cursorEventId]);
+
   return { controller, state };
 }

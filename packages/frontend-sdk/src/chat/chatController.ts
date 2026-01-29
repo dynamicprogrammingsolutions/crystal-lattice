@@ -72,6 +72,10 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     this.onEventsListener = listener;
   }
 
+  isEventStreaming(): boolean {
+    return this.eventSource != null;
+  }
+
   clearRequestState(): void {
     const current = this.getSnapshot();
     this.setSnapshot({
