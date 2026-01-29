@@ -88,6 +88,13 @@ This is the major “logic/UI separation” milestone.
   - Poll events and apply `partial/final/tool_results` updates
   - Track `activeRequestId`, `cursorEventId`, and `error` state
 
+Additional extraction targets to make screens representation-only:
+
+- **UI schema loading**: move per-session schema loading (`getSessionUiSchema`) into a headless controller.
+- **Chat view-model helpers**: move status bar/footer derivation (template + `extractByPath`) into SDK pure helpers.
+- **Action semantics**: move “interpret plugin action result and decide reload/navigate” into SDK as an `effects`-returning helper.
+- **Cache hydration helper**: provide a reusable hook/helper so screens don’t duplicate "hydrate cached props into controller" boilerplate.
+
 The RN screen becomes mostly:
 
 - subscribe to controller state
@@ -102,16 +109,31 @@ The RN screen becomes mostly:
   - create session (choose default agent)
   - derive title/subtitle/meta from UI schema fields
 
+Additional extraction targets to make screens representation-only:
+
+- **Staleness policy**: move "load if stale" decision into the controller (based on controller state), not the screen.
+- **Session list presentation derivation**: move `deriveTitle/deriveSubtitle/deriveMeta` into SDK helpers.
+- **Action semantics**: move “interpret plugin action result and decide reload/navigate” into SDK as `effects`.
+- **Cache hydration helper**: same as chat; avoid repeated hydration logic in screens.
+
 ### 4.3 Plugins registry
 
 - Create `PluginsRegistry` in SDK.
 - Port logic from `src/ApplicationPluginsContext.tsx`.
 - Remove React Context usage from the core; provide a React hook wrapper in `frontend-sdk-react`.
 
+Additional targets:
+
+- Consider consolidating action/dialog plumbing into an SDK "action runner" that can be driven by different UIs.
+
 Success criteria:
 
 - RN UI files shrink and become UI-only.
 - Controllers can be reused unchanged by a new desktop RN app.
+
+See also:
+
+- `plans/frontend-sdk/08-ui-representation-boundaries.md`
 
 ## Phase 5: Desktop frontend (RN macOS)
 

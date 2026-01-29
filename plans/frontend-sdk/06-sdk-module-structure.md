@@ -34,10 +34,12 @@ packages/frontend-sdk/
     ui-schema/
       utils.ts                # extractByPath, renderTemplate
       sessionListDerivation.ts
+      sessionUiSchemaController.ts
 
     plugins/
       pluginsRegistry.ts      # headless cache + categorization
       executeAction.ts        # param_map/fixed_params merge
+      actionRunner.ts         # execute plugin action and return typed effects
 
     events/
       pollingEventSource.ts   # reusable polling loop (setTimeout-based)
@@ -45,6 +47,7 @@ packages/frontend-sdk/
     chat/
       chatReducer.ts          # pure event-to-state updates
       chatController.ts
+      presentation.ts         # status bar/footer derivation helpers
 
     sessions/
       sessionsController.ts
@@ -84,6 +87,7 @@ packages/frontend-sdk-react/
     useChatController.ts
     useSessionsController.ts
     usePluginsRegistry.ts
+    useHydrateControllerFromCache.ts
 ```
 
 This package depends on `react` and `@crystal-lattice/frontend-sdk`.

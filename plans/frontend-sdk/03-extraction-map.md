@@ -40,6 +40,13 @@ SDK targets:
 - `packages/frontend-sdk/src/chat/chatReducer.ts` (pure reducer for applying events)
 - `packages/frontend-sdk/src/chat/chatController.ts` (state + actions)
 
+Additional SDK targets to make the RN screen representation-only:
+
+- `packages/frontend-sdk/src/ui-schema/sessionUiSchemaController.ts` (load/caching of per-session schema)
+- `packages/frontend-sdk/src/chat/presentation.ts` (pure helpers for status bar/footer derivation)
+- `packages/frontend-sdk/src/plugins/actionRunner.ts` (execute plugin action and return typed `effects`)
+- `packages/frontend-sdk-react/src/useHydrateControllerFromCache.ts` (deduplicate hydration boilerplate in UIs)
+
 ### 3.2 Sessions controller
 
 Source of logic today:
@@ -50,6 +57,11 @@ SDK targets:
 
 - `packages/frontend-sdk/src/sessions/sessionsController.ts`
 - `packages/frontend-sdk/src/ui-schema/sessionListDerivation.ts` (pure derivation helpers)
+
+Additional SDK targets:
+
+- `packages/frontend-sdk/src/sessions/staleness.ts` or a method on `SessionsController` (`loadIfStale`)
+- `packages/frontend-sdk/src/plugins/actionRunner.ts` (reuse the same effects model)
 
 ### 3.3 Plugins registry
 

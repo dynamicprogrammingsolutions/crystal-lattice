@@ -245,14 +245,155 @@ export interface Transport {
 }
 ```
 
-Implementations:
+SDK implementations:
 
-- `HttpTransport({ baseUrl, fetch })`
-- `BridgeTransport({ bridgeUrl, pairingToken, serverId, WebSocket })` (Phoenix protocol)
+- `FetchTransport({ baseUrl })` (React Native, Node, browser-like runtimes)
+- `BridgeTransport({ bridgeUrl, pairingToken })` (Phoenix proxy over WebSocket)
 
-The REST backend can be a thin wrapper around `Transport`.
+## 4) Controllers vs UI representation
 
-## 4) Storage + platform services (injected)
+High-level rule: **controllers own workflows and backend interaction**, while UI screens keep only representation state.
+
+See `plans/frontend-sdk/08-ui-representation-boundaries.md` for concrete examples.
+
+## 5) Proposed controller and helper interfaces
+
+These are intentionally small and runtime-agnostic.
+
+### 5.1 Controller subscription primitive
+
+```ts
+export type Unsubscribe = () => void;
+
+export interface Subscribable<T> {
+  getSnapshot(): T;
+  subscribe(listener: () => void): Unsubscribe;
+}
+```
+
+### 5.2 Chat controller
+
+```ts
+export interface ChatControllerState {
+  sessionId: string;
+  loading: boolean;
+  messages: IndexedMessage[];
+  cursorEventId: string | null;
+  lastEventId: string | null;
+  activeRequestId: string | null;
+  streamingRow: {
+    requestId: string;
+    reasoning: string;
+    content: string;
+    metadata: Record<string, any> | null;
+  } | null;
+  requestError: { detail: string; requestId: string | null } | null;
+}
+
+export interface ChatController extends Subscribable<ChatControllerState> {
+  loadMessages(params?: { start?: number; end?: number }): Promise<void>;
+  appendMessage(msg: { role: 'user'|'assistant'|'system'|'tool'; content: string; metadata?: Record<string, any> }): Promise<void>;
+  send(params?: { configOverrides?: Record<string, any> }): Promise<void>;
+  cancelActiveRequest(): Promise<void>;
+  modifyMessage(index: number, content: string): Promise<void>;
+  deleteMessages(params: { indices?: number[]; range?: { start?: number; end?: number } }): Promise<void>;
+
+  startEventStreaming(options: { initialSinceId: string | null }): void;
+  stopEventStreaming(): void;
+}
+```
+
+### 5.3 Sessions controller
+
+```ts
+export interface SessionsControllerState {
+  sessions: SessionSummary[];
+  loading: boolean;
+  error: string | null;
+  lastLoadedAt: number | null;
+}
+
+export interface SessionsController extends Subscribable<SessionsControllerState> {
+  load(options?: { force?: boolean }): Promise<SessionSummary[]>;
+
+  // Prefer controller-owned staleness policy rather than UI reimplementing it.
+  loadIfStale(options: { staleMs: number }): Promise<SessionSummary[] | null>;
+
+  createSession(params?: { agentId?: string; systemMessage?: string }): Promise<{ sessionId: string }>;
+}
+```
+
+### 5.4 Session UI schema controller
+
+```ts
+export interface SessionUiSchemaState {
+  loading: boolean;
+  error: string | null;
+  elements: UiSchemaElement[];
+}
+
+export interface SessionUiSchemaController extends Subscribable<SessionUiSchemaState> {
+  load(sessionId: string): Promise<void>;
+}
+```
+
+### 5.5 View-model derivation helpers (pure)
+
+```ts
+export interface SessionListPresentation {
+  title: string;
+  subtitle: string | null;
+  meta: string | null;
+}
+
+export function deriveSessionListPresentation(
+  session: SessionSummary,
+  fields: SessionListFieldElement[],
+  options?: { defaultTitle?: string },
+): SessionListPresentation;
+
+export function deriveStatusBarParts(
+  lastAssistantMessage: ApiMessage | null,
+  elements: UiSchemaElement[],
+): string[];
+```
+
+### 5.6 Application action runner returning effects
+
+UI should not duplicate “interpret response and decide what to refresh.”
+
+```ts
+export type ActionEffect =
+  | { type: 'navigateToSession'; sessionId: string }
+  | { type: 'reloadSession'; sessionId: string }
+  | { type: 'reloadSessionsList' };
+
+export interface RunActionResult {
+  response: ExecuteActionResponse;
+  effects: ActionEffect[];
+}
+
+export function runApplicationAction(options: {
+  backend: AgentBackend;
+  element: ActionUiElement;
+  actionsById: Record<string, ApplicationActionDefinition>;
+  context: {
+    sessionId?: string;
+    sessionSummary?: SessionSummary;
+    messageContext?: { index: number; message: ApiMessage };
+    dialogValues?: Record<string, any>;
+  };
+}): Promise<RunActionResult>;
+```
+
+## 6) Optional React bindings (`@crystal-lattice/frontend-sdk-react`)
+
+- `useChatController`/`useSessionsController` to manage controller lifecycles.
+- A shared “one-shot hydration” hook so screens don’t duplicate cache→controller glue.
+
+This package should only provide ergonomic glue (hooks/subscriptions), not business logic.
+
+## 7) Storage + platform services (injected)
 
 SDK modules that persist user data (saved connections, UI preferences, caches) should depend on an injected store.
 
@@ -275,101 +416,11 @@ export interface Clock {
 }
 ```
 
-## 5) Headless controllers
-
-Controllers hide complex workflows and expose state + actions. They should not import React; instead use a small subscription mechanism.
-
-### 5.1 Observable pattern
-
-```ts
-export interface Subscribable {
-  subscribe(listener: () => void): () => void;
-}
-```
-
-### 5.2 Chat controller
-
-```ts
-export interface ChatState {
-  sessionId: string;
-  messages: IndexedMessage[];
-  cursorEventId: string | null;
-  activeRequestId: string | null;
-  streaming: null | { requestId: string; reasoning: string; content: string; metadata?: Record<string, any> | null };
-  error: null | { detail: string; requestId: string | null };
-  status: 'idle' | 'loading' | 'ready' | 'sending' | 'error';
-}
-
-export interface ChatController extends Subscribable {
-  getState(): ChatState;
-
-  loadMessages(params?: { start?: number; end?: number }): Promise<void>;
-  appendUserMessage(text: string): Promise<void>;
-  send(params?: { text?: string }): Promise<void>;
-  resend(): Promise<void>;
-  cancelActiveRequest(): Promise<void>;
-  modifyMessage(index: number, newText: string): Promise<void>;
-  deleteRange(params: { start?: number; end?: number }): Promise<void>;
-
-  startEventStreaming(params?: { initialSinceId?: string | null }): void;
-  stopEventStreaming(): void;
-}
-```
-
-Implementation note: the event-application logic currently inside `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx` becomes a pure reducer function used by `ChatController`.
-
-### 5.3 Sessions controller
-
-```ts
-export interface SessionsState {
-  sessions: SessionSummary[];
-  status: 'idle' | 'loading' | 'ready' | 'error';
-  error: string | null;
-  lastLoadedAtMs: number | null;
-}
-
-export interface SessionsController extends Subscribable {
-  getState(): SessionsState;
-  reload(): Promise<void>;
-  createSession(params?: { agentId?: string; systemMessage?: string }): Promise<string>; // returns new session_id
-}
-```
-
-### 5.4 Plugins registry
-
-```ts
-export interface PluginsState {
-  loading: boolean;
-  error: string | null;
-  actionsById: Record<string, ApplicationActionDefinition>;
-  sessionActions: ActionUiElement[];
-  messageActions: ActionUiElement[];
-  sessionListActions: ActionUiElement[];
-  sessionListFields: SessionListFieldElement[];
-  sessionListPinnedToggles: ActionUiElement[];
-}
-
-export interface PluginsRegistry extends Subscribable {
-  getState(): PluginsState;
-  ensureLoaded(): Promise<void>;
-  invalidate(): void;
-}
-```
-
-## 6) Future in-process backend support
+## 8) Future in-process backend support
 
 To make a TS `agent_core`/`agent_app` backend easy later, the SDK should:
 
 - Keep the `AgentBackend` methods domain-oriented (not HTTP-oriented).
 - Keep `Transport` separate and optional.
-- Optionally define an *internal* adapter interface for a future TS runtime package to implement, e.g.:
-
-```ts
-export interface InProcessAgentRuntime {
-  listAgents(): string[];
-  createSession(agentId: string, systemMessage?: string): { sessionId: string };
-  // ... etc
-}
-```
 
 The in-process backend can live in a separate package (later), e.g. `@crystal-lattice/agent-runtime-node`, that depends on the TS port of `agent_app`.
