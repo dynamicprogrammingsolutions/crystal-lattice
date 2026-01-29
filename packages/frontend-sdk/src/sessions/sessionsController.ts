@@ -65,6 +65,21 @@ export class SessionsController extends SimpleSubscribable<SessionsControllerSta
     }
   }
 
+  async loadIfStale(options: { staleMs: number; nowMs?: number }): Promise<SessionSummary[] | null> {
+    const snapshot = this.getSnapshot();
+    if (snapshot.loading) {
+      return null;
+    }
+
+    const nowMs = options.nowMs ?? Date.now();
+    const hasTimestamp = snapshot.lastLoadedAt != null;
+    const isStale = hasTimestamp && nowMs - snapshot.lastLoadedAt! > options.staleMs;
+    if (!hasTimestamp || isStale) {
+      return this.load({ force: true });
+    }
+    return null;
+  }
+
   async createSession(params?: { agentId?: string; systemMessage?: string }): Promise<{ sessionId: string }> {
     const resp = await this.backend.createSession({
       agentId: params?.agentId,

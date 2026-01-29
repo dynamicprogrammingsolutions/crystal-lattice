@@ -28,3 +28,11 @@ export type {
   UseSessionsControllerResult,
 } from './useSessionsController';
 export { useSessionsController } from './useSessionsController';
+
+export { useHydrateControllerFromCache } from './useHydrateControllerFromCache';
+
+export type {
+  UseSessionUiSchemaControllerOptions,
+  UseSessionUiSchemaControllerResult,
+} from './useSessionUiSchemaController';
+export { useSessionUiSchemaController } from './useSessionUiSchemaController';

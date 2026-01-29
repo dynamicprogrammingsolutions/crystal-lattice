@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,7 +13,13 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
+import {
+  deriveSessionListPresentationFromGroups,
+  groupSessionListFields,
+  runApplicationAction,
+} from '@crystal-lattice/frontend-sdk';
 import { useSessionsController } from '@crystal-lattice/frontend-sdk-react';
+import { useHydrateControllerFromCache } from '@crystal-lattice/frontend-sdk-react';
 import { useTheme, type Theme } from './theme';
 import SessionActionsBar from './components/SessionActionsBar';
 import SessionSettingsModal from './components/SessionSettingsModal';
@@ -24,12 +30,10 @@ import {
 } from './api';
 import ApplicationActionDialog from './components/ApplicationActionDialog';
 import { useApplicationPlugins } from './ApplicationPluginsContext';
-import { executeApplicationAction } from './applicationActionsExecutor';
 import { usePersistentPinnedActions } from './usePersistentPinnedActions';
 import { useSessionAgents } from './useSessionAgents';
 import { usePluginActionDialog } from './usePluginActionDialog';
 import AgentSwitchModal from './components/AgentSwitchModal';
-import { extractByPath, renderTemplate } from './uiSchemaUtils';
 
 interface SessionsScreenProps {
   backend: AgentBackend | null;
@@ -47,7 +51,6 @@ const BUILTIN_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settin
 
 const SessionsScreen: React.FC<SessionsScreenProps> = ({
   backend,
-  connectionId,
   cachedSessions,
   lastLoadedAt,
   isActive,
@@ -64,34 +67,26 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const sessions = sessionsState?.sessions ?? cachedSessions ?? [];
   const sessionsLoading = sessionsState?.loading ?? false;
 
-  const hasHydratedCacheRef = useRef(false);
+  const hydrateSessionsCache = useCallback(
+    (
+      controller: NonNullable<typeof sessionsController>,
+      cache: { sessions: SessionSummary[]; lastLoadedAt: number | null },
+    ) => {
+      controller.hydrateFromCache(cache);
+    },
+    [],
+  );
 
-  useEffect(() => {
-    hasHydratedCacheRef.current = false;
-  }, [sessionsController]);
-
-  useEffect(() => {
-    if (!sessionsController) {
-      return;
-    }
-    if (hasHydratedCacheRef.current) {
-      return;
-    }
-    if (cachedSessions == null) {
-      return;
-    }
-
-    sessionsController.hydrateFromCache({
-      sessions: cachedSessions,
-      lastLoadedAt,
-    });
-    hasHydratedCacheRef.current = true;
-  }, [sessionsController, cachedSessions, lastLoadedAt]);
+  useHydrateControllerFromCache({
+    controller: sessionsController,
+    cache: cachedSessions ? { sessions: cachedSessions, lastLoadedAt } : null,
+    hydrate: hydrateSessionsCache,
+  });
 
   const [filterText, setFilterText] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const loading = sessionsLoading || actionLoading;
-  const [error, setError] = useState<string | null>(null);
+  const error = sessionsState?.error ?? (!backend ? 'No active connection' : null);
   const [agentPickerVisible, setAgentPickerVisible] = useState(false);
   const { availableAgents, agentLoading, ensureAgentsLoaded, setAgentLoading } =
     useSessionAgents();
@@ -128,19 +123,15 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 
 	  const loadSessions = useCallback(async () => {
     if (!sessionsController) {
-      const message = 'No active connection';
-      setError(message);
-      Alert.alert('Error', message);
+      Alert.alert('Error', 'No active connection');
       return;
     }
     try {
       const list = await sessionsController.load({ force: true });
       onUpdateCache(list);
-      setError(null);
     } catch (err: any) {
       console.log('Failed to load sessions', err);
       const message = err?.message || 'Failed to load sessions';
-      setError(message);
       Alert.alert('Error', message);
     }
 	  }, [sessionsController, onUpdateCache]);
@@ -159,44 +150,35 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 	        dialogValues: Record<string, any> | undefined,
 	      ) => {
 	        if (!backend) {
-	          const message = 'No active connection';
-	          setError(message);
-	          Alert.alert('Error', message);
+	          Alert.alert('Error', 'No active connection');
 	          return;
 	        }
 
 	        setActionLoading(true);
 	        try {
-	          const { ok, response } = await executeApplicationAction(
+	          const { ok, effects, errorMessage } = await runApplicationAction({
 	            backend,
 	            element,
 	            actionsById,
-	            {
+	            context: {
 	              sessionId: session.session_id,
 	              sessionSummary: session,
 	              dialogValues,
 	            },
-	          );
-	          if (!ok) return;
-
-	          const result: any = (response as any)?.result || {};
-	          const selectedId = result.selected_session_id;
-	          if (typeof selectedId === 'string' && selectedId) {
-	            navigateToSession(selectedId);
+	            effects: { reloadSessionsListOnMutations: true },
+	          });
+	          if (!ok) {
+	            Alert.alert('Action error', errorMessage || 'Failed to execute action');
 	            return;
 	          }
 
-	          const createdIds: string[] = Array.isArray(result.created_session_ids)
-	            ? (result.created_session_ids as string[])
-	            : [];
-	          const updatedIds: string[] = Array.isArray(result.updated_session_ids)
-	            ? (result.updated_session_ids as string[])
-	            : [];
-	          const deletedIds: string[] = Array.isArray(result.deleted_session_ids)
-	            ? (result.deleted_session_ids as string[])
-	            : [];
-
-	          if (createdIds.length || updatedIds.length || deletedIds.length) {
+	          for (const effect of effects) {
+	            if (effect.type === 'navigateToSession') {
+	              navigateToSession(effect.sessionId);
+	              return;
+	            }
+	          }
+	          if (effects.some((effect) => effect.type === 'reloadSessionsList')) {
 	            await loadSessions();
 	          }
 	        } finally {
@@ -219,16 +201,17 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     if (!isActive) return;
     if (!sessionsController) return;
 
-    const now = Date.now();
-    const hasTimestamp = lastLoadedAt != null;
-    const isStale = hasTimestamp && now - lastLoadedAt > 30000;
-
-    if (!hasTimestamp || isStale) {
-      loadSessions().catch(() => {
-        // Error is already handled inside loadSessions.
+    sessionsController
+      .loadIfStale({ staleMs: 30000 })
+      .then((list) => {
+        if (list) {
+          onUpdateCache(list);
+        }
+      })
+      .catch(() => {
+        // Error is handled in controller + via Alert in manual reload flows.
       });
-    }
-  }, [isActive, sessionsController, lastLoadedAt, loadSessions]);
+  }, [isActive, sessionsController, onUpdateCache]);
 
   useEffect(() => {
     if (isActive) return;
@@ -238,9 +221,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const createSessionWithAgent = async (agentId: string | null) => {
     setAgentPickerVisible(false); // Fix: If we don't close the picker first, the SessionsScreen become unresponsive.
     if (!sessionsController || !backend) {
-      const message = 'No active connection';
-      setError(message);
-      Alert.alert('Error', message);
+      Alert.alert('Error', 'No active connection');
       return;
     }
     let chosenAgent = agentId && agentId.trim() ? agentId.trim() : '';
@@ -290,9 +271,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 
       if (action === 'agentSwitch') {
         if (!backend) {
-          const message = 'No active connection';
-          setError(message);
-          Alert.alert('Error', message);
+	          Alert.alert('Error', 'No active connection');
           return;
         }
         setAgentSwitchSessionId(s.session_id);
@@ -348,27 +327,8 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     [sessionListActions],
   );
 
-  const titleFields = useMemo(
-    () =>
-      (sessionListFields || [])
-        .filter((el) => (el as any).role === 'title')
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
-    [sessionListFields],
-  );
-
-  const subtitleFields = useMemo(
-    () =>
-      (sessionListFields || [])
-        .filter((el) => (el as any).role === 'subtitle')
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
-    [sessionListFields],
-  );
-
-  const metaFields = useMemo(
-    () =>
-      (sessionListFields || [])
-        .filter((el) => (el as any).role === 'meta')
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+  const sessionListFieldGroups = useMemo(
+    () => groupSessionListFields(sessionListFields || []),
     [sessionListFields],
   );
 
@@ -384,57 +344,11 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const renderSessionItem = (s: SessionSummary) => {
     const modifiedDate = new Date(s.modified * 1000);
     const modifiedLabel = modifiedDate.toLocaleString();
-    const deriveTitle = (): string => {
-      for (const field of titleFields) {
-        const path = field.data;
-        if (typeof path !== 'string' || !path) continue;
-        const value = extractByPath(s, path);
-        if (value === null || value === undefined || value === '') continue;
-        const text = renderTemplate(field.template, value);
-        if (text) return text;
-      }
-      if (s.preview && s.preview.trim()) {
-        return s.preview;
-      }
-      return `Session ${s.session_id.slice(0, 8)}`;
-    };
 
-    const deriveSubtitle = (): string | null => {
-      for (const field of subtitleFields) {
-        const path = field.data;
-        if (typeof path !== 'string' || !path) continue;
-        const value = extractByPath(s, path);
-        if (value === null || value === undefined || value === '') continue;
-        const text = renderTemplate(field.template, value);
-        if (text) return text;
-      }
-      return null;
-    };
-
-    const deriveMeta = (): string | null => {
-      const parts: string[] = [];
-      for (const field of metaFields) {
-        const path = field.data;
-        if (typeof path !== 'string' || !path) continue;
-        const rawValue = extractByPath(s, path);
-        let valueForTemplate: any = rawValue;
-        const meta = (field as any).metadata || {};
-        if (meta.format === 'datetime' && typeof rawValue === 'number') {
-          const d = new Date(rawValue * 1000);
-          valueForTemplate = d.toLocaleString();
-        }
-        if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') continue;
-        const text = renderTemplate(field.template, valueForTemplate);
-        if (!text) continue;
-        parts.push(text);
-      }
-      if (parts.length === 0) return null;
-      return parts.join(' · ');
-    };
-
-    const title = deriveTitle();
-    const subtitle = deriveSubtitle();
-    const metaText = deriveMeta();
+	    const presentation = deriveSessionListPresentationFromGroups(s, sessionListFieldGroups);
+	    const title = presentation.title;
+	    const subtitle = presentation.subtitle;
+	    const metaText = presentation.meta;
 
     const isPinned = !!s.pinned;
     const pinnedToggleElement = sessionListPinnedToggles[0];
@@ -470,9 +384,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
               style={styles.pinIconButton}
               onPress={() => {
                 if (!backend) {
-                  const message = 'No active connection';
-                  setError(message);
-                  Alert.alert('Error', message);
+                  Alert.alert('Error', 'No active connection');
                   return;
                 }
                 openPluginDialogForElement(pinnedToggleElement, s);

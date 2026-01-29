@@ -45,6 +45,8 @@ export {
 
 export { selectDisplayContent } from './utils/messages';
 
+export { parseOptionalInt, parseIndexRangeText } from './utils/range';
+
 export type {
   Transport,
   HttpMethod,
@@ -64,11 +66,29 @@ export { PollingEventSource } from './events/pollingEventSource';
 export type { PluginsResult, PluginsRegistryState } from './plugins/pluginsRegistry';
 export { PluginsRegistry } from './plugins/pluginsRegistry';
 
+export type { ActionEffect, RunActionResult, RunActionContext, RunActionEffectsOptions } from './plugins/actionRunner';
+export { runApplicationAction, getRunActionErrorMessage } from './plugins/actionRunner';
+
 export type { SessionsControllerState } from './sessions/sessionsController';
 export { SessionsController } from './sessions/sessionsController';
 
+export type {
+  SessionListFieldGroups,
+  SessionListPresentation,
+} from './sessions/sessionListPresentation';
+export {
+  groupSessionListFields,
+  deriveSessionListPresentation,
+  deriveSessionListPresentationFromGroups,
+} from './sessions/sessionListPresentation';
+
 export type { ChatControllerState, StreamingRow, RequestErrorState } from './chat/chatController';
 export { ChatController } from './chat/chatController';
+
+export { selectLastAssistantMessage, deriveChatStatusBarParts } from './chat/presentation';
+
+export type { SessionUiSchemaControllerState } from './uiSchema/sessionUiSchemaController';
+export { SessionUiSchemaController } from './uiSchema/sessionUiSchemaController';
 
 export type {
   AgentBackend,

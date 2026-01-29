@@ -15,7 +15,22 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Clipboard from '@react-native-clipboard/clipboard';
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
+import {
+  deriveChatStatusBarParts,
+  deriveSessionListPresentationFromGroups,
+  filterFooterElements,
+  filterStatusBarElements,
+  groupSessionListFields,
+  parseIndexRangeText,
+  parseOptionalInt,
+  runApplicationAction,
+  selectLastAssistantMessage,
+} from '@crystal-lattice/frontend-sdk';
 import { useChatController } from '@crystal-lattice/frontend-sdk-react';
+import {
+  useHydrateControllerFromCache,
+  useSessionUiSchemaController,
+} from '@crystal-lattice/frontend-sdk-react';
 import {
   type ApiMessage,
   type IndexedMessage,
@@ -33,9 +48,7 @@ import { SESSION_ACTIONS, type SessionActionKey } from './sessionActions';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 import { selectDisplayContent } from './messageUtils';
 import { useTheme, type Theme } from './theme';
-import { extractByPath, renderTemplate } from './uiSchemaUtils';
 import { useApplicationPlugins } from './ApplicationPluginsContext';
-import { executeApplicationAction } from './applicationActionsExecutor';
 import { usePersistentPinnedActions } from './usePersistentPinnedActions';
 import { useSessionAgents } from './useSessionAgents';
 import { usePluginActionDialog } from './usePluginActionDialog';
@@ -115,14 +128,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingText, setEditingText] = useState('');
   const [shouldAutoScroll, setShouldAutoScroll] = useState(false);
-  const [initialCheckpointId, setInitialCheckpointId] = useState<string | null>(
-    cachedCursorEventId,
-  );
-  const [snapshotReady, setSnapshotReady] = useState<boolean>(!!cachedMessages);
   const [debugVisible, setDebugVisible] = useState(false);
   const [debugEvents, setDebugEvents] = useState<Event[]>([]);
   const [settingsVisible, setSettingsVisible] = useState(false);
-  const [uiSchemaElements, setUiSchemaElements] = useState<UiSchemaElement[]>([]);
   const [pluginActionInProgress, setPluginActionInProgress] = useState(false);
   const {
     actionsById,
@@ -135,7 +143,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const scrollOffsetRef = useRef<number>(initialScrollOffset || 0);
   const hasRestoredScrollRef = useRef(false);
   const hasAutoScrolledRef = useRef(false);
-  const hasHydratedCacheRef = useRef(false);
 
   const appendEventsToDebugBuffer = useCallback((events: Event[]) => {
     if (!events || events.length === 0) return;
@@ -146,15 +153,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     });
   }, []);
 
-  const eventsEnabled = !!(backend && sessionId && snapshotReady);
   const { controller: chatController, state: chatState } = useChatController({
     backend,
     sessionId,
     initialMessages: cachedMessages ?? [],
     initialCursorEventId: cachedCursorEventId ?? null,
-    eventsEnabled,
-    initialSinceId: initialCheckpointId,
     onEvents: appendEventsToDebugBuffer,
+    eventsEnabled: !!(backend && sessionId && isActive),
   });
 
   const messages: IndexedMessage[] = chatState?.messages ?? cachedMessages ?? [];
@@ -163,27 +168,23 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const activeError = chatState?.requestError ?? null;
   const loadingMessages = chatState?.loading ?? false;
 
-  useEffect(() => {
-    hasHydratedCacheRef.current = false;
-  }, [chatController]);
+  const hydrateChatCache = useCallback(
+    (
+      controller: NonNullable<typeof chatController>,
+      cache: { messages: IndexedMessage[]; cursorEventId: string | null },
+    ) => {
+      controller.hydrateFromCache(cache);
+    },
+    [],
+  );
 
-  useEffect(() => {
-    if (!chatController) {
-      return;
-    }
-    if (hasHydratedCacheRef.current) {
-      return;
-    }
-    if (cachedMessages == null) {
-      return;
-    }
-
-    chatController.hydrateFromCache({
-      messages: cachedMessages,
-      cursorEventId: cachedCursorEventId ?? null,
-    });
-    hasHydratedCacheRef.current = true;
-  }, [chatController, cachedMessages, cachedCursorEventId]);
+  useHydrateControllerFromCache({
+    controller: chatController,
+    cache: cachedMessages
+      ? { messages: cachedMessages, cursorEventId: cachedCursorEventId ?? null }
+      : null,
+    hydrate: hydrateChatCache,
+  });
 
   useEffect(() => {
     composeTextRef.current = composeText;
@@ -235,30 +236,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     loadPinnedFromStorage();
   }, []);
 
-  useEffect(() => {
-    if (!backend) {
-      setUiSchemaElements([]);
-      return;
-    }
-    let cancelled = false;
-    const loadSchema = async () => {
-      try {
-        const els = await backend.getSessionUiSchema(sessionId);
-        if (!cancelled) {
-          setUiSchemaElements(Array.isArray(els) ? els : []);
-        }
-      } catch (err) {
-        console.log('Failed to load UI schema for session', err);
-        if (!cancelled) {
-          setUiSchemaElements([]);
-        }
-      }
-    };
-    loadSchema();
-    return () => {
-      cancelled = true;
-    };
-  }, [backend, sessionId]);
+  const { state: sessionUiSchemaState } = useSessionUiSchemaController({
+    backend,
+    cacheKey: connectionId ?? 'default',
+    sessionId,
+    enabled: !!(backend && isActive),
+  });
+  const uiSchemaElements = sessionUiSchemaState?.elements ?? [];
 
   const pluginSessionActionDefs = useMemo(
     () =>
@@ -295,33 +279,19 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       return;
     }
     try {
-		      let start: number | undefined;
-		      let end: number | undefined;
-		      const startTrimmed = rangeStartText.trim();
-		      const endTrimmed = rangeEndText.trim();
-		      if (startTrimmed) {
-		        const parsed = parseInt(startTrimmed, 10);
-		        if (!Number.isNaN(parsed)) {
-		          start = parsed;
-		        }
-		      }
-		      if (endTrimmed) {
-		        const parsedEnd = parseInt(endTrimmed, 10);
-		        if (!Number.isNaN(parsedEnd)) {
-		          end = parsedEnd;
-		        }
-		      }
+		      const { start, end } = parseIndexRangeText({
+		        startText: rangeStartText,
+		        endText: rangeEndText,
+		      });
 
 	    await chatController.loadMessages({ start, end });
 	    const snapshot = chatController.getSnapshot();
-	    setInitialCheckpointId(snapshot.cursorEventId ?? null);
 		      if (!hasAutoScrolledRef.current) {
 		        setShouldAutoScroll(true);
 		        hasAutoScrolledRef.current = true;
 		      }
 		      setLastReloadAt(new Date());
 	    onUpdateCache(snapshot.messages, snapshot.cursorEventId ?? null);
-      setSnapshotReady(true);
     } catch (err: any) {
       console.log('Failed to load messages', err);
       const message = err?.message || 'Failed to load messages';
@@ -350,41 +320,39 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         setPluginActionInProgress(true);
         try {
           const isMessage = context.kind === 'message';
-          const { ok, response } = await executeApplicationAction(
-            backend,
-            element,
-            actionsById,
-            {
-              sessionId,
-              messageContext: isMessage
-                ? { index: (context as any).index, message: (context as any).message }
-                : undefined,
-              dialogValues,
-            },
-          );
-          if (!ok) return;
+	          const { ok, effects, errorMessage } = await runApplicationAction({
+	            backend,
+	            element,
+	            actionsById,
+	            context: {
+	              sessionId,
+	              messageContext: isMessage
+	                ? { index: (context as any).index, message: (context as any).message }
+	                : undefined,
+	              dialogValues,
+	            },
+	            effects: {
+	              currentSessionId: sessionId,
+	              navigateOnCreatedSession: true,
+	              reloadSessionOnUpdated: true,
+	            },
+	          });
+	          if (!ok) {
+	            Alert.alert('Action error', errorMessage || 'Failed to execute action');
+	            return;
+	          }
 
-          const result: any = (response as any)?.result || {};
-          const created: string[] = Array.isArray(result.created_session_ids)
-            ? (result.created_session_ids as string[])
-            : [];
-          const selectedId: string | undefined =
-            typeof result.selected_session_id === 'string'
-              ? result.selected_session_id
-              : created.length > 0 && typeof created[0] === 'string'
-              ? created[0]
-              : undefined;
-          if (selectedId && onNavigateToSession) {
-            onNavigateToSession(selectedId);
-            return;
-          }
-
-          const updated: string[] = Array.isArray(result.updated_session_ids)
-            ? (result.updated_session_ids as string[])
-            : [];
-          if (updated.includes(sessionId)) {
-            await loadMessages();
-          }
+	          for (const effect of effects) {
+	            if (effect.type === 'navigateToSession') {
+	              if (onNavigateToSession) {
+	                onNavigateToSession(effect.sessionId);
+	              }
+	              return;
+	            }
+	          }
+	          if (effects.some((effect) => effect.type === 'reloadSession')) {
+	            await loadMessages();
+	          }
         } finally {
           setPluginActionInProgress(false);
         }
@@ -417,13 +385,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       setLastReloadAt(new Date(lastLoadedAt));
     }
   }, [cachedMessages, connectionId, sessionId, lastLoadedAt]);
-
-  useEffect(() => {
-    if (sessionId && connectionId !== null) {
-      setInitialCheckpointId(cachedCursorEventId ?? null);
-      setSnapshotReady(!!cachedMessages);
-    }
-  }, [cachedCursorEventId, cachedMessages, sessionId, connectionId]);
 
   useEffect(() => {
     if (!cachedMessages && chatController) {
@@ -542,22 +503,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
   };
   const confirmDeleteRange = async () => {
-    const startTrimmed = deleteRangeStartText.trim();
-    const endTrimmed = deleteRangeEndText.trim();
-    let start: number | undefined;
-    let end: number | undefined;
-    if (startTrimmed) {
-      const parsed = parseInt(startTrimmed, 10);
-      if (!Number.isNaN(parsed)) {
-        start = parsed;
-      }
-    }
-    if (endTrimmed) {
-      const parsedEnd = parseInt(endTrimmed, 10);
-      if (!Number.isNaN(parsedEnd)) {
-        end = parsedEnd;
-      }
-    }
+	    const start = parseOptionalInt(deleteRangeStartText);
+	    const end = parseOptionalInt(deleteRangeEndText);
     if (start === undefined && end === undefined) {
       Alert.alert('Invalid range', 'Provide at least a start or end index.');
       return;
@@ -765,93 +712,53 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
   };
 
-	  const titleFields = useMemo(
-	    () =>
-	      (sessionListFields || [])
-	        .filter((el) => (el as any).role === 'title')
-	        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+
+	  const sessionListFieldGroups = useMemo(
+	    () => groupSessionListFields(sessionListFields || []),
 	    [sessionListFields],
 	  );
 
 	  const sessionLabel = `Session ${sessionId.slice(0, 8)}`;
 
 	  const sessionHeaderTitle = useMemo(() => {
-	    if (sessionSummary) {
-	      for (const field of titleFields) {
-	        const path = field.data;
-	        if (typeof path !== 'string' || !path) continue;
-	        const value = extractByPath(sessionSummary as any, path);
-	        if (value === undefined || value === null || value === '') continue;
-	        const text = renderTemplate(field.template ?? '{{data}}', value);
-	        if (text) return text;
-	      }
+	    if (!sessionSummary) {
+	      return sessionLabel;
 	    }
-	    return sessionLabel;
-	  }, [sessionSummary, titleFields, sessionLabel]);
+	    return deriveSessionListPresentationFromGroups(sessionSummary, sessionListFieldGroups).title;
+	  }, [sessionSummary, sessionListFieldGroups, sessionLabel]);
 
 	  const footerElements = useMemo(
-	    () =>
-	      (uiSchemaElements || []).filter(
-	        (el) => el && el.ui_type === 'message_footer' && typeof el.data === 'string' && el.data,
-	      ),
+	    () => filterFooterElements(uiSchemaElements),
 	    [uiSchemaElements],
 	  );
 
 	  const statusBarElements = useMemo(
-	    () =>
-	      (uiSchemaElements || []).filter(
-	        (el) => el && el.ui_type === 'status_bar' && typeof el.data === 'string' && el.data,
-	      ),
+	    () => filterStatusBarElements(uiSchemaElements),
 	    [uiSchemaElements],
 	  );
 
-	  const lastAssistantMessage = useMemo(() => {
-	    if (streamingRow && (streamingRow.content || streamingRow.reasoning)) {
-	      return {
-	        role: 'assistant',
-	        content: streamingRow.content,
-	        metadata: streamingRow.metadata || {},
-	      } as ApiMessage;
-	    }
-	    for (let i = messages.length - 1; i >= 0; i -= 1) {
-	      const m = messages[i].message;
-	      if ((m.role || 'unknown') === 'assistant') {
-	        return m;
-	      }
-	    }
-	    return null;
-	  }, [messages, streamingRow]);
+	  const lastAssistantMessage = useMemo(
+	    () => selectLastAssistantMessage({ messages, streamingRow }),
+	    [messages, streamingRow],
+	  );
 
-	  const statusBarParts = useMemo(() => {
-	    const parts: string[] = [];
-	    const agentLabel =
-	      sessionAgentId &&
-	      sessionAgentId !== 'default' &&
-	      availableAgents.includes(sessionAgentId)
-	        ? sessionAgentId
-	        : null;
-	    if (agentLabel) {
-	      parts.push(`Agent: ${agentLabel}`);
-	    }
-	    parts.push(`Session: ${sessionId.slice(0, 8)}`);
-	    if (!lastAssistantMessage || !statusBarElements.length) {
-	      return parts;
-	    }
-	    statusBarElements.forEach((el) => {
-	      if (!el || el.ui_type !== 'status_bar') return;
-	      const value = extractByPath(lastAssistantMessage, el.data);
-	      if (value === undefined || value === null || value === '') return;
-	      const text = renderTemplate(el.template ?? '{{data}}', value);
-	      if (text) parts.push(text);
-	    });
-	    return parts;
-	  }, [
-	    lastAssistantMessage,
-	    statusBarElements,
-	    sessionAgentId,
-	    availableAgents,
-	    sessionId,
-	  ]);
+	  const statusBarParts = useMemo(
+	    () =>
+	      deriveChatStatusBarParts({
+	        sessionId,
+	        sessionAgentId,
+	        availableAgents,
+	        lastAssistantMessage,
+	        statusBarElements,
+	      }),
+	    [
+	      sessionId,
+	      sessionAgentId,
+	      availableAgents,
+	      lastAssistantMessage,
+	      statusBarElements,
+	    ],
+	  );
 
 	  return (
 	    <KeyboardAvoidingView
