@@ -40,16 +40,23 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
   private backend: AgentBackend;
   private eventSource: PollingEventSource | null = null;
   private readonly sessionId: string;
+  private onEventsListener: ((events: Event[]) => void) | null = null;
 
-  constructor(options: { backend: AgentBackend; sessionId: string }) {
+  constructor(options: {
+    backend: AgentBackend;
+    sessionId: string;
+    initialMessages?: IndexedMessage[];
+    initialCursorEventId?: string | null;
+    initialActiveRequestId?: string | null;
+  }) {
     super({
       sessionId: options.sessionId,
       loading: false,
-      messages: [],
-      cursorEventId: null,
-      lastEventId: null,
+      messages: options.initialMessages ?? [],
+      cursorEventId: options.initialCursorEventId ?? null,
+      lastEventId: options.initialCursorEventId ?? null,
       eventsStatus: 'idle',
-      activeRequestId: null,
+      activeRequestId: options.initialActiveRequestId ?? null,
       streamingRow: null,
       requestError: null,
     });
@@ -59,6 +66,40 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
 
   dispose(): void {
     this.stopEventStreaming();
+  }
+
+  setEventsListener(listener: ((events: Event[]) => void) | null): void {
+    this.onEventsListener = listener;
+  }
+
+  clearRequestState(): void {
+    const current = this.getSnapshot();
+    this.setSnapshot({
+      ...current,
+      requestError: null,
+      streamingRow: null,
+    });
+  }
+
+  hydrateFromCache(options: {
+    messages: IndexedMessage[];
+    cursorEventId: string | null;
+    activeRequestId?: string | null;
+  }): void {
+    const current = this.getSnapshot();
+    if (current.loading) {
+      return;
+    }
+
+    this.setSnapshot({
+      ...current,
+      messages: options.messages,
+      cursorEventId: options.cursorEventId,
+      lastEventId: options.cursorEventId,
+      activeRequestId: options.activeRequestId ?? current.activeRequestId,
+      requestError: null,
+      streamingRow: null,
+    });
   }
 
   async loadMessages(params?: { start?: number; end?: number }): Promise<void> {
@@ -124,6 +165,9 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
       sessionId: this.sessionId,
       initialSinceId: options.initialSinceId,
       onEvents: (events) => {
+        if (this.onEventsListener) {
+          this.onEventsListener(events);
+        }
         this.applyEvents(events);
         this.setSnapshot({
           ...this.getSnapshot(),
