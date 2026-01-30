@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import type {
   ConnectionRecord,
@@ -12,6 +12,7 @@ import ConnectionsScreen from './ConnectionsScreen';
 import SessionsScreen from './SessionsScreen';
 import type { SessionSummary, IndexedMessage } from './api';
 import SessionChatScreen from './SessionChatScreen';
+import type { ChatScrollAnchor } from './chatScroll';
 import { useTheme, type Theme } from './theme';
 import { ApplicationPluginsProvider } from './ApplicationPluginsContext';
 
@@ -42,10 +43,10 @@ interface ConnectedRootProps {
     sessionId: string,
     composeText: string,
   ) => void;
-  onSaveMessagesScrollOffset: (
+  onSaveMessagesScrollAnchor: (
     connectionId: string,
     sessionId: string,
-    scrollOffset: number,
+    scrollAnchor: ChatScrollAnchor,
   ) => void;
 }
 
@@ -67,7 +68,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   messagesCache,
   onUpdateMessagesCache,
   onSaveMessagesComposeText,
-  onSaveMessagesScrollOffset,
+  onSaveMessagesScrollAnchor,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -241,6 +242,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
 
               return (
                 <SessionChatScreen
+                  key={selectedSessionId}
                   backend={backend}
                   connectionId={connectionId}
                   isActive={tab === 'messages'}
@@ -250,7 +252,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                   lastLoadedAt={cacheEntry?.lastLoadedAt ?? null}
                   cachedCursorEventId={cacheEntry?.cursorEventId ?? null}
                   initialComposeText={cacheEntry?.composeText ?? ''}
-                  initialScrollOffset={cacheEntry?.scrollOffset ?? 0}
+                  initialScrollAnchor={cacheEntry?.scrollAnchor ?? null}
                   onUpdateCache={(list: IndexedMessage[], cursorEventId: string | null) => {
                     if (connectionId) {
                       onUpdateMessagesCache(
@@ -274,10 +276,10 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                       onSaveMessagesComposeText(connectionId, selectedSessionId, composeText);
                     }
                   }}
-                  onSaveScrollOffset={(scrollOffset) => {
+                  onSaveScrollAnchor={(scrollAnchor) => {
                     const connectionId = activeConnectionId;
                     if (connectionId) {
-                      onSaveMessagesScrollOffset(connectionId, selectedSessionId, scrollOffset);
+                      onSaveMessagesScrollAnchor(connectionId, selectedSessionId, scrollAnchor);
                     }
                   }}
                 />
