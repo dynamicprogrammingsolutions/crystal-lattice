@@ -26,6 +26,7 @@ import {
 import ConnectedRoot from './src/ConnectedRoot';
 import { getConnectionAdditionalInfo } from './src/connectionInfo';
 import type { SessionSummary, IndexedMessage } from './src/api';
+import type { ChatScrollAnchor } from './src/chatScroll';
 import { ThemeProvider, lightTheme, darkTheme, type Theme } from './src/theme';
 import { PinnedActionsProvider } from './src/PinnedActionsContext';
 
@@ -92,7 +93,7 @@ export interface MessagesCacheEntry {
   lastLoadedAt: number | null;
   cursorEventId?: string | null;
   composeText?: string;
-  scrollOffset?: number;
+  scrollAnchor?: ChatScrollAnchor;
 }
 
 export type MessagesBySession = Record<string, MessagesCacheEntry>;
@@ -342,7 +343,6 @@ function App(): React.JSX.Element {
             messages: [],
             lastLoadedAt: null,
             composeText,
-            scrollOffset: 0,
           };
 
       return {
@@ -355,10 +355,10 @@ function App(): React.JSX.Element {
     });
   };
 
-  const saveMessagesScrollOffset = (
+  const saveMessagesScrollAnchor = (
     connectionId: string,
     sessionId: string,
-    scrollOffset: number,
+    scrollAnchor: ChatScrollAnchor,
   ) => {
     setMessagesCache((prev) => {
       const bySession = prev[connectionId] ?? {};
@@ -367,7 +367,7 @@ function App(): React.JSX.Element {
       const entry: MessagesCacheEntry = existing
         ? {
             ...existing,
-            scrollOffset,
+            scrollAnchor,
           }
         : {
             connectionId,
@@ -375,7 +375,7 @@ function App(): React.JSX.Element {
             messages: [],
             lastLoadedAt: null,
             composeText: '',
-            scrollOffset,
+            scrollAnchor,
           };
 
       return {
@@ -1014,7 +1014,7 @@ function App(): React.JSX.Element {
               messagesCache={messagesCache}
               onUpdateMessagesCache={updateMessagesCache}
               onSaveMessagesComposeText={saveMessagesComposeText}
-              onSaveMessagesScrollOffset={saveMessagesScrollOffset}
+              onSaveMessagesScrollAnchor={saveMessagesScrollAnchor}
             />
           );
           })()}

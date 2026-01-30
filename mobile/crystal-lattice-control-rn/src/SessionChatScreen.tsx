@@ -2,10 +2,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   KeyboardAvoidingView,
   Modal,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -45,6 +45,12 @@ import AgentSwitchModal from './components/AgentSwitchModal';
 import { SESSION_ACTIONS, type SessionActionKey } from './sessionActions';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 import { selectDisplayContent } from './messageUtils';
+import {
+  createChatScrollAnchor,
+  isChatScrollAnchor,
+  PINNED_TO_BOTTOM_THRESHOLD_PX,
+  type ChatScrollAnchor,
+} from './chatScroll';
 import { useTheme, type Theme } from './theme';
 import { useApplicationPlugins } from './ApplicationPluginsContext';
 import { usePersistentPinnedActions } from './usePersistentPinnedActions';
@@ -64,9 +70,9 @@ interface SessionChatScreenProps {
   onBack: () => void;
   onNavigateToSession?: (sessionId: string) => void;
   initialComposeText: string;
-  initialScrollOffset: number;
+  initialScrollAnchor: ChatScrollAnchor | null;
   onSaveComposeText: (composeText: string) => void;
-  onSaveScrollOffset: (scrollOffset: number) => void;
+  onSaveScrollAnchor: (scrollAnchor: ChatScrollAnchor) => void;
 }
 
 const STORAGE_KEY_SESSION_ACTIONS = 'clc_pinned_session_actions_v1';
@@ -89,9 +95,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   onBack,
   onNavigateToSession,
   initialComposeText,
-  initialScrollOffset,
+  initialScrollAnchor,
   onSaveComposeText,
-  onSaveScrollOffset,
+  onSaveScrollAnchor,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -130,7 +136,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   >({});
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingText, setEditingText] = useState('');
-  const [shouldAutoScroll, setShouldAutoScroll] = useState(false);
   const [debugVisible, setDebugVisible] = useState(false);
   const [debugEvents, setDebugEvents] = useState<Event[]>([]);
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -141,11 +146,39 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     messageActions: pluginMessageActions,
     sessionListFields,
   } = useApplicationPlugins();
-  const scrollViewRef = useRef<ScrollView | null>(null);
+
+  type ChatRow =
+    | { kind: 'status'; key: string; parts: string[] }
+    | { kind: 'stream'; key: string }
+    | { kind: 'message'; key: string; indexedMessage: IndexedMessage };
+
+  const listRef = useRef<FlatList<ChatRow> | null>(null);
   const composeTextRef = useRef<string>(initialComposeText ?? '');
-  const scrollOffsetRef = useRef<number>(initialScrollOffset || 0);
+  const onSaveComposeTextRef = useRef(onSaveComposeText);
+  const onSaveScrollAnchorRef = useRef(onSaveScrollAnchor);
+  const bottomGapPxRef = useRef<number>(0);
+  const pinnedToBottomRef = useRef<boolean>(true);
+  const initialScrollAnchorRef = useRef<ChatScrollAnchor | null>(
+    isChatScrollAnchor(initialScrollAnchor) ? initialScrollAnchor : null,
+  );
   const hasRestoredScrollRef = useRef(false);
-  const hasAutoScrolledRef = useRef(false);
+
+  useEffect(() => {
+    onSaveComposeTextRef.current = onSaveComposeText;
+  }, [onSaveComposeText]);
+
+  useEffect(() => {
+    onSaveScrollAnchorRef.current = onSaveScrollAnchor;
+  }, [onSaveScrollAnchor]);
+
+  useEffect(() => {
+    if (hasRestoredScrollRef.current) {
+      return;
+    }
+    initialScrollAnchorRef.current = isChatScrollAnchor(initialScrollAnchor)
+      ? initialScrollAnchor
+      : null;
+  }, [initialScrollAnchor]);
 
   const appendEventsToDebugBuffer = useCallback((events: Event[]) => {
     if (!events || events.length === 0) return;
@@ -283,17 +316,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       return;
     }
     try {
-	    await chatController.loadMessagesFromRangeText({
-	      startText: rangeStartText,
-	      endText: rangeEndText,
-	    });
-	    const snapshot = chatController.getSnapshot();
-		      if (!hasAutoScrolledRef.current) {
-		        setShouldAutoScroll(true);
-		        hasAutoScrolledRef.current = true;
-		      }
-		      setLastReloadAt(new Date());
-	    onUpdateCache(snapshot.messages, snapshot.cursorEventId ?? null);
+	  await chatController.loadMessagesFromRangeText({
+	    startText: rangeStartText,
+	    endText: rangeEndText,
+	  });
+	  const snapshot = chatController.getSnapshot();
+	  setLastReloadAt(new Date());
+	  onUpdateCache(snapshot.messages, snapshot.cursorEventId ?? null);
     } catch (err: any) {
       console.log('Failed to load messages', err);
       const message = err?.message || 'Failed to load messages';
@@ -408,13 +437,30 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     saveMessagePinned();
   }, [pinnedMessageActionsByRole]);
 
-  useEffect(() => {
-    // Persist UI state when this screen is unmounted.
-    return () => {
-      onSaveComposeText(composeTextRef.current);
-      onSaveScrollOffset(scrollOffsetRef.current);
-    };
+  const persistScrollAnchor = useCallback(() => {
+    onSaveScrollAnchorRef.current(
+      createChatScrollAnchor({
+        bottomGapPx: bottomGapPxRef.current,
+        pinnedToBottom: pinnedToBottomRef.current,
+      }),
+    );
   }, []);
+
+  const persistUiState = useCallback(() => {
+    onSaveComposeTextRef.current(composeTextRef.current);
+    persistScrollAnchor();
+  }, [persistScrollAnchor]);
+
+  useEffect(() => {
+    return () => {
+      persistUiState();
+    };
+  }, [persistUiState]);
+
+  useEffect(() => {
+    if (isActive) return;
+    persistUiState();
+  }, [isActive, persistUiState]);
 
   const handleAppend = async () => {
     const text = composeText.trim();
@@ -764,6 +810,49 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	    ],
 	  );
 
+	  const chatRows = useMemo<ChatRow[]>(() => {
+	    const rows: ChatRow[] = [
+	      { kind: 'status', key: 'row-status', parts: statusBarParts },
+	      { kind: 'stream', key: 'row-stream' },
+	    ];
+	    for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
+	      const indexedMessage = messages[idx];
+	      rows.push({
+	        kind: 'message',
+	        key: `msg-${indexedMessage.index}`,
+	        indexedMessage,
+	      });
+	    }
+	    return rows;
+	  }, [messages, statusBarParts, streamingRow]);
+
+	  const handleListScroll = useCallback((event: any) => {
+	    const offset = event?.nativeEvent?.contentOffset?.y;
+	    if (typeof offset !== 'number' || !Number.isFinite(offset)) {
+	      return;
+	    }
+	    bottomGapPxRef.current = Math.max(0, offset);
+	    pinnedToBottomRef.current =
+	      bottomGapPxRef.current <= PINNED_TO_BOTTOM_THRESHOLD_PX;
+	  }, []);
+
+	  const maybeRestoreScroll = useCallback(() => {
+	    if (hasRestoredScrollRef.current) {
+	      return;
+	    }
+	    const list = listRef.current;
+	    if (!list) {
+	      return;
+	    }
+	
+	    const anchor = initialScrollAnchorRef.current;
+	    const offset = anchor && !anchor.pinnedToBottom ? anchor.bottomGapPx : 0;
+	    list.scrollToOffset({ offset, animated: false });
+	    bottomGapPxRef.current = offset;
+	    pinnedToBottomRef.current = offset <= PINNED_TO_BOTTOM_THRESHOLD_PX;
+	    hasRestoredScrollRef.current = true;
+	  }, []);
+
 	  return (
 	    <KeyboardAvoidingView
 	      style={styles.keyboardAvoiding}
@@ -802,93 +891,108 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        </View>
 	      )}
 	
-	      <ScrollView
+	      <FlatList
 	        style={styles.messagesContainer}
-	        ref={scrollViewRef}
-	        onScroll={(event) => {
-	          scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+	        ref={listRef}
+	        data={chatRows}
+	        inverted
+	        onLayout={() => {
+	          maybeRestoreScroll();
 	        }}
 	        onContentSizeChange={() => {
-	          if (
-	            !hasRestoredScrollRef.current &&
-	            typeof initialScrollOffset === 'number' &&
-	            initialScrollOffset > 0 &&
-	            scrollViewRef.current
-	          ) {
-	            scrollViewRef.current.scrollTo({
-	              x: 0,
-	              y: initialScrollOffset,
-	              animated: false,
-	            });
-	            hasRestoredScrollRef.current = true;
-	            return;
-	          }
-	          if (shouldAutoScroll && scrollViewRef.current) {
-	            scrollViewRef.current.scrollToEnd({ animated: false });
-	            setShouldAutoScroll(false);
-	          }
+	          maybeRestoreScroll();
 	        }}
-      >
-      {messages.map((m) => {
-        const role = m.message.role || 'unknown';
-        const allowedActions = ALL_MESSAGE_ACTIONS
-          .filter((def) => def.allowedRoles.includes(role))
-          .map((def) => def.key as MessageActionKey);
-	        const pinnedForRole = getPinnedActionsForRole(role);
-	        const isEditing = editingIndex === m.index;
-	        const defaultModeForRole: 'markdown' | 'raw' =
-	          role === 'assistant' ? 'markdown' : 'raw';
-	        const renderMode = messageViewModeByIndex[m.index] ?? defaultModeForRole;
-	        return (
-            <MessageBubble
-              key={m.index}
-              index={m.index}
-              isActive={isActive}
-              message={m.message}
-              pinnedActions={pinnedForRole}
-              allowedActions={allowedActions}
-              onAction={handleMessageAction}
-              onChangePinnedForRole={handleChangePinnedForRole}
-              isEditing={isEditing}
-              editingText={isEditing ? editingText : undefined}
-              onChangeEditingText={isEditing ? setEditingText : undefined}
-              onSubmitEdit={handleSubmitEditMessage}
-              onCancelEdit={handleCancelEditMessage}
-              renderMode={renderMode}
-              footerElements={footerElements}
-              pluginActionDefs={pluginMessageActionDefs}
-            />
-        );
-      })}
-      {streamingRow && (streamingRow.content || streamingRow.reasoning) && (
-        <MessageBubble
-          key={`stream-${streamingRow.requestId}`}
-          index={messages.length > 0 ? messages[messages.length - 1].index + 1 : 0}
-          isActive={isActive}
-          message={{
-            role: 'assistant',
-            content: streamingRow.content,
-            metadata: {
-              ...(streamingRow.metadata || {}),
-              reasoning: streamingRow.reasoning,
-            },
-          }}
-          pinnedActions={[]}
-          allowedActions={[]}
-          onAction={handleMessageAction}
-          onChangePinnedForRole={handleChangePinnedForRole}
-          isEditing={false}
-          renderMode="markdown"
-          footerElements={footerElements}
-          pluginActionDefs={pluginMessageActionDefs}
-        />
-      )}
-	      {statusBarParts.length > 0 && (
-	        <View style={styles.statusBarContainer}>
-	          <Text style={styles.statusBarText}>{statusBarParts.join('   ')}</Text>
-	        </View>
-	      )}
-      </ScrollView>
+	        onScroll={handleListScroll}
+	        scrollEventThrottle={16}
+	        maintainVisibleContentPosition={{
+	          minIndexForVisible: 0,
+	          autoscrollToTopThreshold: PINNED_TO_BOTTOM_THRESHOLD_PX,
+	        }}
+	        keyExtractor={(row) => row.key}
+	        extraData={{
+	          isActive,
+	          editingIndex,
+	          editingText,
+	          messageViewModeByIndex,
+	          pinnedMessageActionsByRole,
+	          footerElements,
+	          pluginMessageActionDefs,
+	          statusBarParts,
+	          streamingRow,
+	        }}
+	        renderItem={({ item: row }) => {
+	          if (row.kind === 'status') {
+	            if (!row.parts || row.parts.length === 0) {
+	              return null;
+	            }
+	            return (
+	              <View style={styles.statusBarContainer}>
+	                <Text style={styles.statusBarText}>{row.parts.join('   ')}</Text>
+	              </View>
+	            );
+	          }
+	
+	          if (row.kind === 'stream') {
+	            if (!streamingRow || (!streamingRow.content && !streamingRow.reasoning)) {
+	              return null;
+	            }
+	            const streamingIndex =
+	              messages.length > 0 ? messages[messages.length - 1].index + 1 : 0;
+	            return (
+	              <MessageBubble
+	                index={streamingIndex}
+	                isActive={isActive}
+	                message={{
+	                  role: 'assistant',
+	                  content: streamingRow.content,
+	                  metadata: {
+	                    ...(streamingRow.metadata || {}),
+	                    reasoning: streamingRow.reasoning,
+	                  },
+	                }}
+	                pinnedActions={[]}
+	                allowedActions={[]}
+	                onAction={handleMessageAction}
+	                onChangePinnedForRole={handleChangePinnedForRole}
+	                isEditing={false}
+	                renderMode="markdown"
+	                footerElements={footerElements}
+	                pluginActionDefs={pluginMessageActionDefs}
+	              />
+	            );
+	          }
+
+	          const m = row.indexedMessage;
+	          const role = m.message.role || 'unknown';
+	          const allowedActions = ALL_MESSAGE_ACTIONS
+	            .filter((def) => def.allowedRoles.includes(role))
+	            .map((def) => def.key as MessageActionKey);
+	          const pinnedForRole = getPinnedActionsForRole(role);
+	          const isEditing = editingIndex === m.index;
+	          const defaultModeForRole: 'markdown' | 'raw' =
+	            role === 'assistant' ? 'markdown' : 'raw';
+	          const renderMode = messageViewModeByIndex[m.index] ?? defaultModeForRole;
+	          return (
+	            <MessageBubble
+	              index={m.index}
+	              isActive={isActive}
+	              message={m.message}
+	              pinnedActions={pinnedForRole}
+	              allowedActions={allowedActions}
+	              onAction={handleMessageAction}
+	              onChangePinnedForRole={handleChangePinnedForRole}
+	              isEditing={isEditing}
+	              editingText={isEditing ? editingText : undefined}
+	              onChangeEditingText={isEditing ? setEditingText : undefined}
+	              onSubmitEdit={handleSubmitEditMessage}
+	              onCancelEdit={handleCancelEditMessage}
+	              renderMode={renderMode}
+	              footerElements={footerElements}
+	              pluginActionDefs={pluginMessageActionDefs}
+	            />
+	          );
+	        }}
+	      />
 
       {activeError && (
         <View style={styles.errorContainer}>
