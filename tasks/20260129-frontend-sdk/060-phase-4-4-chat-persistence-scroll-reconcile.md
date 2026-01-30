@@ -16,7 +16,7 @@ This phase is not implemented yet; it’s the next intended cleanup step.
 
 ## Status
 
-- [ ] Not started
+- [x] Complete
 
 ## Problems to solve (current behavior)
 
@@ -58,15 +58,15 @@ Current persistence wiring (for reference):
 
 ### Stage 4.4.1 — Scroll anchor persistence
 
-- [ ] Replace `scrollOffset` persistence with `bottomGapPx` + `pinnedToBottom`
-- [ ] Default to bottom when anchor is missing/unreliable
-- [ ] Ensure scroll restoration doesn’t fight with “new message auto-scroll” behavior
+- [x] Replace `scrollOffset` persistence with `bottomGapPx` + `pinnedToBottom`
+- [x] Default to bottom when anchor is missing/unreliable
+- [x] Ensure scroll restoration doesn’t fight with “new message auto-scroll” behavior
 
 ### Stage 4.4.2 — Auto-scroll policy
 
-- [ ] Track “pinned to bottom” with a threshold (e.g. within N px of bottom)
-- [ ] Only auto-scroll on new messages when pinned
-- [ ] Ensure restore runs once and then stops fighting user scroll
+- [x] Track “pinned to bottom” with a threshold (e.g. within N px of bottom)
+- [x] Only auto-scroll on new messages when pinned
+- [x] Ensure restore runs once and then stops fighting user scroll
 
 ## Files to touch (expected)
 
