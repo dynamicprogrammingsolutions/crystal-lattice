@@ -248,7 +248,9 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                         usage_prev = md_prev.get("usage") or {}
                         if not isinstance(usage_prev, dict):
                             continue
-                        prev_cost = usage_prev.get("cost") or usage.get("cost_details",{}).get("upstream_inference_cost",0)
+                        prev_cost = usage_prev.get("cost") or usage_prev.get(
+                            "cost_details", {}
+                        ).get("upstream_inference_cost", 0)
                         if isinstance(prev_cost, (int, float)):
                             base_total += float(prev_cost)
                 except Exception:
