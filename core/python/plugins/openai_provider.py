@@ -107,7 +107,19 @@ class OpenAICompatibleProvider(ProviderPlugin):
     def to_native_messages(
         self, messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        return [{"role": m["role"], "content": m.get("content", "")} for m in messages]
+        native: List[Dict[str, Any]] = []
+        for msg in messages:
+            role = msg.get("role")
+            content = msg.get("content", "")
+            md = msg.get("metadata")
+            internal_md = dict(md) if isinstance(md, dict) else {}
+            internal_md.pop("native_indices", None)
+
+            if internal_md:
+                native.append({"role": role, "content": content, "_metadata": internal_md})
+            else:
+                native.append({"role": role, "content": content})
+        return native
 
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
@@ -126,11 +138,15 @@ class OpenAICompatibleProvider(ProviderPlugin):
             if not ("role" in m or "content" in m):
                 # Ignore non-message shapes (like full completion objects)
                 continue
+
+            raw_internal = m.get("_metadata") or {}
+            internal_md = dict(raw_internal) if isinstance(raw_internal, dict) else {}
+            internal_md.pop("native_indices", None)
             msg = {
                 "role": m.get("role", "assistant"),
                 "content": m.get("content", ""),
             }
-            normalized.append({**msg, "metadata": {}})
+            normalized.append({**msg, "metadata": internal_md})
         return normalized
 
     # ---------- Core API calls ----------

@@ -1491,6 +1491,10 @@ def test_checkpoint_cursor_after_message_appended(tmp_path: Path) -> None:
     last_appended = appended[-1]
     last_checkpoint = checkpoints[-1]
 
+    assert "session" not in last_appended
+    assert isinstance(last_appended.get("index"), int)
+    assert isinstance(last_appended.get("message"), dict)
+
     def _to_int(value: Any) -> int:
         try:
             return int(value)
@@ -1940,6 +1944,8 @@ def test_update_message_endpoint_modifies_content_and_emits_event(tmp_path: Path
     last_ev = modified[-1]
     assert last_ev["index"] == 2
     assert last_ev["content"] == "two modified"
+    assert "session" not in last_ev
+    assert isinstance(last_ev.get("message"), dict)
 
 
 def test_delete_messages_endpoint_supports_indices_range_and_last(tmp_path: Path) -> None:
@@ -2083,6 +2089,8 @@ def test_fork_session_endpoint_creates_truncated_copy(tmp_path: Path) -> None:
     created = [ev for ev in evs if ev.get("type") == "session_created"]
     assert created, "expected a session_created event for forked session"
     assert created[-1].get("source_session_id") == source_id
+    assert created[-1].get("fork_upto_index") == 2
+    assert "session" not in created[-1]
 
 
 def test_agent_endpoints_list_and_switch_agents(tmp_path: Path) -> None:

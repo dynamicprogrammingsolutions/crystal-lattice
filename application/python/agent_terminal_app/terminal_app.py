@@ -122,7 +122,6 @@ class TerminalApplication:
                 "type": "session_created",
                 "session_id": session.session_id,
                 "agent_id": agent_id,
-                "session": session.to_dict(),
             },
         )
 
@@ -247,6 +246,7 @@ class TerminalApplication:
             {
                 "type": "message_appended",
                 "session_id": new_session.session_id,
+                "index": len(new_session.messages) - 1,
                 "role": "user",
                 "content": content,
                 # Use the metadata from the appended message so that
@@ -254,7 +254,6 @@ class TerminalApplication:
                 # to renderers.
                 "metadata": last_md,
                 "message": last_message.to_dict() if last_message is not None else None,
-                "session": new_session.to_dict(),
             },
         )
         try:
@@ -364,7 +363,7 @@ class TerminalApplication:
                 "session_id": new_session.session_id,
                 "agent_id": agent_id,
                 "source_session_id": session.session_id,
-                "session": new_session.to_dict(),
+                "fork_upto_index": target_index,
             },
         )
         try:
@@ -419,12 +418,13 @@ class TerminalApplication:
         new_session = core.slice_session(session, config, remove_indices=normalized)
         self._app.save_session(new_session)
 
+        concrete_indices = sorted(set(normalized))
+
         self._app.publish_event(
             {
                 "type": "messages_deleted",
                 "session_id": new_session.session_id,
-                "indices": sorted(normalized),
-                "session": new_session.to_dict(),
+                "indices": concrete_indices,
             },
         )
         try:
@@ -597,6 +597,8 @@ class TerminalApplication:
         new_session = core.modify_message(session, target_index, content, config)
         self._app.save_session(new_session)
 
+        updated_message = new_session.messages[target_index]
+
         store = self._app.get_event_store()
         store.publish(
             {
@@ -604,7 +606,7 @@ class TerminalApplication:
                 "session_id": new_session.session_id,
                 "index": target_index,
                 "content": content,
-                "session": new_session.to_dict(),
+                "message": updated_message.to_dict(),
             }
         )
 
@@ -791,13 +793,13 @@ class TerminalApplication:
             {
                 "type": "message_appended",
                 "session_id": new_session.session_id,
+                "index": len(new_session.messages) - 1,
                 "role": normalized_role,
                 "content": content,
                 # Surface metadata from the stored message (including
                 # plugin-provided fields) for renderers and clients.
                 "metadata": last_md,
                 "message": last_message.to_dict() if last_message is not None else None,
-                "session": new_session.to_dict(),
             }
         )
 

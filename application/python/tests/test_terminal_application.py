@@ -274,12 +274,20 @@ def test_set_overrides_and_send_request_uses_them(tmp_path: Path, monkeypatch: p
 
     def _fake_send_request(self, core, session_obj, base_cfg, overrides_arg, *, stream=False, request_id=None):  # type: ignore[override]
         captured["overrides"] = overrides_arg
-        # Minimal final event structure for TerminalApplication.send_request.
+        # Emit a session_checkpoint carrying a live Session (internal event)
+        # plus a public final event without embedding a serialized session.
+        yield {
+            "type": "session_checkpoint",
+            "session_id": session_obj.session_id,
+            "request_id": "req-1",
+            "session": session_obj,
+        }
         yield {
             "type": "final",
-            "session": session_obj.to_dict(),
-            "messages": [],
+            "session_id": session_obj.session_id,
             "request_id": "req-1",
+            "start_index": len(session_obj.messages),
+            "messages": [],
         }
 
     monkeypatch.setattr(AgentApplication, "send_request", _fake_send_request, raising=True)
@@ -952,6 +960,8 @@ def test_modify_message_application_emits_event(tmp_path: Path) -> None:
     assert "message_modified" in kinds
     modified_events = [ev for ev in events_list if ev.get("type") == "message_modified"]
     assert any(ev.get("index") == 1 and ev.get("content") == "one-edited" for ev in modified_events)
+    assert all("session" not in ev for ev in modified_events)
+    assert any(isinstance(ev.get("message"), dict) for ev in modified_events)
 
 
 def test_show_message_supports_negative_indices(tmp_path: Path) -> None:
