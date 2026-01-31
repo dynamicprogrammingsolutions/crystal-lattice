@@ -17,8 +17,11 @@ export interface ChatControllerState {
   sessionId: string;
   loading: boolean;
   messages: IndexedMessage[];
-  cursorEventId: string | null;
-  lastEventId: string | null;
+  eventsCursorId: string | null;
+  listCursorEventId: string | null;
+  dirty: boolean;
+  dirtyReason: string | null;
+  updatedAtMs: number | null;
   eventsStatus: PollingStatus;
   activeRequestId: string | null;
   streamingRow: StreamingRow | null;
@@ -35,15 +38,18 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     backend: AgentBackend;
     sessionId: string;
     initialMessages?: IndexedMessage[];
-    initialCursorEventId?: string | null;
+    initialEventsCursorId?: string | null;
     initialActiveRequestId?: string | null;
   }) {
     super({
       sessionId: options.sessionId,
       loading: false,
       messages: options.initialMessages ?? [],
-      cursorEventId: options.initialCursorEventId ?? null,
-      lastEventId: options.initialCursorEventId ?? null,
+      eventsCursorId: options.initialEventsCursorId ?? null,
+      listCursorEventId: null,
+      dirty: false,
+      dirtyReason: null,
+      updatedAtMs: null,
       eventsStatus: 'idle',
       activeRequestId: options.initialActiveRequestId ?? null,
       streamingRow: null,
@@ -76,8 +82,9 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
 
   hydrateFromCache(options: {
     messages: IndexedMessage[];
-    cursorEventId: string | null;
+    eventsCursorId: string | null;
     activeRequestId?: string | null;
+    updatedAtMs?: number | null;
   }): void {
     const current = this.getSnapshot();
     if (current.loading) {
@@ -87,12 +94,30 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     this.setSnapshot({
       ...current,
       messages: options.messages,
-      cursorEventId: options.cursorEventId,
-      lastEventId: options.cursorEventId,
+      eventsCursorId: options.eventsCursorId,
+      listCursorEventId: current.listCursorEventId,
+      dirty: false,
+      dirtyReason: null,
+      updatedAtMs: options.updatedAtMs ?? current.updatedAtMs,
       activeRequestId: options.activeRequestId ?? current.activeRequestId,
       requestError: null,
       streamingRow: null,
     });
+  }
+
+  getCacheSnapshot(): {
+    messages: IndexedMessage[];
+    eventsCursorId: string | null;
+    activeRequestId: string | null;
+    updatedAtMs: number | null;
+  } {
+    const snapshot = this.getSnapshot();
+    return {
+      messages: snapshot.messages,
+      eventsCursorId: snapshot.eventsCursorId,
+      activeRequestId: snapshot.activeRequestId,
+      updatedAtMs: snapshot.updatedAtMs,
+    };
   }
 
   async loadMessages(params?: { start?: number; end?: number }): Promise<void> {
@@ -107,8 +132,11 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
         ...this.getSnapshot(),
         loading: false,
         messages,
-        cursorEventId,
-        lastEventId: cursorEventId,
+        eventsCursorId: cursorEventId,
+        listCursorEventId: cursorEventId,
+        dirty: false,
+        dirtyReason: null,
+        updatedAtMs: Date.now(),
         activeRequestId,
         streamingRow: null,
       });
@@ -181,10 +209,13 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
           this.onEventsListener(events);
         }
         this.applyEvents(events);
+
+        const cursorId = source.getLastEventId();
         this.setSnapshot({
           ...this.getSnapshot(),
-          lastEventId: source.getLastEventId(),
+          eventsCursorId: cursorId ?? this.getSnapshot().eventsCursorId,
           eventsStatus: source.getStatus(),
+          updatedAtMs: Date.now(),
         });
       },
     });
@@ -208,10 +239,24 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     let next = this.getSnapshot();
 
     for (const ev of relevant) {
-      const history = reduceMessageHistory(next.messages, ev);
+      if (!next.dirty) {
+        const history = reduceMessageHistory(next.messages, ev);
+        if (history.kind === 'dirty') {
+          next = {
+            ...next,
+            dirty: true,
+            dirtyReason: next.dirtyReason ?? history.reason,
+          };
+        } else {
+          next = {
+            ...next,
+            messages: history.messages,
+          };
+        }
+      }
+
       next = {
         ...next,
-        messages: history.messages,
         ...reduceStreamingState(
           {
             activeRequestId: next.activeRequestId,

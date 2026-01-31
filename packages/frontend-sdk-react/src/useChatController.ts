@@ -11,7 +11,7 @@ export interface UseChatControllerOptions {
   backend: AgentBackend | null;
   sessionId: string | null;
   initialMessages?: IndexedMessage[];
-  initialCursorEventId?: string | null;
+  initialEventsCursorId?: string | null;
   initialActiveRequestId?: string | null;
   onEvents?: ((events: Event[]) => void) | null;
   eventsEnabled?: boolean;
@@ -28,7 +28,7 @@ export function useChatController(options: UseChatControllerOptions): UseChatCon
     backend,
     sessionId,
     initialMessages,
-    initialCursorEventId,
+    initialEventsCursorId,
     initialActiveRequestId,
     onEvents,
     eventsEnabled = false,
@@ -43,7 +43,7 @@ export function useChatController(options: UseChatControllerOptions): UseChatCon
       backend,
       sessionId,
       initialMessages,
-      initialCursorEventId,
+      initialEventsCursorId,
       initialActiveRequestId,
     });
   }, [backend, sessionId]);
@@ -82,14 +82,18 @@ export function useChatController(options: UseChatControllerOptions): UseChatCon
     // This keeps UI transitions snappier while still guaranteeing that
     // request lifecycle events will eventually clear `activeRequestId`.
     const hasInitialSnapshot =
-      (state?.cursorEventId != null) || (Array.isArray(state?.messages) && state!.messages.length > 0);
+      (state?.eventsCursorId != null) || (Array.isArray(state?.messages) && state!.messages.length > 0);
     if (!hasInitialSnapshot) {
       return;
     }
 
-    const sinceId = initialSinceId ?? state?.cursorEventId ?? controller.getSnapshot().cursorEventId ?? null;
+    const sinceId =
+      initialSinceId ??
+      state?.eventsCursorId ??
+      controller.getSnapshot().eventsCursorId ??
+      null;
     controller.startEventStreaming({ initialSinceId: sinceId });
-  }, [controller, eventsEnabled, initialSinceId, state?.cursorEventId, state?.messages]);
+  }, [controller, eventsEnabled, initialSinceId, state?.eventsCursorId, state?.messages]);
 
   return { controller, state };
 }

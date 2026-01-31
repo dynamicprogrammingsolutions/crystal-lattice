@@ -91,7 +91,9 @@ export interface MessagesCacheEntry {
   sessionId: string;
   messages: IndexedMessage[];
   lastLoadedAt: number | null;
+  eventsCursorId?: string | null;
   cursorEventId?: string | null;
+  activeRequestId?: string | null;
   composeText?: string;
   scrollAnchor?: ChatScrollAnchor;
 }
@@ -271,7 +273,8 @@ function App(): React.JSX.Element {
     connectionId: string,
     sessionId: string,
     list: IndexedMessage[],
-    cursorEventId: string | null,
+    eventsCursorId: string | null,
+    activeRequestId: string | null,
   ) => {
     setMessagesCache((prev) => {
       const bySession = prev[connectionId] ?? {};
@@ -284,7 +287,8 @@ function App(): React.JSX.Element {
         sessionId,
         messages: list,
         lastLoadedAt: Date.now(),
-        cursorEventId,
+        eventsCursorId,
+        activeRequestId,
       };
 
       const nextBySession: MessagesBySession = { ...bySession, [sessionId]: entry };

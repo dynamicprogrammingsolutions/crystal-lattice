@@ -65,8 +65,13 @@ interface SessionChatScreenProps {
   sessionSummary: SessionSummary | null;
   cachedMessages: IndexedMessage[] | null;
   lastLoadedAt: number | null;
-  cachedCursorEventId: string | null;
-  onUpdateCache: (messages: IndexedMessage[], cursorEventId: string | null) => void;
+  cachedEventsCursorId: string | null;
+  cachedActiveRequestId: string | null;
+  onUpdateCache: (
+    messages: IndexedMessage[],
+    eventsCursorId: string | null,
+    activeRequestId: string | null,
+  ) => void;
   onBack: () => void;
   onNavigateToSession?: (sessionId: string) => void;
   initialComposeText: string;
@@ -90,7 +95,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   sessionSummary,
   cachedMessages,
   lastLoadedAt,
-  cachedCursorEventId,
+  cachedEventsCursorId,
+  cachedActiveRequestId,
   onUpdateCache,
   onBack,
   onNavigateToSession,
@@ -162,6 +168,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     isChatScrollAnchor(initialScrollAnchor) ? initialScrollAnchor : null,
   );
   const hasRestoredScrollRef = useRef(false);
+  const lastCacheSnapshotRef = useRef<{
+    messagesRef: IndexedMessage[] | null;
+    activeRequestId: string | null;
+    dirty: boolean;
+  } | null>(null);
 
   useEffect(() => {
     onSaveComposeTextRef.current = onSaveComposeText;
@@ -193,21 +204,28 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     backend,
     sessionId,
     initialMessages: cachedMessages ?? [],
-    initialCursorEventId: cachedCursorEventId ?? null,
+    initialEventsCursorId: cachedEventsCursorId ?? null,
+    initialActiveRequestId: cachedActiveRequestId ?? null,
     onEvents: appendEventsToDebugBuffer,
     eventsEnabled: !!(backend && sessionId && isActive),
   });
 
   const messages: IndexedMessage[] = chatState?.messages ?? cachedMessages ?? [];
   const streamingRow = chatState?.streamingRow ?? null;
-  const activeRequestId = chatState?.activeRequestId ?? null;
+  const activeRequestId = chatState?.activeRequestId ?? cachedActiveRequestId ?? null;
   const activeError = chatState?.requestError ?? null;
   const loadingMessages = chatState?.loading ?? false;
+  const sessionDirty = chatState?.dirty ?? false;
 
   const hydrateChatCache = useCallback(
     (
       controller: NonNullable<typeof chatController>,
-      cache: { messages: IndexedMessage[]; cursorEventId: string | null },
+      cache: {
+        messages: IndexedMessage[];
+        eventsCursorId: string | null;
+        activeRequestId: string | null;
+        updatedAtMs: number | null;
+      },
     ) => {
       controller.hydrateFromCache(cache);
     },
@@ -218,7 +236,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     controller: chatController,
     cache:
       cachedMessages != null
-        ? { messages: cachedMessages, cursorEventId: cachedCursorEventId ?? null }
+        ? {
+            messages: cachedMessages,
+            eventsCursorId: cachedEventsCursorId ?? null,
+            activeRequestId: cachedActiveRequestId ?? null,
+            updatedAtMs: lastLoadedAt ?? null,
+          }
         : null,
     hydrate: hydrateChatCache,
   });
@@ -320,9 +343,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	    startText: rangeStartText,
 	    endText: rangeEndText,
 	  });
-	  const snapshot = chatController.getSnapshot();
-	  setLastReloadAt(new Date());
-	  onUpdateCache(snapshot.messages, snapshot.cursorEventId ?? null);
+	  const snapshot = chatController.getCacheSnapshot();
+	  setLastReloadAt(new Date(snapshot.updatedAtMs ?? Date.now()));
+	  onUpdateCache(
+	    snapshot.messages,
+	    snapshot.eventsCursorId ?? null,
+	    snapshot.activeRequestId ?? null,
+	  );
     } catch (err: any) {
       console.log('Failed to load messages', err);
       const message = err?.message || 'Failed to load messages';
@@ -424,6 +451,35 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   }, [chatController, cachedMessages, loadMessages]);
 
   useEffect(() => {
+    if (!chatState) {
+      return;
+    }
+
+    const prev = lastCacheSnapshotRef.current;
+    const next = {
+      messagesRef: chatState.messages,
+      activeRequestId: chatState.activeRequestId ?? null,
+      dirty: chatState.dirty ?? false,
+    };
+
+    const shouldPersist =
+      prev == null ||
+      prev.messagesRef !== next.messagesRef ||
+      prev.activeRequestId !== next.activeRequestId ||
+      prev.dirty !== next.dirty;
+    if (!shouldPersist) {
+      return;
+    }
+
+    lastCacheSnapshotRef.current = next;
+    onUpdateCache(
+      chatState.messages,
+      chatState.eventsCursorId ?? null,
+      chatState.activeRequestId ?? null,
+    );
+  }, [chatState?.messages, chatState?.activeRequestId, chatState?.dirty, onUpdateCache]);
+
+  useEffect(() => {
     const saveMessagePinned = async () => {
       try {
         await AsyncStorage.setItem(
@@ -474,7 +530,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     setSendInProgress(true);
     try {
       await chatController.appendMessage({ role: 'user', content: text });
-      await loadMessages();
     } catch (err: any) {
       console.log('Failed to append message', err);
       const message = err?.message || 'Failed to append message';
@@ -499,9 +554,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
       chatController.clearRequestState();
       await chatController.send();
-      await loadMessages();
-        setComposeText('');
-        onSaveComposeText('');
+	    setComposeText('');
+	    onSaveComposeText('');
     } catch (err: any) {
       console.log('Failed to send request', err);
       const message = err?.message || 'Failed to send request';
@@ -521,7 +575,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     try {
       chatController.clearRequestState();
       await chatController.send();
-      await loadMessages();
     } catch (err: any) {
       console.log('Failed to resend request', err);
       const message = err?.message || 'Failed to resend request';
@@ -561,7 +614,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        endText: deleteRangeEndText,
 	      });
       setDeleteRangeVisible(false);
-      await loadMessages();
     } catch (err: any) {
 	      const rawMessage = err?.message;
 	      if (typeof rawMessage === 'string' && rawMessage.includes('Provide at least')) {
@@ -705,7 +757,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       await chatController.modifyMessage(index, trimmed);
       setEditingIndex(null);
       setEditingText('');
-      await loadMessages();
     } catch (err: any) {
       console.log('Failed to modify message', err);
       const msg = err?.message || 'Failed to modify message';
@@ -881,6 +932,32 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
             />
           </View>
 	        </View>
+
+	      {sessionDirty && (
+	        <View style={styles.dirtyBanner}>
+	          <Text style={styles.dirtyBannerText} numberOfLines={1}>
+	            Out of sync — Reload to recover
+	          </Text>
+	          <TouchableOpacity
+	            style={[styles.button, styles.secondaryButton, styles.smallButton]}
+	            onPress={async () => {
+	              chatController?.clearRequestState();
+	              await loadMessages();
+	            }}
+	            disabled={!chatController || sendInProgress || loadingMessages}
+	          >
+	            <Text
+	              style={[
+	                styles.buttonTextSecondary,
+	                (!chatController || sendInProgress || loadingMessages) &&
+	                  styles.buttonTextDisabled,
+	              ]}
+	            >
+	              Reload
+	            </Text>
+	          </TouchableOpacity>
+	        </View>
+	      )}
 
 	      {(loadingMessages || pluginActionInProgress) && (
 	        <View style={styles.loadingContainer}>
@@ -1315,6 +1392,25 @@ const createStyles = (theme: Theme) =>
     buttonTextDisabled: {
       color: theme.textSecondary,
     },
+	    dirtyBanner: {
+	      flexDirection: 'row',
+	      alignItems: 'center',
+	      marginHorizontal: 4,
+	      marginBottom: 8,
+	      paddingHorizontal: 10,
+	      paddingVertical: 8,
+	      borderRadius: 8,
+	      borderWidth: 1,
+	      borderColor: theme.primary,
+	      backgroundColor: theme.primaryMuted,
+	    },
+	    dirtyBannerText: {
+	      flex: 1,
+	      fontSize: 14,
+	      fontWeight: '600',
+	      color: theme.text,
+	      marginRight: 8,
+	    },
     loadingContainer: {
       flexDirection: 'row',
       alignItems: 'center',
