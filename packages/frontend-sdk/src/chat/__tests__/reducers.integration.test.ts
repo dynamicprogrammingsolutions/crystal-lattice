@@ -7,9 +7,10 @@ import { reduceStreamingState, type StreamingState } from '../streamingStateRedu
 type CombinedState = { messages: IndexedMessage[] } & StreamingState;
 
 function reduceAll(state: CombinedState, event: any): CombinedState {
+  const history = reduceMessageHistory(state.messages, event);
   return {
     ...state,
-    messages: reduceMessageHistory(state.messages, event),
+    messages: history.messages,
     ...reduceStreamingState(
       {
         activeRequestId: state.activeRequestId,
@@ -34,6 +35,7 @@ describe('message + streaming reducers composed', () => {
       {
         type: 'final',
         request_id: 'r1',
+        start_index: 0,
         messages: [{ role: 'assistant', content: 'Hello!', metadata: null }],
       },
       { type: 'request_completed', request_id: 'r1' },

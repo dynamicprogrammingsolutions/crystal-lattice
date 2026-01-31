@@ -19,8 +19,8 @@ This is a standalone task (not a subtask of the frontend SDK extraction), becaus
 - [x] Define new minimal event schemas (including indices/positions)
 - [x] Update Python event producers to stop embedding `session`
 - [x] Update Python tests/docs to reflect new event schema
-- [ ] Update TypeScript SDK event types to match
-- [ ] Implement SDK pure reducer + dirty semantics
+- [x] Update TypeScript SDK event types to match
+- [x] Implement SDK pure reducer + dirty semantics
 - [ ] Update `ChatController` to use reducer, track cursor(s), and expose `dirty`
 - [ ] Remove unconditional reloads from the mobile frontend (send/resend, delete/modify)
 

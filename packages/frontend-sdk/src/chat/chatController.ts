@@ -208,9 +208,10 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     let next = this.getSnapshot();
 
     for (const ev of relevant) {
+      const history = reduceMessageHistory(next.messages, ev);
       next = {
         ...next,
-        messages: reduceMessageHistory(next.messages, ev),
+        messages: history.messages,
         ...reduceStreamingState(
           {
             activeRequestId: next.activeRequestId,
