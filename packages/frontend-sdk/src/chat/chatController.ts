@@ -1,29 +1,17 @@
 import type { AgentBackend } from '../backend/backend';
-import type {
-  AssistantMessageEvent,
-  ErrorEvent,
-  Event,
-  FinalEvent,
-  MessageAppendedEvent,
-  PartialEvent,
-  ToolResultsEvent,
-} from '../types/events';
-import type { ApiMessage, IndexedMessage } from '../types/messages';
+import type { Event } from '../types/events';
+import type { IndexedMessage } from '../types/messages';
 import { parseIndexRangeText } from '../utils/range';
 import { PollingEventSource, type PollingStatus } from '../events/pollingEventSource';
 import { SimpleSubscribable } from '../util/subscribable';
+import { reduceMessageHistory } from './messageHistoryReducer';
+import {
+  reduceStreamingState,
+  type RequestErrorState,
+  type StreamingRow,
+} from './streamingStateReducer';
 
-export interface StreamingRow {
-  requestId: string;
-  reasoning: string;
-  content: string;
-  metadata: Record<string, any> | null;
-}
-
-export interface RequestErrorState {
-  detail: string;
-  requestId: string | null;
-}
+export type { StreamingRow, RequestErrorState } from './streamingStateReducer';
 
 export interface ChatControllerState {
   sessionId: string;
@@ -217,147 +205,23 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     const relevant = events.filter((ev) => (ev as any).session_id === this.sessionId);
     if (relevant.length === 0) return;
 
+    let next = this.getSnapshot();
+
     for (const ev of relevant) {
-      const type = (ev as any).type;
-
-      if (type === 'request_started') {
-        const rid = typeof (ev as any).request_id === 'string' ? (ev as any).request_id : null;
-        if (rid) {
-          this.setSnapshot({ ...this.getSnapshot(), activeRequestId: rid });
-        }
-        this.setSnapshot({ ...this.getSnapshot(), requestError: null, streamingRow: null });
-      } else if (type === 'assistant_message') {
-        const msgEv = ev as AssistantMessageEvent;
-        if ((msgEv as any).phase === 'start') {
-          const rid = typeof (msgEv as any).request_id === 'string' ? (msgEv as any).request_id : null;
-          if (rid) {
-            const current = this.getSnapshot().activeRequestId;
-            if (!current) {
-              this.setSnapshot({ ...this.getSnapshot(), activeRequestId: rid });
-            }
-          }
-          this.setSnapshot({
-            ...this.getSnapshot(),
-            streamingRow: {
-              requestId: (msgEv as any).request_id ?? 'unknown',
-              reasoning: '',
-              content: '',
-              metadata: null,
-            },
-          });
-        }
-      } else if (type === 'partial') {
-        this.applyPartialEvent(ev as PartialEvent);
-      } else if (type === 'final') {
-        this.applyFinalEvent(ev as FinalEvent);
-        this.setSnapshot({ ...this.getSnapshot(), streamingRow: null });
-      } else if (type === 'message_appended') {
-        this.applyMessageAppendedEvent(ev as MessageAppendedEvent);
-      } else if (type === 'tool_results') {
-        this.applyToolResultsEvent(ev as ToolResultsEvent);
-      } else if (type === 'error') {
-        const errEv = ev as ErrorEvent;
-        const detail =
-          (typeof (errEv as any).detail === 'string' && (errEv as any).detail) ||
-          'Request failed with an error.';
-        this.setSnapshot({
-          ...this.getSnapshot(),
-          requestError: { detail, requestId: (errEv as any).request_id ?? null },
-        });
-      } else if (type === 'request_completed' || type === 'request_cancelled') {
-        const rid = (ev as any).request_id;
-        const current = this.getSnapshot().activeRequestId;
-        this.setSnapshot({
-          ...this.getSnapshot(),
-          activeRequestId: current == null || current === rid ? null : current,
-        });
-      }
-    }
-  }
-
-  private applyFinalEvent(ev: FinalEvent): void {
-    const nextMessages = Array.isArray((ev as any).messages) ? (ev as any).messages : [];
-    if (nextMessages.length === 0) return;
-
-    const current = this.getSnapshot();
-    const updated = [...current.messages];
-    let lastIndex = updated.length > 0 ? updated[updated.length - 1].index : -1;
-    for (const msg of nextMessages) {
-      if (!msg) continue;
-      lastIndex += 1;
-      updated.push({ index: lastIndex, message: msg as ApiMessage });
-    }
-    this.setSnapshot({ ...current, messages: updated });
-  }
-
-  private applyMessageAppendedEvent(ev: MessageAppendedEvent): void {
-    const message = (ev as any).message;
-    if (!message) return;
-
-    const current = this.getSnapshot();
-    const lastIndex = current.messages.length > 0 ? current.messages[current.messages.length - 1].index : -1;
-    this.setSnapshot({
-      ...current,
-      messages: [...current.messages, { index: lastIndex + 1, message }],
-    });
-  }
-
-  private applyToolResultsEvent(ev: ToolResultsEvent): void {
-    const nextMessages = Array.isArray((ev as any).messages) ? (ev as any).messages : [];
-    if (nextMessages.length === 0) return;
-
-    const current = this.getSnapshot();
-    const updated = [...current.messages];
-    let lastIndex = updated.length > 0 ? updated[updated.length - 1].index : -1;
-    for (const msg of nextMessages) {
-      if (!msg) continue;
-      lastIndex += 1;
-      updated.push({ index: lastIndex, message: msg as ApiMessage });
-    }
-    this.setSnapshot({ ...current, messages: updated });
-  }
-
-  private applyPartialEvent(ev: PartialEvent): void {
-    const rawMessage = ((ev as any).message || {}) as ApiMessage;
-    const rawMetadata = (rawMessage.metadata || {}) as Record<string, any>;
-    const reasoningDelta = typeof rawMetadata.reasoning === 'string' ? rawMetadata.reasoning : '';
-    const contentDelta = typeof rawMessage.content === 'string' ? rawMessage.content : '';
-    if (!reasoningDelta && !contentDelta) return;
-
-    const evRequestId = (ev as any).request_id ?? null;
-    if (typeof evRequestId === 'string' && evRequestId) {
-      const currentActive = this.getSnapshot().activeRequestId;
-      if (!currentActive) {
-        this.setSnapshot({ ...this.getSnapshot(), activeRequestId: evRequestId });
-      }
+      next = {
+        ...next,
+        messages: reduceMessageHistory(next.messages, ev),
+        ...reduceStreamingState(
+          {
+            activeRequestId: next.activeRequestId,
+            requestError: next.requestError,
+            streamingRow: next.streamingRow,
+          },
+          ev,
+        ),
+      };
     }
 
-    const current = this.getSnapshot();
-    const prev = current.streamingRow;
-    const base: StreamingRow =
-      prev && (!evRequestId || prev.requestId === evRequestId)
-        ? prev
-        : {
-            requestId: evRequestId || 'unknown',
-            reasoning: '',
-            content: '',
-            metadata: null,
-          };
-    const nextReasoning = base.reasoning + reasoningDelta;
-    const mergedMetadata = {
-      ...(base.metadata || {}),
-      ...(rawMessage.metadata || {}),
-      reasoning: nextReasoning,
-    } as Record<string, any>;
-
-    this.setSnapshot({
-      ...current,
-      streamingRow: {
-        requestId: base.requestId,
-        reasoning: nextReasoning,
-        content: base.content + contentDelta,
-        metadata: mergedMetadata,
-      },
-    });
+    this.setSnapshot(next);
   }
 }
