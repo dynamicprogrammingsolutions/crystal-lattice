@@ -10,7 +10,7 @@ Update the mobile RN chat UI so it does not reload messages as part of the norma
 
 ## Status
 
-- [ ] Not started
+- [x] Completed
 
 ## Current behavior to remove
 
@@ -33,7 +33,7 @@ These reloads can cause duplicates and are unnecessary once events are applied r
 
 ## Work checklist
 
-- [ ] Remove `loadMessages()` from send/resend paths
-- [ ] Ensure user message becomes visible via events (append event) or optimistic local append
-- [ ] Update cache persistence to store controller snapshot (messages + poll cursor)
-- [ ] Add dirty banner + manual reload button
+- [x] Remove `loadMessages()` from send/resend paths
+- [x] Ensure user message becomes visible via events (append event) or optimistic local append
+- [x] Update cache persistence to store controller snapshot (messages + poll cursor)
+- [x] Add dirty banner + manual reload button

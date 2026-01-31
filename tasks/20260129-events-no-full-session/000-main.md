@@ -21,8 +21,8 @@ This is a standalone task (not a subtask of the frontend SDK extraction), becaus
 - [x] Update Python tests/docs to reflect new event schema
 - [x] Update TypeScript SDK event types to match
 - [x] Implement SDK pure reducer + dirty semantics
-- [ ] Update `ChatController` to use reducer, track cursor(s), and expose `dirty`
-- [ ] Remove unconditional reloads from the mobile frontend (send/resend, delete/modify)
+- [x] Update `ChatController` to use reducer, track cursor(s), and expose `dirty`
+- [x] Remove unconditional reloads from the mobile frontend (send/resend, delete/modify)
 
 ## Subtasks
 

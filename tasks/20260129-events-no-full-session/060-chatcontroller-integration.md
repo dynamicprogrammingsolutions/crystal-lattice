@@ -10,7 +10,7 @@ Update `ChatController` to apply events via the pure reducer, track whether the 
 
 ## Status
 
-- [ ] Not started
+- [x] Completed
 
 ## Current controller behavior to change
 
@@ -62,8 +62,8 @@ Because full reloads are removed, persistence must store the controller-derived 
 
 ## Work checklist
 
-- [ ] Update controller state shape
-- [ ] Integrate reducer
-- [ ] Handle `message_modified` and `messages_deleted`
-- [ ] Fix cursor semantics split (poll cursor vs list cursor)
-- [ ] Add persistence-friendly snapshot getter
+- [x] Update controller state shape
+- [x] Integrate reducer
+- [x] Handle `message_modified` and `messages_deleted`
+- [x] Fix cursor semantics split (poll cursor vs list cursor)
+- [x] Add persistence-friendly snapshot getter
