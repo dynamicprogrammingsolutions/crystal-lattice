@@ -10,7 +10,7 @@ Implement a pure reducer in `@crystal-lattice/frontend-sdk` that can consume an 
 
 ## Status
 
-- [ ] Not started
+- [x] Completed
 
 ## Reducer API proposal
 
@@ -52,6 +52,6 @@ Streaming UI state (`assistant_message` start/end, `partial`) should be handled 
 
 ## Work checklist
 
-- [ ] Create the reducer module + unit-like tests if a test framework exists for TS packages
-- [ ] Ensure message indices are consistent after delete operations
-- [ ] Document reducer semantics in-code (short docstring) and/or in a plan doc
+- [x] Create the reducer module + unit-like tests if a test framework exists for TS packages
+- [x] Ensure message indices are consistent after delete operations
+- [x] Document reducer semantics in-code (short docstring) and/or in a plan doc

@@ -10,7 +10,7 @@ Update `@crystal-lattice/frontend-sdk` TypeScript event type definitions to refl
 
 ## Status
 
-- [ ] Not started
+- [x] Completed
 
 ## Current state
 
@@ -20,16 +20,16 @@ Update `@crystal-lattice/frontend-sdk` TypeScript event type definitions to refl
 
 ## Work checklist
 
-- [ ] Add explicit event types:
-  - [ ] `SessionCreatedEvent`
-  - [ ] `MessageModifiedEvent`
-  - [ ] `MessagesDeletedEvent`
-- [ ] Extend existing event types:
-  - [ ] `MessageAppendedEvent` to include `index` and `message`
-  - [ ] `FinalEvent` to include `start_index` (or `indices`)
-  - [ ] `ToolResultsEvent` to include `start_index` (or `indices`)
-- [ ] Add `event_version` if the contract chooses versioning
-- [ ] Keep `BaseEvent` permissive, but ensure the exported `Event` union includes all relevant types
+- [x] Add explicit event types:
+  - [x] `SessionCreatedEvent`
+  - [x] `MessageModifiedEvent`
+  - [x] `MessagesDeletedEvent`
+- [x] Extend existing event types:
+  - [x] `MessageAppendedEvent` to include `index` and `message`
+  - [x] `FinalEvent` to include `start_index` (or `indices`)
+  - [x] `ToolResultsEvent` to include `start_index` (or `indices`)
+- [x] Skip `event_version` (hard cutover)
+- [x] Keep `BaseEvent` permissive, but ensure the exported `Event` union includes all relevant types
 
 ## Consumer update note
 

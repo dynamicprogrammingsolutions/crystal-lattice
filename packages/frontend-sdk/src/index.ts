@@ -8,8 +8,11 @@ export type { SessionSummary } from './types/sessions';
 
 export type {
   BaseEvent,
+  SessionCreatedEvent,
   FinalEvent,
   MessageAppendedEvent,
+  MessageModifiedEvent,
+  MessagesDeletedEvent,
   ToolResultsEvent,
   RequestCompletedEvent,
   RequestStartedEvent,
