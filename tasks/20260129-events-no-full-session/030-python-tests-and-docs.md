@@ -10,7 +10,7 @@ After changing the event payloads, update tests and docs that assume events cont
 
 ## Status
 
-- [ ] Not started
+- [x] Completed
 
 ## Tests likely affected
 
@@ -31,7 +31,14 @@ Quick grep suggestions:
 
 ## Work checklist
 
-- [ ] Update tests to validate the new minimal fields (`index`, `indices`, `start_index`)
-- [ ] Remove assertions that require `event.session.messages`
-- [ ] Add/adjust tests verifying that events do *not* include a `session` key
-- [ ] Update docs to reflect that clients must bootstrap by fetching session messages after `session_created`
+- [x] Update tests to validate the new minimal fields (`index`, `indices`, `start_index`)
+- [x] Remove assertions that require `event.session.messages`
+- [x] Add/adjust tests verifying that events do *not* include a `session` key
+- [x] Update docs to reflect that clients must bootstrap by fetching session messages after `session_created`
+
+## Notes
+
+- Added/updated size-budget regression tests to catch accidental re-introduction of full session payloads:
+  - `application/python/tests/test_event_payload_size_budget.py`
+  - `application/python/tests/test_terminal_event_rendering_ollama_tools.py` (Ollama-only)
+- Updated doc: `application/python/agent_terminal_app/server_endpoints_parity.md`

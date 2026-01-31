@@ -37,11 +37,15 @@ can send requests and consume streaming events.
       without embedding the final session, messages, or `request_id`.
     - Terminal parity: `TerminalApplication.send_request(stream=True)` as
       used by the prompt_toolkit UI; frontends should observe progress
-      via `/events` and reload session messages as needed.
+      via `/events` and apply incremental events to keep local message
+      history in sync. Reload `/sessions/{id}/messages` only for initial
+      bootstrap or as a fallback when the client becomes out of sync.
 
 - [EXISTING] `GET /events`
     - Purpose: read events from the shared event store, filtered by
       `since_id`, `session_id`, `request_id`, `limit`.
+    - Notes: events are incremental deltas only and never embed full
+      session history.
     - Terminal parity: `TerminalApplication.list_events` and
       `TerminalApplication.poll_new_events` (frontends keep
       `since_id` client-side like the terminal keeps `_last_event_id`).

@@ -108,6 +108,7 @@ class ToolLoopRunner:
         core = self._core
         config = self._config
         rid = self._request_id
+        start_index = len(session.messages)
 
         if not stream:
             if self._is_cancelled():
@@ -127,6 +128,7 @@ class ToolLoopRunner:
                 "type": "final",
                 "session_id": next_session.session_id,
                 "request_id": rid,
+                "start_index": start_index,
                 "messages": final_messages,
             }
 
@@ -199,6 +201,7 @@ class ToolLoopRunner:
                     "type": "final",
                     "session_id": final_session.session_id,
                     "request_id": rid,
+                    "start_index": start_index,
                     "messages": final_messages,
                 }
 
@@ -242,6 +245,7 @@ class ToolLoopRunner:
         core = self._core
         config = self._config
         rid = self._request_id
+        start_index = len(session.messages)
 
         current_session = session
 
@@ -330,6 +334,7 @@ class ToolLoopRunner:
             "type": "tool_results",
             "session_id": current_session.session_id,
             "request_id": rid,
+            "start_index": start_index,
             "messages": tool_messages,
         }
 

@@ -412,7 +412,6 @@ def create_session(
                     "type": "session_created",
                     "session_id": session.session_id,
                     "agent_id": agent_id,
-                    "session": session.to_dict(),
                 },
             )
 
@@ -738,16 +737,17 @@ def add_message(
             app_instance.save_session(new_session)
 
             last_message = new_session.messages[-1] if new_session.messages else None
+            last_index = len(new_session.messages) - 1
 
             stored = app_instance.publish_event(
                 {
                     "type": "message_appended",
                     "session_id": new_session.session_id,
+                    "index": last_index,
                     "role": normalized_role,
                     "content": content,
                     "metadata": metadata or {},
                     "message": last_message.to_dict() if last_message is not None else None,
-                    "session": new_session.to_dict(),
                 },
             )
 
@@ -1022,13 +1022,15 @@ def update_message(
             new_session = core.modify_message(session, target_index, content, config)
             app_instance.save_session(new_session)
 
+            updated_message = new_session.messages[target_index]
+
             stored = app_instance.publish_event(
                 {
                     "type": "message_modified",
                     "session_id": new_session.session_id,
                     "index": target_index,
                     "content": content,
-                    "session": new_session.to_dict(),
+                    "message": updated_message.to_dict(),
                 },
             )
 
@@ -1224,8 +1226,7 @@ def delete_messages(
                 {
                     "type": "messages_deleted",
                     "session_id": new_session.session_id,
-                    "indices": sorted(delete_indices),
-                    "session": new_session.to_dict(),
+                    "indices": concrete_indices,
                 },
             )
 
@@ -1666,7 +1667,7 @@ def fork_session(
                     "session_id": new_session.session_id,
                     "agent_id": agent_id,
                     "source_session_id": session.session_id,
-                    "session": new_session.to_dict(),
+                    "fork_upto_index": target_index,
                 },
             )
 

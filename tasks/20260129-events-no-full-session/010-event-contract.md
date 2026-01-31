@@ -6,7 +6,7 @@ Define the new event schema such that clients can apply events incrementally wit
 
 ## Status
 
-- [ ] Not started
+- [x] Completed
 
 ## Deliverables
 
@@ -14,7 +14,7 @@ Define the new event schema such that clients can apply events incrementally wit
 - Explicit index/position semantics so delete/modify/append can be reduced without guessing.
 - Compatibility plan (version flag or coordinated rollout).
 
-## Proposed event shapes (initial proposal)
+## Event shapes (implemented)
 
 ### Session lifecycle
 
@@ -31,8 +31,7 @@ Define the new event schema such that clients can apply events incrementally wit
   - Optional: `request_id`
 
 - `message_modified`
-  - Required: `session_id`, `index`
-  - Recommended: `message` (full post-modification message) OR `content` + `metadata`
+  - Required: `session_id`, `index`, `message` (full post-modification message)
   - Do not include the full session.
 
 - `messages_deleted`
@@ -43,11 +42,9 @@ Define the new event schema such that clients can apply events incrementally wit
 - `request_started`, `assistant_message`, `partial`, `error`, `request_completed`, `request_cancelled`, `checkpoint` remain, but must not embed session.
 
 - `final` and `tool_results`
-  - Current payload: `messages: ApiMessage[]`.
-  - To be reducible without guessing, add one of:
-    - `start_index: number` (index where the first message in `messages` lands), OR
-    - `indices: number[]` (explicit indices per message)
-  - This should be generated server-side at the time messages are appended.
+  - Required: `session_id`, `request_id`, `messages: ApiMessage[]`, `start_index: number`
+  - `start_index` is the core-session index where `messages[0]` lands.
+  - This is generated server-side (application tool loop) at the time messages are appended.
 
 ## Index/ordering semantics (must be documented)
 
@@ -56,14 +53,15 @@ Define the new event schema such that clients can apply events incrementally wit
 - `messages_deleted.indices` refer to indices in the pre-delete session.
 - After applying `messages_deleted`, subsequent indices shift down.
 
+- `final.start_index` / `tool_results.start_index` refer to the message count *before* applying the event.
+
 If a client cannot apply an event because its local history length or contents do not match expectations, it marks the session as `dirty`.
 
 ## Compatibility / rollout
 
-Pick one:
+Chosen:
 
-1) **Hard cutover**: update all producers/consumers together.
-2) **Schema versioning**: add `event_version: 2` (or similar) to all events and support both in the reducer temporarily.
+1) **Hard cutover**: update producers + tests/docs together.
 
 ## Where to implement (later subtasks will do it)
 

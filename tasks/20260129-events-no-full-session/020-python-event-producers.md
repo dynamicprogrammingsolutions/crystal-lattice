@@ -10,7 +10,7 @@ Update all Python code that publishes events so events never include `session: s
 
 ## Status
 
-- [ ] Not started
+- [x] Completed
 
 ## Current producers that embed full session history
 
@@ -36,12 +36,12 @@ File: `application/python/agent_terminal_app/terminal_app.py`
 
 ## Work checklist
 
-- [ ] Remove `session` field from all published events
-- [ ] Ensure mutation events include enough information for reducers:
-  - [ ] `message_appended` includes `index` and `message`
-  - [ ] `messages_deleted` includes `indices`
-  - [ ] `message_modified` includes `index` and either `message` or `content` (+metadata)
-- [ ] Ensure `final` and `tool_results` events include positional info (`start_index` or explicit indices)
+- [x] Remove `session` field from all published events
+- [x] Ensure mutation events include enough information for reducers:
+  - [x] `message_appended` includes `index` and `message`
+  - [x] `messages_deleted` includes `indices`
+  - [x] `message_modified` includes `index` and `message` (and keeps `content` for compatibility)
+- [x] Ensure `final` and `tool_results` events include positional info (`start_index`)
 
 ## Special notes
 
@@ -54,6 +54,8 @@ These events are yielded by the application-layer tool loop:
 
 They currently emit `messages` but no indices. To make them reducible without guessing, update these yields to include `start_index`.
 
+Implemented in `core/python/agent_app/tool_loop.py`.
+
 ### Avoid leaking sessions via “backcompat” branches
 
 The send background worker has a backcompat branch that checks for a `session` key in stored events:
@@ -61,3 +63,5 @@ The send background worker has a backcompat branch that checks for a `session` k
 - `application/python/agent_terminal_app/server.py:584`
 
 After this task, new events should not include `session`. Consider removing that branch or keeping it strictly for old historical events.
+
+The branch remains, but it is now only relevant for historical event store data.

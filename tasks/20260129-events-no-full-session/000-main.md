@@ -16,9 +16,9 @@ This is a standalone task (not a subtask of the frontend SDK extraction), becaus
 
 ## Status checklist
 
-- [ ] Define new minimal event schemas (including indices/positions)
-- [ ] Update Python event producers to stop embedding `session`
-- [ ] Update Python tests/docs to reflect new event schema
+- [x] Define new minimal event schemas (including indices/positions)
+- [x] Update Python event producers to stop embedding `session`
+- [x] Update Python tests/docs to reflect new event schema
 - [ ] Update TypeScript SDK event types to match
 - [ ] Implement SDK pure reducer + dirty semantics
 - [ ] Update `ChatController` to use reducer, track cursor(s), and expose `dirty`
