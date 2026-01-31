@@ -23,6 +23,8 @@ This is a standalone task (not a subtask of the frontend SDK extraction), becaus
 - [x] Implement SDK pure reducer + dirty semantics
 - [x] Update `ChatController` to use reducer, track cursor(s), and expose `dirty`
 - [x] Remove unconditional reloads from the mobile frontend (send/resend, delete/modify)
+- [ ] Auto-recover `dirty` via a rate-limited reload policy
+- [ ] Let application plugins opt out of triggering reloads
 
 ## Subtasks
 
@@ -34,6 +36,8 @@ This is a standalone task (not a subtask of the frontend SDK extraction), becaus
 - `tasks/20260129-events-no-full-session/050-sdk-pure-reducer.md`
 - `tasks/20260129-events-no-full-session/060-chatcontroller-integration.md`
 - `tasks/20260129-events-no-full-session/070-mobile-remove-reloads.md`
+- `tasks/20260129-events-no-full-session/080-mobile-auto-reload-on-dirty.md`
+- `tasks/20260129-events-no-full-session/090-plugin-action-reload-control.md`
 
 ## Current state (what exists today)
 
