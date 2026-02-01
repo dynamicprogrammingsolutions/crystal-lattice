@@ -247,6 +247,16 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   });
 
   useEffect(() => {
+    if (!chatController) {
+      return;
+    }
+    chatController.setHistoryRangeFromRangeText({
+      startText: rangeStartText,
+      endText: rangeEndText,
+    });
+  }, [chatController, rangeStartText, rangeEndText]);
+
+  useEffect(() => {
     composeTextRef.current = composeText;
   }, [composeText]);
 
