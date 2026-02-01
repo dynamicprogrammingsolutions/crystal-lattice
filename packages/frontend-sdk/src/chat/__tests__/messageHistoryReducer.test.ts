@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { reduceMessageHistory } from '../messageHistoryReducer';
+import { reduceMessageHistory, reduceMessageHistoryWithOptions } from '../messageHistoryReducer';
 import type { ApiMessage, IndexedMessage } from '../../types/messages';
 
 function msg(role: ApiMessage['role'], content: string, metadata?: ApiMessage['metadata']): ApiMessage {
@@ -133,6 +133,92 @@ describe('reduceMessageHistory', () => {
     const event = { type: 'partial', message: msg('assistant', 'x') } as any;
     const result = reduceMessageHistory(initial, event);
 
+    expect(result.kind).toBe('noop');
+    expect(result.messages).toEqual(initial);
+  });
+
+  it('treats message indices as global (windowed history)', () => {
+    const initial: IndexedMessage[] = Object.freeze([
+      { index: 100, message: Object.freeze(msg('user', 'hi')) },
+    ]);
+
+    const event = {
+      type: 'message_appended',
+      index: 101,
+      message: msg('assistant', 'reply'),
+    } as any;
+
+    const result = reduceMessageHistory(initial, event);
+    expect(result.kind).toBe('ok');
+    expect(result.messages.map((item) => item.index)).toEqual([100, 101]);
+  });
+
+  it('trims to maxMessages when configured', () => {
+    const initial: IndexedMessage[] = Object.freeze([
+      { index: 2, message: Object.freeze(msg('user', '2')) },
+      { index: 3, message: Object.freeze(msg('user', '3')) },
+      { index: 4, message: Object.freeze(msg('user', '4')) },
+    ]);
+
+    const event = {
+      type: 'message_appended',
+      index: 5,
+      message: msg('assistant', '5'),
+    } as any;
+
+    const result = reduceMessageHistoryWithOptions(initial, event, { maxMessages: 3 });
+    expect(result.kind).toBe('ok');
+    expect(result.messages.map((item) => item.index)).toEqual([3, 4, 5]);
+  });
+
+  it('shifts indices on delete even when deleted messages are outside the window', () => {
+    const initial: IndexedMessage[] = Object.freeze([
+      { index: 10, message: Object.freeze(msg('user', '10')) },
+      { index: 11, message: Object.freeze(msg('user', '11')) },
+      { index: 12, message: Object.freeze(msg('user', '12')) },
+    ]);
+
+    const event = {
+      type: 'messages_deleted',
+      indices: [0, 1, 2],
+    } as any;
+
+    const result = reduceMessageHistoryWithOptions(initial, event, { followTail: true, maxMessages: 3 });
+    expect(result.kind).toBe('ok');
+    expect(result.messages.map((item) => item.index)).toEqual([7, 8, 9]);
+  });
+
+  it('signals needsBackfill when delete reduces the window size below maxMessages', () => {
+    const initial: IndexedMessage[] = Object.freeze([
+      { index: 10, message: Object.freeze(msg('user', '10')) },
+      { index: 11, message: Object.freeze(msg('user', '11')) },
+      { index: 12, message: Object.freeze(msg('user', '12')) },
+    ]);
+
+    const event = {
+      type: 'messages_deleted',
+      indices: [11],
+    } as any;
+
+    const result = reduceMessageHistoryWithOptions(initial, event, { followTail: true, maxMessages: 3 });
+    expect(result.kind).toBe('ok');
+    expect(result.messages.map((item) => item.index)).toEqual([10, 11]);
+    expect(result.kind === 'ok' && result.needsBackfill).toBe(true);
+  });
+
+  it('no-ops message_modified when the target index is older than the window', () => {
+    const initial: IndexedMessage[] = Object.freeze([
+      { index: 10, message: Object.freeze(msg('user', '10')) },
+      { index: 11, message: Object.freeze(msg('user', '11')) },
+    ]);
+
+    const event = {
+      type: 'message_modified',
+      index: 1,
+      message: msg('user', 'updated'),
+    } as any;
+
+    const result = reduceMessageHistoryWithOptions(initial, event, { followTail: true, maxMessages: 2 });
     expect(result.kind).toBe('noop');
     expect(result.messages).toEqual(initial);
   });
