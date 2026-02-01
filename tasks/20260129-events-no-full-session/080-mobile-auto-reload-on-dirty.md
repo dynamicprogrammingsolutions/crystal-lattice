@@ -1,4 +1,4 @@
-# Mobile: auto-reload when session becomes dirty (rate limited)
+# SDK: windowed history + atomic reload + auto-recover dirty (rate limited)
 
 Parent Task: `tasks/20260129-events-no-full-session/000-main.md`
 
@@ -9,13 +9,30 @@ Depends On:
 
 ## Goal
 
-When the SDK reducer marks a session as `dirty`, automatically recover by reloading once, **but never get stuck in reload loops**.
+Move recovery and reload coordination into the SDK `ChatController` so that:
 
-Primary motivating case: the `system_message_feature` can cause the server to implicitly insert a system message into stored history during the first user append, shifting indices and making the strict index-based reducer correctly report `dirty`.
+- The message history stored in memory is a **window** (range-limited), not always the full session.
+- `IndexedMessage.index` remains the **real session-global index** (what the user sees/uses).
+- When events append new messages, the controller trims/drops older messages to maintain the configured window.
+- When the reducer cannot apply an event safely (marks `dirty`), the controller automatically reloads once per "epoch" (opening a session or a user action), otherwise requires manual reload.
+- Reload is **atomic** with respect to polling event application (fixes out-of-sync issues when reloading while events arrive).
+
+Primary motivating case: the `system_message_feature` can cause the server to implicitly insert a system message into stored history during the first user append, shifting indices and making strict index-based event application correctly report `dirty`.
 
 ## Status
 
-- [ ] Not started
+Subtask checklist:
+
+- [x] Write down final plan in this task file
+- [x] Implement window-aware reducer that operates on **global indices** and supports trimming
+- [x] Implement delete shifting + backfill signal for windowed history
+- [x] Update `ChatController` to store range/window settings and apply events with the new reducer
+- [x] Make `ChatController.loadMessages*` pause/resume polling so reload is atomic
+- [x] Add `ChatController` epoch budget + auto-recover (one auto reload per epoch)
+- [x] Update `useChatController` to not restart polling while `loading`
+- [x] Update/extend SDK tests (window append + trimming + delete shifting/backfill)
+- [x] Update mobile to keep existing range UI but rely on controller behavior (minimal/no change expected)
+- [x] Update this file with implementation notes discovered during coding
 
 ## What’s happening today (root cause)
 
@@ -40,6 +57,8 @@ Primary motivating case: the `system_message_feature` can cause the server to im
   - On the client, local length is `0`, so `index=1` becomes a mismatch and returns `dirty`.
   - See `packages/frontend-sdk/src/chat/messageHistoryReducer.ts:80`.
 
+This reducer also assumes it owns the full session history (local indices `0..n-1`), which is incompatible with a true windowed history (e.g. only last 50 messages).
+
 ## Requirements
 
 - If the session becomes `dirty`, the UX should recover automatically via a reload.
@@ -47,51 +66,80 @@ Primary motivating case: the `system_message_feature` can cause the server to im
   - At most **one auto reload per “epoch”** (epoch = “opening a session” or “a single user action”).
   - If the session goes dirty again within the same epoch, require manual reload.
 
-## Proposed solution options (decision needed)
+- Range selection must actually bound stored history:
+  - When configured for tail behavior (e.g. `start=-50,end=`), the controller must keep at most 50 messages.
+  - As new messages are appended via events, older messages are dropped.
+  - Indices shown to the user must remain the real session-global indices.
 
-### Option A (recommended): implement auto-reload budget in mobile UI
+- Reload must be atomic wrt event polling:
+  - Manually reloading while events are arriving should not frequently trigger out-of-sync / dirty.
 
-Implement in `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx`.
+## Complete plan (approved direction: Option B with true windowed history)
 
-- Add an “auto reload epoch” mechanism:
-  - Reset epoch when:
-    - the session screen mounts / `sessionId` changes, or
-    - the user performs a “write” action (send/resend/append/modify/delete; including plugin actions).
-  - Track `usedAutoReloadThisEpoch`.
+### 1) Represent the message window in the controller
 
-- Add an effect watching `chatState.dirty`:
-  - If `dirty === true` and `usedAutoReloadThisEpoch === false` and not currently loading:
-    - call the existing `loadMessages()`
-    - set `usedAutoReloadThisEpoch = true`
-  - Else keep `dirty` banner visible, allow manual reload.
+- Continue to expose `ChatController.loadMessagesFromRangeText({startText,endText})` so the frontend UI can remain unchanged.
+- Parse as today (`packages/frontend-sdk/src/utils/range.ts:8`) into `{start?: number; end?: number}`.
+- Derive window settings:
+  - `followTail = (end === undefined)` (meaning the view is “to the end”).
+  - `maxMessages = abs(start)` when `followTail` and `start < 0`.
+  - Otherwise `maxMessages = null` (no trimming).
+- Store `historyRange` / `followTail` / `maxMessages` in controller state and keep the last used params for future reloads.
 
-Pros:
-- Localized change; no SDK API expansion.
-- Naturally respects the mobile’s current “message range” (e.g. `-50:`) since it reuses `loadMessages()`.
-- Avoids reload loops via explicit budget.
+### 2) Replace the message history reducer with a window-aware, global-index reducer
 
-Cons:
-- Only mobile benefits; other clients would still require manual reload.
+Update `packages/frontend-sdk/src/chat/messageHistoryReducer.ts` so it operates on global indices:
 
-### Option B: implement auto-reload in SDK ChatController
+- Define `expectedNextIndex` as:
+  - `0` when there are no stored messages, else `lastStoredIndex + 1`.
+- For `message_appended`, validate `event.index === expectedNextIndex`.
+- For `final` / `tool_results`, validate `event.start_index === expectedNextIndex`.
+- For `messages_deleted`:
+  - Remove any stored messages whose global index is deleted.
+  - Shift remaining indices down by `count(deletedIndices < message.index)`.
+  - If `maxMessages` is set and the window is now shorter than `maxMessages`, return `needsBackfill: true` (not dirty).
+- For `message_modified`:
+  - If the message is present in the current window, replace it.
+  - If it’s older than the window, treat as noop.
+  - If it’s newer than the window end, treat as dirty (client is behind).
 
-Implement rate-limited recovery in `packages/frontend-sdk/src/chat/chatController.ts`.
+Also apply trimming:
 
-Pros:
-- One shared implementation; all clients benefit.
+- After append/final/tool_results, if `maxMessages` is set, keep only the last `maxMessages` messages.
 
-Cons:
-- Controller currently doesn’t know the mobile’s selected message range; adding that plumbing could be invasive.
+### 3) Make reload atomic wrt polling
 
-### Option C: server emits additional events so clients never go dirty
+Update `ChatController.loadMessages*`:
 
-Detect the implicit system insertion and emit an explicit event for it (or make the system message insertion explicit in stored history mutations).
+- If polling is active, stop it before fetching `/messages`.
+- Fetch messages + `cursor_event_id`.
+- Update snapshot (messages, cursors, clear dirty).
+- Resume polling from `cursor_event_id` (or allow the React hook to restart after `loading=false`).
 
-Pros:
-- Clients remain purely event-driven; fewer reloads.
+Update `packages/frontend-sdk-react/src/useChatController.ts`:
 
-Cons:
-- More invasive and subtle; must be correct for all provider/features and history rebuild behaviors.
+- Do not start polling while `state.loading` is true (prevents concurrent poll during reload).
+
+### 4) Auto-recover `dirty` (one per epoch)
+
+- Add an internal epoch counter + “used budget” marker to `ChatController`.
+- Begin a new epoch when the user triggers a state-changing action:
+  - `appendMessage`, `send`, `modifyMessage`, `deleteMessages`, and manual reload.
+- When the reducer returns `dirty` (or `needsBackfill`), schedule an automatic reload if:
+  - not already reloading, and
+  - the budget for the current epoch has not been used.
+- The scheduled auto reload must not advance epochs (prevents loops).
+
+### 5) What happens when the user is not following the tail
+
+When `end` is explicitly provided (`followTail=false`), the controller cannot safely apply append-at-end events to the loaded slice.
+
+Proposed behavior:
+
+- Still apply request-lifecycle / streaming state reducers.
+- Skip applying history mutations from events (or immediately mark dirty and require explicit reload).
+
+This keeps complexity bounded; the primary supported UX is `all` or `last N`.
 
 ## Suggested acceptance tests
 
@@ -104,3 +152,8 @@ Cons:
 - Fault injection:
   - Force `dirty` twice in one epoch (e.g. by resetting local cache mid-stream).
   - Expect: first `dirty` triggers auto reload; second shows banner and requires manual.
+
+## Implementation notes (append as work progresses)
+
+- `PollingEventSource` previously could deliver events after `stop()` if a poll request was already in-flight; this breaks atomic reload. Fixed by adding a `generation` counter and re-checking `stopped/generation` after `await listEvents` in `packages/frontend-sdk/src/events/pollingEventSource.ts`.
+- To keep window trimming active even when hydrating from cache (and skipping initial reload), mobile now calls `chatController.setHistoryRangeFromRangeText(...)` whenever the range UI state changes in `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx`.

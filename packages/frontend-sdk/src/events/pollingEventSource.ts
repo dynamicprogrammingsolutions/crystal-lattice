@@ -17,6 +17,7 @@ export class PollingEventSource {
   private lastEventId: string | null = null;
   private status: PollingStatus = 'idle';
   private stopped = false;
+  private generation = 0;
   private readonly intervalMs: number;
   private readonly backoffMs: number;
 
@@ -32,6 +33,7 @@ export class PollingEventSource {
     onEvents: (events: Event[]) => void;
   }): void {
     this.stop();
+    this.generation += 1;
     this.sessionId = options.sessionId;
     this.onEvents = options.onEvents;
     this.sinceId = options.initialSinceId;
@@ -43,6 +45,7 @@ export class PollingEventSource {
 
   stop(): void {
     this.stopped = true;
+    this.generation += 1;
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;
@@ -72,6 +75,7 @@ export class PollingEventSource {
 
   private async pollOnce(): Promise<void> {
     if (this.stopped) return;
+    const generation = this.generation;
     if (!this.sessionId || !this.onEvents) {
       this.schedulePoll(this.intervalMs);
       return;
@@ -82,6 +86,10 @@ export class PollingEventSource {
         sessionId: this.sessionId,
         sinceId: this.sinceId ?? undefined,
       });
+
+      if (this.stopped || generation !== this.generation) {
+        return;
+      }
 
       if (events.length > 0) {
         let maxId: string | null = this.sinceId;
