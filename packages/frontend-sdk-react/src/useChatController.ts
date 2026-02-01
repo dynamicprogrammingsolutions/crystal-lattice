@@ -74,6 +74,10 @@ export function useChatController(options: UseChatControllerOptions): UseChatCon
       return;
     }
 
+    if (state?.loading) {
+      return;
+    }
+
     if (controller.isEventStreaming()) {
       return;
     }
@@ -93,7 +97,7 @@ export function useChatController(options: UseChatControllerOptions): UseChatCon
       controller.getSnapshot().eventsCursorId ??
       null;
     controller.startEventStreaming({ initialSinceId: sinceId });
-  }, [controller, eventsEnabled, initialSinceId, state?.eventsCursorId, state?.messages]);
+  }, [controller, eventsEnabled, initialSinceId, state?.eventsCursorId, state?.messages, state?.loading]);
 
   return { controller, state };
 }

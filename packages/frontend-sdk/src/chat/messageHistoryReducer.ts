@@ -2,9 +2,26 @@ import type { Event } from '../types/events';
 import type { ApiMessage, IndexedMessage } from '../types/messages';
 
 export type ReduceResult =
-  | { kind: 'ok'; messages: IndexedMessage[] }
-  | { kind: 'noop'; messages: IndexedMessage[] }
+  | { kind: 'ok'; messages: IndexedMessage[]; needsBackfill?: boolean }
+  | { kind: 'noop'; messages: IndexedMessage[]; needsBackfill?: boolean }
   | { kind: 'dirty'; messages: IndexedMessage[]; reason: string };
+
+export interface MessageHistoryReducerOptions {
+  /**
+   * When set, keeps only the last `maxMessages` items after appends.
+   *
+   * This is intended for true windowed history (e.g. "last 50 messages").
+   */
+  maxMessages?: number | null;
+
+  /**
+   * Whether the local history is expected to extend to the end of the session.
+   *
+   * When false, some operations (notably deletes) may not be safely applicable
+   * without a full reload.
+   */
+  followTail?: boolean;
+}
 
 function isApiMessage(value: unknown): value is ApiMessage {
   if (!value || typeof value !== 'object') return false;
@@ -22,8 +39,24 @@ function isFiniteInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && Number.isInteger(value);
 }
 
-function reindexMessages(messages: IndexedMessage[]): IndexedMessage[] {
-  return messages.map((item, idx) => ({ index: idx, message: item.message }));
+function getExpectedNextIndex(messages: IndexedMessage[]): number {
+  if (!messages || messages.length === 0) {
+    return 0;
+  }
+  return messages[messages.length - 1].index + 1;
+}
+
+function trimTail(messages: IndexedMessage[], maxMessages: number | null): IndexedMessage[] {
+  if (maxMessages == null) {
+    return messages;
+  }
+  if (!Number.isFinite(maxMessages) || maxMessages <= 0) {
+    return [];
+  }
+  if (messages.length <= maxMessages) {
+    return messages;
+  }
+  return messages.slice(messages.length - maxMessages);
 }
 
 function validateNewMessages(raw: unknown): ApiMessage[] | null {
@@ -47,18 +80,37 @@ function validateNewMessages(raw: unknown): ApiMessage[] | null {
  * history unchanged.
  */
 export function reduceMessageHistory(messages: IndexedMessage[], event: Event): ReduceResult {
+  return reduceMessageHistoryWithOptions(messages, event, {});
+}
+
+/**
+ * Window-aware variant of `reduceMessageHistory`.
+ *
+ * This reducer operates on session-global indices (`IndexedMessage.index` matches
+ * server indices). It supports keeping only a bounded tail window via
+ * `options.maxMessages`.
+ */
+export function reduceMessageHistoryWithOptions(
+  messages: IndexedMessage[],
+  event: Event,
+  options: MessageHistoryReducerOptions,
+): ReduceResult {
   const type = (event as any).type;
+  const followTail = options.followTail ?? true;
+  const maxMessages = options.maxMessages ?? null;
 
   if (type === 'final' || type === 'tool_results') {
     const startIndex = (event as any).start_index;
     if (!isFiniteInteger(startIndex) || startIndex < 0) {
       return { kind: 'dirty', messages, reason: `${type}: missing/invalid start_index` };
     }
-    if (startIndex !== messages.length) {
+
+    const expected = getExpectedNextIndex(messages);
+    if (startIndex !== expected) {
       return {
         kind: 'dirty',
         messages,
-        reason: `${type}: start_index ${startIndex} does not match local length ${messages.length}`,
+        reason: `${type}: start_index ${startIndex} does not match expected ${expected}`,
       };
     }
 
@@ -74,7 +126,8 @@ export function reduceMessageHistory(messages: IndexedMessage[], event: Event): 
       index: startIndex + offset,
       message,
     }));
-    return { kind: 'ok', messages: reindexMessages([...messages, ...appended]) };
+    const next = trimTail([...messages, ...appended], maxMessages);
+    return { kind: 'ok', messages: next };
   }
 
   if (type === 'message_appended') {
@@ -82,11 +135,13 @@ export function reduceMessageHistory(messages: IndexedMessage[], event: Event): 
     if (!isFiniteInteger(index) || index < 0) {
       return { kind: 'dirty', messages, reason: 'message_appended: missing/invalid index' };
     }
-    if (index !== messages.length) {
+
+    const expected = getExpectedNextIndex(messages);
+    if (index !== expected) {
       return {
         kind: 'dirty',
         messages,
-        reason: `message_appended: index ${index} does not match local length ${messages.length}`,
+        reason: `message_appended: index ${index} does not match expected ${expected}`,
       };
     }
 
@@ -95,10 +150,8 @@ export function reduceMessageHistory(messages: IndexedMessage[], event: Event): 
       return { kind: 'dirty', messages, reason: 'message_appended: missing/invalid message' };
     }
 
-    return {
-      kind: 'ok',
-      messages: reindexMessages([...messages, { index, message: rawMessage }]),
-    };
+    const next = trimTail([...messages, { index, message: rawMessage }], maxMessages);
+    return { kind: 'ok', messages: next };
   }
 
   if (type === 'message_modified') {
@@ -106,12 +159,20 @@ export function reduceMessageHistory(messages: IndexedMessage[], event: Event): 
     if (!isFiniteInteger(index) || index < 0) {
       return { kind: 'dirty', messages, reason: 'message_modified: missing/invalid index' };
     }
-    if (index >= messages.length) {
-      return {
-        kind: 'dirty',
-        messages,
-        reason: `message_modified: index ${index} out of bounds for length ${messages.length}`,
-      };
+
+    if (messages.length > 0) {
+      const firstIndex = messages[0].index;
+      const lastIndex = messages[messages.length - 1].index;
+      if (index < firstIndex) {
+        return { kind: 'noop', messages };
+      }
+      if (index > lastIndex) {
+        return {
+          kind: 'dirty',
+          messages,
+          reason: `message_modified: index ${index} is newer than window end ${lastIndex}`,
+        };
+      }
     }
 
     const rawMessage = (event as any).message;
@@ -120,8 +181,19 @@ export function reduceMessageHistory(messages: IndexedMessage[], event: Event): 
     }
 
     const next = messages.slice();
-    next[index] = { index, message: rawMessage };
-    return { kind: 'ok', messages: reindexMessages(next) };
+    const pos = next.findIndex((item) => item.index === index);
+    if (pos === -1) {
+      if (messages.length === 0) {
+        return { kind: 'dirty', messages, reason: 'message_modified: no local messages' };
+      }
+      return {
+        kind: 'dirty',
+        messages,
+        reason: `message_modified: index ${index} missing from current window`,
+      };
+    }
+    next[pos] = { index, message: rawMessage };
+    return { kind: 'ok', messages: next };
   }
 
   if (type === 'messages_deleted') {
@@ -142,17 +214,42 @@ export function reduceMessageHistory(messages: IndexedMessage[], event: Event): 
     if (uniqueIndices.length === 0) {
       return { kind: 'noop', messages };
     }
-    if (uniqueIndices[uniqueIndices.length - 1] >= messages.length) {
+
+    if (messages.length === 0) {
       return {
         kind: 'dirty',
         messages,
-        reason: `messages_deleted: index out of bounds for length ${messages.length}`,
+        reason: 'messages_deleted: cannot apply to empty local history',
+      };
+    }
+
+    const lastLocalIndex = messages[messages.length - 1].index;
+    if (followTail && uniqueIndices[uniqueIndices.length - 1] > lastLocalIndex) {
+      return {
+        kind: 'dirty',
+        messages,
+        reason: `messages_deleted: delete index beyond window end ${lastLocalIndex}`,
       };
     }
 
     const remove = new Set(uniqueIndices);
-    const next = messages.filter((item, idx) => !remove.has(idx));
-    return { kind: 'ok', messages: reindexMessages(next) };
+    const survivors = messages.filter((item) => !remove.has(item.index));
+
+    // Shift remaining indices down by the count of deleted indices < current index.
+    let deletedBefore = 0;
+    let deletePtr = 0;
+    const shifted: IndexedMessage[] = [];
+    for (const item of survivors) {
+      while (deletePtr < uniqueIndices.length && uniqueIndices[deletePtr] < item.index) {
+        deletedBefore += 1;
+        deletePtr += 1;
+      }
+      shifted.push({ index: item.index - deletedBefore, message: item.message });
+    }
+
+    const trimmed = trimTail(shifted, maxMessages);
+    const needsBackfill = followTail && maxMessages != null && trimmed.length < maxMessages;
+    return { kind: 'ok', messages: trimmed, needsBackfill };
   }
 
   return { kind: 'noop', messages };
