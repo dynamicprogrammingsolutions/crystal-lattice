@@ -5,9 +5,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import asyncio
 import json
-import logging
 import os
 import threading
+import logging
 import uuid
 from datetime import datetime
 
@@ -300,6 +300,37 @@ def _build_default_agent_app() -> AgentApplication:
 _agent_app: Optional[AgentApplication] = None
 
 
+# ---------------------------------------------------------------------------
+# Test control hooks (integration-test only)
+# ---------------------------------------------------------------------------
+
+
+_TEST_CONTROL_ENABLED = os.getenv("AGENT_APP_TEST_CONTROL") == "1"
+
+_test_events_paused = False
+_test_events_release = threading.Event()
+_test_events_release.set()
+_test_events_waiters = 0
+_test_events_lock = threading.Lock()
+
+
+def _maybe_block_events_for_tests() -> None:
+    if not _TEST_CONTROL_ENABLED:
+        return
+    global _test_events_waiters
+    if not _test_events_paused:
+        return
+
+    with _test_events_lock:
+        _test_events_waiters += 1
+    try:
+        # Bound the wait so a stuck test doesn't hang indefinitely.
+        _test_events_release.wait(timeout=5)
+    finally:
+        with _test_events_lock:
+            _test_events_waiters -= 1
+
+
 def get_agent_app() -> AgentApplication:
     """Return the process-wide AgentApplication instance.
 
@@ -369,6 +400,29 @@ def get_api_hello() -> Dict[str, Any]:
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "method": "GET",
     }
+
+
+if _TEST_CONTROL_ENABLED:
+
+    @app.get("/__test/events/status")
+    def _test_events_status() -> Dict[str, Any]:
+        with _test_events_lock:
+            waiters = _test_events_waiters
+        return {"paused": _test_events_paused, "waiters": waiters}
+
+    @app.post("/__test/events/pause")
+    def _test_events_pause() -> Dict[str, Any]:
+        global _test_events_paused
+        _test_events_paused = True
+        _test_events_release.clear()
+        return {"paused": True}
+
+    @app.post("/__test/events/resume")
+    def _test_events_resume() -> Dict[str, Any]:
+        global _test_events_paused
+        _test_events_paused = False
+        _test_events_release.set()
+        return {"paused": False}
 
 
 # ---------------------------------------------------------------------------
@@ -1764,6 +1818,8 @@ def list_events(
     batches even when many raw events collapse into a handful of
     logical entries.
     """
+
+    _maybe_block_events_for_tests()
 
     store = app_instance.get_event_store()
     # ``internal_limit`` bounds the number of raw events loaded from
