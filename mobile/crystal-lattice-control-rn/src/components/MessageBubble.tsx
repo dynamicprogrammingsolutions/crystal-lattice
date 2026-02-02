@@ -11,7 +11,7 @@ import Icon from 'react-native-vector-icons/Feather';
 import type { ApiMessage, UiSchemaElement } from '../api';
 import MessageActionsBar from './MessageActionsBar';
 import type { MessageActionKey, MessageActionDefinition } from '../messageActions';
-import { selectDisplayContent } from '../messageUtils';
+import { selectDisplayContent, selectSingleLineContent } from '../messageUtils';
 import MarkdownMessageContent from './MarkdownMessageContent';
 import { useTheme, type Theme } from '../theme';
 import { extractByPath, renderTemplate } from '../uiSchemaUtils';
@@ -242,6 +242,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [expanded, setExpanded] = useState(false);
   const content = selectDisplayContent(message);
+  const singleLine = selectSingleLineContent(message);
   const hasContent = !!content;
   const role = 'tool';
   const footerParts = useMemo(() => {
@@ -297,7 +298,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
             style={styles.collapsedHintText}
             selectable
           >
-            Tool result hidden (tap to expand).
+            {singleLine || 'Tool result hidden (tap to expand).'}
           </Text>
         )}
 
@@ -353,6 +354,24 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
   const reasoning = typeof (message.metadata as any)?.reasoning === 'string'
     ? (message.metadata as any).reasoning
     : undefined;
+  const toolCalls = Array.isArray((message.metadata as any)?.tool_calls)
+    ? (message.metadata as any).tool_calls
+    : [];
+  const toolCallNames = useMemo(() => {
+    const names: string[] = [];
+    for (const tc of toolCalls) {
+      if (typeof tc === 'object' && tc !== null) {
+        const func = tc.function || {};
+        const name = typeof func === 'object' && func !== null && typeof func.name === 'string'
+          ? func.name
+          : typeof tc.type === 'string'
+          ? tc.type
+          : 'tool';
+        names.push(name);
+      }
+    }
+    return names;
+  }, [toolCalls]);
   const role = 'assistant';
   const footerParts = useMemo(() => {
     const elements = footerElements || [];
@@ -458,6 +477,11 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
             />
           )
         ) : null}
+        {toolCallNames.length > 0 && (
+          <Text style={styles.toolCallsText}>
+            {toolCallNames.length} tool call{toolCallNames.length !== 1 ? 's' : ''}: {toolCallNames.join(', ')}
+          </Text>
+        )}
         {footerParts.length > 0 && (
           <View style={styles.footerRow}>
             <Text style={styles.footerText}>{footerParts.join('   ')}</Text>
@@ -649,6 +673,13 @@ const createStyles = (theme: Theme) =>
       color: theme.textSecondary,
       fontStyle: 'italic',
       fontFamily: 'Courier',
+    },
+    toolCallsText: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      fontStyle: 'italic',
+      marginTop: 4,
+      marginBottom: 4,
     },
     contentText: {
       fontSize: 14,

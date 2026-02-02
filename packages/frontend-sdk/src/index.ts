@@ -49,7 +49,7 @@ export {
   filterStatusBarElements,
 } from './utils/uiSchema';
 
-export { selectDisplayContent } from './utils/messages';
+export { selectDisplayContent, selectSingleLineContent } from './utils/messages';
 
 export { parseOptionalInt, parseIndexRangeText } from './utils/range';
 
