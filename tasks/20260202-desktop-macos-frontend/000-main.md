@@ -51,6 +51,30 @@ This task directory is a handoff package for implementing Phase 5 of `tasks/2026
    - Summary of what RN macOS supports and what likely requires native modules:
      - `tasks/20260202-desktop-macos-frontend/920-native-elements-notes.md`
 
+## Notes from repo review (helpful references)
+
+- Connection record model + persistence currently live in mobile, not the SDK:
+  - `mobile/crystal-lattice-control-rn/App.tsx:42` (types)
+  - `mobile/crystal-lattice-control-rn/App.tsx:77` (`STORAGE_KEY_CONNECTIONS`)
+- Mobile already solved Metro/TS workspace import issues; desktop should mirror this pattern:
+  - `mobile/crystal-lattice-control-rn/metro.config.js:1`
+  - `mobile/crystal-lattice-control-rn/tsconfig.json:1`
+- Multi-tab chat needs careful polling start/stop behavior; see existing gating logic:
+  - `packages/frontend-sdk-react/src/useChatController.ts:1`
+
+## Suggested implementation bundles
+
+- Desktop bootstrap: `020` + `030` (scaffold macOS app, then wire Metro/TS)
+- Shared foundations (can happen early / in parallel): `010` + `040` (shared UI package + shared connection model)
+- Desktop shell + left column: `050` + `060` + `070` (layout, connections, sessions; relies on `010` + `040`)
+- Chat + docs: `080` + `090` (tabs/chat, then smoke checklist + README)
+
+## Tasks that need more planning up front
+
+- `020-rn-macos-scaffold-and-version`: version compatibility + init/scaffolding approach is high-uncertainty.
+- `010-shared-components-package`: shared component API boundaries (dropdown vs modal surface, icon strategy).
+- `080-desktop-chat-tabs-and-chat-pane`: per-tab controller lifecycle + polling cleanup (avoid background work leaks).
+
 ## Subtasks
 
 - `tasks/20260202-desktop-macos-frontend/010-shared-components-package.md`

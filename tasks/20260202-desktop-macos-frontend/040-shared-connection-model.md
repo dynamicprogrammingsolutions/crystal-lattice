@@ -36,6 +36,10 @@ For Phase 5, the desktop app only uses manual connections, but the type should r
 
 ### 2) Add SDK persistence helpers
 
+Note: the SDK currently does **not** expose a `KeyValueStore` type yet (it only exists in planning docs such as `plans/frontend-sdk/proposed-interfaces.ts:196`).
+
+As part of this subtask, add the `KeyValueStore` interface to the SDK and export it from `packages/frontend-sdk/src/index.ts`.
+
 - Create `packages/frontend-sdk/src/connections/store.ts` implementing:
   - `loadConnections(store: KeyValueStore): Promise<ConnectionRecord[]>`
   - `saveConnections(store: KeyValueStore, connections: ConnectionRecord[]): Promise<void>`
