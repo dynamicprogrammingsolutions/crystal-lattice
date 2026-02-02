@@ -1,16 +1,18 @@
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import type { ConnectionAdapter } from '../App';
+import type { Transport } from '@crystal-lattice/frontend-sdk';
 import { useTheme, type Theme } from './theme';
 
 interface ConnectionScreenProps {
-  adapter: ConnectionAdapter;
+  transport: Transport;
+  displayName: string;
   onDisconnect: () => void;
   additionalInfo?: string | null;
 }
 
 const ConnectionScreen: React.FC<ConnectionScreenProps> = ({
-  adapter,
+  transport,
+  displayName,
   onDisconnect,
   additionalInfo,
 }) => {
@@ -23,7 +25,8 @@ const ConnectionScreen: React.FC<ConnectionScreenProps> = ({
     setHealthLoading(true);
     setHealthStatus(null);
     try {
-      const data = await adapter.get('/api/hello');
+      const resp = await transport.request({ method: 'GET', path: '/api/hello' });
+      const data = resp.data;
       const label = typeof data === 'object' ? JSON.stringify(data) : String(data);
       setHealthStatus(`OK: ${label}`);
     } catch (err: any) {
@@ -37,7 +40,7 @@ const ConnectionScreen: React.FC<ConnectionScreenProps> = ({
   return (
     <View style={styles.container}>
       <Text style={styles.label}>Connected to</Text>
-      <Text style={styles.serverName}>{adapter.getDisplayName()}</Text>
+      <Text style={styles.serverName}>{displayName}</Text>
       {additionalInfo ? (
         <Text style={styles.serverSubLabel}>{additionalInfo}</Text>
       ) : null}

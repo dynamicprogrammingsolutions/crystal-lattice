@@ -26,12 +26,12 @@ def _make_full_plugin_config(tmp_path: Path, agent_plugins: List[str] | None = N
         "providers": {
             "dummy": {"provider": "dummy_provider", "model": "test-model"}
         },
-        "plugins": {
-            "providers": ["tests.dummy_provider.DummyProvider"],
-            "extensions": ["tests.dummy_extension.DummyExtension"],
-            "features": ["tests.dummy_feature.DummyFeature"],
-            "tools": ["tests.dummy_tool.DummyCalculator"],
-        },
+        "plugins": [
+            "tests.dummy_provider.DummyProvider",
+            "tests.dummy_extension.DummyExtension",
+            "tests.dummy_feature.DummyFeature",
+            "tests.dummy_tool.DummyCalculator",
+        ],
         "agents": {
             "default": {"provider": "dummy"},
         },

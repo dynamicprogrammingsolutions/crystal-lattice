@@ -20,25 +20,23 @@ from plugins.echo_openai_like_provider import EchoOpenAILikeProvider  # noqa: F4
 from plugins.summarize_range_app import SummarizeRangeAppPlugin  # noqa: F401
 
 
+def _get_mutations(result: Dict[str, Any]) -> Dict[str, Any]:
+    mutations = result.get("mutations")
+    return mutations if isinstance(mutations, dict) else {}
+
+
 def _make_config_with_summarize_range(tmp_path: Path) -> Path:
     cfg: Dict[str, Any] = {
         "providers": {
             "echo": {"provider": "echo_openai_like", "model": "test-model"}
         },
-        "plugins": {
-            "providers": [
-                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            ],
-            "features": [],
-            "tools": [],
-            "extensions": [],
-        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.summarize_range_app.SummarizeRangeAppPlugin",
+        ],
         "agents": {
             "default": {"provider": "echo"},
         },
-        "application_plugins": [
-            "plugins.summarize_range_app.SummarizeRangeAppPlugin",
-        ],
         "application": {
             "summarize_range_agent_id": "default",
             "summarize_range_prompt": "Summarize this range succinctly.",
@@ -81,7 +79,7 @@ def test_summarize_range_replaces_range_with_single_message(tmp_path: Path) -> N
         params={"session_id": session_id, "start": 1, "end": 3},
     )
 
-    updated = result.get("updated_session_ids") or []
+    updated = _get_mutations(result).get("updated_session_ids") or []
     assert updated == [session_id]
 
     ctx = app.load_session(session_id)
@@ -121,7 +119,7 @@ def test_prompt_input_overrides_config_default(tmp_path: Path) -> None:
         },
     )
 
-    updated = result.get("updated_session_ids") or []
+    updated = _get_mutations(result).get("updated_session_ids") or []
     assert updated == [session_id]
 
     ctx = app.load_session(session_id)

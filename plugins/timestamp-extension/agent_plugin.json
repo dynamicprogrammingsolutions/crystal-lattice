@@ -1,0 +1,10 @@
+{
+  "module": "timestamp_extension",
+  "subdirectory": ".",
+  "entries": [
+    "timestamp_extension.TimestampExtension"
+  ],
+  "kinds": {
+    "timestamp_extension.TimestampExtension": "extensions"
+  }
+}

@@ -1219,16 +1219,10 @@ def test_system_message_feature_adds_system_message_after_second_user_message(tm
                 "system_message": system_template,
             }
         },
-        "plugins": {
-            "providers": [
-                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            ],
-            "extensions": [],
-            "features": [
-                "plugins.system_message_feature.SystemMessageFeature",
-            ],
-            "tools": [],
-        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.system_message_feature.SystemMessageFeature",
+        ],
         "agents": {
             "default": {
                 "provider": "echo_with_system",
@@ -1497,6 +1491,10 @@ def test_checkpoint_cursor_after_message_appended(tmp_path: Path) -> None:
     last_appended = appended[-1]
     last_checkpoint = checkpoints[-1]
 
+    assert "session" not in last_appended
+    assert isinstance(last_appended.get("index"), int)
+    assert isinstance(last_appended.get("message"), dict)
+
     def _to_int(value: Any) -> int:
         try:
             return int(value)
@@ -1745,14 +1743,12 @@ def test_http_flow_with_tools_and_reasoning(ensure_ollama_model: None, tmp_path:
                 "max_file_size": 1024 * 1024,
             }
         },
-        "plugins": {
-            "providers": ["plugins.openai_provider.OpenAICompatibleProvider"],
-            "extensions": [
-                "plugins.openai_tools_extension.OpenAIToolsExtension",
-                "plugins.ollama_thinking_extension.OllamaThinkingExtension",
-            ],
-            "tools": ["plugins.file_reader_tool.FileReaderTool"],
-        },
+        "plugins": [
+            "plugins.openai_provider.OpenAICompatibleProvider",
+            "plugins.openai_tools_extension.OpenAIToolsExtension",
+            "plugins.ollama_thinking_extension.OllamaThinkingExtension",
+            "plugins.file_reader_tool.FileReaderTool",
+        ],
         "agents": {
             "default": {"provider": "ollama_tools"},
         },
@@ -1948,6 +1944,8 @@ def test_update_message_endpoint_modifies_content_and_emits_event(tmp_path: Path
     last_ev = modified[-1]
     assert last_ev["index"] == 2
     assert last_ev["content"] == "two modified"
+    assert "session" not in last_ev
+    assert isinstance(last_ev.get("message"), dict)
 
 
 def test_delete_messages_endpoint_supports_indices_range_and_last(tmp_path: Path) -> None:
@@ -2091,6 +2089,8 @@ def test_fork_session_endpoint_creates_truncated_copy(tmp_path: Path) -> None:
     created = [ev for ev in evs if ev.get("type") == "session_created"]
     assert created, "expected a session_created event for forked session"
     assert created[-1].get("source_session_id") == source_id
+    assert created[-1].get("fork_upto_index") == 2
+    assert "session" not in created[-1]
 
 
 def test_agent_endpoints_list_and_switch_agents(tmp_path: Path) -> None:

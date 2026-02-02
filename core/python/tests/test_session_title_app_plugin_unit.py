@@ -19,25 +19,28 @@ from plugins.echo_openai_like_provider import EchoOpenAILikeProvider  # noqa: F4
 from plugins.session_title_app import SessionTitleAppPlugin  # noqa: F401
 
 
+def _get_mutations(result: Dict[str, Any]) -> Dict[str, Any]:
+    mutations = result.get("mutations")
+    return mutations if isinstance(mutations, dict) else {}
+
+
+def _get_ui_effects(result: Dict[str, Any]) -> Dict[str, Any]:
+    ui_effects = result.get("ui_effects")
+    return ui_effects if isinstance(ui_effects, dict) else {}
+
+
 def _make_config_with_session_title(tmp_path: Path) -> Path:
     cfg: Dict[str, Any] = {
         "providers": {
             "echo": {"provider": "echo_openai_like", "model": "test-model"}
         },
-        "plugins": {
-            "providers": [
-                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            ],
-            "features": [],
-            "tools": [],
-            "extensions": [],
-        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.session_title_app.SessionTitleAppPlugin",
+        ],
         "agents": {
             "default": {"provider": "echo"},
         },
-        "application_plugins": [
-            "plugins.session_title_app.SessionTitleAppPlugin",
-        ],
         "application": {},
     }
 
@@ -76,7 +79,7 @@ def test_set_session_title_updates_metadata_and_ids(tmp_path: Path) -> None:
         params={"session_id": session_id, "title": "Project planning"},
     )
 
-    updated = result.get("updated_session_ids") or []
+    updated = _get_mutations(result).get("updated_session_ids") or []
     assert updated == [session_id]
 
     ctx = app.load_session(session_id)
@@ -112,7 +115,7 @@ def test_set_session_title_clears_title_when_empty(tmp_path: Path) -> None:
         params={"session_id": session_id, "title": "  "},
     )
 
-    updated = result.get("updated_session_ids") or []
+    updated = _get_mutations(result).get("updated_session_ids") or []
     assert updated == [session_id]
 
     ctx2 = app.load_session(session_id)
@@ -163,7 +166,7 @@ def test_set_session_title_can_set_subtitle(tmp_path: Path) -> None:
         },
     )
 
-    updated = result.get("updated_session_ids") or []
+    updated = _get_mutations(result).get("updated_session_ids") or []
     assert updated == [session_id]
 
     ctx = app.load_session(session_id)
@@ -206,7 +209,7 @@ def test_set_session_title_clears_subtitle_when_empty(tmp_path: Path) -> None:
         },
     )
 
-    updated = result.get("updated_session_ids") or []
+    updated = _get_mutations(result).get("updated_session_ids") or []
     assert updated == [session_id]
 
     ctx2 = app.load_session(session_id)
@@ -251,5 +254,5 @@ def test_set_session_title_from_session_list_does_not_request_navigation(
 
     # For session-list invocations, the plugin should not request that
     # frontends navigate to/open the session.
-    assert result.get("updated_session_ids") == [session_id]
-    assert not isinstance(result.get("selected_session_id"), str)
+    assert _get_mutations(result).get("updated_session_ids") == [session_id]
+    assert not isinstance(_get_ui_effects(result).get("navigate_to_session_id"), str)

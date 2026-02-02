@@ -13,28 +13,22 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
-import type { ConnectionAdapter } from '../../App';
+import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import {
-  apiGetSessionOverrides,
-  apiGetSessionUiSchema,
-  apiPatchSessionOverrides,
-  apiGetSessionBaseConfig,
-  apiGetSessionConfigSchema,
-  apiDeleteSessionOverride,
   type ConfigSchemaEntry,
   type UiSchemaElement,
 } from '../api';
 import { useTheme, type Theme } from '../theme';
 
 export interface SessionSettingsModalProps {
-  adapter: ConnectionAdapter | null;
+  backend: AgentBackend | null;
   sessionId: string;
   visible: boolean;
   onRequestClose: () => void;
 }
 
 const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
-  adapter,
+  backend,
   sessionId,
   visible,
   onRequestClose,
@@ -55,7 +49,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     if (!visible) {
       return;
     }
-    if (!adapter) {
+    if (!backend) {
       setError('No active connection');
       setElements([]);
       setOverrides({});
@@ -69,10 +63,10 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
       setError(null);
       try {
         const [els, ovs, schema, baseCfg] = await Promise.all([
-          apiGetSessionUiSchema(adapter, sessionId),
-          apiGetSessionOverrides(adapter, sessionId),
-          apiGetSessionConfigSchema(adapter, sessionId),
-          apiGetSessionBaseConfig(adapter, sessionId),
+          backend.getSessionUiSchema(sessionId),
+          backend.getSessionOverrides(sessionId),
+          backend.getSessionConfigSchema(sessionId),
+          backend.getSessionBaseConfig(sessionId),
         ]);
         if (cancelled) return;
         // Filter to config-style elements: ui_type == "config" or missing,
@@ -114,16 +108,16 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [adapter, sessionId, visible]);
+  }, [backend, sessionId, visible]);
 
   const handleToggleCheckbox = async (key: string, next: boolean) => {
-    if (!adapter) {
+    if (!backend) {
       Alert.alert('No connection', 'Connect to a server to change settings.');
       return;
     }
     setOverrides((prev) => ({ ...prev, [key]: next }));
     try {
-      await apiPatchSessionOverrides(adapter, sessionId, { [key]: next });
+      await backend.patchSessionOverrides(sessionId, { [key]: next });
     } catch (err: any) {
       console.log('Failed to update checkbox setting', err);
       const msg = err?.message || 'Failed to update setting.';
@@ -133,13 +127,13 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   };
 
   const handleSelectOption = async (key: string, value: string) => {
-    if (!adapter) {
+    if (!backend) {
       Alert.alert('No connection', 'Connect to a server to change settings.');
       return;
     }
     setOverrides((prev) => ({ ...prev, [key]: value }));
     try {
-      await apiPatchSessionOverrides(adapter, sessionId, { [key]: value });
+      await backend.patchSessionOverrides(sessionId, { [key]: value });
     } catch (err: any) {
       console.log('Failed to update select setting', err);
       const msg = err?.message || 'Failed to update setting.';
@@ -148,14 +142,14 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   };
 
   const handleSaveText = async (key: string) => {
-    if (!adapter) {
+    if (!backend) {
       Alert.alert('No connection', 'Connect to a server to change settings.');
       return;
     }
     const value = pendingTextByKey[key] ?? String(overrides[key] ?? '');
     setSavingKey(key);
     try {
-      await apiPatchSessionOverrides(adapter, sessionId, { [key]: value });
+      await backend.patchSessionOverrides(sessionId, { [key]: value });
       setOverrides((prev) => ({ ...prev, [key]: value }));
     } catch (err: any) {
       console.log('Failed to update text setting', err);
@@ -167,7 +161,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   };
 
   const handleRevertToDefault = async (key: string) => {
-    if (!adapter) {
+    if (!backend) {
       Alert.alert('No connection', 'Connect to a server to change settings.');
       return;
     }
@@ -185,7 +179,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
       return next;
     });
     try {
-      await apiDeleteSessionOverride(adapter, sessionId, key);
+      await backend.deleteSessionOverride(sessionId, key);
     } catch (err: any) {
       console.log('Failed to revert setting override', err);
       const msg = err?.message || 'Failed to revert setting.';
@@ -432,6 +426,10 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
       </View>
     );
   };
+
+  if (!visible) {
+    return null;
+  }
 
   return (
     <Modal

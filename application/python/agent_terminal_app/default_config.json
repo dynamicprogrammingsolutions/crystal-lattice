@@ -1,9 +1,16 @@
 {
+  "plugin_cache_dir": "~/.crystal/cache/plugins",
   "application": {
     "tool_output_line_limit": 50,
     "tool_output_short_char_limit": 200,
     "tool_output_short_one_line": false,
-    "tool_output_short_line_limit": 10
+    "tool_output_short_line_limit": 10,
+    "session_actions": {
+      "allow_delete": true
+    },
+    "session_title_metadata_key": "title",
+    "session_subtitle_metadata_key": "subtitle",
+    "session_pinned_metadata_key": "pinned"
   },
   "providers": {
     "openrouter_tools": {
@@ -19,35 +26,23 @@
       "reasoning_effort": "medium",
       "system_message_enabled": true,
       "system_message": "You are a helpful coding assistant. Respond concisely."
-    },
-    "openai_compatible": {
-      "provider": "openai_compatible",
-      "model": "qwen3:0.6b",
-      "base_url": "http://localhost:11434/v1"
     }
   },
-  "plugins": {
-    "providers": ["plugins.openrouter_provider.OpenRouterProvider"],
-    "extensions": [
-      "plugins.openrouter_reasoning_extension.OpenRouterReasoningExtension",
-      "plugins.openrouter_tools_extension.OpenRouterToolsExtension",
-      "plugins.openrouter_websearch_extension.OpenRouterWebSearchExtension",
-      "plugins.timestamp_extension.TimestampExtension",
-      "plugins.delay_extension.DelayExtension",
-      "plugins.random_failure_extension.RandomFailureExtension",
-      "plugins.openai_tools_extension.OpenAIToolsExtension",
-      "plugins.openrouter_usage_extension.OpenRouterUsageExtension"
-    ],
-    "features": [
-      "plugins.system_message_feature.SystemMessageFeature",
-      "plugins.file_context_feature.FileContextFeature",
-      "plugins.web_context_feature.WebContextFeature"
-    ],
-    "tools": [
-      "plugins.shell_tool.ShellTool",
-      "plugins.apply_patch_tool.ApplyPatchTool"
-    ]
-  },
+  "plugins": [
+    "path:../../../plugins/openrouter",
+    "path:../../../plugins/codex-tools",
+    "path:../../../plugins/feature-system-message",
+    "path:../../../plugins/feature-file-context",
+    "path:../../../plugins/feature-web-context",
+    "path:../../../plugins/timestamp-extension",
+    "path:../../../plugins/session-actions-app",
+    "path:../../../plugins/summarize-range-app",
+    "path:../../../plugins/session-title-app",
+    "path:../../../plugins/generate-title-app",
+    "path:../../../plugins/session-timestamp-meta-app",
+    "path:../../../plugins/session-message-count-meta-app",
+    "path:../../../plugins/session-pinned-app"
+  ],
   "agents": {
     "default": {
       "provider": "openrouter_tools",

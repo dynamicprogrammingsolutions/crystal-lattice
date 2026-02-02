@@ -2,10 +2,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   KeyboardAvoidingView,
   Modal,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -14,20 +14,25 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Clipboard from '@react-native-clipboard/clipboard';
-import type { ConnectionAdapter } from '../App';
+import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import {
-  apiAppendMessage,
-  apiCancelRequest,
-  apiDeleteMessagesByRange,
-  apiGetSessionAgent,
-  apiListMessages,
-  apiModifyMessage,
-  apiSend,
-  apiSwitchSessionAgent,
+  deriveChatStatusBarParts,
+  deriveSessionListPresentationFromGroups,
+  filterFooterElements,
+  filterStatusBarElements,
+  groupSessionListFields,
+  runApplicationAction,
+  selectLastAssistantMessage,
+} from '@crystal-lattice/frontend-sdk';
+import { useChatController, useAgentsController } from '@crystal-lattice/frontend-sdk-react';
+import {
+  useHydrateControllerFromCache,
+  useSessionUiSchemaController,
+} from '@crystal-lattice/frontend-sdk-react';
+import {
   type ApiMessage,
   type IndexedMessage,
   type ActionUiElement,
-  apiGetSessionUiSchema,
   type UiSchemaElement,
   type SessionSummary,
 } from './api';
@@ -40,39 +45,39 @@ import AgentSwitchModal from './components/AgentSwitchModal';
 import { SESSION_ACTIONS, type SessionActionKey } from './sessionActions';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 import { selectDisplayContent } from './messageUtils';
+import {
+  createChatScrollAnchor,
+  isChatScrollAnchor,
+  PINNED_TO_BOTTOM_THRESHOLD_PX,
+  type ChatScrollAnchor,
+} from './chatScroll';
 import { useTheme, type Theme } from './theme';
-import { useSessionEvents } from './useSessionEvents';
-import { extractByPath, renderTemplate } from './uiSchemaUtils';
 import { useApplicationPlugins } from './ApplicationPluginsContext';
-import { executeApplicationAction } from './applicationActionsExecutor';
 import { usePersistentPinnedActions } from './usePersistentPinnedActions';
-import { useSessionAgents } from './useSessionAgents';
 import { usePluginActionDialog } from './usePluginActionDialog';
-import type {
-  AssistantMessageEvent,
-  ErrorEvent,
-  Event,
-  FinalEvent,
-  MessageAppendedEvent,
-  PartialEvent,
-  ToolResultsEvent,
-} from './eventsTypes';
+import type { Event } from './eventsTypes';
 
 interface SessionChatScreenProps {
-  adapter: ConnectionAdapter | null;
+  backend: AgentBackend | null;
   connectionId: string | null;
+  isActive: boolean;
   sessionId: string;
   sessionSummary: SessionSummary | null;
   cachedMessages: IndexedMessage[] | null;
   lastLoadedAt: number | null;
-  cachedCursorEventId: string | null;
-  onUpdateCache: (messages: IndexedMessage[], cursorEventId: string | null) => void;
+  cachedEventsCursorId: string | null;
+  cachedActiveRequestId: string | null;
+  onUpdateCache: (
+    messages: IndexedMessage[],
+    eventsCursorId: string | null,
+    activeRequestId: string | null,
+  ) => void;
   onBack: () => void;
   onNavigateToSession?: (sessionId: string) => void;
   initialComposeText: string;
-  initialScrollOffset: number;
+  initialScrollAnchor: ChatScrollAnchor | null;
   onSaveComposeText: (composeText: string) => void;
-  onSaveScrollOffset: (scrollOffset: number) => void;
+  onSaveScrollAnchor: (scrollAnchor: ChatScrollAnchor) => void;
 }
 
 const STORAGE_KEY_SESSION_ACTIONS = 'clc_pinned_session_actions_v1';
@@ -83,25 +88,25 @@ type PluginActionContext =
   | { kind: 'message'; index: number; message: ApiMessage; sessionSummary: SessionSummary | null };
 
 const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
-  adapter,
+  backend,
   connectionId,
+  isActive,
   sessionId,
   sessionSummary,
   cachedMessages,
   lastLoadedAt,
-  cachedCursorEventId,
+  cachedEventsCursorId,
+  cachedActiveRequestId,
   onUpdateCache,
   onBack,
   onNavigateToSession,
   initialComposeText,
-  initialScrollOffset,
+  initialScrollAnchor,
   onSaveComposeText,
-  onSaveScrollOffset,
+  onSaveScrollAnchor,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const [messages, setMessages] = useState<IndexedMessage[]>(cachedMessages ?? []);
-  const [loadingMessages, setLoadingMessages] = useState(false);
   const [sendInProgress, setSendInProgress] = useState(false);
   const [composeText, setComposeText] = useState(initialComposeText ?? '');
   const [rangeStartText, setRangeStartText] = useState('-50');
@@ -119,8 +124,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       STORAGE_KEY_SESSION_ACTIONS,
       defaultPinnedSessionActions,
     );
-  const { availableAgents, agentLoading, ensureAgentsLoaded, setAgentLoading } =
-    useSessionAgents();
+  const { controller: agentsController, state: agentsState } = useAgentsController({
+    backend,
+    cacheKey: connectionId ?? 'default',
+    enabled: !!(backend && isActive),
+  });
+  const availableAgents = agentsState?.agents ?? [];
+  const agentsLoading = agentsState?.loading ?? false;
+  const [agentSwitchInProgress, setAgentSwitchInProgress] = useState(false);
   const [sessionAgentId, setSessionAgentId] = useState<string | null>(null);
   const [agentModalVisible, setAgentModalVisible] = useState(false);
   const [pinnedMessageActionsByRole, setPinnedMessageActionsByRole] = useState<
@@ -131,51 +142,130 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   >({});
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingText, setEditingText] = useState('');
-  const [shouldAutoScroll, setShouldAutoScroll] = useState(false);
-  const [initialCheckpointId, setInitialCheckpointId] = useState<string | null>(
-    cachedCursorEventId,
-  );
-  const [snapshotReady, setSnapshotReady] = useState<boolean>(!!cachedMessages);
   const [debugVisible, setDebugVisible] = useState(false);
   const [debugEvents, setDebugEvents] = useState<Event[]>([]);
-  const [activeError, setActiveError] = useState<
-    { detail: string; requestId: string | null } | null
-  >(null);
-  const [streamingRow, setStreamingRow] = useState<
-    | {
-        requestId: string;
-        reasoning: string;
-        content: string;
-        metadata?: Record<string, any> | null;
-      }
-    | null
-  >(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
-  const [uiSchemaElements, setUiSchemaElements] = useState<UiSchemaElement[]>([]);
   const [pluginActionInProgress, setPluginActionInProgress] = useState(false);
-  const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
   const {
     actionsById,
     sessionActions: pluginSessionActions,
     messageActions: pluginMessageActions,
     sessionListFields,
   } = useApplicationPlugins();
-  const scrollViewRef = useRef<ScrollView | null>(null);
+
+  type ChatRow =
+    | { kind: 'status'; key: string; parts: string[] }
+    | { kind: 'stream'; key: string }
+    | { kind: 'message'; key: string; indexedMessage: IndexedMessage };
+
+  const listRef = useRef<FlatList<ChatRow> | null>(null);
   const composeTextRef = useRef<string>(initialComposeText ?? '');
-  const scrollOffsetRef = useRef<number>(initialScrollOffset || 0);
+  const onSaveComposeTextRef = useRef(onSaveComposeText);
+  const onSaveScrollAnchorRef = useRef(onSaveScrollAnchor);
+  const bottomGapPxRef = useRef<number>(0);
+  const pinnedToBottomRef = useRef<boolean>(true);
+  const initialScrollAnchorRef = useRef<ChatScrollAnchor | null>(
+    isChatScrollAnchor(initialScrollAnchor) ? initialScrollAnchor : null,
+  );
   const hasRestoredScrollRef = useRef(false);
-  const hasAutoScrolledRef = useRef(false);
+  const lastCacheSnapshotRef = useRef<{
+    messagesRef: IndexedMessage[] | null;
+    activeRequestId: string | null;
+    dirty: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    onSaveComposeTextRef.current = onSaveComposeText;
+  }, [onSaveComposeText]);
+
+  useEffect(() => {
+    onSaveScrollAnchorRef.current = onSaveScrollAnchor;
+  }, [onSaveScrollAnchor]);
+
+  useEffect(() => {
+    if (hasRestoredScrollRef.current) {
+      return;
+    }
+    initialScrollAnchorRef.current = isChatScrollAnchor(initialScrollAnchor)
+      ? initialScrollAnchor
+      : null;
+  }, [initialScrollAnchor]);
+
+  const appendEventsToDebugBuffer = useCallback((events: Event[]) => {
+    if (!events || events.length === 0) return;
+    setDebugEvents((prev) => {
+      const combined = [...prev, ...events];
+      const max = 200;
+      return combined.length > max ? combined.slice(combined.length - max) : combined;
+    });
+  }, []);
+
+  const { controller: chatController, state: chatState } = useChatController({
+    backend,
+    sessionId,
+    initialMessages: cachedMessages ?? [],
+    initialEventsCursorId: cachedEventsCursorId ?? null,
+    initialActiveRequestId: cachedActiveRequestId ?? null,
+    onEvents: appendEventsToDebugBuffer,
+    eventsEnabled: !!(backend && sessionId && isActive),
+  });
+
+  const messages: IndexedMessage[] = chatState?.messages ?? cachedMessages ?? [];
+  const streamingRow = chatState?.streamingRow ?? null;
+  const activeRequestId = chatState?.activeRequestId ?? cachedActiveRequestId ?? null;
+  const activeError = chatState?.requestError ?? null;
+  const loadingMessages = chatState?.loading ?? false;
+  const sessionDirty = chatState?.dirty ?? false;
+
+  const hydrateChatCache = useCallback(
+    (
+      controller: NonNullable<typeof chatController>,
+      cache: {
+        messages: IndexedMessage[];
+        eventsCursorId: string | null;
+        activeRequestId: string | null;
+        updatedAtMs: number | null;
+      },
+    ) => {
+      controller.hydrateFromCache(cache);
+    },
+    [],
+  );
+
+  useHydrateControllerFromCache({
+    controller: chatController,
+    cache:
+      cachedMessages != null
+        ? {
+            messages: cachedMessages,
+            eventsCursorId: cachedEventsCursorId ?? null,
+            activeRequestId: cachedActiveRequestId ?? null,
+            updatedAtMs: lastLoadedAt ?? null,
+          }
+        : null,
+    hydrate: hydrateChatCache,
+  });
+
+  useEffect(() => {
+    if (!chatController) {
+      return;
+    }
+    chatController.setHistoryRangeFromRangeText({
+      startText: rangeStartText,
+      endText: rangeEndText,
+    });
+  }, [chatController, rangeStartText, rangeEndText]);
 
   useEffect(() => {
     composeTextRef.current = composeText;
   }, [composeText]);
 
   useEffect(() => {
-    if (!adapter) return;
-    ensureAgentsLoaded(adapter).catch(() => {
+    if (!backend) return;
+    agentsController?.ensureLoaded().catch(() => {
       // Non-fatal; status bar should still render.
     });
-  }, [adapter, ensureAgentsLoaded]);
+  }, [agentsController, backend]);
 
   useEffect(() => {
     const md = sessionSummary?.metadata;
@@ -216,30 +306,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     loadPinnedFromStorage();
   }, []);
 
-  useEffect(() => {
-    if (!adapter) {
-      setUiSchemaElements([]);
-      return;
-    }
-    let cancelled = false;
-    const loadSchema = async () => {
-      try {
-        const els = await apiGetSessionUiSchema(adapter, sessionId);
-        if (!cancelled) {
-          setUiSchemaElements(Array.isArray(els) ? els : []);
-        }
-      } catch (err) {
-        console.log('Failed to load UI schema for session', err);
-        if (!cancelled) {
-          setUiSchemaElements([]);
-        }
-      }
-    };
-    loadSchema();
-    return () => {
-      cancelled = true;
-    };
-  }, [adapter, sessionId]);
+  const { state: sessionUiSchemaState } = useSessionUiSchemaController({
+    backend,
+    cacheKey: connectionId ?? 'default',
+    sessionId,
+    enabled: !!(backend && isActive),
+  });
+  const uiSchemaElements = sessionUiSchemaState?.elements ?? [];
 
   const pluginSessionActionDefs = useMemo(
     () =>
@@ -270,54 +343,29 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   };
 
   const loadMessages = useCallback(async () => {
-    if (!adapter) {
+    if (!chatController) {
       const message = 'No active connection';
       Alert.alert('Error', message);
       return;
     }
-    setLoadingMessages(true);
     try {
-		      let start: number | undefined;
-		      let end: number | undefined;
-		      const startTrimmed = rangeStartText.trim();
-		      const endTrimmed = rangeEndText.trim();
-		      if (startTrimmed) {
-		        const parsed = parseInt(startTrimmed, 10);
-		        if (!Number.isNaN(parsed)) {
-		          start = parsed;
-		        }
-		      }
-		      if (endTrimmed) {
-		        const parsedEnd = parseInt(endTrimmed, 10);
-		        if (!Number.isNaN(parsedEnd)) {
-		          end = parsedEnd;
-		        }
-		      }
-      const { messages: list, cursor_event_id, active_request_id } = await apiListMessages(
-		        adapter,
-		        sessionId,
-		        start,
-		        end,
-		      );
-		      setMessages(list);
-      setInitialCheckpointId(cursor_event_id ?? null);
-      setActiveRequestId(active_request_id ?? null);
-      setStreamingRow(null);
-		      if (!hasAutoScrolledRef.current) {
-		        setShouldAutoScroll(true);
-		        hasAutoScrolledRef.current = true;
-		      }
-		      setLastReloadAt(new Date());
-      onUpdateCache(list, cursor_event_id ?? null);
-      setSnapshotReady(true);
+	  await chatController.loadMessagesFromRangeText({
+	    startText: rangeStartText,
+	    endText: rangeEndText,
+	  });
+	  const snapshot = chatController.getCacheSnapshot();
+	  setLastReloadAt(new Date(snapshot.updatedAtMs ?? Date.now()));
+	  onUpdateCache(
+	    snapshot.messages,
+	    snapshot.eventsCursorId ?? null,
+	    snapshot.activeRequestId ?? null,
+	  );
     } catch (err: any) {
       console.log('Failed to load messages', err);
       const message = err?.message || 'Failed to load messages';
       Alert.alert('Error', message);
-    } finally {
-      setLoadingMessages(false);
-	    }
-  }, [adapter, sessionId, rangeStartText, rangeEndText, onUpdateCache]);
+    }
+  }, [chatController, rangeStartText, rangeEndText, onUpdateCache]);
 
   const {
     activeElement: activePluginDialogElement,
@@ -332,7 +380,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         context: PluginActionContext,
         dialogValues: Record<string, any> | undefined,
       ) => {
-        if (!adapter) {
+        if (!backend) {
           Alert.alert('No connection', 'Connect to a server to run actions.');
           return;
         }
@@ -340,68 +388,105 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         setPluginActionInProgress(true);
         try {
           const isMessage = context.kind === 'message';
-          const { ok, response } = await executeApplicationAction(
-            adapter,
-            element,
-            actionsById,
-            {
-              sessionId,
-              messageContext: isMessage
-                ? { index: (context as any).index, message: (context as any).message }
-                : undefined,
-              dialogValues,
-            },
-          );
-          if (!ok) return;
+	          const { ok, effects, errorMessage } = await runApplicationAction({
+	            backend,
+	            element,
+	            actionsById,
+	            context: {
+	              sessionId,
+	              messageContext: isMessage
+	                ? { index: (context as any).index, message: (context as any).message }
+	                : undefined,
+	              dialogValues,
+	            },
+	            effects: {
+	              currentSessionId: sessionId,
+	              navigateOnCreatedSession: true,
+	            },
+	          });
+	          if (!ok) {
+	            Alert.alert('Action error', errorMessage || 'Failed to execute action');
+	            return;
+	          }
 
-          const result: any = (response as any)?.result || {};
-          const created: string[] = Array.isArray(result.created_session_ids)
-            ? (result.created_session_ids as string[])
-            : [];
-          const selectedId: string | undefined =
-            typeof result.selected_session_id === 'string'
-              ? result.selected_session_id
-              : created.length > 0 && typeof created[0] === 'string'
-              ? created[0]
-              : undefined;
-          if (selectedId && onNavigateToSession) {
-            onNavigateToSession(selectedId);
-            return;
-          }
-
-          const updated: string[] = Array.isArray(result.updated_session_ids)
-            ? (result.updated_session_ids as string[])
-            : [];
-          if (updated.includes(sessionId)) {
-            await loadMessages();
-          }
+	          for (const effect of effects) {
+	            if (effect.type === 'navigateToSession') {
+	              if (onNavigateToSession) {
+	                onNavigateToSession(effect.sessionId);
+	              }
+	              return;
+	            }
+	          }
+	          if (effects.some((effect) => effect.type === 'reloadSession')) {
+	            await loadMessages();
+	          }
         } finally {
           setPluginActionInProgress(false);
         }
       },
-      [adapter, actionsById, sessionId, loadMessages, onNavigateToSession],
+      [backend, actionsById, sessionId, loadMessages, onNavigateToSession],
     ),
   );
 
+  const closeOverlays = useCallback(() => {
+    setMessageLimitVisible(false);
+    setDeleteRangeVisible(false);
+    setAgentModalVisible(false);
+    setSettingsVisible(false);
+    setDebugVisible(false);
+    handleCancelPluginDialog();
+  }, [handleCancelPluginDialog]);
+
   useEffect(() => {
-    setMessages(cachedMessages ?? []);
-    if (cachedMessages && lastLoadedAt) {
+    if (isActive) return;
+    closeOverlays();
+  }, [closeOverlays, isActive]);
+
+  const handleBack = useCallback(() => {
+    closeOverlays();
+    onBack();
+  }, [closeOverlays, onBack]);
+
+  useEffect(() => {
+    if (cachedMessages != null && lastLoadedAt) {
       setLastReloadAt(new Date(lastLoadedAt));
     }
   }, [cachedMessages, connectionId, sessionId, lastLoadedAt]);
 
   useEffect(() => {
-    if (sessionId && connectionId !== null) {
-      setInitialCheckpointId(cachedCursorEventId ?? null);
-      setSnapshotReady(!!cachedMessages);
-    }
-  }, [cachedCursorEventId, cachedMessages, sessionId, connectionId]);
-
-  useEffect(() => {
-    if (!cachedMessages && adapter) {
+    if (!cachedMessages && chatController) {
       loadMessages();
     }
-  }, [adapter, cachedMessages, loadMessages]);
+  }, [chatController, cachedMessages, loadMessages]);
+
+  useEffect(() => {
+    if (!chatState) {
+      return;
+    }
+
+    const prev = lastCacheSnapshotRef.current;
+    const next = {
+      messagesRef: chatState.messages,
+      activeRequestId: chatState.activeRequestId ?? null,
+      dirty: chatState.dirty ?? false,
+    };
+
+    const shouldPersist =
+      prev == null ||
+      prev.messagesRef !== next.messagesRef ||
+      prev.activeRequestId !== next.activeRequestId ||
+      prev.dirty !== next.dirty;
+    if (!shouldPersist) {
+      return;
+    }
+
+    lastCacheSnapshotRef.current = next;
+    onUpdateCache(
+      chatState.messages,
+      chatState.eventsCursorId ?? null,
+      chatState.activeRequestId ?? null,
+    );
+  }, [chatState?.messages, chatState?.activeRequestId, chatState?.dirty, onUpdateCache]);
 
   useEffect(() => {
     const saveMessagePinned = async () => {
@@ -417,27 +502,43 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     saveMessagePinned();
   }, [pinnedMessageActionsByRole]);
 
-  useEffect(() => {
-    // Persist UI state when this screen is unmounted.
-    return () => {
-      onSaveComposeText(composeTextRef.current);
-      onSaveScrollOffset(scrollOffsetRef.current);
-    };
+  const persistScrollAnchor = useCallback(() => {
+    onSaveScrollAnchorRef.current(
+      createChatScrollAnchor({
+        bottomGapPx: bottomGapPxRef.current,
+        pinnedToBottom: pinnedToBottomRef.current,
+      }),
+    );
   }, []);
+
+  const persistUiState = useCallback(() => {
+    onSaveComposeTextRef.current(composeTextRef.current);
+    persistScrollAnchor();
+  }, [persistScrollAnchor]);
+
+  useEffect(() => {
+    return () => {
+      persistUiState();
+    };
+  }, [persistUiState]);
+
+  useEffect(() => {
+    if (isActive) return;
+    persistUiState();
+  }, [isActive, persistUiState]);
 
   const handleAppend = async () => {
     const text = composeText.trim();
     if (!text) {
       return;
     }
-    if (!adapter) {
+    if (!chatController) {
       Alert.alert('No connection', 'Connect to a server to append messages.');
       return;
     }
     setSendInProgress(true);
     try {
-      await apiAppendMessage(adapter, sessionId, 'user', text);
-      await loadMessages();
+      await chatController.appendMessage({ role: 'user', content: text });
     } catch (err: any) {
       console.log('Failed to append message', err);
       const message = err?.message || 'Failed to append message';
@@ -450,21 +551,20 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const handleSend = async () => {
     const text = composeText.trim();
     setSendInProgress(true);
-    if (!adapter) {
+    if (!chatController) {
       Alert.alert('No connection', 'Connect to a server to send messages.');
       setSendInProgress(false);
       return;
     }
     try {
       if (text) {
-        await apiAppendMessage(adapter, sessionId, 'user', text);
+        await chatController.appendMessage({ role: 'user', content: text });
       }
-      setActiveError(null);
-      setStreamingRow(null);
-      await apiSend(adapter, sessionId);
-      await loadMessages();
-        setComposeText('');
-        onSaveComposeText('');
+
+      chatController.clearRequestState();
+      await chatController.send();
+	    setComposeText('');
+	    onSaveComposeText('');
     } catch (err: any) {
       console.log('Failed to send request', err);
       const message = err?.message || 'Failed to send request';
@@ -476,16 +576,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   const handleResend = async () => {
     setSendInProgress(true);
-    if (!adapter) {
+    if (!chatController) {
       Alert.alert('No connection', 'Connect to a server to resend.');
       setSendInProgress(false);
       return;
     }
     try {
-      setActiveError(null);
-      setStreamingRow(null);
-      await apiSend(adapter, sessionId);
-      await loadMessages();
+      chatController.clearRequestState();
+      await chatController.send();
     } catch (err: any) {
       console.log('Failed to resend request', err);
       const message = err?.message || 'Failed to resend request';
@@ -496,7 +594,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   };
 
   const handleCancel = async () => {
-    if (!adapter) {
+    if (!chatController) {
       Alert.alert('No connection', 'Connect to a server to cancel.');
       return;
     }
@@ -505,7 +603,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       return;
     }
     try {
-      await apiCancelRequest(adapter, activeRequestId);
+      await chatController.cancelActiveRequest();
       // We rely on subsequent events (request_cancelled / request_completed)
       // to clear activeRequestId and update any streaming state.
     } catch (err: any) {
@@ -514,50 +612,37 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       Alert.alert('Error', message);
     }
   };
-  const confirmDeleteRange = async () => {
-    const startTrimmed = deleteRangeStartText.trim();
-    const endTrimmed = deleteRangeEndText.trim();
-    let start: number | undefined;
-    let end: number | undefined;
-    if (startTrimmed) {
-      const parsed = parseInt(startTrimmed, 10);
-      if (!Number.isNaN(parsed)) {
-        start = parsed;
-      }
-    }
-    if (endTrimmed) {
-      const parsedEnd = parseInt(endTrimmed, 10);
-      if (!Number.isNaN(parsedEnd)) {
-        end = parsedEnd;
-      }
-    }
-    if (start === undefined && end === undefined) {
-      Alert.alert('Invalid range', 'Provide at least a start or end index.');
-      return;
-    }
-    if (!adapter) {
+	  const confirmDeleteRange = async () => {
+	    if (!chatController) {
       Alert.alert('No connection', 'Connect to a server to delete messages.');
       return;
     }
     try {
-      await apiDeleteMessagesByRange(adapter, sessionId, start, end);
+	      await chatController.deleteMessagesFromRangeText({
+	        startText: deleteRangeStartText,
+	        endText: deleteRangeEndText,
+	      });
       setDeleteRangeVisible(false);
-      await loadMessages();
     } catch (err: any) {
-      console.log('Failed to delete range', err);
-      const message = err?.message || 'Failed to delete messages';
-      Alert.alert('Error', message);
+	      const rawMessage = err?.message;
+	      if (typeof rawMessage === 'string' && rawMessage.includes('Provide at least')) {
+	        Alert.alert('Invalid range', rawMessage);
+	        return;
+	      }
+	      console.log('Failed to delete range', err);
+	      const message = rawMessage || 'Failed to delete messages';
+	      Alert.alert('Error', message);
     }
   };
 
   const handleSwitchAgent = async (agentId: string) => {
-	    if (!adapter) {
+	    if (!backend) {
 	      Alert.alert('No connection', 'Connect to a server to switch agent.');
 	      return;
 	    }
 	    try {
-	      setAgentLoading(true);
-	      await apiSwitchSessionAgent(adapter, sessionId, agentId);
+		      setAgentSwitchInProgress(true);
+	      await backend.switchSessionAgent(sessionId, agentId);
 	      setSessionAgentId(agentId && agentId.trim() ? agentId.trim() : null);
 	      setAgentModalVisible(false);
 	    } catch (err: any) {
@@ -565,7 +650,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	      const message = err?.message || 'Failed to switch agent';
 	      Alert.alert('Error', message);
 	    } finally {
-	      setAgentLoading(false);
+		      setAgentSwitchInProgress(false);
 	    }
 	  };
 
@@ -580,8 +665,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   const handleSessionAction = async (action: SessionActionKey) => {
     if (action === 'reload') {
-      setActiveError(null);
-      setStreamingRow(null);
+      chatController?.clearRequestState();
       await loadMessages();
       return;
     }
@@ -597,14 +681,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
     if (action === 'agentSwitch') {
       setAgentModalVisible(true);
-      if (!adapter) {
+      if (!backend) {
         Alert.alert('No connection', 'Connect to a server to switch agent.');
         return;
       }
       if (availableAgents.length === 0 || sessionAgentId === null) {
         try {
-          await ensureAgentsLoaded(adapter);
-          const current = await apiGetSessionAgent(adapter, sessionId);
+		        await agentsController?.ensureLoaded();
+	        const current = await backend.getSessionAgent(sessionId);
 	          setSessionAgentId(current && current.trim() ? current.trim() : null);
         } catch (err: any) {
           console.log('Failed to load agents', err);
@@ -674,15 +758,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       Alert.alert('Invalid content', 'Message content cannot be empty.');
       return;
     }
-    if (!adapter) {
+    if (!chatController) {
       Alert.alert('No connection', 'Connect to a server to modify messages.');
       return;
     }
     try {
-      await apiModifyMessage(adapter, sessionId, index, trimmed);
+      await chatController.modifyMessage(index, trimmed);
       setEditingIndex(null);
       setEditingText('');
-      await loadMessages();
     } catch (err: any) {
       console.log('Failed to modify message', err);
       const msg = err?.message || 'Failed to modify message';
@@ -739,238 +822,96 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
   };
 
-  const appendEventsToDebugBuffer = (events: Event[]) => {
-    if (!events || events.length === 0) return;
-    setDebugEvents((prev) => {
-      const combined = [...prev, ...events];
-      const max = 200;
-      return combined.length > max ? combined.slice(combined.length - max) : combined;
-    });
-  };
 
-  const applyFinalEvent = (ev: FinalEvent) => {
-    if (!Array.isArray(ev.messages) || ev.messages.length === 0) return;
-    setMessages((prev) => {
-      const current = [...prev];
-      let lastIndex = current.length > 0 ? current[current.length - 1].index : -1;
-      for (const msg of ev.messages) {
-	        if (!msg) continue;
-        lastIndex += 1;
-        current.push({ index: lastIndex, message: msg });
-      }
-      return current;
-    });
-  };
-
-	  const applyMessageAppendedEvent = (ev: MessageAppendedEvent) => {
-	    const message = ev.message;
-	    if (!message) return;
-	    setMessages((prev) => {
-	      const lastIndex = prev.length > 0 ? prev[prev.length - 1].index : -1;
-	      return [...prev, { index: lastIndex + 1, message }];
-	    });
-	  };
-  const applyToolResultsEvent = (ev: ToolResultsEvent) => {
-    if (!Array.isArray(ev.messages) || ev.messages.length === 0) return;
-    setMessages((prev) => {
-      const current = [...prev];
-      let lastIndex = current.length > 0 ? current[current.length - 1].index : -1;
-      for (const msg of ev.messages) {
-	        if (!msg) continue;
-        lastIndex += 1;
-        current.push({ index: lastIndex, message: msg });
-      }
-      return current;
-    });
-  };
-
-  const AUTO_RELOAD_ON_REQUEST_COMPLETED = false;
-
-  const handleEvents = (events: Event[]) => {
-    if (!events || events.length === 0) return;
-    const relevant = events.filter((ev) => ev.session_id === sessionId);
-
-    relevant.forEach((ev) => {
-      if (ev.type === 'request_started') {
-        // New request: clear error and streaming state.
-        const rid = typeof ev.request_id === 'string' ? ev.request_id : null;
-        if (rid) {
-          setActiveRequestId(rid);
-        }
-        setActiveError(null);
-        setStreamingRow(null);
-      } else if (ev.type === 'assistant_message') {
-        const msgEv = ev as AssistantMessageEvent;
-        if (msgEv.phase === 'start') {
-          const rid = typeof msgEv.request_id === 'string' ? msgEv.request_id : null;
-          if (rid) {
-            setActiveRequestId((prev) => prev || rid || prev);
-          }
-          setStreamingRow({
-            requestId: msgEv.request_id ?? 'unknown',
-            reasoning: '',
-            content: '',
-            metadata: null,
-          });
-        }
-      } else if (ev.type === 'partial') {
-        const p = ev as PartialEvent;
-        const rawMessage = p.message || ({} as ApiMessage);
-        const rawMetadata = (rawMessage.metadata || {}) as Record<string, any>;
-        const reasoningDelta =
-          typeof rawMetadata.reasoning === 'string' ? rawMetadata.reasoning : '';
-        const contentDelta =
-          typeof rawMessage.content === 'string' ? rawMessage.content : '';
-        if (!reasoningDelta && !contentDelta) return;
-        const evRequestId = p.request_id ?? null;
-        if (typeof evRequestId === 'string' && evRequestId) {
-          setActiveRequestId((prev) => prev || evRequestId || prev);
-        }
-        setStreamingRow((prev) => {
-          const base =
-            prev && (!evRequestId || prev.requestId === evRequestId)
-              ? prev
-              : {
-                  requestId: evRequestId || 'unknown',
-                  reasoning: '',
-                  content: '',
-                  metadata: null,
-                };
-          const nextReasoning = base.reasoning + reasoningDelta;
-          const mergedMetadata = {
-            ...(base.metadata || {}),
-            ...(rawMessage.metadata || {}),
-            reasoning: nextReasoning,
-          } as Record<string, any>;
-          return {
-            requestId: base.requestId,
-            reasoning: nextReasoning,
-            content: base.content + contentDelta,
-            metadata: mergedMetadata,
-          };
-        });
-      } else if (ev.type === 'final') {
-        applyFinalEvent(ev as FinalEvent);
-        setStreamingRow(null);
-      } else if (ev.type === 'message_appended') {
-        applyMessageAppendedEvent(ev as MessageAppendedEvent);
-      } else if (ev.type === 'tool_results') {
-        applyToolResultsEvent(ev as ToolResultsEvent);
-      } else if (ev.type === 'error') {
-        const err = ev as ErrorEvent;
-        const detail =
-          (typeof err.detail === 'string' && err.detail) || 'Request failed with an error.';
-        setActiveError({ detail, requestId: err.request_id ?? null });
-      } else if (ev.type === 'request_completed' || ev.type === 'request_cancelled') {
-        const rid = ev.request_id;
-        setActiveRequestId((current) => (current == null || current === rid ? null : current));
-        if (AUTO_RELOAD_ON_REQUEST_COMPLETED) {
-          loadMessages();
-        }
-      }
-    });
-
-    appendEventsToDebugBuffer(events);
-  };
-
-  const eventsEnabled = !!(adapter && sessionId && snapshotReady);
-  const { lastEventId: _lastEventId, status: _eventsStatus } = useSessionEvents(
-    {
-      adapter,
-      sessionId,
-      enabled: eventsEnabled,
-      initialSinceId: initialCheckpointId,
-    },
-    handleEvents,
-  );
-
-	  const titleFields = useMemo(
-	    () =>
-	      (sessionListFields || [])
-	        .filter((el) => (el as any).role === 'title')
-	        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+	  const sessionListFieldGroups = useMemo(
+	    () => groupSessionListFields(sessionListFields || []),
 	    [sessionListFields],
 	  );
 
 	  const sessionLabel = `Session ${sessionId.slice(0, 8)}`;
 
 	  const sessionHeaderTitle = useMemo(() => {
-	    if (sessionSummary) {
-	      for (const field of titleFields) {
-	        const path = field.data;
-	        if (typeof path !== 'string' || !path) continue;
-	        const value = extractByPath(sessionSummary as any, path);
-	        if (value === undefined || value === null || value === '') continue;
-	        const text = renderTemplate(field.template ?? '{{data}}', value);
-	        if (text) return text;
-	      }
+	    if (!sessionSummary) {
+	      return sessionLabel;
 	    }
-	    return sessionLabel;
-	  }, [sessionSummary, titleFields, sessionLabel]);
+	    return deriveSessionListPresentationFromGroups(sessionSummary, sessionListFieldGroups).title;
+	  }, [sessionSummary, sessionListFieldGroups, sessionLabel]);
 
 	  const footerElements = useMemo(
-	    () =>
-	      (uiSchemaElements || []).filter(
-	        (el) => el && el.ui_type === 'message_footer' && typeof el.data === 'string' && el.data,
-	      ),
+	    () => filterFooterElements(uiSchemaElements),
 	    [uiSchemaElements],
 	  );
 
 	  const statusBarElements = useMemo(
-	    () =>
-	      (uiSchemaElements || []).filter(
-	        (el) => el && el.ui_type === 'status_bar' && typeof el.data === 'string' && el.data,
-	      ),
+	    () => filterStatusBarElements(uiSchemaElements),
 	    [uiSchemaElements],
 	  );
 
-	  const lastAssistantMessage = useMemo(() => {
-	    if (streamingRow && (streamingRow.content || streamingRow.reasoning)) {
-	      return {
-	        role: 'assistant',
-	        content: streamingRow.content,
-	        metadata: streamingRow.metadata || {},
-	      } as ApiMessage;
-	    }
-	    for (let i = messages.length - 1; i >= 0; i -= 1) {
-	      const m = messages[i].message;
-	      if ((m.role || 'unknown') === 'assistant') {
-	        return m;
-	      }
-	    }
-	    return null;
-	  }, [messages, streamingRow]);
+	  const lastAssistantMessage = useMemo(
+	    () => selectLastAssistantMessage({ messages, streamingRow }),
+	    [messages, streamingRow],
+	  );
 
-	  const statusBarParts = useMemo(() => {
-	    const parts: string[] = [];
-	    const agentLabel =
-	      sessionAgentId &&
-	      sessionAgentId !== 'default' &&
-	      availableAgents.includes(sessionAgentId)
-	        ? sessionAgentId
-	        : null;
-	    if (agentLabel) {
-	      parts.push(`Agent: ${agentLabel}`);
+	  const statusBarParts = useMemo(
+	    () =>
+	      deriveChatStatusBarParts({
+	        sessionId,
+	        sessionAgentId,
+	        availableAgents,
+	        lastAssistantMessage,
+	        statusBarElements,
+	      }),
+	    [
+	      sessionId,
+	      sessionAgentId,
+	      availableAgents,
+	      lastAssistantMessage,
+	      statusBarElements,
+	    ],
+	  );
+
+	  const chatRows = useMemo<ChatRow[]>(() => {
+	    const rows: ChatRow[] = [
+	      { kind: 'status', key: 'row-status', parts: statusBarParts },
+	      { kind: 'stream', key: 'row-stream' },
+	    ];
+	    for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
+	      const indexedMessage = messages[idx];
+	      rows.push({
+	        kind: 'message',
+	        key: `msg-${indexedMessage.index}`,
+	        indexedMessage,
+	      });
 	    }
-	    parts.push(`Session: ${sessionId.slice(0, 8)}`);
-	    if (!lastAssistantMessage || !statusBarElements.length) {
-	      return parts;
+	    return rows;
+	  }, [messages, statusBarParts, streamingRow]);
+
+	  const handleListScroll = useCallback((event: any) => {
+	    const offset = event?.nativeEvent?.contentOffset?.y;
+	    if (typeof offset !== 'number' || !Number.isFinite(offset)) {
+	      return;
 	    }
-	    statusBarElements.forEach((el) => {
-	      if (!el || el.ui_type !== 'status_bar') return;
-	      const value = extractByPath(lastAssistantMessage, el.data);
-	      if (value === undefined || value === null || value === '') return;
-	      const text = renderTemplate(el.template ?? '{{data}}', value);
-	      if (text) parts.push(text);
-	    });
-	    return parts;
-	  }, [
-	    lastAssistantMessage,
-	    statusBarElements,
-	    sessionAgentId,
-	    availableAgents,
-	    sessionId,
-	  ]);
+	    bottomGapPxRef.current = Math.max(0, offset);
+	    pinnedToBottomRef.current =
+	      bottomGapPxRef.current <= PINNED_TO_BOTTOM_THRESHOLD_PX;
+	  }, []);
+
+	  const maybeRestoreScroll = useCallback(() => {
+	    if (hasRestoredScrollRef.current) {
+	      return;
+	    }
+	    const list = listRef.current;
+	    if (!list) {
+	      return;
+	    }
+	
+	    const anchor = initialScrollAnchorRef.current;
+	    const offset = anchor && !anchor.pinnedToBottom ? anchor.bottomGapPx : 0;
+	    list.scrollToOffset({ offset, animated: false });
+	    bottomGapPxRef.current = offset;
+	    pinnedToBottomRef.current = offset <= PINNED_TO_BOTTOM_THRESHOLD_PX;
+	    hasRestoredScrollRef.current = true;
+	  }, []);
 
 	  return (
 	    <KeyboardAvoidingView
@@ -980,7 +921,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	    >
 	      <View style={styles.container}>
 	        <View style={styles.headerRow}>
-	          <TouchableOpacity style={styles.backButton} onPress={onBack}>
+	          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
 	            <Text style={styles.backButtonText}>← Sessions</Text>
 	          </TouchableOpacity>
 	          <Text style={styles.title} numberOfLines={1}>
@@ -996,9 +937,36 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 (sendInProgress && action === 'reload')
               }
               extraActions={pluginSessionActionDefs}
+              isActive={isActive}
             />
           </View>
 	        </View>
+
+	      {sessionDirty && (
+	        <View style={styles.dirtyBanner}>
+	          <Text style={styles.dirtyBannerText} numberOfLines={1}>
+	            Out of sync — Reload to recover
+	          </Text>
+	          <TouchableOpacity
+	            style={[styles.button, styles.secondaryButton, styles.smallButton]}
+	            onPress={async () => {
+	              chatController?.clearRequestState();
+	              await loadMessages();
+	            }}
+	            disabled={!chatController || sendInProgress || loadingMessages}
+	          >
+	            <Text
+	              style={[
+	                styles.buttonTextSecondary,
+	                (!chatController || sendInProgress || loadingMessages) &&
+	                  styles.buttonTextDisabled,
+	              ]}
+	            >
+	              Reload
+	            </Text>
+	          </TouchableOpacity>
+	        </View>
+	      )}
 
 	      {(loadingMessages || pluginActionInProgress) && (
 	        <View style={styles.loadingContainer}>
@@ -1009,91 +977,108 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        </View>
 	      )}
 	
-	      <ScrollView
+	      <FlatList
 	        style={styles.messagesContainer}
-	        ref={scrollViewRef}
-	        onScroll={(event) => {
-	          scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+	        ref={listRef}
+	        data={chatRows}
+	        inverted
+	        onLayout={() => {
+	          maybeRestoreScroll();
 	        }}
 	        onContentSizeChange={() => {
-	          if (
-	            !hasRestoredScrollRef.current &&
-	            typeof initialScrollOffset === 'number' &&
-	            initialScrollOffset > 0 &&
-	            scrollViewRef.current
-	          ) {
-	            scrollViewRef.current.scrollTo({
-	              x: 0,
-	              y: initialScrollOffset,
-	              animated: false,
-	            });
-	            hasRestoredScrollRef.current = true;
-	            return;
-	          }
-	          if (shouldAutoScroll && scrollViewRef.current) {
-	            scrollViewRef.current.scrollToEnd({ animated: false });
-	            setShouldAutoScroll(false);
-	          }
+	          maybeRestoreScroll();
 	        }}
-      >
-      {messages.map((m) => {
-        const role = m.message.role || 'unknown';
-        const allowedActions = ALL_MESSAGE_ACTIONS
-          .filter((def) => def.allowedRoles.includes(role))
-          .map((def) => def.key as MessageActionKey);
-	        const pinnedForRole = getPinnedActionsForRole(role);
-	        const isEditing = editingIndex === m.index;
-	        const defaultModeForRole: 'markdown' | 'raw' =
-	          role === 'assistant' ? 'markdown' : 'raw';
-	        const renderMode = messageViewModeByIndex[m.index] ?? defaultModeForRole;
-	        return (
-            <MessageBubble
-              key={m.index}
-              index={m.index}
-              message={m.message}
-              pinnedActions={pinnedForRole}
-              allowedActions={allowedActions}
-              onAction={handleMessageAction}
-              onChangePinnedForRole={handleChangePinnedForRole}
-              isEditing={isEditing}
-              editingText={isEditing ? editingText : undefined}
-              onChangeEditingText={isEditing ? setEditingText : undefined}
-              onSubmitEdit={handleSubmitEditMessage}
-              onCancelEdit={handleCancelEditMessage}
-              renderMode={renderMode}
-              footerElements={footerElements}
-              pluginActionDefs={pluginMessageActionDefs}
-            />
-        );
-      })}
-      {streamingRow && (streamingRow.content || streamingRow.reasoning) && (
-        <MessageBubble
-          key={`stream-${streamingRow.requestId}`}
-          index={messages.length > 0 ? messages[messages.length - 1].index + 1 : 0}
-          message={{
-            role: 'assistant',
-            content: streamingRow.content,
-            metadata: {
-              ...(streamingRow.metadata || {}),
-              reasoning: streamingRow.reasoning,
-            },
-          }}
-          pinnedActions={[]}
-          allowedActions={[]}
-          onAction={handleMessageAction}
-          onChangePinnedForRole={handleChangePinnedForRole}
-          isEditing={false}
-          renderMode="markdown"
-          footerElements={footerElements}
-          pluginActionDefs={pluginMessageActionDefs}
-        />
-      )}
-	      {statusBarParts.length > 0 && (
-	        <View style={styles.statusBarContainer}>
-	          <Text style={styles.statusBarText}>{statusBarParts.join('   ')}</Text>
-	        </View>
-	      )}
-      </ScrollView>
+	        onScroll={handleListScroll}
+	        scrollEventThrottle={16}
+	        maintainVisibleContentPosition={{
+	          minIndexForVisible: 0,
+	          autoscrollToTopThreshold: PINNED_TO_BOTTOM_THRESHOLD_PX,
+	        }}
+	        keyExtractor={(row) => row.key}
+	        extraData={{
+	          isActive,
+	          editingIndex,
+	          editingText,
+	          messageViewModeByIndex,
+	          pinnedMessageActionsByRole,
+	          footerElements,
+	          pluginMessageActionDefs,
+	          statusBarParts,
+	          streamingRow,
+	        }}
+	        renderItem={({ item: row }) => {
+	          if (row.kind === 'status') {
+	            if (!row.parts || row.parts.length === 0) {
+	              return null;
+	            }
+	            return (
+	              <View style={styles.statusBarContainer}>
+	                <Text style={styles.statusBarText}>{row.parts.join('   ')}</Text>
+	              </View>
+	            );
+	          }
+	
+	          if (row.kind === 'stream') {
+	            if (!streamingRow || (!streamingRow.content && !streamingRow.reasoning)) {
+	              return null;
+	            }
+	            const streamingIndex =
+	              messages.length > 0 ? messages[messages.length - 1].index + 1 : 0;
+	            return (
+	              <MessageBubble
+	                index={streamingIndex}
+	                isActive={isActive}
+	                message={{
+	                  role: 'assistant',
+	                  content: streamingRow.content,
+	                  metadata: {
+	                    ...(streamingRow.metadata || {}),
+	                    reasoning: streamingRow.reasoning,
+	                  },
+	                }}
+	                pinnedActions={[]}
+	                allowedActions={[]}
+	                onAction={handleMessageAction}
+	                onChangePinnedForRole={handleChangePinnedForRole}
+	                isEditing={false}
+	                renderMode="markdown"
+	                footerElements={footerElements}
+	                pluginActionDefs={pluginMessageActionDefs}
+	              />
+	            );
+	          }
+
+	          const m = row.indexedMessage;
+	          const role = m.message.role || 'unknown';
+	          const allowedActions = ALL_MESSAGE_ACTIONS
+	            .filter((def) => def.allowedRoles.includes(role))
+	            .map((def) => def.key as MessageActionKey);
+	          const pinnedForRole = getPinnedActionsForRole(role);
+	          const isEditing = editingIndex === m.index;
+	          const defaultModeForRole: 'markdown' | 'raw' =
+	            role === 'assistant' ? 'markdown' : 'raw';
+	          const renderMode = messageViewModeByIndex[m.index] ?? defaultModeForRole;
+	          return (
+	            <MessageBubble
+	              index={m.index}
+	              isActive={isActive}
+	              message={m.message}
+	              pinnedActions={pinnedForRole}
+	              allowedActions={allowedActions}
+	              onAction={handleMessageAction}
+	              onChangePinnedForRole={handleChangePinnedForRole}
+	              isEditing={isEditing}
+	              editingText={isEditing ? editingText : undefined}
+	              onChangeEditingText={isEditing ? setEditingText : undefined}
+	              onSubmitEdit={handleSubmitEditMessage}
+	              onCancelEdit={handleCancelEditMessage}
+	              renderMode={renderMode}
+	              footerElements={footerElements}
+	              pluginActionDefs={pluginMessageActionDefs}
+	            />
+	          );
+	        }}
+	      />
 
       {activeError && (
         <View style={styles.errorContainer}>
@@ -1118,10 +1103,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         />
         {/** Compute per-button enablement so we can style text when disabled. */}
         {(() => {
-          const canAppend = !!adapter && !sendInProgress && !activeRequestId;
-          const canResend = !!adapter && !sendInProgress && !activeRequestId;
-          const canCancel = !!adapter && !sendInProgress && !!activeRequestId;
-          const canSend = !!adapter && !sendInProgress && !activeRequestId;
+          const canAppend = !!backend && !sendInProgress && !activeRequestId;
+          const canResend = !!backend && !sendInProgress && !activeRequestId;
+          const canCancel = !!backend && !sendInProgress && !!activeRequestId;
+          const canSend = !!backend && !sendInProgress && !activeRequestId;
 
           return (
         <View style={styles.composerButtonsRow}>
@@ -1190,117 +1175,121 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         })()}
       </View>
 
-	      <Modal
-	        visible={messageLimitVisible}
-	        transparent
-	        animationType="fade"
-	        onRequestClose={() => setMessageLimitVisible(false)}
-	      >
-	        <View style={styles.modalOverlay}>
-	          <View style={styles.modalContent}>
-	            <Text style={styles.modalTitle}>Message range</Text>
-	            <Text style={styles.modalSubtitle}>
-	              Python-style range (start:end). Example: -50: for last 50 messages.
-	            </Text>
-	            <View style={styles.rangeRow}>
-	              <View style={styles.rangeInputContainer}>
-	                <Text style={styles.rangeLabel}>Start</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  value={rangeStartText}
-                  onChangeText={setRangeStartText}
-                  placeholder="e.g. -50"
-                  keyboardType="default"
-                />
-	              </View>
-	              <View style={styles.rangeInputContainer}>
-	                <Text style={styles.rangeLabel}>End</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  value={rangeEndText}
-                  onChangeText={setRangeEndText}
-                  placeholder="optional"
-                  keyboardType="default"
-                />
-	              </View>
-	            </View>
-	            <View style={styles.modalButtonsRow}>
-	              <TouchableOpacity
-	                style={[styles.button, styles.secondaryButton, styles.modalButton]}
-	                onPress={() => setMessageLimitVisible(false)}
-	              >
-	                <Text style={styles.buttonTextSecondary}>Cancel</Text>
-	              </TouchableOpacity>
-	              <TouchableOpacity
-	                style={[styles.button, styles.primaryButton, styles.modalButton]}
-	                onPress={applyMessageLimitAndReload}
-	              >
-	                <Text style={styles.buttonText}>Apply</Text>
-	              </TouchableOpacity>
-	            </View>
-	            {lastReloadAt && (
-	              <Text style={styles.modalHelperText}>
-	                Last reload at {lastReloadAt.toLocaleTimeString()}
+	      {messageLimitVisible && (
+	        <Modal
+	          visible={messageLimitVisible}
+	          transparent
+	          animationType="fade"
+	          onRequestClose={() => setMessageLimitVisible(false)}
+	        >
+	          <View style={styles.modalOverlay}>
+	            <View style={styles.modalContent}>
+	              <Text style={styles.modalTitle}>Message range</Text>
+	              <Text style={styles.modalSubtitle}>
+	                Python-style range (start:end). Example: -50: for last 50 messages.
 	              </Text>
-	            )}
+	              <View style={styles.rangeRow}>
+	                <View style={styles.rangeInputContainer}>
+	                  <Text style={styles.rangeLabel}>Start</Text>
+	                  <TextInput
+	                    style={styles.modalInput}
+	                    value={rangeStartText}
+	                    onChangeText={setRangeStartText}
+	                    placeholder="e.g. -50"
+	                    keyboardType="default"
+	                  />
+	                </View>
+	                <View style={styles.rangeInputContainer}>
+	                  <Text style={styles.rangeLabel}>End</Text>
+	                  <TextInput
+	                    style={styles.modalInput}
+	                    value={rangeEndText}
+	                    onChangeText={setRangeEndText}
+	                    placeholder="optional"
+	                    keyboardType="default"
+	                  />
+	                </View>
+	              </View>
+	              <View style={styles.modalButtonsRow}>
+	                <TouchableOpacity
+	                  style={[styles.button, styles.secondaryButton, styles.modalButton]}
+	                  onPress={() => setMessageLimitVisible(false)}
+	                >
+	                  <Text style={styles.buttonTextSecondary}>Cancel</Text>
+	                </TouchableOpacity>
+	                <TouchableOpacity
+	                  style={[styles.button, styles.primaryButton, styles.modalButton]}
+	                  onPress={applyMessageLimitAndReload}
+	                >
+	                  <Text style={styles.buttonText}>Apply</Text>
+	                </TouchableOpacity>
+	              </View>
+	              {lastReloadAt && (
+	                <Text style={styles.modalHelperText}>
+	                  Last reload at {lastReloadAt.toLocaleTimeString()}
+	                </Text>
+	              )}
+	            </View>
 	          </View>
-	        </View>
-	      </Modal>
+	        </Modal>
+	      )}
 
-	      <Modal
-	        visible={deleteRangeVisible}
-	        transparent
-	        animationType="fade"
-	        onRequestClose={() => setDeleteRangeVisible(false)}
-	      >
-	        <View style={styles.modalOverlay}>
-	          <View style={styles.modalContent}>
-	            <Text style={styles.modalTitle}>Delete range</Text>
-	            <Text style={styles.modalSubtitle}>
-	              Python-style range (start:end). Messages in this range will be removed.
-	            </Text>
-	            <View style={styles.rangeRow}>
-	              <View style={styles.rangeInputContainer}>
-	                <Text style={styles.rangeLabel}>Start</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  value={deleteRangeStartText}
-                  onChangeText={setDeleteRangeStartText}
-                  placeholder="e.g. 0 or -10"
-                  keyboardType="default"
-                />
+	      {deleteRangeVisible && (
+	        <Modal
+	          visible={deleteRangeVisible}
+	          transparent
+	          animationType="fade"
+	          onRequestClose={() => setDeleteRangeVisible(false)}
+	        >
+	          <View style={styles.modalOverlay}>
+	            <View style={styles.modalContent}>
+	              <Text style={styles.modalTitle}>Delete range</Text>
+	              <Text style={styles.modalSubtitle}>
+	                Python-style range (start:end). Messages in this range will be removed.
+	              </Text>
+	              <View style={styles.rangeRow}>
+	                <View style={styles.rangeInputContainer}>
+	                  <Text style={styles.rangeLabel}>Start</Text>
+	                  <TextInput
+	                    style={styles.modalInput}
+	                    value={deleteRangeStartText}
+	                    onChangeText={setDeleteRangeStartText}
+	                    placeholder="e.g. 0 or -10"
+	                    keyboardType="default"
+	                  />
+	                </View>
+	                <View style={styles.rangeInputContainer}>
+	                  <Text style={styles.rangeLabel}>End</Text>
+	                  <TextInput
+	                    style={styles.modalInput}
+	                    value={deleteRangeEndText}
+	                    onChangeText={setDeleteRangeEndText}
+	                    placeholder="optional"
+	                    keyboardType="default"
+	                  />
+	                </View>
 	              </View>
-	              <View style={styles.rangeInputContainer}>
-	                <Text style={styles.rangeLabel}>End</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  value={deleteRangeEndText}
-                  onChangeText={setDeleteRangeEndText}
-                  placeholder="optional"
-                  keyboardType="default"
-                />
+	              <View style={styles.modalButtonsRow}>
+	                <TouchableOpacity
+	                  style={[styles.button, styles.secondaryButton, styles.modalButton]}
+	                  onPress={() => setDeleteRangeVisible(false)}
+	                >
+	                  <Text style={styles.buttonTextSecondary}>Cancel</Text>
+	                </TouchableOpacity>
+	                <TouchableOpacity
+	                  style={[styles.button, styles.primaryButton, styles.modalButton]}
+	                  onPress={confirmDeleteRange}
+	                >
+	                  <Text style={styles.buttonText}>Delete</Text>
+	                </TouchableOpacity>
 	              </View>
-	            </View>
-	            <View style={styles.modalButtonsRow}>
-	              <TouchableOpacity
-	                style={[styles.button, styles.secondaryButton, styles.modalButton]}
-	                onPress={() => setDeleteRangeVisible(false)}
-	              >
-	                <Text style={styles.buttonTextSecondary}>Cancel</Text>
-	              </TouchableOpacity>
-	              <TouchableOpacity
-	                style={[styles.button, styles.primaryButton, styles.modalButton]}
-	                onPress={confirmDeleteRange}
-	              >
-	                <Text style={styles.buttonText}>Delete</Text>
-	              </TouchableOpacity>
 	            </View>
 	          </View>
-	        </View>
-	      </Modal>
+	        </Modal>
+	      )}
 	      <AgentSwitchModal
 	        visible={agentModalVisible}
-	        loading={agentLoading}
+	        loading={agentsLoading || agentSwitchInProgress}
 	        agents={availableAgents}
 	        selectedAgentId={sessionAgentId}
 	        onRequestClose={() => setAgentModalVisible(false)}
@@ -1308,7 +1297,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	      />
 
 	      <SessionSettingsModal
-	        adapter={adapter}
+	        backend={backend}
 	        sessionId={sessionId}
 	        visible={settingsVisible}
 	        onRequestClose={() => setSettingsVisible(false)}
@@ -1412,6 +1401,25 @@ const createStyles = (theme: Theme) =>
     buttonTextDisabled: {
       color: theme.textSecondary,
     },
+	    dirtyBanner: {
+	      flexDirection: 'row',
+	      alignItems: 'center',
+	      marginHorizontal: 4,
+	      marginBottom: 8,
+	      paddingHorizontal: 10,
+	      paddingVertical: 8,
+	      borderRadius: 8,
+	      borderWidth: 1,
+	      borderColor: theme.primary,
+	      backgroundColor: theme.primaryMuted,
+	    },
+	    dirtyBannerText: {
+	      flex: 1,
+	      fontSize: 14,
+	      fontWeight: '600',
+	      color: theme.text,
+	      marginRight: 8,
+	    },
     loadingContainer: {
       flexDirection: 'row',
       alignItems: 'center',

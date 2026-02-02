@@ -20,9 +20,9 @@ def _make_config(tmp_path: Path) -> Path:
         "providers": {
             "dummy": {"provider": "dummy_provider", "model": "test-model"}
         },
-        "plugins": {
-            "providers": ["tests.dummy_provider.DummyProvider"],
-        },
+        "plugins": [
+            "tests.dummy_provider.DummyProvider",
+        ],
         "agents": {
             "default": {"provider": "dummy"},
         },

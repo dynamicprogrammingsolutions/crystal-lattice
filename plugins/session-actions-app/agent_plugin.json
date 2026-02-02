@@ -1,0 +1,10 @@
+{
+  "module": "session_actions_app",
+  "subdirectory": ".",
+  "entries": [
+    "session_actions_app.SessionActionsAppPlugin"
+  ],
+  "kinds": {
+    "session_actions_app.SessionActionsAppPlugin": "application"
+  }
+}

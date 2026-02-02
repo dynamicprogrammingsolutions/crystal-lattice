@@ -5,9 +5,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import asyncio
 import json
-import logging
 import os
 import threading
+import logging
 import uuid
 from datetime import datetime
 
@@ -300,6 +300,37 @@ def _build_default_agent_app() -> AgentApplication:
 _agent_app: Optional[AgentApplication] = None
 
 
+# ---------------------------------------------------------------------------
+# Test control hooks (integration-test only)
+# ---------------------------------------------------------------------------
+
+
+_TEST_CONTROL_ENABLED = os.getenv("AGENT_APP_TEST_CONTROL") == "1"
+
+_test_events_paused = False
+_test_events_release = threading.Event()
+_test_events_release.set()
+_test_events_waiters = 0
+_test_events_lock = threading.Lock()
+
+
+def _maybe_block_events_for_tests() -> None:
+    if not _TEST_CONTROL_ENABLED:
+        return
+    global _test_events_waiters
+    if not _test_events_paused:
+        return
+
+    with _test_events_lock:
+        _test_events_waiters += 1
+    try:
+        # Bound the wait so a stuck test doesn't hang indefinitely.
+        _test_events_release.wait(timeout=5)
+    finally:
+        with _test_events_lock:
+            _test_events_waiters -= 1
+
+
 def get_agent_app() -> AgentApplication:
     """Return the process-wide AgentApplication instance.
 
@@ -371,6 +402,29 @@ def get_api_hello() -> Dict[str, Any]:
     }
 
 
+if _TEST_CONTROL_ENABLED:
+
+    @app.get("/__test/events/status")
+    def _test_events_status() -> Dict[str, Any]:
+        with _test_events_lock:
+            waiters = _test_events_waiters
+        return {"paused": _test_events_paused, "waiters": waiters}
+
+    @app.post("/__test/events/pause")
+    def _test_events_pause() -> Dict[str, Any]:
+        global _test_events_paused
+        _test_events_paused = True
+        _test_events_release.clear()
+        return {"paused": True}
+
+    @app.post("/__test/events/resume")
+    def _test_events_resume() -> Dict[str, Any]:
+        global _test_events_paused
+        _test_events_paused = False
+        _test_events_release.set()
+        return {"paused": False}
+
+
 # ---------------------------------------------------------------------------
 # Route handlers (single implementation per operation)
 # ---------------------------------------------------------------------------
@@ -412,7 +466,6 @@ def create_session(
                     "type": "session_created",
                     "session_id": session.session_id,
                     "agent_id": agent_id,
-                    "session": session.to_dict(),
                 },
             )
 
@@ -738,16 +791,17 @@ def add_message(
             app_instance.save_session(new_session)
 
             last_message = new_session.messages[-1] if new_session.messages else None
+            last_index = len(new_session.messages) - 1
 
             stored = app_instance.publish_event(
                 {
                     "type": "message_appended",
                     "session_id": new_session.session_id,
+                    "index": last_index,
                     "role": normalized_role,
                     "content": content,
                     "metadata": metadata or {},
                     "message": last_message.to_dict() if last_message is not None else None,
-                    "session": new_session.to_dict(),
                 },
             )
 
@@ -1022,13 +1076,15 @@ def update_message(
             new_session = core.modify_message(session, target_index, content, config)
             app_instance.save_session(new_session)
 
+            updated_message = new_session.messages[target_index]
+
             stored = app_instance.publish_event(
                 {
                     "type": "message_modified",
                     "session_id": new_session.session_id,
                     "index": target_index,
                     "content": content,
-                    "session": new_session.to_dict(),
+                    "message": updated_message.to_dict(),
                 },
             )
 
@@ -1224,8 +1280,7 @@ def delete_messages(
                 {
                     "type": "messages_deleted",
                     "session_id": new_session.session_id,
-                    "indices": sorted(delete_indices),
-                    "session": new_session.to_dict(),
+                    "indices": concrete_indices,
                 },
             )
 
@@ -1666,7 +1721,7 @@ def fork_session(
                     "session_id": new_session.session_id,
                     "agent_id": agent_id,
                     "source_session_id": session.session_id,
-                    "session": new_session.to_dict(),
+                    "fork_upto_index": target_index,
                 },
             )
 
@@ -1763,6 +1818,8 @@ def list_events(
     batches even when many raw events collapse into a handful of
     logical entries.
     """
+
+    _maybe_block_events_for_tests()
 
     store = app_instance.get_event_store()
     # ``internal_limit`` bounds the number of raw events loaded from

@@ -1,4 +1,5 @@
 {
+  "plugin_cache_dir": "~/.crystal/cache/plugins",
   "application": {
     "tool_output_line_limit": 100,
     "tool_output_char_limit": 8000,
@@ -42,33 +43,19 @@
       "system_message": "You are a helpful coding assistant. Respond concisely."
     }
   },
-  "plugins": {
-    "providers": ["plugins.openrouter_provider.OpenRouterProvider"],
-    "extensions": [
-      "plugins.openrouter_reasoning_extension.OpenRouterReasoningExtension",
-      "plugins.openrouter_tools_extension.OpenRouterToolsExtension",
-      "plugins.openrouter_websearch_extension.OpenRouterWebSearchExtension",
-      "plugins.delay_extension.DelayExtension",
-      "plugins.random_failure_extension.RandomFailureExtension"
-    ],
-    "features": [
-      "plugins.system_message_feature.SystemMessageFeature",
-      "plugins.file_context_feature.FileContextFeature",
-      "plugins.web_context_feature.WebContextFeature"
-    ],
-    "tools": [
-      "plugins.shell_tool.ShellTool",
-      "plugins.apply_patch_tool.ApplyPatchTool"
-    ]
-  },
-  "application_plugins": [
-    "plugins.session_actions_app.SessionActionsAppPlugin",
-    "plugins.summarize_range_app.SummarizeRangeAppPlugin",
-    "plugins.session_title_app.SessionTitleAppPlugin",
-    "plugins.generate_title_app.GenerateTitleAppPlugin",
-    "plugins.session_timestamp_meta_app.SessionTimestampMetaAppPlugin",
-    "plugins.session_message_count_meta_app.SessionMessageCountMetaAppPlugin",
-    "plugins.session_pinned_app.SessionPinnedAppPlugin"
+  "plugins": [
+    "path:../../../plugins/openrouter",
+    "path:../../../plugins/codex-tools",
+    "path:../../../plugins/feature-system-message",
+    "path:../../../plugins/feature-file-context",
+    "path:../../../plugins/feature-web-context",
+    "path:../../../plugins/session-actions-app",
+    "path:../../../plugins/summarize-range-app",
+    "path:../../../plugins/session-title-app",
+    "path:../../../plugins/generate-title-app",
+    "path:../../../plugins/session-timestamp-meta-app",
+    "path:../../../plugins/session-message-count-meta-app",
+    "path:../../../plugins/session-pinned-app"
   ],
   "agents": {
     "default": {

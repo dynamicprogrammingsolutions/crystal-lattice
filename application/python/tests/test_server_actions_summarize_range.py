@@ -31,20 +31,13 @@ def _make_config_with_summarize_range(tmp_path: Path) -> Path:
         "providers": {
             "echo": {"provider": "echo_openai_like", "model": "test-model"}
         },
-        "plugins": {
-            "providers": [
-                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            ],
-            "features": [],
-            "tools": [],
-            "extensions": [],
-        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.summarize_range_app.SummarizeRangeAppPlugin",
+        ],
         "agents": {
             "default": {"provider": "echo"},
         },
-        "application_plugins": [
-            "plugins.summarize_range_app.SummarizeRangeAppPlugin",
-        ],
         "application": {
             "summarize_range_agent_id": "default",
             "summarize_range_prompt": "Summarize this range succinctly.",
@@ -99,7 +92,8 @@ def test_server_actions_summarize_range_modifies_session(tmp_path: Path) -> None
     assert resp["action_id"] == "summarize_range"
 
     result = resp.get("result") or {}
-    assert result.get("updated_session_ids") == [session_id]
+    mutations = result.get("mutations") or {}
+    assert mutations.get("updated_session_ids") == [session_id]
 
     # Reload messages via the messages endpoint and verify the range was
     # collapsed into a single assistant summary message.

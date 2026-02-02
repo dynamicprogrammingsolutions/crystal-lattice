@@ -22,16 +22,10 @@ from plugins.session_ordering_buckets_app import (  # noqa: F401
 def _make_config_with_ordering_buckets(tmp_path: Path) -> Path:
     cfg: Dict[str, Any] = {
         "providers": {},
-        "plugins": {
-            "providers": [],
-            "features": [],
-            "tools": [],
-            "extensions": [],
-        },
-        "agents": {},
-        "application_plugins": [
+        "plugins": [
             "plugins.session_ordering_buckets_app.SessionOrderingBucketsAppPlugin",
         ],
+        "agents": {},
         "application": {
             "session_order_24h_window_seconds": 86400,
             "session_order_use_updated_at": True,

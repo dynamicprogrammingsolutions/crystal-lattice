@@ -572,9 +572,12 @@ class GenerateTitleAppPlugin:
                 pass
 
         return {
-            "created_session_ids": [],
-            "updated_session_ids": [session_id],
-            "deleted_session_ids": [],
+            "mutations": {
+                "created_session_ids": [],
+                "updated_session_ids": [session_id],
+                "deleted_session_ids": [],
+            },
+            "ui_effects": {},
             "message": "Generated title for session.",
         }
 

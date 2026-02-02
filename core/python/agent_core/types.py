@@ -947,6 +947,33 @@ class ToolPlugin(BasePlugin, Protocol):
             return f"Result: {result.get('result')}"
         return f"Error: {result.get('error')}"
 
+    def format_tool_call_preview(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> str:
+        """Generate a pre-execution preview for a tool call.
+
+        This hook is invoked when an assistant message containing tool calls is
+        finalized, before the tools are executed. It should return a brief
+        summary of what the tool call will do.
+
+        The preview is intended for human-facing UIs (e.g. a collapsible list of
+        tool calls) and should not be used for model-facing tool output.
+
+        Args:
+            tool_name: Name of the tool/function being called.
+            arguments: Structured arguments for the tool call.
+            state: Current tool state.
+
+        Returns:
+            A short string (preferably single-line). Return an empty string when
+            no preview is available.
+        """
+
+        return ""
+
     def stream_tool(
         self,
         tool_name: str,
@@ -971,6 +998,15 @@ class ToolPlugin(BasePlugin, Protocol):
 
         Default implementation wraps the formatted text in a simple
         ``{"type": "text", "content": text}`` payload suitable for UIs.
+
+        Tools may optionally include a ``"single_line"`` field in the returned
+        dict to provide a compact summary for collapsed/short views:
+        ``{"type": "text", "content": <full>, "single_line": <compact>}``.
+
+        The ``single_line`` field should contain a brief preview (e.g., just the
+        command for shell tools, or a list of changed files for patch tools)
+        that UIs can display when tool results are collapsed or shown in short
+        mode. When expanded, UIs should use ``content`` for the full result.
         """
         return {"type": "text", "content": text}
 
