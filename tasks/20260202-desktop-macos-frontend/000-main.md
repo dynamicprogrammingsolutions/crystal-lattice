@@ -68,3 +68,4 @@ This task directory is a handoff package for implementing Phase 5 of `tasks/2026
 - Shared component boundaries + candidates: `tasks/20260202-desktop-macos-frontend/900-shared-components-scope.md`
 - Desktop UX spec + tab semantics: `tasks/20260202-desktop-macos-frontend/910-desktop-ux-spec.md`
 - Native elements notes (RN macOS): `tasks/20260202-desktop-macos-frontend/920-native-elements-notes.md`
+- Extractable subcomponents (mobile → shared candidates): `tasks/20260202-desktop-macos-frontend/930-extractable-subcomponents.md`
