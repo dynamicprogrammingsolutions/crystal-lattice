@@ -7,7 +7,6 @@ import {
   Text,
   View,
   TouchableOpacity,
-  ActivityIndicator,
   useColorScheme,
   Alert,
   TextInput,
@@ -974,7 +973,7 @@ function App(): React.JSX.Element {
       <ThemeProvider theme={theme}>
         <PinnedActionsProvider>
           <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-            <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} translucent />
+            <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
           {/** Determine active connection info for display components */}
           {/** This is derived once here and passed down rather than recomputed in children. */}
           {(() => {
@@ -1023,9 +1022,9 @@ function App(): React.JSX.Element {
             />
           );
           })()}
-        </SafeAreaView>
-      </PinnedActionsProvider>
-    </ThemeProvider>
+          </SafeAreaView>
+        </PinnedActionsProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

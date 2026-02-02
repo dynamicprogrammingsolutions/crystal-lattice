@@ -518,6 +518,54 @@ class ApplyPatchTool(ToolPlugin):
             }
         ]
 
+    def format_tool_call_preview(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> str:
+        if tool_name != "apply_patch":
+            return ""
+
+        patch_text = arguments.get("patch_text", "")
+        if not isinstance(patch_text, str) or not patch_text.strip():
+            return ""
+
+        lines = patch_text.splitlines()
+        if not lines or not lines[0].lstrip().startswith("*** Begin Patch"):
+            return ""
+
+        parts: List[str] = []
+        idx = 0
+        while idx < len(lines):
+            line = lines[idx].strip()
+
+            if line.startswith("*** Add File:"):
+                path = line.removeprefix("*** Add File:").strip()
+                if path:
+                    parts.append(f"add: {path}")
+            elif line.startswith("*** Update File:"):
+                path = line.removeprefix("*** Update File:").strip()
+                move_to: str | None = None
+                if idx + 1 < len(lines):
+                    next_line = lines[idx + 1].strip()
+                    if next_line.startswith("*** Move to:"):
+                        move_to = next_line.removeprefix("*** Move to:").strip() or None
+                        idx += 1
+                if path:
+                    if move_to:
+                        parts.append(f"update: {path} -> {move_to}")
+                    else:
+                        parts.append(f"update: {path}")
+            elif line.startswith("*** Delete File:"):
+                path = line.removeprefix("*** Delete File:").strip()
+                if path:
+                    parts.append(f"delete: {path}")
+
+            idx += 1
+
+        return "; ".join(parts)
+
     def execute_tool(
         self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
