@@ -15,7 +15,7 @@ This is the major milestone enabling multiple frontends with minimal duplicated 
 - [x] Phase 4.1 complete (chat controller)
 - [x] Phase 4.2 complete (sessions controller)
 - [x] Phase 4.3 complete (plugins registry)
-- [ ] Phase 4.4 not implemented (see `tasks/20260129-frontend-sdk/060-phase-4-4-chat-persistence-scroll-reconcile.md`)
+- [x] Phase 4.4 complete (scroll anchoring; see `tasks/20260129-frontend-sdk/060-phase-4-4-chat-persistence-scroll-reconcile.md`)
 
 ## Phase 4.1 — Chat controller
 
@@ -100,9 +100,9 @@ RN integration uses shims to preserve old import paths:
 
 - Metro required explicit extraNodeModules mapping for workspace packages (commit `49621fa`).
 - The refactor improved separation, but some UX issues remain and are grouped into Phase 4.4:
-  - scroll restoration defaults to top too often
-  - cache snapshots lag behind event-applied state
-  - send still does an eager reload (can cause duplicates/races)
+  - scroll restoration defaults to top too often (fixed in Phase 4.4)
+  - cache snapshots lag behind event-applied state (addressed in Phase 4.5)
+  - send still does an eager reload (addressed in Phase 4.5)
 
 ## Relevant commits
 
@@ -114,6 +114,7 @@ RN integration uses shims to preserve old import paths:
 - `267473c` Cleanup: remove unused mobile agent/action helpers
 - `49621fa` Fix Metro resolution for workspace SDK packages
 - `760a16a` Fix chat polling start to avoid send hang and improve tab switch performance
+- `b4374cf` Mobile chat: inverted FlatList + scroll anchor persistence
 
 ## Additional references
 
