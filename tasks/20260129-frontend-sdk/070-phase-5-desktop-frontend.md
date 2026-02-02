@@ -10,7 +10,11 @@ Create a new desktop frontend under `desktop/` that reuses `@crystal-lattice/fro
 
 ## Status
 
-- [ ] Not started
+- [ ] Not started (tracked in a dedicated task directory)
+
+Implementation for Phase 5 is tracked in:
+
+- `tasks/20260202-desktop-macos-frontend/000-main.md`
 
 ## Goal
 
@@ -30,6 +34,8 @@ All business logic should come from the SDK packages.
 - [ ] Decide whether to share UI components with mobile (shared UI package) or duplicate initially
 - [ ] Implement connection selection UI or reuse the mobile one
 - [ ] Verify event streaming and chat controller behaviors on desktop
+
+See detailed subtasks in `tasks/20260202-desktop-macos-frontend/000-main.md`.
 
 ## Notes
 
