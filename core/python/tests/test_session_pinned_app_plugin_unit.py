@@ -18,6 +18,11 @@ from plugins.echo_openai_like_provider import EchoOpenAILikeProvider  # noqa: F4
 from plugins.session_pinned_app import SessionPinnedAppPlugin  # noqa: F401
 
 
+def _get_mutations(result: Dict[str, Any]) -> Dict[str, Any]:
+  mutations = result.get("mutations")
+  return mutations if isinstance(mutations, dict) else {}
+
+
 def _make_config_with_session_pinned(tmp_path: Path) -> Path:
   cfg: Dict[str, Any] = {
       "providers": {
@@ -67,7 +72,7 @@ def test_toggle_session_pinned_toggles_metadata_and_ids(tmp_path: Path) -> None:
       params={"session_id": session_id},
   )
 
-  updated1 = result1.get("updated_session_ids") or []
+  updated1 = _get_mutations(result1).get("updated_session_ids") or []
   assert updated1 == [session_id]
 
   ctx1 = app.load_session(session_id)
@@ -83,7 +88,7 @@ def test_toggle_session_pinned_toggles_metadata_and_ids(tmp_path: Path) -> None:
       params={"session_id": session_id},
   )
 
-  updated2 = result2.get("updated_session_ids") or []
+  updated2 = _get_mutations(result2).get("updated_session_ids") or []
   assert updated2 == [session_id]
 
   ctx2 = app.load_session(session_id)

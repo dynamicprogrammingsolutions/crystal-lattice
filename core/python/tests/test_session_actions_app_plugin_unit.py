@@ -22,6 +22,16 @@ from plugins.echo_openai_like_provider import EchoOpenAILikeProvider  # noqa: F4
 from plugins.session_actions_app import SessionActionsAppPlugin  # noqa: F401
 
 
+def _get_mutations(result: Dict[str, Any]) -> Dict[str, Any]:
+    mutations = result.get("mutations")
+    return mutations if isinstance(mutations, dict) else {}
+
+
+def _get_ui_effects(result: Dict[str, Any]) -> Dict[str, Any]:
+    ui_effects = result.get("ui_effects")
+    return ui_effects if isinstance(ui_effects, dict) else {}
+
+
 def _make_config_with_session_actions(tmp_path: Path) -> Path:
     cfg: Dict[str, Any] = {
         "providers": {
@@ -75,7 +85,7 @@ def test_copy_session_creates_new_session_with_same_messages(tmp_path: Path) -> 
         params={"session_id": original_id, "source": "test"},
     )
 
-    created = result.get("created_session_ids") or []
+    created = _get_mutations(result).get("created_session_ids") or []
     assert len(created) == 1
     new_id = created[0]
     assert isinstance(new_id, str) and new_id != original_id
@@ -109,9 +119,9 @@ def test_copy_session_selected_session_depends_on_source(tmp_path: Path) -> None
         action_id="copy_session",
         params={"session_id": original_id, "source": "session_view"},
     )
-    created_view = res_view.get("created_session_ids") or []
+    created_view = _get_mutations(res_view).get("created_session_ids") or []
     assert len(created_view) == 1
-    assert res_view.get("selected_session_id") == created_view[0]
+    assert _get_ui_effects(res_view).get("navigate_to_session_id") == created_view[0]
 
     # When triggered from the session list, the plugin should not set
     # a selected session id, allowing callers to stay on the list.
@@ -120,7 +130,7 @@ def test_copy_session_selected_session_depends_on_source(tmp_path: Path) -> None
         action_id="copy_session",
         params={"session_id": original_id, "source": "session_list"},
     )
-    assert "selected_session_id" not in res_list or res_list.get("selected_session_id") is None
+    assert _get_ui_effects(res_list).get("navigate_to_session_id") is None
 
 
 def test_fork_session_at_copies_prefix_up_to_index(tmp_path: Path) -> None:
@@ -134,7 +144,7 @@ def test_fork_session_at_copies_prefix_up_to_index(tmp_path: Path) -> None:
         params={"session_id": original_id, "index": 1, "source": "test"},
     )
 
-    created = result.get("created_session_ids") or []
+    created = _get_mutations(result).get("created_session_ids") or []
     assert len(created) == 1
     fork_id = created[0]
 
@@ -202,7 +212,7 @@ def test_delete_session_respects_allow_delete_flag(tmp_path: Path) -> None:
         params={"session_id": session_id},
     )
 
-    deleted = res.get("deleted_session_ids") or []
+    deleted = _get_mutations(res).get("deleted_session_ids") or []
     assert deleted == [session_id]
     assert app.load_session(session_id) is None
 
@@ -263,5 +273,5 @@ def test_delete_session_works_even_if_agent_id_is_unknown(tmp_path: Path) -> Non
         params={"session_id": session_id},
     )
 
-    assert res.get("deleted_session_ids") == [session_id]
+    assert _get_mutations(res).get("deleted_session_ids") == [session_id]
     assert app.load_session_record(session_id) is None

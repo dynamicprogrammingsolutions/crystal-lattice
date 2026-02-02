@@ -19,6 +19,16 @@ from plugins.echo_openai_like_provider import EchoOpenAILikeProvider  # noqa: F4
 from plugins.generate_title_app import GenerateTitleAppPlugin  # noqa: F401
 
 
+def _get_mutations(result: Dict[str, Any]) -> Dict[str, Any]:
+    mutations = result.get("mutations")
+    return mutations if isinstance(mutations, dict) else {}
+
+
+def _get_ui_effects(result: Dict[str, Any]) -> Dict[str, Any]:
+    ui_effects = result.get("ui_effects")
+    return ui_effects if isinstance(ui_effects, dict) else {}
+
+
 def _make_config_with_generate_title(tmp_path: Path) -> Path:
   
     cfg: Dict[str, Any] = {
@@ -100,7 +110,7 @@ def test_generate_title_for_session_sets_metadata_and_ids(tmp_path: Path) -> Non
         params={"session_id": session_id},
     )
 
-    updated = result.get("updated_session_ids") or []
+    updated = _get_mutations(result).get("updated_session_ids") or []
     assert updated == [session_id]
 
     ctx = app.load_session(session_id)
@@ -232,9 +242,9 @@ def test_generate_title_from_session_list_does_not_request_navigation(
         params={"session_id": session_id, "source": "session_list"},
     )
 
-    assert result.get("updated_session_ids") == [session_id]
+    assert _get_mutations(result).get("updated_session_ids") == [session_id]
     # For session-list invocations the plugin should not suggest navigation.
-    assert not isinstance(result.get("selected_session_id"), str)
+    assert not isinstance(_get_ui_effects(result).get("navigate_to_session_id"), str)
 
 
 def test_generate_title_populates_description_when_enabled(tmp_path: Path) -> None:

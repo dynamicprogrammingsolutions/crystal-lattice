@@ -1,4 +1,4 @@
-# Plugins: allow actions to avoid triggering a session reload
+# Plugins: action results distinguish mutations vs UI effects
 
 Parent Task: `tasks/20260129-events-no-full-session/000-main.md`
 
@@ -8,15 +8,18 @@ Depends On:
 
 ## Goal
 
-Allow application plugins (invoked via `POST /actions`) to signal whether a session reload should happen.
+Make the `/actions` contract semantically correct by separating:
 
-Primary motivating case: `session_actions_app` delete-message actions currently cause mobile to reload even though events are sufficient.
+- **What changed** (session mutations)
+- **What the UI should do** (explicit UI effects like navigation or reload)
+
+Primary motivating case: message-delete actions update session history via events and should not force a full session reload.
 
 ## Status
 
-- [ ] Not started
+- [x] Complete
 
-## What’s happening today (root cause)
+## What was happening (root cause)
 
 ### Symptom
 
@@ -24,78 +27,80 @@ Primary motivating case: `session_actions_app` delete-message actions currently 
 
 ### Why it happens
 
-- The mobile app runs actions with `reloadSessionOnUpdated: true`:
-  - `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx:392`.
-
-- The frontend SDK converts a plugin response containing `updated_session_ids` into a `reloadSession` effect:
-  - `packages/frontend-sdk/src/plugins/actionRunner.ts:137` checks `updated_session_ids.includes(currentSessionId)` and pushes a `reloadSession` effect.
-
-- The session-actions plugin returns `updated_session_ids: [session_id]` for message deletions:
-  - `plugins/session-actions-app/src/session_actions_app/__init__.py:459` returns `updated_session_ids` containing the session id.
+- Mobile requested reload-on-update for all actions.
+- The SDK treated `updated_session_ids` as “reload this session”.
+- Plugins correctly reported “session updated” even when events were sufficient, which unintentionally triggered reloads.
 
 ## Requirements
 
-- Some actions should keep the current default (reload on updated).
-- Some actions (notably delete/modify messages) should be able to avoid reload, relying on events instead.
-- Solution should generalize beyond one specific plugin.
+- Reporting `updated_session_ids` must remain **semantically correct** (it means “state changed”, not “reload now”).
+- Reload must be **explicit**, used only when events are insufficient.
+- Navigation must be **explicit**, and clients can also choose their own policy (e.g. “navigate on created session”).
 
-## Proposed solution options (decision needed)
+## Implemented solution (breaking change)
 
-### Option A (recommended): UI-schema hint on ActionUiElement
+Action results now use:
 
-Add a convention on `ActionUiElement` (UI schema element) allowing an action to specify effect preferences.
-
-- Example UI element payload:
-
-  ```json
-  {
-    "ui_type": "message_action",
-    "id": "delete_single_message",
-    "action_id": "delete_messages",
-    "effects": { "reload_session_on_updated": false }
+```json
+{
+  "mutations": {
+    "created_session_ids": ["..."],
+    "updated_session_ids": ["..."],
+    "deleted_session_ids": ["..."]
+  },
+  "ui_effects": {
+    "navigate_to_session_id": "..." | null,
+    "reload_session_ids": ["..."],
+    "reload_sessions_list": true
   }
-  ```
+}
+```
 
-- Mobile uses that hint when calling `runApplicationAction`:
-  - `reloadSessionOnUpdated = element.effects?.reload_session_on_updated ?? true`
+Semantics:
 
-- Update `session_actions_app` UI elements (delete) to set that flag.
+- `mutations.*` is the truth: what sessions were created/updated/deleted.
+- `ui_effects.*` is explicit UI guidance:
+  - Reload happens only when `reload_session_ids` includes the current session.
+  - Navigation happens only when `navigate_to_session_id` is a non-empty string.
+  - `navigate_to_session_id: null` explicitly suppresses auto-navigation policies.
 
-Pros:
-- Per-action granularity.
-- Doesn’t require changing the generic `/actions` response schema.
+SDK policy knobs:
 
-Cons:
-- Only works for clients that respect the hint.
+- `reloadSessionsListOnMutations` still exists as a client policy for snapshot-based session lists.
+- `navigateOnCreatedSession` still exists as a client policy, but is suppressed when the plugin explicitly provides `navigate_to_session_id: null`.
 
-### Option B: response-level hint from executeAction
-
-Add a convention in `ExecuteActionResponseOk.result`, e.g.:
-
-- `result.effects = { reload_session: false }`
-
-Then modify `packages/frontend-sdk/src/plugins/actionRunner.ts` so `deriveActionEffectsFromResult()` honors the server’s response and suppresses emitting a `reloadSession` effect.
-
-Pros:
-- Centralized behavior: all clients using the SDK runner benefit.
-
-Cons:
-- Requires updating plugin code to emit the new field.
-- Potentially harder to version / coordinate.
-
-### Option C: mobile-only allowlist/denylist
-
-Hardcode conditions in mobile, e.g. “don’t reload for plugin X + action Y”.
-
-Pros:
-- Quick.
-
-Cons:
-- Brittle, not extensible.
-
-## Suggested acceptance tests
+## Acceptance tests
 
 - Trigger delete via `session_actions_app` message action.
   - Expect: no `loadMessages()` call, messages update via `messages_deleted` events.
 - Trigger actions that create sessions (copy/fork).
   - Expect: still navigate/reload as before.
+
+## Implementation notes
+
+- SDK updates:
+  - `packages/frontend-sdk/src/types/plugins.ts`
+  - `packages/frontend-sdk/src/plugins/actionRunner.ts`
+  - `packages/frontend-sdk/src/plugins/__tests__/actionRunner.test.ts`
+
+- Mobile update:
+  - `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx`
+
+- Plugin updates (both in-tree copies):
+  - `plugins/session-actions-app/src/session_actions_app/__init__.py`
+  - `plugins/rebuild-native-app/src/rebuild_native_app/__init__.py`
+  - `plugins/session-title-app/src/session_title_app/__init__.py`
+  - `plugins/generate-title-app/src/generate_title_app/__init__.py`
+  - `plugins/summarize-range-app/src/summarize_range_app/__init__.py`
+  - `plugins/session-pinned-app/src/session_pinned_app/__init__.py`
+  - `core/python/plugins/session_actions_app.py`
+  - `core/python/plugins/rebuild_native_app.py`
+  - `core/python/plugins/session_title_app.py`
+  - `core/python/plugins/generate_title_app.py`
+  - `core/python/plugins/summarize_range_app.py`
+  - `core/python/plugins/session_pinned_app.py`
+
+- Python tests updated to assert `mutations.*` / `ui_effects.*`:
+  - `core/python/tests/test_*_app_plugin_unit.py`
+  - `core/python/tests/test_rebuild_native_app.py`
+  - `application/python/tests/test_server_actions_*.py`

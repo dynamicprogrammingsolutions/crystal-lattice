@@ -131,12 +131,14 @@ class RebuildNativeAppPlugin:
             app.save_session(new_session)
 
         return {
-            "created_session_ids": [],
-            "updated_session_ids": [session_id],
-            "deleted_session_ids": [],
-            # Keep selected_session_id as the current session so frontends
-            # treat this as an in-place update.
-            "selected_session_id": session_id,
+            "mutations": {
+                "created_session_ids": [],
+                "updated_session_ids": [session_id],
+                "deleted_session_ids": [],
+            },
+            "ui_effects": {
+                "reload_session_ids": [session_id],
+            },
             "message": "Rebuilt provider-native history from core messages.",
         }
 

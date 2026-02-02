@@ -95,7 +95,8 @@ def test_server_generate_title_updates_metadata_and_sessions_list(tmp_path: Path
     assert resp["action_id"] == "generate_title_for_session"
 
     result = resp.get("result") or {}
-    assert result.get("updated_session_ids") == [session_id]
+    mutations = result.get("mutations") or {}
+    assert mutations.get("updated_session_ids") == [session_id]
 
     sessions_resp = server_mod.list_sessions(app_instance=app)
     summaries = sessions_resp.get("sessions") or []
@@ -252,7 +253,8 @@ def test_server_generate_title_sets_description_metadata_when_enabled(
 
     assert resp["status"] == "ok"
     result = resp.get("result") or {}
-    assert result.get("updated_session_ids") == [session_id]
+    mutations = result.get("mutations") or {}
+    assert mutations.get("updated_session_ids") == [session_id]
 
     sessions_resp = server_mod.list_sessions(app_instance=app)
     summaries = sessions_resp.get("sessions") or []

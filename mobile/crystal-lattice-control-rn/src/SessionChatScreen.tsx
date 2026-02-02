@@ -402,7 +402,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	            effects: {
 	              currentSessionId: sessionId,
 	              navigateOnCreatedSession: true,
-	              reloadSessionOnUpdated: true,
 	            },
 	          });
 	          if (!ok) {
