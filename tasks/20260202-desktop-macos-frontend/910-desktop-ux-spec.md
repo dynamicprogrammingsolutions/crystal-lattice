@@ -52,8 +52,19 @@ Future extensions:
   - message actions
   - settings
 
+Implementation hint:
+
+- “Dropdown” can initially be a JS overlay anchored to a button.
+- Keep the shared components flexible so a future macOS-native menu/popover can be introduced.
+  - See: `tasks/20260202-desktop-macos-frontend/920-native-elements-notes.md`
+
 ## Keyboard (optional, not required for Phase 5)
 
 - `Cmd+W` close active tab
 - `Cmd+Shift+]` / `Cmd+Shift+[` switch tabs
 - `Cmd+Enter` send
+
+Implementation hint:
+
+- RN macOS exposes extra key event handling primitives; integrate once the base UI is stable.
+  - See: `tasks/20260202-desktop-macos-frontend/920-native-elements-notes.md`

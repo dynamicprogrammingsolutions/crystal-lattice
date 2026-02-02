@@ -28,6 +28,11 @@ We need authoritative, up-to-date guidance for:
 - Compatibility matrix / which `react-native-macos` version corresponds to which `react-native` base.
 - Whether the recommended approach is to alias `react-native` to `react-native-macos` in `package.json`.
 
+Additional hint:
+
+- RN macOS exposes macOS-specific `View` props/events (focus ring, key handling, tooltips, hover, etc.).
+  - See: `tasks/20260202-desktop-macos-frontend/920-native-elements-notes.md`
+
 If you can enable web search, do it before starting this subtask.
 
 ## Work plan

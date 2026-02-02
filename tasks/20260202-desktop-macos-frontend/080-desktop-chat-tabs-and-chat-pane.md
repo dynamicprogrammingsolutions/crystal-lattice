@@ -23,6 +23,11 @@ Depends On:
 - Closing a tab cleans up resources (event polling, timers).
 - Chat pane uses the SDK `ChatController` and reducer-driven event state.
 
+UX hint:
+
+- Use macOS hover/focus affordances for tab close buttons and action menus when possible.
+  - See: `tasks/20260202-desktop-macos-frontend/920-native-elements-notes.md`
+
 ## Work plan
 
 ### 1) Tab state model
@@ -78,6 +83,12 @@ Implement settings as dropdowns anchored in the chat header (desktop-friendly), 
 
 - Agent selector dropdown
 - Render options dropdown (markdown on/off, show reasoning, tool result formatting)
+
+Implementation hint:
+
+- A JS overlay-based dropdown is a good Phase 5 baseline.
+- Keep the rendering layer swappable if a native `NSMenu`/`NSPopover` approach is introduced later.
+  - See: `tasks/20260202-desktop-macos-frontend/920-native-elements-notes.md`
 
 ## Verification
 

@@ -28,6 +28,12 @@ Key customization points:
   - mobile: modal
   - desktop: anchored dropdown
 
+Implementation hint:
+
+- Consider splitting “model” from “view”:
+  - shared: `useActionsMenuModel(...)`
+  - platform UI: `ActionsMenuView` (potentially via `*.macos.tsx` overrides later)
+
 ### 2) Session tab strip
 
 - Controlled `SessionTabs` component:
@@ -39,6 +45,12 @@ Key customization points:
 - Render tab title (session title, agent name, etc.)
 - Styling for active/inactive/dirty state
 
+Implementation hint:
+
+- RN macOS adds desktop-specific props/events (hover, focus ring, tooltips, key handling).
+- Keep the component API stable and allow later macOS-specific enhancements without changing callers.
+  - See: `tasks/20260202-desktop-macos-frontend/920-native-elements-notes.md`
+
 ### 3) “Inspector” header widgets (future)
 
 Not required for Phase 5, but design for extension:
@@ -46,6 +58,12 @@ Not required for Phase 5, but design for extension:
 - Agent selector dropdown
 - Render options dropdown
 - Session settings dropdown
+
+Implementation hint:
+
+- For “dropdowns”, it may be simplest to start with a JS overlay-based menu.
+- Keep a path open for a future macOS-native `NSMenu`/`NSPopover` implementation.
+  - See: `tasks/20260202-desktop-macos-frontend/920-native-elements-notes.md`
 
 ## Proposed package
 

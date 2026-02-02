@@ -52,6 +52,14 @@ Key principle:
 - Logic allowed: list/merge/categorize actions, pinned handling, tab state rendering.
 - Logic not allowed: backend calls, session/message reducers, controller lifecycle management.
 
+Additional hint (desktop “native feel”):
+
+- Keep a clear separation between:
+  - shared UI logic (“model”)
+  - platform-specific presentation (“view”)
+- This helps if we later adopt more macOS-native UI affordances.
+  - See: `tasks/20260202-desktop-macos-frontend/920-native-elements-notes.md`
+
 ### 3) Implement components
 
 Start with the highest leverage cross-platform pieces:
@@ -60,6 +68,12 @@ Start with the highest leverage cross-platform pieces:
 - `ActionsMenu` (UI): supports `variant: 'dropdown' | 'modal'`.
   - Desktop uses `dropdown`.
   - Mobile can keep `modal`.
+
+Implementation hint:
+
+- The `dropdown` variant can be a JS overlay initially.
+- Keep an abstraction boundary so a future macOS-native menu/popover can be swapped in.
+  - See: `tasks/20260202-desktop-macos-frontend/920-native-elements-notes.md`
 - `SessionTabs` (UI): renders tab strip + close buttons; controlled via props.
 
 ### 4) Prove reuse by adopting at least one component in mobile

@@ -47,6 +47,10 @@ This task directory is a handoff package for implementing Phase 5 of `tasks/2026
    - “Open session” behavior when already open: focus existing tab.
    - Proposed default behavior in `tasks/20260202-desktop-macos-frontend/910-desktop-ux-spec.md`.
 
+4) “Native element” strategy on macOS
+   - Summary of what RN macOS supports and what likely requires native modules:
+     - `tasks/20260202-desktop-macos-frontend/920-native-elements-notes.md`
+
 ## Subtasks
 
 - `tasks/20260202-desktop-macos-frontend/010-shared-components-package.md`
@@ -63,3 +67,4 @@ This task directory is a handoff package for implementing Phase 5 of `tasks/2026
 
 - Shared component boundaries + candidates: `tasks/20260202-desktop-macos-frontend/900-shared-components-scope.md`
 - Desktop UX spec + tab semantics: `tasks/20260202-desktop-macos-frontend/910-desktop-ux-spec.md`
+- Native elements notes (RN macOS): `tasks/20260202-desktop-macos-frontend/920-native-elements-notes.md`
