@@ -484,12 +484,12 @@ class SummarizeRangeAppPlugin:
                 pass
 
         return {
-            "created_session_ids": [],
-            "updated_session_ids": [session_id],
-            "deleted_session_ids": [],
-            # Keep selected_session_id unset/None so that frontends treat this
-            # as an in-place update rather than a navigation event.
-            "selected_session_id": None,
+            "mutations": {
+                "created_session_ids": [],
+                "updated_session_ids": [session_id],
+                "deleted_session_ids": [],
+            },
+            "ui_effects": {},
             "message": "Summarized messages in the selected range.",
         }
 

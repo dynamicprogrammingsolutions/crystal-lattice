@@ -81,7 +81,8 @@ def test_server_actions_set_session_title_updates_metadata_and_sessions_list(
     assert resp["action_id"] == "set_session_title"
 
     result = resp.get("result") or {}
-    assert result.get("updated_session_ids") == [session_id]
+    mutations = result.get("mutations") or {}
+    assert mutations.get("updated_session_ids") == [session_id]
 
     sessions_resp = server_mod.list_sessions(app_instance=app)
     summaries = sessions_resp.get("sessions") or []

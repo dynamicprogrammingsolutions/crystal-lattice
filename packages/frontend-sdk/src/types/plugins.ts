@@ -30,6 +30,24 @@ export interface ActionUiElement {
   [k: string]: any;
 }
 
+export interface ActionMutations {
+  created_session_ids?: string[];
+  updated_session_ids?: string[];
+  deleted_session_ids?: string[];
+}
+
+export interface ActionUiEffects {
+  navigate_to_session_id?: string | null;
+  reload_session_ids?: string[];
+  reload_sessions_list?: boolean;
+}
+
+export interface StandardActionResult {
+  mutations?: ActionMutations;
+  ui_effects?: ActionUiEffects;
+  [k: string]: any;
+}
+
 export interface SessionListFieldElement {
   ui_type: string;
   plugin: string;
@@ -50,7 +68,7 @@ export interface ExecuteActionResponseOk {
   status: 'ok';
   plugin: string;
   action_id: string;
-  result: any;
+  result: StandardActionResult;
 }
 
 export interface ExecuteActionResponseError {

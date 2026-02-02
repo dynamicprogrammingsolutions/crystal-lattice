@@ -136,8 +136,13 @@ def test_rebuild_native_app_execute_action_rebuilds_session():
         state,
     )
 
-    assert result["updated_session_ids"] == [session.session_id]
-    assert result["selected_session_id"] == session.session_id
+    mutations = result.get("mutations")
+    assert isinstance(mutations, dict)
+    assert mutations.get("updated_session_ids") == [session.session_id]
+
+    ui_effects = result.get("ui_effects")
+    assert isinstance(ui_effects, dict)
+    assert ui_effects.get("reload_session_ids") == [session.session_id]
 
     saved = app.saved_session
     assert saved is not None

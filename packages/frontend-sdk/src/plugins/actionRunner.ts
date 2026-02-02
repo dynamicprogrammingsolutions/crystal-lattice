@@ -2,6 +2,7 @@ import type { AgentBackend } from '../backend/backend';
 import type { ApiMessage } from '../types/messages';
 import type {
   ActionUiElement,
+  StandardActionResult,
   ApplicationActionDefinition,
   ExecuteActionResponse,
   ExecuteActionResponseOk,
@@ -23,7 +24,6 @@ export interface RunActionContext {
 export interface RunActionEffectsOptions {
   currentSessionId?: string | null;
   navigateOnCreatedSession?: boolean;
-  reloadSessionOnUpdated?: boolean;
   reloadSessionsListOnMutations?: boolean;
 }
 
@@ -104,38 +104,59 @@ function deriveActionEffectsFromResult(options: {
   effects: RunActionEffectsOptions;
 }): ActionEffect[] {
   const { okResponse, effects } = options;
-  const result: any = okResponse.result || {};
+  const result: StandardActionResult = okResponse.result || {};
 
-  const selectedSessionId =
-    typeof result.selected_session_id === 'string' && result.selected_session_id
-      ? result.selected_session_id
+  const mutations: any =
+    result && typeof result.mutations === 'object' && result.mutations
+      ? result.mutations
+      : {};
+  const uiEffects: any =
+    result && typeof result.ui_effects === 'object' && result.ui_effects
+      ? result.ui_effects
+      : {};
+
+  const createdSessionIds: string[] = Array.isArray(mutations.created_session_ids)
+    ? (mutations.created_session_ids as any[]).filter((id) => typeof id === 'string')
+    : [];
+  const updatedSessionIds: string[] = Array.isArray(mutations.updated_session_ids)
+    ? (mutations.updated_session_ids as any[]).filter((id) => typeof id === 'string')
+    : [];
+  const deletedSessionIds: string[] = Array.isArray(mutations.deleted_session_ids)
+    ? (mutations.deleted_session_ids as any[]).filter((id) => typeof id === 'string')
+    : [];
+
+  const hasExplicitNavigateTarget = Object.prototype.hasOwnProperty.call(
+    uiEffects,
+    'navigate_to_session_id',
+  );
+  const navigateToSessionId =
+    typeof uiEffects.navigate_to_session_id === 'string' && uiEffects.navigate_to_session_id
+      ? uiEffects.navigate_to_session_id
       : null;
-  const createdSessionIds: string[] = Array.isArray(result.created_session_ids)
-    ? (result.created_session_ids as any[]).filter((id) => typeof id === 'string')
+
+  const reloadSessionIds: string[] = Array.isArray(uiEffects.reload_session_ids)
+    ? (uiEffects.reload_session_ids as any[]).filter((id) => typeof id === 'string')
     : [];
-  const updatedSessionIds: string[] = Array.isArray(result.updated_session_ids)
-    ? (result.updated_session_ids as any[]).filter((id) => typeof id === 'string')
-    : [];
-  const deletedSessionIds: string[] = Array.isArray(result.deleted_session_ids)
-    ? (result.deleted_session_ids as any[]).filter((id) => typeof id === 'string')
-    : [];
+  const reloadSessionsList = uiEffects.reload_sessions_list === true;
 
   const effectList: ActionEffect[] = [];
 
-  if (selectedSessionId) {
-    effectList.push({ type: 'navigateToSession', sessionId: selectedSessionId });
-  } else if (effects.navigateOnCreatedSession && createdSessionIds.length > 0) {
+  if (navigateToSessionId) {
+    effectList.push({ type: 'navigateToSession', sessionId: navigateToSessionId });
+  } else if (!hasExplicitNavigateTarget && effects.navigateOnCreatedSession && createdSessionIds.length > 0) {
     effectList.push({ type: 'navigateToSession', sessionId: createdSessionIds[0] });
   }
 
-  if (effects.reloadSessionsListOnMutations) {
+  if (reloadSessionsList) {
+    effectList.push({ type: 'reloadSessionsList' });
+  } else if (effects.reloadSessionsListOnMutations) {
     if (createdSessionIds.length > 0 || updatedSessionIds.length > 0 || deletedSessionIds.length > 0) {
       effectList.push({ type: 'reloadSessionsList' });
     }
   }
 
-  if (effects.currentSessionId && effects.reloadSessionOnUpdated) {
-    if (updatedSessionIds.includes(effects.currentSessionId)) {
+  if (effects.currentSessionId) {
+    if (reloadSessionIds.includes(effects.currentSessionId)) {
       effectList.push({ type: 'reloadSession', sessionId: effects.currentSessionId });
     }
   }
@@ -208,7 +229,6 @@ export async function runApplicationAction(options: {
         effects: {
           currentSessionId: effects?.currentSessionId ?? null,
           navigateOnCreatedSession: effects?.navigateOnCreatedSession ?? false,
-          reloadSessionOnUpdated: effects?.reloadSessionOnUpdated ?? true,
           reloadSessionsListOnMutations: effects?.reloadSessionsListOnMutations ?? false,
         },
       }),

@@ -645,6 +645,14 @@ Implementation:
 
 ### 6.3. `POST /actions`
 
+Update (2026-02): The original action-result shape in this plan (e.g.
+top-level `created_session_ids` / `updated_session_ids` and
+`selected_session_id`) has been replaced with a semantically-correct
+split between **what changed** (`mutations`) and explicit **UI
+effects** (`ui_effects`).
+
+See: `tasks/20260129-events-no-full-session/090-plugin-action-reload-control.md`.
+
 Purpose:
 
 - Execute any application-level action in a single, simple endpoint.
@@ -700,22 +708,28 @@ Response envelope:
     "plugin": "session_actions",
     "action_id": "copy_session",
     "result": {
-      "created_session_ids": ["new-session-id"],
-      "updated_session_ids": [],
-      "deleted_session_ids": [],
-      "selected_session_id": "new-session-id",
+      "mutations": {
+        "created_session_ids": ["new-session-id"],
+        "updated_session_ids": [],
+        "deleted_session_ids": []
+      },
+      "ui_effects": {
+        "navigate_to_session_id": "new-session-id",
+        "reload_session_ids": [],
+        "reload_sessions_list": false
+      },
       "message": "Session copied successfully.",
       "extra": {}
     }
   }
   ```
 
-  - `created_session_ids`, `updated_session_ids`, `deleted_session_ids`:
+  - `mutations.*`:
     - Optional lists of session ids whose state changed.
     - These **replace** any notion of returning entire sessions.
-  - `selected_session_id`:
-    - Optional hint telling the client which session to show after the
-      action.
+  - `ui_effects.*`:
+    - Explicit UI hints such as navigation/reload.
+    - Reloads are no longer implied by `mutations.updated_session_ids`.
   - `message`:
     - Optional human-readable description.
   - `extra`:

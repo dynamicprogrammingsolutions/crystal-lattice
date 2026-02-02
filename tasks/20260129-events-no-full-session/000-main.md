@@ -24,7 +24,7 @@ This is a standalone task (not a subtask of the frontend SDK extraction), becaus
 - [x] Update `ChatController` to use reducer, track cursor(s), and expose `dirty`
 - [x] Remove unconditional reloads from the mobile frontend (send/resend, delete/modify)
 - [x] Auto-recover `dirty` via a rate-limited reload policy
-- [ ] Let application plugins opt out of triggering reloads
+- [x] Let application plugins opt out of triggering reloads
 
 ## Subtasks
 
