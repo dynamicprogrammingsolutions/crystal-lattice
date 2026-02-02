@@ -947,6 +947,33 @@ class ToolPlugin(BasePlugin, Protocol):
             return f"Result: {result.get('result')}"
         return f"Error: {result.get('error')}"
 
+    def format_tool_call_preview(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> str:
+        """Generate a pre-execution preview for a tool call.
+
+        This hook is invoked when an assistant message containing tool calls is
+        finalized, before the tools are executed. It should return a brief
+        summary of what the tool call will do.
+
+        The preview is intended for human-facing UIs (e.g. a collapsible list of
+        tool calls) and should not be used for model-facing tool output.
+
+        Args:
+            tool_name: Name of the tool/function being called.
+            arguments: Structured arguments for the tool call.
+            state: Current tool state.
+
+        Returns:
+            A short string (preferably single-line). Return an empty string when
+            no preview is available.
+        """
+
+        return ""
+
     def stream_tool(
         self,
         tool_name: str,

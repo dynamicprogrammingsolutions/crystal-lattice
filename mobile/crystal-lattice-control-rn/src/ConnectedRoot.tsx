@@ -354,7 +354,7 @@ const createStyles = (theme: Theme, insets: { top: number; bottom: number; left:
     contentArea: {
       flex: 1,
       paddingHorizontal: 16,
-      paddingTop: Math.max(8, insets.top),
+      paddingTop: 8,
       paddingBottom: 4,
     },
     connectionsTabContainer: {
