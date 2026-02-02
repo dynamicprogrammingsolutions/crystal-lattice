@@ -31,6 +31,20 @@ Notes (implemented via `tasks/20260129-events-no-full-session/000-main.md`):
 - Add a `dirty` fallback that triggers a manual reload only when incremental apply fails.
 - Remove unconditional message reloads from the frontend.
 
+## Implementation notes (what happened vs plan)
+
+- Phase 4.5 was implemented in the standalone task directory (`tasks/20260129-events-no-full-session/`) and then marked complete here for parity with the phase checklist.
+- The “no full session in events” requirement forced a strict reducer-based approach; reload/reconcile became a dirty fallback rather than a normal send path.
+
+## Relevant commits
+
+- `eb54c52` Lean events: remove session snapshots; add indices
+- `f8603f5` frontend-sdk: add pure reducers and vitest tests
+- `33f3f7f` frontend-sdk: typed minimal events and strict history reducer
+- `5603124` chat: track dirty + event cursor; mobile remove reloads
+- `c78da97` actions: split mutations from ui_effects (no reload on updated)
+- `2a44d19` tasks: mark phase 4.5 event contract/reducer complete
+
 ## Implemented solutions (high level)
 
 ### 1) Minimal event contract (no full session snapshots)

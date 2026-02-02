@@ -13,8 +13,8 @@ This task directory is a standalone handoff of the *current plan* (with all phas
 - [x] Phase 4.1: Chat controller + representation-only chat screen
 - [x] Phase 4.2: Sessions controller + representation-only sessions screen
 - [x] Phase 4.3: Plugins registry + action runner + React wrappers
-- [ ] Phase 4.4: Chat scroll anchoring and restoration (planned, not implemented)
-- [ ] Phase 4.5: Event contract + reducer-driven message state (planned, not implemented)
+- [x] Phase 4.4: Chat scroll anchoring and restoration
+- [x] Phase 4.5: Event contract + reducer-driven message state (no full session in events)
 - [ ] Phase 5: Desktop frontend (RN macOS)
 - [ ] Phase 6: VS Code extension (future)
 
@@ -42,6 +42,9 @@ This task directory is a standalone handoff of the *current plan* (with all phas
 All completed work referenced by these tasks exists on branch `frontend-sdk`.
 
 Notable commits (ordered newest → oldest):
+
+- `2a44d19`, `c78da97`, `5603124`, `33f3f7f`, `eb54c52`, `f8603f5` Phase 4.5 events/reducer/no-reload work (see `tasks/20260129-events-no-full-session/000-main.md`)
+- `b4374cf`, `d729c05` Phase 4.4 scroll anchoring + task completion
 
 - `e20ccba` Phase 4.4 plan doc added
 - `760a16a` Fix chat polling start (helps “send hangs” and improves transition performance)

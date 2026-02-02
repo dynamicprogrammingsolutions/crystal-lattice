@@ -12,8 +12,6 @@ Note: message-state correctness (event schema, reducer, dirty fallback, removing
 
 - `tasks/20260129-events-no-full-session/000-main.md`
 
-This phase is not implemented yet; it’s the next intended cleanup step.
-
 ## Status
 
 - [x] Complete
@@ -77,3 +75,13 @@ Current persistence wiring (for reference):
 
 - Detailed plan: `plans/frontend-sdk/09-chat-persistence-scroll-and-reconcile.md`
 - Phase 4.5 (events/reducer/no reloads): `tasks/20260129-events-no-full-session/000-main.md`
+
+## Implementation notes (what happened vs plan)
+
+- The implementation uses an inverted `FlatList` (render newest at bottom) to simplify “default-to-bottom” behavior while preserving the ability to read history without being yanked.
+- Persistence moved from an ambiguous `scrollOffset` to a bottom-anchor concept (`bottomGapPx` + `pinnedToBottom`) so “unknown” defaults to bottom.
+
+## Relevant commits
+
+- `b4374cf` Mobile chat: inverted FlatList + scroll anchor persistence
+- `d729c05` Mark Phase 4.4 scroll anchoring task complete
