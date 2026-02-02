@@ -16,3 +16,21 @@ export function selectDisplayContent(message: ApiMessage): string {
 
   return '';
 }
+
+/**
+ * Extract the single-line preview content from a tool message's display metadata.
+ *
+ * Returns the `metadata.display.single_line` field if available, otherwise `null`.
+ * Intended for compact/collapsed tool-result views.
+ */
+export function selectSingleLineContent(message: ApiMessage): string | null {
+  const metadata = message.metadata || {};
+  const display = (metadata as any).display;
+  if (display && typeof display === 'object') {
+    const singleLine = (display as any).single_line;
+    if (typeof singleLine === 'string' && singleLine.trim()) {
+      return singleLine;
+    }
+  }
+  return null;
+}

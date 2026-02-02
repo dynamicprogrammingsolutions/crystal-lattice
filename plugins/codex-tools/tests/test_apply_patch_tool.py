@@ -66,6 +66,14 @@ def test_apply_patch_add_update_and_delete_other_file(tmp_path):
     # delete_me.txt should have been deleted
     assert not to_delete.exists()
 
+    formatted = wrapper.format_tool_result(result, state)
+    display = wrapper.to_display_format(formatted, result, state)
+    assert display.get("type") == "text"
+    assert isinstance(display.get("single_line"), str)
+    assert "add: new.txt" in display["single_line"]
+    assert "update: foo.txt" in display["single_line"]
+    assert "delete: delete_me.txt" in display["single_line"]
+
 
 def test_apply_patch_rejects_paths_outside_allowed(tmp_path):
     # working_directory inside tmp_path, but allowed_paths only permit a subdir

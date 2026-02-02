@@ -604,6 +604,9 @@ class ApplyPatchTool(ToolPlugin):
         model-facing tool message content as ``text`` (managed by
         ``format_tool_result``) and enrich only the human-facing display
         payload with the original ``patch_text`` when available.
+
+        Includes a ``single_line`` field with the list of changed/added files
+        for use in collapsed/short views.
         """
 
         patch_text = result.get("patch_text")
@@ -616,7 +619,26 @@ class ApplyPatchTool(ToolPlugin):
         # what was applied, even when the formatted summary is truncated
         # by the UI's line/character limits.
         content = f"{header}\n\nPatch:\n{patch_text}"
-        return {"type": "text", "content": content}
+
+        changes = result.get("changes") or {}
+        single_line_parts: List[str] = []
+        if isinstance(changes, dict) and changes:
+            for path in sorted(changes):
+                info = changes.get(path) or {}
+                if not isinstance(info, dict):
+                    continue
+                change_type = info.get("type", "?")
+                move_to = info.get("move_path")
+                if move_to:
+                    single_line_parts.append(f"{change_type}: {path} -> {move_to}")
+                else:
+                    single_line_parts.append(f"{change_type}: {path}")
+
+        display: Dict[str, Any] = {"type": "text", "content": content}
+        if single_line_parts:
+            display["single_line"] = "\n".join(single_line_parts)
+
+        return display
 
     def _process_patch_sandboxed(
         self, patch_text: str, working_dir: str, allowed_paths: List[str]

@@ -57,7 +57,7 @@
         - `result` is the full RESULT dict from `execute_tool` / `stream_tool`.
     - Default implementations:
         - In `ToolPlugin` (protocol): returns `{"type": "text", "content": text}`.
-        - In the adapter (`ToolPluginAdapter.to_display_format`): if the plugin doesn’t override this, also wraps `text` in a `{"type": "text"}` payload.
+        - In the adapter (`ToolPluginAdapter.to_display_format`): if the plugin doesn't override this, also wraps `text` in a `{"type": "text"}` payload.
     - How core uses it (`AgentCore.iter_tool_messages`):
         - After formatting, core calls:
           ```python
@@ -71,6 +71,18 @@
         - This means:
             - `format_tool_result` controls what the **LLM** sees as the tool message content.
             - `to_display_format` controls what **humans** see in the UI for that tool call.
+    - **Single-line display support:**
+        - Tools can include an optional `"single_line"` field in the returned display dict to provide a compact summary for collapsed/short views.
+        - Format: `{"type": "text", "content": <full_content>, "single_line": <compact_summary>}`
+        - The `single_line` field should contain a brief, one-line (or multi-line if needed) preview suitable for:
+            - Terminal `/list short` command output
+            - Mobile app collapsed tool result headers
+            - Any UI that shows tool results in a compact format
+        - Examples:
+            - **Shell tool**: `"single_line": "ls -la"` (just the command, first line if multi-line)
+            - **Apply patch tool**: `"single_line": "add: file1.py\nupdate: file2.py"` (list of changed files)
+        - When `single_line` is present, UIs should prefer it over `content` when rendering collapsed/short views.
+        - When expanded, UIs should always use `content` for the full tool result.
     - Concrete example (`ShellTool.to_display_format`):
         - `execute_tool` / `stream_tool` attach `"command"` and `"workdir"` to the result dict.
         - `to_display_format` reads those and prepends a multi‑line header:
@@ -78,6 +90,7 @@
             - `Command executed: <cmd>`
             - `Output:`
         - Then appends the `text` from `format_tool_result`.
+        - Also includes `"single_line": <first_line_of_command>` for compact views.
         - The UI shows command + workdir + output, but the raw tool message `content` (seen by the LLM) is just the formatted stdout/stderr.
 
 - **Documentation gap identified**
