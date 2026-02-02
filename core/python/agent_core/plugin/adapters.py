@@ -591,6 +591,18 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
             return f"Result: {result.get('result')}"
         return f"Error: {result.get('error')}"
 
+    def format_tool_call_preview(  # type: ignore[override]
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> str:
+        fn = getattr(self.impl, "format_tool_call_preview", None)
+        if callable(fn):
+            out = fn(tool_name, arguments, state)
+            return str(out) if out else ""
+        return ""
+
     def stream_tool(  # type: ignore[override]
         self,
         tool_name: str,

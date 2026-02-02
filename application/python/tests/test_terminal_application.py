@@ -274,12 +274,20 @@ def test_set_overrides_and_send_request_uses_them(tmp_path: Path, monkeypatch: p
 
     def _fake_send_request(self, core, session_obj, base_cfg, overrides_arg, *, stream=False, request_id=None):  # type: ignore[override]
         captured["overrides"] = overrides_arg
-        # Minimal final event structure for TerminalApplication.send_request.
+        # Emit a session_checkpoint carrying a live Session (internal event)
+        # plus a public final event without embedding a serialized session.
+        yield {
+            "type": "session_checkpoint",
+            "session_id": session_obj.session_id,
+            "request_id": "req-1",
+            "session": session_obj,
+        }
         yield {
             "type": "final",
-            "session": session_obj.to_dict(),
-            "messages": [],
+            "session_id": session_obj.session_id,
             "request_id": "req-1",
+            "start_index": len(session_obj.messages),
+            "messages": [],
         }
 
     monkeypatch.setattr(AgentApplication, "send_request", _fake_send_request, raising=True)
@@ -952,6 +960,8 @@ def test_modify_message_application_emits_event(tmp_path: Path) -> None:
     assert "message_modified" in kinds
     modified_events = [ev for ev in events_list if ev.get("type") == "message_modified"]
     assert any(ev.get("index") == 1 and ev.get("content") == "one-edited" for ev in modified_events)
+    assert all("session" not in ev for ev in modified_events)
+    assert any(isinstance(ev.get("message"), dict) for ev in modified_events)
 
 
 def test_show_message_supports_negative_indices(tmp_path: Path) -> None:
@@ -1166,13 +1176,14 @@ def test_list_plugins_for_session_implicit_defaults(tmp_path: Path) -> None:
         assert entry["active"] is True
         sources.add(entry["source"])
 
-    # config_echo_app.json registers one provider and two extensions.
+    # config_echo_app.json registers one provider, two extensions, and one
+    # test-only feature used to preserve metadata for terminal /list rendering.
     assert ids_by_kind["providers"] == ["echo_openai_like"]
     assert ids_by_kind["extensions"] == [
         "delay_extension",
         "random_failure_extension",
     ]
-    assert "features" not in ids_by_kind or ids_by_kind["features"] == []
+    assert ids_by_kind["features"] == ["echo_provider_metadata_preserver"]
     assert "tools" not in ids_by_kind or ids_by_kind["tools"] == []
 
     # With no explicit agent or session plugin list, the effective
@@ -1362,6 +1373,7 @@ async def test_plugins_slash_command_lists_and_toggles(tmp_path: Path) -> None:
     assert "echo_openai_like" in joined
     assert "delay_extension" in joined
     assert "random_failure_extension" in joined
+    assert "echo_provider_metadata_preserver" in joined
 
     last_list = ui_state.get("plugins_last_list")
     assert isinstance(last_list, list)
@@ -1369,6 +1381,7 @@ async def test_plugins_slash_command_lists_and_toggles(tmp_path: Path) -> None:
         "echo_openai_like",
         "delay_extension",
         "random_failure_extension",
+        "echo_provider_metadata_preserver",
     ]
 
     # Disable the first extension by index.
@@ -1376,9 +1389,14 @@ async def test_plugins_slash_command_lists_and_toggles(tmp_path: Path) -> None:
     await term_mod._cmd_plugins(term_app, "off 2", outputs.append, ui_state)
 
     # Session metadata should now contain a plugins list with the
-    # provider and the remaining extension enabled.
+    # provider, the remaining extension, and the echo-only metadata
+    # preserver feature enabled.
     md = term_app.session.metadata or {}
-    assert md.get("plugins") == ["echo_openai_like", "random_failure_extension"]
+    assert md.get("plugins") == [
+        "echo_openai_like",
+        "random_failure_extension",
+        "echo_provider_metadata_preserver",
+    ]
 
     core, _base_config, active_session = term_app.require_session()
     assert active_session.session_id == session_id
@@ -1400,7 +1418,10 @@ async def test_plugins_slash_command_lists_and_toggles(tmp_path: Path) -> None:
     )
 
     md2 = term_app.session.metadata or {}
-    assert md2.get("plugins") == ["echo_openai_like"]
+    assert md2.get("plugins") == [
+        "echo_openai_like",
+        "echo_provider_metadata_preserver",
+    ]
 
     core_after_off, _base_config_after_off, active_session_after_off = term_app.require_session()
     assert active_session_after_off.session_id == session_id

@@ -1,0 +1,6 @@
+{
+  "entries": [
+    "dev_plugins.file_reader_tool.FileReaderTool",
+    "dev_plugins.file_writer_tool.FileWriterTool"
+  ]
+}

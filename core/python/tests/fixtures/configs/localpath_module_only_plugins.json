@@ -1,0 +1,22 @@
+{
+  "plugin_cache_dir": "${env:PLUGIN_CACHE_DIR}",
+  "providers": {
+    "ollama_tools": {
+      "provider": "openai_compatible",
+      "model": "${env:OLLAMA_MODEL_TOOLS}",
+      "base_url": "${env:OPENAI_BASE_URL}",
+      "timeout": 180,
+      "allowed_paths": [".", "${env:REPO_TMP_DIR}"],
+      "max_file_size": 1048576
+    }
+  },
+  "plugins": [
+    "plugins.openai_provider.OpenAICompatibleProvider",
+    "plugins.openai_tools_extension.OpenAIToolsExtension",
+    "plugins.ollama_thinking_extension.OllamaThinkingExtension",
+    "path:${env:DEV_PLUGINS_DESC_DIR}"
+  ],
+  "agents": {
+    "default": { "provider": "ollama_tools" }
+  }
+}

@@ -29,20 +29,13 @@ def _make_config_with_session_title(tmp_path: Path) -> Path:
         "providers": {
             "echo": {"provider": "echo_openai_like", "model": "test-model"}
         },
-        "plugins": {
-            "providers": [
-                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            ],
-            "features": [],
-            "tools": [],
-            "extensions": [],
-        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.session_title_app.SessionTitleAppPlugin",
+        ],
         "agents": {
             "default": {"provider": "echo"},
         },
-        "application_plugins": [
-            "plugins.session_title_app.SessionTitleAppPlugin",
-        ],
         "application": {},
     }
 
@@ -88,7 +81,8 @@ def test_server_actions_set_session_title_updates_metadata_and_sessions_list(
     assert resp["action_id"] == "set_session_title"
 
     result = resp.get("result") or {}
-    assert result.get("updated_session_ids") == [session_id]
+    mutations = result.get("mutations") or {}
+    assert mutations.get("updated_session_ids") == [session_id]
 
     sessions_resp = server_mod.list_sessions(app_instance=app)
     summaries = sessions_resp.get("sessions") or []

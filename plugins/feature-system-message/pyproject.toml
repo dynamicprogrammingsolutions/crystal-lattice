@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "feature-system-message"
+version = "0.1.0"
+description = "System message feature plugin"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "agent-core>=0.3.0"
+]
+
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["feature_system_message*"]
+
+
+[tool.setuptools.data-files]
+"" = ["agent_plugin.json"]

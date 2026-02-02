@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Modal,
   StyleSheet,
@@ -23,6 +23,7 @@ export interface SessionActionsBarProps {
   isActionDisabled?: (action: SessionActionKey) => boolean;
   extraActions?: SessionActionDefinition[];
   availableActions?: SessionActionKey[];
+  isActive?: boolean;
 }
 
 const SessionActionsBar: React.FC<SessionActionsBarProps> = ({
@@ -32,10 +33,17 @@ const SessionActionsBar: React.FC<SessionActionsBarProps> = ({
   isActionDisabled,
   extraActions,
   availableActions,
+  isActive,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [menuVisible, setMenuVisible] = useState(false);
+
+  useEffect(() => {
+    if (isActive === false) {
+      setMenuVisible(false);
+    }
+  }, [isActive]);
 
   const allDefs: SessionActionDefinition[] = useMemo(() => {
     const base = availableActions

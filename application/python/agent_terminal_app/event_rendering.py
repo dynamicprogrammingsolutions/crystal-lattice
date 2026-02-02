@@ -505,13 +505,16 @@ class ToolRenderer(BaseMessageRenderer):
         self._short_one_line: bool = bool(cfg.get("tool_output_short_one_line", True))
         self._short_line_limit: int = int(cfg.get("tool_output_short_line_limit", 20))
 
-    def _select_content_from_message(self, msg: Dict[str, Any]) -> str | None:
+    def _select_content_from_message(self, msg: Dict[str, Any], *, short: bool = False) -> str | None:
         """Return display-aware content for a tool message/result.
 
         Prefers ``metadata.display.content`` when present, falling back to
         the core ``content`` field. This mirrors the semantics used when
         listing stored messages so that streaming and history views stay
         consistent.
+        
+        When ``short=True``, prefers ``metadata.display.single_line`` if
+        available for collapsed/short views.
         """
 
         if not isinstance(msg, dict):
@@ -521,6 +524,14 @@ class ToolRenderer(BaseMessageRenderer):
         if not isinstance(md, dict):
             md = {}
         display = md.get("display")
+        
+        # In short mode, prefer single_line if available
+        if short and isinstance(display, dict):
+            single_line = display.get("single_line")
+            if isinstance(single_line, str) and single_line.strip():
+                return single_line
+        
+        # Otherwise, use the standard display.content or fall back to message.content
         if isinstance(display, dict) and display.get("type") == "text":
             content = display.get("content")
         else:
@@ -723,7 +734,7 @@ class ToolRenderer(BaseMessageRenderer):
         if not isinstance(md, dict):
             md = {}
         self._render_header(write, include_index=True, index=index)
-        content = self._select_content_from_message(msg)
+        content = self._select_content_from_message(msg, short=short)
         if isinstance(content, str) and content:
             truncated = False
             if short:

@@ -1,0 +1,10 @@
+{
+  "module": "generate_title_app",
+  "subdirectory": ".",
+  "entries": [
+    "generate_title_app.GenerateTitleAppPlugin"
+  ],
+  "kinds": {
+    "generate_title_app.GenerateTitleAppPlugin": "application"
+  }
+}

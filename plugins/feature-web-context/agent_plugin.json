@@ -1,0 +1,10 @@
+{
+  "module": "feature_web_context",
+  "subdirectory": ".",
+  "entries": [
+    "feature_web_context.web_context_feature.WebContextFeature"
+  ],
+  "kinds": {
+    "feature_web_context.web_context_feature.WebContextFeature": "features"
+  }
+}

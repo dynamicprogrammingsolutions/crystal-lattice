@@ -518,6 +518,54 @@ class ApplyPatchTool(ToolPlugin):
             }
         ]
 
+    def format_tool_call_preview(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> str:
+        if tool_name != "apply_patch":
+            return ""
+
+        patch_text = arguments.get("patch_text", "")
+        if not isinstance(patch_text, str) or not patch_text.strip():
+            return ""
+
+        lines = patch_text.splitlines()
+        if not lines or not lines[0].lstrip().startswith("*** Begin Patch"):
+            return ""
+
+        parts: List[str] = []
+        idx = 0
+        while idx < len(lines):
+            line = lines[idx].strip()
+
+            if line.startswith("*** Add File:"):
+                path = line.removeprefix("*** Add File:").strip()
+                if path:
+                    parts.append(f"add: {path}")
+            elif line.startswith("*** Update File:"):
+                path = line.removeprefix("*** Update File:").strip()
+                move_to: str | None = None
+                if idx + 1 < len(lines):
+                    next_line = lines[idx + 1].strip()
+                    if next_line.startswith("*** Move to:"):
+                        move_to = next_line.removeprefix("*** Move to:").strip() or None
+                        idx += 1
+                if path:
+                    if move_to:
+                        parts.append(f"update: {path} -> {move_to}")
+                    else:
+                        parts.append(f"update: {path}")
+            elif line.startswith("*** Delete File:"):
+                path = line.removeprefix("*** Delete File:").strip()
+                if path:
+                    parts.append(f"delete: {path}")
+
+            idx += 1
+
+        return "; ".join(parts)
+
     def execute_tool(
         self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
@@ -604,6 +652,9 @@ class ApplyPatchTool(ToolPlugin):
         model-facing tool message content as ``text`` (managed by
         ``format_tool_result``) and enrich only the human-facing display
         payload with the original ``patch_text`` when available.
+
+        Includes a ``single_line`` field with the list of changed/added files
+        for use in collapsed/short views.
         """
 
         patch_text = result.get("patch_text")
@@ -616,7 +667,25 @@ class ApplyPatchTool(ToolPlugin):
         # what was applied, even when the formatted summary is truncated
         # by the UI's line/character limits.
         content = f"{header}\n\nPatch:\n{patch_text}"
-        return {"type": "text", "content": content}
+        
+        # Build single_line from the list of changed files
+        changes = result.get("changes") or {}
+        single_line_parts: List[str] = []
+        if isinstance(changes, dict) and changes:
+            for path, info in changes.items():
+                change_type = info.get("type", "?")
+                move_to = info.get("move_path")
+                if move_to:
+                    single_line_parts.append(f"{change_type}: {path} -> {move_to}")
+                else:
+                    single_line_parts.append(f"{change_type}: {path}")
+        
+        display: Dict[str, Any] = {"type": "text", "content": content}
+        if single_line_parts:
+            # Join with newlines so it can be multi-line if needed
+            display["single_line"] = "\n".join(single_line_parts)
+        
+        return display
 
     def _process_patch_sandboxed(
         self, patch_text: str, working_dir: str, allowed_paths: List[str]

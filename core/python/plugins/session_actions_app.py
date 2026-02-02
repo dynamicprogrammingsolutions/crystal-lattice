@@ -361,20 +361,19 @@ class SessionActionsAppPlugin:
                 # Checkpoint failures should not make the action fail.
                 pass
 
-        result: Dict[str, Any] = {
-            "created_session_ids": [new_session_id],
-            "updated_session_ids": [],
-            "deleted_session_ids": [],
+        navigate_to_session_id = new_session_id if source != "session_list" else None
+
+        return {
+            "mutations": {
+                "created_session_ids": [new_session_id],
+                "updated_session_ids": [],
+                "deleted_session_ids": [],
+            },
+            "ui_effects": {
+                "navigate_to_session_id": navigate_to_session_id,
+            },
             "message": "Session copied successfully.",
         }
-
-        # When triggered from the session list, defer to the caller's
-        # UX (typically: stay on the list and just reload). For other
-        # sources, select the new session by default.
-        if source != "session_list":
-            result["selected_session_id"] = new_session_id
-
-        return result
 
     def _do_fork_session_at(self, app: "AgentApplication", params: Dict[str, Any]) -> Dict[str, Any]:
         session_id = params.get("session_id")
@@ -443,10 +442,14 @@ class SessionActionsAppPlugin:
                 pass
 
         return {
-            "created_session_ids": [new_session_id],
-            "updated_session_ids": [],
-            "deleted_session_ids": [],
-            "selected_session_id": new_session_id,
+            "mutations": {
+                "created_session_ids": [new_session_id],
+                "updated_session_ids": [],
+                "deleted_session_ids": [],
+            },
+            "ui_effects": {
+                "navigate_to_session_id": new_session_id,
+            },
             "message": "Session forked successfully.",
         }
 
@@ -484,10 +487,12 @@ class SessionActionsAppPlugin:
                 pass
 
         return {
-            "created_session_ids": [],
-            "updated_session_ids": [],
-            "deleted_session_ids": [session_id],
-            "selected_session_id": None,
+            "mutations": {
+                "created_session_ids": [],
+                "updated_session_ids": [],
+                "deleted_session_ids": [session_id],
+            },
+            "ui_effects": {},
             "message": "Session deleted.",
         }
 
@@ -525,11 +530,14 @@ class SessionActionsAppPlugin:
                 if not raw_indices:
                     # Nothing to delete; keep the session unchanged.
                     return {
-                        "created_session_ids": [],
-                        "updated_session_ids": [session_id],
-                        "deleted_session_ids": [],
-                        "selected_session_id": session_id,
+                        "mutations": {
+                            "created_session_ids": [],
+                            "updated_session_ids": [],
+                            "deleted_session_ids": [],
+                        },
+                        "ui_effects": {},
                         "deleted_indices": [],
+                        "message": "No messages deleted.",
                     }
 
                 delete_indices = []
@@ -601,9 +609,12 @@ class SessionActionsAppPlugin:
                 pass
 
         return {
-            "created_session_ids": [],
-            "updated_session_ids": [session_id],
-            "deleted_session_ids": [],
+            "mutations": {
+                "created_session_ids": [],
+                "updated_session_ids": [session_id],
+                "deleted_session_ids": [],
+            },
+            "ui_effects": {},
             "deleted_indices": concrete_indices,
             "message": "Messages deleted.",
         }

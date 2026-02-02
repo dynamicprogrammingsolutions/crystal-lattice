@@ -27,6 +27,34 @@ Key methods (subset):
 - `initialize_request(native_messages, state) -> (native_messages, state)` (optional in Python; adapter returns inputs unchanged)
 - `stream_api(native_messages, state) -> Iterator[chunk]` (optional but recommended for streaming providers)
 
+## Plugin Spec Forms (Application Layer)
+
+When wiring plugins in the application configuration, you can reference implementations using several convenient forms:
+
+- Single class (dotted path)
+  - Example: `"plugins.openai_tools_extension.OpenAIToolsExtension"`
+  - Imported directly with no installation.
+
+- Local repo (descriptor-driven; recommended)
+  - Example: `"path:/abs/or/rel"`
+  - The repo is installed into `plugin_cache_dir` via `pip install --target ...`; then plugin classes are loaded from `agent_plugin.json`.
+
+- Git repo (descriptor-driven; recommended)
+  - Example: `"git+https://github.com/acme/dev-plugins.git#v1.0.0"`
+  - The repo is cloned and installed into `plugin_cache_dir`.
+
+- Verbose object spec (explicit single class)
+  - Local: `{ "path": "/abs/or/rel", "subdirectory": "optional/subdir", "entry": "pkg.module.Class" }`
+  - Git: `{ "git": "<url-or-local>", "ref": "tag-or-commit", "subdirectory": "optional/subdir", "entry": "pkg.module.Class" }`
+
+Notes
+- Embedded environment variables in strings are supported: `path:${env:DEV_PLUGINS_DESC_DIR}`.
+- `${file:...}` placeholders remain whole-string only.
+- Installs default to `--no-deps`; set `plugin_policy.install_deps: true` to install dependencies.
+
+Security
+- Git installs execute arbitrary code via `pip install`; by default, `allow_remote` is disabled. To enable remote URLs, set `plugin_policy.allow_remote: true` and prefer pinned tags/commits. Consider an allowlist for repository hosts.
+
 Default execution order (per request):
 - Tool schemas: each tool runs `init`, then `get_tool_schemas`; schemas are injected into provider config under `tools`.
 - Init chain (shared provider state): provider `init`, then extension `init` (in order), then feature `init`.
@@ -154,6 +182,78 @@ class MyProvider(ProviderPlugin):
 
 This pattern keeps all accumulation in `state["partial"]` and makes it easy for
 extensions to collaborate by reading and updating the same accumulator.
+
+## Packaging & Layout
+
+- Minimal package layout for a tools package:
+  - `dev_plugins/__init__.py`
+  - `dev_plugins/file_reader_tool.py` (class `FileReaderTool`)
+  - `dev_plugins/file_writer_tool.py` (class `FileWriterTool`)
+  - `agent_plugin.json` at the repo root (installed as a top-level data file)
+
+- Packaging options
+  - `pyproject.toml` (PEP 517/518) with setuptools, or minimal `setup.py` for local development.
+  - The application installs Git-based plugins using `pip install --target <cache_dir>`; ensure your package is installable.
+
+- Example `setup.py` (minimal, with root descriptor):
+```
+from setuptools import setup
+
+setup(
+    name="dev_plugins",
+    version="0.0.1",
+    packages=["dev_plugins"],
+    data_files=[("", ["agent_plugin.json"])],
+)
+```
+
+## Descriptor (agent_plugin.json)
+
+When loading a plugin repo via `path:...` or `git+...`, the application reads an
+optional descriptor to declare explicit entries. Install `agent_plugin.json` as
+a top-level data file in the plugin install directory (for example via
+setuptools `data_files`).
+
+- Schema:
+```
+{
+  "entries": ["dev_plugins.file_reader_tool.FileReaderTool", "dev_plugins.file_writer_tool.FileWriterTool"],
+  "subdirectory": "."
+}
+```
+
+If `entries` are provided, the loader does not auto-discover additional classes; only listed entries are loaded.
+
+## Wiring Each Plugin Kind
+
+You can wire plugins via dotted paths, local paths, or Git installers. See also `docs/plugins/application-config.md` for the full configuration reference.
+
+- Providers (examples):
+  - Dotted class: `"plugins.openai_provider.OpenAICompatibleProvider"`
+  - Local repo (descriptor-driven): `"path:/abs/or/rel"`
+  - Git repo (descriptor-driven): `"git+https://github.com/acme/ai-providers.git#v1.0.0"`
+  - Explicit single class (verbose): `{ "git": "https://github.com/acme/ai-providers.git", "ref": "v1.0.0", "entry": "acme.provider.MyProvider" }`
+
+- Extensions:
+  - Dotted class: `"plugins.openai_tools_extension.OpenAIToolsExtension"`
+  - Config ordering is preserved; extensions run in list order.
+
+- Features:
+  - Dotted class or local path; typically optional enrichments.
+
+- Tools:
+  - Repo shorthand (descriptor-driven): `"path:/abs/or/rel"`
+  - Single class (verbose): `{ "path": "/abs/or/rel", "entry": "dev_plugins.file_reader_tool.FileReaderTool" }`
+
+- Application plugins:
+  - Dotted class or repo spec; plugin type is inferred by duck-typing.
+
+## Best Practices
+- Keep implementations side-effect-light; use adapter defaults where possible.
+- Treat shared state (provider/extensions/features) as immutable per-turn.
+- For Git distribution:
+  - Prefer pinned refs; remote installs are disabled by default and must be explicitly allowed.
+  - Consider host allowlists and internal repositories.
 
 ## Provider Extension Plugin
 
@@ -576,6 +676,9 @@ class Calculator(ToolPlugin):
     #     can show richer output (for example, the executed shell
     #     command, working directory, or full patch text) without
     #     changing what the model sees in ``content``.
+    #
+    #     Optionally include a ``single_line`` field for compact/collapsed views:
+    #     ``{"type": "text", "content": <full>, "single_line": <compact>}``
     #     """
     #     return {"type": "text", "content": text}
 ```

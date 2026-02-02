@@ -231,30 +231,34 @@ The app is already configured with required Android permissions in `android/app/
 
 ## Architecture
 
-### Adapter Pattern
+### Transport + Backend Pattern
 
-The app uses an adapter pattern to provide a unified interface for different connection methods:
+The app uses the shared SDK (`@crystal-lattice/frontend-sdk`) to provide a unified interface for different connection methods:
 
 ```typescript
-interface ConnectionAdapter {
-  connect(): Promise<void>;
-  get(path: string): Promise<any>;
-  put(path: string, data: any): Promise<any>;
-  disconnect(): void;
-  getDisplayName(): string;
+interface Transport {
+  request<T>(req: { method: 'GET'|'POST'|'PUT'|'PATCH'|'DELETE'; path: string; body?: any }): Promise<{ status: number; data: T }>;
+}
+
+interface AgentBackend {
+  listSessions(): Promise<SessionSummary[]>;
+  listMessages(sessionId: string): Promise<{ messages: IndexedMessage[] }>;
+  // ...
 }
 ```
 
-**Implementations:**
-- `HttpAdapter`: Used for manual and discovery connections (standard HTTP/fetch)
-- `BridgeAdapter`: Used for bridge connections (WebSocket-based)
+**Implementations used by the mobile app:**
+- `FetchTransport`: Used for manual and discovery connections (standard HTTP/fetch)
+- `BridgeTransport`: Used for bridge connections (Phoenix/WebSocket-based)
+- `RestAgentBackend`: Implements `AgentBackend` on top of a `Transport`
 
 ### Key Components
 
 - **App.tsx**: Main component with UI, state management, and connection logic
-- **ConnectionAdapter Interface**: Abstract interface for all connection types
-- **HttpAdapter**: HTTP-based connection adapter (manual + discovery)
-- **BridgeAdapter**: WebSocket-based bridge connection adapter
+- **Transport**: Abstract request interface for all connection types
+- **RestAgentBackend**: The backend adapter used by screens (wraps a `Transport`)
+- **FetchTransport**: HTTP-based transport (manual + discovery)
+- **BridgeTransport**: WebSocket-based transport (bridge mode)
 - **react-native-zeroconf**: Native module for mDNS service discovery
   - iOS: Uses `NSNetServiceBrowser` (Bonjour)
   - Android: Uses `NsdManager` (Network Service Discovery)
@@ -263,26 +267,26 @@ interface ConnectionAdapter {
 
 **Manual Connection Flow:**
 1. User enters host and port
-2. HttpAdapter validates connection
-3. Requests use standard HTTP fetch
+2. FetchTransport validates connection
+3. RestAgentBackend uses FetchTransport for requests
 
 **Discovery Flow:**
 1. User taps "Start Discovery"
 2. `Zeroconf.scan('http', 'tcp', 'local.')` starts browsing
 3. `resolved` event fires for each discovered service
-4. User selects service → HttpAdapter connects
-5. Requests use standard HTTP fetch
+4. User selects service → FetchTransport connects
+5. RestAgentBackend uses FetchTransport for requests
 
 **Bridge Flow:**
 1. User enters bridge WebSocket URL
-2. BridgeAdapter connects via WebSocket
+2. BridgeTransport connects via WebSocket
 3. Lists available servers from bridge (showing display name, computer name,
    and the bridge `server_id` so you can distinguish servers with the same
    name)
 4. User selects server → requests pairing
 5. Server displays 6-digit code (5 min TTL)
 6. User submits code → pairing complete
-7. Requests are proxied through WebSocket
+7. RestAgentBackend proxies requests through BridgeTransport
 8. Bridge forwards requests to server via session
 9. The app stores a connection record (including the bridge URL, server id, and pairing token) so you can reconnect from the Connections screen without re-entering the 6-digit code, as long as the bridge still has the pairing
 

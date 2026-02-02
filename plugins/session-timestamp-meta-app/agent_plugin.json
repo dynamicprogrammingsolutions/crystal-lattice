@@ -1,0 +1,10 @@
+{
+  "module": "session_timestamp_meta_app",
+  "subdirectory": ".",
+  "entries": [
+    "session_timestamp_meta_app.SessionTimestampMetaAppPlugin"
+  ],
+  "kinds": {
+    "session_timestamp_meta_app.SessionTimestampMetaAppPlugin": "application"
+  }
+}

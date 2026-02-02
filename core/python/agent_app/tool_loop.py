@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, Iterator, List
 
 from agent_core import AgentCore, MessageRole, Session
@@ -84,6 +85,84 @@ class ToolLoopRunner:
         except Exception:
             return False
 
+    def _get_tool_for_name(
+        self,
+        name: str,
+        config: Dict[str, Any],
+    ) -> tuple[Any, Dict[str, Any]] | None:
+        """Return the enabled tool wrapper + initialized state for a schema name."""
+
+        core = self._core
+
+        enabled_tools: List[Any]
+        if not getattr(core, "_tools", None):
+            enabled_tools = []
+        elif not getattr(core, "_providers", None):
+            enabled_tools = list(core._tools)
+        else:
+            try:
+                _provider, _exts, _features, tools, _tags = core._resolve_plugins_for_config(
+                    config
+                )
+                enabled_tools = list(tools)
+            except Exception:
+                enabled_tools = list(core._tools)
+
+        for tool in enabled_tools:
+            tool_state = tool.init(config)
+            try:
+                schemas = tool.get_tool_schemas(tool_state)
+            except Exception:
+                schemas = []
+            for schema in schemas or []:
+                if not isinstance(schema, dict):
+                    continue
+                fn = schema.get("function") or {}
+                schema_name = fn.get("name") if isinstance(fn, dict) else None
+                if not isinstance(schema_name, str) or not schema_name:
+                    schema_name = schema.get("name")
+                if isinstance(schema_name, str) and schema_name == name:
+                    return (tool, tool_state)
+
+        return None
+
+    def _generate_tool_call_previews(
+        self,
+        tool_calls: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        if not tool_calls:
+            return []
+
+        previews: List[Dict[str, Any]] = []
+        for call in tool_calls:
+            call_id = call.get("id") or call.get("tool_call_id")
+            func = call.get("function") or {}
+            name = call.get("name") or (
+                func.get("name") if isinstance(func, dict) else None
+            )
+            args = call.get("arguments") or (
+                func.get("arguments") if isinstance(func, dict) else {}
+            )
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except Exception:
+                    args = {}
+
+            preview = ""
+            if isinstance(name, str) and name:
+                tool_result = self._get_tool_for_name(name, self._config)
+                if tool_result is not None:
+                    tool, tool_state = tool_result
+                    try:
+                        preview = tool.format_tool_call_preview(name, args, tool_state)
+                    except Exception:
+                        preview = ""
+
+            previews.append({"id": call_id, "preview": preview})
+
+        return previews
+
     def _run_llm_phase(
         self,
         session: Session,
@@ -108,6 +187,7 @@ class ToolLoopRunner:
         core = self._core
         config = self._config
         rid = self._request_id
+        start_index = len(session.messages)
 
         if not stream:
             if self._is_cancelled():
@@ -120,6 +200,17 @@ class ToolLoopRunner:
 
             next_session, final_messages = core.send_request(session, config)
 
+            tool_calls = self._extract_tool_calls(final_messages)
+            if tool_calls:
+                tool_call_previews = self._generate_tool_call_previews(tool_calls)
+                for msg in final_messages:
+                    if msg.get("role") != "assistant":
+                        continue
+                    metadata = dict(msg.get("metadata") or {})
+                    metadata["tool_call_previews"] = tool_call_previews
+                    msg["metadata"] = metadata
+                    break
+
             # Emit the public final event first so that external
             # consumers see the completed assistant reply before any
             # internal checkpoint markers.
@@ -127,6 +218,7 @@ class ToolLoopRunner:
                 "type": "final",
                 "session_id": next_session.session_id,
                 "request_id": rid,
+                "start_index": start_index,
                 "messages": final_messages,
             }
 
@@ -181,6 +273,17 @@ class ToolLoopRunner:
                 final_session = chunk["session"]
                 final_messages = chunk.get("messages") or []
 
+                tool_calls = self._extract_tool_calls(final_messages)
+                if tool_calls:
+                    tool_call_previews = self._generate_tool_call_previews(tool_calls)
+                    for msg in final_messages:
+                        if msg.get("role") != "assistant":
+                            continue
+                        metadata = dict(msg.get("metadata") or {})
+                        metadata["tool_call_previews"] = tool_call_previews
+                        msg["metadata"] = metadata
+                        break
+
                 # If no partials were seen, still emit a synthetic
                 # assistant_message start so UIs can treat this as a
                 # regular assistant reply.
@@ -199,6 +302,7 @@ class ToolLoopRunner:
                     "type": "final",
                     "session_id": final_session.session_id,
                     "request_id": rid,
+                    "start_index": start_index,
                     "messages": final_messages,
                 }
 
@@ -242,6 +346,7 @@ class ToolLoopRunner:
         core = self._core
         config = self._config
         rid = self._request_id
+        start_index = len(session.messages)
 
         current_session = session
 
@@ -316,7 +421,7 @@ class ToolLoopRunner:
             else:
                 role = "tool"  # type: ignore[assignment]
             content = last_final.get("content", "")
-            metadata = last_final.get("metadata")
+            metadata = last_final.get("metadata") or {}
             current_session = core.add_message(
                 current_session,
                 role,
@@ -330,6 +435,7 @@ class ToolLoopRunner:
             "type": "tool_results",
             "session_id": current_session.session_id,
             "request_id": rid,
+            "start_index": start_index,
             "messages": tool_messages,
         }
 

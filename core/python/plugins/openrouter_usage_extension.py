@@ -213,7 +213,7 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
         # Format totals for easier display. Keep this defensive so that
         # missing or malformed usage fields never break the provider.
         total_tokens = usage.get("total_tokens")
-        total_cost = usage.get("cost")
+        total_cost = usage.get("cost") or usage.get("cost_details",{}).get("upstream_inference_cost",0)
 
         tokens_str = None
         if isinstance(total_tokens, (int, float)):
@@ -248,7 +248,7 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                         usage_prev = md_prev.get("usage") or {}
                         if not isinstance(usage_prev, dict):
                             continue
-                        prev_cost = usage_prev.get("cost")
+                        prev_cost = usage_prev.get("cost") or usage.get("cost_details",{}).get("upstream_inference_cost",0)
                         if isinstance(prev_cost, (int, float)):
                             base_total += float(prev_cost)
                 except Exception:

@@ -1,0 +1,10 @@
+{
+  "module": "summarize_range_app",
+  "subdirectory": ".",
+  "entries": [
+    "summarize_range_app.SummarizeRangeAppPlugin"
+  ],
+  "kinds": {
+    "summarize_range_app.SummarizeRangeAppPlugin": "application"
+  }
+}

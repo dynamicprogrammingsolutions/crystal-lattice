@@ -11,7 +11,7 @@ import Icon from 'react-native-vector-icons/Feather';
 import type { ApiMessage, UiSchemaElement } from '../api';
 import MessageActionsBar from './MessageActionsBar';
 import type { MessageActionKey, MessageActionDefinition } from '../messageActions';
-import { selectDisplayContent } from '../messageUtils';
+import { selectDisplayContent, selectSingleLineContent } from '../messageUtils';
 import MarkdownMessageContent from './MarkdownMessageContent';
 import { useTheme, type Theme } from '../theme';
 import { extractByPath, renderTemplate } from '../uiSchemaUtils';
@@ -19,6 +19,7 @@ import { extractByPath, renderTemplate } from '../uiSchemaUtils';
 export interface MessageBubbleProps {
   index: number;
   message: ApiMessage;
+  isActive?: boolean;
   pinnedActions?: MessageActionKey[];
   onAction?: (action: MessageActionKey, index: number, message: ApiMessage) => void;
   onChangePinnedForRole?: (role: string, pinned: MessageActionKey[]) => void;
@@ -36,6 +37,7 @@ export interface MessageBubbleProps {
 const UserMessageBubble: React.FC<MessageBubbleProps> = ({
   index,
   message,
+  isActive,
   pinnedActions,
   onAction,
   onChangePinnedForRole,
@@ -120,6 +122,7 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
             onAction={(action) => onAction(action, index, message)}
             availableActions={allowedActions}
             extraActions={pluginActionDefs}
+            isActive={isActive}
           />
         )}
       </View>
@@ -130,6 +133,7 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
 const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
   index,
   message,
+  isActive,
   pinnedActions,
   onAction,
   onChangePinnedForRole,
@@ -214,6 +218,7 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
             onAction={(action) => onAction(action, index, message)}
             availableActions={allowedActions}
             extraActions={pluginActionDefs}
+            isActive={isActive}
           />
         )}
       </View>
@@ -224,6 +229,7 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
 const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
   index,
   message,
+  isActive,
   pinnedActions,
   onAction,
   onChangePinnedForRole,
@@ -236,8 +242,13 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [expanded, setExpanded] = useState(false);
   const content = selectDisplayContent(message);
+  const singleLine = selectSingleLineContent(message);
   const hasContent = !!content;
   const role = 'tool';
+  const toolName =
+    typeof (message.metadata as any)?.tool_name === 'string'
+      ? (message.metadata as any).tool_name
+      : undefined;
   const footerParts = useMemo(() => {
     const elements = footerElements || [];
     const parts: string[] = [];
@@ -255,7 +266,10 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
     <View style={styles.row}>
       <View style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}>
         <View style={styles.headerRow}>
-          <Text style={styles.headerText}>{`[${index}] Tool`}</Text>
+          <Text style={styles.headerText}>
+            {`[${index}] Tool`}
+            {toolName && ` (${toolName})`}
+          </Text>
           {hasContent && (
             <TouchableOpacity
               style={styles.collapseIconButton}
@@ -291,7 +305,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
             style={styles.collapsedHintText}
             selectable
           >
-            Tool result hidden (tap to expand).
+            {singleLine || 'Tool result hidden (tap to expand).'}
           </Text>
         )}
 
@@ -315,6 +329,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
             onAction={(action) => onAction(action, index, message)}
             availableActions={allowedActions}
             extraActions={pluginActionDefs}
+            isActive={isActive}
           />
         )}
       </View>
@@ -325,6 +340,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
 const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
   index,
   message,
+  isActive,
   pinnedActions,
   onAction,
   onChangePinnedForRole,
@@ -341,10 +357,33 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [reasoningExpanded, setReasoningExpanded] = useState(false);
+  const [toolCallsExpanded, setToolCallsExpanded] = useState(false);
   const content = selectDisplayContent(message);
   const reasoning = typeof (message.metadata as any)?.reasoning === 'string'
     ? (message.metadata as any).reasoning
     : undefined;
+  const toolCalls = Array.isArray((message.metadata as any)?.tool_calls)
+    ? (message.metadata as any).tool_calls
+    : [];
+  const toolCallNames = useMemo(() => {
+    const names: string[] = [];
+    for (const tc of toolCalls) {
+      if (typeof tc === 'object' && tc !== null) {
+        const func = tc.function || {};
+        const name = typeof func === 'object' && func !== null && typeof func.name === 'string'
+          ? func.name
+          : typeof tc.type === 'string'
+          ? tc.type
+          : 'tool';
+        names.push(name);
+      }
+    }
+    return names;
+  }, [toolCalls]);
+  const distinctToolCallNames = useMemo(
+    () => Array.from(new Set(toolCallNames)),
+    [toolCallNames],
+  );
   const role = 'assistant';
   const footerParts = useMemo(() => {
     const elements = footerElements || [];
@@ -396,18 +435,32 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
       <View style={[styles.bubble, styles.otherBubble]}>
         <View style={styles.headerRow}>
           <Text style={styles.headerText}>{`[${index}] Assistant`}</Text>
-          {reasoning && (
-            <TouchableOpacity
-              style={styles.collapseIconButton}
-              onPress={() => setReasoningExpanded((prev) => !prev)}
-            >
-              <Icon
-                name={reasoningExpanded ? 'chevron-up' : 'chevron-down'}
-                size={14}
-                color={theme.textSecondary}
-              />
-            </TouchableOpacity>
-          )}
+          <View style={styles.headerIconsRow}>
+            {toolCallNames.length > 0 && (
+              <TouchableOpacity
+                style={styles.collapseIconButton}
+                onPress={() => setToolCallsExpanded((prev) => !prev)}
+              >
+                <Icon
+                  name={toolCallsExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={14}
+                  color={theme.textSecondary}
+                />
+              </TouchableOpacity>
+            )}
+            {reasoning && (
+              <TouchableOpacity
+                style={styles.collapseIconButton}
+                onPress={() => setReasoningExpanded((prev) => !prev)}
+              >
+                <Icon
+                  name={reasoningExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={14}
+                  color={theme.textSecondary}
+                />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         {reasoning && reasoningExpanded && (
@@ -450,6 +503,69 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
             />
           )
         ) : null}
+
+        {toolCallNames.length > 0 && toolCallsExpanded && (
+          <View style={styles.collapsibleContainerTool}>
+            <ScrollView
+              style={styles.collapsibleScroll}
+              nestedScrollEnabled
+            >
+              {toolCalls.map((tc: any, idx: number) => {
+                const func = tc.function || {};
+                const toolName =
+                  typeof func === 'object' &&
+                  func !== null &&
+                  typeof func.name === 'string'
+                    ? func.name
+                    : typeof tc.type === 'string'
+                      ? tc.type
+                      : 'tool';
+                const callId = tc.id || tc.tool_call_id;
+
+                const toolCallPreviews = Array.isArray(
+                  (message.metadata as any)?.tool_call_previews,
+                )
+                  ? (message.metadata as any).tool_call_previews
+                  : [];
+                const previewObj = toolCallPreviews.find(
+                  (p: any) => p && p.id === callId,
+                );
+                const preview = previewObj?.preview || '';
+
+                const displayText =
+                  preview ||
+                  (typeof func === 'object' && func !== null && func.arguments
+                    ? typeof func.arguments === 'string'
+                      ? func.arguments
+                      : JSON.stringify(func.arguments, null, 2)
+                    : typeof tc.arguments === 'string'
+                      ? tc.arguments
+                      : JSON.stringify(tc.arguments || {}, null, 2));
+
+                return (
+                  <View
+                    key={callId || idx}
+                    style={styles.toolCallItem}
+                  >
+                    <Text style={styles.toolCallName}>{toolName}</Text>
+                    <Text
+                      style={styles.toolCallArgs}
+                      selectable
+                    >
+                      {displayText}
+                    </Text>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+        {toolCallNames.length > 0 && !toolCallsExpanded && (
+          <Text style={styles.collapsedHintText}>
+            {toolCallNames.length} tool call{toolCallNames.length !== 1 ? 's' : ''}: {distinctToolCallNames.join(', ')}
+          </Text>
+        )}
         {footerParts.length > 0 && (
           <View style={styles.footerRow}>
             <Text style={styles.footerText}>{footerParts.join('   ')}</Text>
@@ -462,6 +578,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
             onAction={(action) => onAction(action, index, message)}
             availableActions={allowedActions}
             extraActions={pluginActionDefs}
+            isActive={isActive}
           />
         )}
       </View>
@@ -472,6 +589,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   index,
   message,
+  isActive,
   pinnedActions,
   onAction,
   onChangePinnedForRole,
@@ -495,6 +613,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <UserMessageBubble
         index={index}
         message={message}
+        isActive={isActive}
         pinnedActions={pinnedActions}
         onAction={onAction}
         onChangePinnedForRole={onChangePinnedForRole}
@@ -514,6 +633,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <SystemMessageBubble
         index={index}
         message={message}
+        isActive={isActive}
         pinnedActions={pinnedActions}
         onAction={onAction}
         onChangePinnedForRole={onChangePinnedForRole}
@@ -534,6 +654,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <ToolMessageBubble
         index={index}
         message={message}
+        isActive={isActive}
         pinnedActions={pinnedActions}
         onAction={onAction}
         onChangePinnedForRole={onChangePinnedForRole}
@@ -549,6 +670,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <AssistantMessageBubble
         index={index}
         message={message}
+        isActive={isActive}
         pinnedActions={pinnedActions}
         onAction={onAction}
         onChangePinnedForRole={onChangePinnedForRole}
@@ -586,6 +708,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             onChangePinned={(next) => onChangePinnedForRole(role, next)}
             onAction={(action) => onAction(action, index, message)}
             availableActions={allowedActions}
+            isActive={isActive}
           />
         )}
       </View>
@@ -619,6 +742,10 @@ const createStyles = (theme: Theme) =>
       justifyContent: 'space-between',
       marginBottom: 4,
     },
+    headerIconsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
     headerText: {
       fontSize: 12,
       color: theme.textSecondary,
@@ -634,6 +761,22 @@ const createStyles = (theme: Theme) =>
       color: theme.textSecondary,
       fontStyle: 'italic',
       fontFamily: 'Courier',
+    },
+    toolCallItem: {
+      marginBottom: 8,
+    },
+    toolCallName: {
+      fontSize: 13,
+      color: theme.text,
+      fontWeight: '600',
+      marginBottom: 2,
+      fontFamily: 'Courier',
+    },
+    toolCallArgs: {
+      fontSize: 11,
+      color: theme.textSecondary,
+      fontFamily: 'Courier',
+      marginLeft: 8,
     },
     contentText: {
       fontSize: 14,

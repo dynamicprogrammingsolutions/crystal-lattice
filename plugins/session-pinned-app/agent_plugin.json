@@ -1,0 +1,10 @@
+{
+  "module": "session_pinned_app",
+  "subdirectory": ".",
+  "entries": [
+    "session_pinned_app.SessionPinnedAppPlugin"
+  ],
+  "kinds": {
+    "session_pinned_app.SessionPinnedAppPlugin": "application"
+  }
+}

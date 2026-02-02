@@ -53,18 +53,11 @@ def _make_config(tmp_path: Path) -> Path:
                 "timeout": 120,
             }
         },
-        "plugins": {
-            "providers": [
-                "plugins.openrouter_provider.OpenRouterProvider",
-            ],
-            "features": [],
-            "tools": [],
-            "extensions": [],
-        },
         "agents": {
             "default": {"provider": "openrouter_title"},
         },
-        "application_plugins": [
+        "plugins": [
+            "plugins.openrouter_provider.OpenRouterProvider",
             "plugins.generate_title_app.GenerateTitleAppPlugin",
         ],
         "application": {
@@ -144,7 +137,9 @@ def test_generate_title_openrouter_gpt5_two_line_response(ensure_api_key: None, 
     )
 
     # Basic sanity: action succeeded and updated the session.
-    updated = result.get("updated_session_ids") or []
+    mutations = result.get("mutations")
+    assert isinstance(mutations, dict)
+    updated = mutations.get("updated_session_ids") or []
     assert updated == [session_id]
 
     # Reload the session and inspect metadata.

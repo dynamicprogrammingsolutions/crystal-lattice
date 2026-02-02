@@ -19,26 +19,29 @@ from plugins.echo_openai_like_provider import EchoOpenAILikeProvider  # noqa: F4
 from plugins.generate_title_app import GenerateTitleAppPlugin  # noqa: F401
 
 
+def _get_mutations(result: Dict[str, Any]) -> Dict[str, Any]:
+    mutations = result.get("mutations")
+    return mutations if isinstance(mutations, dict) else {}
+
+
+def _get_ui_effects(result: Dict[str, Any]) -> Dict[str, Any]:
+    ui_effects = result.get("ui_effects")
+    return ui_effects if isinstance(ui_effects, dict) else {}
+
+
 def _make_config_with_generate_title(tmp_path: Path) -> Path:
   
     cfg: Dict[str, Any] = {
         "providers": {
             "echo": {"provider": "echo_openai_like", "model": "test-model"}
         },
-        "plugins": {
-            "providers": [
-                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            ],
-            "features": [],
-            "tools": [],
-            "extensions": [],
-        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.generate_title_app.GenerateTitleAppPlugin",
+        ],
         "agents": {
             "default": {"provider": "echo"},
         },
-        "application_plugins": [
-            "plugins.generate_title_app.GenerateTitleAppPlugin",
-        ],
         "application": {
             "generate_title_agent_id": "default",
             "generate_title_prompt_template": "Generate a concise title.",
@@ -63,20 +66,13 @@ def _build_app_with_system_message(tmp_path: Path, system_message: str) -> Agent
         "providers": {
             "echo": {"provider": "echo_openai_like", "model": "test-model"}
         },
-        "plugins": {
-            "providers": [
-                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            ],
-            "features": [],
-            "tools": [],
-            "extensions": [],
-        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.generate_title_app.GenerateTitleAppPlugin",
+        ],
         "agents": {
             "default": {"provider": "echo"},
         },
-        "application_plugins": [
-            "plugins.generate_title_app.GenerateTitleAppPlugin",
-        ],
         "application": {
             "generate_title_agent_id": "default",
             "generate_title_system_message": system_message,
@@ -114,7 +110,7 @@ def test_generate_title_for_session_sets_metadata_and_ids(tmp_path: Path) -> Non
         params={"session_id": session_id},
     )
 
-    updated = result.get("updated_session_ids") or []
+    updated = _get_mutations(result).get("updated_session_ids") or []
     assert updated == [session_id]
 
     ctx = app.load_session(session_id)
@@ -134,20 +130,13 @@ def test_generate_title_respects_session_title_metadata_key(tmp_path: Path) -> N
         "providers": {
             "echo": {"provider": "echo_openai_like", "model": "test-model"}
         },
-        "plugins": {
-            "providers": [
-                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            ],
-            "features": [],
-            "tools": [],
-            "extensions": [],
-        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.generate_title_app.GenerateTitleAppPlugin",
+        ],
         "agents": {
             "default": {"provider": "echo"},
         },
-        "application_plugins": [
-            "plugins.generate_title_app.GenerateTitleAppPlugin",
-        ],
         "application": {
             "generate_title_agent_id": "default",
             "session_title_metadata_key": "custom_title",
@@ -253,9 +242,9 @@ def test_generate_title_from_session_list_does_not_request_navigation(
         params={"session_id": session_id, "source": "session_list"},
     )
 
-    assert result.get("updated_session_ids") == [session_id]
+    assert _get_mutations(result).get("updated_session_ids") == [session_id]
     # For session-list invocations the plugin should not suggest navigation.
-    assert not isinstance(result.get("selected_session_id"), str)
+    assert not isinstance(_get_ui_effects(result).get("navigate_to_session_id"), str)
 
 
 def test_generate_title_populates_description_when_enabled(tmp_path: Path) -> None:
@@ -319,20 +308,13 @@ def test_generate_title_ignores_description_when_disabled(tmp_path: Path) -> Non
         "providers": {
             "echo": {"provider": "echo_openai_like", "model": "test-model"}
         },
-        "plugins": {
-            "providers": [
-                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            ],
-            "features": [],
-            "tools": [],
-            "extensions": [],
-        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.generate_title_app.GenerateTitleAppPlugin",
+        ],
         "agents": {
             "default": {"provider": "echo"},
         },
-        "application_plugins": [
-            "plugins.generate_title_app.GenerateTitleAppPlugin",
-        ],
         "application": {
             "generate_title_agent_id": "default",
             "generate_title_enable_description": False,
@@ -401,20 +383,13 @@ def test_generate_title_uses_custom_description_metadata_key(tmp_path: Path) -> 
         "providers": {
             "echo": {"provider": "echo_openai_like", "model": "test-model"}
         },
-        "plugins": {
-            "providers": [
-                "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            ],
-            "features": [],
-            "tools": [],
-            "extensions": [],
-        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.generate_title_app.GenerateTitleAppPlugin",
+        ],
         "agents": {
             "default": {"provider": "echo"},
         },
-        "application_plugins": [
-            "plugins.generate_title_app.GenerateTitleAppPlugin",
-        ],
         "application": {
             "generate_title_agent_id": "default",
             "generate_title_description_metadata_key": "custom_subtitle",
