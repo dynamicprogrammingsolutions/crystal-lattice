@@ -10,6 +10,8 @@ import {
   type ViewStyle,
 } from 'react-native';
 
+import { useTheme } from '../theme';
+
 export interface MenuSurfaceBaseProps {
   visible: boolean;
   onRequestClose: () => void;
@@ -25,6 +27,8 @@ export const ModalMenuSurface: React.FC<MenuSurfaceBaseProps> = ({
   backdropStyle,
   contentStyle,
 }) => {
+  const theme = useTheme();
+
   if (!visible) {
     return null;
   }
@@ -37,9 +41,23 @@ export const ModalMenuSurface: React.FC<MenuSurfaceBaseProps> = ({
       onRequestClose={onRequestClose}
     >
       <TouchableWithoutFeedback onPress={onRequestClose}>
-        <View style={[styles.modalBackdrop, backdropStyle]}>
+        <View
+          style={[
+            styles.backdropBase,
+            { backgroundColor: theme.modalBackdrop },
+            backdropStyle,
+          ]}
+        >
           <TouchableWithoutFeedback onPress={() => {}}>
-            <View style={[styles.modalContent, contentStyle]}>{children}</View>
+            <View
+              style={[
+                styles.modalContentBase,
+                { backgroundColor: theme.surface },
+                contentStyle,
+              ]}
+            >
+              {children}
+            </View>
           </TouchableWithoutFeedback>
         </View>
       </TouchableWithoutFeedback>
@@ -62,6 +80,7 @@ export const DropdownMenuSurface: React.FC<DropdownMenuSurfaceProps> = ({
   backdropStyle,
   menuStyle,
 }) => {
+  const theme = useTheme();
   const [anchorLayout, setAnchorLayout] = useState<LayoutRectangle | null>(null);
   const [menuLayout, setMenuLayout] = useState<LayoutRectangle | null>(null);
 
@@ -126,7 +145,13 @@ export const DropdownMenuSurface: React.FC<DropdownMenuSurfaceProps> = ({
       onRequestClose={onRequestClose}
     >
       <TouchableWithoutFeedback onPress={onRequestClose}>
-        <View style={[styles.modalBackdrop, backdropStyle]}>
+        <View
+          style={[
+            styles.backdropBase,
+            { backgroundColor: theme.modalBackdrop },
+            backdropStyle,
+          ]}
+        >
           <TouchableWithoutFeedback
             onPress={() => {
               // Stop propagation.
@@ -134,7 +159,12 @@ export const DropdownMenuSurface: React.FC<DropdownMenuSurfaceProps> = ({
           >
             {position ? (
               <View
-                style={[styles.dropdownMenu, { left: position.left, top: position.top }, menuStyle]}
+                style={[
+                  styles.dropdownMenuBase,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                  { left: position.left, top: position.top },
+                  menuStyle,
+                ]}
                 onLayout={(event) => {
                   setMenuLayout(event.nativeEvent.layout);
                 }}
@@ -143,7 +173,12 @@ export const DropdownMenuSurface: React.FC<DropdownMenuSurfaceProps> = ({
               </View>
             ) : (
               <View
-                style={[styles.dropdownMenu, styles.dropdownMenuHidden, menuStyle]}
+                style={[
+                  styles.dropdownMenuBase,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                  styles.dropdownMenuHidden,
+                  menuStyle,
+                ]}
                 onLayout={(event) => {
                   setMenuLayout(event.nativeEvent.layout);
                 }}
@@ -159,24 +194,22 @@ export const DropdownMenuSurface: React.FC<DropdownMenuSurfaceProps> = ({
 };
 
 const styles = StyleSheet.create({
-  modalBackdrop: {
+  backdropBase: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  modalContent: {
+  modalContentBase: {
     width: '80%',
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     paddingVertical: 8,
   },
-  dropdownMenu: {
+  dropdownMenuBase: {
     position: 'absolute',
     minWidth: 200,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    paddingVertical: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingVertical: 8,
     shadowColor: '#000',
     shadowOpacity: 0.18,
     shadowRadius: 12,
