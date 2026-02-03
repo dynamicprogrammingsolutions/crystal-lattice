@@ -25,7 +25,7 @@ Implemented in:
   - `mobile/crystal-lattice-control-rn/src/ConnectionsScreen.tsx:1`
   - `mobile/crystal-lattice-control-rn/src/ConnectedRoot.tsx:1`
 - Desktop adoption (Option B):
-  - `desktop/crystal-lattice-control-desktop-rn/App.tsx:1`
+  - `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx:1`
 
 ## Decisions (approved)
 

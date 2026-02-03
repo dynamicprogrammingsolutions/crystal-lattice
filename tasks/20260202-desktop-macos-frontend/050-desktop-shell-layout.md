@@ -16,7 +16,17 @@ Depends On:
 
 ## Status
 
-- [ ] Not started
+- [x] Done
+
+Implemented in desktop app:
+
+- `desktop/crystal-lattice-control-desktop-rn/App.tsx:1`
+- `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx:1`
+- `desktop/crystal-lattice-control-desktop-rn/src/layout/DesktopShell.tsx:1`
+- `desktop/crystal-lattice-control-desktop-rn/src/panels/ConnectionsPanelPlaceholder.tsx:1`
+- `desktop/crystal-lattice-control-desktop-rn/src/panels/SessionsPanelPlaceholder.tsx:1`
+- `desktop/crystal-lattice-control-desktop-rn/src/tabs/SessionTabs.tsx:1`
+- `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPanePlaceholder.tsx:1`
 
 ## UX spec (reference)
 
@@ -165,12 +175,12 @@ Implementation guidance:
 
 ## Checklist
 
-- [ ] Update this task doc’s navigation model (multi-connection + per-tab connectionId)
-- [ ] Add `DesktopRoot` and a `src/` directory structure
-- [ ] Add `DesktopShell` layout component (two columns)
-- [ ] Add placeholder `ConnectionsPanel` container
-- [ ] Add placeholder `SessionsPanel` container
-- [ ] Implement controlled `SessionTabs` strip (select + close)
-- [ ] Render per-tab placeholder panes rendered-but-hidden when inactive
-- [ ] Add menu anchor buttons (no modals; anchored dropdown surface allowed)
-- [ ] Smoke test: open 3 tabs across 2 connections, switch rapidly, close tabs
+- [x] Update this task doc’s navigation model (multi-connection + per-tab connectionId)
+- [x] Add `DesktopRoot` and a `src/` directory structure
+- [x] Add `DesktopShell` layout component (two columns)
+- [x] Add placeholder `ConnectionsPanel` container
+- [x] Add placeholder `SessionsPanel` container
+- [x] Implement controlled `SessionTabs` strip (select + close)
+- [x] Render per-tab placeholder panes rendered-but-hidden when inactive
+- [x] Add menu anchor buttons (no modals; anchored dropdown surface allowed)
+- [x] Smoke test: open 3 tabs across 2 connections, switch rapidly, close tabs
