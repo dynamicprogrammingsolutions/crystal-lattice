@@ -1,0 +1,18 @@
+{
+  "name": "@crystal-lattice/frontend-rn-components",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*"
+  },
+  "devDependencies": {
+    "vitest": "^1.6.0"
+  }
+}
