@@ -8,9 +8,9 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
+import { ActionsMenuContent, useActionsMenuModel } from '@crystal-lattice/frontend-rn-components';
 import {
   ALL_SESSION_ACTIONS,
-  SESSION_ACTIONS,
   type SessionActionDefinition,
   type SessionActionKey,
 } from '../sessionActions';
@@ -45,34 +45,17 @@ const SessionActionsBar: React.FC<SessionActionsBarProps> = ({
     }
   }, [isActive]);
 
-  const allDefs: SessionActionDefinition[] = useMemo(() => {
-    const base = availableActions
-      ? ALL_SESSION_ACTIONS.filter((def) => availableActions.includes(def.key))
-      : ALL_SESSION_ACTIONS;
-    const extras = extraActions ?? [];
-    return [...base, ...extras];
-  }, [availableActions, extraActions]);
-
-  const defByKey: Record<string, SessionActionDefinition> = useMemo(() => {
-    const map: Record<string, SessionActionDefinition> = {};
-    allDefs.forEach((def) => {
-      if (def && typeof def.key === 'string') {
-        map[def.key] = def;
-      }
-    });
-    return map;
-  }, [allDefs]);
-
-  const togglePinned = (key: SessionActionKey) => {
-    if (pinned.includes(key)) {
-      onChangePinned(pinned.filter((k) => k !== key));
-    } else {
-      onChangePinned([...pinned, key]);
-    }
-  };
+  const { model, togglePinned } = useActionsMenuModel<SessionActionDefinition>({
+    baseActions: ALL_SESSION_ACTIONS,
+    extraActions,
+    availableActions,
+    pinned,
+    onChangePinned,
+    isActionDisabled,
+  });
 
   const renderIconButton = (key: SessionActionKey) => {
-    const def = defByKey[key];
+    const def = model.actionsByKey[key];
     if (!def) {
       return null;
     }
@@ -121,33 +104,49 @@ const SessionActionsBar: React.FC<SessionActionsBarProps> = ({
 	                      <Icon name="x" size={18} color="#8E8E93" />
 	                    </TouchableOpacity>
 	                  </View>
-                  {allDefs.map((def) => {
-	                    const pinnedHere = pinned.includes(def.key);
-	                    return (
-	                      <View key={def.key} style={styles.menuItem}>
-	                        <TouchableOpacity
-	                          style={styles.menuItemLeft}
-	                          onPress={() => {
-	                            setMenuVisible(false);
-	                            onAction(def.key);
-	                          }}
-	                        >
-	                          {renderIconButton(def.key)}
-	                          <Text style={styles.menuItemText}>{def.label}</Text>
-	                        </TouchableOpacity>
-	                        <TouchableOpacity
-	                          style={styles.pinButton}
-	                          onPress={() => togglePinned(def.key)}
-	                        >
-	                          <Icon
-	                            name="star"
-	                            size={16}
-	                            color={pinnedHere ? '#FFCC00' : '#C7C7CC'}
-	                          />
-	                        </TouchableOpacity>
-	                      </View>
-	                    );
-	                  })}
+					  <ActionsMenuContent
+                    actions={model.orderedActions}
+                    pinnedKeys={pinned}
+                    isActionDisabled={isActionDisabled}
+                    onAction={(key) => {
+                      setMenuVisible(false);
+                      onAction(key as SessionActionKey);
+                    }}
+                    onTogglePinned={(key) => {
+                      togglePinned(key as SessionActionKey);
+                    }}
+                    renderItem={({ action: def, pinned: pinnedHere, disabled, onPressAction, onTogglePinned }) => (
+                      <View style={styles.menuItem}>
+                        <TouchableOpacity
+                          style={styles.menuItemLeft}
+                          onPress={onPressAction}
+                          disabled={disabled}
+                        >
+                          <View style={styles.iconButton}>
+                            <Icon name={def.iconName} size={18} color={theme.primary} />
+                          </View>
+                          <Text
+                            style={[
+                              styles.menuItemText,
+                              disabled && { color: theme.textSecondary },
+                            ]}
+                          >
+                            {def.label}
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.pinButton}
+                          onPress={onTogglePinned}
+                        >
+                          <Icon
+                            name="star"
+                            size={16}
+                            color={pinnedHere ? '#FFCC00' : '#C7C7CC'}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  />
 	                </View>
 	              </TouchableWithoutFeedback>
 	            </View>

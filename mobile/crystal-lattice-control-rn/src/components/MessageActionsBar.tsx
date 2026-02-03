@@ -8,9 +8,9 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
+import { ActionsMenuContent, useActionsMenuModel } from '@crystal-lattice/frontend-rn-components';
 import {
   ALL_MESSAGE_ACTIONS,
-  MESSAGE_ACTIONS,
   type MessageActionDefinition,
   type MessageActionKey,
 } from '../messageActions';
@@ -45,31 +45,17 @@ const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
     }
   }, [isActive]);
 
-  const allDefs: MessageActionDefinition[] = useMemo(() => {
-    const extras = extraActions ?? [];
-    return [...ALL_MESSAGE_ACTIONS, ...extras];
-  }, [extraActions]);
-
-  const defByKey: Record<string, MessageActionDefinition> = useMemo(() => {
-    const map: Record<string, MessageActionDefinition> = {};
-    allDefs.forEach((def) => {
-      if (def && typeof def.key === 'string') {
-        map[def.key] = def;
-      }
-    });
-    return map;
-  }, [allDefs]);
-
-  const togglePinned = (key: MessageActionKey) => {
-    if (pinned.includes(key)) {
-      onChangePinned(pinned.filter((k) => k !== key));
-    } else {
-      onChangePinned([...pinned, key]);
-    }
-  };
+  const { model, togglePinned } = useActionsMenuModel<MessageActionDefinition>({
+    baseActions: ALL_MESSAGE_ACTIONS,
+    extraActions,
+    availableActions,
+    pinned,
+    onChangePinned,
+    isActionDisabled,
+  });
 
   const renderIconButton = (key: MessageActionKey) => {
-    const def = defByKey[key];
+    const def = model.actionsByKey[key];
     if (!def) {
       return null;
     }
@@ -118,41 +104,49 @@ const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
 	                      <Icon name="x" size={16} color="#8E8E93" />
 	                    </TouchableOpacity>
 	                  </View>
-                  {(() => {
-                    const base = availableActions
-                      ? ALL_MESSAGE_ACTIONS.filter((def) =>
-                          availableActions.includes(def.key),
-                        )
-                      : ALL_MESSAGE_ACTIONS;
-                    const extras = extraActions ?? [];
-                    return [...base, ...extras];
-                  })().map((def) => {
-	                    const pinnedHere = pinned.includes(def.key);
-	                    return (
-	                      <View key={def.key} style={styles.menuItem}>
-	                        <TouchableOpacity
-	                          style={styles.menuItemLeft}
-	                          onPress={() => {
-	                            setMenuVisible(false);
-	                            onAction(def.key);
-	                          }}
-	                        >
-	                          {renderIconButton(def.key)}
-	                          <Text style={styles.menuItemText}>{def.label}</Text>
-	                        </TouchableOpacity>
-	                        <TouchableOpacity
-	                          style={styles.pinButton}
-	                          onPress={() => togglePinned(def.key)}
-	                        >
-	                          <Icon
-	                            name="star"
-	                            size={14}
-	                            color={pinnedHere ? '#FFCC00' : '#C7C7CC'}
-	                          />
-	                        </TouchableOpacity>
-	                      </View>
-	                    );
-	                  })}
+					  <ActionsMenuContent
+                    actions={model.orderedActions}
+                    pinnedKeys={pinned}
+                    isActionDisabled={isActionDisabled}
+                    onAction={(key) => {
+                      setMenuVisible(false);
+                      onAction(key as MessageActionKey);
+                    }}
+                    onTogglePinned={(key) => {
+                      togglePinned(key as MessageActionKey);
+                    }}
+                    renderItem={({ action: def, pinned: pinnedHere, disabled, onPressAction, onTogglePinned }) => (
+                      <View style={styles.menuItem}>
+                        <TouchableOpacity
+                          style={styles.menuItemLeft}
+                          onPress={onPressAction}
+                          disabled={disabled}
+                        >
+                          <View style={styles.iconButton}>
+                            <Icon name={def.iconName} size={16} color={theme.primary} />
+                          </View>
+                          <Text
+                            style={[
+                              styles.menuItemText,
+                              disabled && { color: theme.textSecondary },
+                            ]}
+                          >
+                            {def.label}
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.pinButton}
+                          onPress={onTogglePinned}
+                        >
+                          <Icon
+                            name="star"
+                            size={14}
+                            color={pinnedHere ? '#FFCC00' : '#C7C7CC'}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  />
 	                </View>
 	              </TouchableWithoutFeedback>
 	            </View>
