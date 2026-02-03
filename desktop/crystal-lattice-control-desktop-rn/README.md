@@ -83,6 +83,31 @@ bundle exec pod install --project-directory=macos
 npm run macos
 ```
 
+#### Troubleshooting: `bundle install` fails building `json`
+
+If you see an error like `extconf failed` while installing `json`, you are likely using the system Ruby (`/usr/bin/ruby`) which may not ship buildable headers on newer macOS/Xcode SDKs.
+
+Recommended fix: install a modern Ruby and retry:
+
+```sh
+brew install ruby
+echo 'export PATH="/opt/homebrew/opt/ruby/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+
+cd desktop/crystal-lattice-control-desktop-rn
+rm -rf vendor/bundle
+gem install bundler
+bundle install
+bundle exec pod install --project-directory=macos
+```
+
+Alternative (skip Bundler):
+
+```sh
+brew install cocoapods
+pod install --project-directory=macos
+```
+
 If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
 
 This is one way to run your app — you can also build it directly from Android Studio or Xcode.
