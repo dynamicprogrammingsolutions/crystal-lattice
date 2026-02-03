@@ -10,9 +10,11 @@
   "types": "src/index.ts",
   "peerDependencies": {
     "react": "*",
-    "react-native": "*"
+    "react-native": "*",
+    "react-native-vector-icons": "*"
   },
   "devDependencies": {
+    "@types/react-native-vector-icons": "^6.4.18",
     "vitest": "^1.6.0"
   }
 }
