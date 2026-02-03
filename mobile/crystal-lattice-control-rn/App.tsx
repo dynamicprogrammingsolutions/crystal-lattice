@@ -17,9 +17,16 @@ import Zeroconf from 'react-native-zeroconf';
 import {
   BridgeTransport,
   FetchTransport,
+  type KeyValueStore,
+  loadConnections,
   RestAgentBackend,
+  saveConnections,
   type AgentBackend,
   type BridgeServer,
+  type BridgeConnectionRecord,
+  type ConnectionRecord,
+  type DiscoveryConnectionRecord,
+  type ManualConnectionRecord,
   type Transport,
 } from '@crystal-lattice/frontend-sdk';
 import ConnectedRoot from './src/ConnectedRoot';
@@ -38,42 +45,11 @@ interface Service {
   addresses: string[];
 }
 
-export type ConnectionKind = 'manual' | 'discovery' | 'bridge';
-
-export interface BaseConnectionRecord {
-  id: string;
-  kind: ConnectionKind;
-  name: string;
-  lastUsedAt: number;
-}
-
-export interface ManualConnectionRecord extends BaseConnectionRecord {
-  kind: 'manual';
-  host: string;
-  port: number;
-}
-
-export interface DiscoveryConnectionRecord extends BaseConnectionRecord {
-  kind: 'discovery';
-  host: string;
-  port: number;
-  serviceName: string;
-}
-
-export interface BridgeConnectionRecord extends BaseConnectionRecord {
-  kind: 'bridge';
-  bridgeUrl: string;
-  serverId: string;
-  serverName: string;
-  pairingToken: string | null;
-}
-
-export type ConnectionRecord =
-  | ManualConnectionRecord
-  | DiscoveryConnectionRecord
-  | BridgeConnectionRecord;
-
-const STORAGE_KEY_CONNECTIONS = 'clc_connections_v1';
+const connectionsStore: KeyValueStore = {
+  get: (key) => AsyncStorage.getItem(key),
+  set: (key, value) => AsyncStorage.setItem(key, value),
+  delete: (key) => AsyncStorage.removeItem(key),
+};
 const STORAGE_KEY_SESSIONS_CACHE = 'clc_sessions_cache_v1';
 const STORAGE_KEY_MESSAGES_CACHE = 'clc_messages_cache_v1';
 
@@ -142,20 +118,11 @@ function App(): React.JSX.Element {
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   useEffect(() => {
-    const loadConnections = async () => {
+    const loadSavedConnections = async () => {
       setConnectionsLoading(true);
       try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY_CONNECTIONS);
-        if (raw) {
-          try {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) {
-              setConnections(parsed as ConnectionRecord[]);
-            }
-          } catch {
-            // ignore malformed storage
-          }
-        }
+        const records = await loadConnections(connectionsStore);
+        setConnections(records);
       } catch (err) {
         console.log('Failed to load saved connections', err);
       } finally {
@@ -163,7 +130,7 @@ function App(): React.JSX.Element {
       }
     };
 
-    loadConnections();
+    loadSavedConnections();
   }, []);
 
   useEffect(() => {
@@ -215,10 +182,7 @@ function App(): React.JSX.Element {
   useEffect(() => {
     const save = async () => {
       try {
-        await AsyncStorage.setItem(
-          STORAGE_KEY_CONNECTIONS,
-          JSON.stringify(connections),
-        );
+        await saveConnections(connectionsStore, connections);
       } catch (err) {
         console.log('Failed to save connections', err);
       }

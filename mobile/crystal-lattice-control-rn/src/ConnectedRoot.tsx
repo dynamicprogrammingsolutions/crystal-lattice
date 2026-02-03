@@ -3,11 +3,10 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import type {
-  ConnectionRecord,
   SessionsCache,
   MessagesCache,
 } from '../App';
-import type { AgentBackend, Transport } from '@crystal-lattice/frontend-sdk';
+import type { AgentBackend, ConnectionRecord, Transport } from '@crystal-lattice/frontend-sdk';
 import ConnectionScreen from './ConnectionScreen';
 import ConnectionsScreen from './ConnectionsScreen';
 import SessionsScreen from './SessionsScreen';
