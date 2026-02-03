@@ -18,7 +18,7 @@ Main column:
 
 ## Connection panel
 
-- Shows current active connection.
+- Shows which connections are open.
 - Allows adding/editing manual connections (host/port).
 - Allows switching between saved connections.
 
@@ -26,7 +26,7 @@ Manual only (no discovery/bridge).
 
 ## Sessions panel
 
-- Lists sessions for the active connection.
+- Lists sessions for the focused connection.
 - Clicking a session opens it as a tab in the main column.
 - If already open, focuses the existing tab.
 
@@ -35,6 +35,7 @@ Manual only (no discovery/bridge).
 Baseline behavior:
 
 - Tabs are closable.
+- Tabs may belong to different connections.
 - Closing active tab focuses nearest neighbor.
 - Tabs show a short title (session title or session id prefix initially).
 

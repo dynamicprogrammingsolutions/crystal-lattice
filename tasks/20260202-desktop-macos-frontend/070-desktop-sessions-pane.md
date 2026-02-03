@@ -18,9 +18,15 @@ Depends On:
 - Selecting a session opens it as a tab in the main column (do not navigate away).
 - If the session is already open in a tab, focus the existing tab.
 - Sessions list should refresh when:
-  - connection changes
+  - focused connection changes
   - user requests refresh
   - a session is created/deleted (controller or plugin events)
+
+Notes:
+
+- Multiple connections can be open at the same time.
+- The sessions pane lists sessions for a single `focusedConnectionId` at a time.
+- Opening a session creates/activates a tab keyed by `{ connectionId, sessionId }`.
 
 ## Work plan
 
@@ -28,6 +34,11 @@ Depends On:
 
 - Use `@crystal-lattice/frontend-sdk-react` hook (`useSessionsController`) or instantiate controller directly.
 - Desktop app owns controller lifecycle per connection.
+
+Recommendation:
+
+- Keep one `SessionsController` per open connection.
+- Switching `focusedConnectionId` swaps which controller’s state is rendered.
 
 ### 2) Session list UI
 
@@ -40,9 +51,9 @@ Depends On:
 
 When a row is clicked:
 
-- call `openSession(sessionId)` which:
-  - adds to `openSessionIds` if not present
-  - sets `activeSessionId`
+- call `openTab({ connectionId: focusedConnectionId, sessionId })` which:
+  - adds a new tab if not present
+  - sets `activeTabId`
 
 ### 4) Minimal session metadata
 

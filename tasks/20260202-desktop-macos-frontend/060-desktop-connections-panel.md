@@ -16,10 +16,15 @@ Depends On:
 ## Requirements
 
 - Manual connections only for Phase 5.
-- The panel shows saved connections and which is active.
+- The panel shows saved connections and which ones are open.
 - Selecting a connection constructs:
   - `FetchTransport`
   - `RestAgentBackend`
+
+Notes:
+
+- Phase 5 supports multiple open connections simultaneously.
+- The sessions pane (`070`) uses a `focusedConnectionId` to decide which connection’s sessions list is visible.
 
 ## Work plan
 
@@ -40,12 +45,12 @@ Depends On:
 
 ### 3) Connection status indicator
 
-- Show active connection label + base URL.
-- Show “disconnected” state if transport/backend is null.
+- Show open connection label(s) + base URL(s).
+- Show “disconnected” state for connections that are not open.
 
 ## Open question
 
 Do we need auto-reconnect on app start?
 
-- Option A (recommended): yes, reconnect to `lastUsedAt` most recent.
-- Option B: no; user must click connect.
+- Option A (recommended): yes, reconnect to the most recent (`lastUsedAt`) and set it as `focusedConnectionId`.
+- Option B: no; user must explicitly open a connection.

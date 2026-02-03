@@ -8,6 +8,7 @@ Build a desktop-focused macOS frontend using React Native macOS. The desktop app
 - Use a desktop layout:
   - Left column: connections (top) + sessions (bottom)
   - Main column: multiple sessions open simultaneously as tabs
+- Multiple connections can be open at the same time; tabs may span connections.
 - Share *mid-level* RN components between mobile and desktop (not low-level primitives like `Button`, and not the entire chat view).
 
 This task directory is a handoff package for implementing Phase 5 of `tasks/20260129-frontend-sdk/000-main.md`.
