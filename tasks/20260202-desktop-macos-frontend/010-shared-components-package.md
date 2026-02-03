@@ -15,103 +15,65 @@ Depends On:
 
 - [x] Done (Phase 5 baseline)
 
-## What exists today (reference)
+## Deliverables (implemented)
 
-Mobile currently has mid-level components that mix UI + some logic:
+### New package
 
-- `MessageActionsBar` uses pinned actions + “more” menu (currently modal-driven):
-  - `mobile/crystal-lattice-control-rn/src/components/MessageActionsBar.tsx:1`
-- `SessionActionsBar` similarly:
-  - `mobile/crystal-lattice-control-rn/src/components/SessionActionsBar.tsx:1`
-- Action definitions (keys/labels/default pinned roles):
-  - `mobile/crystal-lattice-control-rn/src/messageActions.ts:1`
-  - `mobile/crystal-lattice-control-rn/src/sessionActions.ts:1`
+- Created `packages/frontend-rn-components/` as `@crystal-lattice/frontend-rn-components`.
+- Peer dependencies: `react`, `react-native`, `react-native-vector-icons`.
+- Export surface: `packages/frontend-rn-components/src/index.ts`.
 
-Desktop requirements differ:
+### Shared theme (cross-app)
 
-- Use dropdown/anchored menus instead of modals.
-- “Tabs” are session tabs in the main column.
+- Added a shared theme module (light/dark + provider/hook):
+  - `packages/frontend-rn-components/src/theme.ts`
+- Mobile now re-exports the shared theme to avoid churn in imports:
+  - `mobile/crystal-lattice-control-rn/src/theme.ts`
 
-## Work plan
+### Shared “actions menu” UI (logic + visuals)
 
-### 0) Scope strategy (important)
+This is the reference/PoC shared component set for later extractions.
 
-This package is intentionally **evolving**.
+- Model + hook:
+  - `packages/frontend-rn-components/src/actions/model.ts`
+  - `packages/frontend-rn-components/src/actions/useActionsMenuModel.ts`
+- Shared UI (default visuals + escape hatches):
+  - `packages/frontend-rn-components/src/actions/ActionsMenuContent.tsx`
+  - `packages/frontend-rn-components/src/actions/ActionsMenuPanel.tsx`
+  - `packages/frontend-rn-components/src/actions/ActionsMenuBar.tsx`
+- Modal + dropdown surfaces (platform-dependent placement is isolated here):
+  - `packages/frontend-rn-components/src/actions/MenuSurfaces.tsx`
 
-For Phase 5, do **not** try to pre-decide every shared component up front. Instead:
+### Proved reuse in mobile (no duplication)
 
-- Start by extracting a *small* set of components that are already working well in mobile **and** are immediately useful for desktop.
-- Add additional exports opportunistically as the desktop UI needs them.
-- Treat `tasks/20260202-desktop-macos-frontend/900-shared-components-scope.md` as boundary guidance (what is/isn’t in scope), not a fixed checklist.
-- Treat `tasks/20260202-desktop-macos-frontend/930-extractable-subcomponents.md` as a backlog of candidates, not required deliverables for this subtask.
+- Both mobile bars are now thin wrappers over the shared `ActionsMenuBar`:
+  - `mobile/crystal-lattice-control-rn/src/components/MessageActionsBar.tsx`
+  - `mobile/crystal-lattice-control-rn/src/components/SessionActionsBar.tsx`
+- Standardized styling to the original `MessageActionsBar` sizing (icon sizes, spacing) to avoid duplication.
 
-### 1) Create a new package
+## Implementation notes (important for other subtasks)
 
-- Create `packages/frontend-rn-components/`.
-- `package.json`:
-  - name: `@crystal-lattice/frontend-rn-components`
-  - peer deps: `react`, `react-native`
-  - deps: `@crystal-lattice/frontend-sdk-react` (and maybe `@crystal-lattice/frontend-sdk`)
-- Create `packages/frontend-rn-components/src/index.ts` and export the selected components.
-
-### 2) Define boundaries (authoritative)
-
-Use `tasks/20260202-desktop-macos-frontend/900-shared-components-scope.md` as the canonical scope.
-
-These boundaries should be stable even while the package contents evolve.
-
-Key principle:
-
-- Logic allowed: list/merge/categorize actions, pinned handling, tab state rendering.
-- Logic not allowed: backend calls, session/message reducers, controller lifecycle management.
-
-Additional hint (desktop “native feel”):
-
-- Keep a clear separation between:
-  - shared UI logic (“model”)
-  - platform-specific presentation (“view”)
-- This helps if we later adopt more macOS-native UI affordances.
-  - See: `tasks/20260202-desktop-macos-frontend/920-native-elements-notes.md`
-
-### 3) Implement an initial, proven set of components
-
-Start with the highest leverage cross-platform pieces that are already proven in the mobile app:
-
-- Extract the shared “actions menu model” from:
-  - `mobile/crystal-lattice-control-rn/src/components/MessageActionsBar.tsx:1`
-  - `mobile/crystal-lattice-control-rn/src/components/SessionActionsBar.tsx:1`
-  - Suggested shape: `useActionsMenuModel(...)` (merge actions, filter, pin/unpin, grouping).
-- Add a shared actions menu view with a pluggable surface:
-  - `variant: 'dropdown' | 'modal'`
-  - Desktop uses `dropdown`.
-  - Mobile can keep `modal`.
-
-Implementation hint:
-
-- The `dropdown` variant can be a JS overlay initially.
-- Keep an abstraction boundary so a future macOS-native menu/popover can be swapped in.
-  - See: `tasks/20260202-desktop-macos-frontend/920-native-elements-notes.md`
-
-If/when the desktop UI needs it, add desktop-first components that are still “shareable”, such as:
-
-- `SessionTabs` (UI): renders tab strip + close buttons; controlled via props.
-
-### 4) Prove reuse by adopting at least one component in mobile
-
-- Replace `mobile/crystal-lattice-control-rn/src/components/MessageActionsBar.tsx` usage in-place, or create a thin wrapper that re-exports the shared component.
-- Keep mobile markdown/message rendering untouched.
-
-## Open questions (need user input)
-
-1) Should action definitions (`messageActions.ts`, `sessionActions.ts`) move into the shared components package, or stay app-local?
-   - Option A: Move to shared package (more reuse, but can constrain desktop UX).
-   - Option B (recommended): Keep definitions app-local, shared components take `ActionDefinition[]` as input.
-
-2) Icon dependency strategy
-   - Option A: shared package depends on `react-native-vector-icons`.
-   - Option B (recommended): shared package does not depend on an icon lib; it accepts `renderIcon(def)`.
+- **Theme must be provided at the app root** to get correct colors in shared UI.
+  - Use `ThemeProvider` + `useSystemTheme()` from `@crystal-lattice/frontend-rn-components`.
+- **Anchored dropdown menus use `Modal` as a portal**.
+  - `DropdownMenuSurface` measures the trigger with `measureInWindow` and positions the menu close to it.
+  - For desktop, this meets the “minimal mouse movement” UX requirement.
+  - You can override `backdropStyle` for desktop to avoid dimming (e.g. transparent backdrop).
+- **Measuring anchors in RN requires `collapsable={false}`** in many cases.
+  - `ActionsMenuBar` wraps the trigger anchor with `collapsable={false}` so `measureInWindow` works.
+  - Reuse this pattern for future anchored UI (popover/tooltips).
+- **Action definitions stay app-local**, but shared UI expects `iconName` by default.
+  - If desktop uses a different icon naming scheme, pass `getIconName`.
+- **Filtering behavior** in the model:
+  - `availableActions` filters `baseActions` only.
+  - `extraActions` (e.g. plugin-provided actions) are always included.
+- **Future shared components guideline**:
+  - Prefer exporting “full default visuals” + theme tokens + escape hatches.
+  - Keep platform-specific placement/behavior isolated in small surface components.
 
 ## Verification
 
-- Mobile builds and uses at least one shared component.
-- Desktop can use `dropdown` variant without `Modal`.
+- `packages/frontend-rn-components` has unit tests for the pure model:
+  - `packages/frontend-rn-components/src/actions/model.test.ts`
+- Mobile Metro is configured to resolve workspace packages:
+  - `mobile/crystal-lattice-control-rn/metro.config.js`
