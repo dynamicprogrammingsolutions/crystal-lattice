@@ -10,7 +10,14 @@ Depends On:
 
 ## Status
 
-- [ ] Not started
+- [x] Done
+
+Implemented at `desktop/crystal-lattice-control-desktop-rn/`.
+
+Version notes:
+
+- Desktop uses `react-native@0.81.5` + `react-native-macos@0.81.1`.
+- This intentionally differs from mobile (`react-native@0.82.1`).
 
 ## Constraints / decisions already made
 
