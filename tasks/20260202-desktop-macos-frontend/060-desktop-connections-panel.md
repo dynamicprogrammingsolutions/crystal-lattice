@@ -11,7 +11,15 @@ Depends On:
 
 ## Status
 
-- [ ] Not started
+- [ ] In progress
+
+Implemented so far:
+
+- Runtime open connections map + health check (manual connections only).
+- Connections panel UI (rows, status, Open/Close, kebab actions).
+- New/Edit connection opens in a real macOS `NSWindow`.
+- Persisted caches for sessions list + messages (with message cap).
+- Sessions pane can display cached sessions while offline.
 
 ## Requirements
 
@@ -79,7 +87,9 @@ Sessions list cache (per connection):
 Messages cache (per connection + session):
 
 - Persist `{ messages: IndexedMessage[]; lastLoadedAt: number | null; cursorEventId?: string | null; activeRequestId?: string | null; composeText?: string; scrollAnchor?: any }` keyed by `connectionId` + `sessionId`.
-- Enforce `MAX_MESSAGES_PER_SESSION = 50` (drop oldest beyond limit).
+- Do not cap message count for a single session.
+- Enforce a cap on the number of sessions with message history cached per connection:
+  - `MAX_CACHED_SESSIONS_PER_CONNECTION = 50` (drop oldest sessions beyond the limit).
 - Used by `080` so chat tabs can be viewed offline.
 
 ### 4) Connections panel UI
@@ -142,17 +152,54 @@ Do we need auto-reconnect on app start?
 - Option A (recommended): yes, reconnect to the most recent (`lastUsedAt`) and set it as `focusedConnectionId`.
 - Option B: no; user must explicitly open a connection.
 
+Current implementation: Option A.
+
+## Implementation notes
+
+- Persisted connections + CRUD
+  - `desktop/crystal-lattice-control-desktop-rn/src/connections/usePersistedConnections.ts:1`
+  - Uses SDK `loadConnections`/`saveConnections` with AsyncStorage adapter.
+- Runtime open connection manager
+  - `desktop/crystal-lattice-control-desktop-rn/src/connections/useOpenConnections.ts:1`
+  - Opens `FetchTransport` + `RestAgentBackend` and validates via `listAgents()`.
+- Connections panel UI
+  - `desktop/crystal-lattice-control-desktop-rn/src/panels/ConnectionsPanel.tsx:1`
+  - `rowClickBehavior` is a prop; `DesktopRoot` currently uses `focusAndOpen`.
+  - “Clear connections” is confirmed via `Alert`.
+- New/Edit connection window
+  - JS window component: `desktop/crystal-lattice-control-desktop-rn/src/windows/ConnectionEditorWindow.tsx:1`
+  - Native window manager module: `desktop/crystal-lattice-control-desktop-rn/macos/CrystalLatticeControlDesktopRN-macOS/DesktopWindowManager.mm:1`
+  - Registered in: `desktop/crystal-lattice-control-desktop-rn/index.js:1`
+  - Save emits `connectionEditorSaved` → app upserts record and auto-opens.
+- Offline caches
+  - Storage keys: `desktop/crystal-lattice-control-desktop-rn/src/cache/storageKeys.ts:1`
+  - Sessions cache hook: `desktop/crystal-lattice-control-desktop-rn/src/cache/useSessionsCache.ts:1`
+  - Messages cache hook (cap 50 msgs/session): `desktop/crystal-lattice-control-desktop-rn/src/cache/useMessagesCache.ts:1`
+  - Messages cache hook (cap 50 sessions/connection; no per-session message cap): `desktop/crystal-lattice-control-desktop-rn/src/cache/useMessagesCache.ts:1`
+  - `DesktopRoot` prefetches sessions into cache on successful connect:
+    - `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx:1`
+  - Cached sessions are rendered in the sessions pane placeholder:
+    - `desktop/crystal-lattice-control-desktop-rn/src/panels/SessionsPanelPlaceholder.tsx:1`
+
+## Remaining work
+
+- Make cached messages visible in tabs when offline (Phase 5 expectation).
+  - The messages cache is persisted already, but the chat pane is still a placeholder.
+- Add explicit “refresh sessions list” behavior when online (hook up the “↻” affordance).
+- Decide whether “Delete connection” should keep or clear caches/tabs.
+  - Current behavior: delete clears caches and closes tabs for that connection.
+
 ## Checklist
 
-- [ ] Centralize AsyncStorage `KeyValueStore` adapter in desktop code
-- [ ] Implement persisted connections model (`ConnectionRecord[]`) via SDK helpers
-- [ ] Implement runtime `openConnectionsById` map with status + `RestAgentBackend`
-- [ ] Implement connection health check on open (`listAgents`)
-- [ ] Add persisted sessions list cache keyed by `connectionId`
-- [ ] Add persisted messages cache keyed by `connectionId` + `sessionId` with `MAX_MESSAGES_PER_SESSION = 50`
-- [ ] Build real `ConnectionsPanel` UI (rows + Open/Close button + kebab menu)
-- [ ] Add `rowClickBehavior` config (default: open-on-click)
-- [ ] Implement “New/Edit connection” as a real macOS window (`NSWindow`) hosting an RN component
-- [ ] Wire editor save event → upsert record → (optional) auto-open
-- [ ] Implement auto-open most recent on startup (Option A) or document if skipped
+- [x] Centralize AsyncStorage `KeyValueStore` adapter in desktop code
+- [x] Implement persisted connections model (`ConnectionRecord[]`) via SDK helpers
+- [x] Implement runtime `openConnectionsById` map with status + `RestAgentBackend`
+- [x] Implement connection health check on open (`listAgents`)
+- [x] Add persisted sessions list cache keyed by `connectionId`
+- [x] Add persisted messages cache keyed by `connectionId` + `sessionId` with `MAX_CACHED_SESSIONS_PER_CONNECTION = 50`
+- [x] Build real `ConnectionsPanel` UI (rows + Open/Close button + kebab menu)
+- [x] Add `rowClickBehavior` config (default: open-on-click)
+- [x] Implement “New/Edit connection” as a real macOS window (`NSWindow`) hosting an RN component
+- [x] Wire editor save event → upsert record → (optional) auto-open
+- [x] Implement auto-open most recent on startup (Option A) or document if skipped
 - [ ] Verify offline behavior: close connection, tabs remain, cached sessions/messages still visible

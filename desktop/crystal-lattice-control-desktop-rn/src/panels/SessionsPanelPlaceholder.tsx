@@ -3,49 +3,46 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '@crystal-lattice/frontend-rn-components';
 
+import type { SessionSummary } from '@crystal-lattice/frontend-sdk';
+
 import { PanelHeader } from '../ui/PanelHeader';
 import { KebabMenu } from '../ui/KebabMenu';
-
-interface PlaceholderSession {
-  sessionId: string;
-  title: string;
-}
 
 export interface SessionsPanelPlaceholderProps {
   focusedConnectionId: string | null;
   focusedConnectionName: string | null;
   isFocusedConnectionOpen: boolean;
+  cachedSessions: SessionSummary[];
+  cachedLastLoadedAt: number | null;
   onOpenSession: (params: { connectionId: string; sessionId: string; title: string }) => void;
-}
-
-function buildPlaceholderSessions(connectionId: string): PlaceholderSession[] {
-  const prefix = connectionId.replace(/[^a-z0-9]/gi, '').slice(-4) || 'xxxx';
-  return [
-    { sessionId: `sess-${prefix}-a`, title: `Session ${prefix} A` },
-    { sessionId: `sess-${prefix}-b`, title: `Session ${prefix} B` },
-    { sessionId: `sess-${prefix}-c`, title: `Session ${prefix} C` },
-  ];
 }
 
 export function SessionsPanelPlaceholder({
   focusedConnectionId,
   focusedConnectionName,
   isFocusedConnectionOpen,
+  cachedSessions,
+  cachedLastLoadedAt,
   onOpenSession,
 }: SessionsPanelPlaceholderProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const sessions = useMemo(() => {
-    if (!focusedConnectionId) return [];
-    return buildPlaceholderSessions(focusedConnectionId);
-  }, [focusedConnectionId]);
+  const subtitle = useMemo(() => {
+    if (!focusedConnectionName) {
+      return 'No focused connection';
+    }
+    const cachedLabel =
+      cachedLastLoadedAt ? `cached ${new Date(cachedLastLoadedAt).toLocaleTimeString()}` : 'no cache';
+    const liveLabel = isFocusedConnectionOpen ? 'online' : 'offline';
+    return `Focused: ${focusedConnectionName} • ${liveLabel} • ${cachedLabel}`;
+  }, [cachedLastLoadedAt, focusedConnectionName, isFocusedConnectionOpen]);
 
   return (
     <View style={styles.root}>
       <PanelHeader
         title="Sessions"
-        subtitle={focusedConnectionName ? `Focused: ${focusedConnectionName}` : 'No focused connection'}
+        subtitle={subtitle}
         menuLabel="↻"
       />
 
@@ -53,16 +50,22 @@ export function SessionsPanelPlaceholder({
         <View style={styles.empty}>
           <Text style={styles.emptyText}>Select a connection above.</Text>
         </View>
-      ) : !isFocusedConnectionOpen ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyText}>Connection is closed.</Text>
-          <Text style={styles.emptyMeta}>Open it to load sessions (task 070).</Text>
-        </View>
       ) : (
         <View style={styles.list}>
-          {sessions.map((session) => (
+          {cachedSessions.length === 0 ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>No cached sessions.</Text>
+              <Text style={styles.emptyMeta}>
+                {isFocusedConnectionOpen
+                  ? 'Connect and refresh to populate cache (task 070).'
+                  : 'Open the connection to refresh (task 070).'}
+              </Text>
+            </View>
+          ) : null}
+
+          {cachedSessions.map((session) => (
             <Pressable
-              key={session.sessionId}
+              key={session.session_id}
               style={(state) => {
                 const hovered = (state as any).hovered as boolean | undefined;
                 return [styles.row, (hovered || state.pressed) && styles.rowHovered];
@@ -70,17 +73,17 @@ export function SessionsPanelPlaceholder({
               onPress={() =>
                 onOpenSession({
                   connectionId: focusedConnectionId,
-                  sessionId: session.sessionId,
-                  title: session.title,
+                  sessionId: session.session_id,
+                  title: session.preview ? session.preview.slice(0, 48) : session.session_id,
                 })
               }
             >
               <View style={styles.rowMain}>
                 <Text style={styles.rowTitle} numberOfLines={1}>
-                  {session.title}
+                  {session.preview ? session.preview.slice(0, 64) : session.session_id}
                 </Text>
                 <Text style={styles.rowMeta} numberOfLines={1}>
-                  {session.sessionId}
+                  {session.session_id}
                 </Text>
               </View>
               <Text style={styles.openHint}>Open</Text>
