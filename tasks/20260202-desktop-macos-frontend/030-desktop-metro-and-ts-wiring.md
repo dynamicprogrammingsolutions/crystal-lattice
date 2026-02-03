@@ -10,7 +10,12 @@ Depends On:
 
 ## Status
 
-- [ ] Not started
+- [x] Done
+
+Implemented wiring:
+
+- `desktop/crystal-lattice-control-desktop-rn/metro.config.js:1` (watchFolders + symlinks + `extraNodeModules`)
+- `desktop/crystal-lattice-control-desktop-rn/tsconfig.json:1` (`preserveSymlinks: true`)
 
 ## Reference (what worked for mobile)
 
