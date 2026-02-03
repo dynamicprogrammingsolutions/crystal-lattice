@@ -14,6 +14,8 @@
     "react-native-vector-icons": "*"
   },
   "devDependencies": {
+    "@types/react": "^19.1.4",
+    "@types/react-native": "^0.73.0",
     "@types/react-native-vector-icons": "^6.4.18",
     "vitest": "^1.6.0"
   }
