@@ -10,7 +10,33 @@ Depends On:
 
 ## Status
 
-- [ ] Not started
+- [x] Done
+
+Implemented in:
+
+- SDK:
+  - `packages/frontend-sdk/src/storage/keyValueStore.ts:1`
+  - `packages/frontend-sdk/src/connections/types.ts:1`
+  - `packages/frontend-sdk/src/connections/store.ts:1`
+  - Tests: `packages/frontend-sdk/src/connections/__tests__/store.test.ts:1`
+- Mobile adoption:
+  - `mobile/crystal-lattice-control-rn/App.tsx:1`
+  - `mobile/crystal-lattice-control-rn/src/connectionInfo.ts:1`
+  - `mobile/crystal-lattice-control-rn/src/ConnectionsScreen.tsx:1`
+  - `mobile/crystal-lattice-control-rn/src/ConnectedRoot.tsx:1`
+- Desktop adoption (Option B):
+  - `desktop/crystal-lattice-control-desktop-rn/App.tsx:1`
+
+## Decisions (approved)
+
+- Keep the existing storage key and JSON shape to avoid breaking existing saved connections:
+  - `clc_connections_v1` (currently `STORAGE_KEY_CONNECTIONS` in `mobile/crystal-lattice-control-rn/App.tsx:76`).
+- Include all connection kinds in the SDK types now (`manual`, `discovery`, `bridge`) so the mobile migration can be no-behavior-change.
+- Introduce `KeyValueStore` as an SDK abstraction (SDK must not import `AsyncStorage`).
+- Desktop adoption: **Option B**
+  - Add `@react-native-async-storage/async-storage` to the desktop app.
+  - Use the SDK persistence helpers at runtime.
+  - Add a tiny “connections debug” UI so persistence can be manually verified (add/clear; persists across relaunch).
 
 ## What exists today
 
@@ -47,14 +73,31 @@ As part of this subtask, add the `KeyValueStore` interface to the SDK and export
 
 Use the SDK `KeyValueStore` abstraction (do not import `AsyncStorage` from SDK).
 
+Additional requirements:
+
+- Provide `CONNECTIONS_STORAGE_KEY` as an exported SDK constant equal to `clc_connections_v1`.
+- Add unit tests for `loadConnections`/`saveConnections` using an in-memory `KeyValueStore`.
+
 ### 3) Adopt in mobile (no behavior change)
 
 - Update mobile to use the SDK types/helpers.
-- Keep the stored JSON schema compatible if possible, or bump a versioned storage key.
+- Keep the stored JSON schema + key compatible (do not bump) unless unavoidable.
+
+Also update any mobile modules that import `ConnectionRecord` from `../App` to import the SDK type instead:
+
+- `mobile/crystal-lattice-control-rn/src/connectionInfo.ts:1`
+- `mobile/crystal-lattice-control-rn/src/ConnectionsScreen.tsx:12`
+- `mobile/crystal-lattice-control-rn/src/ConnectedRoot.tsx:6`
 
 ### 4) Adopt in desktop
 
-- Desktop uses the same model/persistence for its connections panel.
+- Add `@react-native-async-storage/async-storage` to `desktop/crystal-lattice-control-desktop-rn/`.
+- Add a `KeyValueStore` adapter over AsyncStorage in the desktop app.
+- Use the SDK `loadConnections`/`saveConnections` at runtime.
+- Add a minimal debug UI to verify persistence:
+  - shows saved connection count and names
+  - “Add demo manual connection” button
+  - “Clear connections” button
 
 ## Open question
 
@@ -62,3 +105,5 @@ Should discovery/bridge variants be included in the SDK types now?
 
 - Option A (recommended): include them, but allow desktop to only *use* manual.
 - Option B: only implement manual now; extend later when desktop needs it.
+
+Decision: Option A.

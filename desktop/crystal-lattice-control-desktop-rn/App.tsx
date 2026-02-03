@@ -1,36 +1,122 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { parseOptionalInt } from '@crystal-lattice/frontend-sdk';
-import { buildActionsMenuModel } from '@crystal-lattice/frontend-rn-components';
+import {
+  CONNECTIONS_STORAGE_KEY,
+  loadConnections,
+  type ConnectionRecord,
+  type KeyValueStore,
+  saveConnections,
+} from '@crystal-lattice/frontend-sdk';
 
-const demoActionsModel = buildActionsMenuModel({
-  baseActions: [
-    { key: 'connect', label: 'Connect' },
-    { key: 'disconnect', label: 'Disconnect' },
-  ],
-  pinned: [],
-});
+function generateId(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.floor(Math.random() * 16);
+    const v = c === 'x' ? r : (r % 4) + 8;
+    return v.toString(16);
+  });
+}
+
+const connectionsStore: KeyValueStore = {
+  get: (key) => AsyncStorage.getItem(key),
+  set: (key, value) => AsyncStorage.setItem(key, value),
+  delete: (key) => AsyncStorage.removeItem(key),
+};
 
 export default function App() {
-  const parsed = parseOptionalInt('123') ?? '(missing)';
+  const [connections, setConnections] = React.useState<ConnectionRecord[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const loadSavedConnections = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const records = await loadConnections(connectionsStore);
+        setConnections(records);
+      } catch (err: any) {
+        setError(err?.message || 'Failed to load saved connections');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSavedConnections();
+  }, []);
+
+  React.useEffect(() => {
+    const save = async () => {
+      try {
+        await saveConnections(connectionsStore, connections);
+      } catch {}
+    };
+
+    save();
+  }, [connections]);
+
+  const handleAddDemoConnection = () => {
+    const now = Date.now();
+    const record: ConnectionRecord = {
+      id: generateId(),
+      kind: 'manual',
+      name: `Local (${connections.length + 1})`,
+      lastUsedAt: now,
+      host: '127.0.0.1',
+      port: 8080,
+    };
+
+    setConnections((prev) => [record, ...prev]);
+  };
+
+  const handleClearConnections = () => {
+    setError(null);
+    setConnections([]);
+  };
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Crystal Lattice Control (Desktop)</Text>
-      <Text style={styles.subtitle}>RN macOS scaffold is wired.</Text>
+      <Text style={styles.subtitle}>Connections persistence smoke test</Text>
 
-      <View style={styles.block}>
-        <Text style={styles.label}>SDK sanity check:</Text>
-        <Text style={styles.value}>parseOptionalInt('123') = {parsed}</Text>
+      <View style={styles.row}>
+        <Pressable
+          style={[styles.button, styles.primaryButton]}
+          onPress={handleAddDemoConnection}
+        >
+          <Text style={styles.primaryButtonText}>Add demo manual connection</Text>
+        </Pressable>
+        <Pressable style={[styles.button, styles.dangerButton]} onPress={handleClearConnections}>
+          <Text style={styles.dangerButtonText}>Clear</Text>
+        </Pressable>
       </View>
 
-      <View style={styles.block}>
-        <Text style={styles.label}>Shared components sanity check:</Text>
-        <Text style={styles.value}>
-          Actions: {demoActionsModel.orderedActions.map((a) => a.key).join(', ')}
-        </Text>
-      </View>
+      <Text style={styles.meta}>
+        {loading
+          ? 'Loading…'
+          : `Saved connections: ${connections.length} (key: ${CONNECTIONS_STORAGE_KEY})`}
+      </Text>
+
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+
+      <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+        {connections.map((record) => (
+          <View key={record.id} style={styles.item}>
+            <Text style={styles.itemTitle} numberOfLines={1}>
+              {record.name}
+            </Text>
+            <Text style={styles.itemSubtle} numberOfLines={1}>
+              {record.kind} • {record.id}
+            </Text>
+            {record.kind === 'manual' ? (
+              <Text style={styles.itemSubtle} numberOfLines={1}>
+                {record.host}:{record.port}
+              </Text>
+            ) : null}
+          </View>
+        ))}
+      </ScrollView>
     </View>
   );
 }
@@ -49,14 +135,58 @@ const styles = StyleSheet.create({
     fontSize: 14,
     opacity: 0.7,
   },
-  block: {
-    paddingTop: 8,
+  row: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
   },
-  label: {
+  button: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  primaryButton: {
+    backgroundColor: '#0A84FF',
+  },
+  primaryButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  dangerButton: {
+    backgroundColor: '#FF3B30',
+  },
+  dangerButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  meta: {
     fontSize: 12,
     opacity: 0.7,
   },
-  value: {
+  error: {
+    fontSize: 12,
+    color: '#FF3B30',
+  },
+  list: {
+    flex: 1,
+  },
+  listContent: {
+    gap: 8,
+    paddingBottom: 24,
+  },
+  item: {
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.12)',
+    borderRadius: 10,
+    padding: 12,
+    gap: 4,
+  },
+  itemTitle: {
     fontSize: 14,
+    fontWeight: '600',
+  },
+  itemSubtle: {
+    fontSize: 12,
+    opacity: 0.7,
   },
 });
