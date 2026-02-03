@@ -19,6 +19,7 @@ Depends On:
 ## Requirements
 
 - Multiple sessions can be open simultaneously as tabs.
+- Tabs may belong to different connections.
 - Switching tabs should be fast and should not lose controller state.
 - Closing a tab cleans up resources (event polling, timers).
 - Chat pane uses the SDK `ChatController` and reducer-driven event state.
@@ -33,17 +34,27 @@ UX hint:
 ### 1) Tab state model
 
 - Keep in desktop app state:
-  - `openSessionIds: string[]`
-  - `activeSessionId: string | null`
+  - `tabs: Array<{ tabId: string; connectionId: string; sessionId: string; title: string }>`
+  - `activeTabId: string | null`
 
 Rules:
 
 - Opening a session that’s already open focuses it.
 - Closing the active tab focuses the nearest neighbor.
 
+Tab identity:
+
+- Use `{ connectionId, sessionId }` as the logical identity.
+- Recommended `tabId`: `${connectionId}:${sessionId}`.
+
 ### 2) Controller lifecycle strategy (important)
 
 We need a stable controller per open session.
+
+Additionally, because tabs can belong to different connections:
+
+- The per-tab controller needs to be created with the correct `AgentBackend` for that connection.
+- Closing a tab must clean up only that tab’s controller + streaming.
 
 Two viable options:
 

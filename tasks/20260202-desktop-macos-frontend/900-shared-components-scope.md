@@ -10,6 +10,13 @@ Goal: share components that speed up building new frontends while still allowing
 - Full screen implementations (full chat view, full sessions list screen).
 - Any component that directly calls backend APIs.
 
+Clarification:
+
+- It can still be in scope to share *presentational row/bubble components* (e.g. `SessionListItem`, `MessageBubble`) as long as:
+  - they don’t own whole-screen layout
+  - they don’t call backend APIs directly
+  - they stay customizable (icons, menus, render mode)
+
 ## In scope (candidates)
 
 ### 1) Action UI (message + session)
@@ -52,6 +59,15 @@ Implementation hint:
   - See: `tasks/20260202-desktop-macos-frontend/920-native-elements-notes.md`
 
 ### 3) “Inspector” header widgets (future)
+
+### 4) Presentational building blocks (optional)
+
+These are not required for Phase 5, but are candidates if they reduce duplication:
+
+- `MessageBubble` (or per-role message bubble components)
+- `SessionListItem` (a reusable visual row used by sessions lists)
+
+These should remain “dumb” renderers that accept props/state and callback handlers.
 
 Not required for Phase 5, but design for extension:
 

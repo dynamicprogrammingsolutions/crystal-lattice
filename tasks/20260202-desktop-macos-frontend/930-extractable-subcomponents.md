@@ -20,6 +20,11 @@ These are suggestions/hints (not final decisions). The goal is to reuse meaningf
 
 Source: `mobile/crystal-lattice-control-rn/src/components/MessageBubble.tsx:1`
 
+Practical note:
+
+- It may be worthwhile to share the entire `MessageBubble` component (or the per-role bubble components) between mobile + desktop, treating it as a “mostly visual” building block.
+- If we do this, keep the message list layout and controller wiring platform-specific.
+
 ### A) Collapsible content block (expand/collapse)
 
 Used for tool output, reasoning, and tool-call details.
@@ -206,3 +211,20 @@ If sharing a settings UI wrapper is still useful, keep it skinnable:
     - `renderTextField(field)`
 
 But avoid forcing a “native preferences window” design.
+
+## From `SessionsScreen.tsx`
+
+Source: `mobile/crystal-lattice-control-rn/src/SessionsScreen.tsx:1`
+
+Candidate extraction:
+
+- `SessionListItem` presentational component extracted from the session row renderer (aka `renderSessionItem`).
+- Expected usage:
+  - desktop: render items in a desktop-specific list container
+  - mobile: render items in a `FlatList`
+
+Keep this component dumb (no backend calls); it should accept:
+
+- `session: SessionSummary`
+- `onPress()`
+- optional accessory slots (actions menu, badges)
