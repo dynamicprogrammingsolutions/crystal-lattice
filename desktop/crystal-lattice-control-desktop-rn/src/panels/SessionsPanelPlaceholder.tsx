@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '@crystal-lattice/frontend-rn-components';
 
@@ -51,7 +51,11 @@ export function SessionsPanelPlaceholder({
           <Text style={styles.emptyText}>Select a connection above.</Text>
         </View>
       ) : (
-        <View style={styles.list}>
+        <ScrollView
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator
+        >
           {cachedSessions.length === 0 ? (
             <View style={styles.empty}>
               <Text style={styles.emptyText}>No cached sessions.</Text>
@@ -90,7 +94,7 @@ export function SessionsPanelPlaceholder({
               <KebabMenu items={[{ label: 'Session actions (placeholder)' }]} />
             </Pressable>
           ))}
-        </View>
+        </ScrollView>
       )}
     </View>
   );
@@ -107,6 +111,9 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       overflow: 'hidden',
     },
     list: {
+      flex: 1,
+    },
+    listContent: {
       paddingVertical: 6,
     },
     row: {
