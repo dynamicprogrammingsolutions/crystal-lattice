@@ -1,5 +1,14 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActionSheetIOS,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  findNodeHandle,
+} from 'react-native';
 
 import { DropdownMenuSurface, useTheme } from '@crystal-lattice/frontend-rn-components';
 
@@ -30,6 +39,31 @@ export function SessionTabs({
 
   const menuAnchorRef = useRef<any>(null);
   const [menuVisible, setMenuVisible] = useState(false);
+
+  const openNativeMenu = () => {
+    const options = ['Tab actions (placeholder)', 'Cancel'];
+    const cancelButtonIndex = options.length - 1;
+
+    let anchor: number | null = null;
+    if (menuAnchorRef.current) {
+      try {
+        anchor = findNodeHandle(menuAnchorRef.current) as any;
+      } catch {
+        anchor = null;
+      }
+    }
+
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        options,
+        cancelButtonIndex,
+        anchor: anchor ?? undefined,
+      },
+      (_buttonIndex) => {
+        // Placeholder.
+      },
+    );
+  };
 
   return (
     <View style={styles.root}>
@@ -82,35 +116,50 @@ export function SessionTabs({
         })}
       </ScrollView>
 
-      <Pressable
-        ref={menuAnchorRef}
-        style={(state) => {
-          const hovered = (state as any).hovered as boolean | undefined;
-          return [styles.menuButton, (hovered || state.pressed) && styles.menuButtonHovered];
-        }}
-        onPress={() => setMenuVisible(true)}
-      >
-        <Text style={styles.menuButtonText}>⋯</Text>
-      </Pressable>
+      <View ref={menuAnchorRef} collapsable={false}>
+        <Pressable
+          style={(state) => {
+            const hovered = (state as any).hovered as boolean | undefined;
+            return [
+              styles.menuButton,
+              (hovered || state.pressed) && styles.menuButtonHovered,
+            ];
+          }}
+          onPress={() => {
+            if (Platform.OS === 'macos') {
+              openNativeMenu();
+              return;
+            }
+            setMenuVisible(true);
+          }}
+        >
+          <Text style={styles.menuButtonText}>⋯</Text>
+        </Pressable>
+      </View>
 
-      <DropdownMenuSurface
-        visible={menuVisible}
-        onRequestClose={() => setMenuVisible(false)}
-        anchorRef={menuAnchorRef}
-        offset={{ y: 6 }}
-      >
-        <View style={styles.menuContent}>
-          <Pressable
-            style={(state) => {
-              const hovered = (state as any).hovered as boolean | undefined;
-              return [styles.menuItem, (hovered || state.pressed) && styles.menuItemHovered];
-            }}
-            onPress={() => setMenuVisible(false)}
-          >
-            <Text style={styles.menuItemText}>Tab actions (placeholder)</Text>
-          </Pressable>
-        </View>
-      </DropdownMenuSurface>
+      {Platform.OS !== 'macos' ? (
+        <DropdownMenuSurface
+          visible={menuVisible}
+          onRequestClose={() => setMenuVisible(false)}
+          anchorRef={menuAnchorRef}
+          offset={{ y: 6 }}
+        >
+          <View style={styles.menuContent}>
+            <Pressable
+              style={(state) => {
+                const hovered = (state as any).hovered as boolean | undefined;
+                return [
+                  styles.menuItem,
+                  (hovered || state.pressed) && styles.menuItemHovered,
+                ];
+              }}
+              onPress={() => setMenuVisible(false)}
+            >
+              <Text style={styles.menuItemText}>Tab actions (placeholder)</Text>
+            </Pressable>
+          </View>
+        </DropdownMenuSurface>
+      ) : null}
     </View>
   );
 }

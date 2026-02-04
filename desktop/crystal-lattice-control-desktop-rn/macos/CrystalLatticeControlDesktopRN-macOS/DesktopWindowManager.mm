@@ -4,6 +4,7 @@
 #import <React/RCTBridge.h>
 #import <React/RCTRootView.h>
 #import <React/RCTUtils.h>
+#import <objc/message.h>
 
 @interface DesktopWindowManager ()
 
@@ -34,8 +35,30 @@ RCT_EXPORT_METHOD(openConnectionEditor : (NSDictionary *)params)
     }
 
     NSDictionary *initialProps = params ?: @{};
-    RCTRootView *rootView =
-        [[RCTRootView alloc] initWithBridge:self.bridge moduleName:@"ConnectionEditorWindow" initialProperties:initialProps];
+    NSView *rootView = nil;
+    id appDelegate = NSApp.delegate;
+    id rootViewFactory = nil;
+    @try {
+      rootViewFactory = [appDelegate valueForKey:@"rootViewFactory"];
+    } @catch (__unused NSException *exception) {
+      rootViewFactory = nil;
+    }
+    if (rootViewFactory != nil) {
+      SEL selector = NSSelectorFromString(@"viewWithModuleName:initialProperties:");
+      if ([rootViewFactory respondsToSelector:selector]) {
+        using MsgSendType = NSView *(*)(id, SEL, NSString *, NSDictionary *);
+        rootView = ((MsgSendType)objc_msgSend)(
+            rootViewFactory,
+            selector,
+            @"ConnectionEditorWindow",
+            initialProps);
+      }
+    }
+
+    if (rootView == nil) {
+      rootView =
+          [[RCTRootView alloc] initWithBridge:self.bridge moduleName:@"ConnectionEditorWindow" initialProperties:initialProps];
+    }
 
     NSRect frame = NSMakeRect(0, 0, 420, 320);
     NSWindow *window = [[NSWindow alloc] initWithContentRect:frame

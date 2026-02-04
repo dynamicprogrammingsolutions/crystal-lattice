@@ -1,15 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Text,
   StyleSheet,
   TouchableOpacity,
   View,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/Feather';
 
 import { useTheme } from '../theme';
 import { ActionsMenuPanel } from './ActionsMenuPanel';
+import type { MenuIconRenderer } from './ActionsMenuContent';
 import {
   DropdownMenuSurface,
   ModalMenuSurface,
@@ -29,6 +30,10 @@ export interface ActionsMenuBarProps<TDef extends ActionDefinition = ActionDefin
   onAction: (key: ActionKey) => void;
   isActionDisabled?: (key: ActionKey) => boolean;
   isActive?: boolean;
+
+  renderIcon?: MenuIconRenderer;
+  renderPinIcon?: (params: { pinned: boolean; size: number; color: string }) => React.ReactNode;
+  renderCloseIcon?: (params: { size: number; color: string; renderIcon?: MenuIconRenderer }) => React.ReactNode;
 
   variant?: 'modal' | 'dropdown';
   dropdownOffset?: DropdownMenuSurfaceProps['offset'];
@@ -72,10 +77,8 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
     return model.visiblePinned
       .map((action) => {
         const iconName = getIconName(action);
-        if (!iconName) {
-          return null;
-        }
         const disabled = props.isActionDisabled ? props.isActionDisabled(action.key) : false;
+        const fallbackLabel = action.label.trim().slice(0, 1) || '•';
         return (
           <TouchableOpacity
             key={action.key}
@@ -83,7 +86,11 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
             onPress={() => props.onAction(action.key)}
             disabled={disabled}
           >
-            <Icon name={iconName} size={16} color={theme.primary} />
+            {iconName && props.renderIcon ? (
+              props.renderIcon({ name: iconName, size: 16, color: theme.primary })
+            ) : (
+              <Text style={[styles.fallbackIcon, { color: theme.primary }]}>{fallbackLabel}</Text>
+            )}
           </TouchableOpacity>
         );
       })
@@ -92,6 +99,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
     model.visiblePinned,
     getIconName,
     props.isActionDisabled,
+    props.renderIcon,
     props.onAction,
     theme.primary,
   ]);
@@ -110,6 +118,9 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
       onTogglePinned={(key) => togglePinned(key)}
       isActionDisabled={props.isActionDisabled}
       getIconName={getIconName}
+      renderIcon={props.renderIcon}
+      renderPinIcon={props.renderPinIcon}
+      renderCloseIcon={props.renderCloseIcon}
       iconSize={16}
       pinIconSize={14}
       onRequestClose={() => setMenuVisible(false)}
@@ -125,7 +136,11 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
             style={styles.iconButton}
             onPress={() => setMenuVisible(true)}
           >
-            <Icon name="more-horizontal" size={18} color={theme.primary} />
+            {props.renderIcon ? (
+              props.renderIcon({ name: 'more-horizontal', size: 18, color: theme.primary })
+            ) : (
+              <Text style={[styles.moreText, { color: theme.primary }]}>⋯</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -166,5 +181,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     marginLeft: 4,
+  },
+  moreText: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginTop: -3,
+  },
+  fallbackIcon: {
+    fontSize: 14,
+    fontWeight: '800',
   },
 });
