@@ -7,14 +7,25 @@ import {
 } from '@crystal-lattice/frontend-rn-components';
 
 import { DesktopRoot } from './src/DesktopRoot';
+import {
+  DEFAULT_TAB_STRIP_STYLE,
+  parseTabStripStyle,
+  type TabStripStyle,
+} from './src/tabs/tabStripStyle';
 
-export default function App() {
+export interface AppProps {
+  initialTabStripStyle?: TabStripStyle;
+}
+
+export default function App(props: AppProps) {
   const theme = useSystemTheme();
+  const initialTabStripStyle =
+    parseTabStripStyle((props as any)?.initialTabStripStyle) ?? DEFAULT_TAB_STRIP_STYLE;
 
   return (
     <ThemeProvider theme={theme}>
       <View style={styles.root}>
-        <DesktopRoot />
+        <DesktopRoot initialTabStripStyle={initialTabStripStyle} />
       </View>
     </ThemeProvider>
   );

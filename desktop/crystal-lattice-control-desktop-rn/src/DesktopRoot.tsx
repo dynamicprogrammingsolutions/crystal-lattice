@@ -16,6 +16,11 @@ import { asyncStorageKeyValueStore } from './storage/asyncStorageKeyValueStore';
 import { desktopWindowEvents, DesktopWindowManager } from './windows/desktopWindowManager';
 import { useMessagesCache } from './cache/useMessagesCache';
 import { useSessionsCache } from './cache/useSessionsCache';
+import {
+  DEFAULT_TAB_STRIP_STYLE,
+  parseTabStripStyle,
+  type TabStripStyle,
+} from './tabs/tabStripStyle';
 
 const DEFAULT_CONNECTION_ROW_CLICK_BEHAVIOR = 'focusAndOpen' as const;
 
@@ -46,9 +51,17 @@ function removeTabAndSelectNext(
   return { tabs: nextTabs, nextActiveTabId: nextTabs[neighborIndex].tabId };
 }
 
-export function DesktopRoot(): React.JSX.Element {
+export interface DesktopRootProps {
+  initialTabStripStyle?: TabStripStyle;
+}
+
+export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const [tabStripStyle, setTabStripStyle] = useState<TabStripStyle>(
+    parseTabStripStyle(initialTabStripStyle) ?? DEFAULT_TAB_STRIP_STYLE,
+  );
 
   const {
     hydrated: connectionsHydrated,
@@ -75,7 +88,9 @@ export function DesktopRoot(): React.JSX.Element {
     clearSessionsCache,
   } = useSessionsCache(asyncStorageKeyValueStore);
 
-  const { deleteConnectionMessagesCache, clearMessagesCache } = useMessagesCache(asyncStorageKeyValueStore);
+  const { deleteConnectionMessagesCache, clearMessagesCache } = useMessagesCache(
+    asyncStorageKeyValueStore,
+  );
 
   const [focusedConnectionId, setFocusedConnectionId] = useState<string | null>(null);
   const [tabs, setTabs] = useState<DesktopSessionTab[]>([]);
@@ -109,6 +124,7 @@ export function DesktopRoot(): React.JSX.Element {
         const sessions = await backend.listSessions({ limit: 50 });
         updateSessionsCache(record.id, sessions);
       } catch {
+        // Ignore; cache remains stale.
       }
     },
     [openConnection, touchConnection, updateSessionsCache],
@@ -130,26 +146,40 @@ export function DesktopRoot(): React.JSX.Element {
   useEffect(() => {
     if (!desktopWindowEvents) return;
 
-    const savedSub = desktopWindowEvents.addListener(
-      'connectionEditorSaved',
-      (payload: any) => {
-        const record = payload?.record;
-        if (!record || typeof record !== 'object' || typeof record.id !== 'string') {
-          return;
-        }
-        upsertConnection(record);
-        setFocusedConnectionId(record.id);
-        openConnectionAndTouch(record);
-      },
-    );
+    const savedSub = desktopWindowEvents.addListener('connectionEditorSaved', (payload: any) => {
+      const record = payload?.record;
+      if (!record || typeof record !== 'object' || typeof record.id !== 'string') {
+        return;
+      }
+      upsertConnection(record);
+      setFocusedConnectionId(record.id);
+      openConnectionAndTouch(record);
+    });
+
+    const styleSub = desktopWindowEvents.addListener('tabStripStyleChanged', (payload: any) => {
+      const style = parseTabStripStyle(payload?.style);
+      if (!style) {
+        return;
+      }
+      setTabStripStyle(style);
+    });
 
     return () => {
       savedSub.remove();
+      styleSub.remove();
     };
   }, [openConnectionAndTouch, upsertConnection]);
 
   const openTab = useCallback(
-    ({ connectionId, sessionId, title }: { connectionId: string; sessionId: string; title?: string }) => {
+    ({
+      connectionId,
+      sessionId,
+      title,
+    }: {
+      connectionId: string;
+      sessionId: string;
+      title?: string;
+    }) => {
       const tabId = buildTabId(connectionId, sessionId);
       setTabs((prev) => {
         if (prev.some((tab) => tab.tabId === tabId)) {
@@ -162,13 +192,16 @@ export function DesktopRoot(): React.JSX.Element {
     [],
   );
 
-  const closeTab = useCallback((tabId: string) => {
-    setTabs((prev) => {
-      const result = removeTabAndSelectNext(prev, tabId, activeTabId);
-      setActiveTabId(result.nextActiveTabId);
-      return result.tabs;
-    });
-  }, [activeTabId]);
+  const closeTab = useCallback(
+    (tabId: string) => {
+      setTabs((prev) => {
+        const result = removeTabAndSelectNext(prev, tabId, activeTabId);
+        setActiveTabId(result.nextActiveTabId);
+        return result.tabs;
+      });
+    },
+    [activeTabId],
+  );
 
   const focusTab = useCallback((tabId: string) => {
     setActiveTabId(tabId);
@@ -255,21 +288,19 @@ export function DesktopRoot(): React.JSX.Element {
 
             <SessionsPanelPlaceholder
               focusedConnectionId={focusedConnectionId}
-              focusedConnectionName={focusedConnectionId ? connectionNameById[focusedConnectionId] : null}
+              focusedConnectionName={
+                focusedConnectionId ? connectionNameById[focusedConnectionId] : null
+              }
               isFocusedConnectionOpen={
                 focusedConnectionId
                   ? openConnectionsById[focusedConnectionId]?.status === 'open'
                   : false
               }
               cachedSessions={
-                focusedConnectionId
-                  ? sessionsCache[focusedConnectionId]?.sessions ?? []
-                  : []
+                focusedConnectionId ? sessionsCache[focusedConnectionId]?.sessions ?? [] : []
               }
               cachedLastLoadedAt={
-                focusedConnectionId
-                  ? sessionsCache[focusedConnectionId]?.lastLoadedAt ?? null
-                  : null
+                focusedConnectionId ? sessionsCache[focusedConnectionId]?.lastLoadedAt ?? null : null
               }
               onOpenSession={({ connectionId, sessionId, title }) => {
                 openTab({ connectionId, sessionId, title });
@@ -282,17 +313,26 @@ export function DesktopRoot(): React.JSX.Element {
             <SessionTabs
               tabs={tabs}
               activeTabId={activeTabId}
+              styleVariant={tabStripStyle}
               connectionNameById={connectionNameById}
               onSelectTab={focusTab}
               onCloseTab={closeTab}
             />
 
-            <View style={styles.mainContent}>
+            <View
+              style={[
+                styles.mainContent,
+                tabStripStyle === 'codeTabs' || tabStripStyle === 'underlineTabs'
+                  ? styles.mainContentCodeLike
+                  : styles.mainContentCardLike,
+              ]}
+            >
               {tabs.length === 0 ? (
                 <ChatPanePlaceholder
                   visible
                   title="No sessions open"
                   subtitle="Select a session from the left to open it in a tab."
+                  styleVariant={tabStripStyle}
                 />
               ) : (
                 tabs.map((tab) => (
@@ -301,6 +341,7 @@ export function DesktopRoot(): React.JSX.Element {
                     visible={tab.tabId === activeTabId}
                     title={tab.title}
                     subtitle={`${connectionNameById[tab.connectionId] ?? tab.connectionId} • ${tab.sessionId}`}
+                    styleVariant={tabStripStyle}
                   />
                 ))
               )}
@@ -329,6 +370,13 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
     mainContent: {
       flex: 1,
       padding: 12,
+    },
+    mainContentCardLike: {
+      backgroundColor: theme.backgroundAlt,
+    },
+    mainContentCodeLike: {
+      padding: 0,
+      backgroundColor: theme.surface,
     },
   });
 }

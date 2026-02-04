@@ -1,4 +1,5 @@
 #import "DesktopWindowManager.h"
+#import "DesktopMenuNotifications.h"
 
 #import <Cocoa/Cocoa.h>
 #import <React/RCTBridge.h>
@@ -23,7 +24,31 @@ RCT_EXPORT_MODULE();
 
 - (NSArray<NSString *> *)supportedEvents
 {
-  return @[ @"connectionEditorSaved", @"connectionEditorCancelled" ];
+  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"tabStripStyleChanged" ];
+}
+
+- (void)startObserving
+{
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(handleTabStripStyleDidChange:)
+                                               name:CLCTabStripStyleDidChangeNotification
+                                             object:nil];
+}
+
+- (void)stopObserving
+{
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:CLCTabStripStyleDidChangeNotification
+                                                object:nil];
+}
+
+- (void)handleTabStripStyleDidChange:(NSNotification *)notification
+{
+  NSString *style = notification.userInfo[CLCTabStripStyleUserInfoKey];
+  if (![style isKindOfClass:[NSString class]]) {
+    return;
+  }
+  [self sendEventWithName:@"tabStripStyleChanged" body:@{ @"style" : style }];
 }
 
 RCT_EXPORT_METHOD(openConnectionEditor : (NSDictionary *)params)

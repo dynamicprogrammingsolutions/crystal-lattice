@@ -23,6 +23,7 @@ describe('SessionTabs', () => {
       <SessionTabs
         tabs={[]}
         activeTabId={null}
+        styleVariant="toolbarTabs"
         connectionNameById={{}}
         onSelectTab={() => {}}
         onCloseTab={() => {}}

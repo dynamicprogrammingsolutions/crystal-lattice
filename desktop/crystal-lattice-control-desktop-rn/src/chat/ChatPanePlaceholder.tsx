@@ -3,19 +3,23 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '@crystal-lattice/frontend-rn-components';
 
+import type { TabStripStyle } from '../tabs/tabStripStyle';
+
 export interface ChatPanePlaceholderProps {
   visible: boolean;
   title: string;
   subtitle?: string;
+  styleVariant?: TabStripStyle;
 }
 
 export function ChatPanePlaceholder({
   visible,
   title,
   subtitle,
+  styleVariant = 'toolbarTabs',
 }: ChatPanePlaceholderProps): React.JSX.Element {
   const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const styles = useMemo(() => createStyles(theme, styleVariant), [theme, styleVariant]);
 
   return (
     <View style={[styles.root, visible ? styles.visible : styles.hidden]}>
@@ -42,21 +46,18 @@ export function ChatPanePlaceholder({
   );
 }
 
-function createStyles(theme: ReturnType<typeof useTheme>) {
+function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStripStyle) {
+  const codeLike = styleVariant === 'codeTabs' || styleVariant === 'underlineTabs';
+  const radius = styleVariant === 'roundedPills' ? 12 : 10;
+
   return StyleSheet.create({
     root: {
       flex: 1,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.border,
-      borderRadius: 12,
+      borderWidth: codeLike ? 0 : StyleSheet.hairlineWidth,
+      borderColor: codeLike ? 'transparent' : theme.border,
+      borderRadius: codeLike ? 0 : radius,
       backgroundColor: theme.surface,
-      overflow: 'hidden',
-    },
-    visible: {
-      display: 'flex',
-    },
-    hidden: {
-      display: 'none',
+      overflow: codeLike ? 'visible' : 'hidden',
     },
     header: {
       paddingHorizontal: 12,
@@ -64,6 +65,13 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.border,
       gap: 2,
+      backgroundColor: codeLike ? theme.surface : theme.surface,
+    },
+    visible: {
+      display: 'flex',
+    },
+    hidden: {
+      display: 'none',
     },
     title: {
       fontSize: 14,
