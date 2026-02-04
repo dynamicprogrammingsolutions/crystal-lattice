@@ -1,0 +1,334 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+
+import { useTheme } from '@crystal-lattice/frontend-rn-components';
+
+import type { ConnectionRecord } from '@crystal-lattice/frontend-sdk';
+
+import { DesktopShell } from './layout/DesktopShell';
+import { ConnectionsPanel } from './panels/ConnectionsPanel';
+import { SessionsPanelPlaceholder } from './panels/SessionsPanelPlaceholder';
+import { ChatPanePlaceholder } from './chat/ChatPanePlaceholder';
+import { SessionTabs, type DesktopSessionTab } from './tabs/SessionTabs';
+import { usePersistedConnections } from './connections/usePersistedConnections';
+import { useOpenConnections } from './connections/useOpenConnections';
+import { asyncStorageKeyValueStore } from './storage/asyncStorageKeyValueStore';
+import { desktopWindowEvents, DesktopWindowManager } from './windows/desktopWindowManager';
+import { useMessagesCache } from './cache/useMessagesCache';
+import { useSessionsCache } from './cache/useSessionsCache';
+
+const DEFAULT_CONNECTION_ROW_CLICK_BEHAVIOR = 'focusAndOpen' as const;
+
+function buildTabId(connectionId: string, sessionId: string): string {
+  return `${connectionId}:${sessionId}`;
+}
+
+function removeTabAndSelectNext(
+  tabs: DesktopSessionTab[],
+  removedTabId: string,
+  activeTabId: string | null,
+): { tabs: DesktopSessionTab[]; nextActiveTabId: string | null } {
+  const index = tabs.findIndex((tab) => tab.tabId === removedTabId);
+  if (index === -1) {
+    return { tabs, nextActiveTabId: activeTabId };
+  }
+
+  const nextTabs = tabs.filter((tab) => tab.tabId !== removedTabId);
+  if (activeTabId !== removedTabId) {
+    return { tabs: nextTabs, nextActiveTabId: activeTabId };
+  }
+
+  if (nextTabs.length === 0) {
+    return { tabs: nextTabs, nextActiveTabId: null };
+  }
+
+  const neighborIndex = Math.min(index, nextTabs.length - 1);
+  return { tabs: nextTabs, nextActiveTabId: nextTabs[neighborIndex].tabId };
+}
+
+export function DesktopRoot(): React.JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const {
+    hydrated: connectionsHydrated,
+    sortedConnectionRecords,
+    upsertConnection,
+    deleteConnection,
+    touchConnection,
+    clearConnections,
+  } = usePersistedConnections(asyncStorageKeyValueStore);
+
+  const {
+    openConnectionsById,
+    openConnection,
+    closeConnection,
+    closeAllConnections,
+  } = useOpenConnections();
+
+  // Cache hooks are introduced in task 060 so tabs can remain viewable offline.
+  // UI consumption is implemented in tasks 070/080.
+  const {
+    sessionsCache,
+    updateSessionsCache,
+    deleteConnectionSessionsCache,
+    clearSessionsCache,
+  } = useSessionsCache(asyncStorageKeyValueStore);
+
+  const { deleteConnectionMessagesCache, clearMessagesCache } = useMessagesCache(asyncStorageKeyValueStore);
+
+  const [focusedConnectionId, setFocusedConnectionId] = useState<string | null>(null);
+  const [tabs, setTabs] = useState<DesktopSessionTab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+
+  const [didAutoOpenMostRecent, setDidAutoOpenMostRecent] = useState(false);
+
+  useEffect(() => {
+    if (!connectionsHydrated) return;
+
+    if (
+      focusedConnectionId &&
+      sortedConnectionRecords.some((record) => record.id === focusedConnectionId)
+    ) {
+      return;
+    }
+
+    const nextFocusedId = sortedConnectionRecords[0]?.id ?? null;
+    setFocusedConnectionId(nextFocusedId);
+  }, [connectionsHydrated, focusedConnectionId, sortedConnectionRecords]);
+
+  const openConnectionAndTouch = useCallback(
+    async (record: ConnectionRecord) => {
+      touchConnection(record.id);
+      const backend = await openConnection(record);
+      if (!backend) {
+        return;
+      }
+
+      try {
+        const sessions = await backend.listSessions({ limit: 50 });
+        updateSessionsCache(record.id, sessions);
+      } catch {
+      }
+    },
+    [openConnection, touchConnection, updateSessionsCache],
+  );
+
+  useEffect(() => {
+    if (!connectionsHydrated) return;
+    if (didAutoOpenMostRecent) return;
+    const mostRecent = sortedConnectionRecords[0];
+    if (!mostRecent) {
+      return;
+    }
+
+    setDidAutoOpenMostRecent(true);
+    setFocusedConnectionId(mostRecent.id);
+    openConnectionAndTouch(mostRecent);
+  }, [connectionsHydrated, didAutoOpenMostRecent, openConnectionAndTouch, sortedConnectionRecords]);
+
+  useEffect(() => {
+    if (!desktopWindowEvents) return;
+
+    const savedSub = desktopWindowEvents.addListener(
+      'connectionEditorSaved',
+      (payload: any) => {
+        const record = payload?.record;
+        if (!record || typeof record !== 'object' || typeof record.id !== 'string') {
+          return;
+        }
+        upsertConnection(record);
+        setFocusedConnectionId(record.id);
+        openConnectionAndTouch(record);
+      },
+    );
+
+    return () => {
+      savedSub.remove();
+    };
+  }, [openConnectionAndTouch, upsertConnection]);
+
+  const openTab = useCallback(
+    ({ connectionId, sessionId, title }: { connectionId: string; sessionId: string; title?: string }) => {
+      const tabId = buildTabId(connectionId, sessionId);
+      setTabs((prev) => {
+        if (prev.some((tab) => tab.tabId === tabId)) {
+          return prev;
+        }
+        return [...prev, { tabId, connectionId, sessionId, title: title ?? sessionId }];
+      });
+      setActiveTabId(tabId);
+    },
+    [],
+  );
+
+  const closeTab = useCallback((tabId: string) => {
+    setTabs((prev) => {
+      const result = removeTabAndSelectNext(prev, tabId, activeTabId);
+      setActiveTabId(result.nextActiveTabId);
+      return result.tabs;
+    });
+  }, [activeTabId]);
+
+  const focusTab = useCallback((tabId: string) => {
+    setActiveTabId(tabId);
+  }, []);
+
+  const connectionNameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    sortedConnectionRecords.forEach((record) => {
+      map[record.id] = record.name;
+    });
+    return map;
+  }, [sortedConnectionRecords]);
+
+  const openNewConnectionEditor = useCallback(() => {
+    DesktopWindowManager?.openConnectionEditor({ mode: 'new' });
+  }, []);
+
+  const openEditConnectionEditor = useCallback((record: ConnectionRecord) => {
+    DesktopWindowManager?.openConnectionEditor({ mode: 'edit', initialRecord: record });
+  }, []);
+
+  const handleClearConnections = useCallback(() => {
+    clearConnections();
+    closeAllConnections();
+    clearSessionsCache();
+    clearMessagesCache();
+    setFocusedConnectionId(null);
+    setTabs([]);
+    setActiveTabId(null);
+  }, [clearConnections, clearMessagesCache, clearSessionsCache, closeAllConnections]);
+
+  const handleDeleteConnection = useCallback(
+    (id: string) => {
+      closeConnection(id);
+      deleteConnection(id);
+      deleteConnectionSessionsCache(id);
+      deleteConnectionMessagesCache(id);
+      setTabs((prev) => {
+        const remaining = prev.filter((tab) => tab.connectionId !== id);
+
+        setActiveTabId((currentActive) => {
+          if (!currentActive) {
+            return remaining[0]?.tabId ?? null;
+          }
+          if (!currentActive.startsWith(`${id}:`)) {
+            return currentActive;
+          }
+          return remaining[0]?.tabId ?? null;
+        });
+
+        return remaining;
+      });
+      setFocusedConnectionId((prev) => (prev === id ? null : prev));
+    },
+    [
+      closeConnection,
+      deleteConnection,
+      deleteConnectionMessagesCache,
+      deleteConnectionSessionsCache,
+    ],
+  );
+
+  return (
+    <View style={styles.root}>
+      <DesktopShell
+        left={(
+          <View style={styles.leftColumn}>
+            <ConnectionsPanel
+              connectionRecords={sortedConnectionRecords}
+              focusedConnectionId={focusedConnectionId}
+              openConnectionsById={openConnectionsById}
+              rowClickBehavior={DEFAULT_CONNECTION_ROW_CLICK_BEHAVIOR}
+              onFocusConnection={(id) => setFocusedConnectionId(id)}
+              onOpenConnection={(record) => {
+                setFocusedConnectionId(record.id);
+                openConnectionAndTouch(record);
+              }}
+              onCloseConnection={(id) => closeConnection(id)}
+              onDeleteConnection={handleDeleteConnection}
+              onClearConnections={handleClearConnections}
+              onOpenNewConnectionEditor={openNewConnectionEditor}
+              onOpenEditConnectionEditor={openEditConnectionEditor}
+            />
+
+            <SessionsPanelPlaceholder
+              focusedConnectionId={focusedConnectionId}
+              focusedConnectionName={focusedConnectionId ? connectionNameById[focusedConnectionId] : null}
+              isFocusedConnectionOpen={
+                focusedConnectionId
+                  ? openConnectionsById[focusedConnectionId]?.status === 'open'
+                  : false
+              }
+              cachedSessions={
+                focusedConnectionId
+                  ? sessionsCache[focusedConnectionId]?.sessions ?? []
+                  : []
+              }
+              cachedLastLoadedAt={
+                focusedConnectionId
+                  ? sessionsCache[focusedConnectionId]?.lastLoadedAt ?? null
+                  : null
+              }
+              onOpenSession={({ connectionId, sessionId, title }) => {
+                openTab({ connectionId, sessionId, title });
+              }}
+            />
+          </View>
+        )}
+        main={(
+          <View style={styles.mainColumn}>
+            <SessionTabs
+              tabs={tabs}
+              activeTabId={activeTabId}
+              connectionNameById={connectionNameById}
+              onSelectTab={focusTab}
+              onCloseTab={closeTab}
+            />
+
+            <View style={styles.mainContent}>
+              {tabs.length === 0 ? (
+                <ChatPanePlaceholder
+                  visible
+                  title="No sessions open"
+                  subtitle="Select a session from the left to open it in a tab."
+                />
+              ) : (
+                tabs.map((tab) => (
+                  <ChatPanePlaceholder
+                    key={tab.tabId}
+                    visible={tab.tabId === activeTabId}
+                    title={tab.title}
+                    subtitle={`${connectionNameById[tab.connectionId] ?? tab.connectionId} • ${tab.sessionId}`}
+                  />
+                ))
+              )}
+            </View>
+          </View>
+        )}
+      />
+    </View>
+  );
+}
+
+function createStyles(theme: ReturnType<typeof useTheme>) {
+  return StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    leftColumn: {
+      flex: 1,
+      gap: 12,
+      padding: 12,
+    },
+    mainColumn: {
+      flex: 1,
+    },
+    mainContent: {
+      flex: 1,
+      padding: 12,
+    },
+  });
+}
