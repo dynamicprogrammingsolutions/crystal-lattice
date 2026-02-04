@@ -172,9 +172,14 @@ class ProviderWrapper(ProviderPlugin):
         native_after_provider, new_state = self.plugin.initialize_request(
             list(native_messages), working_state
         )
+        # Sort extensions by priority (lower numbers run first, default: 100)
+        sorted_extensions = sorted(
+            self._iter_extensions(),
+            key=lambda ext: getattr(ext, 'priority', 100)
+        )
         pipe = pipeline()
         native_after_exts, new_state = pipe(
-            [ext.initialize_request for ext in self._iter_extensions()],
+            [ext.initialize_request for ext in sorted_extensions],
             native_after_provider,
             new_state,
         )

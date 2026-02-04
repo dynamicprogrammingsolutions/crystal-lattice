@@ -417,6 +417,10 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
     chunks on the hot path and participate in finalize on the cold path. They do not own
     separate state; they receive and update the shared provider state.
 
+    Attributes:
+        priority: Optional execution priority (default: 100). Lower numbers run first.
+                  Extensions are sorted by priority within the extension execution chain.
+
     Example:
         Basic prefix extension:
 
@@ -425,6 +429,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         class PrefixExt:
             name = "prefix"
             version = "1.0.0"
+            priority = 50  # Optional: run before extensions with default priority (100)
             def get_config_schema(self):
                 return {"prefix": {"type": "string", "default": "[EXT]"}}
             def init(self, config, state):
@@ -611,6 +616,10 @@ class FeaturePlugin(BasePlugin, Protocol):
     transform both provider-native messages and core messages during finalize and
     may update the shared provider state during init and initialize_request.
 
+    Attributes:
+        priority: Optional execution priority (default: 100). Lower numbers run first.
+                  Features are sorted by priority within the feature execution chain.
+
     Example:
         Minimal feature that annotates finals:
 
@@ -618,6 +627,7 @@ class FeaturePlugin(BasePlugin, Protocol):
         class TagFeature:
             name = "tag"
             version = "1.0.0"
+            priority = 100  # Optional: default priority
             def get_config_schema(self):
                 return {"enabled": {"type": "boolean", "default": True}}
             def init(self, config, state):
