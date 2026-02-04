@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Dimensions,
   Modal,
+  Platform,
   StyleSheet,
   TouchableWithoutFeedback,
   View,
@@ -11,6 +12,7 @@ import {
 } from 'react-native';
 
 import { useTheme } from '../theme';
+import { safeMeasureInWindow } from './safeMeasureInWindow';
 
 export interface MenuSurfaceBaseProps {
   visible: boolean;
@@ -28,6 +30,7 @@ export const ModalMenuSurface: React.FC<MenuSurfaceBaseProps> = ({
   contentStyle,
 }) => {
   const theme = useTheme();
+  const modalTransparent = Platform.OS !== 'macos';
 
   if (!visible) {
     return null;
@@ -36,8 +39,9 @@ export const ModalMenuSurface: React.FC<MenuSurfaceBaseProps> = ({
   return (
     <Modal
       visible
-      transparent
-      animationType="fade"
+      transparent={modalTransparent}
+      backdropColor={modalTransparent ? undefined : 'transparent'}
+      animationType={Platform.OS === 'macos' ? 'none' : 'fade'}
       onRequestClose={onRequestClose}
     >
       <TouchableWithoutFeedback onPress={onRequestClose}>
@@ -81,18 +85,16 @@ export const DropdownMenuSurface: React.FC<DropdownMenuSurfaceProps> = ({
   menuStyle,
 }) => {
   const theme = useTheme();
+  const modalTransparent = Platform.OS !== 'macos';
   const [anchorLayout, setAnchorLayout] = useState<LayoutRectangle | null>(null);
   const [menuLayout, setMenuLayout] = useState<LayoutRectangle | null>(null);
 
   const measureAnchor = useCallback(() => {
     const current = anchorRef.current;
-    if (!current || typeof current.measureInWindow !== 'function') {
+    const ok = safeMeasureInWindow(current, (layout) => setAnchorLayout(layout));
+    if (!ok) {
       setAnchorLayout(null);
-      return;
     }
-    current.measureInWindow((x: number, y: number, width: number, height: number) => {
-      setAnchorLayout({ x, y, width, height });
-    });
   }, [anchorRef]);
 
   useEffect(() => {
@@ -105,13 +107,18 @@ export const DropdownMenuSurface: React.FC<DropdownMenuSurfaceProps> = ({
   }, [visible, measureAnchor]);
 
   const position = useMemo(() => {
-    if (!anchorLayout) {
-      return null;
-    }
-
     const window = Dimensions.get('window');
     const offsetX = offset?.x ?? 0;
     const offsetY = offset?.y ?? 0;
+
+    if (!anchorLayout) {
+      if (!menuLayout) {
+        return null;
+      }
+      const left = Math.max(0, (window.width - menuLayout.width) / 2);
+      const top = Math.max(0, (window.height - menuLayout.height) / 2);
+      return { left, top };
+    }
 
     let left = anchorLayout.x + offsetX;
     let top = anchorLayout.y + anchorLayout.height + offsetY;
@@ -140,8 +147,9 @@ export const DropdownMenuSurface: React.FC<DropdownMenuSurfaceProps> = ({
   return (
     <Modal
       visible
-      transparent
-      animationType="fade"
+      transparent={modalTransparent}
+      backdropColor={modalTransparent ? undefined : 'transparent'}
+      animationType={Platform.OS === 'macos' ? 'none' : 'fade'}
       onRequestClose={onRequestClose}
     >
       <TouchableWithoutFeedback onPress={onRequestClose}>

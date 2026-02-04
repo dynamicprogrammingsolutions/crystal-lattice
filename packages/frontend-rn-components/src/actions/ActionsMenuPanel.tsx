@@ -7,10 +7,13 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/Feather';
 
 import { useTheme } from '../theme';
-import { ActionsMenuContent, type ActionsMenuContentProps } from './ActionsMenuContent';
+import {
+  ActionsMenuContent,
+  type ActionsMenuContentProps,
+  type MenuIconRenderer,
+} from './ActionsMenuContent';
 import type { ActionDefinition, ActionKey } from './types';
 
 export interface ActionsMenuPanelProps<TDef extends ActionDefinition = ActionDefinition>
@@ -22,12 +25,15 @@ export interface ActionsMenuPanelProps<TDef extends ActionDefinition = ActionDef
     | 'onTogglePinned'
     | 'isActionDisabled'
     | 'getIconName'
+    | 'renderIcon'
+    | 'renderPinIcon'
     | 'iconSize'
     | 'pinIconSize'
     | 'renderItem'
   > {
   title: string;
   onRequestClose?: () => void;
+  renderCloseIcon?: (params: { size: number; color: string; renderIcon?: MenuIconRenderer }) => React.ReactNode;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -43,7 +49,15 @@ export function ActionsMenuPanel<TDef extends ActionDefinition>(
         <Text style={[styles.headerText, { color: theme.text }]}>{props.title}</Text>
         {props.onRequestClose ? (
           <TouchableOpacity style={styles.closeButton} onPress={props.onRequestClose}>
-            <Icon name="x" size={16} color={theme.textSecondary} />
+            {props.renderCloseIcon ? (
+              props.renderCloseIcon({
+                size: 16,
+                color: theme.textSecondary,
+                renderIcon: props.renderIcon,
+              })
+            ) : (
+              <Text style={[styles.closeText, { color: theme.textSecondary }]}>×</Text>
+            )}
           </TouchableOpacity>
         ) : null}
       </View>
@@ -54,6 +68,8 @@ export function ActionsMenuPanel<TDef extends ActionDefinition>(
         onTogglePinned={props.onTogglePinned}
         isActionDisabled={props.isActionDisabled}
         getIconName={props.getIconName}
+        renderIcon={props.renderIcon}
+        renderPinIcon={props.renderPinIcon}
         iconSize={props.iconSize}
         pinIconSize={props.pinIconSize}
         renderItem={props.renderItem}
@@ -79,5 +95,10 @@ const styles = StyleSheet.create({
   closeButton: {
     paddingHorizontal: 4,
     paddingVertical: 4,
+  },
+  closeText: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginTop: -2,
   },
 });

@@ -78,10 +78,13 @@ yarn ios
 macOS builds require Xcode and CocoaPods.
 
 ```sh
-bundle install
-bundle exec pod install --project-directory=macos
+cd macos
+pod install
+cd ..
 npm run macos
 ```
+
+If you prefer using Bundler to pin CocoaPods versions, use `bundle exec pod install --project-directory=macos` instead.
 
 #### Troubleshooting: `bundle install` fails building `json`
 

@@ -7,10 +7,17 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/Feather';
 
 import { useTheme } from '../theme';
 import type { ActionDefinition, ActionKey } from './types';
+
+export interface MenuIconRenderParams {
+  name: string;
+  size: number;
+  color: string;
+}
+
+export type MenuIconRenderer = (params: MenuIconRenderParams) => React.ReactNode;
 
 export interface ActionsMenuRenderItemParams<TDef extends ActionDefinition = ActionDefinition> {
   action: TDef;
@@ -27,6 +34,8 @@ export interface ActionsMenuContentProps<TDef extends ActionDefinition = ActionD
   onTogglePinned: (key: ActionKey) => void;
   isActionDisabled?: (key: ActionKey) => boolean;
   getIconName?: (action: TDef) => string | null;
+  renderIcon?: MenuIconRenderer;
+  renderPinIcon?: (params: { pinned: boolean; size: number; color: string }) => React.ReactNode;
   iconSize?: number;
   pinIconSize?: number;
   renderItem?: (params: ActionsMenuRenderItemParams<TDef>) => React.ReactNode;
@@ -78,6 +87,8 @@ export function ActionsMenuContent<TDef extends ActionDefinition>(
         }
 
         const iconName = getIconName(action);
+        const iconColor = disabled ? theme.textSecondary : theme.primary;
+        const pinColor = pinned ? '#FFCC00' : '#C7C7CC';
 
         return (
           <View key={action.key} style={styles.menuItem}>
@@ -86,13 +97,9 @@ export function ActionsMenuContent<TDef extends ActionDefinition>(
               onPress={onPressAction}
               disabled={disabled}
             >
-              {iconName ? (
+              {iconName && props.renderIcon ? (
                 <View style={styles.iconButton}>
-                  <Icon
-                    name={iconName}
-                    size={iconSize}
-                    color={disabled ? theme.textSecondary : theme.primary}
-                  />
+                  {props.renderIcon({ name: iconName, size: iconSize, color: iconColor })}
                 </View>
               ) : null}
               <Text
@@ -105,11 +112,13 @@ export function ActionsMenuContent<TDef extends ActionDefinition>(
               </Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.pinButton} onPress={onTogglePinned}>
-              <Icon
-                name="star"
-                size={pinIconSize}
-                color={pinned ? '#FFCC00' : '#C7C7CC'}
-              />
+              {props.renderPinIcon ? (
+                props.renderPinIcon({ pinned, size: pinIconSize, color: pinColor })
+              ) : (
+                <Text style={[styles.pinText, { fontSize: pinIconSize, color: pinColor }]}>
+                  {pinned ? '★' : '☆'}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         );
@@ -146,5 +155,8 @@ const styles = StyleSheet.create({
   pinButton: {
     paddingHorizontal: 8,
     paddingVertical: 4,
+  },
+  pinText: {
+    fontWeight: '800',
   },
 });

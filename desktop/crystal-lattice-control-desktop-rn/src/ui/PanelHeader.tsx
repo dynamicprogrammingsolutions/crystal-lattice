@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActionSheetIOS, Pressable, StyleSheet, Text, View, findNodeHandle, Platform } from 'react-native';
 
 import { DropdownMenuSurface, useTheme } from '@crystal-lattice/frontend-rn-components';
 
@@ -25,6 +25,39 @@ export function PanelHeader({
   const [menuVisible, setMenuVisible] = useState(false);
   const showMenu = !!menuLabel;
 
+  const openNativeMenu = () => {
+    const items = menuItems && menuItems.length > 0 ? menuItems : [{ label: 'Menu placeholder' }];
+    const options = items.map((item) => item.label).concat(['Cancel']);
+    const cancelButtonIndex = options.length - 1;
+    const destructiveButtonIndices = items
+      .map((item, index) => (item.variant === 'danger' ? index : -1))
+      .filter((index) => index >= 0);
+    let anchor: number | null = null;
+    if (anchorRef.current) {
+      try {
+        anchor = findNodeHandle(anchorRef.current) as any;
+      } catch {
+        anchor = null;
+      }
+    }
+
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        options,
+        cancelButtonIndex,
+        destructiveButtonIndex:
+          destructiveButtonIndices.length > 0 ? destructiveButtonIndices : undefined,
+        anchor: anchor ?? undefined,
+      },
+      (buttonIndex) => {
+        if (buttonIndex === cancelButtonIndex) {
+          return;
+        }
+        items[buttonIndex]?.onPress?.();
+      },
+    );
+  };
+
   return (
     <View style={styles.root}>
       <View style={styles.textColumn}>
@@ -39,60 +72,67 @@ export function PanelHeader({
       </View>
 
       {showMenu ? (
-        <Pressable
-          ref={anchorRef}
-          style={(state) => {
-            const hovered = (state as any).hovered as boolean | undefined;
-            return [
-              styles.menuButton,
-              (hovered || state.pressed) && styles.menuButtonHovered,
-            ];
-          }}
-          onPress={() => {
-            if (onPressMenu) {
-              onPressMenu();
-              return;
-            }
-            setMenuVisible(true);
-          }}
-        >
-          <Text style={styles.menuButtonText}>{menuLabel}</Text>
-        </Pressable>
+        <View ref={anchorRef} collapsable={false}>
+          <Pressable
+            style={(state) => {
+              const hovered = (state as any).hovered as boolean | undefined;
+              return [
+                styles.menuButton,
+                (hovered || state.pressed) && styles.menuButtonHovered,
+              ];
+            }}
+            onPress={() => {
+              if (onPressMenu) {
+                onPressMenu();
+                return;
+              }
+              if (Platform.OS === 'macos') {
+                openNativeMenu();
+                return;
+              }
+              setMenuVisible(true);
+            }}
+          >
+            <Text style={styles.menuButtonText}>{menuLabel}</Text>
+          </Pressable>
+        </View>
       ) : null}
 
-      <DropdownMenuSurface
-        visible={menuVisible}
-        onRequestClose={() => setMenuVisible(false)}
-        anchorRef={anchorRef}
-        offset={{ y: 6 }}
-      >
-        <View style={styles.menuContent}>
-          {(menuItems && menuItems.length > 0 ? menuItems : [{ label: 'Menu placeholder' }]).map(
-            (item) => (
-              <Pressable
-                key={item.label}
-                style={(state) => {
-                  const hovered = (state as any).hovered as boolean | undefined;
-                  return [styles.menuItem, (hovered || state.pressed) && styles.menuItemHovered];
-                }}
-                onPress={() => {
-                  setMenuVisible(false);
-                  item.onPress?.();
-                }}
-              >
-                <Text
-                  style={[
-                    styles.menuItemText,
-                    item.variant === 'danger' && { color: theme.danger },
-                  ]}
+      {Platform.OS !== 'macos' ? (
+        <DropdownMenuSurface
+          visible={menuVisible}
+          onRequestClose={() => setMenuVisible(false)}
+          anchorRef={anchorRef}
+          offset={{ y: 6 }}
+        >
+          <View style={styles.menuContent}>
+            {(menuItems && menuItems.length > 0 ? menuItems : [{ label: 'Menu placeholder' }]).map(
+              (item) => (
+                <Pressable
+                  key={item.label}
+                  style={(state) => {
+                    const hovered = (state as any).hovered as boolean | undefined;
+                    return [styles.menuItem, (hovered || state.pressed) && styles.menuItemHovered];
+                  }}
+                  onPress={() => {
+                    setMenuVisible(false);
+                    item.onPress?.();
+                  }}
                 >
-                  {item.label}
-                </Text>
-              </Pressable>
-            ),
-          )}
-        </View>
-      </DropdownMenuSurface>
+                  <Text
+                    style={[
+                      styles.menuItemText,
+                      item.variant === 'danger' && { color: theme.danger },
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </Pressable>
+              ),
+            )}
+          </View>
+        </DropdownMenuSurface>
+      ) : null}
     </View>
   );
 }
