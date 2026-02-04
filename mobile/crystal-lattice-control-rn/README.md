@@ -41,7 +41,7 @@ This is a React Native implementation of the Bonjour service discovery example. 
 
 1. **Navigate to the React Native app directory:**
    ```bash
-   cd react-native-app
+   cd mobile/crystal-lattice-control-rn
    ```
 
 2. **Install dependencies:**
@@ -55,6 +55,13 @@ This is a React Native implementation of the Bonjour service discovery example. 
    ```
 
 ## Running the App
+
+Start Metro from the app root (not `ios/`):
+
+```bash
+cd mobile/crystal-lattice-control-rn
+npm run start
+```
 
 ### iOS
 
