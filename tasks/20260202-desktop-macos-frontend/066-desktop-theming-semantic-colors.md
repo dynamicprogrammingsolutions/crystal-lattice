@@ -52,10 +52,12 @@ Payload should include (as sRGB strings like `#RRGGBB` or `rgba(...)`):
 - `danger`: `NSColor.systemRedColor`
 - `success`: `NSColor.systemGreenColor`
 
-Listen for system changes and emit `systemThemeChanged`:
+Listen for system changes and emit `systemThemeChanged`.
 
-- `NSApplicationDidChangeEffectiveAppearanceNotification`
-- `NSColorSystemColorsDidChangeNotification`
+In practice, these were the only notifications that reliably fired under RN macOS in this app:
+
+- `AppleInterfaceThemeChangedNotification` (via `NSDistributedNotificationCenter`) for light/dark.
+- `NSSystemColorsDidChangeNotification` for accent + other system color updates.
 
 ### 3) Desktop: build a `Theme` from semantic colors
 
@@ -99,3 +101,14 @@ Update desktop entry points to use the new theme:
 ## References
 
 - Desktop theming notes: `desktop/crystal-lattice-control-desktop-rn/src/theme/README.md`
+
+## Implementation notes (done)
+
+- Shared theme interface stays in `packages/frontend-rn-components/src/theme.ts` (no concrete palettes exported).
+- Mobile owns its own palettes + `useSystemTheme()` in `mobile/crystal-lattice-control-rn/src/theme.ts`.
+- Desktop theme comes from macOS semantic colors via `DesktopWindowManager.getSystemTheme()` and `systemThemeChanged`.
+- Final/native event sources:
+  - Light/dark: `AppleInterfaceThemeChangedNotification` (distributed)
+  - Accent/system colors: `NSSystemColorsDidChangeNotification`
+- Semantic colors are resolved as sRGB strings under an explicit `NSAppearance` created from `AppleInterfaceStyle` using `performAsCurrentDrawingAppearance:`.
+- Removed experimental/unused appearance observers (app/window effective appearance) once it was clear they didn’t fire in this setup.

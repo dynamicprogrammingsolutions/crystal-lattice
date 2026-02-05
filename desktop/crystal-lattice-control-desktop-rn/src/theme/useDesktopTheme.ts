@@ -38,8 +38,6 @@ export function useDesktopTheme(): Theme {
 
   const [payload, setPayload] = useState<MacOSSystemThemePayload | null>(null);
 
-  const debugEnabled = typeof __DEV__ !== 'undefined' ? __DEV__ : false;
-
   useEffect(() => {
     let cancelled = false;
 
@@ -51,14 +49,6 @@ export function useDesktopTheme(): Theme {
         const result = {...(await DesktopWindowManager.getSystemTheme())};
         const coerced = coercePayload(result);
         if (!cancelled) {
-          if (coerced) {
-            if (debugEnabled) {
-              console.log('[desktop-theme] received payload', {
-                source: 'getSystemTheme',
-                payload: coerced,
-              });
-            }
-          }
           setPayload(coerced ? { ...coerced } : null);
         }
       } catch {
@@ -79,13 +69,6 @@ export function useDesktopTheme(): Theme {
       const coerced = coercePayload(eventPayload);
       if (!coerced) {
         return;
-      }
-
-      if (debugEnabled) {
-        console.log('[desktop-theme] received payload', {
-          source: 'systemThemeChanged',
-          payload: coerced,
-        });
       }
       setPayload({ ...coerced });
     });
