@@ -9,10 +9,20 @@ export interface OpenConnectionEditorParams {
   initialRecord?: ConnectionRecord;
 }
 
+export interface OpenAgentPickerParams {
+  connectionId: string;
+  connectionName?: string;
+  agents: string[];
+}
+
 export interface DesktopWindowManagerModule {
   openConnectionEditor(params: OpenConnectionEditorParams): void;
   submitConnectionEditor(payload: { record: ConnectionRecord }): void;
   cancelConnectionEditor(): void;
+
+  openAgentPicker(params: OpenAgentPickerParams): void;
+  submitAgentPicker(payload: { connectionId: string; agentId: string }): void;
+  cancelAgentPicker(): void;
 
   getSystemTheme?(): Promise<MacOSSystemThemePayload>;
 }

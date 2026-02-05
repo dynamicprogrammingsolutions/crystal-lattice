@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/Feather';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Clipboard from '@react-native-clipboard/clipboard';
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
@@ -24,6 +25,12 @@ import {
   runApplicationAction,
   selectLastAssistantMessage,
 } from '@crystal-lattice/frontend-sdk';
+import {
+  ApplicationActionDialog,
+  SessionActionsBar,
+  SESSION_ACTIONS,
+  type SessionActionKey,
+} from '@crystal-lattice/frontend-rn-components';
 import { useChatController, useAgentsController } from '@crystal-lattice/frontend-sdk-react';
 import {
   useHydrateControllerFromCache,
@@ -38,11 +45,8 @@ import {
 } from './api';
 import MessageBubble from './components/MessageBubble';
 import DebugEventsView from './components/DebugEventsView';
-import SessionActionsBar from './components/SessionActionsBar';
 import SessionSettingsModal from './components/SessionSettingsModal';
-import ApplicationActionDialog from './components/ApplicationActionDialog';
 import AgentSwitchModal from './components/AgentSwitchModal';
-import { SESSION_ACTIONS, type SessionActionKey } from './sessionActions';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 import { selectDisplayContent } from './messageUtils';
 import {
@@ -119,10 +123,17 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const defaultPinnedSessionActions: SessionActionKey[] = Object.values(SESSION_ACTIONS)
     .filter((def) => def.defaultPinned)
     .map((def) => def.key);
+
+  const scopedSessionActionsStorageKey = useMemo(
+    () => `${STORAGE_KEY_SESSION_ACTIONS}:${connectionId ?? 'default'}`,
+    [connectionId],
+  );
+
   const { pinned: pinnedSessionActions, setPinned: setPinnedSessionActions } =
     usePersistentPinnedActions<SessionActionKey>(
-      STORAGE_KEY_SESSION_ACTIONS,
+      scopedSessionActionsStorageKey,
       defaultPinnedSessionActions,
+      { migrateFromKeys: [STORAGE_KEY_SESSION_ACTIONS] },
     );
   const { controller: agentsController, state: agentsState } = useAgentsController({
     backend,
@@ -929,6 +940,15 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	          </Text>
           <View style={styles.headerButtons}>
             <SessionActionsBar
+              renderIcon={({ name, size, color }) => (
+                <Icon name={name} size={size} color={color} />
+              )}
+              renderPinIcon={({ size, color }) => (
+                <Icon name="star" size={size} color={color} />
+              )}
+              renderCloseIcon={({ size, color, renderIcon }) =>
+                renderIcon ? renderIcon({ name: 'x', size, color }) : null
+              }
               pinned={pinnedSessionActions}
               onChangePinned={setPinnedSessionActions}
               onAction={handleSessionAction}

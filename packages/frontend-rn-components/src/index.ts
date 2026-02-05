@@ -3,6 +3,21 @@ export type { ActionKey, ActionDefinition, ActionsMenuModel } from './actions/ty
 export type { Theme } from './theme';
 export { ThemeProvider, useTheme } from './theme';
 
+export type {
+  SessionActionKey,
+  SessionActionDefinition,
+} from './sessionActions';
+export {
+  SESSION_ACTIONS,
+  ALL_SESSION_ACTIONS,
+} from './sessionActions';
+
+export type {
+  ApplicationActionDialogPrefillContext,
+  ApplicationActionDialogProps,
+} from './ApplicationActionDialog';
+export { ApplicationActionDialog } from './ApplicationActionDialog';
+
 export {
   buildActionsMenuModel,
   normalizeActionDefinitions,
@@ -29,3 +44,6 @@ export { ActionsMenuPanel } from './actions/ActionsMenuPanel';
 
 export type { ActionsMenuBarProps } from './actions/ActionsMenuBar';
 export { ActionsMenuBar } from './actions/ActionsMenuBar';
+
+export type { SessionActionsBarProps } from './actions/SessionActionsBar';
+export { SessionActionsBar } from './actions/SessionActionsBar';

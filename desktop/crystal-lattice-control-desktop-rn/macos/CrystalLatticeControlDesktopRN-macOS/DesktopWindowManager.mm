@@ -9,6 +9,7 @@
 @interface DesktopWindowManager ()
 
 @property(nonatomic, strong) NSWindow *connectionEditorWindow;
+@property(nonatomic, strong) NSWindow *agentPickerWindow;
 
 @end
 
@@ -23,7 +24,7 @@ RCT_EXPORT_MODULE();
 
 - (NSArray<NSString *> *)supportedEvents
 {
-  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"tabStripStyleChanged", @"systemThemeChanged" ];
+  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"tabStripStyleChanged", @"systemThemeChanged" ];
 }
 
 - (void)startObserving
@@ -260,6 +261,62 @@ RCT_EXPORT_METHOD(openConnectionEditor : (NSDictionary *)params)
   });
 }
 
+RCT_EXPORT_METHOD(openAgentPicker : (NSDictionary *)params)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (self.agentPickerWindow != nil) {
+      [self.agentPickerWindow makeKeyAndOrderFront:nil];
+      return;
+    }
+
+    NSDictionary *initialProps = params ?: @{};
+    NSView *rootView = nil;
+    id appDelegate = NSApp.delegate;
+    id rootViewFactory = nil;
+    @try {
+      rootViewFactory = [appDelegate valueForKey:@"rootViewFactory"];
+    } @catch (__unused NSException *exception) {
+      rootViewFactory = nil;
+    }
+    if (rootViewFactory != nil) {
+      SEL selector = NSSelectorFromString(@"viewWithModuleName:initialProperties:");
+      if ([rootViewFactory respondsToSelector:selector]) {
+        using MsgSendType = NSView *(*)(id, SEL, NSString *, NSDictionary *);
+        rootView = ((MsgSendType)objc_msgSend)(
+            rootViewFactory,
+            selector,
+            @"AgentPickerWindow",
+            initialProps);
+      }
+    }
+
+    if (rootView == nil) {
+      rootView =
+          [[RCTRootView alloc] initWithBridge:self.bridge moduleName:@"AgentPickerWindow" initialProperties:initialProps];
+    }
+
+    NSRect frame = NSMakeRect(0, 0, 460, 380);
+    NSWindow *window = [[NSWindow alloc] initWithContentRect:frame
+                                                   styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
+                                                     backing:NSBackingStoreBuffered
+                                                       defer:NO];
+    window.title = @"New Session";
+    rootView.frame = frame;
+    rootView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    window.contentView = rootView;
+    window.releasedWhenClosed = NO;
+
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(agentPickerWindowWillClose:)
+                                                 name:NSWindowWillCloseNotification
+                                               object:window];
+
+    self.agentPickerWindow = window;
+    [window center];
+    [window makeKeyAndOrderFront:nil];
+  });
+}
+
 RCT_EXPORT_METHOD(submitConnectionEditor : (NSDictionary *)payload)
 {
   dispatch_async(dispatch_get_main_queue(), ^{
@@ -273,6 +330,22 @@ RCT_EXPORT_METHOD(cancelConnectionEditor)
   dispatch_async(dispatch_get_main_queue(), ^{
     [self sendEventWithName:@"connectionEditorCancelled" body:@{}];
     [self closeConnectionEditorWindow];
+  });
+}
+
+RCT_EXPORT_METHOD(submitAgentPicker : (NSDictionary *)payload)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [self sendEventWithName:@"agentPickerSelected" body:payload ?: @{}];
+    [self closeAgentPickerWindow];
+  });
+}
+
+RCT_EXPORT_METHOD(cancelAgentPicker)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [self sendEventWithName:@"agentPickerCancelled" body:@{}];
+    [self closeAgentPickerWindow];
   });
 }
 
@@ -296,6 +369,29 @@ RCT_EXPORT_METHOD(cancelConnectionEditor)
                                                     name:NSWindowWillCloseNotification
                                                   object:self.connectionEditorWindow];
     self.connectionEditorWindow = nil;
+  }
+}
+
+- (void)closeAgentPickerWindow
+{
+  if (self.agentPickerWindow == nil) {
+    return;
+  }
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:NSWindowWillCloseNotification
+                                                object:self.agentPickerWindow];
+  [self.agentPickerWindow close];
+  self.agentPickerWindow = nil;
+}
+
+- (void)agentPickerWindowWillClose:(NSNotification *)notification
+{
+  if (notification.object == self.agentPickerWindow) {
+    [self sendEventWithName:@"agentPickerCancelled" body:@{}];
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                    name:NSWindowWillCloseNotification
+                                                  object:self.agentPickerWindow];
+    self.agentPickerWindow = nil;
   }
 }
 
