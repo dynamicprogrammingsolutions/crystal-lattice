@@ -4,7 +4,6 @@
 #import <Cocoa/Cocoa.h>
 #import <React/RCTBridge.h>
 #import <React/RCTRootView.h>
-#import <React/RCTUtils.h>
 #import <objc/message.h>
 
 @interface DesktopWindowManager ()
@@ -73,12 +72,12 @@ RCT_EXPORT_MODULE();
 
 - (void)handleSystemColorsDidChange:(NSNotification *)notification
 {
-  [self handleSystemThemeNotification:notification source:@"NSSystemColorsDidChangeNotification"];
+  [self emitSystemThemeChanged];
 }
 
 - (void)handleAppleInterfaceThemeDidChangeDistributed:(NSNotification *)notification
 {
-  [self handleSystemThemeNotification:notification source:@"AppleInterfaceThemeChangedNotification(distributed)"];
+  [self emitSystemThemeChanged];
 }
 
 static id CLCPreferredAppearanceObject(NSString *appearance)
@@ -112,22 +111,6 @@ static void CLCPerformAsCurrentDrawingAppearance(id appearance, CLCNoArgBlock bl
   }
 
   block();
-}
-
-static NSString *CLCAppearanceDebugName(id appearance)
-{
-  if (appearance == nil) {
-    return @"<nil>";
-  }
-  SEL nameSelector = NSSelectorFromString(@"name");
-  if ([appearance respondsToSelector:nameSelector]) {
-    using MsgSendType = NSString *(*)(id, SEL);
-    NSString *name = ((MsgSendType)objc_msgSend)(appearance, nameSelector);
-    if ([name isKindOfClass:[NSString class]] && name.length > 0) {
-      return name;
-    }
-  }
-  return [appearance description];
 }
 
 static NSString *CLCColorToString(NSColor *color, id appearance)
@@ -202,89 +185,10 @@ static NSColor *CLCSystemColor(NSString *selectorName, NSColor *fallback)
     @"success" : CLCColorToString(CLCSystemColor(@"systemGreenColor", [NSColor greenColor]), preferredAppearance),
   };
 }
-
-static void CLCDebugLogThemeEvent(NSNotification *notification,
-                                 NSString *source,
-                                 NSString *appearance,
-                                 id preferredAppearance,
-                                 NSDictionary *payload)
-{
-#if DEBUG
-  NSString *userInfoDescription = notification.userInfo != nil ? [notification.userInfo description] : @"<nil>";
-  NSString *objectDescription = notification.object != nil ? [notification.object description] : @"<nil>";
-  NSString *interfaceStyle = [[NSUserDefaults standardUserDefaults] stringForKey:@"AppleInterfaceStyle"];
-  id appAppearance = nil;
-  id appEffectiveAppearance = nil;
-  SEL appearanceSelector = NSSelectorFromString(@"appearance");
-  SEL effectiveAppearanceSelector = NSSelectorFromString(@"effectiveAppearance");
-  if ([NSApp respondsToSelector:appearanceSelector]) {
-    using MsgSendType = id (*)(id, SEL);
-    appAppearance = ((MsgSendType)objc_msgSend)(NSApp, appearanceSelector);
-  }
-  if ([NSApp respondsToSelector:effectiveAppearanceSelector]) {
-    using MsgSendType = id (*)(id, SEL);
-    appEffectiveAppearance = ((MsgSendType)objc_msgSend)(NSApp, effectiveAppearanceSelector);
-  }
-
-  NSWindow *keyWindow = NSApp.keyWindow;
-  id keyWindowAppearance = nil;
-  id keyWindowEffective = nil;
-  if (keyWindow != nil && [keyWindow respondsToSelector:appearanceSelector]) {
-    using MsgSendType = id (*)(id, SEL);
-    keyWindowAppearance = ((MsgSendType)objc_msgSend)(keyWindow, appearanceSelector);
-  }
-  if (keyWindow != nil && [keyWindow respondsToSelector:effectiveAppearanceSelector]) {
-    using MsgSendType = id (*)(id, SEL);
-    keyWindowEffective = ((MsgSendType)objc_msgSend)(keyWindow, effectiveAppearanceSelector);
-  }
-
-  id viewAppearance = nil;
-  id viewEffective = nil;
-  if ([notification.object isKindOfClass:[NSView class]]) {
-    NSView *view = (NSView *)notification.object;
-    if ([view respondsToSelector:appearanceSelector]) {
-      using MsgSendType = id (*)(id, SEL);
-      viewAppearance = ((MsgSendType)objc_msgSend)(view, appearanceSelector);
-    }
-    if ([view respondsToSelector:effectiveAppearanceSelector]) {
-      using MsgSendType = id (*)(id, SEL);
-      viewEffective = ((MsgSendType)objc_msgSend)(view, effectiveAppearanceSelector);
-    }
-  }
-
-  NSLog(
-      @"[desktop-theme/native] source=%@ event=%@ appearance=%@ AppleInterfaceStyle=%@ windows=%ld preferredAppearance=%@ app.appearance=%@ app.effective=%@ key.appearance=%@ key.effective=%@ view.appearance=%@ view.effective=%@ notification.userInfo=%@ notification.object=%@ payload=%@",
-      source,
-        notification.name,
-        appearance,
-        interfaceStyle ?: @"<nil>",
-        (long)NSApp.windows.count,
-        CLCAppearanceDebugName(preferredAppearance),
-        CLCAppearanceDebugName(appAppearance),
-        CLCAppearanceDebugName(appEffectiveAppearance),
-        CLCAppearanceDebugName(keyWindowAppearance),
-        CLCAppearanceDebugName(keyWindowEffective),
-      CLCAppearanceDebugName(viewAppearance),
-      CLCAppearanceDebugName(viewEffective),
-      userInfoDescription,
-      objectDescription,
-        payload);
-#else
-  (void)notification;
-  (void)source;
-  (void)appearance;
-  (void)preferredAppearance;
-  (void)payload;
-#endif
-}
-
-- (void)handleSystemThemeNotification:(NSNotification *)notification source:(NSString *)source
+- (void)emitSystemThemeChanged
 {
   dispatch_async(dispatch_get_main_queue(), ^{
-    NSString *appearance = CLCSystemAppearance();
     NSDictionary *payload = [self currentSystemThemePayload];
-    id preferredAppearance = CLCPreferredAppearanceObject(appearance);
-    CLCDebugLogThemeEvent(notification, source, appearance, preferredAppearance, payload);
     [self sendEventWithName:@"systemThemeChanged" body:payload];
   });
 }
