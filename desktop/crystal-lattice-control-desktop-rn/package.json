@@ -8,8 +8,9 @@
     "macos": "react-native run-macos",
     "lint": "eslint .",
     "start": "react-native start",
+    "start-no-cache": "react-native start --reset-cache",
     "test": "jest",
-    "pod-install": "cd ios && pod install && cd .."
+    "pod-install": "cd macos && pod install && cd .."
   },
   "dependencies": {
     "@crystal-lattice/frontend-rn-components": "file:../../packages/frontend-rn-components",

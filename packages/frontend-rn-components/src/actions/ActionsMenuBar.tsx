@@ -1,12 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActionSheetIOS,
   Platform,
   Text,
   StyleSheet,
   TouchableOpacity,
   View,
   findNodeHandle,
+  NativeModules,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
@@ -22,6 +22,11 @@ import {
 } from './MenuSurfaces';
 import type { ActionDefinition, ActionKey } from './types';
 import { useActionsMenuModel } from './useActionsMenuModel';
+import {
+  clearActiveActionsPopoverMenu,
+  setActiveActionsPopoverMenu,
+  updateActiveActionsPopoverMenuData,
+} from './actionsPopoverCoordinator';
 
 export interface ActionsMenuBarProps<TDef extends ActionDefinition = ActionDefinition> {
   title: string;
@@ -55,7 +60,19 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
   const variant = props.variant ?? 'modal';
   const [menuVisible, setMenuVisible] = useState(false);
   const menuAnchorRef = useRef<any>(null);
-  const isMacOSNativeMenu = Platform.OS === 'macos' && variant === 'dropdown';
+  const menuIdRef = useRef<string>(`actions-menu-${Math.random().toString(36).slice(2)}`);
+
+  const desktopWindowManager = (NativeModules as any)?.DesktopWindowManager as
+    | {
+        toggleActionsPopover?: (params: { anchorTag: number; width?: number; height?: number }) => void;
+        closeActionsPopover?: () => void;
+      }
+    | undefined;
+
+  const isMacOSPopoverMenu =
+    Platform.OS === 'macos' &&
+    variant === 'dropdown' &&
+    typeof desktopWindowManager?.toggleActionsPopover === 'function';
 
   useEffect(() => {
     if (props.isActive === false) {
@@ -113,84 +130,25 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
     props.onAction(key);
   };
 
-  const openMacOSActionSheet = useCallback(() => {
-    const actions = model.orderedActions;
-    if (actions.length === 0) {
+  useEffect(() => {
+    if (!isMacOSPopoverMenu) {
       return;
     }
 
-    const pinnedSet = new Set(props.pinned);
-    const actionLabels = actions.map((action) =>
-      `${pinnedSet.has(action.key) ? '★ ' : ''}${action.label}`,
-    );
-
-    const options = [...actionLabels, 'Edit pinned actions…', 'Cancel'];
-    const cancelButtonIndex = options.length - 1;
-    const editPinnedIndex = options.length - 2;
-
-    let anchor: number | undefined;
-    if (menuAnchorRef.current) {
-      try {
-        anchor = findNodeHandle(menuAnchorRef.current) as any;
-      } catch {
-        anchor = undefined;
-      }
-    }
-
-    const openPinnedEditor = () => {
-      const pinnedOptions = actions
-        .map((action) => `${pinnedSet.has(action.key) ? 'Unpin' : 'Pin'} ${action.label}`)
-        .concat(['Done']);
-      const doneIndex = pinnedOptions.length - 1;
-
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: pinnedOptions,
-          cancelButtonIndex: doneIndex,
-          anchor,
-        },
-        (buttonIndex) => {
-          if (buttonIndex === doneIndex) {
-            return;
-          }
-          const picked = actions[buttonIndex];
-          if (!picked) {
-            return;
-          }
-          togglePinned(picked.key);
-        },
-      );
-    };
-
-    ActionSheetIOS.showActionSheetWithOptions(
-      {
-        options,
-        cancelButtonIndex,
-        anchor,
-      },
-      (buttonIndex) => {
-        if (buttonIndex === cancelButtonIndex) {
-          return;
-        }
-        if (buttonIndex === editPinnedIndex) {
-          openPinnedEditor();
-          return;
-        }
-
-        const picked = actions[buttonIndex];
-        if (!picked) {
-          return;
-        }
-
-        const disabled = props.isActionDisabled ? props.isActionDisabled(picked.key) : false;
-        if (disabled) {
-          return;
-        }
-
-        props.onAction(picked.key);
-      },
-    );
-  }, [model.orderedActions, props.isActionDisabled, props.onAction, props.pinned, togglePinned]);
+    const menuId = menuIdRef.current;
+    updateActiveActionsPopoverMenuData({
+      id: menuId,
+      title: props.title,
+      actions: model.orderedActions.map((action) => ({
+        ...action,
+        iconName: getIconName(action),
+      })),
+      pinnedKeys: props.pinned,
+      disabledKeys: model.orderedActions
+        .filter((action) => (props.isActionDisabled ? props.isActionDisabled(action.key) : false))
+        .map((action) => action.key),
+    });
+  }, [getIconName, isMacOSPopoverMenu, model.orderedActions, props.isActionDisabled, props.pinned, props.title]);
 
   const panel = (
     <ActionsMenuPanel
@@ -218,10 +176,69 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
           <TouchableOpacity
             style={styles.iconButton}
             onPress={() => {
-              if (isMacOSNativeMenu) {
-                openMacOSActionSheet();
+              if (isMacOSPopoverMenu) {
+                const anchorTag = menuAnchorRef.current
+                  ? (findNodeHandle(menuAnchorRef.current) as any)
+                  : null;
+                if (typeof anchorTag !== 'number') {
+                  return;
+                }
+
+                const menuId = menuIdRef.current;
+                const actions = model.orderedActions.map((action) => ({
+                  ...action,
+                  iconName: getIconName(action),
+                }));
+                const disabledKeys = model.orderedActions
+                  .filter((action) =>
+                    props.isActionDisabled ? props.isActionDisabled(action.key) : false,
+                  )
+                  .map((action) => action.key);
+
+                const close = () => {
+                  desktopWindowManager?.closeActionsPopover?.();
+                  clearActiveActionsPopoverMenu(menuId);
+                };
+
+                setActiveActionsPopoverMenu({
+                  data: {
+                    id: menuId,
+                    title: props.title,
+                    actions,
+                    pinnedKeys: props.pinned,
+                    disabledKeys,
+                  },
+                  handlers: {
+                    onAction: (key) => {
+                      close();
+                      props.onAction(key);
+                    },
+                    onTogglePinned: (key) => {
+                      togglePinned(key);
+                    },
+                    onRequestClose: () => {
+                      close();
+                    },
+                  },
+                });
+
+                const rowHeight = 42;
+                const headerHeight = 44;
+                const paddingHeight = 12;
+                const maxVisibleRows = 8;
+                const height =
+                  headerHeight +
+                  paddingHeight +
+                  Math.min(actions.length, maxVisibleRows) * rowHeight;
+
+                desktopWindowManager?.toggleActionsPopover?.({
+                  anchorTag,
+                  width: 320,
+                  height: Math.max(140, Math.min(420, height)),
+                });
                 return;
               }
+
               setMenuVisible(true);
             }}
           >
@@ -234,7 +251,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
         </View>
       </View>
 
-      {isMacOSNativeMenu ? null : variant === 'modal' ? (
+      {isMacOSPopoverMenu ? null : variant === 'modal' ? (
         <ModalMenuSurface
           visible={menuVisible}
           onRequestClose={() => setMenuVisible(false)}
