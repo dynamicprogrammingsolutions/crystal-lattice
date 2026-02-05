@@ -25,6 +25,12 @@ export interface OpenApplicationActionDialogWindowParams {
   title?: string;
 }
 
+export interface OpenApplicationActionDialogPopoverParams {
+  anchorTag?: number;
+  width?: number;
+  height?: number;
+}
+
 export interface DesktopWindowManagerModule {
   openConnectionEditor(params: OpenConnectionEditorParams): void;
   submitConnectionEditor(payload: { record: ConnectionRecord }): void;
@@ -39,6 +45,9 @@ export interface DesktopWindowManagerModule {
 
   openApplicationActionDialogWindow(params?: OpenApplicationActionDialogWindowParams): void;
   closeApplicationActionDialogWindow(): void;
+
+  openApplicationActionDialogPopover(params?: OpenApplicationActionDialogPopoverParams): void;
+  closeApplicationActionDialogPopover(): void;
 
   getSystemTheme?(): Promise<MacOSSystemThemePayload>;
 }

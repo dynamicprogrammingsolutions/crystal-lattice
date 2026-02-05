@@ -24,6 +24,7 @@ import type { ActionDefinition, ActionKey } from './types';
 import { useActionsMenuModel } from './useActionsMenuModel';
 import {
   clearActiveActionsPopoverMenu,
+  setLastActionsPopoverAnchorTag,
   setActiveActionsPopoverMenu,
   updateActiveActionsPopoverMenuData,
 } from './actionsPopoverCoordinator';
@@ -104,7 +105,17 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
           <TouchableOpacity
             key={action.key}
             style={styles.iconButton}
-            onPress={() => props.onAction(action.key)}
+            onPress={() => {
+              if (Platform.OS === 'macos' && menuAnchorRef.current) {
+                try {
+                  const anchorTag = findNodeHandle(menuAnchorRef.current) as any;
+                  setLastActionsPopoverAnchorTag(typeof anchorTag === 'number' ? anchorTag : null);
+                } catch {
+                  setLastActionsPopoverAnchorTag(null);
+                }
+              }
+              props.onAction(action.key);
+            }}
             disabled={disabled}
           >
             {iconName && props.renderIcon ? (
@@ -183,6 +194,8 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
                 if (typeof anchorTag !== 'number') {
                   return;
                 }
+
+                setLastActionsPopoverAnchorTag(anchorTag);
 
                 const menuId = menuIdRef.current;
                 const actions = model.orderedActions.map((action) => ({

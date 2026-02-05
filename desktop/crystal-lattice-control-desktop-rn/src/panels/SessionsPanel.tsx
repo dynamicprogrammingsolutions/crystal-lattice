@@ -15,6 +15,7 @@ import Icon from 'react-native-vector-icons/Feather';
 import {
   ActionsMenuBar,
   ApplicationActionDialog,
+  getLastActionsPopoverAnchorTag,
   useTheme,
   type ActionDefinition,
   type ActionKey,
@@ -49,6 +50,7 @@ import {
   clearActiveApplicationActionDialog,
   setActiveApplicationActionDialog,
 } from '../windows/applicationActionDialogCoordinator';
+import { APPLICATION_ACTION_DIALOG_PRESENTATION } from '../windows/applicationActionDialogPresentation';
 
 const PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_session_list_actions_v1';
 const SESSION_DOUBLE_CLICK_MS = 300;
@@ -325,6 +327,7 @@ function SessionsPanelInner({
 
     if (!activePluginDialogElement || !dialog || kind === 'none') {
       clearActiveApplicationActionDialog();
+      DesktopWindowManager?.closeApplicationActionDialogPopover();
       DesktopWindowManager?.closeApplicationActionDialogWindow();
       return;
     }
@@ -349,8 +352,37 @@ function SessionsPanelInner({
       },
     });
 
-    DesktopWindowManager?.openApplicationActionDialogWindow({
-      title: activePluginDialogElement.label,
+    const title = activePluginDialogElement.label;
+    if (APPLICATION_ACTION_DIALOG_PRESENTATION === 'window') {
+      DesktopWindowManager?.closeApplicationActionDialogPopover();
+      DesktopWindowManager?.openApplicationActionDialogWindow({ title });
+      return;
+    }
+
+    DesktopWindowManager?.closeApplicationActionDialogWindow();
+    const anchorTag = getLastActionsPopoverAnchorTag();
+
+    const dialogInputs = Array.isArray(dialog.inputs) ? dialog.inputs : [];
+    const padding = 24;
+    const titleBlock = 34;
+    const messageBlock = typeof dialog.message === 'string' && dialog.message ? 16 : 0;
+    const buttonsBlock = 52;
+    const fieldHeights = dialogInputs.reduce((sum: number, input: any) => {
+      const type = typeof input?.type === 'string' ? input.type : 'string';
+      const description = typeof input?.description === 'string' ? input.description : '';
+      const descriptionExtra = description ? 18 : 0;
+      if (type === 'multiline') {
+        return sum + 138 + descriptionExtra;
+      }
+      return sum + 66 + descriptionExtra;
+    }, 0);
+
+    const height = Math.max(80, Math.min(640, padding + titleBlock + messageBlock + fieldHeights + buttonsBlock));
+
+    DesktopWindowManager?.openApplicationActionDialogPopover({
+      anchorTag: typeof anchorTag === 'number' ? anchorTag : undefined,
+      width: 420,
+      height,
     });
   }, [activePluginDialogContext, activePluginDialogElement, handleCancelPluginDialog, handleSubmitPluginDialog]);
 

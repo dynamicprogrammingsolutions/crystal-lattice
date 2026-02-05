@@ -14,21 +14,33 @@ import {
 } from './applicationActionDialogCoordinator';
 import { DesktopWindowManager } from './desktopWindowManager';
 
-export function ApplicationActionDialogWindow(): React.JSX.Element {
+type Presentation = 'window' | 'popover';
+
+export interface ApplicationActionDialogWindowProps {
+  presentation?: Presentation;
+}
+
+export function ApplicationActionDialogWindow(
+  props: ApplicationActionDialogWindowProps,
+): React.JSX.Element {
   const systemTheme = useDesktopTheme();
   return (
     <ThemeProvider theme={systemTheme}>
-      <ApplicationActionDialogWindowInner />
+      <ApplicationActionDialogWindowInner {...props} />
     </ThemeProvider>
   );
 }
 
-function ApplicationActionDialogWindowInner(): React.JSX.Element {
+function ApplicationActionDialogWindowInner(
+  props: ApplicationActionDialogWindowProps,
+): React.JSX.Element {
   const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const presentation: Presentation = props.presentation === 'window' ? 'window' : 'popover';
+  const styles = useMemo(() => createStyles(theme, presentation), [presentation, theme]);
   const active = useActiveApplicationActionDialog();
 
   const closeWindow = useCallback(() => {
+    DesktopWindowManager?.closeApplicationActionDialogPopover();
     DesktopWindowManager?.closeApplicationActionDialogWindow();
   }, []);
 
@@ -57,29 +69,37 @@ function ApplicationActionDialogWindowInner(): React.JSX.Element {
           prefillContext={active.state.prefillContext}
           onSubmit={handleSubmit}
           onCancel={handleCancel}
-          style={styles.card}
+          style={presentation === 'popover' ? styles.popoverLayout : styles.windowLayout}
         />
       </ScrollView>
     </View>
   );
 }
 
-function createStyles(theme: ReturnType<typeof useTheme>) {
+function createStyles(theme: ReturnType<typeof useTheme>, presentation: Presentation) {
   const borderWidth = 1;
+  const isPopover = presentation === 'popover';
+
   return StyleSheet.create({
     root: {
       flex: 1,
-      backgroundColor: theme.backgroundAlt,
+      backgroundColor: isPopover ? theme.surface : theme.backgroundAlt,
     },
     scroll: {
       flex: 1,
     },
     scrollContent: {
-      padding: 16,
+      padding: isPopover ? 0 : 16,
     },
-    card: {
+    windowLayout: {
       borderWidth,
       borderColor: theme.border,
+    },
+    popoverLayout: {
+      backgroundColor: 'transparent',
+      borderWidth: 0,
+      borderColor: 'transparent',
+      borderRadius: 0,
     },
   });
 }
