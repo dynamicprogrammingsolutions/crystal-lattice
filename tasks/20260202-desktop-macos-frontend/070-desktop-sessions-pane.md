@@ -88,6 +88,12 @@ Desktop must not copy/paste mobile UI or reimplement shared patterns.
   - Move `mobile/crystal-lattice-control-rn/src/sessionActions.ts` into a shared module (recommended: `packages/frontend-rn-components/`), and update mobile + desktop imports.
   - (Optional now, but recommended for 080): move `mobile/crystal-lattice-control-rn/src/messageActions.ts` similarly.
 
+Migration requirement:
+
+- Any extraction/move must be accompanied by updating the existing mobile app code to import/use the new shared module(s).
+  - No “optional later” follow-ups; the mobile app must build/run against the refactor in the same PR.
+  - Prefer deleting the now-unused mobile-local files after migration to prevent drift.
+
 Design constraint:
 
 - Shared wrappers should not hard-depend on a specific icon library.
@@ -98,6 +104,10 @@ Design constraint:
 - Move `mobile/crystal-lattice-control-rn/src/components/ApplicationActionDialog.tsx` into `packages/frontend-rn-components/` so desktop and mobile can share one implementation.
 - Update it to use `@crystal-lattice/frontend-rn-components` theme and `extractByPath` from `@crystal-lattice/frontend-sdk`.
 
+Migration requirement:
+
+- Update mobile call sites to use the shared `ApplicationActionDialog` immediately.
+
 3) Add a shared persistence hook for pinned action keys.
 
 - Add a storage-agnostic hook in `packages/frontend-sdk-react/` that persists a string-array to a `KeyValueStore`.
@@ -105,7 +115,9 @@ Design constraint:
     - `usePersistentStringArray({ store, key, initial })`
     - `usePersistentPinnedActions({ store, key, initialPinned })`
 - Desktop will use this with `desktop/.../src/storage/asyncStorageKeyValueStore.ts`.
-- (Optional but recommended): migrate mobile pinned-actions persistence to use the shared hook so we don’t maintain two implementations.
+- Mobile must be migrated to use this shared hook as part of this subtask.
+  - This includes switching to per-connection storage keys.
+  - Implement a `KeyValueStore` adapter for mobile (AsyncStorage-backed) so the hook can be used there.
 
 Persistence rules:
 
@@ -164,8 +176,7 @@ Controller lifecycle note:
 - **Session deleted / plugin-triggered refresh**:
   - Phase 5 baseline: do not implement delete UI yet (no `deleteSession` in `AgentBackend`).
   - Keep this flexible for future “reload triggers” originating elsewhere (e.g. chat pane actions in 080):
-    - Prefer an explicit `reloadSessions()` callback owned by `DesktopRoot` and passed down to any UI that can trigger a reload.
-    - Alternatively, add an app-level event bus / store later; 070 should not paint us into a corner.
+    - Implement an app-level event bus now (see section J) so any surface (sessions pane, chat pane, menus) can request a reload without reaching into component internals.
 
 3) Loading/error behavior:
 
@@ -202,7 +213,9 @@ Implement in `SessionsPanel.tsx`:
 - List:
   - Keep server order (match mobile).
   - Row click selects (highlights) but does not open.
-  - Each row has an explicit “Open” button that calls `onOpenSessionTab({ connectionId, sessionId, title })`.
+  - Each row has an “Open” button that appears on hover.
+  - Double-clicking a row opens it.
+  - “Open” (button or double-click) calls `onOpenSessionTab({ connectionId, sessionId, title })`.
   - Row text:
     - Use plugin presentation (`deriveSessionListPresentationFromGroups`).
     - Fall back to `session.preview` / `session_id` if no plugin fields.
@@ -261,11 +274,32 @@ If `createSession()` fails, show an inline error (and optionally an `Alert`).
 - [ ] `SessionsPanelPlaceholder` is no longer rendered.
 - [ ] Online: sessions load and refresh works; cache is updated.
 - [ ] Offline: cached sessions still visible; refresh/new session disabled.
-- [ ] Clicking a row selects it; explicit “Open” opens/focuses a tab (existing `openTab()` behavior).
+- [ ] Clicking a row selects it; “Open” (hover button or double-click) opens/focuses a tab (existing `openTab()` behavior).
 - [ ] Switching focused connection switches the sessions list and triggers load-if-stale when online.
 - [ ] Title/subtitle/meta match `deriveSessionListPresentationFromGroups` output when plugin fields exist.
 - [ ] Per-session pinned toggle (⭐) works when a pinned toggle element exists.
 - [ ] Per-session action bar uses shared pinnable-actions UI (no duplicated implementation).
+
+### J) App-level event bus (enables future reload triggers)
+
+Add a lightweight event bus in desktop app code.
+
+Rationale:
+
+- We know we’ll need cross-surface triggers (e.g. a plugin action invoked from the chat pane requests the sessions list reload).
+- An event bus keeps this decoupled without forcing prop-drilling everywhere.
+
+Plan:
+
+- Add `desktop/crystal-lattice-control-desktop-rn/src/events/desktopEventBus.ts`.
+- Use a minimal typed pub/sub (either a tiny custom emitter or a thin wrapper around `EventEmitter`).
+- Use a plain TypeScript pub/sub module (no Node `EventEmitter`).
+- Events (initial set):
+  - `sessionsReloadRequested`: `{ connectionId: string; reason?: string }`
+  - `sessionOpenRequested`: `{ connectionId: string; sessionId: string }` (optional; may be redundant with direct callbacks today)
+- `SessionsPanel` subscribes to `sessionsReloadRequested` for its `connectionId` and triggers `controller.load({ force: true })` + cache update.
+- `SessionsPanel` emits `sessionsReloadRequested` after actions that require reload.
+- `080` can emit `sessionsReloadRequested` after chat actions that mutate sessions.
 
 ## Open questions (need approval before implementing)
 
@@ -275,13 +309,9 @@ Resolved decisions (from latest guidance):
 - Sessions ordering: keep server order (match mobile).
 - Session list built-in actions: skip settings/agent-switch built-ins here; plugin-provided actions are mandatory.
 - Pinned action persistence: scope per connection id; if mobile uses a global key today, fix it.
+- Reload triggers: add an app-level event bus (section J).
+- Open affordance: show “Open” on hover + double-click opens.
 
 Remaining open questions:
 
-1) Sessions reload triggers (flexibility requirement)
-   - Preferred approach: define a `reloadSessions(connectionId)` callback in `DesktopRoot` that is passed to both the sessions pane (070) and the chat pane (080).
-   - Alternative: add an app-level event bus/store later; 070 should keep reload logic in a place that can be invoked by other UI without reaching into `SessionsPanel` internals.
-
-2) “Open” affordance details
-   - Always-visible “Open” button per row vs show-on-hover.
-   - Optional: double-click row to open (macOS convention) vs strictly button-only.
+None.
