@@ -85,6 +85,7 @@ This task directory is a handoff package for implementing Phase 5 of `tasks/2026
 - `tasks/20260202-desktop-macos-frontend/050-desktop-shell-layout.md`
 - `tasks/20260202-desktop-macos-frontend/060-desktop-connections-panel.md`
 - `tasks/20260202-desktop-macos-frontend/065-desktop-tab-strip-styles-and-view-menu.md`
+- `tasks/20260202-desktop-macos-frontend/066-desktop-theming-semantic-colors.md`
 - `tasks/20260202-desktop-macos-frontend/070-desktop-sessions-pane.md`
 - `tasks/20260202-desktop-macos-frontend/080-desktop-chat-tabs-and-chat-pane.md`
 - `tasks/20260202-desktop-macos-frontend/090-smoke-tests-and-docs.md`

@@ -2,6 +2,8 @@ import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 
 import type { ConnectionRecord } from '@crystal-lattice/frontend-sdk';
 
+import type { MacOSSystemThemePayload } from '../theme/types';
+
 export interface OpenConnectionEditorParams {
   mode: 'new' | 'edit';
   initialRecord?: ConnectionRecord;
@@ -11,6 +13,8 @@ export interface DesktopWindowManagerModule {
   openConnectionEditor(params: OpenConnectionEditorParams): void;
   submitConnectionEditor(payload: { record: ConnectionRecord }): void;
   cancelConnectionEditor(): void;
+
+  getSystemTheme?(): Promise<MacOSSystemThemePayload>;
 }
 
 export const DesktopWindowManager: DesktopWindowManagerModule | null =

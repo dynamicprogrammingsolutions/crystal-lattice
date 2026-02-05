@@ -138,6 +138,8 @@ export function PanelHeader({
 }
 
 function createStyles(theme: ReturnType<typeof useTheme>) {
+  const separatorWidth = 1;
+
   return StyleSheet.create({
     root: {
       flexDirection: 'row',
@@ -146,7 +148,7 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       gap: 10,
       paddingHorizontal: 10,
       paddingVertical: 10,
-      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomWidth: separatorWidth,
       borderBottomColor: theme.border,
     },
     textColumn: {
@@ -168,7 +170,7 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       paddingHorizontal: 10,
       paddingVertical: 6,
       borderRadius: 10,
-      borderWidth: StyleSheet.hairlineWidth,
+      borderWidth: separatorWidth,
       borderColor: theme.border,
       backgroundColor: theme.surface,
     },

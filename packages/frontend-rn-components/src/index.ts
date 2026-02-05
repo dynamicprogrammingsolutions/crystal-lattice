@@ -1,7 +1,7 @@
 export type { ActionKey, ActionDefinition, ActionsMenuModel } from './actions/types';
 
 export type { Theme } from './theme';
-export { ThemeProvider, useTheme, useSystemTheme, lightTheme, darkTheme } from './theme';
+export { ThemeProvider, useTheme } from './theme';
 
 export {
   buildActionsMenuModel,

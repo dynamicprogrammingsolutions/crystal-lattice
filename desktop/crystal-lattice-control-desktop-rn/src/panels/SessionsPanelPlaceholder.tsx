@@ -101,10 +101,12 @@ export function SessionsPanelPlaceholder({
 }
 
 function createStyles(theme: ReturnType<typeof useTheme>) {
+  const borderWidth = 1;
+
   return StyleSheet.create({
     root: {
       flex: 1,
-      borderWidth: StyleSheet.hairlineWidth,
+      borderWidth,
       borderColor: theme.border,
       borderRadius: 12,
       backgroundColor: theme.surface,

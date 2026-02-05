@@ -40,7 +40,6 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
 
   return {
     ThemeProvider: ({ children }: { children: any }) => React.createElement(React.Fragment, null, children),
-    useSystemTheme: () => theme,
     useTheme: () => theme,
     DropdownMenuSurface: ({ visible, children }: { visible: boolean; children: any }) =>
       visible ? React.createElement(React.Fragment, null, children) : null,

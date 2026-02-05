@@ -1,5 +1,4 @@
 import React from 'react';
-import { useColorScheme } from 'react-native';
 
 export interface Theme {
   background: string;
@@ -28,7 +27,7 @@ export interface Theme {
   navIconInactive: string;
 }
 
-export const lightTheme: Theme = {
+const defaultLightTheme: Theme = {
   background: '#F2F2F7',
   backgroundAlt: '#FFFFFF',
   surface: '#FFFFFF',
@@ -55,34 +54,7 @@ export const lightTheme: Theme = {
   navIconInactive: '#8E8E93',
 };
 
-export const darkTheme: Theme = {
-  background: '#000000',
-  backgroundAlt: '#1C1C1E',
-  surface: '#1C1C1E',
-  surfaceAlt: '#2C2C2E',
-  primary: '#0A84FF',
-  primaryMuted: 'rgba(10, 132, 255, 0.2)',
-  border: '#3A3A3C',
-  divider: '#3A3A3C',
-  text: '#FFFFFF',
-  textSecondary: '#D1D1D6',
-  textMuted: '#8E8E93',
-  textOnPrimary: '#FFFFFF',
-  danger: '#FF453A',
-  success: '#32D74B',
-  bubbleUserBg: '#0040A5',
-  bubbleSystemBorder: '#3A3A3C',
-  bubbleToolBg: 'rgba(142, 142, 147, 0.25)',
-  modalBackdrop: 'rgba(0, 0, 0, 0.4)',
-  inlineCodeBg: 'rgba(142, 142, 147, 0.5)',
-  codeBlockBg: '#1C1C1E',
-  navBarBg: '#1C1C1E',
-  navBarBorder: '#3A3A3C',
-  navIconActive: '#0A84FF',
-  navIconInactive: '#8E8E93',
-};
-
-const ThemeContext = React.createContext<Theme>(lightTheme);
+const ThemeContext = React.createContext<Theme>(defaultLightTheme);
 
 interface ThemeProviderProps {
   theme: Theme;
@@ -95,9 +67,4 @@ export function ThemeProvider({ theme, children }: ThemeProviderProps): React.JS
 
 export function useTheme(): Theme {
   return React.useContext(ThemeContext);
-}
-
-export function useSystemTheme(): Theme {
-  const colorScheme = useColorScheme();
-  return colorScheme === 'dark' ? darkTheme : lightTheme;
 }

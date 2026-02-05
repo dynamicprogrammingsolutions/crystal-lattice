@@ -1,12 +1,10 @@
 import * as React from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import {
-  ThemeProvider,
-  useSystemTheme,
-} from '@crystal-lattice/frontend-rn-components';
+import { ThemeProvider } from '@crystal-lattice/frontend-rn-components';
 
 import { DesktopRoot } from './src/DesktopRoot';
+import { useDesktopTheme } from './src/theme/useDesktopTheme';
 import {
   DEFAULT_TAB_STRIP_STYLE,
   parseTabStripStyle,
@@ -18,7 +16,7 @@ export interface AppProps {
 }
 
 export default function App(props: AppProps) {
-  const theme = useSystemTheme();
+  const theme = useDesktopTheme();
   const initialTabStripStyle =
     parseTabStripStyle((props as any)?.initialTabStripStyle) ?? DEFAULT_TAB_STRIP_STYLE;
 
