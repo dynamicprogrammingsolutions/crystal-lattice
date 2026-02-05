@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { useTheme } from '@crystal-lattice/frontend-rn-components';
 
-import type { ConnectionRecord } from '@crystal-lattice/frontend-sdk';
+import type { ConnectionRecord, SessionSummary } from '@crystal-lattice/frontend-sdk';
 
 import { DesktopShell } from './layout/DesktopShell';
 import { ConnectionsPanel } from './panels/ConnectionsPanel';
@@ -22,6 +22,8 @@ import {
   parseTabStripStyle,
   type TabStripStyle,
 } from './tabs/tabStripStyle';
+
+const EMPTY_CACHED_SESSIONS: SessionSummary[] = [];
 
 const DEFAULT_CONNECTION_ROW_CLICK_BEHAVIOR = 'focusAndOpen' as const;
 
@@ -345,17 +347,15 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
                   : false
               }
               cachedSessions={
-                focusedConnectionId ? sessionsCache[focusedConnectionId]?.sessions ?? [] : []
+                focusedConnectionId
+                  ? sessionsCache[focusedConnectionId]?.sessions ?? EMPTY_CACHED_SESSIONS
+                  : EMPTY_CACHED_SESSIONS
               }
               cachedLastLoadedAt={
                 focusedConnectionId ? sessionsCache[focusedConnectionId]?.lastLoadedAt ?? null : null
               }
-              onUpdateCache={(connectionId, sessions) => {
-                updateSessionsCache(connectionId, sessions);
-              }}
-              onOpenSessionTab={({ connectionId, sessionId, title }) => {
-                openTab({ connectionId, sessionId, title });
-              }}
+              onUpdateCache={updateSessionsCache}
+              onOpenSessionTab={openTab}
             />
           </View>
         )}

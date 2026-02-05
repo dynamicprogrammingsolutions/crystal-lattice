@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -24,6 +24,8 @@ interface DialogInputField {
   description?: string;
   prefill_from?: string;
 }
+
+const EMPTY_INPUTS: DialogInputField[] = [];
 
 export interface ApplicationActionDialogPrefillContext {
   session?: any;
@@ -52,18 +54,33 @@ export function ApplicationActionDialog({
 
   const kind: string = dialog && typeof dialog.kind === 'string' ? dialog.kind : 'none';
 
-  const inputs: DialogInputField[] =
-    kind === 'form' && dialog && Array.isArray(dialog.inputs)
-      ? (dialog.inputs as DialogInputField[])
-      : [];
+  const inputs: DialogInputField[] = useMemo(() => {
+    if (kind !== 'form' || !dialog || !Array.isArray(dialog.inputs)) {
+      return EMPTY_INPUTS;
+    }
+    return dialog.inputs as DialogInputField[];
+  }, [dialog, kind]);
 
   const [valuesByName, setValuesByName] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
+  const lastDialogRef = useRef<any>(null);
+  const lastVisibleRef = useRef(false);
+
   useEffect(() => {
     if (!visible || kind !== 'form') {
-      setValuesByName({});
-      setError(null);
+      lastVisibleRef.current = visible;
+      lastDialogRef.current = dialog;
+
+      setValuesByName((prev) => (Object.keys(prev).length === 0 ? prev : {}));
+      setError((prev) => (prev === null ? prev : null));
+      return;
+    }
+
+    const shouldReset = !lastVisibleRef.current || lastDialogRef.current !== dialog;
+    lastVisibleRef.current = visible;
+    lastDialogRef.current = dialog;
+    if (!shouldReset) {
       return;
     }
 

@@ -31,8 +31,10 @@ function parseStringArray(raw: string | null): string[] | null {
 export function usePersistentStringArray(options: UsePersistentStringArrayOptions): UsePersistentStringArrayResult {
   const { store, key, initial, migrateFromKeys } = options;
 
+  const initialForKey = useMemo(() => initial, [key]);
+
   const [loaded, setLoaded] = useState(false);
-  const [value, setValue] = useState<string[]>(initial);
+  const [value, setValue] = useState<string[]>(initialForKey);
 
   const migrateKeys = useMemo(
     () => (Array.isArray(migrateFromKeys) ? migrateFromKeys.filter(Boolean) : []),
@@ -41,8 +43,8 @@ export function usePersistentStringArray(options: UsePersistentStringArrayOption
 
   useEffect(() => {
     setLoaded(false);
-    setValue(initial);
-  }, [initial, key]);
+    setValue(initialForKey);
+  }, [initialForKey, key]);
 
   useEffect(() => {
     let cancelled = false;
