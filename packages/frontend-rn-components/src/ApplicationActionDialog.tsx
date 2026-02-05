@@ -8,6 +8,8 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 
 import { extractByPath } from '@crystal-lattice/frontend-sdk';
@@ -41,14 +43,19 @@ export interface ApplicationActionDialogProps {
   onCancel: () => void;
 }
 
-export function ApplicationActionDialog({
-  visible,
+export interface ApplicationActionDialogLayoutProps
+  extends Omit<ApplicationActionDialogProps, 'visible'> {
+  style?: StyleProp<ViewStyle>;
+}
+
+export function ApplicationActionDialogLayout({
   dialog,
   titleFallback,
   prefillContext,
   onSubmit,
   onCancel,
-}: ApplicationActionDialogProps): React.JSX.Element | null {
+  style,
+}: ApplicationActionDialogLayoutProps): React.JSX.Element | null {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -65,22 +72,24 @@ export function ApplicationActionDialog({
   const [error, setError] = useState<string | null>(null);
 
   const lastDialogRef = useRef<any>(null);
-  const lastVisibleRef = useRef(false);
 
   useEffect(() => {
-    if (!visible || kind !== 'form') {
-      lastVisibleRef.current = visible;
+    if (!dialog || kind === 'none') {
       lastDialogRef.current = dialog;
-
       setValuesByName((prev) => (Object.keys(prev).length === 0 ? prev : {}));
       setError((prev) => (prev === null ? prev : null));
       return;
     }
 
-    const shouldReset = !lastVisibleRef.current || lastDialogRef.current !== dialog;
-    lastVisibleRef.current = visible;
+    const shouldReset = lastDialogRef.current !== dialog;
     lastDialogRef.current = dialog;
     if (!shouldReset) {
+      return;
+    }
+
+    if (kind !== 'form') {
+      setValuesByName({});
+      setError(null);
       return;
     }
 
@@ -126,9 +135,9 @@ export function ApplicationActionDialog({
 
     setValuesByName(initial);
     setError(null);
-  }, [dialog, inputs, kind, prefillContext, visible]);
+  }, [dialog, inputs, kind, prefillContext]);
 
-  if (!visible || !dialog || kind === 'none') {
+  if (!dialog || kind === 'none') {
     return null;
   }
 
@@ -210,62 +219,89 @@ export function ApplicationActionDialog({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+    <View style={[styles.dialogCard, style]}>
+      <Text style={styles.modalTitle}>{title}</Text>
+      {message ? <Text style={styles.modalSubtitle}>{message}</Text> : null}
+
+      {kind === 'form'
+        ? inputs.map((field) => {
+            const name = field.name;
+            if (!name) return null;
+            const label = field.label || name;
+            const placeholder = field.placeholder || '';
+            const description = field.description || '';
+            const value = valuesByName[name] ?? '';
+            const fieldType = typeof field.type === 'string' ? field.type : 'string';
+            const isMultiline = fieldType === 'multiline';
+
+            return (
+              <View key={name} style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>{label}</Text>
+                {description ? <Text style={styles.inputDescription}>{description}</Text> : null}
+                <TextInput
+                  style={isMultiline ? styles.modalInputMultiline : styles.modalInput}
+                  value={value}
+                  onChangeText={(text) => handleChange(name, text)}
+                  placeholder={placeholder}
+                  placeholderTextColor={theme.textSecondary}
+                  multiline={isMultiline}
+                  textAlignVertical={isMultiline ? 'top' : 'center'}
+                />
+              </View>
+            );
+          })
+        : null}
+
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+      <View style={styles.modalButtonsRow}>
+        <TouchableOpacity
+          style={[styles.button, styles.secondaryButton, styles.modalButton]}
+          onPress={onCancel}
+        >
+          <Text style={styles.buttonTextSecondary}>Cancel</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.button, styles.primaryButton, styles.modalButton]}
+          onPress={handlePrimary}
+        >
+          <Text style={styles.buttonText}>OK</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+export function ApplicationActionDialog({
+  visible,
+  dialog,
+  titleFallback,
+  prefillContext,
+  onSubmit,
+  onCancel,
+}: ApplicationActionDialogProps): React.JSX.Element | null {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
+  if (!visible) {
+    return null;
+  }
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
       <KeyboardAvoidingView
         style={styles.modalOverlay}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={0}
       >
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>{title}</Text>
-          {message ? <Text style={styles.modalSubtitle}>{message}</Text> : null}
-
-          {kind === 'form'
-            ? inputs.map((field) => {
-                const name = field.name;
-                if (!name) return null;
-                const label = field.label || name;
-                const placeholder = field.placeholder || '';
-                const description = field.description || '';
-                const value = valuesByName[name] ?? '';
-                const fieldType = typeof field.type === 'string' ? field.type : 'string';
-                const isMultiline = fieldType === 'multiline';
-
-                return (
-                  <View key={name} style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>{label}</Text>
-                    {description ? <Text style={styles.inputDescription}>{description}</Text> : null}
-                    <TextInput
-                      style={isMultiline ? styles.modalInputMultiline : styles.modalInput}
-                      value={value}
-                      onChangeText={(text) => handleChange(name, text)}
-                      placeholder={placeholder}
-                      placeholderTextColor={theme.textSecondary}
-                      multiline={isMultiline}
-                      textAlignVertical={isMultiline ? 'top' : 'center'}
-                    />
-                  </View>
-                );
-              })
-            : null}
-
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-          <View style={styles.modalButtonsRow}>
-            <TouchableOpacity
-              style={[styles.button, styles.secondaryButton, styles.modalButton]}
-              onPress={onCancel}
-            >
-              <Text style={styles.buttonTextSecondary}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, styles.primaryButton, styles.modalButton]}
-              onPress={handlePrimary}
-            >
-              <Text style={styles.buttonText}>OK</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        <ApplicationActionDialogLayout
+          dialog={dialog}
+          titleFallback={titleFallback}
+          prefillContext={prefillContext}
+          onSubmit={onSubmit}
+          onCancel={onCancel}
+          style={styles.modalCard}
+        />
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -279,8 +315,14 @@ const createStyles = (theme: Theme) =>
       justifyContent: 'center',
       alignItems: 'center',
     },
-    modalContent: {
+    modalCard: {
       width: '80%',
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      padding: 16,
+    },
+    dialogCard: {
+      width: '100%',
       backgroundColor: theme.surface,
       borderRadius: 12,
       padding: 16,

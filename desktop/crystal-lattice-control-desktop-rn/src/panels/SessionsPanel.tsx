@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -43,7 +44,11 @@ import {
 import { asyncStorageKeyValueStore } from '../storage/asyncStorageKeyValueStore';
 import { desktopEventBus } from '../events/desktopEventBus';
 import { PanelHeader } from '../ui/PanelHeader';
-import { DesktopWindowManager } from '../windows/desktopWindowManager';
+import { DesktopWindowManager, desktopWindowEvents } from '../windows/desktopWindowManager';
+import {
+  clearActiveApplicationActionDialog,
+  setActiveApplicationActionDialog,
+} from '../windows/applicationActionDialogCoordinator';
 
 const PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_session_list_actions_v1';
 const SESSION_DOUBLE_CLICK_MS = 300;
@@ -229,6 +234,7 @@ function SessionsPanelInner({
 
   const {
     activeElement: activePluginDialogElement,
+    context: activePluginDialogContext,
     openForElement: openPluginDialogForElement,
     handleSubmit: handleSubmitPluginDialog,
     handleCancel: handleCancelPluginDialog,
@@ -289,6 +295,64 @@ function SessionsPanelInner({
       [actionsById, backend, connectionId, onOpenSessionTab],
     ),
   );
+
+  useEffect(() => {
+    if (Platform.OS !== 'macos') {
+      return;
+    }
+
+    if (!desktopWindowEvents) {
+      return;
+    }
+
+    const sub = desktopWindowEvents.addListener('applicationActionDialogCancelled', () => {
+      clearActiveApplicationActionDialog();
+      handleCancelPluginDialog();
+    });
+
+    return () => {
+      sub.remove();
+    };
+  }, [handleCancelPluginDialog]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'macos') {
+      return;
+    }
+
+    const dialog: any = (activePluginDialogElement as any)?.dialog;
+    const kind: string = dialog && typeof dialog.kind === 'string' ? dialog.kind : 'none';
+
+    if (!activePluginDialogElement || !dialog || kind === 'none') {
+      clearActiveApplicationActionDialog();
+      DesktopWindowManager?.closeApplicationActionDialogWindow();
+      return;
+    }
+
+    const id = `action-dialog:${activePluginDialogElement.id}`;
+    setActiveApplicationActionDialog({
+      state: {
+        id,
+        dialog,
+        titleFallback: activePluginDialogElement.label,
+        prefillContext: {
+          session: activePluginDialogContext,
+        },
+      },
+      handlers: {
+        onCancel: () => {
+          handleCancelPluginDialog();
+        },
+        onSubmit: async (values) => {
+          await handleSubmitPluginDialog(values);
+        },
+      },
+    });
+
+    DesktopWindowManager?.openApplicationActionDialogWindow({
+      title: activePluginDialogElement.label,
+    });
+  }, [activePluginDialogContext, activePluginDialogElement, handleCancelPluginDialog, handleSubmitPluginDialog]);
 
   const { controller: agentsController, state: agentsState } = useAgentsController({
     backend,
@@ -578,13 +642,16 @@ function SessionsPanelInner({
         </ScrollView>
       )}
 
-      <ApplicationActionDialog
-        visible={!!activePluginDialogElement}
-        dialog={(activePluginDialogElement as any)?.dialog}
-        titleFallback={activePluginDialogElement?.label}
-        onSubmit={(values) => handleSubmitPluginDialog(values)}
-        onCancel={handleCancelPluginDialog}
-      />
+      {Platform.OS === 'macos' ? null : (
+        <ApplicationActionDialog
+          visible={!!activePluginDialogElement}
+          dialog={(activePluginDialogElement as any)?.dialog}
+          titleFallback={activePluginDialogElement?.label}
+          prefillContext={{ session: activePluginDialogContext }}
+          onSubmit={(values) => handleSubmitPluginDialog(values)}
+          onCancel={handleCancelPluginDialog}
+        />
+      )}
     </View>
   );
 }

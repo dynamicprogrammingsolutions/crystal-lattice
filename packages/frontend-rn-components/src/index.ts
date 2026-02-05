@@ -17,6 +17,7 @@ export type {
   ApplicationActionDialogProps,
 } from './ApplicationActionDialog';
 export { ApplicationActionDialog } from './ApplicationActionDialog';
+export { ApplicationActionDialogLayout } from './ApplicationActionDialog';
 
 export {
   buildActionsMenuModel,
