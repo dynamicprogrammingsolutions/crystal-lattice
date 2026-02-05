@@ -49,11 +49,12 @@ export function ChatPanePlaceholder({
 function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStripStyle) {
   const codeLike = styleVariant === 'codeTabs' || styleVariant === 'underlineTabs';
   const radius = styleVariant === 'roundedPills' ? 12 : 10;
+   const separatorWidth = 1;
 
   return StyleSheet.create({
     root: {
       flex: 1,
-      borderWidth: codeLike ? 0 : StyleSheet.hairlineWidth,
+      borderWidth: codeLike ? 0 : separatorWidth,
       borderColor: codeLike ? 'transparent' : theme.border,
       borderRadius: codeLike ? 0 : radius,
       backgroundColor: theme.surface,
@@ -62,7 +63,7 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
     header: {
       paddingHorizontal: 12,
       paddingVertical: 10,
-      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomWidth: separatorWidth,
       borderBottomColor: theme.border,
       gap: 2,
       backgroundColor: codeLike ? theme.surface : theme.surface,

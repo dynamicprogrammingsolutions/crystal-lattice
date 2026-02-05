@@ -2,8 +2,9 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { ConnectionRecord } from '@crystal-lattice/frontend-sdk';
-import { ThemeProvider, useSystemTheme, useTheme } from '@crystal-lattice/frontend-rn-components';
+import { ThemeProvider, useTheme } from '@crystal-lattice/frontend-rn-components';
 
+import { useDesktopTheme } from '../theme/useDesktopTheme';
 import { DesktopWindowManager } from './desktopWindowManager';
 
 export interface ConnectionEditorWindowProps {
@@ -31,7 +32,7 @@ export function ConnectionEditorWindow({
   mode,
   initialRecord,
 }: ConnectionEditorWindowProps): React.JSX.Element {
-  const systemTheme = useSystemTheme();
+  const systemTheme = useDesktopTheme();
 
   return (
     <ThemeProvider theme={systemTheme}>
@@ -154,6 +155,8 @@ function ConnectionEditorWindowInner({
 }
 
 function createStyles(theme: ReturnType<typeof useTheme>) {
+  const borderWidth = 1;
+
   return StyleSheet.create({
     root: {
       flex: 1,
@@ -178,7 +181,7 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       color: theme.textSecondary,
     },
     input: {
-      borderWidth: StyleSheet.hairlineWidth,
+      borderWidth,
       borderColor: theme.border,
       borderRadius: 10,
       paddingHorizontal: 10,
@@ -200,7 +203,7 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       paddingHorizontal: 14,
       paddingVertical: 10,
       borderRadius: 10,
-      borderWidth: StyleSheet.hairlineWidth,
+      borderWidth,
     },
     buttonPressed: {
       opacity: 0.85,

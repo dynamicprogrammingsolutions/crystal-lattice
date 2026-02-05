@@ -229,9 +229,11 @@ export function ConnectionsPanel({
 }
 
 function createStyles(theme: ReturnType<typeof useTheme>) {
+  const borderWidth = 1;
+
   return StyleSheet.create({
     root: {
-      borderWidth: StyleSheet.hairlineWidth,
+      borderWidth,
       borderColor: theme.border,
       borderRadius: 12,
       backgroundColor: theme.surface,
@@ -298,7 +300,7 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       paddingHorizontal: 10,
       paddingVertical: 6,
       borderRadius: 8,
-      borderWidth: StyleSheet.hairlineWidth,
+      borderWidth,
       borderColor: theme.border,
       backgroundColor: theme.surface,
     },

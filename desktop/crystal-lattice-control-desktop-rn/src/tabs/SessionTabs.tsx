@@ -191,6 +191,8 @@ export function SessionTabs({
 }
 
 function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStripStyle) {
+  const separatorWidth = 1;
+
   const toolbarTabs = styleVariant === 'toolbarTabs';
   const codeTabs = styleVariant === 'codeTabs';
   const underlineTabs = styleVariant === 'underlineTabs';
@@ -224,7 +226,7 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       gap: codeLike ? 0 : 8,
       paddingHorizontal: codeLike ? 0 : 10,
       paddingVertical: toolbarTabs ? 10 : codeLike ? 0 : 8,
-      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomWidth: separatorWidth,
       borderBottomColor: theme.border,
       backgroundColor: stripBackground,
       overflow: toolbarTabs ? 'visible' : 'hidden',
@@ -243,9 +245,9 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       alignItems: 'center',
       gap: 10,
       position: 'relative',
-      borderWidth: codeLike || underlineTabs ? 0 : StyleSheet.hairlineWidth,
+      borderWidth: codeLike || underlineTabs ? 0 : separatorWidth,
       borderColor: toolbarTabs ? 'transparent' : theme.border,
-      borderRightWidth: codeLike ? StyleSheet.hairlineWidth : 0,
+      borderRightWidth: codeLike ? separatorWidth : 0,
       borderRightColor: codeLike ? theme.border : undefined,
       borderRadius: tabRadius,
       paddingLeft: codeLike ? 12 : 10,
@@ -320,8 +322,8 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       justifyContent: 'center',
       paddingHorizontal: 10,
       borderRadius: codeLike ? 0 : 10,
-      borderWidth: codeLike ? 0 : StyleSheet.hairlineWidth,
-      borderLeftWidth: StyleSheet.hairlineWidth,
+      borderWidth: codeLike ? 0 : separatorWidth,
+      borderLeftWidth: separatorWidth,
       borderLeftColor: theme.border,
       backgroundColor: codeLike ? stripBackground : theme.surface,
     },
