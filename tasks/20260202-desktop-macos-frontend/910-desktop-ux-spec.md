@@ -28,7 +28,8 @@ Manual only (no discovery/bridge).
 
 - Lists sessions for the focused connection.
 - Clicking a session row selects it.
-- Use an explicit “Open” affordance to open it as a tab in the main column.
+- Use an explicit “Open” affordance (visible on hover) to open it as a tab in the main column.
+- Double-clicking a row opens it.
 - If already open, focuses the existing tab.
 
 ## Session tabs
