@@ -47,6 +47,7 @@ import { DesktopWindowManager } from '../windows/desktopWindowManager';
 const PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_session_list_actions_v1';
 const SESSION_DOUBLE_CLICK_MS = 300;
 const SESSIONS_STALE_MS = 30_000;
+const DEFAULT_PINNED_SESSION_LIST_ACTION_KEYS: ActionKey[] = [];
 
 export interface SessionsPanelProps {
   focusedConnectionId: string | null;
@@ -111,17 +112,17 @@ function SessionsPanelInner({
     hydrate: hydrateFromCache,
   });
 
-  useEffect(() => {
-    if (!sessionsController) return;
-    sessionsController.hydrateFromCache({
-      sessions: cachedSessions,
-      lastLoadedAt: cachedLastLoadedAt,
-    });
-  }, [cachedLastLoadedAt, cachedSessions, sessionsController]);
+  const sessionsSnapshot = sessionsState;
+  const sessionsLoading = sessionsSnapshot?.loading ?? false;
+  const controllerError = sessionsSnapshot?.error ?? null;
 
-  const sessions = sessionsState?.sessions ?? cachedSessions;
-  const sessionsLoading = sessionsState?.loading ?? false;
-  const controllerError = sessionsState?.error ?? null;
+  const shouldPreferControllerSessions =
+    sessionsSnapshot?.lastLoadedAt != null ||
+    (sessionsSnapshot?.sessions != null && sessionsSnapshot.sessions.length > 0);
+
+  const sessions = shouldPreferControllerSessions
+    ? sessionsSnapshot?.sessions ?? []
+    : cachedSessions;
 
   const [filterText, setFilterText] = useState('');
   const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null);
@@ -220,7 +221,7 @@ function SessionsPanelInner({
   } = usePersistentPinnedActions<ActionKey>({
     store: asyncStorageKeyValueStore,
     key: pinnedSessionListActionsStorageKey,
-    initialPinned: [],
+    initialPinned: DEFAULT_PINNED_SESSION_LIST_ACTION_KEYS,
   });
 
   const [pluginActionRunning, setPluginActionRunning] = useState(false);
