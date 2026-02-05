@@ -1,9 +1,12 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActionSheetIOS,
+  Platform,
   Text,
   StyleSheet,
   TouchableOpacity,
   View,
+  findNodeHandle,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
@@ -52,6 +55,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
   const variant = props.variant ?? 'modal';
   const [menuVisible, setMenuVisible] = useState(false);
   const menuAnchorRef = useRef<any>(null);
+  const isMacOSNativeMenu = Platform.OS === 'macos' && variant === 'dropdown';
 
   useEffect(() => {
     if (props.isActive === false) {
@@ -109,6 +113,85 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
     props.onAction(key);
   };
 
+  const openMacOSActionSheet = useCallback(() => {
+    const actions = model.orderedActions;
+    if (actions.length === 0) {
+      return;
+    }
+
+    const pinnedSet = new Set(props.pinned);
+    const actionLabels = actions.map((action) =>
+      `${pinnedSet.has(action.key) ? '★ ' : ''}${action.label}`,
+    );
+
+    const options = [...actionLabels, 'Edit pinned actions…', 'Cancel'];
+    const cancelButtonIndex = options.length - 1;
+    const editPinnedIndex = options.length - 2;
+
+    let anchor: number | undefined;
+    if (menuAnchorRef.current) {
+      try {
+        anchor = findNodeHandle(menuAnchorRef.current) as any;
+      } catch {
+        anchor = undefined;
+      }
+    }
+
+    const openPinnedEditor = () => {
+      const pinnedOptions = actions
+        .map((action) => `${pinnedSet.has(action.key) ? 'Unpin' : 'Pin'} ${action.label}`)
+        .concat(['Done']);
+      const doneIndex = pinnedOptions.length - 1;
+
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: pinnedOptions,
+          cancelButtonIndex: doneIndex,
+          anchor,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === doneIndex) {
+            return;
+          }
+          const picked = actions[buttonIndex];
+          if (!picked) {
+            return;
+          }
+          togglePinned(picked.key);
+        },
+      );
+    };
+
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        options,
+        cancelButtonIndex,
+        anchor,
+      },
+      (buttonIndex) => {
+        if (buttonIndex === cancelButtonIndex) {
+          return;
+        }
+        if (buttonIndex === editPinnedIndex) {
+          openPinnedEditor();
+          return;
+        }
+
+        const picked = actions[buttonIndex];
+        if (!picked) {
+          return;
+        }
+
+        const disabled = props.isActionDisabled ? props.isActionDisabled(picked.key) : false;
+        if (disabled) {
+          return;
+        }
+
+        props.onAction(picked.key);
+      },
+    );
+  }, [model.orderedActions, props.isActionDisabled, props.onAction, props.pinned, togglePinned]);
+
   const panel = (
     <ActionsMenuPanel
       title={props.title}
@@ -134,7 +217,13 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
         <View ref={menuAnchorRef} collapsable={false}>
           <TouchableOpacity
             style={styles.iconButton}
-            onPress={() => setMenuVisible(true)}
+            onPress={() => {
+              if (isMacOSNativeMenu) {
+                openMacOSActionSheet();
+                return;
+              }
+              setMenuVisible(true);
+            }}
           >
             {props.renderIcon ? (
               props.renderIcon({ name: 'more-horizontal', size: 18, color: theme.primary })
@@ -145,7 +234,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
         </View>
       </View>
 
-      {variant === 'modal' ? (
+      {isMacOSNativeMenu ? null : variant === 'modal' ? (
         <ModalMenuSurface
           visible={menuVisible}
           onRequestClose={() => setMenuVisible(false)}
