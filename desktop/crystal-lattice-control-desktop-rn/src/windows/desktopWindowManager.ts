@@ -15,6 +15,12 @@ export interface OpenAgentPickerParams {
   agents: string[];
 }
 
+export interface ToggleActionsPopoverParams {
+  anchorTag: number;
+  width?: number;
+  height?: number;
+}
+
 export interface DesktopWindowManagerModule {
   openConnectionEditor(params: OpenConnectionEditorParams): void;
   submitConnectionEditor(payload: { record: ConnectionRecord }): void;
@@ -23,6 +29,9 @@ export interface DesktopWindowManagerModule {
   openAgentPicker(params: OpenAgentPickerParams): void;
   submitAgentPicker(payload: { connectionId: string; agentId: string }): void;
   cancelAgentPicker(): void;
+
+  toggleActionsPopover(params: ToggleActionsPopoverParams): void;
+  closeActionsPopover(): void;
 
   getSystemTheme?(): Promise<MacOSSystemThemePayload>;
 }

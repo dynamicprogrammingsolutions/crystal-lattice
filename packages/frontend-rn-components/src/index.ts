@@ -35,6 +35,19 @@ export { ActionsMenuContent } from './actions/ActionsMenuContent';
 
 export type { MenuSurfaceBaseProps } from './actions/MenuSurfaces';
 export { ModalMenuSurface, DropdownMenuSurface } from './actions/MenuSurfaces';
+export {
+  actionsPopoverInvokeAction,
+  actionsPopoverRequestClose,
+  actionsPopoverTogglePinned,
+  clearActiveActionsPopoverMenu,
+  getActiveActionsPopoverMenu,
+  setActiveActionsPopoverMenu,
+  updateActiveActionsPopoverMenuData,
+  useActiveActionsPopoverMenu,
+  type ActionsPopoverMenuData,
+  type ActionsPopoverMenuHandlers,
+  type ActionsPopoverMenuState,
+} from './actions/actionsPopoverCoordinator';
 
 export type { ActionsMenuProps } from './actions/ActionsMenu';
 export { ActionsMenu } from './actions/ActionsMenu';

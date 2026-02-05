@@ -12,8 +12,8 @@
 		5142014D2437B4B30078DB4F /* AppDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5142014C2437B4B30078DB4F /* AppDelegate.mm */; };
 		514201522437B4B40078DB4F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 514201512437B4B40078DB4F /* Assets.xcassets */; };
 		514201552437B4B40078DB4F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 514201532437B4B40078DB4F /* Main.storyboard */; };
-		5885FD2ABEAD4A72BF171608 /* Fonts in Resources */ = {isa = PBXBuildFile; fileRef = AB85723B3B404E1E97A72B48 /* Fonts */; };
 		514201582437B4B40078DB4F /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 514201572437B4B40078DB4F /* main.m */; };
+		5885FD2ABEAD4A72BF171608 /* Fonts in Resources */ = {isa = PBXBuildFile; fileRef = AB85723B3B404E1E97A72B48 /* Fonts */; };
 		8511A5CB7F0EEA26F5AEBDF8 /* libPods-CrystalLatticeControlDesktopRN-macOS.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F75F6C0EDC82A9FC4070C341 /* libPods-CrystalLatticeControlDesktopRN-macOS.a */; };
 		9A6C6A4F88C14999A6E50C11 /* DesktopWindowManager.mm in Sources */ = {isa = PBXBuildFile; fileRef = 9A6C6A4E88C14999A6E50C11 /* DesktopWindowManager.mm */; };
 /* End PBXBuildFile section */
@@ -29,9 +29,9 @@
 		514201572437B4B40078DB4F /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		514201592437B4B40078DB4F /* CrystalLatticeControlDesktopRN.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CrystalLatticeControlDesktopRN.entitlements; sourceTree = "<group>"; };
 		5990908CD441EB630A5FC7CF /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		AB85723B3B404E1E97A72B48 /* Fonts */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fonts; sourceTree = "<group>"; };
 		9A6C6A4D88C14999A6E50C11 /* DesktopWindowManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DesktopWindowManager.h; sourceTree = "<group>"; };
 		9A6C6A4E88C14999A6E50C11 /* DesktopWindowManager.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = DesktopWindowManager.mm; sourceTree = "<group>"; };
+		AB85723B3B404E1E97A72B48 /* Fonts */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fonts; sourceTree = "<group>"; };
 		CF2605BE4E46109D99D5130A /* Pods-CrystalLatticeControlDesktopRN-macOS.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CrystalLatticeControlDesktopRN-macOS.debug.xcconfig"; path = "Target Support Files/Pods-CrystalLatticeControlDesktopRN-macOS/Pods-CrystalLatticeControlDesktopRN-macOS.debug.xcconfig"; sourceTree = "<group>"; };
 		D5FB0A66A30E78953CED74FC /* Pods-CrystalLatticeControlDesktopRN-macOS.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CrystalLatticeControlDesktopRN-macOS.release.xcconfig"; path = "Target Support Files/Pods-CrystalLatticeControlDesktopRN-macOS/Pods-CrystalLatticeControlDesktopRN-macOS.release.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
