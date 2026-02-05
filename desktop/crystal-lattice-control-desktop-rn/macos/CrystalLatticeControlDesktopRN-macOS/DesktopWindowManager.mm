@@ -6,12 +6,16 @@
 #import <React/RCTRootView.h>
 #import <objc/message.h>
 
-@interface DesktopWindowManager ()
+@interface DesktopWindowManager () <NSPopoverDelegate>
 
 @property(nonatomic, strong) NSWindow *connectionEditorWindow;
 @property(nonatomic, strong) NSWindow *agentPickerWindow;
 @property(nonatomic, strong) NSWindow *applicationActionDialogWindow;
+@property(nonatomic, strong) NSPopover *applicationActionDialogPopover;
+@property(nonatomic, strong) NSPopover *closingApplicationActionDialogPopover;
 @property(nonatomic, strong) NSPopover *actionsPopover;
+
+@property(nonatomic, assign) BOOL suppressApplicationActionDialogPopoverCancel;
 
 @end
 
@@ -327,7 +331,7 @@ RCT_EXPORT_METHOD(openApplicationActionDialogWindow : (NSDictionary *)params)
       return;
     }
 
-    NSDictionary *initialProps = @{};
+    NSDictionary *initialProps = @{ @"presentation" : @"window" };
     NSView *rootView = nil;
     id appDelegate = NSApp.delegate;
     id rootViewFactory = nil;
@@ -376,6 +380,99 @@ RCT_EXPORT_METHOD(openApplicationActionDialogWindow : (NSDictionary *)params)
     self.applicationActionDialogWindow = window;
     [window center];
     [window makeKeyAndOrderFront:nil];
+  });
+}
+
+RCT_EXPORT_METHOD(openApplicationActionDialogPopover : (NSDictionary *)params)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (self.applicationActionDialogPopover != nil && self.applicationActionDialogPopover.isShown) {
+      self.suppressApplicationActionDialogPopoverCancel = YES;
+      self.closingApplicationActionDialogPopover = self.applicationActionDialogPopover;
+      [self.applicationActionDialogPopover performClose:nil];
+      self.applicationActionDialogPopover = nil;
+    }
+
+    NSNumber *anchorTag = params[@"anchorTag"];
+    NSView *sourceView = nil;
+    if ([anchorTag isKindOfClass:[NSNumber class]]) {
+      sourceView = [self.viewRegistry_DEPRECATED viewForReactTag:anchorTag];
+    }
+    if (sourceView == nil) {
+      sourceView = NSApp.keyWindow.contentView;
+    }
+    if (sourceView == nil) {
+      return;
+    }
+
+    CGFloat width = 460;
+    CGFloat height = 420;
+    if ([params[@"width"] respondsToSelector:@selector(doubleValue)]) {
+      width = (CGFloat)[params[@"width"] doubleValue];
+    }
+    if ([params[@"height"] respondsToSelector:@selector(doubleValue)]) {
+      height = (CGFloat)[params[@"height"] doubleValue];
+    }
+
+    NSDictionary *initialProps = @{ @"presentation" : @"popover" };
+    NSView *rootView = nil;
+    id appDelegate = NSApp.delegate;
+    id rootViewFactory = nil;
+    @try {
+      rootViewFactory = [appDelegate valueForKey:@"rootViewFactory"];
+    } @catch (__unused NSException *exception) {
+      rootViewFactory = nil;
+    }
+    if (rootViewFactory != nil) {
+      SEL selector = NSSelectorFromString(@"viewWithModuleName:initialProperties:");
+      if ([rootViewFactory respondsToSelector:selector]) {
+        using MsgSendType = NSView *(*)(id, SEL, NSString *, NSDictionary *);
+        rootView = ((MsgSendType)objc_msgSend)(
+            rootViewFactory,
+            selector,
+            @"ApplicationActionDialogWindow",
+            initialProps);
+      }
+    }
+    if (rootView == nil) {
+      rootView =
+          [[RCTRootView alloc] initWithBridge:self.bridge moduleName:@"ApplicationActionDialogWindow" initialProperties:initialProps];
+    }
+
+    rootView.frame = NSMakeRect(0, 0, width, height);
+    rootView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+
+    NSViewController *controller = [[NSViewController alloc] init];
+    controller.view = rootView;
+
+    NSPopover *popover = [[NSPopover alloc] init];
+    popover.behavior = NSPopoverBehaviorTransient;
+    popover.contentViewController = controller;
+    popover.contentSize = NSMakeSize(width, height);
+    popover.delegate = (id<NSPopoverDelegate>)self;
+
+    self.applicationActionDialogPopover = popover;
+
+    NSRect anchorRect = sourceView.bounds;
+    if (![anchorTag isKindOfClass:[NSNumber class]]) {
+      anchorRect = NSMakeRect(NSMidX(anchorRect), NSMidY(anchorRect), 1, 1);
+    }
+
+    [popover showRelativeToRect:anchorRect ofView:sourceView preferredEdge:NSRectEdgeMaxY];
+  });
+}
+
+RCT_EXPORT_METHOD(closeApplicationActionDialogPopover)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (self.applicationActionDialogPopover == nil) {
+      return;
+    }
+
+    self.suppressApplicationActionDialogPopoverCancel = YES;
+    self.closingApplicationActionDialogPopover = self.applicationActionDialogPopover;
+    self.applicationActionDialogPopover = nil;
+    [self.closingApplicationActionDialogPopover performClose:nil];
   });
 }
 
@@ -561,6 +658,22 @@ RCT_EXPORT_METHOD(cancelAgentPicker)
                                                     name:NSWindowWillCloseNotification
                                                   object:self.applicationActionDialogWindow];
     self.applicationActionDialogWindow = nil;
+  }
+}
+
+- (void)popoverDidClose:(NSNotification *)notification
+{
+  NSPopover *popover = (NSPopover *)notification.object;
+  if (popover == self.closingApplicationActionDialogPopover) {
+    self.closingApplicationActionDialogPopover = nil;
+    self.suppressApplicationActionDialogPopoverCancel = NO;
+    return;
+  }
+
+  if (popover == self.applicationActionDialogPopover) {
+    self.applicationActionDialogPopover = nil;
+    [self sendEventWithName:@"applicationActionDialogCancelled" body:@{}];
+    return;
   }
 }
 

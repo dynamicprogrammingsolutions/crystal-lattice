@@ -24,6 +24,8 @@ export interface ActionsPopoverMenuState {
 let activeMenu: ActionsPopoverMenuState | null = null;
 const listeners = new Set<() => void>();
 
+let lastAnchorTag: number | null = null;
+
 function emit() {
   for (const listener of listeners) {
     listener();
@@ -84,6 +86,14 @@ export function actionsPopoverTogglePinned(key: ActionKey) {
 
 export function actionsPopoverRequestClose() {
   activeMenu?.handlers.onRequestClose();
+}
+
+export function setLastActionsPopoverAnchorTag(tag: number | null) {
+  lastAnchorTag = typeof tag === 'number' ? tag : null;
+}
+
+export function getLastActionsPopoverAnchorTag(): number | null {
+  return lastAnchorTag;
 }
 
 export function useActiveActionsPopoverMenu(): ActionsPopoverMenuState | null {
