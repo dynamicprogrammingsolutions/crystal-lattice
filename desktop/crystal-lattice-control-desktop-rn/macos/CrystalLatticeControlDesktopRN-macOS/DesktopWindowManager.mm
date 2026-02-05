@@ -10,6 +10,7 @@
 
 @property(nonatomic, strong) NSWindow *connectionEditorWindow;
 @property(nonatomic, strong) NSWindow *agentPickerWindow;
+@property(nonatomic, strong) NSWindow *applicationActionDialogWindow;
 @property(nonatomic, strong) NSPopover *actionsPopover;
 
 @end
@@ -25,7 +26,7 @@ RCT_EXPORT_MODULE();
 
 - (NSArray<NSString *> *)supportedEvents
 {
-  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"tabStripStyleChanged", @"systemThemeChanged" ];
+  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"tabStripStyleChanged", @"systemThemeChanged" ];
 }
 
 - (void)startObserving
@@ -318,6 +319,80 @@ RCT_EXPORT_METHOD(openAgentPicker : (NSDictionary *)params)
   });
 }
 
+RCT_EXPORT_METHOD(openApplicationActionDialogWindow : (NSDictionary *)params)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (self.applicationActionDialogWindow != nil) {
+      [self.applicationActionDialogWindow makeKeyAndOrderFront:nil];
+      return;
+    }
+
+    NSDictionary *initialProps = @{};
+    NSView *rootView = nil;
+    id appDelegate = NSApp.delegate;
+    id rootViewFactory = nil;
+    @try {
+      rootViewFactory = [appDelegate valueForKey:@"rootViewFactory"];
+    } @catch (__unused NSException *exception) {
+      rootViewFactory = nil;
+    }
+    if (rootViewFactory != nil) {
+      SEL selector = NSSelectorFromString(@"viewWithModuleName:initialProperties:");
+      if ([rootViewFactory respondsToSelector:selector]) {
+        using MsgSendType = NSView *(*)(id, SEL, NSString *, NSDictionary *);
+        rootView = ((MsgSendType)objc_msgSend)(
+            rootViewFactory,
+            selector,
+            @"ApplicationActionDialogWindow",
+            initialProps);
+      }
+    }
+
+    if (rootView == nil) {
+      rootView =
+          [[RCTRootView alloc] initWithBridge:self.bridge moduleName:@"ApplicationActionDialogWindow" initialProperties:initialProps];
+    }
+
+    NSRect frame = NSMakeRect(0, 0, 540, 520);
+    NSWindow *window = [[NSWindow alloc] initWithContentRect:frame
+                                                   styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
+                                                     backing:NSBackingStoreBuffered
+                                                       defer:NO];
+    NSString *title = nil;
+    if ([params[@"title"] isKindOfClass:[NSString class]]) {
+      title = params[@"title"];
+    }
+    window.title = title ?: @"Action";
+    rootView.frame = frame;
+    rootView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    window.contentView = rootView;
+    window.releasedWhenClosed = NO;
+
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(applicationActionDialogWindowWillClose:)
+                                                 name:NSWindowWillCloseNotification
+                                               object:window];
+
+    self.applicationActionDialogWindow = window;
+    [window center];
+    [window makeKeyAndOrderFront:nil];
+  });
+}
+
+RCT_EXPORT_METHOD(closeApplicationActionDialogWindow)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (self.applicationActionDialogWindow == nil) {
+      return;
+    }
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                    name:NSWindowWillCloseNotification
+                                                  object:self.applicationActionDialogWindow];
+    [self.applicationActionDialogWindow close];
+    self.applicationActionDialogWindow = nil;
+  });
+}
+
 RCT_EXPORT_METHOD(toggleActionsPopover : (NSDictionary *)params)
 {
   dispatch_async(dispatch_get_main_queue(), ^{
@@ -475,6 +550,17 @@ RCT_EXPORT_METHOD(cancelAgentPicker)
                                                     name:NSWindowWillCloseNotification
                                                   object:self.agentPickerWindow];
     self.agentPickerWindow = nil;
+  }
+}
+
+- (void)applicationActionDialogWindowWillClose:(NSNotification *)notification
+{
+  if (notification.object == self.applicationActionDialogWindow) {
+    [self sendEventWithName:@"applicationActionDialogCancelled" body:@{}];
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                    name:NSWindowWillCloseNotification
+                                                  object:self.applicationActionDialogWindow];
+    self.applicationActionDialogWindow = nil;
   }
 }
 

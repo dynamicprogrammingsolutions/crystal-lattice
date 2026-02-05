@@ -21,6 +21,10 @@ export interface ToggleActionsPopoverParams {
   height?: number;
 }
 
+export interface OpenApplicationActionDialogWindowParams {
+  title?: string;
+}
+
 export interface DesktopWindowManagerModule {
   openConnectionEditor(params: OpenConnectionEditorParams): void;
   submitConnectionEditor(payload: { record: ConnectionRecord }): void;
@@ -32,6 +36,9 @@ export interface DesktopWindowManagerModule {
 
   toggleActionsPopover(params: ToggleActionsPopoverParams): void;
   closeActionsPopover(): void;
+
+  openApplicationActionDialogWindow(params?: OpenApplicationActionDialogWindowParams): void;
+  closeApplicationActionDialogWindow(): void;
 
   getSystemTheme?(): Promise<MacOSSystemThemePayload>;
 }
