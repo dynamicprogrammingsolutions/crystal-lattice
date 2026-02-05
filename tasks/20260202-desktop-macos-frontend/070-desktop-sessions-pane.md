@@ -10,7 +10,7 @@ Depends On:
 
 ## Status
 
-- [ ] Planned (implementation-ready)
+- [x] Implemented
 
 ## Requirements
 
@@ -37,19 +37,24 @@ Notes:
 
 ## Related code (already implemented)
 
-Current desktop app already has the layout + tab model; 070 is primarily “replace placeholder with real controller-driven sessions pane”.
+Current desktop app already has the layout + tab model; 070 replaces the sessions placeholder with a real controller-driven sessions pane.
 
-- Left column currently renders `SessionsPanelPlaceholder`:
-  - `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx:289`
-  - Placeholder component: `desktop/crystal-lattice-control-desktop-rn/src/panels/SessionsPanelPlaceholder.tsx:1`
+- Left column sessions pane:
+  - Rendered from: `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx:1`
+  - Component: `desktop/crystal-lattice-control-desktop-rn/src/panels/SessionsPanel.tsx:1`
 - Tabs already exist and already enforce “open or focus existing”:
   - `openTab()` dedupes by `tabId = ${connectionId}:${sessionId}` and sets `activeTabId`.
-  - `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx:173`
+  - `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx:1`
 - Connection runtime backends live in `openConnectionsById`:
   - `desktop/crystal-lattice-control-desktop-rn/src/connections/useOpenConnections.ts:1`
 - Sessions list offline cache is already persisted (added in 060):
   - Cache hook: `desktop/crystal-lattice-control-desktop-rn/src/cache/useSessionsCache.ts:1`
   - Cache shape: `desktop/crystal-lattice-control-desktop-rn/src/cache/types.ts:1`
+- Sessions reload triggers are decoupled via an app-level event bus:
+  - `desktop/crystal-lattice-control-desktop-rn/src/events/desktopEventBus.ts:1`
+- New session agent selection uses a dedicated macOS window:
+  - Window component: `desktop/crystal-lattice-control-desktop-rn/src/windows/AgentPickerWindow.tsx:1`
+  - Native window manager: `desktop/crystal-lattice-control-desktop-rn/macos/CrystalLatticeControlDesktopRN-macOS/DesktopWindowManager.mm:1`
 - SDK controller to use:
   - `packages/frontend-sdk/src/sessions/sessionsController.ts:1`
   - Hook helper (optional): `packages/frontend-sdk-react/src/useSessionsController.ts:1`
@@ -62,9 +67,11 @@ Mobile reference implementation (target parity):
   - `packages/frontend-sdk/src/plugins/actionRunner.ts:1` (via `runApplicationAction`)
 - Uses shared pinnable-actions UI primitive:
   - `packages/frontend-rn-components/src/actions/ActionsMenuBar.tsx:1`
-- Uses (currently mobile-local) wrappers that should become shared to avoid desktop re-implementing them:
-  - `mobile/crystal-lattice-control-rn/src/components/SessionActionsBar.tsx:1`
-  - `mobile/crystal-lattice-control-rn/src/components/ApplicationActionDialog.tsx:1`
+- Uses shared wrappers / helpers (extracted during 070):
+  - `packages/frontend-rn-components/src/actions/SessionActionsBar.tsx:1`
+  - `packages/frontend-rn-components/src/ApplicationActionDialog.tsx:1`
+  - `packages/frontend-rn-components/src/sessionActions.ts:1`
+  - `packages/frontend-sdk-react/src/usePersistentPinnedActions.ts:1`
 
 ## Implementation plan (authoritative for 070)
 
@@ -271,14 +278,14 @@ If `createSession()` fails, show an inline error (and optionally an `Alert`).
 
 ### I) Done criteria / checklist
 
-- [ ] `SessionsPanelPlaceholder` is no longer rendered.
-- [ ] Online: sessions load and refresh works; cache is updated.
-- [ ] Offline: cached sessions still visible; refresh/new session disabled.
-- [ ] Clicking a row selects it; “Open” (hover button or double-click) opens/focuses a tab (existing `openTab()` behavior).
-- [ ] Switching focused connection switches the sessions list and triggers load-if-stale when online.
-- [ ] Title/subtitle/meta match `deriveSessionListPresentationFromGroups` output when plugin fields exist.
-- [ ] Per-session pinned toggle (⭐) works when a pinned toggle element exists.
-- [ ] Per-session action bar uses shared pinnable-actions UI (no duplicated implementation).
+- [x] `SessionsPanelPlaceholder` is no longer rendered.
+- [x] Online: sessions load and refresh works; cache is updated.
+- [x] Offline: cached sessions still visible; refresh/new session disabled.
+- [x] Clicking a row selects it; “Open” (hover button or double-click) opens/focuses a tab (existing `openTab()` behavior).
+- [x] Switching focused connection switches the sessions list and triggers load-if-stale when online.
+- [x] Title/subtitle/meta match `deriveSessionListPresentationFromGroups` output when plugin fields exist.
+- [x] Per-session pinned toggle (⭐) works when a pinned toggle element exists.
+- [x] Per-session action bar uses shared pinnable-actions UI (no duplicated implementation).
 
 ### J) App-level event bus (enables future reload triggers)
 

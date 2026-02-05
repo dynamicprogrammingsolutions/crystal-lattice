@@ -9,8 +9,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useTheme, type Theme } from '../theme';
-import { extractByPath } from '../uiSchemaUtils';
+
+import { extractByPath } from '@crystal-lattice/frontend-sdk';
+
+import { useTheme, type Theme } from './theme';
 
 interface DialogInputField {
   name: string;
@@ -37,14 +39,14 @@ export interface ApplicationActionDialogProps {
   onCancel: () => void;
 }
 
-const ApplicationActionDialog: React.FC<ApplicationActionDialogProps> = ({
+export function ApplicationActionDialog({
   visible,
   dialog,
   titleFallback,
   prefillContext,
   onSubmit,
   onCancel,
-}) => {
+}: ApplicationActionDialogProps): React.JSX.Element | null {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -53,7 +55,7 @@ const ApplicationActionDialog: React.FC<ApplicationActionDialogProps> = ({
   const inputs: DialogInputField[] =
     kind === 'form' && dialog && Array.isArray(dialog.inputs)
       ? (dialog.inputs as DialogInputField[])
-      : []
+      : [];
 
   const [valuesByName, setValuesByName] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -64,15 +66,13 @@ const ApplicationActionDialog: React.FC<ApplicationActionDialogProps> = ({
       setError(null);
       return;
     }
+
     const initial: Record<string, string> = {};
     inputs.forEach((field) => {
       const key = field.name;
       if (!key) return;
       const def = field.default;
 
-      // Optional prefill resolution based on ``prefill_from`` hints. This
-      // allows dialogs to derive defaults from the current session or
-      // message context without each caller having to rewrite the schema.
       let prefilled: string | undefined;
       const src = field.prefill_from;
       if (typeof src === 'string' && src) {
@@ -94,10 +94,7 @@ const ApplicationActionDialog: React.FC<ApplicationActionDialogProps> = ({
       }
 
       let value: string;
-      if (
-        prefilled !== undefined &&
-        (def === undefined || def === null || String(def) === '')
-      ) {
+      if (prefilled !== undefined && (def === undefined || def === null || String(def) === '')) {
         value = prefilled;
       } else if (def === undefined || def === null) {
         value = '';
@@ -109,9 +106,10 @@ const ApplicationActionDialog: React.FC<ApplicationActionDialogProps> = ({
 
       initial[key] = value;
     });
+
     setValuesByName(initial);
     setError(null);
-  }, [visible, dialog, prefillContext]);
+  }, [dialog, inputs, kind, prefillContext, visible]);
 
   if (!visible || !dialog || kind === 'none') {
     return null;
@@ -158,33 +156,33 @@ const ApplicationActionDialog: React.FC<ApplicationActionDialogProps> = ({
         continue;
       }
 
-      const fType = typeof field.type === 'string' ? field.type : 'string';
+      const fieldType = typeof field.type === 'string' ? field.type : 'string';
       let parsed: any = trimmed;
 
-      if (fType === 'integer') {
-        const n = parseInt(trimmed, 10);
-        if (Number.isNaN(n)) {
+      if (fieldType === 'integer') {
+        const numberValue = parseInt(trimmed, 10);
+        if (Number.isNaN(numberValue)) {
           const label = field.label || name;
           setError(`Field "${label}" must be an integer.`);
           return;
         }
-        parsed = n;
-      } else if (fType === 'number') {
-        const n = parseFloat(trimmed);
-        if (Number.isNaN(n)) {
+        parsed = numberValue;
+      } else if (fieldType === 'number') {
+        const numberValue = parseFloat(trimmed);
+        if (Number.isNaN(numberValue)) {
           const label = field.label || name;
           setError(`Field "${label}" must be a number.`);
           return;
         }
-        parsed = n;
-      } else if (fType === 'boolean') {
-        const b = parseBoolean(trimmed);
-        if (b === null) {
+        parsed = numberValue;
+      } else if (fieldType === 'boolean') {
+        const boolValue = parseBoolean(trimmed);
+        if (boolValue === null) {
           const label = field.label || name;
           setError(`Field "${label}" must be true/false.`);
           return;
         }
-        parsed = b;
+        parsed = boolValue;
       }
 
       result[name] = parsed;
@@ -204,36 +202,38 @@ const ApplicationActionDialog: React.FC<ApplicationActionDialogProps> = ({
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>{title}</Text>
           {message ? <Text style={styles.modalSubtitle}>{message}</Text> : null}
-          {kind === 'form' &&
-            inputs.map((field) => {
-              const name = field.name;
-              if (!name) return null;
-              const label = field.label || name;
-              const placeholder = field.placeholder || '';
-              const description = field.description || '';
-              const value = valuesByName[name] ?? '';
-              const fType = typeof field.type === 'string' ? field.type : 'string';
-              const isMultiline = fType === 'multiline';
 
-              return (
-                <View key={name} style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>{label}</Text>
-                  {description ? (
-                    <Text style={styles.inputDescription}>{description}</Text>
-                  ) : null}
-                  <TextInput
-                    style={isMultiline ? styles.modalInputMultiline : styles.modalInput}
-                    value={value}
-                    onChangeText={(text) => handleChange(name, text)}
-                    placeholder={placeholder}
-                    placeholderTextColor={theme.textSecondary}
-                    multiline={isMultiline}
-                    textAlignVertical={isMultiline ? 'top' : 'center'}
-                  />
-                </View>
-              );
-            })}
+          {kind === 'form'
+            ? inputs.map((field) => {
+                const name = field.name;
+                if (!name) return null;
+                const label = field.label || name;
+                const placeholder = field.placeholder || '';
+                const description = field.description || '';
+                const value = valuesByName[name] ?? '';
+                const fieldType = typeof field.type === 'string' ? field.type : 'string';
+                const isMultiline = fieldType === 'multiline';
+
+                return (
+                  <View key={name} style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>{label}</Text>
+                    {description ? <Text style={styles.inputDescription}>{description}</Text> : null}
+                    <TextInput
+                      style={isMultiline ? styles.modalInputMultiline : styles.modalInput}
+                      value={value}
+                      onChangeText={(text) => handleChange(name, text)}
+                      placeholder={placeholder}
+                      placeholderTextColor={theme.textSecondary}
+                      multiline={isMultiline}
+                      textAlignVertical={isMultiline ? 'top' : 'center'}
+                    />
+                  </View>
+                );
+              })
+            : null}
+
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
           <View style={styles.modalButtonsRow}>
             <TouchableOpacity
               style={[styles.button, styles.secondaryButton, styles.modalButton]}
@@ -252,7 +252,7 @@ const ApplicationActionDialog: React.FC<ApplicationActionDialogProps> = ({
       </KeyboardAvoidingView>
     </Modal>
   );
-};
+}
 
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
@@ -279,33 +279,48 @@ const createStyles = (theme: Theme) =>
       color: theme.textSecondary,
       marginBottom: 12,
     },
-    modalInput: {
-      backgroundColor: theme.surface,
-      borderWidth: 1,
-      borderColor: theme.border,
-      borderRadius: 8,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      fontSize: 14,
-      marginTop: 4,
+    inputGroup: {
+      marginBottom: 12,
+    },
+    inputLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      marginBottom: 4,
       color: theme.text,
     },
-    modalInputMultiline: {
-      backgroundColor: theme.surface,
+    inputDescription: {
+      fontSize: 11,
+      color: theme.textSecondary,
+      marginBottom: 6,
+    },
+    modalInput: {
       borderWidth: 1,
       borderColor: theme.border,
       borderRadius: 8,
       paddingHorizontal: 10,
-      paddingVertical: 6,
-      fontSize: 14,
-      marginTop: 4,
+      paddingVertical: 8,
       color: theme.text,
-      minHeight: 80,
+      backgroundColor: theme.backgroundAlt,
+    },
+    modalInputMultiline: {
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      color: theme.text,
+      backgroundColor: theme.backgroundAlt,
+      minHeight: 90,
+    },
+    errorText: {
+      fontSize: 12,
+      color: theme.danger,
+      marginBottom: 8,
     },
     modalButtonsRow: {
       flexDirection: 'row',
       justifyContent: 'flex-end',
-      marginTop: 12,
+      marginTop: 8,
     },
     modalButton: {
       minWidth: 90,
@@ -317,39 +332,20 @@ const createStyles = (theme: Theme) =>
       paddingVertical: 6,
       borderRadius: 8,
     },
-    primaryButton: {
-      backgroundColor: theme.primary,
-    },
     secondaryButton: {
       backgroundColor: theme.surfaceAlt,
     },
-    buttonText: {
-      color: theme.textOnPrimary,
-      fontSize: 14,
-      fontWeight: '600',
+    primaryButton: {
+      backgroundColor: theme.primary,
     },
     buttonTextSecondary: {
       color: theme.text,
       fontSize: 14,
       fontWeight: '600',
     },
-    inputGroup: {
-      marginBottom: 8,
-    },
-    inputLabel: {
-      fontSize: 12,
-      color: theme.text,
-    },
-    inputDescription: {
-      fontSize: 11,
-      color: theme.textSecondary,
-      marginTop: 2,
-    },
-    errorText: {
-      marginTop: 4,
-      fontSize: 12,
-      color: theme.danger,
+    buttonText: {
+      color: theme.textOnPrimary,
+      fontSize: 14,
+      fontWeight: '700',
     },
   });
-
-export default ApplicationActionDialog;

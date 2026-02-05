@@ -1,0 +1,750 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+
+import {
+  ActionsMenuBar,
+  ApplicationActionDialog,
+  useTheme,
+  type ActionDefinition,
+  type ActionKey,
+} from '@crystal-lattice/frontend-rn-components';
+
+import type {
+  ActionUiElement,
+  AgentBackend,
+  SessionSummary,
+} from '@crystal-lattice/frontend-sdk';
+import {
+  deriveSessionListPresentationFromGroups,
+  groupSessionListFields,
+  runApplicationAction,
+} from '@crystal-lattice/frontend-sdk';
+
+import {
+  ApplicationPluginsProvider,
+  useAgentsController,
+  useApplicationPlugins,
+  useHydrateControllerFromCache,
+  usePersistentPinnedActions,
+  usePluginActionDialog,
+  useSessionsController,
+} from '@crystal-lattice/frontend-sdk-react';
+
+import { asyncStorageKeyValueStore } from '../storage/asyncStorageKeyValueStore';
+import { desktopEventBus } from '../events/desktopEventBus';
+import { PanelHeader } from '../ui/PanelHeader';
+import { DesktopWindowManager } from '../windows/desktopWindowManager';
+
+const PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_session_list_actions_v1';
+const SESSION_DOUBLE_CLICK_MS = 300;
+const SESSIONS_STALE_MS = 30_000;
+
+export interface SessionsPanelProps {
+  focusedConnectionId: string | null;
+  focusedConnectionName: string | null;
+  connectionId: string | null;
+  backend: AgentBackend | null;
+  cachedSessions: SessionSummary[];
+  cachedLastLoadedAt: number | null;
+  isOnline: boolean;
+  onUpdateCache: (connectionId: string, sessions: SessionSummary[]) => void;
+  onOpenSessionTab: (params: {
+    connectionId: string;
+    sessionId: string;
+    title?: string;
+  }) => void;
+}
+
+export function SessionsPanel(props: SessionsPanelProps): React.JSX.Element {
+  return (
+    <ApplicationPluginsProvider backend={props.backend} connectionId={props.connectionId}>
+      <SessionsPanelInner {...props} />
+    </ApplicationPluginsProvider>
+  );
+}
+
+function SessionsPanelInner({
+  focusedConnectionId,
+  focusedConnectionName,
+  connectionId,
+  backend,
+  cachedSessions,
+  cachedLastLoadedAt,
+  isOnline,
+  onUpdateCache,
+  onOpenSessionTab,
+}: SessionsPanelProps): React.JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const {
+    controller: sessionsController,
+    state: sessionsState,
+  } = useSessionsController({
+    backend,
+    initialSessions: cachedSessions,
+    limit: 50,
+  });
+
+  const hydrateFromCache = useCallback(
+    (
+      controller: NonNullable<typeof sessionsController>,
+      cache: { sessions: SessionSummary[]; lastLoadedAt: number | null },
+    ) => {
+      controller.hydrateFromCache(cache);
+    },
+    [],
+  );
+
+  useHydrateControllerFromCache({
+    controller: sessionsController,
+    cache: { sessions: cachedSessions, lastLoadedAt: cachedLastLoadedAt },
+    hydrate: hydrateFromCache,
+  });
+
+  useEffect(() => {
+    if (!sessionsController) return;
+    sessionsController.hydrateFromCache({
+      sessions: cachedSessions,
+      lastLoadedAt: cachedLastLoadedAt,
+    });
+  }, [cachedLastLoadedAt, cachedSessions, sessionsController]);
+
+  const sessions = sessionsState?.sessions ?? cachedSessions;
+  const sessionsLoading = sessionsState?.loading ?? false;
+  const controllerError = sessionsState?.error ?? null;
+
+  const [filterText, setFilterText] = useState('');
+  const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedSessionId(null);
+  }, [focusedConnectionId]);
+
+  const subtitle = useMemo(() => {
+    if (!focusedConnectionName) {
+      return 'No focused connection';
+    }
+    const cachedLabel =
+      cachedLastLoadedAt != null
+        ? `cached ${new Date(cachedLastLoadedAt).toLocaleTimeString()}`
+        : 'no cache';
+    const liveLabel = isOnline ? 'online' : 'offline';
+    return `Focused: ${focusedConnectionName} • ${liveLabel} • ${cachedLabel}`;
+  }, [cachedLastLoadedAt, focusedConnectionName, isOnline]);
+
+  const refreshSessions = useCallback(async () => {
+    if (!connectionId) {
+      return;
+    }
+    if (!sessionsController) {
+      Alert.alert('No connection', 'Open a connection to refresh sessions.');
+      return;
+    }
+
+    try {
+      const list = await sessionsController.load({ force: true });
+      onUpdateCache(connectionId, list);
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to load sessions');
+    }
+  }, [connectionId, onUpdateCache, sessionsController]);
+
+  useEffect(() => {
+    if (!connectionId) return;
+    if (!sessionsController) return;
+    if (!isOnline) return;
+
+    sessionsController
+      .loadIfStale({ staleMs: SESSIONS_STALE_MS })
+      .then((list) => {
+        if (list) {
+          onUpdateCache(connectionId, list);
+        }
+      })
+      .catch(() => {
+      });
+  }, [connectionId, isOnline, onUpdateCache, sessionsController]);
+
+  useEffect(() => {
+    if (!connectionId) return;
+    return desktopEventBus.subscribe('sessionsReloadRequested', (payload) => {
+      if (payload.connectionId !== connectionId) {
+        return;
+      }
+      refreshSessions();
+    });
+  }, [connectionId, refreshSessions]);
+
+  const {
+    actionsById,
+    sessionListActions,
+    sessionListFields,
+    sessionListPinnedToggles,
+  } = useApplicationPlugins();
+
+  const fieldGroups = useMemo(
+    () => groupSessionListFields(sessionListFields || []),
+    [sessionListFields],
+  );
+
+  const pinnedToggleElement = sessionListPinnedToggles[0] ?? null;
+
+  const pluginActionDefs: ActionDefinition[] = useMemo(() => {
+    return (sessionListActions || [])
+      .map((el) => ({
+        key: el.id,
+        label: el.label,
+        iconName: (el as any).icon || 'zap',
+      }))
+      .filter((def) => typeof def.key === 'string' && def.key);
+  }, [sessionListActions]);
+
+  const pinnedSessionListActionsStorageKey = useMemo(() => {
+    return `${PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE}:${connectionId ?? 'default'}`;
+  }, [connectionId]);
+
+  const {
+    pinned: pinnedSessionListActionKeys,
+    setPinned: setPinnedSessionListActionKeys,
+  } = usePersistentPinnedActions<ActionKey>({
+    store: asyncStorageKeyValueStore,
+    key: pinnedSessionListActionsStorageKey,
+    initialPinned: [],
+  });
+
+  const [pluginActionRunning, setPluginActionRunning] = useState(false);
+
+  const {
+    activeElement: activePluginDialogElement,
+    openForElement: openPluginDialogForElement,
+    handleSubmit: handleSubmitPluginDialog,
+    handleCancel: handleCancelPluginDialog,
+  } = usePluginActionDialog<SessionSummary>(
+    useCallback(
+      async (
+        element: ActionUiElement,
+        session: SessionSummary,
+        dialogValues: Record<string, any> | undefined,
+      ) => {
+        if (!backend || !connectionId) {
+          Alert.alert('No connection', 'Connect to a server to run actions.');
+          return;
+        }
+
+        setPluginActionRunning(true);
+        try {
+          const { ok, effects, errorMessage } = await runApplicationAction({
+            backend,
+            element,
+            actionsById,
+            context: {
+              sessionId: session.session_id,
+              sessionSummary: session,
+              dialogValues,
+            },
+            effects: {
+              reloadSessionsListOnMutations: true,
+            },
+          });
+
+          if (!ok) {
+            Alert.alert('Action error', errorMessage || 'Failed to execute action');
+            return;
+          }
+
+          for (const effect of effects) {
+            if (effect.type === 'navigateToSession') {
+              onOpenSessionTab({
+                connectionId,
+                sessionId: effect.sessionId,
+                title: effect.sessionId,
+              });
+              return;
+            }
+          }
+
+          if (effects.some((effect) => effect.type === 'reloadSessionsList')) {
+            desktopEventBus.publish('sessionsReloadRequested', {
+              connectionId,
+              reason: `action:${element.id}`,
+            });
+          }
+        } finally {
+          setPluginActionRunning(false);
+        }
+      },
+      [actionsById, backend, connectionId, onOpenSessionTab],
+    ),
+  );
+
+  const { controller: agentsController, state: agentsState } = useAgentsController({
+    backend,
+    cacheKey: connectionId ?? 'default',
+    enabled: false,
+  });
+
+  const [openingAgentPicker, setOpeningAgentPicker] = useState(false);
+  const openAgentPickerWindow = useCallback(async () => {
+    if (!backend || !connectionId) {
+      Alert.alert('No connection', 'Open a connection to create a session.');
+      return;
+    }
+    if (!agentsController) {
+      Alert.alert('Error', 'Agent controller is not available.');
+      return;
+    }
+
+    setOpeningAgentPicker(true);
+    try {
+      const agents = await agentsController.ensureLoaded();
+      DesktopWindowManager?.openAgentPicker({
+        connectionId,
+        connectionName: focusedConnectionName ?? connectionId,
+        agents,
+      });
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to load agents');
+    } finally {
+      setOpeningAgentPicker(false);
+    }
+  }, [agentsController, backend, connectionId, focusedConnectionName]);
+
+  const filteredSessions = useMemo(() => {
+    const query = filterText.trim().toLowerCase();
+    if (!query) {
+      return sessions;
+    }
+    return sessions.filter((sessionSummary) => {
+      if (sessionSummary.session_id.toLowerCase().includes(query)) return true;
+      if ((sessionSummary.preview || '').toLowerCase().includes(query)) return true;
+      const presentation = deriveSessionListPresentationFromGroups(sessionSummary, fieldGroups);
+      if (presentation.title.toLowerCase().includes(query)) return true;
+      if ((presentation.subtitle || '').toLowerCase().includes(query)) return true;
+      if ((presentation.meta || '').toLowerCase().includes(query)) return true;
+      return false;
+    });
+  }, [fieldGroups, filterText, sessions]);
+
+  const lastClickRef = useRef<{ sessionId: string; atMs: number } | null>(null);
+
+  const openSession = useCallback(
+    (session: SessionSummary) => {
+      if (!connectionId) {
+        return;
+      }
+
+      const presentation = deriveSessionListPresentationFromGroups(session, fieldGroups);
+      onOpenSessionTab({
+        connectionId,
+        sessionId: session.session_id,
+        title: presentation.title?.slice(0, 64) || session.session_id,
+      });
+    },
+    [connectionId, fieldGroups, onOpenSessionTab],
+  );
+
+  const handleRowPress = useCallback(
+    (session: SessionSummary) => {
+      const now = Date.now();
+      const prev = lastClickRef.current;
+      lastClickRef.current = { sessionId: session.session_id, atMs: now };
+
+      setSelectedSessionId(session.session_id);
+
+      if (prev && prev.sessionId === session.session_id && now - prev.atMs <= SESSION_DOUBLE_CLICK_MS) {
+        openSession(session);
+      }
+    },
+    [openSession],
+  );
+
+  return (
+    <View style={styles.root}>
+      <PanelHeader
+        title="Sessions"
+        subtitle={subtitle}
+        menuLabel="↻"
+        onPressMenu={() => refreshSessions()}
+      />
+
+      <View style={styles.controlsRow}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search"
+          placeholderTextColor={theme.textMuted}
+          value={filterText}
+          onChangeText={setFilterText}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+
+        <Pressable
+          style={(state) => {
+            const hovered = (state as any).hovered as boolean | undefined;
+            const disabled = !isOnline || openingAgentPicker || (agentsState?.loading ?? false);
+            return [
+              styles.newButton,
+              disabled && styles.newButtonDisabled,
+              (hovered || state.pressed) && !disabled && styles.newButtonHovered,
+            ];
+          }}
+          disabled={!isOnline || openingAgentPicker || (agentsState?.loading ?? false)}
+          onPress={openAgentPickerWindow}
+        >
+          <Text style={styles.newButtonText}>{openingAgentPicker ? '…' : 'New'}</Text>
+        </Pressable>
+      </View>
+
+      {(sessionsLoading || pluginActionRunning) && (
+        <View style={styles.loadingRow}>
+          <ActivityIndicator size="small" color={theme.primary} />
+          <Text style={styles.loadingText}>
+            {pluginActionRunning ? 'Running action…' : 'Loading sessions…'}
+          </Text>
+        </View>
+      )}
+
+      {controllerError && !sessionsLoading ? (
+        <Text style={styles.errorText}>{controllerError}</Text>
+      ) : null}
+
+      {!connectionId ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyText}>Select a connection above.</Text>
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator
+        >
+          {filteredSessions.length === 0 ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>
+                {filterText.trim() ? 'No sessions match your search.' : 'No sessions.'}
+              </Text>
+              {!isOnline ? (
+                <Text style={styles.emptyMeta}>Open the connection to refresh.</Text>
+              ) : null}
+            </View>
+          ) : null}
+
+          {filteredSessions.map((session) => {
+            const hovered = hoveredSessionId === session.session_id;
+            const selected = selectedSessionId === session.session_id;
+            const showRowControls = hovered;
+
+            const presentation = deriveSessionListPresentationFromGroups(session, fieldGroups);
+            const title = presentation.title || session.preview || session.session_id;
+            const subtitle = presentation.subtitle;
+            const meta = presentation.meta;
+
+            return (
+              <Pressable
+                key={session.session_id}
+                style={(state) => {
+                  const pressedOrHovered =
+                    ((state as any).hovered as boolean | undefined) || state.pressed;
+                  return [
+                    styles.row,
+                    selected && styles.rowSelected,
+                    pressedOrHovered && styles.rowHovered,
+                  ];
+                }}
+                onPress={() => handleRowPress(session)}
+                onHoverIn={() => setHoveredSessionId(session.session_id)}
+                onHoverOut={() =>
+                  setHoveredSessionId((prev) => (prev === session.session_id ? null : prev))
+                }
+              >
+                <View style={styles.rowMain}>
+                  <Text style={styles.rowTitle} numberOfLines={1}>
+                    {title}
+                  </Text>
+                  <Text style={styles.rowId} numberOfLines={1}>
+                    {session.session_id}
+                  </Text>
+                  {subtitle ? (
+                    <Text style={styles.rowSubtitle} numberOfLines={1}>
+                      {subtitle}
+                    </Text>
+                  ) : null}
+                  {meta ? (
+                    <Text style={styles.rowMeta} numberOfLines={1}>
+                      {meta}
+                    </Text>
+                  ) : null}
+                </View>
+
+                {pinnedToggleElement ? (
+                  <Pressable
+                    style={(state) => {
+                      const pinnedHovered = (state as any).hovered as boolean | undefined;
+                      return [
+                        styles.pinButton,
+                        (pinnedHovered || state.pressed) && styles.pinButtonHovered,
+                      ];
+                    }}
+                    disabled={!isOnline}
+                    onPress={(event) => {
+                      (event as any)?.stopPropagation?.();
+                      if (!isOnline) {
+                        return;
+                      }
+                      openPluginDialogForElement(pinnedToggleElement, session);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.pinButtonText,
+                        { color: session.pinned ? '#FFCC00' : theme.textSecondary },
+                      ]}
+                    >
+                      ★
+                    </Text>
+                  </Pressable>
+                ) : null}
+
+                <View style={styles.rowRight}>
+                  <Pressable
+                    style={[
+                      styles.openButton,
+                      showRowControls ? styles.openButtonVisible : styles.openButtonHidden,
+                    ]}
+                    pointerEvents={showRowControls ? 'auto' : 'none'}
+                    onPress={(event) => {
+                      (event as any)?.stopPropagation?.();
+                      openSession(session);
+                    }}
+                  >
+                    <Text style={styles.openButtonText}>Open</Text>
+                  </Pressable>
+
+                  {sessionListActions.length > 0 ? (
+                    <View
+                      style={[
+                        styles.actionsContainer,
+                        showRowControls || pinnedSessionListActionKeys.length > 0
+                          ? null
+                          : styles.actionsContainerHidden,
+                      ]}
+                      pointerEvents={
+                        showRowControls || pinnedSessionListActionKeys.length > 0 ? 'auto' : 'none'
+                      }
+                    >
+                      <ActionsMenuBar<ActionDefinition>
+                        title="Session actions"
+                        variant="dropdown"
+                        baseActions={[]}
+                        extraActions={pluginActionDefs}
+                        pinned={pinnedSessionListActionKeys}
+                        onChangePinned={(next) => setPinnedSessionListActionKeys(next)}
+                        onAction={(key: ActionKey) => {
+                          const element = sessionListActions.find((el) => el.id === key);
+                          if (element) {
+                            openPluginDialogForElement(element, session);
+                          }
+                        }}
+                        isActionDisabled={() => !isOnline || pluginActionRunning}
+                      />
+                    </View>
+                  ) : null}
+                </View>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
+
+      <ApplicationActionDialog
+        visible={!!activePluginDialogElement}
+        dialog={(activePluginDialogElement as any)?.dialog}
+        titleFallback={activePluginDialogElement?.label}
+        onSubmit={(values) => handleSubmitPluginDialog(values)}
+        onCancel={handleCancelPluginDialog}
+      />
+    </View>
+  );
+}
+
+function createStyles(theme: ReturnType<typeof useTheme>) {
+  const separatorWidth = 1;
+
+  return StyleSheet.create({
+    root: {
+      flex: 1,
+      borderWidth: separatorWidth,
+      borderColor: theme.border,
+      borderRadius: 12,
+      backgroundColor: theme.surface,
+      overflow: 'hidden',
+    },
+    controlsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      borderBottomWidth: separatorWidth,
+      borderBottomColor: theme.border,
+    },
+    searchInput: {
+      flex: 1,
+      borderWidth: separatorWidth,
+      borderColor: theme.border,
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      fontSize: 12,
+      color: theme.text,
+      backgroundColor: theme.backgroundAlt,
+    },
+    newButton: {
+      borderWidth: separatorWidth,
+      borderColor: theme.primary,
+      backgroundColor: theme.primary,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    newButtonHovered: {
+      opacity: 0.92,
+    },
+    newButtonDisabled: {
+      borderColor: theme.border,
+      backgroundColor: theme.surfaceAlt,
+    },
+    newButtonText: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: theme.textOnPrimary,
+    },
+    loadingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderBottomWidth: separatorWidth,
+      borderBottomColor: theme.border,
+    },
+    loadingText: {
+      fontSize: 12,
+      color: theme.textSecondary,
+    },
+    errorText: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      fontSize: 12,
+      color: theme.danger,
+    },
+    list: {
+      flex: 1,
+    },
+    listContent: {
+      paddingVertical: 6,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'stretch',
+      justifyContent: 'space-between',
+      gap: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+    },
+    rowHovered: {
+      backgroundColor: theme.surfaceAlt,
+    },
+    rowSelected: {
+      backgroundColor: theme.primaryMuted,
+    },
+    rowMain: {
+      flex: 1,
+      gap: 2,
+    },
+    rowTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: theme.text,
+    },
+    rowId: {
+      fontSize: 11,
+      color: theme.textSecondary,
+    },
+    rowSubtitle: {
+      fontSize: 11,
+      color: theme.textSecondary,
+    },
+    rowMeta: {
+      fontSize: 11,
+      color: theme.textMuted,
+    },
+    rowRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    openButton: {
+      borderWidth: separatorWidth,
+      borderColor: theme.border,
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      backgroundColor: theme.surface,
+    },
+    openButtonHidden: {
+      opacity: 0,
+    },
+    openButtonVisible: {
+      opacity: 1,
+    },
+    openButtonText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: theme.primary,
+    },
+    actionsContainer: {
+      minWidth: 44,
+    },
+    actionsContainerHidden: {
+      opacity: 0,
+    },
+    pinButton: {
+      paddingHorizontal: 8,
+      paddingVertical: 6,
+      borderRadius: 10,
+    },
+    pinButtonHovered: {
+      backgroundColor: theme.surfaceAlt,
+    },
+    pinButtonText: {
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    empty: {
+      padding: 12,
+      gap: 4,
+    },
+    emptyText: {
+      fontSize: 12,
+      color: theme.textSecondary,
+    },
+    emptyMeta: {
+      fontSize: 11,
+      color: theme.textMuted,
+    },
+  });
+}

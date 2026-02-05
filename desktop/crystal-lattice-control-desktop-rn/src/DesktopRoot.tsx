@@ -7,7 +7,7 @@ import type { ConnectionRecord } from '@crystal-lattice/frontend-sdk';
 
 import { DesktopShell } from './layout/DesktopShell';
 import { ConnectionsPanel } from './panels/ConnectionsPanel';
-import { SessionsPanelPlaceholder } from './panels/SessionsPanelPlaceholder';
+import { SessionsPanel } from './panels/SessionsPanel';
 import { ChatPanePlaceholder } from './chat/ChatPanePlaceholder';
 import { SessionTabs, type DesktopSessionTab } from './tabs/SessionTabs';
 import { usePersistedConnections } from './connections/usePersistedConnections';
@@ -16,6 +16,7 @@ import { asyncStorageKeyValueStore } from './storage/asyncStorageKeyValueStore';
 import { desktopWindowEvents, DesktopWindowManager } from './windows/desktopWindowManager';
 import { useMessagesCache } from './cache/useMessagesCache';
 import { useSessionsCache } from './cache/useSessionsCache';
+import { desktopEventBus } from './events/desktopEventBus';
 import {
   DEFAULT_TAB_STRIP_STYLE,
   parseTabStripStyle,
@@ -77,6 +78,7 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
     openConnection,
     closeConnection,
     closeAllConnections,
+    getBackend,
   } = useOpenConnections();
 
   // Cache hooks are introduced in task 060 so tabs can remain viewable offline.
@@ -97,6 +99,43 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
 
   const [didAutoOpenMostRecent, setDidAutoOpenMostRecent] = useState(false);
+
+  const openTab = useCallback(
+    ({
+      connectionId,
+      sessionId,
+      title,
+    }: {
+      connectionId: string;
+      sessionId: string;
+      title?: string;
+    }) => {
+      const tabId = buildTabId(connectionId, sessionId);
+      setTabs((prev) => {
+        if (prev.some((tab) => tab.tabId === tabId)) {
+          return prev;
+        }
+        return [...prev, { tabId, connectionId, sessionId, title: title ?? sessionId }];
+      });
+      setActiveTabId(tabId);
+    },
+    [],
+  );
+
+  const closeTab = useCallback(
+    (tabId: string) => {
+      setTabs((prev) => {
+        const result = removeTabAndSelectNext(prev, tabId, activeTabId);
+        setActiveTabId(result.nextActiveTabId);
+        return result.tabs;
+      });
+    },
+    [activeTabId],
+  );
+
+  const focusTab = useCallback((tabId: string) => {
+    setActiveTabId(tabId);
+  }, []);
 
   useEffect(() => {
     if (!connectionsHydrated) return;
@@ -164,48 +203,55 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
       setTabStripStyle(style);
     });
 
+    const agentPickerSub = desktopWindowEvents.addListener(
+      'agentPickerSelected',
+      (payload: any) => {
+        const pickedConnectionId = payload?.connectionId;
+        const agentId = payload?.agentId;
+        if (typeof pickedConnectionId !== 'string' || !pickedConnectionId) {
+          return;
+        }
+        if (typeof agentId !== 'string' || !agentId) {
+          return;
+        }
+
+        const backend = getBackend(pickedConnectionId);
+        if (!backend) {
+          return;
+        }
+
+        backend
+          .createSession({ agentId })
+          .then((resp) => {
+            const sessionId = resp?.session?.session_id;
+            if (typeof sessionId !== 'string' || !sessionId) {
+              return;
+            }
+            openTab({ connectionId: pickedConnectionId, sessionId, title: `Session ${sessionId.slice(0, 8)}` });
+            desktopEventBus.publish('sessionsReloadRequested', {
+              connectionId: pickedConnectionId,
+              reason: 'sessionCreated',
+            });
+
+            backend
+              .listSessions({ limit: 50 })
+              .then((sessions) => {
+                if (Array.isArray(sessions)) {
+                  updateSessionsCache(pickedConnectionId, sessions);
+                }
+              })
+              .catch(() => {});
+          })
+          .catch(() => {});
+      },
+    );
+
     return () => {
       savedSub.remove();
       styleSub.remove();
+      agentPickerSub.remove();
     };
-  }, [openConnectionAndTouch, upsertConnection]);
-
-  const openTab = useCallback(
-    ({
-      connectionId,
-      sessionId,
-      title,
-    }: {
-      connectionId: string;
-      sessionId: string;
-      title?: string;
-    }) => {
-      const tabId = buildTabId(connectionId, sessionId);
-      setTabs((prev) => {
-        if (prev.some((tab) => tab.tabId === tabId)) {
-          return prev;
-        }
-        return [...prev, { tabId, connectionId, sessionId, title: title ?? sessionId }];
-      });
-      setActiveTabId(tabId);
-    },
-    [],
-  );
-
-  const closeTab = useCallback(
-    (tabId: string) => {
-      setTabs((prev) => {
-        const result = removeTabAndSelectNext(prev, tabId, activeTabId);
-        setActiveTabId(result.nextActiveTabId);
-        return result.tabs;
-      });
-    },
-    [activeTabId],
-  );
-
-  const focusTab = useCallback((tabId: string) => {
-    setActiveTabId(tabId);
-  }, []);
+  }, [getBackend, openConnectionAndTouch, openTab, updateSessionsCache, upsertConnection]);
 
   const connectionNameById = useMemo(() => {
     const map: Record<string, string> = {};
@@ -286,12 +332,14 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
               onOpenEditConnectionEditor={openEditConnectionEditor}
             />
 
-            <SessionsPanelPlaceholder
+            <SessionsPanel
               focusedConnectionId={focusedConnectionId}
               focusedConnectionName={
                 focusedConnectionId ? connectionNameById[focusedConnectionId] : null
               }
-              isFocusedConnectionOpen={
+              connectionId={focusedConnectionId}
+              backend={focusedConnectionId ? getBackend(focusedConnectionId) : null}
+              isOnline={
                 focusedConnectionId
                   ? openConnectionsById[focusedConnectionId]?.status === 'open'
                   : false
@@ -302,7 +350,10 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
               cachedLastLoadedAt={
                 focusedConnectionId ? sessionsCache[focusedConnectionId]?.lastLoadedAt ?? null : null
               }
-              onOpenSession={({ connectionId, sessionId, title }) => {
+              onUpdateCache={(connectionId, sessions) => {
+                updateSessionsCache(connectionId, sessions);
+              }}
+              onOpenSessionTab={({ connectionId, sessionId, title }) => {
                 openTab({ connectionId, sessionId, title });
               }}
             />

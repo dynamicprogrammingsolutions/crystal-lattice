@@ -20,19 +20,22 @@ import {
   runApplicationAction,
 } from '@crystal-lattice/frontend-sdk';
 import {
+  ApplicationActionDialog,
+  SessionActionsBar,
+  type SessionActionDefinition,
+  type SessionActionKey,
+} from '@crystal-lattice/frontend-rn-components';
+import {
   useAgentsController,
   useHydrateControllerFromCache,
   useSessionsController,
 } from '@crystal-lattice/frontend-sdk-react';
 import { useTheme, type Theme } from './theme';
-import SessionActionsBar from './components/SessionActionsBar';
 import SessionSettingsModal from './components/SessionSettingsModal';
-import { type SessionActionKey, type SessionActionDefinition } from './sessionActions';
 import {
   type ActionUiElement,
   type SessionSummary,
 } from './api';
-import ApplicationActionDialog from './components/ApplicationActionDialog';
 import { useApplicationPlugins } from './ApplicationPluginsContext';
 import { usePersistentPinnedActions } from './usePersistentPinnedActions';
 import { usePluginActionDialog } from './usePluginActionDialog';
@@ -106,10 +109,17 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     sessionListFields,
     sessionListPinnedToggles,
   } = useApplicationPlugins();
+
+  const scopedSessionListActionsStorageKey = useMemo(
+    () => `${STORAGE_KEY_SESSION_LIST_ACTIONS}:${connectionId ?? 'default'}`,
+    [connectionId],
+  );
+
   const { pinned: pinnedSessionActions, setPinned: setPinnedSessionActions } =
     usePersistentPinnedActions<SessionActionKey>(
-      STORAGE_KEY_SESSION_LIST_ACTIONS,
+      scopedSessionListActionsStorageKey,
       BUILTIN_SESSION_LIST_ACTIONS,
+      { migrateFromKeys: [STORAGE_KEY_SESSION_LIST_ACTIONS] },
     );
   const [agentSwitchVisible, setAgentSwitchVisible] = useState(false);
   const [agentSwitchSessionId, setAgentSwitchSessionId] = useState<string | null>(null);
@@ -419,6 +429,15 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         {hasAnyActions && (
           <View style={styles.sessionActionsRow}>
             <SessionActionsBar
+              renderIcon={({ name, size, color }) => (
+                <Icon name={name} size={size} color={color} />
+              )}
+              renderPinIcon={({ size, color }) => (
+                <Icon name="star" size={size} color={color} />
+              )}
+              renderCloseIcon={({ size, color, renderIcon }) =>
+                renderIcon ? renderIcon({ name: 'x', size, color }) : null
+              }
               pinned={pinnedSessionActions}
               onChangePinned={setPinnedSessionActions}
               onAction={handleRowAction}

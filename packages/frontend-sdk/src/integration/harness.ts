@@ -1,4 +1,4 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -105,7 +105,7 @@ export async function startBackendServer(options: {
     args.push('--enable-test-control');
   }
 
-  const child: ChildProcessWithoutNullStreams = spawn(python, args, {
+  const child = spawn(python, args, {
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env,
