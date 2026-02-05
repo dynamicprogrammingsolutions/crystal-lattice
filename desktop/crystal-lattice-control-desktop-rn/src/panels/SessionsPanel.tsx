@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/Feather';
 
 import {
   ActionsMenuBar,
@@ -470,9 +471,39 @@ function SessionsPanelInner({
                 }
               >
                 <View style={styles.rowMain}>
-                  <Text style={styles.rowTitle} numberOfLines={1}>
-                    {title}
-                  </Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={styles.rowTitle} numberOfLines={1}>
+                      {title}
+                    </Text>
+                    {pinnedToggleElement ? (
+                      <Pressable
+                        style={(state) => {
+                          const pinnedHovered = (state as any).hovered as boolean | undefined;
+                          return [
+                            styles.pinButton,
+                            (pinnedHovered || state.pressed) && styles.pinButtonHovered,
+                          ];
+                        }}
+                        disabled={!isOnline}
+                        onPress={(event) => {
+                          (event as any)?.stopPropagation?.();
+                          if (!isOnline) {
+                            return;
+                          }
+                          openPluginDialogForElement(pinnedToggleElement, session);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.pinButtonText,
+                            { color: session.pinned ? '#FFCC00' : theme.textSecondary },
+                          ]}
+                        >
+                          ★
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
                   <Text style={styles.rowId} numberOfLines={1}>
                     {session.session_id}
                   </Text>
@@ -488,40 +519,14 @@ function SessionsPanelInner({
                   ) : null}
                 </View>
 
-                {pinnedToggleElement ? (
-                  <Pressable
-                    style={(state) => {
-                      const pinnedHovered = (state as any).hovered as boolean | undefined;
-                      return [
-                        styles.pinButton,
-                        (pinnedHovered || state.pressed) && styles.pinButtonHovered,
-                      ];
-                    }}
-                    disabled={!isOnline}
-                    onPress={(event) => {
-                      (event as any)?.stopPropagation?.();
-                      if (!isOnline) {
-                        return;
-                      }
-                      openPluginDialogForElement(pinnedToggleElement, session);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.pinButtonText,
-                        { color: session.pinned ? '#FFCC00' : theme.textSecondary },
-                      ]}
-                    >
-                      ★
-                    </Text>
-                  </Pressable>
-                ) : null}
+
 
                 <View style={styles.rowRight}>
+
                   <Pressable
                     style={[
                       styles.openButton,
-                      showRowControls ? styles.openButtonVisible : styles.openButtonHidden,
+                      styles.openButtonVisible,
                     ]}
                     pointerEvents={showRowControls ? 'auto' : 'none'}
                     onPress={(event) => {
@@ -547,6 +552,9 @@ function SessionsPanelInner({
                       <ActionsMenuBar<ActionDefinition>
                         title="Session actions"
                         variant="dropdown"
+                        renderIcon={({ name, size, color }) => (
+                          <Icon name={name} size={size} color={color} />
+                        )}
                         baseActions={[]}
                         extraActions={pluginActionDefs}
                         pinned={pinnedSessionListActionKeys}
@@ -561,6 +569,8 @@ function SessionsPanelInner({
                       />
                     </View>
                   ) : null}
+
+
                 </View>
               </Pressable>
             );
@@ -659,10 +669,10 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       paddingVertical: 6,
     },
     row: {
-      flexDirection: 'row',
+      flexDirection: 'column',
       alignItems: 'stretch',
       justifyContent: 'space-between',
-      gap: 10,
+      gap: 5,
       paddingHorizontal: 10,
       paddingVertical: 8,
     },
@@ -695,15 +705,16 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
     },
     rowRight: {
       flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
+      alignItems: 'flex-end',
+      justifyContent: 'flex-end',
+      gap: 4,
     },
     openButton: {
       borderWidth: separatorWidth,
       borderColor: theme.border,
       borderRadius: 10,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
       backgroundColor: theme.surface,
     },
     openButtonHidden: {
@@ -724,8 +735,8 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       opacity: 0,
     },
     pinButton: {
-      paddingHorizontal: 8,
-      paddingVertical: 6,
+      paddingHorizontal: 4,
+      paddingVertical: 4,
       borderRadius: 10,
     },
     pinButtonHovered: {
