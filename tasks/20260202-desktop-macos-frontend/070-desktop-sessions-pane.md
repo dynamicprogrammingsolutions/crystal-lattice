@@ -107,6 +107,12 @@ Design constraint:
 - Desktop will use this with `desktop/.../src/storage/asyncStorageKeyValueStore.ts`.
 - (Optional but recommended): migrate mobile pinned-actions persistence to use the shared hook so we don’t maintain two implementations.
 
+Persistence rules:
+
+- Pinned session-list action keys must be scoped per connection id.
+  - Example storage key: `clc_pinned_session_list_actions_v1:${connectionId}`.
+  - If mobile uses a global key today, update it during this subtask (migration should preserve existing pinned keys for the currently-selected connection when possible).
+
 ### B) Replace placeholder with real `SessionsPanel`
 
 1) Add new component `desktop/crystal-lattice-control-desktop-rn/src/panels/SessionsPanel.tsx`.
@@ -194,7 +200,6 @@ Implement in `SessionsPanel.tsx`:
   - “New session” button (`Pressable`) aligned right
   - Disable “New” when offline/no backend.
 - List:
-  - Render sessions sorted by `modified` descending (client-side), unless we decide to keep server order.
   - Keep server order (match mobile).
   - Row click selects (highlights) but does not open.
   - Each row has an explicit “Open” button that calls `onOpenSessionTab({ connectionId, sessionId, title })`.
@@ -241,6 +246,8 @@ Desktop plan:
 1) Use `useAgentsController({ backend, cacheKey: connectionId, enabled: isOnline && isActive })`.
 2) “New session” button opens an agent picker UI:
    - Use a separate desktop window (`NSWindow`), like the connection editor.
+   - Window should not create sessions directly; it should return a selected `agentId` to the main window.
+     - This keeps session creation + cache/tab updates centralized in `DesktopRoot`/`SessionsPanel`.
 3) Create session:
    - Choose agent id (or fall back using `pickDefaultAgentId` from SDK).
    - `await controller.createSession({ agentId })`.
@@ -269,15 +276,12 @@ Resolved decisions (from latest guidance):
 - Session list built-in actions: skip settings/agent-switch built-ins here; plugin-provided actions are mandatory.
 - Pinned action persistence: scope per connection id; if mobile uses a global key today, fix it.
 
-2) Session ordering
-   - Default recommendation: sort by `modified` descending client-side.
-   - Alternative: keep server order.
+Remaining open questions:
 
-3) Refresh policy
-   - Is `loadIfStale({ staleMs: 30_000 })` on focus-change acceptable, or should we always force reload on focus-change?
+1) Sessions reload triggers (flexibility requirement)
+   - Preferred approach: define a `reloadSessions(connectionId)` callback in `DesktopRoot` that is passed to both the sessions pane (070) and the chat pane (080).
+   - Alternative: add an app-level event bus/store later; 070 should keep reload logic in a place that can be invoked by other UI without reaching into `SessionsPanel` internals.
 
-4) Pinned action persistence scope
-   - Should pinned session-list action keys be global (one setting for all connections) like mobile’s current `clc_pinned_session_list_actions_v1`, or scoped per connection id?
-
-5) Built-in actions surfaced in the sessions pane
-   - Should desktop mirror mobile exactly (show per-row action bar with settings/agent-switch/etc), or can some actions move to the chat header (080) while keeping plugin actions + pinning here?
+2) “Open” affordance details
+   - Always-visible “Open” button per row vs show-on-hover.
+   - Optional: double-click row to open (macOS convention) vs strictly button-only.
