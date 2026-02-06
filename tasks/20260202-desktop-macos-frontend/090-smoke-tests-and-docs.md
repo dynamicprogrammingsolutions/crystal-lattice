@@ -6,7 +6,7 @@ Parent Task: `tasks/20260202-desktop-macos-frontend/000-main.md`
 
 Depends On:
 
-- `tasks/20260202-desktop-macos-frontend/080-desktop-chat-tabs-and-chat-pane.md`
+- `tasks/20260202-desktop-macos-frontend/085-desktop-message-actions-and-sharing.md`
 
 ## Status
 
@@ -28,7 +28,10 @@ Depends On:
 - Sessions list
 - Open multiple sessions as tabs
 - Send message in each tab
-- Tool results render reasonably
+- Agent selector + settings are accessible (no blocking modals)
+- Markdown rendering works for assistant messages (or is clearly off)
+- Reasoning/tool call sections render reasonably
+- Message actions (copy/modify) work
 
 ### 3) Record known limitations
 

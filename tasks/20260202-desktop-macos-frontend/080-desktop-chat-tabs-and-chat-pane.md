@@ -1,9 +1,14 @@
 # Subtask: Session tabs + chat pane (main column)
 
-Implement the main column:
+Replace the main-column chat placeholder with a **minimal, working, multi-tab chat pane**.
 
-- Session tab strip (multiple open sessions)
-- Chat pane for the active tab
+This subtask intentionally targets a baseline that is:
+
+- Correct w.r.t. controller lifecycle + cleanup.
+- Correct w.r.t. event streaming (only the active tab streams).
+- Usable offline (read-only transcript from cache).
+
+Non-essential UX features and “mobile parity” are handled in follow-up subtasks (`081+`).
 
 Parent Task: `tasks/20260202-desktop-macos-frontend/000-main.md`
 
@@ -24,6 +29,13 @@ Depends On:
 - Closing a tab cleans up resources (event polling, timers).
 - Chat pane uses the SDK `ChatController` and reducer-driven event state.
 
+Baseline behavior (minimal UI is OK):
+
+- Active tab loads the most recent messages (default window such as last 50).
+- Active tab can append+send messages.
+- Only the active tab streams events (polling must stop when hidden).
+- If a tab’s connection is closed, show cached transcript read-only.
+
 UX hint:
 
 - Use macOS hover/focus affordances for tab close buttons and action menus when possible.
@@ -31,77 +43,106 @@ UX hint:
 
 ## Work plan
 
-### 1) Tab state model
+### Context to read first (files + line numbers)
 
-- Keep in desktop app state:
-  - `tabs: Array<{ tabId: string; connectionId: string; sessionId: string; title: string }>`
-  - `activeTabId: string | null`
+- Desktop tabs state + placeholder panes (read 99–170 and 363–399): `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx:99` and `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx:363`
+- Desktop messages cache contract + fields (read 14–143 and 12–21): `desktop/crystal-lattice-control-desktop-rn/src/cache/useMessagesCache.ts:14` and `desktop/crystal-lattice-control-desktop-rn/src/cache/types.ts:12`
+- Controller hook lifecycle + streaming gating (read 38–100): `packages/frontend-sdk-react/src/useChatController.ts:38`
+- SDK controller cache snapshot + history window expectations (read 110–115 and 184–197): `packages/frontend-sdk/src/chat/chatController.ts:110` and `packages/frontend-sdk/src/chat/chatController.ts:184`
+- Mobile reference for send flow (behavior only, no UI copy; read 214–260 and 552–606): `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx:214` and `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx:552`
 
-Rules:
+### Implementation plan (detailed, minimal baseline)
 
-- Opening a session that’s already open focuses it.
-- Closing the active tab focuses the nearest neighbor.
+#### 0) Keep the existing tab model in `DesktopRoot`
 
-Tab identity:
+- `DesktopRoot` already has the correct tab identity (`${connectionId}:${sessionId}`) and neighbor selection behavior.
+- Do not change tab semantics here; just replace the placeholder pane.
 
-- Use `{ connectionId, sessionId }` as the logical identity.
-- Recommended `tabId`: `${connectionId}:${sessionId}`.
+#### A) Replace the placeholder panes with real panes
 
-### 2) Controller lifecycle strategy (important)
+1) Create a new desktop chat pane component.
 
-We need a stable controller per open session.
+- Add `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx`.
+- Props should be sufficient to support:
+  - stable controller while tab exists
+  - offline cached transcript
+  - cache persistence callbacks
 
-Additionally, because tabs can belong to different connections:
+2) Update `DesktopRoot` to render the real chat pane instead of `ChatPanePlaceholder`.
 
-- The per-tab controller needs to be created with the correct `AgentBackend` for that connection.
-- Closing a tab must clean up only that tab’s controller + streaming.
+- Replace the `tabs.map(...)` block in `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx:389`.
 
-Two viable options:
+#### B) Wire message cache into the chat pane
 
-- Option A (recommended): keep a `Map<sessionId, ChatController>` in a `useRef` and manually create/cleanup.
-  - Pros: stable controllers, explicit cleanup.
-  - Cons: more manual wiring.
+1) Start consuming message cache values in `DesktopRoot`.
 
-- Option B: render a `ChatTab` component per open session which owns its controller.
-  - Pros: idiomatic React, cleanup via unmount.
-  - Cons: you must ensure non-active tabs don’t keep expensive work running.
+- Update the `useMessagesCache(...)` destructuring in `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx:95` to include:
+  - `messagesCache`
+  - `updateMessagesCache`
 
-### 3) Event streaming behavior
+2) For each tab, derive:
 
-- Ensure polling starts only when:
-  - a session tab becomes active, OR
-  - the chat controller already has a cursor snapshot.
+- `backend = getBackend(tab.connectionId)`
+- `cachedEntry = messagesCache[tab.connectionId]?.[tab.sessionId] ?? null`
 
-We already had issues on mobile with polling start timing; prefer reusing the SDK logic.
+3) Pass `cachedEntry` into `ChatPane` and pass an `onUpdateCache` callback that delegates to `updateMessagesCache`.
 
-### 4) Chat pane UI
+#### C) Controller lifecycle + active-only streaming
 
-Desktop-specific chat UI should be simple initially:
+Inside `ChatPane`:
 
-- transcript list
-- composer
+1) Create one controller per mounted pane.
 
-Shared components should cover “in-between” elements:
+- Use `useChatController({ backend, sessionId, initialMessages, initialEventsCursorId, initialActiveRequestId, eventsEnabled })`.
+- `eventsEnabled` must be `visible && backend != null`.
+- Controller is disposed automatically on unmount (`packages/frontend-sdk-react/src/useChatController.ts:51`).
 
-- message actions menu / pinned actions bar
-- session actions menu
+2) Ensure the controller is windowed so it doesn’t grow unbounded.
 
-Do not force sharing of the markdown renderer.
+- On controller creation, call `chatController.setHistoryRange({ start: -50 })` (or make the window size a constant).
+- This matches the SDK expectation that the UI sets a window when hydrating from cache (`packages/frontend-sdk/src/chat/chatController.ts:110`).
 
-### 5) Settings dropdowns (no modal)
+3) On first activation, ensure we load messages.
 
-Implement settings as dropdowns anchored in the chat header (desktop-friendly), e.g.:
+- If `visible` becomes true and the controller snapshot has no cursor and no messages, call `loadMessages({ start: -50 })`.
 
-- Agent selector dropdown
-- Render options dropdown (markdown on/off, show reasoning, tool result formatting)
+#### D) Persist cache snapshots (minimal)
 
-Implementation hint:
+Inside `ChatPane`:
 
-- A JS overlay-based dropdown is a good Phase 5 baseline.
-- Keep the rendering layer swappable if a native `NSMenu`/`NSPopover` approach is introduced later.
-  - See: `tasks/20260202-desktop-macos-frontend/920-native-elements-notes.md`
+1) On snapshot changes, persist to cache.
 
-## Verification
+- Read `chatController.getCacheSnapshot()` (`packages/frontend-sdk/src/chat/chatController.ts:184`).
+- Call `onUpdateCache({ connectionId, sessionId, messages, cursorEventId, activeRequestId })`.
+- Use a ref to avoid re-persisting the same snapshot every render.
 
-- Open 3 sessions, switch rapidly, send messages in each; no hangs.
-- Close tabs; verify no background polling remains for closed sessions.
+2) Offline mode
+
+- If `backend == null`, render `cachedEntry.messages` read-only.
+- Disable composer send; show a subtle offline hint.
+
+#### E) Minimal UI + error handling
+
+- Transcript: Flat list of `IndexedMessage` with a basic row renderer.
+- Composer:
+  - `appendMessage({ role: 'user', content })` then `send()`.
+  - Show error via `Alert` on failures.
+- Request lifecycle:
+  - Display `activeRequestId` state; allow cancel is deferred to `081`.
+
+## Checklist (done criteria)
+
+- [ ] `DesktopRoot` uses real `ChatPane` instead of `ChatPanePlaceholder`.
+- [ ] Each open tab owns one stable `ChatController` (no recreation on tab switch).
+- [ ] Only the active tab streams events (`eventsEnabled` gating).
+- [ ] Closing a tab unmounts the pane and stops polling (`dispose()` path).
+- [ ] Message cache is hydrated into controllers and persisted back via `updateMessagesCache`.
+- [ ] Offline: closing the connection still shows cached transcript read-only.
+- [ ] Manual verification: open 3 sessions, switch rapidly, send messages, close tabs; no hangs and no obvious background polling.
+
+## Verification (manual)
+
+- Open 3 sessions in tabs; switch rapidly; ensure no reload flash.
+- Send a message in each tab; ensure only the active tab streams.
+- Close a tab; ensure it no longer updates (polling stopped).
+- Close a connection; ensure cached transcript remains visible read-only.
