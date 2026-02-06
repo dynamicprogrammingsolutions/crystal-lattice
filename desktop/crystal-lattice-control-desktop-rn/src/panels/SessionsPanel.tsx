@@ -70,6 +70,12 @@ export interface SessionsPanelProps {
     connectionId: string;
     sessionId: string;
     title?: string;
+    subtitle?: string | null;
+  }) => void;
+
+  onUpdateOpenTabsPresentation?: (params: {
+    connectionId: string;
+    presentations: Record<string, { title: string; subtitle: string | null }>;
   }) => void;
 }
 
@@ -91,6 +97,7 @@ function SessionsPanelInner({
   isOnline,
   onUpdateCache,
   onOpenSessionTab,
+  onUpdateOpenTabsPresentation,
 }: SessionsPanelProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -436,6 +443,37 @@ function SessionsPanelInner({
 
   const lastClickRef = useRef<{ sessionId: string; atMs: number } | null>(null);
 
+  useEffect(() => {
+    if (!connectionId) {
+      return;
+    }
+    if (!onUpdateOpenTabsPresentation) {
+      return;
+    }
+    const nextSessions = sessionsState?.sessions;
+    if (!Array.isArray(nextSessions) || nextSessions.length === 0) {
+      return;
+    }
+
+    const presentations: Record<string, { title: string; subtitle: string | null }> = {};
+    for (const session of nextSessions) {
+      if (!session || typeof session !== 'object') {
+        continue;
+      }
+      const sessionId = (session as any).session_id;
+      if (typeof sessionId !== 'string' || !sessionId) {
+        continue;
+      }
+      const presentation = deriveSessionListPresentationFromGroups(session, fieldGroups);
+      presentations[sessionId] = {
+        title: presentation.title.slice(0, 64) || sessionId,
+        subtitle: presentation.subtitle,
+      };
+    }
+
+    onUpdateOpenTabsPresentation({ connectionId, presentations });
+  }, [connectionId, fieldGroups, onUpdateOpenTabsPresentation, sessionsState?.sessions]);
+
   const openSession = useCallback(
     (session: SessionSummary) => {
       if (!connectionId) {
@@ -447,6 +485,7 @@ function SessionsPanelInner({
         connectionId,
         sessionId: session.session_id,
         title: presentation.title?.slice(0, 64) || session.session_id,
+        subtitle: presentation.subtitle,
       });
     },
     [connectionId, fieldGroups, onOpenSessionTab],

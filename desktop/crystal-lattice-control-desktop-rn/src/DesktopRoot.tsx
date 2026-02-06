@@ -111,19 +111,75 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
       connectionId,
       sessionId,
       title,
+      subtitle,
     }: {
       connectionId: string;
       sessionId: string;
       title?: string;
+      subtitle?: string | null;
     }) => {
       const tabId = buildTabId(connectionId, sessionId);
       setTabs((prev) => {
-        if (prev.some((tab) => tab.tabId === tabId)) {
-          return prev;
+        const existingIndex = prev.findIndex((tab) => tab.tabId === tabId);
+        if (existingIndex >= 0) {
+          const existing = prev[existingIndex];
+          const nextTitle = typeof title === 'string' && title ? title : existing.title;
+          const nextSubtitle = subtitle !== undefined ? subtitle : existing.subtitle;
+          if (existing.title === nextTitle && existing.subtitle === nextSubtitle) {
+            return prev;
+          }
+          const next = [...prev];
+          next[existingIndex] = { ...existing, title: nextTitle, subtitle: nextSubtitle };
+          return next;
         }
-        return [...prev, { tabId, connectionId, sessionId, title: title ?? sessionId }];
+        return [
+          ...prev,
+          {
+            tabId,
+            connectionId,
+            sessionId,
+            title: title ?? sessionId,
+            subtitle: subtitle ?? null,
+          },
+        ];
       });
       setActiveTabId(tabId);
+    },
+    [],
+  );
+
+  const updateOpenTabsPresentation = useCallback(
+    (params: {
+      connectionId: string;
+      presentations: Record<string, { title: string; subtitle: string | null }>;
+    }) => {
+      setTabs((prev) => {
+        if (prev.length === 0) {
+          return prev;
+        }
+
+        let changed = false;
+        const next = prev.map((tab) => {
+          if (tab.connectionId !== params.connectionId) {
+            return tab;
+          }
+
+          const presentation = params.presentations[tab.sessionId];
+          if (!presentation) {
+            return tab;
+          }
+
+          const nextTitle = presentation.title || tab.title;
+          const nextSubtitle = presentation.subtitle;
+          if (tab.title === nextTitle && tab.subtitle === nextSubtitle) {
+            return tab;
+          }
+          changed = true;
+          return { ...tab, title: nextTitle, subtitle: nextSubtitle };
+        });
+
+        return changed ? next : prev;
+      });
     },
     [],
   );
@@ -214,6 +270,8 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
       (payload: any) => {
         const pickedConnectionId = payload?.connectionId;
         const agentId = payload?.agentId;
+        const mode = payload?.mode;
+        const pickedSessionId = payload?.sessionId;
         if (typeof pickedConnectionId !== 'string' || !pickedConnectionId) {
           return;
         }
@@ -223,6 +281,17 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
 
         const backend = getBackend(pickedConnectionId);
         if (!backend) {
+          return;
+        }
+
+        if (mode === 'switchSessionAgent') {
+          if (typeof pickedSessionId !== 'string' || !pickedSessionId) {
+            return;
+          }
+
+          backend
+            .switchSessionAgent(pickedSessionId, agentId)
+            .catch(() => {});
           return;
         }
 
@@ -360,6 +429,7 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
               }
               onUpdateCache={updateSessionsCache}
               onOpenSessionTab={openTab}
+              onUpdateOpenTabsPresentation={updateOpenTabsPresentation}
             />
           </View>
         )}
@@ -395,9 +465,10 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
                     key={tab.tabId}
                     visible={tab.tabId === activeTabId}
                     connectionId={tab.connectionId}
+                    connectionName={connectionNameById[tab.connectionId] ?? tab.connectionId}
                     sessionId={tab.sessionId}
                     title={tab.title}
-                    subtitle={`${connectionNameById[tab.connectionId] ?? tab.connectionId} • ${tab.sessionId}`}
+                    subtitle={tab.subtitle ?? undefined}
                     styleVariant={tabStripStyle}
                     backend={getBackend(tab.connectionId)}
                     cachedEntry={messagesCache[tab.connectionId]?.[tab.sessionId] ?? null}

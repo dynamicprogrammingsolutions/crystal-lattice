@@ -42,7 +42,8 @@ Depends On:
 
 ### 2) Session-level plugin actions
 
-- Add plugin session actions to the header actions dropdown.
+- Add plugin session actions as *additional* actions in the existing chat header session actions UI introduced in `081`.
+- The built-in actions bar (reload/cancel/agent switch) should remain the base set; plugin actions are appended as `extraActions`.
 - Use `useApplicationPlugins()` to get `actionsById` + `sessionActions`.
 
 ### 3) Message-level plugin actions

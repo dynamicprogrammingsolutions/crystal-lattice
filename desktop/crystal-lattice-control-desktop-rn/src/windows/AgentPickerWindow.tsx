@@ -10,6 +10,11 @@ export interface AgentPickerWindowProps {
   connectionId: string;
   connectionName?: string;
   agents?: string[];
+  mode?: 'createSession' | 'switchSessionAgent';
+  sessionId?: string;
+  title?: string;
+  primaryButtonLabel?: string;
+  initialAgentId?: string;
 }
 
 export function AgentPickerWindow(props: AgentPickerWindowProps): React.JSX.Element {
@@ -25,18 +30,35 @@ function AgentPickerWindowInner({
   connectionId,
   connectionName,
   agents,
+  mode = 'createSession',
+  sessionId,
+  title,
+  primaryButtonLabel,
+  initialAgentId,
 }: AgentPickerWindowProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const agentList = Array.isArray(agents) ? agents : [];
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(agentList[0] ?? null);
+  const initialSelected = useMemo(() => {
+    if (typeof initialAgentId === 'string' && initialAgentId && agentList.includes(initialAgentId)) {
+      return initialAgentId;
+    }
+    return agentList[0] ?? null;
+  }, [agentList, initialAgentId]);
+
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(initialSelected);
 
   const submit = () => {
     if (!connectionId || !selectedAgentId) {
       return;
     }
-    DesktopWindowManager?.submitAgentPicker({ connectionId, agentId: selectedAgentId });
+    DesktopWindowManager?.submitAgentPicker({
+      connectionId,
+      agentId: selectedAgentId,
+      mode,
+      sessionId: mode === 'switchSessionAgent' ? sessionId : undefined,
+    });
   };
 
   const cancel = () => {
@@ -46,10 +68,17 @@ function AgentPickerWindowInner({
   return (
     <View style={styles.root}>
       <View style={styles.header}>
-        <Text style={styles.title}>New Session</Text>
+        <Text style={styles.title}>
+          {title ? title : mode === 'switchSessionAgent' ? 'Switch Agent' : 'New Session'}
+        </Text>
         <Text style={styles.subtitle} numberOfLines={1}>
           {connectionName ? `Connection: ${connectionName}` : `Connection: ${connectionId}`}
         </Text>
+        {mode === 'switchSessionAgent' && sessionId ? (
+          <Text style={styles.subtitle} numberOfLines={1}>
+            Session: {sessionId}
+          </Text>
+        ) : null}
       </View>
 
       {agentList.length === 0 ? (
@@ -105,7 +134,13 @@ function AgentPickerWindowInner({
           disabled={!selectedAgentId}
           onPress={submit}
         >
-          <Text style={styles.createButtonText}>Create</Text>
+          <Text style={styles.createButtonText}>
+            {primaryButtonLabel
+              ? primaryButtonLabel
+              : mode === 'switchSessionAgent'
+                ? 'Switch'
+                : 'Create'}
+          </Text>
         </Pressable>
       </View>
     </View>

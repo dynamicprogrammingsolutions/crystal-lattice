@@ -306,7 +306,11 @@ RCT_EXPORT_METHOD(openAgentPicker : (NSDictionary *)params)
                                                    styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
                                                      backing:NSBackingStoreBuffered
                                                        defer:NO];
-    window.title = @"New Session";
+    NSString *title = nil;
+    if ([params[@"title"] isKindOfClass:[NSString class]]) {
+      title = params[@"title"];
+    }
+    window.title = title ?: @"New Session";
     rootView.frame = frame;
     rootView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     window.contentView = rootView;
