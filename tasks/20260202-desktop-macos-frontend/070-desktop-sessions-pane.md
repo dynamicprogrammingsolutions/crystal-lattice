@@ -12,6 +12,68 @@ Depends On:
 
 - [x] Implemented
 
+## Implementation Notes (macOS / Fabric)
+
+This subtask uncovered several macOS-specific constraints under the New Architecture (Fabric) and implemented native container workarounds.
+
+### 1) RN `Modal` is unreliable on macOS + Fabric
+
+- We hit a repeatable crash when showing dropdowns via `Modal` (stack referenced `ReactFabric-dev.js` and `RCTModalHostView`).
+- Because of this, the desktop app intentionally avoids React Native `Modal` for macOS interactions that need overlays.
+
+### 2) Session actions dropdown on macOS uses `NSPopover` (not `Modal`)
+
+- `ActionsMenuBar` on macOS `variant="dropdown"` uses a native anchored popover.
+  - JS entry point: `packages/frontend-rn-components/src/actions/ActionsMenuBar.tsx:1`
+  - Native container: `toggleActionsPopover(...)` in `desktop/crystal-lattice-control-desktop-rn/macos/CrystalLatticeControlDesktopRN-macOS/DesktopWindowManager.mm:1`
+  - Popover content (separate RN root): `desktop/crystal-lattice-control-desktop-rn/src/windows/ActionsPopoverView.tsx:1`
+- The popover content uses the same layout primitives as mobile:
+  - `ActionsMenuContent` (icon + label + star pin toggle)
+    - `packages/frontend-rn-components/src/actions/ActionsMenuContent.tsx:1`
+
+### 3) Cross-root state for popovers uses a coordinator module
+
+- Because the popover is a separate RN root, we pass menu data and handlers via a small in-memory coordinator:
+  - `packages/frontend-rn-components/src/actions/actionsPopoverCoordinator.ts:1`
+- Anchor tracking was added so subsequent dialogs can anchor to the last actions menu location:
+  - `getLastActionsPopoverAnchorTag()` / `setLastActionsPopoverAnchorTag(...)` in `packages/frontend-rn-components/src/actions/actionsPopoverCoordinator.ts:1`
+
+### 4) Pinned state race fix + optimistic local state
+
+- A stale-props race caused "pin item 1" then "pin item 2" to unpin item 1 when toggling quickly.
+- Fixed the underlying toggle logic to compute from the latest pinned state using a ref:
+  - `packages/frontend-rn-components/src/actions/useActionsMenuModel.ts:1`
+- To improve responsiveness, the macOS actions popover also maintains optimistic local pinned state while still calling upstream `onTogglePinned`:
+  - `desktop/crystal-lattice-control-desktop-rn/src/windows/ActionsPopoverView.tsx:1`
+
+### 5) Plugin action dialogs on macOS use native containers (popover default, window optional)
+
+- The shared `ApplicationActionDialog` (mobile) is Modal-based; for macOS we needed a Modal-free layout.
+- Solution:
+  - Extracted `ApplicationActionDialogLayout` (no RN `Modal`) and kept `ApplicationActionDialog` for non-macOS.
+    - `packages/frontend-rn-components/src/ApplicationActionDialog.tsx:1`
+  - Implemented a dedicated desktop dialog host RN root that can render inside either an `NSPopover` or an `NSWindow`.
+    - Coordinator: `desktop/crystal-lattice-control-desktop-rn/src/windows/applicationActionDialogCoordinator.ts:1`
+    - Host view: `desktop/crystal-lattice-control-desktop-rn/src/windows/ApplicationActionDialogWindow.tsx:1`
+    - Native window APIs: `openApplicationActionDialogWindow(...)` / `closeApplicationActionDialogWindow()`
+    - Native popover APIs: `openApplicationActionDialogPopover(...)` / `closeApplicationActionDialogPopover()`
+      - All in `desktop/crystal-lattice-control-desktop-rn/macos/CrystalLatticeControlDesktopRN-macOS/DesktopWindowManager.mm:1`
+- Presentation mode is switchable from code and defaults to popover:
+  - `desktop/crystal-lattice-control-desktop-rn/src/windows/applicationActionDialogPresentation.ts:1`
+
+### 6) Popover sizing behavior (height is controlled by caller)
+
+- Neither the Session Actions popover nor the Action Dialog popover auto-measure their height from rendered content.
+- The working pattern used across the app is: compute a height in JS and pass it into native `NSPopover`.
+  - Session actions size computation: `packages/frontend-rn-components/src/actions/ActionsMenuBar.tsx:1`
+  - Action dialog size computation: `desktop/crystal-lattice-control-desktop-rn/src/panels/SessionsPanel.tsx:1`
+- If a simple confirmation appears too tall, the controlling clamp is in the JS-side height calculation (not native).
+
+### 7) Temporary NSMenu/NSPopover demos were removed
+
+- We briefly added standalone NSMenu + NSPopover demos to validate native anchoring.
+- After confirming `NSPopover` was the correct direction, the demo UI and demo native APIs were removed.
+
 ## Requirements
 
 - When connected, list sessions.
