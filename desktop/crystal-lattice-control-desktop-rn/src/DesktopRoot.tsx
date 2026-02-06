@@ -8,6 +8,7 @@ import type { ConnectionRecord, SessionSummary } from '@crystal-lattice/frontend
 import { DesktopShell } from './layout/DesktopShell';
 import { ConnectionsPanel } from './panels/ConnectionsPanel';
 import { SessionsPanel } from './panels/SessionsPanel';
+import { ChatPane } from './chat/ChatPane';
 import { ChatPanePlaceholder } from './chat/ChatPanePlaceholder';
 import { SessionTabs, type DesktopSessionTab } from './tabs/SessionTabs';
 import { usePersistedConnections } from './connections/usePersistedConnections';
@@ -92,9 +93,12 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
     clearSessionsCache,
   } = useSessionsCache(asyncStorageKeyValueStore);
 
-  const { deleteConnectionMessagesCache, clearMessagesCache } = useMessagesCache(
-    asyncStorageKeyValueStore,
-  );
+  const {
+    messagesCache,
+    updateMessagesCache,
+    deleteConnectionMessagesCache,
+    clearMessagesCache,
+  } = useMessagesCache(asyncStorageKeyValueStore);
 
   const [focusedConnectionId, setFocusedConnectionId] = useState<string | null>(null);
   const [tabs, setTabs] = useState<DesktopSessionTab[]>([]);
@@ -387,12 +391,17 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
                 />
               ) : (
                 tabs.map((tab) => (
-                  <ChatPanePlaceholder
+                  <ChatPane
                     key={tab.tabId}
                     visible={tab.tabId === activeTabId}
+                    connectionId={tab.connectionId}
+                    sessionId={tab.sessionId}
                     title={tab.title}
                     subtitle={`${connectionNameById[tab.connectionId] ?? tab.connectionId} • ${tab.sessionId}`}
                     styleVariant={tabStripStyle}
+                    backend={getBackend(tab.connectionId)}
+                    cachedEntry={messagesCache[tab.connectionId]?.[tab.sessionId] ?? null}
+                    onUpdateCache={updateMessagesCache}
                   />
                 ))
               )}
