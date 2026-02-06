@@ -20,7 +20,7 @@ Depends On:
 
 ## Status
 
-- [ ] Not started
+- [x] Completed
 
 ## Context to read first (files + line numbers)
 
@@ -125,7 +125,7 @@ Files:
 
 Steps:
 
-1) Add a new `connectionName: string | null` prop to `ChatPaneProps`.
+1) Add a new `connectionName: string` prop to `ChatPaneProps`.
 
 2) In `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx:384`, pass the resolved connection name to each pane:
 
@@ -209,3 +209,21 @@ Steps:
 
 - Do not add render options toggles in this subtask (markdown/reasoning/tool-call toggles can be introduced later when we decide where they live).
 - Ignore any temporary composer debugging in the working tree; it’s out of scope for this subtask.
+
+## Completion notes
+
+Implemented the header + actions bar + agent switching window flow.
+
+- Chat header + actions bar: `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx`
+- Pass `connectionName` and (temporary) `subtitle` into chat pane: `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx`
+- Store `subtitle` on tabs: `desktop/crystal-lattice-control-desktop-rn/src/tabs/SessionTabs.tsx`
+- When session list refreshes, push updated `title/subtitle` into open tabs (temporary): `desktop/crystal-lattice-control-desktop-rn/src/panels/SessionsPanel.tsx`
+- Agent picker enhanced for switching agents:
+  - UI: `desktop/crystal-lattice-control-desktop-rn/src/windows/AgentPickerWindow.tsx`
+  - Types: `desktop/crystal-lattice-control-desktop-rn/src/windows/desktopWindowManager.ts`
+  - Native window title support: `desktop/crystal-lattice-control-desktop-rn/macos/CrystalLatticeControlDesktopRN-macOS/DesktopWindowManager.mm`
+  - Event handler branches create vs switch: `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx`
+
+Follow-up:
+
+- The “subtitle + live tab title updates from session list” wiring is intentionally temporary and should be replaced by `tasks/20260202-desktop-macos-frontend/089-session-metadata-single-source-of-truth.md`.

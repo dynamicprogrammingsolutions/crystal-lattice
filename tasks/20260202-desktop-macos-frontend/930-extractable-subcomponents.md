@@ -16,6 +16,33 @@ These are suggestions/hints (not final decisions). The goal is to reuse meaningf
   - require a single shared layout
   - force markdown/syntax-highlighting implementation choices
 
+## Current status (already extracted vs scheduled)
+
+This doc originally listed *candidates*. As of Phase 5 work, some items are now implemented and others are explicitly scheduled in `081–088`.
+
+### Already extracted (implemented)
+
+- Shared actions menu model + UI primitives
+  - `packages/frontend-rn-components/src/actions/useActionsMenuModel.ts:1`
+  - `packages/frontend-rn-components/src/actions/ActionsMenuBar.tsx:1`
+  - `packages/frontend-rn-components/src/actions/MenuSurfaces.tsx:1`
+- Shared session actions wrapper
+  - `packages/frontend-rn-components/src/actions/SessionActionsBar.tsx:1`
+- Shared application action dialog
+  - `packages/frontend-rn-components/src/ApplicationActionDialog.tsx:1`
+- Shared pinned-actions persistence hooks
+  - `packages/frontend-sdk-react/src/usePersistentPinnedActions.ts:1`
+  - `packages/frontend-sdk-react/src/usePersistentStringArray.ts:1`
+
+### Scheduled extractions / decisions (planned)
+
+- Session settings UI: extract a shared form body and migrate mobile to use it
+  - Planned in: `tasks/20260202-desktop-macos-frontend/082-desktop-session-settings-ui.md`
+- Message actions: extract action definitions + a shared `MessageActionsBar`
+  - Planned in: `tasks/20260202-desktop-macos-frontend/085-desktop-message-actions-and-sharing.md`
+- Markdown renderer: intentionally **not shared** (desktop-only implementation is allowed)
+  - Planned in: `tasks/20260202-desktop-macos-frontend/083-desktop-markdown-renderer.md`
+
 ## From `MessageBubble.tsx`
 
 Source: `mobile/crystal-lattice-control-rn/src/components/MessageBubble.tsx:1`
@@ -103,25 +130,18 @@ Sources:
 
 ### A) Shared “actions menu model”
 
-Both components re-implement:
+Status: implemented in `@crystal-lattice/frontend-rn-components`.
 
-- merge base action defs + plugin action defs
-- map by key
-- filter by allowed/available
-- pin/unpin
+- `useActionsMenuModel` now lives at `packages/frontend-rn-components/src/actions/useActionsMenuModel.ts:1`.
+- Desktop and mobile share the same menu content + surfaces via:
+  - `packages/frontend-rn-components/src/actions/ActionsMenuContent.tsx:1`
+  - `packages/frontend-rn-components/src/actions/ActionsMenuBar.tsx:1`
+  - `packages/frontend-rn-components/src/actions/MenuSurfaces.tsx:1`
 
-Extract a shared hook:
+Remaining planned extraction:
 
-- `useActionsMenuModel({ baseActions, extraActions, pinned, availableActions })`
-  - returns:
-    - `actionsByKey`
-    - `visiblePinned`
-    - `visibleOverflow`
-    - `togglePinned(key)`
-
-Then each platform supplies:
-
-- `ActionsMenuView` (modal on mobile, dropdown on desktop)
+- `MessageActionsBar` wrapper is still mobile-local and scheduled to move into the shared package.
+  - See: `tasks/20260202-desktop-macos-frontend/085-desktop-message-actions-and-sharing.md`
 
 ### B) Menu surface abstraction
 
@@ -145,18 +165,10 @@ This file has reusable logic:
 - type parsing (`integer`, `number`, `boolean`, `multiline`)
 - `prefill_from` resolution via `$session.*` and `$message.*`
 
-Extract:
+Status: implemented and shared.
 
-- `ActionForm` (no modal)
-  - controlled by:
-    - `dialog` schema
-    - `prefillContext`
-    - `onSubmit(values)`
-    - `onCancel()`
-
-Platform note:
-
-- Desktop can host this form in a dropdown/inspector; mobile can host it in a modal.
+- Shared implementation: `packages/frontend-rn-components/src/ApplicationActionDialog.tsx:1`.
+- Desktop hosts it using window/popover infrastructure; mobile hosts it as a modal.
 
 ## From `AgentSwitchModal.tsx`
 
@@ -188,17 +200,13 @@ This file mixes:
 - patch/revert logic
 - and the actual UI widgets (Switch, TextInput, option selection)
 
-Recommended extraction split:
+Update (Phase 5 plan): extract a shared **form body** first.
 
-- `useSessionSettingsModel(backend, sessionId)`
-  - returns:
-    - `loading`, `error`
-    - `fields: SettingField[]`
-    - `setValue(key, value)`
-    - `revert(key)`
-    - `refresh()`
+- Planned shared component: `packages/frontend-rn-components/src/settings/SessionSettingsForm.tsx` (exact path may vary).
+- Mobile keeps a modal surface, but uses the shared form body.
+- Desktop uses a window/popover surface, but uses the same shared form body.
 
-Then desktop can adopt native-ish widgets where possible.
+See: `tasks/20260202-desktop-macos-frontend/082-desktop-session-settings-ui.md`
 
 ### B) Optional shared field renderer interface
 
