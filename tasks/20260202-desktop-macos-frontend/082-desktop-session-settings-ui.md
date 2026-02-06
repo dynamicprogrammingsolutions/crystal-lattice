@@ -14,6 +14,101 @@ Depends On:
 
 - [ ] Not started
 
+## Plan (with checkpoints)
+
+### Chunk 1: Shared form + mobile migration
+
+- Create shared settings form body:
+  - Add `packages/frontend-rn-components/src/settings/SessionSettingsForm.tsx`.
+  - Export from `packages/frontend-rn-components/src/index.ts`.
+- Component responsibilities:
+  - Accept data + callbacks only (no data fetching).
+  - Render a scrollable list of config entries based on `UiSchemaElement[]`.
+  - Support field types used today:
+    - `checkbox` (toggle + inline revert)
+    - `select` (chip-style options + revert)
+    - `string` / `multiline` text (editable TextInput + explicit Save + revert)
+  - Callbacks (exact signature):
+    - `onToggleCheckbox(key, next)`
+    - `onSelectOption(key, value)`
+    - `onSaveText(key, value)`
+    - `onRevertToDefault(key)`
+  - Display “value source” tags similar to mobile (e.g. `config` vs `default`) using `baseConfig` + `schemaByKey`.
+
+- Migrate mobile to use the shared form body:
+  - Keep mobile’s modal surface and network logic local in `mobile/crystal-lattice-control-rn/src/components/SessionSettingsModal.tsx`.
+  - Keep current behavior:
+    - filter to config elements (`ui_type === 'config'` or missing)
+    - optimistic patching for checkboxes (rollback on failure)
+    - save button for text fields
+    - revert-to-default calls `deleteSessionOverride`
+
+Checkpoint (manual):
+
+- Mobile:
+  - Open session settings modal; confirm UI schema + overrides load.
+  - Toggle a checkbox; confirm it persists after closing/reopening.
+  - Change a select; confirm it persists after closing/reopening.
+  - Revert a value; confirm the override is removed and effective value matches base/default.
+
+### Chunk 2: Desktop JS settings surface (window content + coordinator)
+
+- Create a JS coordinator (patterned after `desktop/.../src/windows/applicationActionDialogCoordinator.ts`) to hold active settings window state:
+  - New file: `desktop/crystal-lattice-control-desktop-rn/src/windows/sessionSettingsCoordinator.ts`
+  - State should include at least: `id`, `connectionId`, `sessionId`, and a `backend` reference (or a provider function) plus `onClose` handler.
+
+- Create the RN root component that will render inside the desktop window:
+  - New file: `desktop/crystal-lattice-control-desktop-rn/src/windows/SessionSettingsWindow.tsx`
+  - Wrap in `ThemeProvider` using `useDesktopTheme` (same as `AgentPickerWindow.tsx`).
+  - On open (when coordinator state is set), load in parallel:
+    - `backend.getSessionUiSchema(sessionId)`
+    - `backend.getSessionOverrides(sessionId)`
+    - `backend.getSessionConfigSchema(sessionId)` (build `schemaByKey`)
+    - `backend.getSessionBaseConfig(sessionId)`
+  - Render `SessionSettingsForm` and wire callbacks to backend methods:
+    - optimistic updates for checkbox/select where safe
+    - text fields save via explicit Save
+    - revert via `backend.deleteSessionOverride(sessionId, key)`
+  - If server lacks capabilities (via `backend.getCapabilities()`), show a friendly “Not supported by this backend” message.
+
+### Chunk 3: macOS native window plumbing (DesktopWindowManager)
+
+- Add native module surface for opening/closing the window:
+  - Extend `desktop/crystal-lattice-control-desktop-rn/src/windows/desktopWindowManager.ts` with:
+    - `openSessionSettingsWindow(params?: { title?: string }): void`
+    - `closeSessionSettingsWindow(): void`
+  - Register the RN root component:
+    - `desktop/crystal-lattice-control-desktop-rn/index.js` add `AppRegistry.registerComponent('SessionSettingsWindow', ...)`.
+
+- Implement native window creation + lifecycle:
+  - Update `desktop/crystal-lattice-control-desktop-rn/macos/CrystalLatticeControlDesktopRN-macOS/DesktopWindowManager.h` and `.mm`.
+  - Mirror existing patterns used for `openAgentPicker` / `openApplicationActionDialogWindow`.
+  - On window close via titlebar:
+    - emit an event like `sessionSettingsWindowCancelled` so JS can clear coordinator state.
+
+Checkpoint (manual):
+
+- Desktop:
+  - “Settings…” opens a macOS window reliably.
+  - Closing via window controls triggers cleanup (no stale coordinator state).
+  - Reopening works repeatedly (no duplicate windows).
+
+### Chunk 4: Wire into the chat header
+
+- Add a “Settings…” action to the chat header actions in `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx`:
+  - Add a new action key (e.g. `settings`) to `BUILTIN_SESSION_ACTIONS`.
+  - Only enable when `backend != null`.
+  - On invoke:
+    - set coordinator state for `{ connectionId, sessionId }`
+    - call `DesktopWindowManager.openSessionSettingsWindow({ title: 'Session settings' })`
+
+Checkpoint (manual):
+
+- Desktop end-to-end:
+  - Settings is disabled offline, enabled online.
+  - Toggle/select/text-save/revert all persist and survive closing/reopening the settings window.
+  - Opening settings for different tabs/sessions targets the correct session.
+
 ## Context to read first (files + line numbers)
 
 - Backend session settings endpoints (read 100–106): `packages/frontend-sdk/src/backend/backend.ts:100`
