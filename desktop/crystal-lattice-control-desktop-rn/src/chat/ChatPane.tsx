@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,20 +10,45 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/Feather';
 
-import { useTheme } from '@crystal-lattice/frontend-rn-components';
+import {
+  ActionsMenuBar,
+  useTheme,
+  type ActionDefinition,
+  type ActionKey,
+} from '@crystal-lattice/frontend-rn-components';
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import type { IndexedMessage } from '@crystal-lattice/frontend-sdk';
-import { useChatController, useHydrateControllerFromCache } from '@crystal-lattice/frontend-sdk-react';
+import {
+  useAgentsController,
+  useChatController,
+  useHydrateControllerFromCache,
+  usePersistentPinnedActions,
+} from '@crystal-lattice/frontend-sdk-react';
 
 import type { MessagesCacheEntry } from '../cache/types';
 import type { TabStripStyle } from '../tabs/tabStripStyle';
+import { asyncStorageKeyValueStore } from '../storage/asyncStorageKeyValueStore';
+import { DesktopWindowManager } from '../windows/desktopWindowManager';
 
 const DEFAULT_HISTORY_WINDOW = 50;
+const PINNED_SESSION_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_session_actions_v1';
+
+type ChatSessionActionKey = 'reload' | 'cancel' | 'agentSwitch';
+
+const BUILTIN_SESSION_ACTIONS: ActionDefinition[] = [
+  { key: 'reload', label: 'Reload', iconName: 'refresh-ccw' },
+  { key: 'cancel', label: 'Cancel', iconName: 'x-circle' },
+  { key: 'agentSwitch', label: 'Switch agent', iconName: 'user' },
+];
+
+const DEFAULT_PINNED_SESSION_ACTION_KEYS: ActionKey[] = ['reload', 'cancel'];
 
 export interface ChatPaneProps {
   visible: boolean;
   connectionId: string;
+  connectionName: string;
   sessionId: string;
   title: string;
   subtitle?: string;
@@ -41,6 +67,7 @@ export interface ChatPaneProps {
 export function ChatPane({
   visible,
   connectionId,
+  connectionName,
   sessionId,
   title,
   subtitle,
@@ -55,8 +82,10 @@ export function ChatPane({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [composeText, setComposeText] = useState('');
   const [sendInFlight, setSendInFlight] = useState(false);
+  const [reloadInFlight, setReloadInFlight] = useState(false);
+  const [cancelInFlight, setCancelInFlight] = useState(false);
+  const [openingAgentPicker, setOpeningAgentPicker] = useState(false);
   const inputRef = useRef<TextInput>(null);
-  const lastShiftEnterAtRef = useRef<number | null>(null);
   const attemptedInitialLoadRef = useRef(false);
   const pendingPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPersistKeyRef = useRef<string | null>(null);
@@ -105,6 +134,23 @@ export function ChatPane({
     initialEventsCursorId: cachedEntry?.cursorEventId ?? null,
     initialActiveRequestId: cachedEntry?.activeRequestId ?? null,
     eventsEnabled: visible && backend != null,
+  });
+
+  const pinnedSessionActionsStorageKey = useMemo(() => {
+    return `${PINNED_SESSION_ACTIONS_STORAGE_KEY_BASE}:${connectionId}`;
+  }, [connectionId]);
+
+  const { pinned: pinnedSessionActionKeys, setPinned: setPinnedSessionActionKeys } =
+    usePersistentPinnedActions<ActionKey>({
+      store: asyncStorageKeyValueStore,
+      key: pinnedSessionActionsStorageKey,
+      initialPinned: DEFAULT_PINNED_SESSION_ACTION_KEYS,
+    });
+
+  const { controller: agentsController, state: agentsState } = useAgentsController({
+    backend,
+    cacheKey: connectionId,
+    enabled: false,
   });
 
   const hydrateFromCache = useCallback(
@@ -329,24 +375,182 @@ export function ChatPane({
     }
   }, [canSend, chatController, composeText]);
 
+  const canRunHeaderActions = backend != null && chatController != null && visible;
+
+  const handleReload = useCallback(async () => {
+    if (!canRunHeaderActions) {
+      return;
+    }
+    if (reloadInFlight) {
+      return;
+    }
+
+    setReloadInFlight(true);
+    try {
+      setLoadError(null);
+      chatController.clearRequestState();
+      await chatController.loadMessages({ start: -DEFAULT_HISTORY_WINDOW });
+    } catch (err: any) {
+      const message =
+        typeof err?.message === 'string' && err.message
+          ? err.message
+          : 'Failed to reload messages.';
+      setLoadError(message);
+      Alert.alert('Failed to reload', message);
+    } finally {
+      setReloadInFlight(false);
+    }
+  }, [canRunHeaderActions, chatController, reloadInFlight]);
+
+  const handleCancel = useCallback(async () => {
+    if (!canRunHeaderActions) {
+      return;
+    }
+    if (cancelInFlight) {
+      return;
+    }
+    if (!chatState?.activeRequestId) {
+      return;
+    }
+
+    setCancelInFlight(true);
+    try {
+      await chatController.cancelActiveRequest();
+    } catch (err: any) {
+      const message = err?.message || 'Failed to cancel request';
+      Alert.alert('Failed to cancel', message);
+    } finally {
+      setCancelInFlight(false);
+    }
+  }, [canRunHeaderActions, cancelInFlight, chatController, chatState?.activeRequestId]);
+
+  const openAgentPickerForSwitch = useCallback(async () => {
+    if (!backend) {
+      return;
+    }
+    if (!agentsController) {
+      Alert.alert('Error', 'Agent controller is not available.');
+      return;
+    }
+    if (openingAgentPicker) {
+      return;
+    }
+
+    setOpeningAgentPicker(true);
+    try {
+      const agents = await agentsController.ensureLoaded();
+
+      let initialAgentId: string | undefined;
+      try {
+        const current = await backend.getSessionAgent(sessionId);
+        const trimmed = typeof current === 'string' ? current.trim() : '';
+        if (trimmed) {
+          initialAgentId = trimmed;
+        }
+      } catch {
+        // Ignore; agent picker will fall back to first agent.
+      }
+
+      DesktopWindowManager?.openAgentPicker({
+        mode: 'switchSessionAgent',
+        title: 'Switch Agent',
+        primaryButtonLabel: 'Switch',
+        sessionId,
+        connectionId,
+        connectionName,
+        initialAgentId,
+        agents,
+      });
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to load agents');
+    } finally {
+      setOpeningAgentPicker(false);
+    }
+  }, [agentsController, backend, connectionId, connectionName, openingAgentPicker, sessionId]);
+
+  const handleSessionAction = useCallback(
+    (key: ActionKey) => {
+      const action = key as ChatSessionActionKey;
+      if (action === 'reload') {
+        handleReload().catch(() => {});
+        return;
+      }
+      if (action === 'cancel') {
+        handleCancel().catch(() => {});
+        return;
+      }
+      if (action === 'agentSwitch') {
+        openAgentPickerForSwitch().catch(() => {});
+      }
+    },
+    [handleCancel, handleReload, openAgentPickerForSwitch],
+  );
+
   return (
     <View style={[styles.root, visible ? styles.visible : styles.hidden]}>
       <View style={styles.header}>
-        <Text style={styles.title} numberOfLines={1}>
-          {title}
-        </Text>
-        {subtitle ? (
-          <Text style={styles.subtitle} numberOfLines={1}>
-            {subtitle}
+        <View style={styles.headerLeft}>
+          <Text style={styles.title} numberOfLines={1}>
+            {title}
           </Text>
-        ) : null}
+          <View style={styles.metaRow}>
+            <Text style={styles.metaText} numberOfLines={1}>
+              {connectionName}
+            </Text>
+            <Text style={styles.metaDot}>•</Text>
+            <Text style={styles.metaText} numberOfLines={1}>
+              {sessionId}
+            </Text>
+            <Text style={styles.metaDot}>•</Text>
+            <View
+              style={[
+                styles.statusDot,
+                { backgroundColor: backend ? theme.success : theme.textMuted },
+              ]}
+            />
+            <Text style={styles.metaText} numberOfLines={1}>
+              {backend ? 'Online' : 'Offline'}
+            </Text>
+          </View>
+          {subtitle ? (
+            <Text style={styles.subtitle} numberOfLines={1}>
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
+
+        <View style={styles.headerRight}>
+          <ActionsMenuBar<ActionDefinition>
+            title="Session actions"
+            variant="dropdown"
+            isActive={visible}
+            renderIcon={({ name, size, color }) => <Icon name={name} size={size} color={color} />}
+            baseActions={BUILTIN_SESSION_ACTIONS}
+            pinned={pinnedSessionActionKeys}
+            onChangePinned={(next) => setPinnedSessionActionKeys(next)}
+            onAction={handleSessionAction}
+            isActionDisabled={(key) => {
+              if (!canRunHeaderActions) {
+                return true;
+              }
+              if (key === 'reload') {
+                return reloadInFlight || (chatState?.loading ?? false);
+              }
+              if (key === 'cancel') {
+                return cancelInFlight || !chatState?.activeRequestId;
+              }
+              if (key === 'agentSwitch') {
+                return openingAgentPicker || (agentsState?.loading ?? false);
+              }
+              return false;
+            }}
+          />
+        </View>
       </View>
 
       <View style={styles.body}>
         <View style={styles.statusRow}>
-          <Text style={styles.hintSecondary}>
-            {backend ? 'Online' : 'Offline'} • Messages: {messagesCount}
-          </Text>
+          <Text style={styles.hintSecondary}>Messages: {messagesCount}</Text>
           <Text style={styles.hintSecondary}>
             Streaming: {chatController?.isEventStreaming() ? 'on' : 'off'}
           </Text>
@@ -366,7 +570,10 @@ export function ChatPane({
             </Text>
             <Pressable
               style={({ pressed }) => [styles.retryButton, pressed && styles.retryButtonPressed]}
+              onFocus={() => pushDebug('retry focus')}
+              onBlur={() => pushDebug('retry blur')}
               onPress={() => {
+                pushDebug('retry press');
                 attemptedInitialLoadRef.current = true;
                 loadInitialMessages().catch(() => {
                   // errors are handled in `loadInitialMessages`
@@ -378,7 +585,12 @@ export function ChatPane({
           </View>
         ) : null}
 
-        <ScrollView style={styles.transcript} contentContainerStyle={styles.transcriptContent}>
+        <ScrollView
+          style={styles.transcript}
+          contentContainerStyle={styles.transcriptContent}
+          onFocus={() => pushDebug('transcript focus')}
+          onBlur={() => pushDebug('transcript blur')}
+        >
           {messages.length === 0 && !chatState?.loading ? (
             <Text style={styles.hintSecondary}>No messages.</Text>
           ) : null}
@@ -556,12 +768,22 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       overflow: codeLike ? 'visible' : 'hidden',
     },
     header: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
       paddingHorizontal: 12,
       paddingVertical: 10,
       borderBottomWidth: separatorWidth,
       borderBottomColor: theme.border,
-      gap: 2,
+      gap: 10,
       backgroundColor: theme.surface,
+    },
+    headerLeft: {
+      flex: 1,
+      gap: 4,
+    },
+    headerRight: {
+      paddingTop: Platform.OS === 'macos' ? 2 : 0,
     },
     visible: {
       display: 'flex',
@@ -577,6 +799,28 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
     subtitle: {
       fontSize: 12,
       color: theme.textSecondary,
+    },
+    metaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: 6,
+    },
+    metaText: {
+      fontSize: 11,
+      color: theme.textMuted,
+      fontWeight: '600',
+    },
+    metaDot: {
+      fontSize: 11,
+      color: theme.textMuted,
+      marginTop: -1,
+    },
+    statusDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 999,
+      marginTop: 1,
     },
     body: {
       flex: 1,

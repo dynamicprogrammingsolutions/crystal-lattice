@@ -13,6 +13,11 @@ export interface OpenAgentPickerParams {
   connectionId: string;
   connectionName?: string;
   agents: string[];
+  mode?: 'createSession' | 'switchSessionAgent';
+  sessionId?: string;
+  title?: string;
+  primaryButtonLabel?: string;
+  initialAgentId?: string;
 }
 
 export interface ToggleActionsPopoverParams {
@@ -37,7 +42,12 @@ export interface DesktopWindowManagerModule {
   cancelConnectionEditor(): void;
 
   openAgentPicker(params: OpenAgentPickerParams): void;
-  submitAgentPicker(payload: { connectionId: string; agentId: string }): void;
+  submitAgentPicker(payload: {
+    connectionId: string;
+    agentId: string;
+    mode?: 'createSession' | 'switchSessionAgent';
+    sessionId?: string;
+  }): void;
   cancelAgentPicker(): void;
 
   toggleActionsPopover(params: ToggleActionsPopoverParams): void;

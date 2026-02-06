@@ -97,6 +97,7 @@ This task directory is a handoff package for implementing Phase 5 of `tasks/2026
 - `tasks/20260202-desktop-macos-frontend/086-desktop-plugin-actions-in-chat.md`
 - `tasks/20260202-desktop-macos-frontend/087-desktop-chat-state-persistence.md`
 - `tasks/20260202-desktop-macos-frontend/088-desktop-chat-debug-events.md`
+- `tasks/20260202-desktop-macos-frontend/089-session-metadata-single-source-of-truth.md`
 - `tasks/20260202-desktop-macos-frontend/090-smoke-tests-and-docs.md`
 
 ## Supporting docs

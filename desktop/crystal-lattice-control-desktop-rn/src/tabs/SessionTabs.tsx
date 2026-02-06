@@ -19,6 +19,7 @@ export interface DesktopSessionTab {
   connectionId: string;
   sessionId: string;
   title: string;
+  subtitle?: string | null;
 }
 
 export interface SessionTabsProps {
