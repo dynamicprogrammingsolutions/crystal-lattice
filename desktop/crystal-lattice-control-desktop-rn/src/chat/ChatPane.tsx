@@ -61,6 +61,43 @@ export function ChatPane({
   const pendingPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPersistKeyRef = useRef<string | null>(null);
 
+  const [debugEvents, setDebugEvents] = useState<string[]>([]);
+  const debugEnabled = __DEV__;
+  const pushDebug = useCallback(
+    (label: string) => {
+      if (!debugEnabled) {
+        return;
+      }
+      const line = `${new Date().toISOString().slice(11, 23)} ${label}`;
+      setDebugEvents((prev) => {
+        const next = [...prev, line];
+        return next.length > 10 ? next.slice(next.length - 10) : next;
+      });
+      console.log(`[ChatPane ${connectionId}:${sessionId}] ${label}`);
+    },
+    [connectionId, debugEnabled, sessionId],
+  );
+
+  const logComposerFocusState = useCallback(
+    (prefix: string) => {
+      if (!debugEnabled) {
+        return;
+      }
+
+      try {
+        const current = TextInput.State.currentlyFocusedInput();
+        const currentIsComposer = current != null && current === (inputRef.current as any);
+        const composerIsFocused = inputRef.current?.isFocused?.() ?? false;
+        pushDebug(
+          `${prefix} composerIsFocused=${composerIsFocused} currentIsComposer=${currentIsComposer} hasCurrent=${current != null}`,
+        );
+      } catch {
+        pushDebug(`${prefix} focusState=error`);
+      }
+    },
+    [debugEnabled, pushDebug],
+  );
+
   const { controller: chatController, state: chatState } = useChatController({
     backend,
     sessionId,
@@ -111,6 +148,37 @@ export function ChatPane({
 
     chatController.setHistoryRange({ start: -DEFAULT_HISTORY_WINDOW });
   }, [chatController]);
+
+  useEffect(() => {
+    pushDebug('mount');
+    return () => {
+      pushDebug('unmount');
+    };
+  }, [pushDebug]);
+
+  useEffect(() => {
+    if (!debugEnabled) {
+      return;
+    }
+
+    let lastFocused = false;
+    const timer = setInterval(() => {
+      try {
+        const focused = TextInput.State.currentlyFocusedInput();
+        const isFocused = focused != null && focused === (inputRef.current as any);
+        if (isFocused !== lastFocused) {
+          lastFocused = isFocused;
+          pushDebug(`poll composerFocused=${isFocused}`);
+        }
+      } catch {
+        // ignore
+      }
+    }, 250);
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, [debugEnabled, pushDebug]);
 
   useEffect(() => {
     attemptedInitialLoadRef.current = false;
@@ -327,6 +395,17 @@ export function ChatPane({
           ) : null}
         </ScrollView>
 
+        {debugEnabled ? (
+          <View style={styles.debugBox}>
+            <Text style={styles.debugTitle}>Focus debug</Text>
+            {debugEvents.slice().reverse().map((line) => (
+              <Text key={line} style={styles.debugLine}>
+                {line}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+
         <View style={styles.composerRow}>
           <TextInput
             ref={inputRef}
@@ -336,33 +415,48 @@ export function ChatPane({
             placeholderTextColor={theme.textMuted}
             onChangeText={setComposeText}
             editable={backend != null && !sendInFlight}
+            autoCorrect={false}
+            spellCheck={false}
             multiline
-            submitBehavior="submit"
+            submitBehavior="newline"
+            onFocus={() => {
+              pushDebug('composer focus');
+              logComposerFocusState('composer focus');
+            }}
+            onBlur={() => {
+              pushDebug('composer blur');
+              logComposerFocusState('composer blur');
+              setTimeout(() => {
+                logComposerFocusState('composer blur +50ms');
+              }, 50);
+            }}
             onKeyPress={(event) => {
               const key = (event.nativeEvent as any)?.key;
+              const shiftKey = (event.nativeEvent as any)?.shiftKey === true;
+              const ctrlKey = (event.nativeEvent as any)?.ctrlKey === true;
+              const metaKey = (event.nativeEvent as any)?.metaKey === true;
+              const altKey = (event.nativeEvent as any)?.altKey === true;
+              pushDebug(
+                `composer key=${JSON.stringify(key)} shift=${shiftKey} ctrl=${ctrlKey} alt=${altKey} meta=${metaKey}`,
+              );
+
+              setTimeout(() => {
+                logComposerFocusState(`after key=${JSON.stringify(key)} +0ms`);
+              }, 0);
+              setTimeout(() => {
+                logComposerFocusState(`after key=${JSON.stringify(key)} +50ms`);
+              }, 50);
+
               if (key !== 'Enter') {
                 return;
               }
 
-              const shiftKey = (event.nativeEvent as any)?.shiftKey === true;
-              if (!shiftKey) {
+              if (shiftKey) {
                 return;
               }
 
-              lastShiftEnterAtRef.current = Date.now();
               (event as any)?.preventDefault?.();
               (event as any)?.stopPropagation?.();
-
-              setComposeText((prev) => (prev ? `${prev}\n` : '\n'));
-            }}
-            onSubmitEditing={() => {
-              const lastShiftEnterAt = lastShiftEnterAtRef.current;
-              if (lastShiftEnterAt != null) {
-                lastShiftEnterAtRef.current = null;
-                if (Date.now() - lastShiftEnterAt < 500) {
-                  return;
-                }
-              }
 
               handleSend().catch(() => {
                 // errors are handled in `handleSend`
@@ -370,14 +464,16 @@ export function ChatPane({
             }}
           />
           <Pressable
-            focusable={false}
             style={({ pressed }) => [
               styles.sendButton,
               (!canSend || !composeText.trim()) && styles.sendButtonDisabled,
               pressed && canSend && composeText.trim() && styles.sendButtonPressed,
             ]}
             disabled={!canSend || !composeText.trim()}
+            onFocus={() => pushDebug('send focus')}
+            onBlur={() => pushDebug('send blur')}
             onPress={() => {
+              pushDebug('send press');
               handleSend().catch(() => {
                 // errors are handled in `handleSend`
               });
@@ -537,6 +633,24 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
     transcriptContent: {
       gap: 10,
       paddingBottom: 12,
+    },
+    debugBox: {
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      borderRadius: 10,
+      borderWidth: separatorWidth,
+      borderColor: theme.border,
+      backgroundColor: theme.surface,
+      gap: 4,
+    },
+    debugTitle: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: theme.textSecondary,
+    },
+    debugLine: {
+      fontSize: 11,
+      color: theme.textMuted,
     },
     composerRow: {
       flexDirection: 'row',
