@@ -4,6 +4,7 @@ jest.mock(
 );
 
 jest.mock('@crystal-lattice/frontend-sdk', () => ({
+  ...jest.requireActual('@crystal-lattice/frontend-sdk'),
   CONNECTIONS_STORAGE_KEY: 'clc_connections_v1',
   loadConnections: async () => [],
   saveConnections: async () => {},
@@ -11,6 +12,7 @@ jest.mock('@crystal-lattice/frontend-sdk', () => ({
 
 jest.mock('@crystal-lattice/frontend-rn-components', () => {
   const React = require('react');
+  const { View } = require('react-native');
   const theme = {
     background: '#fff',
     backgroundAlt: '#fff',
@@ -43,5 +45,9 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     useTheme: () => theme,
     DropdownMenuSurface: ({ visible, children }: { visible: boolean; children: any }) =>
       visible ? React.createElement(React.Fragment, null, children) : null,
+
+    ActionsMenuBar: () => null,
+    ApplicationActionDialog: ({ visible }: { visible: boolean }) => (visible ? React.createElement(View, null) : null),
+    getLastActionsPopoverAnchorTag: () => null,
   };
 });

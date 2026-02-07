@@ -32,6 +32,7 @@ import type { TabStripStyle } from '../tabs/tabStripStyle';
 import { asyncStorageKeyValueStore } from '../storage/asyncStorageKeyValueStore';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
 import { setActiveSessionSettingsWindow } from '../windows/sessionSettingsCoordinator';
+import MarkdownMessageContent from './MarkdownMessageContent';
 
 const DEFAULT_HISTORY_WINDOW = 50;
 const PINNED_SESSION_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_session_actions_v1';
@@ -80,6 +81,8 @@ export function ChatPane({
 }: ChatPaneProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme, styleVariant), [theme, styleVariant]);
+
+  const [renderMarkdown] = useState(true);
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const [composeText, setComposeText] = useState('');
@@ -625,7 +628,12 @@ export function ChatPane({
             <Text style={styles.hintSecondary}>No messages.</Text>
           ) : null}
           {messages.map((msg) => (
-            <MessageRow key={msg.index} message={msg} theme={theme} />
+            <MessageRow
+              key={msg.index}
+              message={msg}
+              theme={theme}
+              renderMarkdown={renderMarkdown}
+            />
           ))}
           {streamingRowText ? (
             <View style={[styles.messageRow, styles.messageRowAssistant]}>
@@ -732,9 +740,11 @@ export function ChatPane({
 function MessageRow({
   message,
   theme,
+  renderMarkdown,
 }: {
   message: IndexedMessage;
   theme: ReturnType<typeof useTheme>;
+  renderMarkdown: boolean;
 }): React.JSX.Element {
   const role = message.message.role;
   const content = message.message.content;
@@ -751,7 +761,15 @@ function MessageRow({
       <Text style={[stylesLocal.messageMeta, { color: theme.textSecondary }]} numberOfLines={1}>
         {role} • #{message.index}
       </Text>
-      <Text style={[stylesLocal.messageText, { color: theme.text }]}>{content}</Text>
+      {role === 'assistant' ? (
+        <MarkdownMessageContent
+          text={content}
+          renderMode={renderMarkdown ? 'markdown' : 'raw'}
+          variant="assistant"
+        />
+      ) : (
+        <Text style={[stylesLocal.messageText, { color: theme.text }]}>{content}</Text>
+      )}
     </View>
   );
 }

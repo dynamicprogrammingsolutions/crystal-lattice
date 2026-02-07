@@ -12,7 +12,7 @@ Depends On:
 
 ## Status
 
-- [ ] Not started
+- [x] Completed
 
 ## Context to read first (files + line numbers)
 
@@ -181,3 +181,14 @@ If the first-choice libraries are not compatible with RN macOS, pick an alternat
 
 - Common approach: implement `fence`/`code_block` rendering rules and wrap blocks in horizontal `ScrollView`.
 - Syntax highlighting can be layered in with `react-native-syntax-highlighter`, but if that’s problematic on macOS, fall back to plain monospace text with horizontal scrolling.
+
+## Completion notes (added during completion)
+
+Implemented a desktop-local markdown renderer and wired it into assistant message rendering.
+
+- Markdown renderer component: `desktop/crystal-lattice-control-desktop-rn/src/chat/MarkdownMessageContent.tsx`
+- Code blocks: custom `fence`/`code_block` rules with horizontal scrolling; uses `theme.codeBlockBg`.
+- Graceful fallback: error boundary falls back to raw text.
+- Integration: assistant messages render via markdown by default in `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx`.
+- Desktop deps: added `react-native-markdown-display`, `react-native-syntax-highlighter`, and `react-syntax-highlighter` in `desktop/crystal-lattice-control-desktop-rn/package.json`.
+- TS declarations: added local module shims in `desktop/crystal-lattice-control-desktop-rn/src/types/markdown-vendors.d.ts`.
