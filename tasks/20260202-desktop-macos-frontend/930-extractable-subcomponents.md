@@ -200,13 +200,11 @@ This file mixes:
 - patch/revert logic
 - and the actual UI widgets (Switch, TextInput, option selection)
 
-Update (Phase 5 plan): extract a shared **form body** first.
+Update: initial extraction was done as shared RN UI components, but the project moved to a better architecture:
 
-- Planned shared components:
-  - `packages/frontend-rn-components/src/settings/SessionSettingsCard.tsx`
-  - `packages/frontend-rn-components/src/settings/SessionSettingsSurface.tsx`
-- Mobile keeps a modal surface, but uses the shared form body.
-- Desktop uses a window/popover surface, but uses the same shared form body.
+- Rendering is app-owned (mobile + desktop each render their own UI).
+- Shared code is logic-only and lives in `@crystal-lattice/frontend-sdk-react` (`sessionSettings/*`).
+- Legacy shared RN UI components (`SessionSettingsCard` / `SessionSettingsSurface`) were removed.
 
 See: `tasks/20260202-desktop-macos-frontend/082-desktop-session-settings-ui.md`
 

@@ -64,8 +64,3 @@ export { ActionsMenuBar } from './actions/ActionsMenuBar';
 export type { SessionActionsBarProps } from './actions/SessionActionsBar';
 export { SessionActionsBar } from './actions/SessionActionsBar';
 
-export type { SessionSettingsCardProps } from './settings/SessionSettingsCard';
-export { SessionSettingsCard } from './settings/SessionSettingsCard';
-
-export type { SessionSettingsSurfaceProps } from './settings/SessionSettingsSurface';
-export { SessionSettingsSurface } from './settings/SessionSettingsSurface';
