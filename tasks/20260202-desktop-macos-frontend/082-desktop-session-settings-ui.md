@@ -16,22 +16,15 @@ Depends On:
 - [x] Refactor Stage 1 done (shared logic + headless host)
 - [x] Refactor Stage 2 done (desktop app-owned rendering)
 - [x] Refactor Stage 3 done (mobile app-owned rendering; pixel-identical)
-- [ ] Refactor Stage 4 pending
+- [x] Refactor Stage 4 done (remove legacy shared RN UI components)
 
 ## Implementation Notes (current state)
 
 As of the latest implementation pass, session settings exist end-to-end for mobile + desktop, with app-owned rendering in both apps.
 
-### Shared UI components (mobile-styled)
+### Shared UI components
 
-- `packages/frontend-rn-components/src/settings/SessionSettingsCard.tsx`
-  - Extracted from the original mobile modal implementation.
-  - Contains the default rendering for `checkbox`, `select` (chip-style), and text settings.
-  - Includes the mobile “card frame” (width/maxHeight/padding), title, loading/error/empty-state, and a footer Close button.
-- `packages/frontend-rn-components/src/settings/SessionSettingsSurface.tsx`
-  - Provides the mobile modal overlay and click-outside-to-close behavior.
-
-Note: these components are now legacy and scheduled for removal in Stage 4.
+- Stage 4 completed: legacy `SessionSettingsCard` / `SessionSettingsSurface` were removed from `@crystal-lattice/frontend-rn-components`.
 
 ### Mobile
 
@@ -53,7 +46,7 @@ Note: these components are now legacy and scheduled for removal in Stage 4.
 
 ### Known limitation
 
-- Stage 4 still pending: remove the now-legacy shared RN UI components (`SessionSettingsCard` / `SessionSettingsSurface`).
+- None (refactor stages complete). Further UX work can be done app-side.
 
 ## Refactor Plan (staged; app-owned rendering + logic-only sharing)
 
