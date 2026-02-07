@@ -34,6 +34,7 @@ import { getConnectionAdditionalInfo } from './src/connectionInfo';
 import type { SessionSummary, IndexedMessage } from './src/api';
 import type { ChatScrollAnchor } from './src/chatScroll';
 import { ThemeProvider, lightTheme, darkTheme, type Theme } from './src/theme';
+import { PinnedActionsProvider } from './src/PinnedActionsContext';
 
 type ConnectionMethod = 'manual' | 'discovery' | 'bridge';
 
@@ -934,7 +935,8 @@ function App(): React.JSX.Element {
   return (
     <SafeAreaProvider>
       <ThemeProvider theme={theme}>
-        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <PinnedActionsProvider>
+          <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
             <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
           {/** Determine active connection info for display components */}
           {/** This is derived once here and passed down rather than recomputed in children. */}
@@ -984,7 +986,8 @@ function App(): React.JSX.Element {
             />
           );
           })()}
-        </SafeAreaView>
+          </SafeAreaView>
+        </PinnedActionsProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

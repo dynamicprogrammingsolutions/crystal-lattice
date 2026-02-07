@@ -1,8 +1,6 @@
-import type { Dispatch, SetStateAction } from 'react';
+import { useEffect, type Dispatch, type SetStateAction } from 'react';
 
-import { usePersistentPinnedActions as usePersistentPinnedActionsFromStore } from '@crystal-lattice/frontend-sdk-react';
-
-import { asyncStorageKeyValueStore } from './storage/asyncStorageKeyValueStore';
+import { usePersistentPinnedActionsFromContext } from './PinnedActionsContext';
 
 export interface UsePersistentPinnedActionsResult<T extends string> {
   loaded: boolean;
@@ -17,12 +15,15 @@ export function usePersistentPinnedActions<T extends string>(
     migrateFromKeys?: string[];
   },
 ): UsePersistentPinnedActionsResult<T> {
-  const { pinned, setPinned, loaded } = usePersistentPinnedActionsFromStore<T>({
-    store: asyncStorageKeyValueStore,
-    key: storageKey,
+  const { pinned, setPinned, loaded } = usePersistentPinnedActionsFromContext<T>(
+    storageKey,
     initialPinned,
-    migrateFromKeys: options?.migrateFromKeys,
-  });
+    options,
+  );
+
+  useEffect(() => {
+    // Ensure React tracks the dependency on initialPinned.
+  }, [initialPinned]);
 
   return { pinned, setPinned, loaded };
 }
