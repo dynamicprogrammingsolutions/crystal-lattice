@@ -5,7 +5,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
@@ -27,6 +26,10 @@ import Icon from 'react-native-vector-icons/Feather';
 
 import { useDesktopTheme } from '../theme/useDesktopTheme';
 import { useActiveSessionSettingsWindow } from './sessionSettingsCoordinator';
+import { clearActiveSessionSettingsWindow } from './sessionSettingsCoordinator';
+import { DesktopWindowManager } from './desktopWindowManager';
+import { MacCheckbox } from '../native/MacCheckbox';
+import { MacSelect, type MacSelectOption } from '../native/MacSelect';
 
 export function SessionSettingsWindow(): React.JSX.Element {
   const systemTheme = useDesktopTheme();
@@ -67,6 +70,13 @@ function SessionSettingsWindowInner(): React.JSX.Element {
     });
     return byKey;
   }, [items]);
+
+  const closeWindow = useCallback(() => {
+    if (active?.state.id) {
+      clearActiveSessionSettingsWindow(active.state.id);
+    }
+    DesktopWindowManager?.closeSessionSettingsWindow();
+  }, [active]);
 
   useEffect(() => {
     if (!active) {
@@ -331,7 +341,7 @@ function SessionSettingsWindowInner(): React.JSX.Element {
       );
     };
 
-    const normalizeOptions = (raw: any): { value: string; label: string }[] => {
+    const normalizeOptions = (raw: any): MacSelectOption[] => {
       if (!Array.isArray(raw)) return [];
       return raw
         .map((opt) => {
@@ -345,7 +355,7 @@ function SessionSettingsWindowInner(): React.JSX.Element {
           }
           return null;
         })
-        .filter((v) => v !== null) as { value: string; label: string }[];
+        .filter((v) => v !== null) as MacSelectOption[];
     };
 
     return {
@@ -356,7 +366,12 @@ function SessionSettingsWindowInner(): React.JSX.Element {
           <View style={styles.itemRow}>
             <View style={styles.itemHeaderRow}>
               <View style={styles.itemTitleRow}>
-                <Text style={styles.itemLabel}>{item.label}</Text>
+                <MacCheckbox
+                  style={styles.macCheckbox}
+                  label={item.label}
+                  value={boolValue}
+                  onValueChange={(next) => actions.toggleCheckbox(item.key, next)}
+                />
                 {renderTag(item.tagLabel)}
               </View>
               <View style={styles.itemControlsRow}>
@@ -372,7 +387,6 @@ function SessionSettingsWindowInner(): React.JSX.Element {
                     <Text style={styles.resetButtonText}>Reset</Text>
                   </Pressable>
                 ) : null}
-                <Switch value={boolValue} onValueChange={(next) => actions.toggleCheckbox(item.key, next)} />
               </View>
             </View>
             {item.description ? <Text style={styles.itemDescription}>{item.description}</Text> : null}
@@ -386,7 +400,9 @@ function SessionSettingsWindowInner(): React.JSX.Element {
           return <>{renderFallback()}</>;
         }
 
-        const selected = item.effectiveValue !== undefined && item.effectiveValue !== null ? String(item.effectiveValue) : '';
+        const selectedValue =
+          item.effectiveValue !== undefined && item.effectiveValue !== null ? String(item.effectiveValue) : '';
+
         return (
           <View style={styles.itemRow}>
             <View style={styles.itemHeaderRow}>
@@ -408,24 +424,12 @@ function SessionSettingsWindowInner(): React.JSX.Element {
               ) : null}
             </View>
             {item.description ? <Text style={styles.itemDescription}>{item.description}</Text> : null}
-            <View style={styles.chipsRow}>
-              {options.map((opt) => {
-                const isSelected = selected === opt.value;
-                return (
-                  <Pressable
-                    key={opt.value}
-                    onPress={() => actions.selectOption(item.key, opt.value)}
-                    style={(state) => [
-                      styles.chip,
-                      isSelected && styles.chipSelected,
-                      (state.pressed || (state as any).hovered) && styles.chipPressed,
-                    ]}
-                  >
-                    <Text style={isSelected ? styles.chipTextSelected : styles.chipText}>{opt.label}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <MacSelect
+              style={styles.macSelect}
+              options={options}
+              selectedValue={selectedValue}
+              onValueChange={(value) => actions.selectOption(item.key, value)}
+            />
           </View>
         );
       },
@@ -440,11 +444,26 @@ function SessionSettingsWindowInner(): React.JSX.Element {
 
   return (
     <View style={styles.root}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Session settings</Text>
-        <Text style={styles.subtitle} numberOfLines={1}>
-          Session: {active.state.sessionId}
-        </Text>
+      <View style={styles.headerRow}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Session settings</Text>
+          <Text style={styles.subtitle} numberOfLines={1}>
+            Session: {active.state.sessionId}
+          </Text>
+        </View>
+
+        <Pressable
+          style={(state) => {
+            const hovered = (state as any).hovered as boolean | undefined;
+            return [
+              styles.closeButton,
+              (hovered || state.pressed) && styles.closeButtonHovered,
+            ];
+          }}
+          onPress={closeWindow}
+        >
+          <Text style={styles.closeButtonText}>Close</Text>
+        </Pressable>
       </View>
 
       {loading ? (
@@ -492,8 +511,33 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       padding: 16,
       gap: 12,
     },
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
     header: {
       gap: 4,
+      flex: 1,
+    },
+    closeButton: {
+      borderWidth,
+      borderColor: theme.primary,
+      backgroundColor: theme.primary,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    closeButtonHovered: {
+      opacity: 0.92,
+    },
+    closeButtonText: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: theme.textOnPrimary,
     },
     title: {
       fontSize: 16,
@@ -558,6 +602,11 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       alignItems: 'center',
       gap: 10,
     },
+    macCheckbox: {
+      flexGrow: 1,
+      flexShrink: 1,
+      minHeight: 20,
+    },
     itemLabel: {
       fontSize: 13,
       fontWeight: '700',
@@ -609,35 +658,10 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       fontWeight: '700',
       color: theme.textSecondary,
     },
-    chipsRow: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-    },
-    chip: {
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      borderRadius: 999,
-      borderWidth,
-      borderColor: theme.border,
-      backgroundColor: theme.surface,
-    },
-    chipPressed: {
-      backgroundColor: theme.surfaceAlt,
-    },
-    chipSelected: {
-      backgroundColor: theme.primary,
-      borderColor: theme.primary,
-    },
-    chipText: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: theme.text,
-    },
-    chipTextSelected: {
-      fontSize: 12,
-      fontWeight: '800',
-      color: theme.textOnPrimary,
+    macSelect: {
+      minHeight: 26,
+      minWidth: 240,
+      maxWidth: 420,
     },
     textRow: {
       flexDirection: 'row',
