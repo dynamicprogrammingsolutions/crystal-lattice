@@ -29,7 +29,7 @@ export const lightTheme: Theme = {
   bubbleToolBg: 'rgba(142, 142, 147, 0.08)',
   modalBackdrop: 'rgba(0, 0, 0, 0.3)',
   inlineCodeBg: 'rgba(142, 142, 147, 0.16)',
-  codeBlockBg: '#1C1C1E',
+  codeBlockBg: '#FFFFFF',
   navBarBg: '#FFFFFF',
   navBarBorder: '#E5E5EA',
   navIconActive: '#007AFF',

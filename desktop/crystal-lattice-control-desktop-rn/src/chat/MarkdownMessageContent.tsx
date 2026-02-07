@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import SyntaxHighlighter from 'react-native-syntax-highlighter';
-import { atomOneDark } from 'react-syntax-highlighter/styles/hljs';
+import { atomOneDark, atomOneLight } from 'react-syntax-highlighter/styles/hljs';
 
 import { useTheme } from '@crystal-lattice/frontend-rn-components';
 
@@ -72,6 +72,11 @@ function MarkdownMessageContent({
       em: {
         fontStyle: 'italic',
       },
+      blockquote: {
+        ...styles.blockquote,
+        backgroundColor: theme.surfaceAlt,
+        borderColor: theme.border,
+      },
       code_inline: {
         ...styles.inlineCode,
         backgroundColor: theme.inlineCodeBg,
@@ -88,7 +93,12 @@ function MarkdownMessageContent({
       heading5: styles.heading,
       heading6: styles.heading,
     } as const;
-  }, [baseTextColor, theme.inlineCodeBg]);
+  }, [baseTextColor, theme.border, theme.inlineCodeBg, theme.surfaceAlt]);
+
+  const isDarkCodeBlock = useMemo(() => {
+    // `buildDesktopTheme` currently sets `codeBlockBg` to either a dark gray or pure white.
+    return theme.codeBlockBg !== '#FFFFFF';
+  }, [theme.codeBlockBg]);
 
   const rules = useMemo(
     () => ({
@@ -102,7 +112,10 @@ function MarkdownMessageContent({
         return (
           <View
             key={node.key}
-            style={[styles.codeBlockOuter, { backgroundColor: theme.codeBlockBg }]}
+            style={[
+              styles.codeBlockOuter,
+              { backgroundColor: theme.codeBlockBg, borderColor: theme.border },
+            ]}
           >
             <ScrollView
               horizontal
@@ -112,7 +125,7 @@ function MarkdownMessageContent({
             >
               <SyntaxHighlighter
                 language={language}
-                style={atomOneDark as any}
+                style={(isDarkCodeBlock ? atomOneDark : atomOneLight) as any}
                 highlighter="hljs"
                 customStyle={styles.codeBlockInner}
                 PreTag={View as any}
@@ -134,7 +147,10 @@ function MarkdownMessageContent({
         return (
           <View
             key={node.key}
-            style={[styles.codeBlockOuter, { backgroundColor: theme.codeBlockBg }]}
+            style={[
+              styles.codeBlockOuter,
+              { backgroundColor: theme.codeBlockBg, borderColor: theme.border },
+            ]}
           >
             <ScrollView
               horizontal
@@ -144,7 +160,7 @@ function MarkdownMessageContent({
             >
               <SyntaxHighlighter
                 language={language}
-                style={atomOneDark as any}
+                style={(isDarkCodeBlock ? atomOneDark : atomOneLight) as any}
                 highlighter="hljs"
                 customStyle={styles.codeBlockInner}
                 PreTag={View as any}
@@ -157,7 +173,7 @@ function MarkdownMessageContent({
         );
       },
     }),
-    [theme.codeBlockBg],
+    [isDarkCodeBlock, theme.codeBlockBg],
   );
 
   if (renderMode !== 'markdown') {
@@ -196,6 +212,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
     paddingVertical: 1,
   },
+  blockquote: {
+    borderLeftWidth: 4,
+    marginLeft: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
   codeBlockContainer: {
     marginTop: 4,
     marginBottom: 4,
@@ -204,6 +227,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 4,
     borderRadius: 6,
+    borderWidth: 1,
     overflow: 'hidden',
   },
   codeBlockScrollHorizontal: {
