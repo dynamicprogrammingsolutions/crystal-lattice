@@ -36,6 +36,10 @@ export interface OpenApplicationActionDialogPopoverParams {
   height?: number;
 }
 
+export interface OpenSessionSettingsWindowParams {
+  title?: string;
+}
+
 export interface DesktopWindowManagerModule {
   openConnectionEditor(params: OpenConnectionEditorParams): void;
   submitConnectionEditor(payload: { record: ConnectionRecord }): void;
@@ -58,6 +62,9 @@ export interface DesktopWindowManagerModule {
 
   openApplicationActionDialogPopover(params?: OpenApplicationActionDialogPopoverParams): void;
   closeApplicationActionDialogPopover(): void;
+
+  openSessionSettingsWindow(params?: OpenSessionSettingsWindowParams): void;
+  closeSessionSettingsWindow(): void;
 
   getSystemTheme?(): Promise<MacOSSystemThemePayload>;
 }

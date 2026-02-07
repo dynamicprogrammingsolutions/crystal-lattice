@@ -8,6 +8,7 @@ import { ConnectionEditorWindow } from './src/windows/ConnectionEditorWindow';
 import { AgentPickerWindow } from './src/windows/AgentPickerWindow';
 import { ActionsPopoverView } from './src/windows/ActionsPopoverView';
 import { ApplicationActionDialogWindow } from './src/windows/ApplicationActionDialogWindow';
+import { SessionSettingsWindow } from './src/windows/SessionSettingsWindow';
 import { name as appName } from './app.json';
 
 AppRegistry.registerComponent(appName, () => App);
@@ -15,3 +16,4 @@ AppRegistry.registerComponent('ConnectionEditorWindow', () => ConnectionEditorWi
 AppRegistry.registerComponent('AgentPickerWindow', () => AgentPickerWindow);
 AppRegistry.registerComponent('ActionsPopoverView', () => ActionsPopoverView);
 AppRegistry.registerComponent('ApplicationActionDialogWindow', () => ApplicationActionDialogWindow);
+AppRegistry.registerComponent('SessionSettingsWindow', () => SessionSettingsWindow);

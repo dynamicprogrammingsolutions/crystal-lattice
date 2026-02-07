@@ -15,6 +15,7 @@ import { usePersistedConnections } from './connections/usePersistedConnections';
 import { useOpenConnections } from './connections/useOpenConnections';
 import { asyncStorageKeyValueStore } from './storage/asyncStorageKeyValueStore';
 import { desktopWindowEvents, DesktopWindowManager } from './windows/desktopWindowManager';
+import { clearActiveSessionSettingsWindow } from './windows/sessionSettingsCoordinator';
 import { useMessagesCache } from './cache/useMessagesCache';
 import { useSessionsCache } from './cache/useSessionsCache';
 import { desktopEventBus } from './events/desktopEventBus';
@@ -321,10 +322,18 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
       },
     );
 
+    const sessionSettingsCancelledSub = desktopWindowEvents.addListener(
+      'sessionSettingsWindowCancelled',
+      () => {
+        clearActiveSessionSettingsWindow();
+      },
+    );
+
     return () => {
       savedSub.remove();
       styleSub.remove();
       agentPickerSub.remove();
+      sessionSettingsCancelledSub.remove();
     };
   }, [getBackend, openConnectionAndTouch, openTab, updateSessionsCache, upsertConnection]);
 
