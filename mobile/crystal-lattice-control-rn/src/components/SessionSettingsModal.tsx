@@ -1,11 +1,31 @@
-import React, { useEffect, useState } from 'react';
-import { Alert, Modal } from 'react-native';
-import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
-import { SessionSettingsSurface } from '@crystal-lattice/frontend-rn-components';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  type ConfigSchemaEntry,
-  type UiSchemaElement,
-} from '../api';
+  ActivityIndicator,
+  Alert,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
+} from 'react-native';
+import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
+import {
+  buildConfigSchemaByKey,
+  buildSessionSettingItems,
+  filterConfigUiSchemaElements,
+  SessionSettingsHost,
+  type ConfigSchemaByKey,
+  type SessionSettingRenderCtx,
+  type SessionSettingsRenderers,
+} from '@crystal-lattice/frontend-sdk-react';
+import Icon from 'react-native-vector-icons/Feather';
+
+import type { UiSchemaElement } from '../api';
+import { useTheme, type Theme } from '../theme';
 
 export interface SessionSettingsModalProps {
   backend: AgentBackend | null;
@@ -20,12 +40,15 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   visible,
   onRequestClose,
 }) => {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elements, setElements] = useState<UiSchemaElement[]>([]);
   const [overrides, setOverrides] = useState<Record<string, any>>({});
   const [baseConfig, setBaseConfig] = useState<Record<string, any>>({});
-  const [schemaByKey, setSchemaByKey] = useState<Record<string, ConfigSchemaEntry>>({});
+  const [schemaByKey, setSchemaByKey] = useState<ConfigSchemaByKey>({});
   const [pendingTextByKey, setPendingTextByKey] = useState<Record<string, string>>({});
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
@@ -53,28 +76,9 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
           backend.getSessionBaseConfig(sessionId),
         ]);
         if (cancelled) return;
-        // Filter to config-style elements: ui_type == "config" or missing,
-        // and with a non-empty key.
-        const configElements = (els || []).filter((el) => {
-          if (!el || typeof el !== 'object') return false;
-          const key = (el as any).key;
-          if (typeof key !== 'string' || !key) return false;
-          const uiType = (el as any).ui_type;
-          if (uiType === 'config') return true;
-          if (uiType === undefined || uiType === null || uiType === '') return true;
-          return false;
-        }) as UiSchemaElement[];
-        setElements(configElements);
+        setElements(filterConfigUiSchemaElements(els || []));
         setOverrides(ovs || {});
-        const byKey: Record<string, ConfigSchemaEntry> = {};
-        (schema || []).forEach((entry) => {
-          if (!entry || typeof entry !== 'object') return;
-          const k = (entry as any).key;
-          if (typeof k === 'string' && k && !byKey[k]) {
-            byKey[k] = entry;
-          }
-        });
-        setSchemaByKey(byKey);
+        setSchemaByKey(buildConfigSchemaByKey(schema || []));
         setBaseConfig(baseCfg || {});
         setPendingTextByKey({});
       } catch (err: any) {
@@ -178,6 +182,241 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     return null;
   }
 
+  const items = buildSessionSettingItems({
+    elements,
+    overrides,
+    baseConfig,
+    schemaByKey,
+  });
+
+  const normalizeOptions = (raw: any): { value: string; label: string }[] => {
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .map((opt) => {
+        if (typeof opt === 'string') {
+          return { value: opt, label: opt };
+        }
+        if (opt && typeof opt === 'object') {
+          const value = typeof opt.value === 'string' ? opt.value : String(opt.value ?? '');
+          const label = typeof opt.label === 'string' ? opt.label : value;
+          return { value, label };
+        }
+        return null;
+      })
+      .filter((v) => v !== null) as { value: string; label: string }[];
+  };
+
+  const renderTextLike = (ctx: SessionSettingRenderCtx) => {
+      const { item } = ctx;
+      const key = item.key;
+      const hasPending = Object.prototype.hasOwnProperty.call(pendingTextByKey, key);
+      const pending = hasPending ? pendingTextByKey[key] : undefined;
+
+      const textValue =
+        pending ??
+        (item.effectiveValue !== undefined && item.effectiveValue !== null
+          ? String(item.effectiveValue)
+          : '');
+
+      return (
+        <View style={styles.itemRow}>
+          <View style={styles.itemTextColumn}>
+            <View style={styles.itemLabelRow}>
+              <View style={styles.itemLabelChipColumn}>
+                <Text style={styles.itemLabel}>{item.label}</Text>
+                {item.tagLabel && (
+                  <View
+                    style={
+                      item.tagLabel === 'config'
+                        ? styles.tagConfig
+                        : styles.tagDefault
+                    }
+                  >
+                    <Text
+                      style={
+                        item.tagLabel === 'config'
+                          ? styles.tagTextConfig
+                          : styles.tagTextDefault
+                      }
+                    >
+                      {item.tagLabel}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              {item.hasOverride && (
+                <TouchableOpacity
+                  style={styles.trashRightOfLabel}
+                  onPress={() => ctx.actions.revertToDefault(key)}
+                >
+                  <Icon name="trash-2" size={14} color={theme.danger} />
+                </TouchableOpacity>
+              )}
+            </View>
+            {item.description ? (
+              <Text style={styles.itemDescription}>{item.description}</Text>
+            ) : null}
+            <View style={styles.textRow}>
+              <TextInput
+                style={styles.textInput}
+                value={textValue}
+                onChangeText={(txt) =>
+                  setPendingTextByKey((prev) => ({
+                    ...prev,
+                    [key]: txt,
+                  }))
+                }
+                placeholder="Enter value"
+                placeholderTextColor={theme.textSecondary}
+              />
+              <TouchableOpacity
+                style={styles.saveButton}
+                onPress={() => ctx.actions.saveText(key)}
+                disabled={savingKey === key}
+              >
+                {savingKey === key ? (
+                  <ActivityIndicator size="small" color={theme.textOnPrimary} />
+                ) : (
+                  <Text style={styles.saveButtonText}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      );
+    };
+
+  const renderers: SessionSettingsRenderers = {
+    fallback: renderTextLike,
+    checkbox: (ctx: SessionSettingRenderCtx) => {
+      const { item } = ctx;
+      const boolValue = Boolean(item.effectiveValue ?? false);
+      return (
+        <View style={styles.itemRow}>
+          <View style={styles.itemTextColumn}>
+            <View style={styles.itemLabelRow}>
+              <View style={styles.itemLabelChipColumn}>
+                <Text style={styles.itemLabel}>{item.label}</Text>
+                {item.tagLabel && (
+                  <View
+                    style={
+                      item.tagLabel === 'config'
+                        ? styles.tagConfig
+                        : styles.tagDefault
+                    }
+                  >
+                    <Text
+                      style={
+                        item.tagLabel === 'config'
+                          ? styles.tagTextConfig
+                          : styles.tagTextDefault
+                      }
+                    >
+                      {item.tagLabel}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+            {item.description ? (
+              <Text style={styles.itemDescription}>{item.description}</Text>
+            ) : null}
+          </View>
+          <View style={styles.controlSwitchColumn}>
+            <Switch
+              value={boolValue}
+              onValueChange={(next) => ctx.actions.toggleCheckbox(item.key, next)}
+            />
+            {item.hasOverride && (
+              <TouchableOpacity
+                style={styles.trashBeforeSwitch}
+                onPress={() => ctx.actions.revertToDefault(item.key)}
+              >
+                <Icon name="trash-2" size={14} color={theme.danger} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      );
+    },
+    select: (ctx: SessionSettingRenderCtx) => {
+      const { item } = ctx;
+      const options = normalizeOptions((item.element as any).options);
+      if (!options.length) {
+        return null;
+      }
+
+      const selected =
+        typeof item.effectiveValue === 'string'
+          ? item.effectiveValue
+          : String(item.effectiveValue ?? '');
+
+      return (
+        <View style={styles.itemRow}>
+          <View style={styles.itemTextColumn}>
+            <View style={styles.itemLabelRow}>
+              <View style={styles.itemLabelChipColumn}>
+                <Text style={styles.itemLabel}>{item.label}</Text>
+                {item.tagLabel && (
+                  <View
+                    style={
+                      item.tagLabel === 'config'
+                        ? styles.tagConfig
+                        : styles.tagDefault
+                    }
+                  >
+                    <Text
+                      style={
+                        item.tagLabel === 'config'
+                          ? styles.tagTextConfig
+                          : styles.tagTextDefault
+                      }
+                    >
+                      {item.tagLabel}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              {item.hasOverride && (
+                <TouchableOpacity
+                  style={styles.trashRightOfLabel}
+                  onPress={() => ctx.actions.revertToDefault(item.key)}
+                >
+                  <Icon name="trash-2" size={14} color={theme.danger} />
+                </TouchableOpacity>
+              )}
+            </View>
+            {item.description ? (
+              <Text style={styles.itemDescription}>{item.description}</Text>
+            ) : null}
+            <View style={styles.chipsRow}>
+              {options.map((opt) => {
+                const isSelected = opt.value === selected;
+                return (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={isSelected ? styles.chipSelected : styles.chip}
+                    onPress={() => ctx.actions.selectOption(item.key, opt.value)}
+                  >
+                    <Text
+                      style={
+                        isSelected ? styles.chipTextSelected : styles.chipText
+                      }
+                    >
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+      );
+    },
+    text: renderTextLike,
+    multiline: renderTextLike,
+  };
+
   return (
     <Modal
       visible={visible}
@@ -185,27 +424,250 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
       animationType="fade"
       onRequestClose={onRequestClose}
     >
-      <SessionSettingsSurface
-        title="Session settings"
-        loading={loading}
-        error={error}
-        elements={elements}
-        overrides={overrides}
-        baseConfig={baseConfig}
-        schemaByKey={schemaByKey}
-        pendingTextByKey={pendingTextByKey}
-        savingKey={savingKey}
-        onToggleCheckbox={handleToggleCheckbox}
-        onSelectOption={handleSelectOption}
-        onChangePendingText={(key, value) =>
-          setPendingTextByKey((prev) => ({ ...prev, [key]: value }))
-        }
-        onSaveText={handleSaveText}
-        onRevertToDefault={handleRevertToDefault}
-        onRequestClose={onRequestClose}
-      />
+      <TouchableWithoutFeedback onPress={onRequestClose}>
+        <View style={styles.overlay}>
+          <TouchableWithoutFeedback onPress={() => {}}>
+            <View style={styles.content}>
+              <Text style={styles.title}>Session settings</Text>
+              {loading && (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator size="small" color={theme.primary} />
+                  <Text style={styles.loadingText}>Loading settings...</Text>
+                </View>
+              )}
+              {!loading && error && <Text style={styles.errorText}>{error}</Text>}
+              {!loading && !error && items.length === 0 && (
+                <Text style={styles.helperText}>
+                  No configurable settings are available for this session.
+                </Text>
+              )}
+              {!loading && !error && items.length > 0 && (
+                <SessionSettingsHost
+                  items={items}
+                  actions={{
+                    toggleCheckbox: handleToggleCheckbox,
+                    selectOption: handleSelectOption,
+                    saveText: handleSaveText,
+                    revertToDefault: handleRevertToDefault,
+                  }}
+                  renderers={renderers}
+                  renderFrame={({ children }) => (
+                    <ScrollView style={styles.list}>{children}</ScrollView>
+                  )}
+                />
+              )}
+              <View style={styles.footerRow}>
+                <TouchableOpacity style={styles.closeButton} onPress={onRequestClose}>
+                  <Text style={styles.closeButtonText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 };
 
 export default SessionSettingsModal;
+
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: theme.modalBackdrop,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    content: {
+      width: '90%',
+      maxHeight: '80%',
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+    },
+    title: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: theme.text,
+      marginBottom: 8,
+      textAlign: 'center',
+    },
+    loadingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    loadingText: {
+      marginLeft: 8,
+      fontSize: 14,
+      color: theme.textSecondary,
+    },
+    errorText: {
+      fontSize: 14,
+      color: theme.danger,
+      marginBottom: 8,
+    },
+    helperText: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      marginBottom: 8,
+    },
+    list: {
+      marginVertical: 8,
+    },
+    itemRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      paddingVertical: 6,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.border,
+    },
+    itemTextColumn: {
+      flex: 1,
+      marginRight: 8,
+    },
+    itemLabelRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      marginBottom: 2,
+    },
+    itemLabelChipColumn: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      flex: 1,
+    },
+    itemLabel: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: theme.text,
+      marginBottom: 2,
+      marginRight: 4,
+    },
+    itemDescription: {
+      fontSize: 12,
+      color: theme.textSecondary,
+    },
+    tagConfig: {
+      marginLeft: 8,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 10,
+      backgroundColor: theme.surfaceAlt,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.border,
+    },
+    tagDefault: {
+      marginLeft: 8,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 10,
+      backgroundColor: theme.surfaceAlt,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.border,
+    },
+    tagTextConfig: {
+      fontSize: 10,
+      color: theme.textSecondary,
+    },
+    tagTextDefault: {
+      fontSize: 10,
+      color: theme.textSecondary,
+    },
+    chipsRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      marginTop: 6,
+    },
+    chip: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      marginRight: 6,
+      marginBottom: 4,
+      backgroundColor: theme.surfaceAlt,
+    },
+    chipSelected: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 12,
+      borderWidth: 1,
+      backgroundColor: theme.primary,
+      borderColor: theme.primary,
+      marginRight: 6,
+      marginBottom: 4,
+    },
+    chipText: {
+      fontSize: 12,
+      color: theme.text,
+    },
+    chipTextSelected: {
+      fontSize: 12,
+      color: theme.textOnPrimary,
+    },
+    textRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 6,
+    },
+    textInput: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      color: theme.text,
+      fontSize: 14,
+      marginRight: 8,
+    },
+    saveButton: {
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 8,
+      backgroundColor: theme.primary,
+    },
+    saveButtonText: {
+      color: theme.textOnPrimary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    controlSwitchColumn: {
+      marginLeft: 8,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-start',
+    },
+    trashBeforeSwitch: {
+      paddingHorizontal: 4,
+      paddingVertical: 2,
+      marginRight: 4,
+    },
+    trashRightOfLabel: {
+      paddingHorizontal: 4,
+      paddingVertical: 2,
+      marginLeft: 4,
+    },
+    footerRow: {
+      marginTop: 8,
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+    },
+    closeButton: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 8,
+      backgroundColor: theme.surfaceAlt,
+    },
+    closeButtonText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.text,
+    },
+  });

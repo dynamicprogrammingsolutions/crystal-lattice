@@ -15,11 +15,12 @@ Depends On:
 - [x] Initial implementation done (mobile-shared UI + desktop window)
 - [x] Refactor Stage 1 done (shared logic + headless host)
 - [x] Refactor Stage 2 done (desktop app-owned rendering)
-- [ ] Refactor Stage 3–4 pending
+- [x] Refactor Stage 3 done (mobile app-owned rendering; pixel-identical)
+- [ ] Refactor Stage 4 pending
 
 ## Implementation Notes (current state)
 
-As of the latest implementation pass, session settings exist end-to-end for mobile + desktop, but they currently share a *mobile-styled* UI implementation.
+As of the latest implementation pass, session settings exist end-to-end for mobile + desktop, with app-owned rendering in both apps.
 
 ### Shared UI components (mobile-styled)
 
@@ -30,13 +31,15 @@ As of the latest implementation pass, session settings exist end-to-end for mobi
 - `packages/frontend-rn-components/src/settings/SessionSettingsSurface.tsx`
   - Provides the mobile modal overlay and click-outside-to-close behavior.
 
+Note: these components are now legacy and scheduled for removal in Stage 4.
+
 ### Mobile
 
 - `mobile/crystal-lattice-control-rn/src/components/SessionSettingsModal.tsx`
   - Loads session settings via backend:
     - `getSessionUiSchema`, `getSessionOverrides`, `getSessionConfigSchema`, `getSessionBaseConfig`
   - Filters elements to config settings (`ui_type === 'config'` or missing).
-  - Uses `SessionSettingsSurface` for rendering.
+  - Uses shared logic + headless host from `@crystal-lattice/frontend-sdk-react` and renders the UI in-app (kept pixel-identical).
 
 ### Desktop
 
@@ -45,12 +48,12 @@ As of the latest implementation pass, session settings exist end-to-end for mobi
   - `desktop/crystal-lattice-control-desktop-rn/src/windows/desktopWindowManager.ts` exposes open/close.
   - `desktop/crystal-lattice-control-desktop-rn/macos/CrystalLatticeControlDesktopRN-macOS/DesktopWindowManager.mm` creates an `NSWindow` hosting the RN root.
   - `desktop/crystal-lattice-control-desktop-rn/src/windows/sessionSettingsCoordinator.ts` holds JS state (backend/sessionId/etc).
-  - `desktop/crystal-lattice-control-desktop-rn/src/windows/SessionSettingsWindow.tsx` loads the same data and renders `SessionSettingsCard` (mobile-styled).
+  - `desktop/crystal-lattice-control-desktop-rn/src/windows/SessionSettingsWindow.tsx` loads the same data and renders a desktop-owned frame/renderers via `SessionSettingsHost`.
   - `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx` includes a “Settings…” action to open the window.
 
 ### Known limitation
 
-- Desktop currently uses the same “mobile card frame” styling (because it renders `SessionSettingsCard`). This is intentionally being changed in the refactor below.
+- Stage 4 still pending: remove the now-legacy shared RN UI components (`SessionSettingsCard` / `SessionSettingsSurface`).
 
 ## Refactor Plan (staged; app-owned rendering + logic-only sharing)
 
@@ -122,6 +125,14 @@ Checkpoint (manual):
 
 - Mobile modal is pixel-identical to current.
 - Interactions are unchanged.
+
+Stage 3 notes:
+
+- Migrated `mobile/crystal-lattice-control-rn/src/components/SessionSettingsModal.tsx` to:
+  - Stop using `SessionSettingsSurface`.
+  - Use `filterConfigUiSchemaElements`, `buildConfigSchemaByKey`, `buildSessionSettingItems` from `@crystal-lattice/frontend-sdk-react`.
+  - Render via `SessionSettingsHost` with app-owned `renderFrame` and app-owned `renderers`.
+- Kept the modal overlay, card layout, styles, and strings identical by copying the existing `SessionSettingsSurface` + `SessionSettingsCard` presentation into the mobile component.
 
 ### Stage 4: Cleanup shared RN components
 
