@@ -97,7 +97,19 @@ Stage 2 notes:
   - Use `filterConfigUiSchemaElements`, `buildConfigSchemaByKey`, `buildSessionSettingItems` from `@crystal-lattice/frontend-sdk-react`.
   - Render via `SessionSettingsHost` with desktop-owned `renderFrame` (scroll container, padding, header).
   - Provide app-owned `renderers` keyed by type (`checkbox`, `select`, `text`, `multiline`) with a text-like fallback.
-- Desktop window no longer renders the mobile “card frame” and no longer includes an in-content Close button.
+- Desktop-specific UI behaviors:
+  - `checkbox` renders using a wrapped AppKit checkbox (`NSButtonTypeSwitch`).
+  - `select` renders using a wrapped AppKit popup (`NSPopUpButton`).
+  - Header includes a Close button styled like other desktop primary buttons.
+- Desktop window no longer renders the mobile “card frame” (it uses a full-window layout).
+
+Native components added (desktop macOS target):
+
+- `desktop/crystal-lattice-control-desktop-rn/macos/CrystalLatticeControlDesktopRN-macOS/MacCheckboxManager.mm`
+- `desktop/crystal-lattice-control-desktop-rn/macos/CrystalLatticeControlDesktopRN-macOS/MacSelectManager.mm`
+- JS wrappers:
+  - `desktop/crystal-lattice-control-desktop-rn/src/native/MacCheckbox.tsx`
+  - `desktop/crystal-lattice-control-desktop-rn/src/native/MacSelect.tsx`
 
 ### Stage 3: Mobile migrates last (must be visually identical)
 
