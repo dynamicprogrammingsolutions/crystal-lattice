@@ -11,6 +11,7 @@
 @property(nonatomic, strong) NSWindow *connectionEditorWindow;
 @property(nonatomic, strong) NSWindow *agentPickerWindow;
 @property(nonatomic, strong) NSWindow *applicationActionDialogWindow;
+@property(nonatomic, strong) NSWindow *sessionSettingsWindow;
 @property(nonatomic, strong) NSPopover *applicationActionDialogPopover;
 @property(nonatomic, strong) NSPopover *closingApplicationActionDialogPopover;
 @property(nonatomic, strong) NSPopover *actionsPopover;
@@ -30,7 +31,7 @@ RCT_EXPORT_MODULE();
 
 - (NSArray<NSString *> *)supportedEvents
 {
-  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"tabStripStyleChanged", @"systemThemeChanged" ];
+  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"sessionSettingsWindowCancelled", @"tabStripStyleChanged", @"systemThemeChanged" ];
 }
 
 - (void)startObserving
@@ -387,6 +388,74 @@ RCT_EXPORT_METHOD(openApplicationActionDialogWindow : (NSDictionary *)params)
   });
 }
 
+RCT_EXPORT_METHOD(openSessionSettingsWindow : (NSDictionary *)params)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (self.sessionSettingsWindow != nil) {
+      [self.sessionSettingsWindow makeKeyAndOrderFront:nil];
+      return;
+    }
+
+    NSDictionary *initialProps = @{};
+    NSView *rootView = nil;
+    id appDelegate = NSApp.delegate;
+    id rootViewFactory = nil;
+    @try {
+      rootViewFactory = [appDelegate valueForKey:@"rootViewFactory"];
+    } @catch (__unused NSException *exception) {
+      rootViewFactory = nil;
+    }
+    if (rootViewFactory != nil) {
+      SEL selector = NSSelectorFromString(@"viewWithModuleName:initialProperties:");
+      if ([rootViewFactory respondsToSelector:selector]) {
+        using MsgSendType = NSView *(*)(id, SEL, NSString *, NSDictionary *);
+        rootView = ((MsgSendType)objc_msgSend)(rootViewFactory, selector, @"SessionSettingsWindow", initialProps);
+      }
+    }
+    if (rootView == nil) {
+      rootView = [[RCTRootView alloc] initWithBridge:self.bridge moduleName:@"SessionSettingsWindow" initialProperties:initialProps];
+    }
+
+    NSRect frame = NSMakeRect(0, 0, 560, 640);
+    NSWindow *window = [[NSWindow alloc] initWithContentRect:frame
+                                                   styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
+                                                     backing:NSBackingStoreBuffered
+                                                       defer:NO];
+    NSString *title = nil;
+    if ([params[@"title"] isKindOfClass:[NSString class]]) {
+      title = params[@"title"];
+    }
+    window.title = title ?: @"Session settings";
+    rootView.frame = frame;
+    rootView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    window.contentView = rootView;
+    window.releasedWhenClosed = NO;
+
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(sessionSettingsWindowWillClose:)
+                                                 name:NSWindowWillCloseNotification
+                                               object:window];
+
+    self.sessionSettingsWindow = window;
+    [window center];
+    [window makeKeyAndOrderFront:nil];
+  });
+}
+
+RCT_EXPORT_METHOD(closeSessionSettingsWindow)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (self.sessionSettingsWindow == nil) {
+      return;
+    }
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                    name:NSWindowWillCloseNotification
+                                                  object:self.sessionSettingsWindow];
+    [self.sessionSettingsWindow close];
+    self.sessionSettingsWindow = nil;
+  });
+}
+
 RCT_EXPORT_METHOD(openApplicationActionDialogPopover : (NSDictionary *)params)
 {
   dispatch_async(dispatch_get_main_queue(), ^{
@@ -662,6 +731,17 @@ RCT_EXPORT_METHOD(cancelAgentPicker)
                                                     name:NSWindowWillCloseNotification
                                                   object:self.applicationActionDialogWindow];
     self.applicationActionDialogWindow = nil;
+  }
+}
+
+- (void)sessionSettingsWindowWillClose:(NSNotification *)notification
+{
+  if (notification.object == self.sessionSettingsWindow) {
+    [self sendEventWithName:@"sessionSettingsWindowCancelled" body:@{}];
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                    name:NSWindowWillCloseNotification
+                                                  object:self.sessionSettingsWindow];
+    self.sessionSettingsWindow = nil;
   }
 }
 

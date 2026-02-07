@@ -19,7 +19,8 @@ Depends On:
 ### Chunk 1: Shared form + mobile migration
 
 - Create shared settings form body:
-  - Add `packages/frontend-rn-components/src/settings/SessionSettingsForm.tsx`.
+  - Add `packages/frontend-rn-components/src/settings/SessionSettingsCard.tsx`.
+  - Add `packages/frontend-rn-components/src/settings/SessionSettingsSurface.tsx`.
   - Export from `packages/frontend-rn-components/src/index.ts`.
 - Component responsibilities:
   - Accept data + callbacks only (no data fetching).
@@ -65,7 +66,7 @@ Checkpoint (manual):
     - `backend.getSessionOverrides(sessionId)`
     - `backend.getSessionConfigSchema(sessionId)` (build `schemaByKey`)
     - `backend.getSessionBaseConfig(sessionId)`
-  - Render `SessionSettingsForm` and wire callbacks to backend methods:
+  - Render `SessionSettingsCard` and wire callbacks to backend methods:
     - optimistic updates for checkbox/select where safe
     - text fields save via explicit Save
     - revert via `backend.deleteSessionOverride(sessionId, key)`
@@ -136,7 +137,8 @@ Checkpoint (manual):
 
 Create a shared settings form component in `@crystal-lattice/frontend-rn-components` (new folder is OK):
 
-- `packages/frontend-rn-components/src/settings/SessionSettingsForm.tsx`
+- `packages/frontend-rn-components/src/settings/SessionSettingsCard.tsx`
+- `packages/frontend-rn-components/src/settings/SessionSettingsSurface.tsx`
 
 It should:
 

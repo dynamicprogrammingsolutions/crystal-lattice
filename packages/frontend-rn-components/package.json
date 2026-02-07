@@ -13,7 +13,8 @@
   },
   "peerDependencies": {
     "react": "*",
-    "react-native": "*"
+    "react-native": "*",
+    "react-native-vector-icons": "*"
   },
   "devDependencies": {
     "@types/react": "^19.1.4",

@@ -31,16 +31,18 @@ import type { MessagesCacheEntry } from '../cache/types';
 import type { TabStripStyle } from '../tabs/tabStripStyle';
 import { asyncStorageKeyValueStore } from '../storage/asyncStorageKeyValueStore';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
+import { setActiveSessionSettingsWindow } from '../windows/sessionSettingsCoordinator';
 
 const DEFAULT_HISTORY_WINDOW = 50;
 const PINNED_SESSION_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_session_actions_v1';
 
-type ChatSessionActionKey = 'reload' | 'cancel' | 'agentSwitch';
+type ChatSessionActionKey = 'reload' | 'cancel' | 'agentSwitch' | 'settings';
 
 const BUILTIN_SESSION_ACTIONS: ActionDefinition[] = [
   { key: 'reload', label: 'Reload', iconName: 'refresh-ccw' },
   { key: 'cancel', label: 'Cancel', iconName: 'x-circle' },
   { key: 'agentSwitch', label: 'Switch agent', iconName: 'user' },
+  { key: 'settings', label: 'Settings…', iconName: 'sliders' },
 ];
 
 const DEFAULT_PINNED_SESSION_ACTION_KEYS: ActionKey[] = ['reload', 'cancel'];
@@ -481,9 +483,30 @@ export function ChatPane({
       }
       if (action === 'agentSwitch') {
         openAgentPickerForSwitch().catch(() => {});
+        return;
+      }
+      if (action === 'settings') {
+        if (!backend) {
+          return;
+        }
+        const caps = backend.getCapabilities?.();
+        if (caps && (!caps.sessionUiSchema || !caps.sessionConfigOverrides)) {
+          Alert.alert('Not supported', 'This backend does not support session settings.');
+          return;
+        }
+        setActiveSessionSettingsWindow({
+          state: {
+            id: `session-settings:${connectionId}:${sessionId}`,
+            connectionId,
+            connectionName,
+            sessionId,
+            backend,
+          },
+        });
+        DesktopWindowManager?.openSessionSettingsWindow({ title: 'Session settings' });
       }
     },
-    [handleCancel, handleReload, openAgentPickerForSwitch],
+    [backend, connectionId, connectionName, handleCancel, handleReload, openAgentPickerForSwitch, sessionId],
   );
 
   return (
@@ -541,6 +564,13 @@ export function ChatPane({
               }
               if (key === 'agentSwitch') {
                 return openingAgentPicker || (agentsState?.loading ?? false);
+              }
+              if (key === 'settings') {
+                const caps = backend.getCapabilities?.();
+                if (caps && (!caps.sessionUiSchema || !caps.sessionConfigOverrides)) {
+                  return true;
+                }
+                return false;
               }
               return false;
             }}

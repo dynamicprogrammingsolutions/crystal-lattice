@@ -202,7 +202,9 @@ This file mixes:
 
 Update (Phase 5 plan): extract a shared **form body** first.
 
-- Planned shared component: `packages/frontend-rn-components/src/settings/SessionSettingsForm.tsx` (exact path may vary).
+- Planned shared components:
+  - `packages/frontend-rn-components/src/settings/SessionSettingsCard.tsx`
+  - `packages/frontend-rn-components/src/settings/SessionSettingsSurface.tsx`
 - Mobile keeps a modal surface, but uses the shared form body.
 - Desktop uses a window/popover surface, but uses the same shared form body.
 
