@@ -12,103 +12,116 @@ Depends On:
 
 ## Status
 
-- [ ] Not started
+- [x] Initial implementation done (mobile-shared UI + desktop window)
+- [x] Refactor Stage 1 done (shared logic + headless host)
+- [x] Refactor Stage 2 done (desktop app-owned rendering)
+- [ ] Refactor Stage 3–4 pending
 
-## Plan (with checkpoints)
+## Implementation Notes (current state)
 
-### Chunk 1: Shared form + mobile migration
+As of the latest implementation pass, session settings exist end-to-end for mobile + desktop, but they currently share a *mobile-styled* UI implementation.
 
-- Create shared settings form body:
-  - Add `packages/frontend-rn-components/src/settings/SessionSettingsCard.tsx`.
-  - Add `packages/frontend-rn-components/src/settings/SessionSettingsSurface.tsx`.
-  - Export from `packages/frontend-rn-components/src/index.ts`.
-- Component responsibilities:
-  - Accept data + callbacks only (no data fetching).
-  - Render a scrollable list of config entries based on `UiSchemaElement[]`.
-  - Support field types used today:
-    - `checkbox` (toggle + inline revert)
-    - `select` (chip-style options + revert)
-    - `string` / `multiline` text (editable TextInput + explicit Save + revert)
-  - Callbacks (exact signature):
-    - `onToggleCheckbox(key, next)`
-    - `onSelectOption(key, value)`
-    - `onSaveText(key, value)`
-    - `onRevertToDefault(key)`
-  - Display “value source” tags similar to mobile (e.g. `config` vs `default`) using `baseConfig` + `schemaByKey`.
+### Shared UI components (mobile-styled)
 
-- Migrate mobile to use the shared form body:
-  - Keep mobile’s modal surface and network logic local in `mobile/crystal-lattice-control-rn/src/components/SessionSettingsModal.tsx`.
-  - Keep current behavior:
-    - filter to config elements (`ui_type === 'config'` or missing)
-    - optimistic patching for checkboxes (rollback on failure)
-    - save button for text fields
-    - revert-to-default calls `deleteSessionOverride`
+- `packages/frontend-rn-components/src/settings/SessionSettingsCard.tsx`
+  - Extracted from the original mobile modal implementation.
+  - Contains the default rendering for `checkbox`, `select` (chip-style), and text settings.
+  - Includes the mobile “card frame” (width/maxHeight/padding), title, loading/error/empty-state, and a footer Close button.
+- `packages/frontend-rn-components/src/settings/SessionSettingsSurface.tsx`
+  - Provides the mobile modal overlay and click-outside-to-close behavior.
 
-Checkpoint (manual):
+### Mobile
 
-- Mobile:
-  - Open session settings modal; confirm UI schema + overrides load.
-  - Toggle a checkbox; confirm it persists after closing/reopening.
-  - Change a select; confirm it persists after closing/reopening.
-  - Revert a value; confirm the override is removed and effective value matches base/default.
+- `mobile/crystal-lattice-control-rn/src/components/SessionSettingsModal.tsx`
+  - Loads session settings via backend:
+    - `getSessionUiSchema`, `getSessionOverrides`, `getSessionConfigSchema`, `getSessionBaseConfig`
+  - Filters elements to config settings (`ui_type === 'config'` or missing).
+  - Uses `SessionSettingsSurface` for rendering.
 
-### Chunk 2: Desktop JS settings surface (window content + coordinator)
+### Desktop
 
-- Create a JS coordinator (patterned after `desktop/.../src/windows/applicationActionDialogCoordinator.ts`) to hold active settings window state:
-  - New file: `desktop/crystal-lattice-control-desktop-rn/src/windows/sessionSettingsCoordinator.ts`
-  - State should include at least: `id`, `connectionId`, `sessionId`, and a `backend` reference (or a provider function) plus `onClose` handler.
+- Desktop macOS window plumbing (new RN root `SessionSettingsWindow`) was added:
+  - `desktop/crystal-lattice-control-desktop-rn/index.js` registers `SessionSettingsWindow`.
+  - `desktop/crystal-lattice-control-desktop-rn/src/windows/desktopWindowManager.ts` exposes open/close.
+  - `desktop/crystal-lattice-control-desktop-rn/macos/CrystalLatticeControlDesktopRN-macOS/DesktopWindowManager.mm` creates an `NSWindow` hosting the RN root.
+  - `desktop/crystal-lattice-control-desktop-rn/src/windows/sessionSettingsCoordinator.ts` holds JS state (backend/sessionId/etc).
+  - `desktop/crystal-lattice-control-desktop-rn/src/windows/SessionSettingsWindow.tsx` loads the same data and renders `SessionSettingsCard` (mobile-styled).
+  - `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx` includes a “Settings…” action to open the window.
 
-- Create the RN root component that will render inside the desktop window:
-  - New file: `desktop/crystal-lattice-control-desktop-rn/src/windows/SessionSettingsWindow.tsx`
-  - Wrap in `ThemeProvider` using `useDesktopTheme` (same as `AgentPickerWindow.tsx`).
-  - On open (when coordinator state is set), load in parallel:
-    - `backend.getSessionUiSchema(sessionId)`
-    - `backend.getSessionOverrides(sessionId)`
-    - `backend.getSessionConfigSchema(sessionId)` (build `schemaByKey`)
-    - `backend.getSessionBaseConfig(sessionId)`
-  - Render `SessionSettingsCard` and wire callbacks to backend methods:
-    - optimistic updates for checkbox/select where safe
-    - text fields save via explicit Save
-    - revert via `backend.deleteSessionOverride(sessionId, key)`
-  - If server lacks capabilities (via `backend.getCapabilities()`), show a friendly “Not supported by this backend” message.
+### Known limitation
 
-### Chunk 3: macOS native window plumbing (DesktopWindowManager)
+- Desktop currently uses the same “mobile card frame” styling (because it renders `SessionSettingsCard`). This is intentionally being changed in the refactor below.
 
-- Add native module surface for opening/closing the window:
-  - Extend `desktop/crystal-lattice-control-desktop-rn/src/windows/desktopWindowManager.ts` with:
-    - `openSessionSettingsWindow(params?: { title?: string }): void`
-    - `closeSessionSettingsWindow(): void`
-  - Register the RN root component:
-    - `desktop/crystal-lattice-control-desktop-rn/index.js` add `AppRegistry.registerComponent('SessionSettingsWindow', ...)`.
+## Refactor Plan (staged; app-owned rendering + logic-only sharing)
 
-- Implement native window creation + lifecycle:
-  - Update `desktop/crystal-lattice-control-desktop-rn/macos/CrystalLatticeControlDesktopRN-macOS/DesktopWindowManager.h` and `.mm`.
-  - Mirror existing patterns used for `openAgentPicker` / `openApplicationActionDialogWindow`.
-  - On window close via titlebar:
-    - emit an event like `sessionSettingsWindowCancelled` so JS can clear coordinator state.
+Goal: keep mobile visuals intact while moving *rendering* fully into each app (mobile/desktop/web React), and only sharing the logic needed to compute effective values, tag labels, and consistent filtering.
 
-Checkpoint (manual):
+### Stage 1: Add shared logic + headless host in `@crystal-lattice/frontend-sdk-react`
 
-- Desktop:
-  - “Settings…” opens a macOS window reliably.
-  - Closing via window controls triggers cleanup (no stale coordinator state).
-  - Reopening works repeatedly (no duplicate windows).
+- Add session settings logic helpers to `packages/frontend-sdk-react/src/sessionSettings/*`:
+  - Filter UI schema elements to “config settings” (key present + `ui_type === 'config'` or missing)
+  - Build `schemaByKey`
+  - Build `SessionSettingItem[]` containing only:
+    - raw `UiSchemaElement`
+    - `effectiveValue`, `hasOverride`, `tagLabel`, and related derived state
+- Add a headless `SessionSettingsHost` component (React-only; no RN/DOM) that:
+  - Accepts `renderers` as a single object keyed by `item.type`
+  - Accepts `renderFrame` as a single render prop to wrap children
 
-### Chunk 4: Wire into the chat header
+Checkpoint:
 
-- Add a “Settings…” action to the chat header actions in `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx`:
-  - Add a new action key (e.g. `settings`) to `BUILTIN_SESSION_ACTIONS`.
-  - Only enable when `backend != null`.
-  - On invoke:
-    - set coordinator state for `{ connectionId, sessionId }`
-    - call `DesktopWindowManager.openSessionSettingsWindow({ title: 'Session settings' })`
+- Build-time only (no UI changes yet).
+- Run `packages/frontend-sdk-react` tests (or typecheck) after adding the module.
+
+Stage 1 notes:
+
+- Implemented new module under `packages/frontend-sdk-react/src/sessionSettings/` and exported it from `packages/frontend-sdk-react/src/index.ts`.
+- Added unit tests in `packages/frontend-sdk-react/src/sessionSettings/logic.test.ts` and enabled `vitest` in `packages/frontend-sdk-react/package.json`.
+
+### Stage 2: Desktop migrates to app-owned rendering + desktop frame
+
+- Update `desktop/crystal-lattice-control-desktop-rn/src/windows/SessionSettingsWindow.tsx`:
+  - Stop using `SessionSettingsCard`
+  - Use shared `SessionSettingsHost` + logic to build items
+  - Provide a desktop-specific frame (no modal overlay, no mobile card frame, no in-content Close button)
+  - Provide desktop `renderers` keyed by element type
 
 Checkpoint (manual):
 
-- Desktop end-to-end:
-  - Settings is disabled offline, enabled online.
-  - Toggle/select/text-save/revert all persist and survive closing/reopening the settings window.
-  - Opening settings for different tabs/sessions targets the correct session.
+- Desktop window has desktop layout (no mobile frame/Close button).
+- Toggle/select/text-save/revert all still persist.
+
+Stage 2 notes:
+
+- Migrated `desktop/crystal-lattice-control-desktop-rn/src/windows/SessionSettingsWindow.tsx` to:
+  - Use `filterConfigUiSchemaElements`, `buildConfigSchemaByKey`, `buildSessionSettingItems` from `@crystal-lattice/frontend-sdk-react`.
+  - Render via `SessionSettingsHost` with desktop-owned `renderFrame` (scroll container, padding, header).
+  - Provide app-owned `renderers` keyed by type (`checkbox`, `select`, `text`, `multiline`) with a text-like fallback.
+- Desktop window no longer renders the mobile “card frame” and no longer includes an in-content Close button.
+
+### Stage 3: Mobile migrates last (must be visually identical)
+
+- Update `mobile/crystal-lattice-control-rn/src/components/SessionSettingsModal.tsx`:
+  - Stop using `SessionSettingsSurface`
+  - Implement the same UI via app-owned `renderFrame` + `renderers`
+  - Use shared logic to build items and consistent tags/effective values
+
+Checkpoint (manual):
+
+- Mobile modal is pixel-identical to current.
+- Interactions are unchanged.
+
+### Stage 4: Cleanup shared RN components
+
+- Remove:
+  - `packages/frontend-rn-components/src/settings/SessionSettingsCard.tsx`
+  - `packages/frontend-rn-components/src/settings/SessionSettingsSurface.tsx`
+- Remove exports from `packages/frontend-rn-components/src/index.ts`
+- Remove `react-native-vector-icons` peer dependency if no longer needed by the package.
+
+Checkpoint:
+
+- Mobile + desktop build without the removed components.
 
 ## Context to read first (files + line numbers)
 
@@ -131,47 +144,16 @@ Checkpoint (manual):
   - revert-to-default (delete override)
 - Desktop presentation should avoid RN `Modal` for a full-screen settings experience.
 
-## Deliverables
+- Refactor requirements:
+  - Shared modules must be React-usable (no `react-native` or DOM dependencies).
+  - Apps must provide:
+    - renderers keyed by element type via a single `renderers` object
+    - a single `renderFrame` wrapper for the surface/frame
+  - Apps must be able to add support for new element types by adding a renderer key.
 
-### 1) Extract a shared form body (reduce duplication)
+## Deliverables (refactor)
 
-Create a shared settings form component in `@crystal-lattice/frontend-rn-components` (new folder is OK):
-
-- `packages/frontend-rn-components/src/settings/SessionSettingsCard.tsx`
-- `packages/frontend-rn-components/src/settings/SessionSettingsSurface.tsx`
-
-It should:
-
-- Accept data + callbacks, not fetch on its own.
-- Render a scrollable list of config entries.
-- Implement the per-field UI and call callbacks:
-  - `onToggleCheckbox(key, next)`
-  - `onSelectOption(key, value)`
-  - `onSaveText(key, value)`
-  - `onRevertToDefault(key)`
-
-Then migrate mobile `SessionSettingsModal` to use the shared form body (keep the modal surface mobile-local).
-
-### 2) Desktop settings surface
-
-Implement a desktop-first surface to host the shared form:
-
-- Recommended: new macOS window or popover via `DesktopWindowManager` (similar to application action dialog windows).
-- Alternative (Phase 5 baseline): a large anchored popover using `DropdownMenuSurface`.
-
-If adding a new window/popover type:
-
-- Add a new RN root component under `desktop/crystal-lattice-control-desktop-rn/src/windows/`.
-- Extend the native module in `desktop/crystal-lattice-control-desktop-rn/macos/**/DesktopWindowManager.mm` to open/close it.
-
-### 3) Wire into the chat header
-
-- Add a “Settings…” entry/button in the header created in `081`.
-- Only enable settings when `backend != null`.
-
-## Verification
-
-- Open settings for a session; confirm it loads UI schema + overrides.
-- Toggle a checkbox; confirm it persists and survives closing/reopening settings.
-- Change a select; confirm it persists.
-- Revert a value; confirm the override is removed.
+- Stage 1: `@crystal-lattice/frontend-sdk-react` exports logic helpers + `SessionSettingsHost`.
+- Stage 2: desktop window uses app-owned frame + renderers (no mobile card frame).
+- Stage 3: mobile modal uses app-owned frame + renderers (pixel-identical).
+- Stage 4: remove baseline shared RN UI components.
