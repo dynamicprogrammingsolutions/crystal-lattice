@@ -18,7 +18,7 @@ These are suggestions/hints (not final decisions). The goal is to reuse meaningf
 
 ## Current status (already extracted vs scheduled)
 
-This doc originally listed *candidates*. As of Phase 5 work, some items are now implemented and others are explicitly scheduled in `081–088`.
+This doc originally listed *candidates*. As of Phase 5 work, some items are now implemented and others are explicitly scheduled in `081–087` + `089`.
 
 ### Already extracted (implemented)
 
@@ -38,8 +38,8 @@ This doc originally listed *candidates*. As of Phase 5 work, some items are now 
 
 - Session settings UI: extract a shared form body and migrate mobile to use it
   - Planned in: `tasks/20260202-desktop-macos-frontend/082-desktop-session-settings-ui.md`
-- Message actions: extract action definitions + a shared `MessageActionsBar`
-  - Planned in: `tasks/20260202-desktop-macos-frontend/085-desktop-message-actions-and-sharing.md`
+- Message actions: extraction is now a *follow-up decision* after desktop message actions land.
+  - Work is implemented as part of: `tasks/20260202-desktop-macos-frontend/084-desktop-rich-assistant-rendering.md`
 - Markdown renderer: intentionally **not shared** (desktop-only implementation is allowed)
   - Planned in: `tasks/20260202-desktop-macos-frontend/083-desktop-markdown-renderer.md`
 
@@ -140,8 +140,8 @@ Status: implemented in `@crystal-lattice/frontend-rn-components`.
 
 Remaining planned extraction:
 
-- `MessageActionsBar` wrapper is still mobile-local and scheduled to move into the shared package.
-  - See: `tasks/20260202-desktop-macos-frontend/085-desktop-message-actions-and-sharing.md`
+- `MessageActionsBar` wrapper is still mobile-local.
+- Whether it moves into the shared package is an optional follow-up decision after `084` stabilizes across desktop + mobile.
 
 ### B) Menu surface abstraction
 
