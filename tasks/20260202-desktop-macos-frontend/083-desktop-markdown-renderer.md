@@ -34,8 +34,8 @@ Mobile references (do not copy wholesale; use as behavior reference):
 
 Upcoming integration dependency:
 
-- Desktop message actions + markdown toggle is planned in `085` (read Requirements/Deliverables):
-  - `tasks/20260202-desktop-macos-frontend/085-desktop-message-actions-and-sharing.md:1`
+- Desktop message actions + markdown toggle now live under `084` (read Deliverables/Stages):
+  - `tasks/20260202-desktop-macos-frontend/084-desktop-rich-assistant-rendering.md:1`
 
 ## Requirements
 
@@ -78,7 +78,7 @@ Implementation options:
 
 ## Detailed implementation plan (staged, with manual checkpoints)
 
-Important: this subtask builds the *renderer* and integrates it in a testable way, but the per-message markdown toggle UI/state should be wired through message actions in `tasks/20260202-desktop-macos-frontend/085-desktop-message-actions-and-sharing.md` (matching mobile’s behavior). Until `085` lands, the desktop app can default assistant messages to markdown.
+Important: this subtask builds the *renderer* and integrates it in a testable way, but the per-message markdown toggle UI/state is wired through message actions in `tasks/20260202-desktop-macos-frontend/084-desktop-rich-assistant-rendering.md` (matching mobile’s behavior). Until that work lands, the desktop app can default assistant messages to markdown.
 
 ### Stage 0: Prep wiring (no new deps; safe + testable)
 
@@ -86,7 +86,7 @@ Goal: add a desktop-local component + wire it in so we can iterate safely.
 
 - Add `desktop/crystal-lattice-control-desktop-rn/src/chat/MarkdownMessageContent.tsx`.
 - Initial implementation should be a wrapper that renders raw text only (no markdown libs yet).
-- API should anticipate `085`:
+- API should anticipate message actions / per-message toggles:
   - `text: string`
   - `renderMode?: 'markdown' | 'raw'` (default `'raw'`)
   - (optional) `variant?: 'assistant' | 'user' | 'system' | 'tool'` for styling parity later
@@ -140,11 +140,11 @@ Fallback/decision point:
 
 - If the syntax highlighter or code-block rule approach is problematic on macOS, replace the highlighter and/or code renderer strategy with a macOS-compatible alternative (even if that means no highlighting initially), while keeping horizontal scrolling.
 
-### Stage 3 (follow-up via 085): Per-message toggle (assistant-only)
+### Stage 3 (follow-up via 084): Per-message toggle (assistant-only)
 
 Goal: match mobile behavior: per-message view mode with an assistant-only toggle.
 
-- Implemented in `tasks/20260202-desktop-macos-frontend/085-desktop-message-actions-and-sharing.md`.
+- Implemented in `tasks/20260202-desktop-macos-frontend/084-desktop-rich-assistant-rendering.md`.
 - Store `messageViewModeByIndex: Record<number, 'markdown' | 'raw'>` in the desktop chat pane/message row host.
 - Toggle action:
   - only offered for assistant role

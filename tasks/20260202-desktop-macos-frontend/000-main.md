@@ -69,7 +69,7 @@ This task directory is a handoff package for implementing Phase 5 of `tasks/2026
 - Shared foundations (can happen early / in parallel): `010` + `040` (shared UI package + shared connection model)
 - Desktop shell + left column: `050` + `060` + `070` (layout, connections, sessions; relies on `010` + `040`)
 - Chat baseline + docs: `080` + `090` (minimal tabs/chat, then smoke checklist + README)
-- Chat UX follow-ups: `081`–`088` (header dropdowns, settings UI, markdown, rich rendering, actions)
+- Chat UX follow-ups: `081`–`087` + `089` (header dropdowns, settings UI, markdown, rich rendering, actions)
 
 ## Tasks that need more planning up front
 
@@ -93,10 +93,8 @@ This task directory is a handoff package for implementing Phase 5 of `tasks/2026
 - `tasks/20260202-desktop-macos-frontend/082-desktop-session-settings-ui.md`
 - `tasks/20260202-desktop-macos-frontend/083-desktop-markdown-renderer.md`
 - `tasks/20260202-desktop-macos-frontend/084-desktop-rich-assistant-rendering.md`
-- `tasks/20260202-desktop-macos-frontend/085-desktop-message-actions-and-sharing.md`
 - `tasks/20260202-desktop-macos-frontend/086-desktop-plugin-actions-in-chat.md`
 - `tasks/20260202-desktop-macos-frontend/087-desktop-chat-state-persistence.md`
-- `tasks/20260202-desktop-macos-frontend/088-desktop-chat-debug-events.md`
 - `tasks/20260202-desktop-macos-frontend/089-session-metadata-single-source-of-truth.md`
 - `tasks/20260202-desktop-macos-frontend/090-smoke-tests-and-docs.md`
 

@@ -11,7 +11,7 @@ Parent Task: `tasks/20260202-desktop-macos-frontend/000-main.md`
 
 Depends On:
 
-- `tasks/20260202-desktop-macos-frontend/085-desktop-message-actions-and-sharing.md`
+- `tasks/20260202-desktop-macos-frontend/084-desktop-rich-assistant-rendering.md`
 
 ## Status
 
