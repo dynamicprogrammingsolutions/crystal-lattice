@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Clipboard,
   Platform,
   Pressable,
   ScrollView,
@@ -20,6 +21,7 @@ import {
 } from '@crystal-lattice/frontend-rn-components';
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import type { IndexedMessage } from '@crystal-lattice/frontend-sdk';
+import { selectDisplayContent } from '@crystal-lattice/frontend-sdk';
 import {
   useAgentsController,
   useChatController,
@@ -33,9 +35,12 @@ import { asyncStorageKeyValueStore } from '../storage/asyncStorageKeyValueStore'
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
 import { setActiveSessionSettingsWindow } from '../windows/sessionSettingsCoordinator';
 import DesktopMessageBubble from './DesktopMessageBubble';
+import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 
 const DEFAULT_HISTORY_WINDOW = 50;
 const PINNED_SESSION_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_session_actions_v1';
+const PINNED_MESSAGE_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_message_actions_by_role_v1';
+const LEGACY_PINNED_MESSAGE_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_message_actions_v1';
 
 type ChatSessionActionKey = 'reload' | 'cancel' | 'agentSwitch' | 'settings';
 
@@ -82,7 +87,14 @@ export function ChatPane({
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme, styleVariant), [theme, styleVariant]);
 
-  const [renderMarkdown] = useState(true);
+  const [messageViewModeByIndex, setMessageViewModeByIndex] = useState<
+    Record<number, 'markdown' | 'raw'>
+  >({});
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingText, setEditingText] = useState('');
+  const [pinnedMessageActionsByRole, setPinnedMessageActionsByRole] = useState<
+    Record<string, MessageActionKey[]>
+  >({});
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const [composeText, setComposeText] = useState('');
@@ -151,6 +163,80 @@ export function ChatPane({
       key: pinnedSessionActionsStorageKey,
       initialPinned: DEFAULT_PINNED_SESSION_ACTION_KEYS,
     });
+
+  const pinnedMessageActionsStorageKey = useMemo(
+    () => `${PINNED_MESSAGE_ACTIONS_STORAGE_KEY_BASE}:${connectionId}`,
+    [connectionId],
+  );
+
+  useEffect(() => {
+    const loadPinnedFromStorage = async () => {
+      try {
+        const messageRaw = await asyncStorageKeyValueStore.get(pinnedMessageActionsStorageKey);
+        if (messageRaw) {
+          try {
+            const parsed = JSON.parse(messageRaw);
+            if (parsed && typeof parsed === 'object') {
+              const next: Record<string, MessageActionKey[]> = {};
+              Object.entries(parsed).forEach(([role, value]) => {
+                if (Array.isArray(value)) {
+                  const filtered = (value as any[]).filter((key) => typeof key === 'string');
+                  next[role] = filtered as MessageActionKey[];
+                }
+              });
+              setPinnedMessageActionsByRole(next);
+            }
+          } catch (err) {
+            console.log('Failed to parse stored pinned message actions', err);
+          }
+          return;
+        }
+
+        // Migration: older desktop builds stored pinned actions in per-role keys.
+        const legacyRoles = ['user', 'assistant', 'system', 'tool'] as const;
+        const legacy: Record<string, MessageActionKey[]> = {};
+        let foundLegacy = false;
+        for (const role of legacyRoles) {
+          const key = `${LEGACY_PINNED_MESSAGE_ACTIONS_STORAGE_KEY_BASE}:${connectionId}:${role}`;
+          const raw = await asyncStorageKeyValueStore.get(key);
+          if (!raw) {
+            continue;
+          }
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              const filtered = (parsed as any[]).filter((k) => typeof k === 'string') as MessageActionKey[];
+              legacy[role] = filtered;
+              foundLegacy = true;
+            }
+          } catch {
+            // ignore
+          }
+        }
+        if (foundLegacy) {
+          setPinnedMessageActionsByRole(legacy);
+        }
+      } catch (err) {
+        console.log('Failed to load pinned message actions from storage', err);
+      }
+    };
+
+    loadPinnedFromStorage();
+  }, [pinnedMessageActionsStorageKey]);
+
+  useEffect(() => {
+    const saveMessagePinned = async () => {
+      try {
+        await asyncStorageKeyValueStore.set(
+          pinnedMessageActionsStorageKey,
+          JSON.stringify(pinnedMessageActionsByRole),
+        );
+      } catch (err) {
+        console.log('Failed to save pinned message actions', err);
+      }
+    };
+    saveMessagePinned();
+  }, [pinnedMessageActionsByRole, pinnedMessageActionsStorageKey]);
 
   const { controller: agentsController, state: agentsState } = useAgentsController({
     backend,
@@ -512,6 +598,115 @@ export function ChatPane({
     [backend, connectionId, connectionName, handleCancel, handleReload, openAgentPickerForSwitch, sessionId],
   );
 
+  const getPinnedActionsForRole = useCallback(
+    (role: string): MessageActionKey[] => {
+      const allowedKeys = ALL_MESSAGE_ACTIONS
+        .filter((def) => def.allowedRoles.includes(role))
+        .map((def) => def.key as MessageActionKey);
+
+      const existing = pinnedMessageActionsByRole[role];
+      if (Array.isArray(existing)) {
+        // Respect an explicit empty list (user chose to pin nothing).
+        return existing;
+      }
+
+      const defaults: MessageActionKey[] = [];
+      ALL_MESSAGE_ACTIONS.forEach((def) => {
+        if (def.defaultPinnedRoles.includes(role) && def.allowedRoles.includes(role)) {
+          defaults.push(def.key as MessageActionKey);
+        }
+      });
+      return defaults.filter((key) => allowedKeys.includes(key));
+    },
+    [pinnedMessageActionsByRole],
+  );
+
+  const handleChangePinnedForRole = useCallback(
+    (role: string, pinned: MessageActionKey[]) => {
+      setPinnedMessageActionsByRole((prev) => ({ ...prev, [role]: pinned }));
+    },
+    [],
+  );
+
+  const handleStartEditMessage = useCallback(
+    (index: number, message: { role?: string; content?: unknown }) => {
+      const role = message.role || 'unknown';
+      if (role === 'tool') {
+        return;
+      }
+      const content = typeof message.content === 'string' ? message.content : '';
+      setEditingIndex(index);
+      setEditingText(content);
+    },
+    [],
+  );
+
+  const handleSubmitEditMessage = useCallback(
+    async (index: number, newText: string) => {
+      const trimmed = newText.trim();
+      if (!trimmed) {
+        Alert.alert('Invalid content', 'Message content cannot be empty.');
+        return;
+      }
+
+      if (!chatController || !backend) {
+        Alert.alert('Offline', 'Connect to a server to modify messages.');
+        return;
+      }
+
+      try {
+        await chatController.modifyMessage(index, trimmed);
+        setEditingIndex(null);
+        setEditingText('');
+      } catch (err: any) {
+        const message = err?.message || 'Failed to modify message.';
+        Alert.alert('Error', message);
+      }
+    },
+    [backend, chatController],
+  );
+
+  const handleCancelEditMessage = useCallback(() => {
+    setEditingIndex(null);
+    setEditingText('');
+  }, []);
+
+  const handleMessageAction = useCallback(
+    async (action: MessageActionKey, index: number, message: any) => {
+      if (action === 'modify') {
+        handleStartEditMessage(index, message);
+        return;
+      }
+
+      if (action === 'toggleMarkdown') {
+        if ((message?.role || 'unknown') !== 'assistant') {
+          return;
+        }
+        setMessageViewModeByIndex((prev) => {
+          const current = prev[index] ?? 'markdown';
+          const next = current === 'markdown' ? 'raw' : 'markdown';
+          return { ...prev, [index]: next };
+        });
+        return;
+      }
+
+      if (action === 'copy') {
+        const content = selectDisplayContent(message);
+        if (!content) {
+          Alert.alert('Nothing to copy', 'This message has no text content.');
+          return;
+        }
+        try {
+          Clipboard.setString(content);
+          Alert.alert('Copied', 'Message content copied to clipboard.');
+        } catch {
+          Alert.alert('Copy failed', 'Clipboard is not available.');
+        }
+      }
+    },
+    [handleStartEditMessage],
+  );
+
   return (
     <View style={[styles.root, visible ? styles.visible : styles.hidden]}>
       <View style={styles.header}>
@@ -628,28 +823,61 @@ export function ChatPane({
             <Text style={styles.hintSecondary}>No messages.</Text>
           ) : null}
           {messages.map((msg) => (
-            <DesktopMessageBubble
-              key={msg.index}
-              index={msg.index}
-              message={msg.message}
-              renderMode={renderMarkdown ? 'markdown' : 'raw'}
-            />
+            (() => {
+              const role = msg.message.role || 'unknown';
+              const allowedActions = ALL_MESSAGE_ACTIONS
+                .filter((def) => def.allowedRoles.includes(role))
+                .map((def) => def.key as MessageActionKey);
+              const pinnedForRole = getPinnedActionsForRole(role);
+              const isEditing = editingIndex === msg.index;
+              const defaultModeForRole: 'markdown' | 'raw' = role === 'assistant' ? 'markdown' : 'raw';
+              const renderMode = messageViewModeByIndex[msg.index] ?? defaultModeForRole;
+
+              return (
+                <DesktopMessageBubble
+                  key={msg.index}
+                  index={msg.index}
+                  isActive={visible}
+                  message={msg.message}
+                  pinnedActions={pinnedForRole}
+                  allowedActions={allowedActions}
+                  onAction={(action, index, message) => handleMessageAction(action, index, message)}
+                  onChangePinnedForRole={handleChangePinnedForRole}
+                  isEditing={isEditing}
+                  editingText={isEditing ? editingText : undefined}
+                  onChangeEditingText={isEditing ? setEditingText : undefined}
+                  onSubmitEdit={(index, _message, nextText) => handleSubmitEditMessage(index, nextText)}
+                  onCancelEdit={handleCancelEditMessage}
+                  renderMode={renderMode}
+                />
+              );
+            })()
           ))}
           {streamingRow && (streamingRow.content || streamingRow.reasoning) ? (
-            <DesktopMessageBubble
-              key="streaming"
-              index={null}
-              isStreaming
-              message={{
-                role: 'assistant',
-                content: streamingRow.content,
-                metadata: {
-                  ...(streamingRow.metadata || {}),
-                  reasoning: streamingRow.reasoning,
-                },
-              }}
-              renderMode={renderMarkdown ? 'markdown' : 'raw'}
-            />
+            (() => {
+              const streamingIndex = messages.length > 0 ? messages[messages.length - 1].index + 1 : 0;
+              return (
+                <DesktopMessageBubble
+                  key="streaming"
+                  index={streamingIndex}
+                  isActive={visible}
+                  message={{
+                    role: 'assistant',
+                    content: streamingRow.content,
+                    metadata: {
+                      ...(streamingRow.metadata || {}),
+                      reasoning: streamingRow.reasoning,
+                    },
+                  }}
+                  pinnedActions={[]}
+                  allowedActions={[]}
+                  onAction={(action, index, message) => handleMessageAction(action, index, message)}
+                  onChangePinnedForRole={handleChangePinnedForRole}
+                  isEditing={false}
+                  renderMode="markdown"
+                />
+              );
+            })()
           ) : null}
         </ScrollView>
 
