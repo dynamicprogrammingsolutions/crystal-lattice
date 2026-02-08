@@ -15,7 +15,7 @@ Depends On:
 
 ## Status
 
-- [ ] Not started
+- [x] Completed (Stages 1–2)
 
 ## Context to read first (files + line numbers)
 
@@ -111,3 +111,23 @@ Stage 1 is implemented.
   - Collapsible tool message output (tool role)
 
 Stage 2 (actions/edit mode + polish) remains.
+
+### Stage 2 completion notes (added 2026-02-08)
+
+- Added desktop message actions + edit mode (copy/modify/toggle-markdown) with mobile-matching wiring:
+  - Action definitions: `desktop/crystal-lattice-control-desktop-rn/src/chat/messageActions.ts`
+  - Actions menu wrapper: `desktop/crystal-lattice-control-desktop-rn/src/chat/MessageActionsBar.tsx`
+  - Wiring + state (edit mode, per-message markdown): `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx`
+  - Bubble rendering + edit UI: `desktop/crystal-lattice-control-desktop-rn/src/chat/DesktopMessageBubble.tsx`
+- Desktop keeps actions in the header row (desktop-only layout choice) while keeping the same action semantics as mobile.
+- Raw (non-markdown) assistant content uses the same selectable read-only `TextInput` approach as mobile.
+- Desktop-only disclosure polish:
+  - Assistant reasoning + tool calls show a persistent single-line preview row with chevron; the whole row is clickable.
+  - Reasoning preview row is placed near the top (below expanded reasoning, above content).
+  - Tool calls preview row is placed near the bottom (below content, above expanded tool calls).
+  - Tool-role result disclosure row is also full-row clickable.
+- Session UI schema footer elements are loaded (when online) and passed through to bubbles for rendering.
+- Pinned message actions persistence now matches the mobile structure (JSON “by role”), with a migration path from the earlier desktop per-role keys.
+- `MarkdownMessageContent` is markdown-only; raw-vs-markdown switching happens in `AssistantMessageBubble` (matching mobile structure).
+
+Stage 3 (optional extraction) remains.

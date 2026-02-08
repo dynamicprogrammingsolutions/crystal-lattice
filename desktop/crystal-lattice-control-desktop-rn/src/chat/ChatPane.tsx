@@ -21,12 +21,13 @@ import {
 } from '@crystal-lattice/frontend-rn-components';
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import type { IndexedMessage } from '@crystal-lattice/frontend-sdk';
-import { selectDisplayContent } from '@crystal-lattice/frontend-sdk';
+import { filterFooterElements, selectDisplayContent } from '@crystal-lattice/frontend-sdk';
 import {
   useAgentsController,
   useChatController,
   useHydrateControllerFromCache,
   usePersistentPinnedActions,
+  useSessionUiSchemaController,
 } from '@crystal-lattice/frontend-sdk-react';
 
 import type { MessagesCacheEntry } from '../cache/types';
@@ -243,6 +244,15 @@ export function ChatPane({
     cacheKey: connectionId,
     enabled: false,
   });
+
+  const { state: sessionUiSchemaState } = useSessionUiSchemaController({
+    backend,
+    cacheKey: connectionId,
+    sessionId,
+    enabled: !!(backend && visible),
+  });
+  const uiSchemaElements = sessionUiSchemaState?.elements ?? [];
+  const footerElements = useMemo(() => filterFooterElements(uiSchemaElements), [uiSchemaElements]);
 
   const hydrateFromCache = useCallback(
     (
@@ -849,6 +859,7 @@ export function ChatPane({
                   onSubmitEdit={(index, _message, nextText) => handleSubmitEditMessage(index, nextText)}
                   onCancelEdit={handleCancelEditMessage}
                   renderMode={renderMode}
+                  footerElements={footerElements}
                 />
               );
             })()
@@ -875,6 +886,7 @@ export function ChatPane({
                   onChangePinnedForRole={handleChangePinnedForRole}
                   isEditing={false}
                   renderMode="markdown"
+                  footerElements={footerElements}
                 />
               );
             })()
