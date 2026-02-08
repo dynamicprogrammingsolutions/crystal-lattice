@@ -32,7 +32,7 @@ import type { TabStripStyle } from '../tabs/tabStripStyle';
 import { asyncStorageKeyValueStore } from '../storage/asyncStorageKeyValueStore';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
 import { setActiveSessionSettingsWindow } from '../windows/sessionSettingsCoordinator';
-import MarkdownMessageContent from './MarkdownMessageContent';
+import DesktopMessageBubble from './DesktopMessageBubble';
 
 const DEFAULT_HISTORY_WINDOW = 50;
 const PINNED_SESSION_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_session_actions_v1';
@@ -347,7 +347,7 @@ export function ChatPane({
 
   const messages: IndexedMessage[] =
     chatState?.messages ?? cachedEntry?.messages ?? [];
-  const streamingRowText = chatState?.streamingRow?.content ?? null;
+  const streamingRow = chatState?.streamingRow ?? null;
 
   const messagesCount = messages.length;
 
@@ -628,20 +628,28 @@ export function ChatPane({
             <Text style={styles.hintSecondary}>No messages.</Text>
           ) : null}
           {messages.map((msg) => (
-            <MessageRow
+            <DesktopMessageBubble
               key={msg.index}
-              message={msg}
-              theme={theme}
-              renderMarkdown={renderMarkdown}
+              index={msg.index}
+              message={msg.message}
+              renderMode={renderMarkdown ? 'markdown' : 'raw'}
             />
           ))}
-          {streamingRowText ? (
-            <View style={[styles.messageRow, styles.messageRowAssistant]}>
-              <Text style={styles.messageMeta} numberOfLines={1}>
-                assistant • streaming
-              </Text>
-              <Text style={styles.messageText}>{streamingRowText}</Text>
-            </View>
+          {streamingRow && (streamingRow.content || streamingRow.reasoning) ? (
+            <DesktopMessageBubble
+              key="streaming"
+              index={null}
+              isStreaming
+              message={{
+                role: 'assistant',
+                content: streamingRow.content,
+                metadata: {
+                  ...(streamingRow.metadata || {}),
+                  reasoning: streamingRow.reasoning,
+                },
+              }}
+              renderMode={renderMarkdown ? 'markdown' : 'raw'}
+            />
           ) : null}
         </ScrollView>
 
@@ -736,70 +744,6 @@ export function ChatPane({
     </View>
   );
 }
-
-function MessageRow({
-  message,
-  theme,
-  renderMarkdown,
-}: {
-  message: IndexedMessage;
-  theme: ReturnType<typeof useTheme>;
-  renderMarkdown: boolean;
-}): React.JSX.Element {
-  const role = message.message.role;
-  const content = message.message.content;
-
-  const roleStyle =
-    role === 'assistant'
-      ? stylesLocal.messageRowAssistant
-      : role === 'user'
-        ? stylesLocal.messageRowUser
-        : stylesLocal.messageRowOther;
-
-  return (
-    <View style={[stylesLocal.messageRow, roleStyle, { borderColor: theme.border }]}>
-      <Text style={[stylesLocal.messageMeta, { color: theme.textSecondary }]} numberOfLines={1}>
-        {role} • #{message.index}
-      </Text>
-      {role === 'assistant' ? (
-        <MarkdownMessageContent
-          text={content}
-          renderMode={renderMarkdown ? 'markdown' : 'raw'}
-          variant="assistant"
-        />
-      ) : (
-        <Text style={[stylesLocal.messageText, { color: theme.text }]}>{content}</Text>
-      )}
-    </View>
-  );
-}
-
-const stylesLocal = StyleSheet.create({
-  messageRow: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 6,
-  },
-  messageRowUser: {
-    backgroundColor: 'rgba(60, 130, 255, 0.10)',
-  },
-  messageRowAssistant: {
-    backgroundColor: 'rgba(120, 120, 120, 0.12)',
-  },
-  messageRowOther: {
-    backgroundColor: 'rgba(120, 120, 120, 0.08)',
-  },
-  messageMeta: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  messageText: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-});
 
 function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStripStyle) {
   const codeLike = styleVariant === 'codeTabs' || styleVariant === 'underlineTabs';

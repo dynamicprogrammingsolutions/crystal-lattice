@@ -93,3 +93,21 @@ Specific extraction choices and APIs are decided later, based on what stays iden
 - Trigger an assistant response with reasoning + tool calls; confirm collapse/expand works.
 - Confirm tool call previews are readable and don’t overflow the pane.
 - Confirm message actions (copy/modify/markdown) work on desktop.
+
+---
+
+## Completion Notes (added 2026-02-08)
+
+Stage 1 is implemented.
+
+- Added a desktop-local message bubble component with mobile-equivalent assistant/tool disclosure UI:
+  - `desktop/crystal-lattice-control-desktop-rn/src/chat/DesktopMessageBubble.tsx`
+- Wired `ChatPane` to use `DesktopMessageBubble` for both persisted messages and the streaming row:
+  - `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx`
+- Desktop bubble supports:
+  - Assistant markdown rendering via `MarkdownMessageContent`
+  - Collapsible reasoning (metadata `reasoning`)
+  - Collapsible tool calls (metadata `tool_calls` + `tool_call_previews`)
+  - Collapsible tool message output (tool role)
+
+Stage 2 (actions/edit mode + polish) remains.

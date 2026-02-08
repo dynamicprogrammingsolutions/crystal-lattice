@@ -113,7 +113,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [sendInProgress, setSendInProgress] = useState(false);
   const [composeText, setComposeText] = useState(initialComposeText ?? '');
-  const [rangeStartText, setRangeStartText] = useState('-50');
+  const [rangeStartText, setRangeStartText] = useState('');
   const [rangeEndText, setRangeEndText] = useState('');
   const [lastReloadAt, setLastReloadAt] = useState<Date | null>(null);
   const [messageLimitVisible, setMessageLimitVisible] = useState(false);
