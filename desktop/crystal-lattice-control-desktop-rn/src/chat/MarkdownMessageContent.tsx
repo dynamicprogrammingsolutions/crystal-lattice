@@ -6,13 +6,10 @@ import { atomOneDark, atomOneLight } from 'react-syntax-highlighter/styles/hljs'
 
 import { useTheme } from '@crystal-lattice/frontend-rn-components';
 
-export type MarkdownRenderMode = 'markdown' | 'raw';
-
 export type MarkdownMessageVariant = 'assistant' | 'tool' | 'system' | 'user';
 
 export interface MarkdownMessageContentProps {
   text: string;
-  renderMode?: MarkdownRenderMode;
   variant?: MarkdownMessageVariant;
 }
 
@@ -45,16 +42,13 @@ class MarkdownErrorBoundary extends React.PureComponent<
 
 function MarkdownMessageContent({
   text,
-  renderMode = 'raw',
   variant = 'assistant',
 }: MarkdownMessageContentProps): React.JSX.Element {
   const theme = useTheme();
 
   const baseTextColor = variant === 'user' ? theme.textOnPrimary : theme.text;
 
-  const fallback = (
-    <Text style={[styles.bodyText, { color: baseTextColor }]}>{text}</Text>
-  );
+  const fallback = <Text style={[styles.bodyText, { color: baseTextColor }]}>{text}</Text>;
 
   const markdownStyle = useMemo(() => {
     return {
@@ -175,10 +169,6 @@ function MarkdownMessageContent({
     }),
     [isDarkCodeBlock, theme.codeBlockBg],
   );
-
-  if (renderMode !== 'markdown') {
-    return fallback;
-  }
 
   return (
     <MarkdownErrorBoundary fallback={fallback}>
