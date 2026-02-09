@@ -117,12 +117,17 @@ export function ChatPane({
   const attemptedInitialLoadRef = useRef(false);
   const pendingPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPersistKeyRef = useRef<string | null>(null);
-  const [composerHeight, _setComposerHeight] = useState<number>(34);
 
-  const setComposerHeight = (height: number) => {
-    console.log(`Setting composer height to ${height}`);
-    _setComposerHeight(height);
-  }
+  const [composerHeight, setComposerHeight] = useState(34);
+  const handleComposerHeightChange = useCallback((height: number) => {
+    const next = Math.round(height);
+    setComposerHeight((prev) => {
+      if (Math.abs(prev - next) < 1) {
+        return prev;
+      }
+      return next;
+    });
+  }, []);
 
   // Debug logging removed; composer uses native MacTextView on macOS.
 
@@ -962,7 +967,13 @@ export function ChatPane({
 	        />
 
         <View style={styles.composerRow}>
-          <View style={[styles.composerInputFrame, {height: composerHeight}, !backend && styles.composerInputDisabled]}>
+          <View
+            style={[
+              styles.composerInputFrame,
+              { height: composerHeight },
+              !backend && styles.composerInputDisabled,
+            ]}
+          >
             <MacTextView
               ref={composerRef}
               style={styles.composerInput}
@@ -974,7 +985,7 @@ export function ChatPane({
               autoGrow
               minHeight={34}
               maxHeight={120}
-              onHeightChange={height => setComposerHeight(height)}
+              onHeightChange={handleComposerHeightChange}
               onChangeText={(text) => {
                 composeTextRef.current = text;
                 setComposeText(text);

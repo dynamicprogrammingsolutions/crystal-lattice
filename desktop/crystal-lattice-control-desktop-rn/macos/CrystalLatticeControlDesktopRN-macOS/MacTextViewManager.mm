@@ -353,7 +353,11 @@
   }
 
   if (self.onMacContentSizeChange) {
-    self.onMacContentSizeChange(@{ @"contentSize" : @{ @"width" : @(0), @"height" : @(height) } });
+    NSUInteger textLength = _textView.string.length;
+    self.onMacContentSizeChange(@{
+      @"contentSize" : @{ @"width" : @(0), @"height" : @(height) },
+      @"textLength" : @(textLength),
+    });
   }
 }
 
