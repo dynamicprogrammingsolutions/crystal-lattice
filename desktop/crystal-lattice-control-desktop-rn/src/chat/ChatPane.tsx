@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Clipboard,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -15,6 +16,7 @@ import Icon from 'react-native-vector-icons/Feather';
 
 import {
   ActionsMenuBar,
+  getLastActionsPopoverAnchorTag,
   useTheme,
   type ActionDefinition,
   type ActionKey,
@@ -35,6 +37,8 @@ import type { TabStripStyle } from '../tabs/tabStripStyle';
 import { asyncStorageKeyValueStore } from '../storage/asyncStorageKeyValueStore';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
 import { setActiveSessionSettingsWindow } from '../windows/sessionSettingsCoordinator';
+import { setActiveMessageLimitPopover } from '../windows/messageLimitPopoverCoordinator';
+import { MacTextView } from '../native/MacTextView';
 import DesktopMessageBubble from './DesktopMessageBubble';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 
@@ -43,13 +47,14 @@ const PINNED_SESSION_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_session_actions
 const PINNED_MESSAGE_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_message_actions_by_role_v1';
 const LEGACY_PINNED_MESSAGE_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_message_actions_v1';
 
-type ChatSessionActionKey = 'reload' | 'cancel' | 'agentSwitch' | 'settings';
+type ChatSessionActionKey = 'reload' | 'cancel' | 'agentSwitch' | 'messageLimit' | 'settings';
 
 const BUILTIN_SESSION_ACTIONS: ActionDefinition[] = [
   { key: 'reload', label: 'Reload', iconName: 'refresh-ccw' },
   { key: 'cancel', label: 'Cancel', iconName: 'x-circle' },
   { key: 'agentSwitch', label: 'Switch agent', iconName: 'user' },
-  { key: 'settings', label: 'Settings…', iconName: 'sliders' },
+  { key: 'messageLimit', label: 'Message limit', iconName: 'sliders' },
+  { key: 'settings', label: 'Settings…', iconName: 'settings' },
 ];
 
 const DEFAULT_PINNED_SESSION_ACTION_KEYS: ActionKey[] = ['reload', 'cancel'];
@@ -99,16 +104,19 @@ export function ChatPane({
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const [composeText, setComposeText] = useState('');
+  const [rangeStartText, setRangeStartText] = useState('');
+  const [rangeEndText, setRangeEndText] = useState('');
+  const [lastReloadAt, setLastReloadAt] = useState<Date | null>(null);
+  const [messageLimitVisible, setMessageLimitVisible] = useState(false);
   const [sendInFlight, setSendInFlight] = useState(false);
   const [reloadInFlight, setReloadInFlight] = useState(false);
   const [cancelInFlight, setCancelInFlight] = useState(false);
   const [openingAgentPicker, setOpeningAgentPicker] = useState(false);
-  const inputRef = useRef<TextInput>(null);
   const attemptedInitialLoadRef = useRef(false);
   const pendingPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPersistKeyRef = useRef<string | null>(null);
 
-  // Debug logging removed; focus issues are handled via TextInput config.
+  // Debug logging removed; composer uses native MacTextView on macOS.
 
   const { controller: chatController, state: chatState } = useChatController({
     backend,
@@ -260,8 +268,11 @@ export function ChatPane({
       return;
     }
 
-    chatController.setHistoryRange({ start: -DEFAULT_HISTORY_WINDOW });
-  }, [chatController]);
+    chatController.setHistoryRangeFromRangeText({
+      startText: rangeStartText,
+      endText: rangeEndText,
+    });
+  }, [chatController, rangeEndText, rangeStartText]);
 
   useEffect(() => {
     attemptedInitialLoadRef.current = false;
@@ -275,7 +286,12 @@ export function ChatPane({
 
     try {
       setLoadError(null);
-      await chatController.loadMessages({ start: -DEFAULT_HISTORY_WINDOW });
+      await chatController.loadMessagesFromRangeText({
+        startText: rangeStartText,
+        endText: rangeEndText,
+      });
+      const snapshot = chatController.getCacheSnapshot();
+      setLastReloadAt(new Date(snapshot.updatedAtMs ?? Date.now()));
     } catch (err: any) {
       const message =
         typeof err?.message === 'string' && err.message
@@ -284,7 +300,7 @@ export function ChatPane({
       setLoadError(message);
       Alert.alert('Failed to load messages', message);
     }
-  }, [chatController]);
+  }, [chatController, rangeEndText, rangeStartText]);
 
   const persistCacheSnapshot = useCallback(() => {
     if (!chatController) {
@@ -385,22 +401,21 @@ export function ChatPane({
 
   const canSend = backend != null && chatController != null && visible && !sendInFlight;
 
-  const handleSend = useCallback(async () => {
+  const handleSend = useCallback(async (overrideText?: string) => {
     if (!canSend) {
       return;
     }
 
-    const trimmed = composeText.trim();
-    if (!trimmed) {
+    const content = overrideText ?? composeText;
+    if (!content.trim()) {
       return;
     }
 
     setSendInFlight(true);
     try {
-      await chatController.appendMessage({ role: 'user', content: trimmed });
+      await chatController.appendMessage({ role: 'user', content });
       setComposeText('');
       await chatController.send();
-      inputRef.current?.focus();
     } catch (err: any) {
       const message =
         typeof err?.message === 'string' && err.message
@@ -426,7 +441,12 @@ export function ChatPane({
     try {
       setLoadError(null);
       chatController.clearRequestState();
-      await chatController.loadMessages({ start: -DEFAULT_HISTORY_WINDOW });
+      await chatController.loadMessagesFromRangeText({
+        startText: rangeStartText,
+        endText: rangeEndText,
+      });
+      const snapshot = chatController.getCacheSnapshot();
+      setLastReloadAt(new Date(snapshot.updatedAtMs ?? Date.now()));
     } catch (err: any) {
       const message =
         typeof err?.message === 'string' && err.message
@@ -437,7 +457,69 @@ export function ChatPane({
     } finally {
       setReloadInFlight(false);
     }
-  }, [canRunHeaderActions, chatController, reloadInFlight]);
+  }, [canRunHeaderActions, chatController, rangeEndText, rangeStartText, reloadInFlight]);
+
+  const applyMessageLimitAndReload = useCallback(
+    async (params: { startText: string; endText: string }) => {
+      setRangeStartText(params.startText);
+      setRangeEndText(params.endText);
+
+      if (!chatController || !backend) {
+        return;
+      }
+      try {
+        setLoadError(null);
+        chatController.clearRequestState();
+        await chatController.loadMessagesFromRangeText({
+          startText: params.startText,
+          endText: params.endText,
+        });
+        const snapshot = chatController.getCacheSnapshot();
+        setLastReloadAt(new Date(snapshot.updatedAtMs ?? Date.now()));
+      } catch (err: any) {
+        const message = err?.message || 'Failed to reload messages.';
+        setLoadError(message);
+        Alert.alert('Failed to reload', message);
+      }
+    },
+    [backend, chatController],
+  );
+
+  const openMessageLimitPopover = useCallback(() => {
+    if (Platform.OS !== 'macos') {
+      setMessageLimitVisible(true);
+      return;
+    }
+    if (!DesktopWindowManager?.openMessageLimitPopover) {
+      Alert.alert('Not supported', 'Message limit popover is not available.');
+      return;
+    }
+
+    const id = `message-limit:${connectionId}:${sessionId}`;
+    setActiveMessageLimitPopover({
+      state: {
+        id,
+        connectionId,
+        sessionId,
+        startText: rangeStartText,
+        endText: rangeEndText,
+        lastReloadAtMs: lastReloadAt?.getTime() ?? null,
+      },
+      handlers: {
+        onApply: (params) => {
+          applyMessageLimitAndReload(params).catch(() => {});
+        },
+        onCancel: () => {},
+      },
+    });
+
+    const anchorTag = getLastActionsPopoverAnchorTag() ?? undefined;
+    DesktopWindowManager.openMessageLimitPopover({
+      anchorTag,
+      width: 420,
+      height: 260,
+    });
+  }, [applyMessageLimitAndReload, connectionId, lastReloadAt, rangeEndText, rangeStartText, sessionId]);
 
   const handleCancel = useCallback(async () => {
     if (!canRunHeaderActions) {
@@ -520,6 +602,10 @@ export function ChatPane({
         openAgentPickerForSwitch().catch(() => {});
         return;
       }
+      if (action === 'messageLimit') {
+        openMessageLimitPopover();
+        return;
+      }
       if (action === 'settings') {
         if (!backend) {
           return;
@@ -541,7 +627,16 @@ export function ChatPane({
         DesktopWindowManager?.openSessionSettingsWindow({ title: 'Session settings' });
       }
     },
-    [backend, connectionId, connectionName, handleCancel, handleReload, openAgentPickerForSwitch, sessionId],
+    [
+      backend,
+      connectionId,
+      connectionName,
+      handleCancel,
+      handleReload,
+      openAgentPickerForSwitch,
+      openMessageLimitPopover,
+      sessionId,
+    ],
   );
 
   const getPinnedActionsForRole = useCallback(
@@ -822,38 +917,25 @@ export function ChatPane({
         </ScrollView>
 
         <View style={styles.composerRow}>
-          <TextInput
-            ref={inputRef}
-            style={[styles.composerInput, !backend && styles.composerInputDisabled]}
-            value={composeText}
-            placeholder={backend ? 'Type a message…' : 'Offline (read-only)'}
-            placeholderTextColor={theme.textMuted}
-            onChangeText={setComposeText}
-            editable={backend != null && !sendInFlight}
-            autoCorrect={false}
-            spellCheck={false}
-            multiline
-            submitBehavior="newline"
-            onKeyPress={(event) => {
-              const key = (event.nativeEvent as any)?.key;
-              const shiftKey = (event.nativeEvent as any)?.shiftKey === true;
-
-              if (key !== 'Enter') {
-                return;
-              }
-
-              if (shiftKey) {
-                return;
-              }
-
-              (event as any)?.preventDefault?.();
-              (event as any)?.stopPropagation?.();
-
-              handleSend().catch(() => {
-                // errors are handled in `handleSend`
-              });
-            }}
-          />
+          <View style={[styles.composerInputFrame, !backend && styles.composerInputDisabled]}>
+            <MacTextView
+              style={styles.composerInput}
+              value={composeText}
+              placeholder={backend ? 'Type a message…' : 'Offline (read-only)'}
+              placeholderTextColor={theme.textMuted}
+              textColor={theme.text}
+              fontSize={13}
+              editable={backend != null && !sendInFlight}
+              autoGrow
+              maxHeight={120}
+              onChangeText={setComposeText}
+              onSubmit={(text) => {
+                handleSend(text).catch(() => {
+                  // errors are handled in `handleSend`
+                });
+              }}
+            />
+          </View>
           <Pressable
             style={({ pressed }) => [
               styles.sendButton,
@@ -871,6 +953,77 @@ export function ChatPane({
           </Pressable>
         </View>
       </View>
+
+      {Platform.OS !== 'macos' && messageLimitVisible && (
+        <Modal
+          visible={messageLimitVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setMessageLimitVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Message range</Text>
+              <Text style={styles.modalSubtitle}>
+                Python-style range (start:end). Example: -{DEFAULT_HISTORY_WINDOW}: for last{' '}
+                {DEFAULT_HISTORY_WINDOW} messages. Leave blank for all messages.
+              </Text>
+              <View style={styles.rangeRow}>
+                <View style={styles.rangeInputContainer}>
+                  <Text style={styles.rangeLabel}>Start</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={rangeStartText}
+                    onChangeText={setRangeStartText}
+                    placeholder={`e.g. -${DEFAULT_HISTORY_WINDOW}`}
+                  />
+                </View>
+                <View style={styles.rangeInputContainer}>
+                  <Text style={styles.rangeLabel}>End</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={rangeEndText}
+                    onChangeText={setRangeEndText}
+                    placeholder="optional"
+                  />
+                </View>
+              </View>
+              <View style={styles.modalButtonsRow}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.modalButton,
+                    styles.modalButtonSecondary,
+                    pressed && styles.modalButtonPressed,
+                  ]}
+                  onPress={() => setMessageLimitVisible(false)}
+                >
+                  <Text style={styles.modalButtonSecondaryText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.modalButton,
+                    styles.modalButtonPrimary,
+                    pressed && styles.modalButtonPressed,
+                  ]}
+                  onPress={() => {
+                    setMessageLimitVisible(false);
+                    applyMessageLimitAndReload({ startText: rangeStartText, endText: rangeEndText }).catch(
+                      () => {},
+                    );
+                  }}
+                >
+                  <Text style={styles.modalButtonPrimaryText}>Apply</Text>
+                </Pressable>
+              </View>
+              {lastReloadAt && (
+                <Text style={styles.modalHelperText}>
+                  Last reload at {lastReloadAt.toLocaleTimeString()}
+                </Text>
+              )}
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -944,6 +1097,92 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       borderRadius: 999,
       marginTop: 1,
     },
+    modalOverlay: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 20,
+      backgroundColor: 'rgba(0,0,0,0.4)',
+    },
+    modalContent: {
+      width: 360,
+      maxWidth: '100%',
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 16,
+      gap: 10,
+    },
+    modalTitle: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: theme.text,
+    },
+    modalSubtitle: {
+      fontSize: 12,
+      color: theme.textSecondary,
+    },
+    rangeRow: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    rangeInputContainer: {
+      flex: 1,
+      gap: 6,
+    },
+    rangeLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: theme.textSecondary,
+    },
+    modalInput: {
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.surfaceAlt,
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      color: theme.text,
+      fontSize: 13,
+    },
+    modalButtonsRow: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: 10,
+      marginTop: 2,
+    },
+    modalButton: {
+      borderRadius: 10,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      borderWidth: 1,
+    },
+    modalButtonSecondary: {
+      borderColor: theme.border,
+      backgroundColor: theme.surfaceAlt,
+    },
+    modalButtonPrimary: {
+      borderColor: theme.primary,
+      backgroundColor: theme.primary,
+    },
+    modalButtonPressed: {
+      opacity: 0.85,
+    },
+    modalButtonSecondaryText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: theme.text,
+    },
+    modalButtonPrimaryText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: theme.textOnPrimary,
+    },
+    modalHelperText: {
+      fontSize: 11,
+      color: theme.textMuted,
+    },
     body: {
       flex: 1,
       padding: 12,
@@ -1008,18 +1247,17 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       borderTopWidth: separatorWidth,
       borderTopColor: theme.border,
     },
-    composerInput: {
+    composerInputFrame: {
       flex: 1,
       minHeight: 34,
-      maxHeight: 120,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
       borderRadius: 10,
       borderWidth: separatorWidth,
       borderColor: theme.border,
       backgroundColor: theme.surface,
-      color: theme.text,
-      fontSize: 13,
+      overflow: 'hidden',
+    },
+    composerInput: {
+      flex: 1,
     },
     composerInputDisabled: {
       opacity: 0.7,

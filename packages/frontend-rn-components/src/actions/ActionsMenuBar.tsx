@@ -100,6 +100,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
       .map((action) => {
         const iconName = getIconName(action);
         const disabled = props.isActionDisabled ? props.isActionDisabled(action.key) : false;
+        const iconColor = disabled ? theme.textMuted : theme.primary;
         const fallbackLabel = action.label.trim().slice(0, 1) || '•';
         return (
           <TouchableOpacity
@@ -119,9 +120,9 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
             disabled={disabled}
           >
             {iconName && props.renderIcon ? (
-              props.renderIcon({ name: iconName, size: 16, color: theme.primary })
+              props.renderIcon({ name: iconName, size: 16, color: iconColor })
             ) : (
-              <Text style={[styles.fallbackIcon, { color: theme.primary }]}>{fallbackLabel}</Text>
+              <Text style={[styles.fallbackIcon, { color: iconColor }]}>{fallbackLabel}</Text>
             )}
           </TouchableOpacity>
         );
@@ -134,6 +135,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
     props.renderIcon,
     props.onAction,
     theme.primary,
+    theme.textMuted,
   ]);
 
   const handleSelectAction = (key: ActionKey) => {
