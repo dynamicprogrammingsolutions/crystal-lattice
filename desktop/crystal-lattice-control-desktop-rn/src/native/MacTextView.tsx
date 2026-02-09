@@ -12,6 +12,8 @@ import {
   TextInput,
   findNodeHandle,
   requireNativeComponent,
+  StyleSheet,
+  View,
   type NativeSyntheticEvent,
   type StyleProp,
   type TextInputProps,
@@ -32,6 +34,7 @@ export interface MacTextViewProps extends Omit<ViewProps, 'onLayout'> {
   textColor?: string;
   placeholderTextColor?: string;
   fontSize?: number;
+  onMacContentSizeChange
 
   autoGrow?: boolean;
   minHeight?: number;
@@ -120,25 +123,33 @@ export const MacTextView = forwardRef<MacTextViewHandle, MacTextViewProps>(funct
   }
 
   return (
-    <NativeMacTextView
-      ref={nativeRef}
-      {...props}
-      initialText={initialText}
-      style={[style, autoHeightStyle]}
-      autoGrow={autoGrow}
-      maxHeight={maxHeight}
-      onChange={(event) => {
-        props.onChangeText?.(String(event.nativeEvent?.text ?? ''));
-      }}
-      onSubmit={(event) => {
-        props.onSubmit?.(String(event.nativeEvent?.text ?? ''));
-      }}
-      onMacContentSizeChange={(event) => {
-        const height = Number(event.nativeEvent?.contentSize?.height ?? NaN);
-        if (Number.isFinite(height)) {
-          setContentHeight(height);
-        }
-      }}
-    />
+    <View style={[style, autoHeightStyle]}>
+      <NativeMacTextView
+        ref={nativeRef}
+        {...props}
+        initialText={initialText}
+        autoGrow={autoGrow}
+        maxHeight={maxHeight}
+        onChange={(event) => {
+          props.onChangeText?.(String(event.nativeEvent?.text ?? ''));
+        }}
+        onSubmit={(event) => {
+          props.onSubmit?.(String(event.nativeEvent?.text ?? ''));
+        }}
+        onMacContentSizeChange={(event) => {
+          const height = Number(event.nativeEvent?.contentSize?.height ?? NaN);
+          if (Number.isFinite(height)) {
+            setContentHeight(height);
+          }
+        }}
+      />
+    </View>
   );
+});
+
+const styles = StyleSheet.create({
+  nativeFill: {
+    flex: 1,
+    alignSelf: 'stretch',
+  },
 });

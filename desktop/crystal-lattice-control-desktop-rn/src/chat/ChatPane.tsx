@@ -1301,7 +1301,7 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       overflow: 'hidden',
     },
     composerInput: {
-      width: '100%',
+      flex: 1,
     },
     composerInputDisabled: {
       opacity: 0.7,
