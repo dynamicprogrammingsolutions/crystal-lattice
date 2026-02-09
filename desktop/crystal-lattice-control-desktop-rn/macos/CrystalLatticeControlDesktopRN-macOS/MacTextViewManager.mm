@@ -302,14 +302,32 @@
 
 - (void)updateContentSizeIfNeeded
 {
+  NSRect bounds = _scrollView.contentView.bounds;
+  if (!isfinite(bounds.size.width) || bounds.size.width <= 1) {
+    return;
+  }
+
+  // Keep the text container width in sync with the visible width so
+  // measurement remains stable during React layout passes.
+  _textView.textContainer.containerSize = NSMakeSize(bounds.size.width, CGFLOAT_MAX);
+  _textView.textContainer.widthTracksTextView = YES;
+
   CGFloat height = [self calculateContentHeight];
   if (!isfinite(height)) {
     return;
   }
 
+  // Ignore transient measurements where the text hasn't laid out yet.
+  // When that happens, `usedRect` can be 0 and the height collapses to just
+  // the inset (~16px). That causes JS auto-grow to oscillate.
+  CGFloat insetBaseline = ceil(_textView.textContainerInset.height * 2);
+  BOOL hasText = _textView.string.length > 0;
+  if (hasText && height <= insetBaseline + 1 && _lastContentHeight > insetBaseline + 8) {
+    return;
+  }
+
   // Ensure the document view reflects the full content height so scrolling works
   // when the outer React Native view is capped.
-  NSRect bounds = _scrollView.contentView.bounds;
   CGFloat visibleHeight = isfinite(bounds.size.height) ? bounds.size.height : 0;
   CGFloat docHeight = MAX(height, visibleHeight);
   if (isfinite(bounds.size.width) && bounds.size.width > 0) {

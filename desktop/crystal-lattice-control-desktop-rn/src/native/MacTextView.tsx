@@ -1,6 +1,7 @@
 import React, {
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -34,7 +35,6 @@ export interface MacTextViewProps extends Omit<ViewProps, 'onLayout'> {
   textColor?: string;
   placeholderTextColor?: string;
   fontSize?: number;
-  onMacContentSizeChange
 
   autoGrow?: boolean;
   minHeight?: number;
@@ -42,6 +42,7 @@ export interface MacTextViewProps extends Omit<ViewProps, 'onLayout'> {
 
   onChangeText?: (text: string) => void;
   onSubmit?: (text: string) => void;
+  onHeightChange?: (height: number) => void;
 }
 
 type NativeMacTextViewProps = Omit<MacTextViewProps, 'onChangeText' | 'onSubmit' | 'autoGrow'> & {
@@ -63,13 +64,14 @@ export interface MacTextViewHandle {
 }
 
 export const MacTextView = forwardRef<MacTextViewHandle, MacTextViewProps>(function MacTextView(
-  { autoGrow, minHeight, maxHeight, style, initialText, ...props }: MacTextViewProps,
+  { autoGrow, minHeight, maxHeight, style, initialText, onHeightChange, ...props }: MacTextViewProps,
   ref,
 ): React.JSX.Element {
   const [contentHeight, setContentHeight] = useState<number | null>(null);
   const nativeRef = useRef<any>(null);
+  const lastTextRef = useRef('');
 
-  const autoHeightStyle: StyleProp<ViewStyle> = useMemo(() => {
+  const resolvedHeight = useMemo(() => {
     if (!autoGrow) {
       return null;
     }
@@ -78,8 +80,22 @@ export const MacTextView = forwardRef<MacTextViewHandle, MacTextViewProps>(funct
     const measured = contentHeight ?? baseline;
     const capped = maxHeight ? Math.min(measured, maxHeight) : measured;
     const floored = minHeight ? Math.max(capped, minHeight) : capped;
-    return { height: floored };
+    return floored;
   }, [autoGrow, contentHeight, maxHeight, minHeight]);
+
+  const autoHeightStyle: StyleProp<ViewStyle> = useMemo(() => {
+    if (resolvedHeight == null) {
+      return null;
+    }
+    return { height: resolvedHeight };
+  }, [resolvedHeight]);
+
+  useEffect(() => {
+    if (resolvedHeight == null) {
+      return;
+    }
+    onHeightChange?.(resolvedHeight);
+  }, [onHeightChange, resolvedHeight]);
 
   const setText = useCallback((text: string) => {
     const tag = findNodeHandle(nativeRef.current);
@@ -123,15 +139,18 @@ export const MacTextView = forwardRef<MacTextViewHandle, MacTextViewProps>(funct
   }
 
   return (
-    <View style={[style, autoHeightStyle]}>
+    <View collapsable={false} style={[style, autoHeightStyle]}>
       <NativeMacTextView
         ref={nativeRef}
         {...props}
         initialText={initialText}
+        style={styles.nativeFill}
         autoGrow={autoGrow}
         maxHeight={maxHeight}
         onChange={(event) => {
-          props.onChangeText?.(String(event.nativeEvent?.text ?? ''));
+          const next = String(event.nativeEvent?.text ?? '');
+          lastTextRef.current = next;
+          props.onChangeText?.(next);
         }}
         onSubmit={(event) => {
           props.onSubmit?.(String(event.nativeEvent?.text ?? ''));
@@ -139,7 +158,20 @@ export const MacTextView = forwardRef<MacTextViewHandle, MacTextViewProps>(funct
         onMacContentSizeChange={(event) => {
           const height = Number(event.nativeEvent?.contentSize?.height ?? NaN);
           if (Number.isFinite(height)) {
-            setContentHeight(height);
+            const hasText = lastTextRef.current.length > 0;
+            setContentHeight((prev) => {
+              if (!hasText) {
+                return height;
+              }
+
+              // Ignore transient "inset-only" measurements (~16px) while
+              // there is text, as they cause auto-grow oscillations.
+              const threshold = minHeight ?? 34;
+              if (prev != null && height < prev && height < threshold) {
+                return prev;
+              }
+              return height;
+            });
           }
         }}
       />
