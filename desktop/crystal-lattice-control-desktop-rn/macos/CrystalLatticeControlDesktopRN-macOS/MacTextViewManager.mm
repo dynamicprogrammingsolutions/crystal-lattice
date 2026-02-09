@@ -4,6 +4,7 @@
 
 #import <React/RCTComponent.h>
 #import <React/RCTConvert.h>
+#import <React/RCTUIManager.h>
 #import <React/RCTViewManager.h>
 
 @interface CLCMacPassthroughLabel : NSTextField
@@ -25,6 +26,7 @@
 @property(nonatomic, copy) RCTBubblingEventBlock onMacContentSizeChange;
 
 @property(nonatomic, copy) NSString *value;
+@property(nonatomic, copy) NSString *initialText;
 @property(nonatomic, copy) NSString *placeholder;
 @property(nonatomic, assign) BOOL editable;
 
@@ -35,6 +37,9 @@
 @property(nonatomic, strong) NSColor *placeholderTextColor;
 @property(nonatomic, assign) CGFloat fontSize;
 
+- (void)setTextInternal:(NSString *)text markEdited:(BOOL)markEdited;
+- (void)focusInput;
+
 @end
 
 @implementation CLCMacTextView {
@@ -42,6 +47,7 @@
   NSTextView *_textView;
   NSTextField *_placeholderLabel;
   BOOL _settingText;
+  BOOL _hasUserEdited;
   CGFloat _lastContentHeight;
 }
 
@@ -109,6 +115,7 @@
     ]];
 
     self.value = @"";
+    self.initialText = nil;
     self.placeholder = @"";
     self.editable = YES;
     self.autoGrow = NO;
@@ -147,31 +154,80 @@
   return [_textView becomeFirstResponder];
 }
 
+- (BOOL)acceptsFirstMouse:(__unused NSEvent *)event
+{
+  return YES;
+}
+
 - (NSView *)hitTest:(NSPoint)point
 {
   NSView *hit = [super hitTest:point];
 
-  // Ensure clicks within the component focus the NSTextView.
-  // Otherwise, the scroll view may swallow the click without making the text view first responder.
+  // Route pointer events to the NSTextView so it can manage selection/caret
+  // without React Native swallowing the click.
   if (hit == self || hit == _scrollView || hit == _scrollView.contentView) {
     return _textView;
   }
   return hit;
 }
 
+- (void)mouseDown:(NSEvent *)event
+{
+  [self focusInput];
+  [_textView mouseDown:event];
+}
+
+- (void)mouseDragged:(NSEvent *)event
+{
+  [_textView mouseDragged:event];
+}
+
+- (void)mouseUp:(NSEvent *)event
+{
+  [_textView mouseUp:event];
+}
+
 - (void)setValue:(NSString *)value
 {
-  NSString *next = value ?: @"";
-  if ([_value isEqualToString:next]) {
+  // `value` exists for compatibility, but this component should not be used
+  // as a continuously-controlled input. Prefer `initialText` + the imperative
+  // `setText` method for programmatic updates.
+  [self setTextInternal:(value ?: @"") markEdited:NO];
+}
+
+- (void)setInitialText:(NSString *)initialText
+{
+  _initialText = [initialText copy];
+  if (_hasUserEdited) {
+    return;
+  }
+  if (_initialText == nil) {
+    return;
+  }
+  [self setTextInternal:_initialText markEdited:NO];
+}
+
+- (void)setTextInternal:(NSString *)text markEdited:(BOOL)markEdited
+{
+  NSString *next = text ?: @"";
+  if ([_textView.string isEqualToString:next]) {
     return;
   }
 
-  _value = [next copy];
   _settingText = YES;
-  _textView.string = _value;
+  _textView.string = next;
   _settingText = NO;
+  _value = [next copy];
+  if (markEdited) {
+    _hasUserEdited = YES;
+  }
   [self updatePlaceholderVisibility];
   [self updateContentSizeIfNeeded];
+}
+
+- (void)focusInput
+{
+  [[self window] makeFirstResponder:_textView];
 }
 
 - (void)setPlaceholder:(NSString *)placeholder
@@ -251,6 +307,21 @@
     return;
   }
 
+  // Ensure the document view reflects the full content height so scrolling works
+  // when the outer React Native view is capped.
+  NSRect bounds = _scrollView.contentView.bounds;
+  CGFloat visibleHeight = isfinite(bounds.size.height) ? bounds.size.height : 0;
+  CGFloat docHeight = MAX(height, visibleHeight);
+  if (isfinite(bounds.size.width) && bounds.size.width > 0) {
+    NSRect frame = _textView.frame;
+    BOOL needsResize = fabs(frame.size.height - docHeight) >= 0.5 || fabs(frame.size.width - bounds.size.width) >= 0.5;
+    if (needsResize) {
+      frame.size.width = bounds.size.width;
+      frame.size.height = docHeight;
+      _textView.frame = frame;
+    }
+  }
+
   if (fabs(height - _lastContentHeight) < 0.5) {
     return;
   }
@@ -283,6 +354,7 @@
 
   NSString *text = _textView.string ?: @"";
   _value = [text copy];
+  _hasUserEdited = YES;
 
   if (self.onChange) {
     self.onChange(@{ @"text" : text });
@@ -331,13 +403,37 @@ RCT_EXPORT_MODULE(MacTextView)
   return [[CLCMacTextView alloc] initWithFrame:NSZeroRect];
 }
 
+RCT_EXPORT_METHOD(setText:(nonnull NSNumber *)reactTag text:(NSString *)text)
+{
+  [self.bridge.uiManager addUIBlock:^(__unused RCTUIManager *uiManager, NSDictionary<NSNumber *, NSView *> *viewRegistry) {
+    NSView *view = viewRegistry[reactTag];
+    if (![view isKindOfClass:[CLCMacTextView class]]) {
+      return;
+    }
+    CLCMacTextView *textView = (CLCMacTextView *)view;
+    [textView setTextInternal:text markEdited:NO];
+  }];
+}
+
+RCT_EXPORT_METHOD(focus:(nonnull NSNumber *)reactTag)
+{
+  [self.bridge.uiManager addUIBlock:^(__unused RCTUIManager *uiManager, NSDictionary<NSNumber *, NSView *> *viewRegistry) {
+    NSView *view = viewRegistry[reactTag];
+    if (![view isKindOfClass:[CLCMacTextView class]]) {
+      return;
+    }
+    CLCMacTextView *textView = (CLCMacTextView *)view;
+    [textView focusInput];
+  }];
+}
+
 RCT_EXPORT_VIEW_PROPERTY(onChange, RCTBubblingEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onSubmit, RCTBubblingEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onMacContentSizeChange, RCTBubblingEventBlock)
 
-RCT_CUSTOM_VIEW_PROPERTY(value, NSString, CLCMacTextView)
+RCT_CUSTOM_VIEW_PROPERTY(initialText, NSString, CLCMacTextView)
 {
-  view.value = json ? [RCTConvert NSString:json] : @"";
+  view.initialText = json ? [RCTConvert NSString:json] : nil;
 }
 
 RCT_CUSTOM_VIEW_PROPERTY(placeholder, NSString, CLCMacTextView)
