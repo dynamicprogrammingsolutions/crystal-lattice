@@ -38,7 +38,7 @@ import { asyncStorageKeyValueStore } from '../storage/asyncStorageKeyValueStore'
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
 import { setActiveSessionSettingsWindow } from '../windows/sessionSettingsCoordinator';
 import { setActiveMessageLimitPopover } from '../windows/messageLimitPopoverCoordinator';
-import { MacTextView } from '../native/MacTextView';
+import { MacTextView, type MacTextViewHandle } from '../native/MacTextView';
 import DesktopMessageBubble from './DesktopMessageBubble';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 
@@ -112,6 +112,8 @@ export function ChatPane({
   const [reloadInFlight, setReloadInFlight] = useState(false);
   const [cancelInFlight, setCancelInFlight] = useState(false);
   const [openingAgentPicker, setOpeningAgentPicker] = useState(false);
+  const composerRef = useRef<MacTextViewHandle | null>(null);
+  const composeTextRef = useRef('');
   const attemptedInitialLoadRef = useRef(false);
   const pendingPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPersistKeyRef = useRef<string | null>(null);
@@ -406,7 +408,7 @@ export function ChatPane({
       return;
     }
 
-    const content = overrideText ?? composeText;
+    const content = overrideText ?? composeTextRef.current ?? composeText;
     if (!content.trim()) {
       return;
     }
@@ -415,7 +417,10 @@ export function ChatPane({
     try {
       await chatController.appendMessage({ role: 'user', content });
       setComposeText('');
+      composeTextRef.current = '';
+      composerRef.current?.setText('');
       await chatController.send();
+      composerRef.current?.focus();
     } catch (err: any) {
       const message =
         typeof err?.message === 'string' && err.message
@@ -919,16 +924,20 @@ export function ChatPane({
         <View style={styles.composerRow}>
           <View style={[styles.composerInputFrame, !backend && styles.composerInputDisabled]}>
             <MacTextView
+              ref={composerRef}
               style={styles.composerInput}
-              value={composeText}
               placeholder={backend ? 'Type a message…' : 'Offline (read-only)'}
               placeholderTextColor={theme.textMuted}
               textColor={theme.text}
               fontSize={13}
               editable={backend != null && !sendInFlight}
               autoGrow
+              minHeight={34}
               maxHeight={120}
-              onChangeText={setComposeText}
+              onChangeText={(text) => {
+                composeTextRef.current = text;
+                setComposeText(text);
+              }}
               onSubmit={(text) => {
                 handleSend(text).catch(() => {
                   // errors are handled in `handleSend`
@@ -944,7 +953,7 @@ export function ChatPane({
             ]}
             disabled={!canSend || !composeText.trim()}
             onPress={() => {
-              handleSend().catch(() => {
+              handleSend(composeTextRef.current).catch(() => {
                 // errors are handled in `handleSend`
               });
             }}
@@ -1257,7 +1266,7 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       overflow: 'hidden',
     },
     composerInput: {
-      flex: 1,
+      width: '100%',
     },
     composerInputDisabled: {
       opacity: 0.7,
