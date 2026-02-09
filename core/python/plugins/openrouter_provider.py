@@ -55,30 +55,69 @@ class OpenRouterProvider(ProviderPlugin):
 
     # ---------- Models / capabilities ----------
     def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Return minimal model descriptors for this provider.
-
-        Currently returns the configured `model` (if any) as a single
-        ModelDescriptor with only an `id` field.
+        """Fetch models from OpenRouter API with full capability data.
+        
+        Returns model descriptors with supported_parameters for capability detection.
+        Falls back to configured model if API call fails.
         """
-        model = config.get("model")
-        if isinstance(model, str) and model:
-            return [{"id": model}]
-        return []
+        base_url = config.get("base_url", "https://openrouter.ai/api/v1").rstrip("/")
+        
+        try:
+            response = requests.get(f"{base_url}/models", timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            return data.get("data", [])
+        except Exception as e:
+            get_logger("openrouter_provider").warning(
+                "Failed to fetch models from API", error=str(e)
+            )
+            # Fallback: return configured model without capability data
+            model = config.get("model")
+            if isinstance(model, str) and model:
+                return [{"id": model}]
+            return []
 
     def get_tags(
         self,
         config: Dict[str, Any],
         models: List[Dict[str, Any]],
     ) -> List[str]:
-        """Return capability tags for the OpenRouter provider.
-
-        OpenRouter supports streaming, tool calling, and reasoning across
-        multiple model providers.
+        """Return capability tags including model-specific features.
+        
+        Detects capabilities from the model's supported_parameters array.
+        Falls back to basic capabilities if model data is unavailable.
         """
-        tags: List[str] = ["provider:openrouter", "openrouter"]
-        tags.append("supports_streaming")
-        tags.append("supports_tools")
-        tags.append("supports_reasoning")
+        tags: List[str] = ["provider:openrouter", "openrouter", "supports_streaming"]
+        
+        # Find current model in models list
+        current_model_id = config.get("model")
+        current_model = None
+        for model in models:
+            if model.get("id") == current_model_id:
+                current_model = model
+                break
+        
+        if current_model:
+            supported_params = current_model.get("supported_parameters", [])
+            
+            # Add capability tags based on supported_parameters
+            if "tools" in supported_params:
+                tags.append("supports_tools")
+            
+            if "reasoning" in supported_params or "include_reasoning" in supported_params:
+                tags.append("supports_reasoning")
+                
+                # Check if model natively supports reasoning_effort parameter
+                # Only 5 models have this: Z.AI GLM, OpenAI OSS, Qwen, Auto Router
+                if "reasoning_effort" in supported_params:
+                    tags.append("supports_reasoning_effort")
+            
+            if "verbosity" in supported_params:
+                tags.append("supports_verbosity")
+        else:
+            # Fallback: assume basic capabilities when model data unavailable
+            tags.extend(["supports_tools", "supports_reasoning"])
+        
         return tags
 
     # ---------- State lifecycle ----------

@@ -25,6 +25,7 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
 
     name: str = "openrouter_reasoning"
     version: str = "0.2.0"
+    priority: int = 50  # Run before RequestOptionsFeature
 
     def get_tags(
             self,
@@ -43,7 +44,7 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
             "reasoning_effort": {
                 "type": "string",
                 "required": False,
-                "enum": ["low", "medium", "high"],
+                "enum": ["low", "medium", "high", "xhigh"],
                 "description": "Control reasoning depth (model-specific)",
             },
             "enable_reasoning": {
@@ -58,7 +59,20 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
             }
         }
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(self, tags: List[str] = None) -> List[Dict[str, Any]]:
+        """Return UI elements with all reasoning effort levels.
+        
+        Per OpenRouter docs, the API automatically converts between effort levels
+        and max_tokens based on what each model supports, so we can safely offer
+        all effort levels for all reasoning-capable models.
+        """
+        effort_options = [
+            {"value": "low", "label": "Low"},
+            {"value": "medium", "label": "Medium"},
+            {"value": "high", "label": "High"},
+            {"value": "xhigh", "label": "Extra High"},
+        ]
+        
         return [
             {
                 "type": "checkbox",
@@ -69,12 +83,7 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
                 "type": "select",
                 "key": "reasoning_effort",
                 "label": "Reasoning Effort",
-                "options": [
-                    {"value": "low", "label": "low"},
-                    {"value": "medium", "label": "medium"},
-                    {"value": "high", "label": "high"},
-                    {"value": "xhigh", "label": "xhigh"},
-                ],
+                "options": effort_options,
             },
         ]
 

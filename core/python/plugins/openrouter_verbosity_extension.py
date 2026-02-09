@@ -19,15 +19,10 @@ from typing import Any, Dict, List
 from agent_core.types import ProviderExtensionPlugin
 
 
-_VERBOSITY_LEVELS = ("low", "medium", "high")
+_VERBOSITY_LEVELS = ("low", "medium", "high", "max")
 
 
-def _is_gpt5_model(model_id: Any) -> bool:
-    if not isinstance(model_id, str):
-        return False
-    lowered = model_id.lower()
-    # OpenRouter model ids are typically like "openai/gpt-5" or "openai/gpt-5-mini".
-    return "gpt-5" in lowered
+
 
 
 class OpenRouterVerbosityExtension(ProviderExtensionPlugin):
@@ -35,6 +30,7 @@ class OpenRouterVerbosityExtension(ProviderExtensionPlugin):
 
     name: str = "openrouter_verbosity"
     version: str = "0.1.0"
+    priority: int = 50  # Run before RequestOptionsFeature
 
     def get_tags(
         self,
@@ -44,7 +40,8 @@ class OpenRouterVerbosityExtension(ProviderExtensionPlugin):
         return ["ext:openrouter_verbosity"]
 
     def required_tags(self) -> List[str]:
-        return ["openrouter"]
+        """Require OpenRouter provider and verbosity support."""
+        return ["openrouter", "supports_verbosity"]
 
     def get_config_schema(self) -> Dict[str, Any]:
         return {
@@ -52,7 +49,7 @@ class OpenRouterVerbosityExtension(ProviderExtensionPlugin):
                 "type": "string",
                 "required": False,
                 "enum": list(_VERBOSITY_LEVELS),
-                "description": "GPT-5 response verbosity (OpenAI-style).",
+                "description": "Response verbosity level (model-specific).",
             }
         }
 
@@ -61,7 +58,7 @@ class OpenRouterVerbosityExtension(ProviderExtensionPlugin):
             {
                 "type": "select",
                 "key": "verbosity",
-                "label": "Verbosity (GPT-5)",
+                "label": "Verbosity",
                 "options": [{"value": v, "label": v} for v in _VERBOSITY_LEVELS],
             }
         ]
@@ -88,10 +85,6 @@ class OpenRouterVerbosityExtension(ProviderExtensionPlugin):
 
         request = state.get("request") or {}
         payload = dict(request.get("payload", {}))
-        model_id = payload.get("model")
-        if not _is_gpt5_model(model_id):
-            return state
-
         payload["verbosity"] = verbosity
 
         return {
