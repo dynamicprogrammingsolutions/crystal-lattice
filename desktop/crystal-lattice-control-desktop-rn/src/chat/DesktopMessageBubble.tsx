@@ -19,6 +19,8 @@ import {
 } from '@crystal-lattice/frontend-sdk';
 import { useTheme, type Theme } from '@crystal-lattice/frontend-rn-components';
 
+import { MacTextView } from '../native/MacTextView';
+
 import type { MessageActionKey, MessageActionDefinition } from './messageActions';
 import MessageActionsBar from './MessageActionsBar';
 import MarkdownMessageContent from './MarkdownMessageContent';
@@ -32,6 +34,7 @@ export interface DesktopMessageBubbleProps {
   onChangePinnedForRole?: (role: string, pinned: MessageActionKey[]) => void;
   allowedActions?: MessageActionKey[];
   isEditing?: boolean;
+  editingInitialText?: string;
   editingText?: string;
   onChangeEditingText?: (text: string) => void;
   onSubmitEdit?: (index: number, message: ApiMessage, newText: string) => void;
@@ -48,6 +51,8 @@ function toSingleLinePreview(text: string, maxLen = 160): string {
   return `${normalized.slice(0, Math.max(0, maxLen - 1))}…`;
 }
 
+const EMPTY_TOOL_CALLS: any[] = [];
+
 const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   index,
   message,
@@ -57,6 +62,7 @@ const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   onChangePinnedForRole,
   allowedActions,
   isEditing,
+  editingInitialText,
   editingText,
   onChangeEditingText,
   onSubmitEdit,
@@ -66,6 +72,7 @@ const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const [editHeight, setEditHeight] = useState(60);
   const content = selectDisplayContent(message);
   const role = 'user';
   const footerParts = useMemo(() => {
@@ -86,11 +93,15 @@ const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
       <View style={styles.row}>
         <View style={[styles.bubble, styles.userBubble]}>
           <Text style={styles.headerText}>{`[${index}] User`}</Text>
-          <TextInput
-            style={[styles.editInput, styles.editInputOnBlue]}
-            value={editingText ?? ''}
+          <MacTextView
+            style={[styles.editInput, styles.editInputOnBlue, { height: editHeight }]}
+            initialText={editingInitialText ?? editingText ?? ''}
+            autoGrow
+            minHeight={60}
+            maxHeight={140}
+            onHeightChange={setEditHeight}
             onChangeText={onChangeEditingText}
-            multiline
+            onSubmit={(text) => onSubmitEdit(index, message, text)}
           />
           <View style={styles.editButtonsRow}>
             <TouchableOpacity
@@ -151,6 +162,7 @@ const SystemMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   onChangePinnedForRole,
   allowedActions,
   isEditing,
+  editingInitialText,
   editingText,
   onChangeEditingText,
   onSubmitEdit,
@@ -160,6 +172,7 @@ const SystemMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const [editHeight, setEditHeight] = useState(60);
   const content = selectDisplayContent(message);
   const role = 'system';
   const footerParts = useMemo(() => {
@@ -180,11 +193,15 @@ const SystemMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
       <View style={styles.row}>
         <View style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}>
           <Text style={styles.headerText}>{`[${index}] System`}</Text>
-          <TextInput
-            style={styles.editInput}
-            value={editingText ?? ''}
+          <MacTextView
+            style={[styles.editInput, { height: editHeight }]}
+            initialText={editingInitialText ?? editingText ?? ''}
+            autoGrow
+            minHeight={60}
+            maxHeight={140}
+            onHeightChange={setEditHeight}
             onChangeText={onChangeEditingText}
-            multiline
+            onSubmit={(text) => onSubmitEdit(index, message, text)}
           />
           <View style={styles.editButtonsRow}>
             <TouchableOpacity
@@ -353,6 +370,7 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   onChangePinnedForRole,
   allowedActions,
   isEditing,
+  editingInitialText,
   editingText,
   onChangeEditingText,
   onSubmitEdit,
@@ -363,6 +381,7 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const [editHeight, setEditHeight] = useState(60);
   const [reasoningExpanded, setReasoningExpanded] = useState(false);
   const [toolCallsExpanded, setToolCallsExpanded] = useState(false);
   const content = selectDisplayContent(message);
@@ -376,7 +395,7 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   }, [reasoning]);
   const toolCalls = Array.isArray((message.metadata as any)?.tool_calls)
     ? (message.metadata as any).tool_calls
-    : [];
+    : EMPTY_TOOL_CALLS;
   const toolCallNames = useMemo(() => {
     const names: string[] = [];
     for (const tc of toolCalls) {
@@ -415,11 +434,15 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
           <View style={styles.headerRow}>
             <Text style={styles.headerText}>{`[${index}] Assistant`}</Text>
           </View>
-          <TextInput
-            style={styles.editInput}
-            value={editingText ?? ''}
+          <MacTextView
+            style={[styles.editInput, { height: editHeight }]}
+            initialText={editingInitialText ?? editingText ?? ''}
+            autoGrow
+            minHeight={60}
+            maxHeight={140}
+            onHeightChange={setEditHeight}
             onChangeText={onChangeEditingText}
-            multiline
+            onSubmit={(text) => onSubmitEdit(index, message, text)}
           />
           <View style={styles.editButtonsRow}>
             <TouchableOpacity
@@ -590,6 +613,7 @@ export const DesktopMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   onChangePinnedForRole,
   allowedActions,
   isEditing,
+  editingInitialText,
   editingText,
   onChangeEditingText,
   onSubmitEdit,
@@ -598,6 +622,8 @@ export const DesktopMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   footerElements,
   pluginActionDefs,
 }) => {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const role = message.role || 'unknown';
 
   if (role === 'user') {
@@ -611,6 +637,7 @@ export const DesktopMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         onAction={onAction}
         onChangePinnedForRole={onChangePinnedForRole}
         isEditing={isEditing}
+        editingInitialText={editingInitialText}
         editingText={editingText}
         onChangeEditingText={onChangeEditingText}
         onSubmitEdit={onSubmitEdit}
@@ -632,6 +659,7 @@ export const DesktopMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         onAction={onAction}
         onChangePinnedForRole={onChangePinnedForRole}
         isEditing={isEditing}
+        editingInitialText={editingInitialText}
         editingText={editingText}
         onChangeEditingText={onChangeEditingText}
         onSubmitEdit={onSubmitEdit}
@@ -669,6 +697,7 @@ export const DesktopMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         onAction={onAction}
         onChangePinnedForRole={onChangePinnedForRole}
         isEditing={isEditing}
+        editingInitialText={editingInitialText}
         editingText={editingText}
         onChangeEditingText={onChangeEditingText}
         onSubmitEdit={onSubmitEdit}
@@ -679,9 +708,6 @@ export const DesktopMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
       />
     );
   }
-
-  const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
   const content = selectDisplayContent(message);
 
   return (
