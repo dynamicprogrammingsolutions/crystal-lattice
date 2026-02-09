@@ -6,7 +6,6 @@ import {
   Modal,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -35,6 +34,7 @@ import {
 import type { MessagesCacheEntry } from '../cache/types';
 import type { TabStripStyle } from '../tabs/tabStripStyle';
 import { asyncStorageKeyValueStore } from '../storage/asyncStorageKeyValueStore';
+import { PlaceholderFlatList } from '../ui/PlaceholderFlatList';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
 import { setActiveSessionSettingsWindow } from '../windows/sessionSettingsCoordinator';
 import { setActiveMessageLimitPopover } from '../windows/messageLimitPopoverCoordinator';
@@ -395,8 +395,10 @@ export function ChatPane({
     });
   }, [chatController, chatState?.eventsCursorId, chatState?.loading, chatState?.messages, loadInitialMessages, visible]);
 
-  const messages: IndexedMessage[] =
-    chatState?.messages ?? cachedEntry?.messages ?? [];
+  const messages: IndexedMessage[] = useMemo(() => {
+    return chatState?.messages ?? cachedEntry?.messages ?? [];
+  }, [chatState?.messages, cachedEntry?.messages]);
+
   const streamingRow = chatState?.streamingRow ?? null;
 
   const messagesCount = messages.length;
@@ -753,8 +755,91 @@ export function ChatPane({
     [handleStartEditMessage],
   );
 
+  const streamingFooter = useMemo(() => {
+    if (!streamingRow || (!streamingRow.content && !streamingRow.reasoning)) {
+      return null;
+    }
+
+    const streamingIndex = messages.length > 0 ? messages[messages.length - 1].index + 1 : 0;
+    return (
+      <DesktopMessageBubble
+        index={streamingIndex}
+        isActive={visible}
+        message={{
+          role: 'assistant',
+          content: streamingRow.content,
+          metadata: {
+            ...(streamingRow.metadata || {}),
+            reasoning: streamingRow.reasoning,
+          },
+        }}
+        pinnedActions={[]}
+        allowedActions={[]}
+        onAction={(action, index, message) => handleMessageAction(action, index, message)}
+        onChangePinnedForRole={handleChangePinnedForRole}
+        isEditing={false}
+        renderMode="markdown"
+        footerElements={footerElements}
+      />
+    );
+  }, [
+    footerElements,
+    handleChangePinnedForRole,
+    handleMessageAction,
+    messages,
+    streamingRow,
+    visible,
+  ]);
+
+  const renderMessageItem = useCallback(
+    ({ item: msg }: { item: IndexedMessage; index: number }) => {
+      const role = msg.message.role || 'unknown';
+      const allowedActions = ALL_MESSAGE_ACTIONS
+        .filter((def) => def.allowedRoles.includes(role))
+        .map((def) => def.key as MessageActionKey);
+      const pinnedForRole = getPinnedActionsForRole(role);
+      const isEditing = editingIndex === msg.index;
+      const defaultModeForRole: 'markdown' | 'raw' = role === 'assistant' ? 'markdown' : 'raw';
+      const renderMode = messageViewModeByIndex[msg.index] ?? defaultModeForRole;
+
+      return (
+        <DesktopMessageBubble
+          index={msg.index}
+          isActive={visible}
+          message={msg.message}
+          pinnedActions={pinnedForRole}
+          allowedActions={allowedActions}
+          onAction={(action, index, message) => handleMessageAction(action, index, message)}
+          onChangePinnedForRole={handleChangePinnedForRole}
+          isEditing={isEditing}
+          editingText={isEditing ? editingText : undefined}
+          onChangeEditingText={isEditing ? setEditingText : undefined}
+          onSubmitEdit={(index, _message, nextText) => handleSubmitEditMessage(index, nextText)}
+          onCancelEdit={handleCancelEditMessage}
+          renderMode={renderMode}
+          footerElements={footerElements}
+        />
+      );
+    },
+    [
+      editingIndex,
+      editingText,
+      footerElements,
+      getPinnedActionsForRole,
+      handleCancelEditMessage,
+      handleChangePinnedForRole,
+      handleMessageAction,
+      handleSubmitEditMessage,
+      messageViewModeByIndex,
+      visible,
+    ],
+  );
+
   return (
-    <View style={[styles.root, visible ? styles.visible : styles.hidden]}>
+    <View
+      style={[styles.root, visible ? styles.visible : styles.hidden]}
+      pointerEvents={visible ? 'auto' : 'none'}
+    >
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.title} numberOfLines={1}>
@@ -856,70 +941,19 @@ export function ChatPane({
           </View>
         ) : null}
 
-	      <ScrollView style={styles.transcript} contentContainerStyle={styles.transcriptContent}>
-          {messages.length === 0 && !chatState?.loading ? (
-            <Text style={styles.hintSecondary}>No messages.</Text>
-          ) : null}
-          {messages.map((msg) => (
-            (() => {
-              const role = msg.message.role || 'unknown';
-              const allowedActions = ALL_MESSAGE_ACTIONS
-                .filter((def) => def.allowedRoles.includes(role))
-                .map((def) => def.key as MessageActionKey);
-              const pinnedForRole = getPinnedActionsForRole(role);
-              const isEditing = editingIndex === msg.index;
-              const defaultModeForRole: 'markdown' | 'raw' = role === 'assistant' ? 'markdown' : 'raw';
-              const renderMode = messageViewModeByIndex[msg.index] ?? defaultModeForRole;
 
-              return (
-                <DesktopMessageBubble
-                  key={msg.index}
-                  index={msg.index}
-                  isActive={visible}
-                  message={msg.message}
-                  pinnedActions={pinnedForRole}
-                  allowedActions={allowedActions}
-                  onAction={(action, index, message) => handleMessageAction(action, index, message)}
-                  onChangePinnedForRole={handleChangePinnedForRole}
-                  isEditing={isEditing}
-                  editingText={isEditing ? editingText : undefined}
-                  onChangeEditingText={isEditing ? setEditingText : undefined}
-                  onSubmitEdit={(index, _message, nextText) => handleSubmitEditMessage(index, nextText)}
-                  onCancelEdit={handleCancelEditMessage}
-                  renderMode={renderMode}
-                  footerElements={footerElements}
-                />
-              );
-            })()
-          ))}
-          {streamingRow && (streamingRow.content || streamingRow.reasoning) ? (
-            (() => {
-              const streamingIndex = messages.length > 0 ? messages[messages.length - 1].index + 1 : 0;
-              return (
-                <DesktopMessageBubble
-                  key="streaming"
-                  index={streamingIndex}
-                  isActive={visible}
-                  message={{
-                    role: 'assistant',
-                    content: streamingRow.content,
-                    metadata: {
-                      ...(streamingRow.metadata || {}),
-                      reasoning: streamingRow.reasoning,
-                    },
-                  }}
-                  pinnedActions={[]}
-                  allowedActions={[]}
-                  onAction={(action, index, message) => handleMessageAction(action, index, message)}
-                  onChangePinnedForRole={handleChangePinnedForRole}
-                  isEditing={false}
-                  renderMode="markdown"
-                  footerElements={footerElements}
-                />
-              );
-            })()
-          ) : null}
-        </ScrollView>
+	        <PlaceholderFlatList
+	          style={styles.transcript}
+	          contentContainerStyle={styles.transcriptContent}
+	          data={messages}
+	          keyExtractor={(item) => String(item.index)}
+	          scrollEventThrottle={16}
+	          renderItem={renderMessageItem}
+	          ListEmptyComponent={
+	            !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
+	          }
+	          ListFooterComponent={streamingFooter}
+	        />
 
         <View style={styles.composerRow}>
           <View style={[styles.composerInputFrame, !backend && styles.composerInputDisabled]}>
@@ -1044,7 +1078,7 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
 
   return StyleSheet.create({
     root: {
-      flex: 1,
+	      ...StyleSheet.absoluteFillObject,
       borderWidth: codeLike ? 0 : separatorWidth,
       borderColor: codeLike ? 'transparent' : theme.border,
       borderRadius: codeLike ? 0 : radius,
@@ -1069,12 +1103,14 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
     headerRight: {
       paddingTop: Platform.OS === 'macos' ? 2 : 0,
     },
-    visible: {
-      display: 'flex',
-    },
-    hidden: {
-      display: 'none',
-    },
+	    visible: {
+	      opacity: 1,
+	      zIndex: 1,
+	    },
+	    hidden: {
+	      opacity: 0,
+	      zIndex: 0,
+	    },
     title: {
       fontSize: 14,
       fontWeight: '700',
@@ -1245,7 +1281,6 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       flex: 1,
     },
     transcriptContent: {
-      gap: 10,
       paddingBottom: 12,
     },
     composerRow: {
