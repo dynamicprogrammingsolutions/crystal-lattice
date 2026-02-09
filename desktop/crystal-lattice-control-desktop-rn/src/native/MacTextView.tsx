@@ -26,6 +26,7 @@ type OnChangeEvent = NativeSyntheticEvent<{ text: string }>;
 type OnSubmitEvent = NativeSyntheticEvent<{ text: string }>;
 type OnMacContentSizeChangeEvent = NativeSyntheticEvent<{
   contentSize: { width: number; height: number };
+  textLength?: number;
 }>;
 
 export interface MacTextViewProps extends Omit<ViewProps, 'onLayout'> {
@@ -83,12 +84,13 @@ export const MacTextView = forwardRef<MacTextViewHandle, MacTextViewProps>(funct
     return floored;
   }, [autoGrow, contentHeight, maxHeight, minHeight]);
 
+  const shouldSelfSize = autoGrow && !onHeightChange;
   const autoHeightStyle: StyleProp<ViewStyle> = useMemo(() => {
-    if (resolvedHeight == null) {
+    if (!shouldSelfSize || resolvedHeight == null) {
       return null;
     }
     return { height: resolvedHeight };
-  }, [resolvedHeight]);
+  }, [resolvedHeight, shouldSelfSize]);
 
   useEffect(() => {
     if (resolvedHeight == null) {
@@ -158,7 +160,10 @@ export const MacTextView = forwardRef<MacTextViewHandle, MacTextViewProps>(funct
         onMacContentSizeChange={(event) => {
           const height = Number(event.nativeEvent?.contentSize?.height ?? NaN);
           if (Number.isFinite(height)) {
-            const hasText = lastTextRef.current.length > 0;
+          const eventTextLength = Number(event.nativeEvent?.textLength ?? NaN);
+          const hasText = Number.isFinite(eventTextLength)
+            ? eventTextLength > 0
+            : lastTextRef.current.length > 0;
             setContentHeight((prev) => {
               if (!hasText) {
                 return height;
