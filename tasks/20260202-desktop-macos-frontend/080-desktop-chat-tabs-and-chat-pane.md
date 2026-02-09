@@ -19,7 +19,7 @@ Depends On:
 
 ## Status
 
-- [ ] Not started
+- [x] Done
 
 ## Requirements
 
@@ -45,7 +45,7 @@ UX hint:
 
 ### Context to read first (files + line numbers)
 
-- Desktop tabs state + placeholder panes (read 99–170 and 363–399): `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx:99` and `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx:363`
+- Desktop tabs state + pane wiring (read 70–170 and 430–488): `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx:70` and `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx:430`
 - Desktop messages cache contract + fields (read 14–143 and 12–21): `desktop/crystal-lattice-control-desktop-rn/src/cache/useMessagesCache.ts:14` and `desktop/crystal-lattice-control-desktop-rn/src/cache/types.ts:12`
 - Controller hook lifecycle + streaming gating (read 38–100): `packages/frontend-sdk-react/src/useChatController.ts:38`
 - SDK controller cache snapshot + history window expectations (read 110–115 and 184–197): `packages/frontend-sdk/src/chat/chatController.ts:110` and `packages/frontend-sdk/src/chat/chatController.ts:184`
@@ -132,13 +132,28 @@ Inside `ChatPane`:
 
 ## Checklist (done criteria)
 
-- [ ] `DesktopRoot` uses real `ChatPane` instead of `ChatPanePlaceholder`.
-- [ ] Each open tab owns one stable `ChatController` (no recreation on tab switch).
-- [ ] Only the active tab streams events (`eventsEnabled` gating).
-- [ ] Closing a tab unmounts the pane and stops polling (`dispose()` path).
-- [ ] Message cache is hydrated into controllers and persisted back via `updateMessagesCache`.
-- [ ] Offline: closing the connection still shows cached transcript read-only.
-- [ ] Manual verification: open 3 sessions, switch rapidly, send messages, close tabs; no hangs and no obvious background polling.
+- [x] `DesktopRoot` uses real `ChatPane` for tabs (empty state keeps `ChatPanePlaceholder`).
+- [x] Each open tab owns one stable `ChatController` (no recreation on tab switch).
+- [x] Only the active tab streams events (`eventsEnabled` gating).
+- [x] Closing a tab unmounts the pane and stops polling (`dispose()` path).
+- [x] Message cache is hydrated into controllers and persisted back via `updateMessagesCache`.
+- [x] Offline: closing the connection still shows cached transcript read-only.
+- [x] Manual verification: open 3 sessions, switch rapidly, send messages, close tabs; no hangs and no obvious background polling.
+
+## Implementation notes (done)
+
+- Pane implementation lives in `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx:76`.
+- `DesktopRoot` renders one mounted pane per tab (hidden via `visible`) in `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx:472`.
+- Controller lifecycle + active-only streaming:
+  - `useChatController(..., eventsEnabled: visible && backend != null)` in `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx:148`.
+  - History window is set to last 50 in `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx:291`.
+  - Initial message load occurs on first activation in `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx:416`.
+- Cache integration:
+  - Cache hydration (handles late AsyncStorage) uses `useHydrateControllerFromCache` in `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx:277`.
+  - Cache persistence uses `chatController.getCacheSnapshot()` + debounced writes + flush on unmount in `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx:353`.
+- Composer send flow:
+  - `appendMessage(...); send()` in `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx:452`.
+  - Offline disables composer and shows placeholder `Offline (read-only)` in `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx:912`.
 
 ## Verification (manual)
 
