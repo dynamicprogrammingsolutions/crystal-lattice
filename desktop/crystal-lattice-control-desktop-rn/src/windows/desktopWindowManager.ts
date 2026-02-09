@@ -26,6 +26,12 @@ export interface ToggleActionsPopoverParams {
   height?: number;
 }
 
+export interface OpenMessageLimitPopoverParams {
+  anchorTag?: number;
+  width?: number;
+  height?: number;
+}
+
 export interface OpenApplicationActionDialogWindowParams {
   title?: string;
 }
@@ -56,6 +62,9 @@ export interface DesktopWindowManagerModule {
 
   toggleActionsPopover(params: ToggleActionsPopoverParams): void;
   closeActionsPopover(): void;
+
+  openMessageLimitPopover(params?: OpenMessageLimitPopoverParams): void;
+  closeMessageLimitPopover(): void;
 
   openApplicationActionDialogWindow(params?: OpenApplicationActionDialogWindowParams): void;
   closeApplicationActionDialogWindow(): void;

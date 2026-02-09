@@ -42,6 +42,7 @@ Depends On:
   - Reload
   - Cancel
   - Agent switch
+  - Message limit (range)
 - Agent switching must call `backend.switchSessionAgent(sessionId, agentId)`.
 - Actions must be desktop-friendly (compact header buttons + dropdown/popover; no full-screen modals).
 
@@ -71,13 +72,15 @@ Temporary (for visual testing; will be superseded by the session-metadata unific
   - `reload` (refresh icon)
   - `cancel` (stop icon)
   - `agentSwitch` (user icon)
+  - `messageLimit` (sliders icon; default range should be "all")
 
 - Persist pinned actions per connection using `usePersistentPinnedActions` + `asyncStorageKeyValueStore` (same approach as sessions list).
 
 - Wire action handlers:
-  - Reload: `chatController.clearRequestState(); chatController.loadMessages({ start: -50 })`
+  - Reload: `chatController.clearRequestState(); chatController.loadMessagesFromRangeText(...)` (default range is blank → all messages)
   - Cancel: `chatController.cancelActiveRequest()` (only enabled when `activeRequestId != null`)
   - Agent switch: open an agent picker and, upon selection, call `backend.switchSessionAgent(sessionId, agentId)`.
+  - Message limit: open a range modal (start/end text) and apply using `chatController.loadMessagesFromRangeText(...)`.
 
 Notes:
 
@@ -109,6 +112,11 @@ Suggested approach:
 
 - Ensure header shows title/session id/connection name/subtitle correctly for several tabs.
 - Click Reload; confirm messages re-fetch and no crashes.
+- Click Message limit; set `-50:`; confirm only last 50 messages are shown. Clear the range; confirm all messages are shown.
+
+macOS note:
+
+- Do not use `Modal` for the Message limit UI on macOS; use a native popover/window instead.
 - Start a request and click Cancel; confirm request stops and no crashes.
 - Pin/unpin actions; confirm pins persist per connection across restarts.
 - Run Agent switch; confirm the backend call succeeds and subsequent sends use the new agent.
@@ -215,6 +223,8 @@ Steps:
 Implemented the header + actions bar + agent switching window flow.
 
 - Chat header + actions bar: `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx`
+- Message limit (range) modal + default "all messages": `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx`
+- macOS message limit UI is implemented as a native popover (`MessageLimitPopoverView`) rather than a `Modal`.
 - Pass `connectionName` and (temporary) `subtitle` into chat pane: `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx`
 - Store `subtitle` on tabs: `desktop/crystal-lattice-control-desktop-rn/src/tabs/SessionTabs.tsx`
 - When session list refreshes, push updated `title/subtitle` into open tabs (temporary): `desktop/crystal-lattice-control-desktop-rn/src/panels/SessionsPanel.tsx`

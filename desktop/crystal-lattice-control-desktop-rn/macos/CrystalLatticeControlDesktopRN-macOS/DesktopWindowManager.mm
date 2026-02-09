@@ -15,6 +15,7 @@
 @property(nonatomic, strong) NSPopover *applicationActionDialogPopover;
 @property(nonatomic, strong) NSPopover *closingApplicationActionDialogPopover;
 @property(nonatomic, strong) NSPopover *actionsPopover;
+@property(nonatomic, strong) NSPopover *messageLimitPopover;
 
 @property(nonatomic, assign) BOOL suppressApplicationActionDialogPopoverCancel;
 
@@ -642,6 +643,91 @@ RCT_EXPORT_METHOD(closeActionsPopover)
     }
     [self.actionsPopover performClose:nil];
     self.actionsPopover = nil;
+  });
+}
+
+RCT_EXPORT_METHOD(openMessageLimitPopover : (NSDictionary *)params)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (self.messageLimitPopover != nil && self.messageLimitPopover.isShown) {
+      [self.messageLimitPopover performClose:nil];
+      self.messageLimitPopover = nil;
+    }
+
+    NSNumber *anchorTag = params[@"anchorTag"];
+    NSView *sourceView = nil;
+    if ([anchorTag isKindOfClass:[NSNumber class]]) {
+      sourceView = [self.viewRegistry_DEPRECATED viewForReactTag:anchorTag];
+    }
+    if (sourceView == nil) {
+      sourceView = NSApp.keyWindow.contentView;
+    }
+    if (sourceView == nil) {
+      return;
+    }
+
+    CGFloat width = 380;
+    CGFloat height = 260;
+    if ([params[@"width"] respondsToSelector:@selector(doubleValue)]) {
+      width = (CGFloat)[params[@"width"] doubleValue];
+    }
+    if ([params[@"height"] respondsToSelector:@selector(doubleValue)]) {
+      height = (CGFloat)[params[@"height"] doubleValue];
+    }
+
+    NSDictionary *initialProps = @{};
+    NSView *rootView = nil;
+    id appDelegate = NSApp.delegate;
+    id rootViewFactory = nil;
+    @try {
+      rootViewFactory = [appDelegate valueForKey:@"rootViewFactory"];
+    } @catch (__unused NSException *exception) {
+      rootViewFactory = nil;
+    }
+    if (rootViewFactory != nil) {
+      SEL selector = NSSelectorFromString(@"viewWithModuleName:initialProperties:");
+      if ([rootViewFactory respondsToSelector:selector]) {
+        using MsgSendType = NSView *(*)(id, SEL, NSString *, NSDictionary *);
+        rootView = ((MsgSendType)objc_msgSend)(
+            rootViewFactory,
+            selector,
+            @"MessageLimitPopoverView",
+            initialProps);
+      }
+    }
+    if (rootView == nil) {
+      rootView = [[RCTRootView alloc] initWithBridge:self.bridge moduleName:@"MessageLimitPopoverView" initialProperties:initialProps];
+    }
+
+    rootView.frame = NSMakeRect(0, 0, width, height);
+    rootView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+
+    NSViewController *controller = [[NSViewController alloc] init];
+    controller.view = rootView;
+
+    NSPopover *popover = [[NSPopover alloc] init];
+    popover.behavior = NSPopoverBehaviorTransient;
+    popover.contentViewController = controller;
+    popover.contentSize = NSMakeSize(width, height);
+
+    self.messageLimitPopover = popover;
+
+    NSRect anchorRect = sourceView.bounds;
+    if (![anchorTag isKindOfClass:[NSNumber class]]) {
+      anchorRect = NSMakeRect(NSMidX(anchorRect), NSMidY(anchorRect), 1, 1);
+    }
+    [popover showRelativeToRect:anchorRect ofView:sourceView preferredEdge:NSRectEdgeMaxY];
+  });
+}
+
+RCT_EXPORT_METHOD(closeMessageLimitPopover)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (self.messageLimitPopover == nil) {
+      return;
+    }
+    [self.messageLimitPopover performClose:nil];
+    self.messageLimitPopover = nil;
   });
 }
 
