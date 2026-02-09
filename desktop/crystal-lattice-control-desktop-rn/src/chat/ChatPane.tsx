@@ -98,6 +98,7 @@ export function ChatPane({
   >({});
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingText, setEditingText] = useState('');
+  const [editingInitialText, setEditingInitialText] = useState('');
   const [pinnedMessageActionsByRole, setPinnedMessageActionsByRole] = useState<
     Record<string, MessageActionKey[]>
   >({});
@@ -696,6 +697,7 @@ export function ChatPane({
       const content = typeof message.content === 'string' ? message.content : '';
       setEditingIndex(index);
       setEditingText(content);
+      setEditingInitialText(content);
     },
     [],
   );
@@ -717,6 +719,7 @@ export function ChatPane({
         await chatController.modifyMessage(index, trimmed);
         setEditingIndex(null);
         setEditingText('');
+        setEditingInitialText('');
       } catch (err: any) {
         const message = err?.message || 'Failed to modify message.';
         Alert.alert('Error', message);
@@ -728,6 +731,7 @@ export function ChatPane({
   const handleCancelEditMessage = useCallback(() => {
     setEditingIndex(null);
     setEditingText('');
+    setEditingInitialText('');
   }, []);
 
   const handleMessageAction = useCallback(
@@ -823,6 +827,7 @@ export function ChatPane({
           onAction={(action, index, message) => handleMessageAction(action, index, message)}
           onChangePinnedForRole={handleChangePinnedForRole}
           isEditing={isEditing}
+          editingInitialText={isEditing ? editingInitialText : undefined}
           editingText={isEditing ? editingText : undefined}
           onChangeEditingText={isEditing ? setEditingText : undefined}
           onSubmitEdit={(index, _message, nextText) => handleSubmitEditMessage(index, nextText)}
@@ -834,6 +839,7 @@ export function ChatPane({
     },
     [
       editingIndex,
+      editingInitialText,
       editingText,
       footerElements,
       getPinnedActionsForRole,
