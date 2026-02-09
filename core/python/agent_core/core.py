@@ -1653,7 +1653,8 @@ class AgentCore:
         # Initialize request chains
         native_messages, state = provider.initialize_request(native_messages, state)
         # Sort features by priority (lower numbers run first, default: 100)
-        sorted_features = sorted(features, key=lambda feat: getattr(feat, 'priority', 100))        for feature in sorted_features:
+        sorted_features = sorted(features, key=lambda feat: getattr(feat, 'priority', 100))
+        for feature in sorted_features:
             native_messages, state = feature.initialize_request(native_messages, state)
             provider.set_state(state)
  
