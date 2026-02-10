@@ -83,7 +83,6 @@ export const MacTextView = forwardRef<MacTextViewHandle, MacTextViewProps>(funct
     const capped = maxHeight ? Math.min(measured, maxHeight) : measured;
     const floored = minHeight ? Math.max(capped, minHeight) : capped;
     const resolved = floored + (addToHeight || 0);
-    console.log('MacTextView resolvedHeight:', { baseline, measured, capped, floored, resolved, addToHeight, contentHeight });
     return resolved;
   }, [autoGrow, contentHeight, maxHeight, minHeight]);
 
@@ -162,7 +161,6 @@ export const MacTextView = forwardRef<MacTextViewHandle, MacTextViewProps>(funct
         }}
         onMacContentSizeChange={(event) => {
           const height = Number(event.nativeEvent?.contentSize?.height ?? NaN);
-          console.log('MacTextView onMacContentSizeChange:', { height, event });
           if (Number.isFinite(height)) {
           const eventTextLength = Number(event.nativeEvent?.textLength ?? NaN);
           const hasText = Number.isFinite(eventTextLength)
