@@ -41,11 +41,19 @@ import { setActiveMessageLimitPopover } from '../windows/messageLimitPopoverCoor
 import { MacTextView, type MacTextViewHandle } from '../native/MacTextView';
 import DesktopMessageBubble from './DesktopMessageBubble';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
+import { PinnedMessageActionsProvider } from './PinnedMessageActionsContext';
 
 const DEFAULT_HISTORY_WINDOW = 50;
 const PINNED_SESSION_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_session_actions_v1';
 const PINNED_MESSAGE_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_message_actions_by_role_v1';
 const LEGACY_PINNED_MESSAGE_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_message_actions_v1';
+
+const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]> = {
+  user: ['modify', 'copy'],
+  assistant: ['modify', 'toggleMarkdown', 'copy'],
+  system: ['modify', 'copy'],
+  tool: ['copy'],
+};
 
 type ChatSessionActionKey = 'reload' | 'cancel' | 'agentSwitch' | 'messageLimit' | 'settings';
 
@@ -667,35 +675,32 @@ export function ChatPane({
     ],
   );
 
-  const getPinnedActionsForRole = useCallback(
-    (role: string): MessageActionKey[] => {
-      const allowedKeys = ALL_MESSAGE_ACTIONS
-        .filter((def) => def.allowedRoles.includes(role))
-        .map((def) => def.key as MessageActionKey);
+	const getPinnedActionsForRole = useCallback(
+	  (role: string): MessageActionKey[] => {
+	    const existing = pinnedMessageActionsByRole[role];
+	    if (Array.isArray(existing)) {
+	      return existing;
+	    }
+	    return DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE[role] ?? [];
+	  },
+	  [pinnedMessageActionsByRole],
+	);
 
-      const existing = pinnedMessageActionsByRole[role];
-      if (Array.isArray(existing)) {
-        // Respect an explicit empty list (user chose to pin nothing).
-        return existing;
-      }
+	const setPinnedActionsForRole = useCallback(
+	  (role: string, pinned: MessageActionKey[]) => {
+	    setPinnedMessageActionsByRole((prev) => ({ ...prev, [role]: pinned }));
+	  },
+	  [],
+	);
 
-      const defaults: MessageActionKey[] = [];
-      ALL_MESSAGE_ACTIONS.forEach((def) => {
-        if (def.defaultPinnedRoles.includes(role) && def.allowedRoles.includes(role)) {
-          defaults.push(def.key as MessageActionKey);
-        }
-      });
-      return defaults.filter((key) => allowedKeys.includes(key));
-    },
-    [pinnedMessageActionsByRole],
-  );
-
-  const handleChangePinnedForRole = useCallback(
-    (role: string, pinned: MessageActionKey[]) => {
-      setPinnedMessageActionsByRole((prev) => ({ ...prev, [role]: pinned }));
-    },
-    [],
-  );
+	const pinnedMessageActionsContextValue = useMemo(
+	  () => ({
+	    isActive: visible,
+	    getPinnedForRole: getPinnedActionsForRole,
+	    setPinnedForRole: setPinnedActionsForRole,
+	  }),
+	  [getPinnedActionsForRole, setPinnedActionsForRole, visible],
+	);
 
   const handleStartEditMessage = useCallback(
     (index: number, message: { role?: string; content?: unknown }) => {
@@ -788,7 +793,6 @@ export function ChatPane({
     return (
       <DesktopMessageBubble
         index={streamingIndex}
-        isActive={true}
         message={{
           role: 'assistant',
           content: streamingRow.content,
@@ -797,19 +801,12 @@ export function ChatPane({
             reasoning: streamingRow.reasoning,
           },
         }}
-        pinnedActions={[]}
-        allowedActions={[]}
-        onAction={(action, index, message) => handleMessageAction(action, index, message)}
-        onChangePinnedForRole={handleChangePinnedForRole}
-        isEditing={false}
         renderMode="markdown"
         footerElements={footerElements}
       />
     );
   }, [
     footerElements,
-    handleChangePinnedForRole,
-    handleMessageAction,
     messages,
     streamingRow,
   ]);
@@ -820,7 +817,6 @@ export function ChatPane({
       const allowedActions = ALL_MESSAGE_ACTIONS
         .filter((def) => def.allowedRoles.includes(role))
         .map((def) => def.key as MessageActionKey);
-      const pinnedForRole = getPinnedActionsForRole(role);
       const isEditing = editingIndex === msg.index;
       const defaultModeForRole: 'markdown' | 'raw' = role === 'assistant' ? 'markdown' : 'raw';
       const renderMode = messageViewModeByIndex[msg.index] ?? defaultModeForRole;
@@ -828,12 +824,9 @@ export function ChatPane({
       return (
         <DesktopMessageBubble
           index={msg.index}
-          isActive={true}
           message={msg.message}
-          pinnedActions={pinnedForRole}
           allowedActions={allowedActions}
           onAction={(action, index, message) => handleMessageAction(action, index, message)}
-          onChangePinnedForRole={handleChangePinnedForRole}
           isEditing={isEditing}
           editingInitialText={isEditing ? editingInitialText : undefined}
           editingText={isEditing ? editingText : undefined}
@@ -850,9 +843,7 @@ export function ChatPane({
       editingInitialText,
       editingText,
       footerElements,
-      getPinnedActionsForRole,
       handleCancelEditMessage,
-      handleChangePinnedForRole,
       handleMessageAction,
       handleSubmitEditMessage,
       messageViewModeByIndex,
@@ -966,18 +957,35 @@ export function ChatPane({
         ) : null}
 
 
-	        <PlaceholderFlatList
-	          style={styles.transcript}
-	          contentContainerStyle={styles.transcriptContent}
-	          data={messages}
-	          keyExtractor={(item) => String(item.index)}
-	          scrollEventThrottle={16}
-	          renderItem={renderMessageItem}
-	          ListEmptyComponent={
-	            !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
-	          }
-	          ListFooterComponent={streamingFooter}
-	        />
+	        <PinnedMessageActionsProvider value={pinnedMessageActionsContextValue}>
+	          <PlaceholderFlatList
+	            style={styles.transcript}
+	            contentContainerStyle={styles.transcriptContent}
+	            data={messages}
+	            keyExtractor={(item) => String(item.index)}
+	            getItemDependencies={(item) => {
+	              const role = item.message.role || 'unknown';
+	              const defaultModeForRole: 'markdown' | 'raw' =
+	                role === 'assistant' ? 'markdown' : 'raw';
+	              const renderMode =
+	                messageViewModeByIndex[item.index] ?? defaultModeForRole;
+	              const isEditing = item.index === editingIndex;
+	              return [
+	                renderMode,
+	                footerElements,
+	                isEditing,
+	                isEditing ? editingInitialText : null,
+	                isEditing ? editingText : null,
+	              ];
+	            }}
+	            scrollEventThrottle={16}
+	            renderItem={renderMessageItem}
+	            ListEmptyComponent={
+	              !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
+	            }
+	            ListFooterComponent={streamingFooter}
+	          />
+	        </PinnedMessageActionsProvider>
 
         <View style={styles.composerRow}>
           <View

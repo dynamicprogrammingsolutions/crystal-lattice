@@ -22,16 +22,13 @@ import { useTheme, type Theme } from '@crystal-lattice/frontend-rn-components';
 import { MacTextView } from '../native/MacTextView';
 
 import type { MessageActionKey, MessageActionDefinition } from './messageActions';
-import MessageActionsBar from './MessageActionsBar';
+import { PinnedMessageActionsBar } from './PinnedMessageActionsBar';
 import MarkdownMessageContent from './MarkdownMessageContent';
 
 export interface DesktopMessageBubbleProps {
   index: number;
   message: ApiMessage;
-  isActive?: boolean;
-  pinnedActions?: MessageActionKey[];
   onAction?: (action: MessageActionKey, index: number, message: ApiMessage) => void;
-  onChangePinnedForRole?: (role: string, pinned: MessageActionKey[]) => void;
   allowedActions?: MessageActionKey[];
   isEditing?: boolean;
   editingInitialText?: string;
@@ -56,10 +53,7 @@ const EMPTY_TOOL_CALLS: any[] = [];
 const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   index,
   message,
-  isActive,
-  pinnedActions,
   onAction,
-  onChangePinnedForRole,
   allowedActions,
   isEditing,
   editingInitialText,
@@ -72,7 +66,6 @@ const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const [editHeight, setEditHeight] = useState(60);
   const content = selectDisplayContent(message);
   const role = 'user';
   const footerParts = useMemo(() => {
@@ -127,16 +120,14 @@ const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
       <View style={[styles.bubble, styles.userBubble]}>
         <View style={styles.headerRow}>
           <Text style={styles.headerText}>{`[${index}] User`}</Text>
-          {pinnedActions && onAction && onChangePinnedForRole && (
-            <MessageActionsBar
-              pinned={pinnedActions}
-              onChangePinned={(next) => onChangePinnedForRole(role, next)}
-              onAction={(action) => onAction(action, index, message)}
-              availableActions={allowedActions}
-              extraActions={pluginActionDefs}
-              isActive={isActive}
-            />
-          )}
+	          {onAction ? (
+	            <PinnedMessageActionsBar
+	              role={role}
+	              onAction={(action) => onAction(action, index, message)}
+	              availableActions={allowedActions}
+	              extraActions={pluginActionDefs}
+	            />
+	          ) : null}
         </View>
         {content ? (
           <Text style={[styles.contentText, styles.userContentText]} selectable>
@@ -156,10 +147,7 @@ const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
 const SystemMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   index,
   message,
-  isActive,
-  pinnedActions,
   onAction,
-  onChangePinnedForRole,
   allowedActions,
   isEditing,
   editingInitialText,
@@ -228,16 +216,14 @@ const SystemMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
       <View style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}>
         <View style={styles.headerRow}>
           <Text style={styles.headerText}>{`[${index}] System`}</Text>
-          {pinnedActions && onAction && onChangePinnedForRole && (
-            <MessageActionsBar
-              pinned={pinnedActions}
-              onChangePinned={(next) => onChangePinnedForRole(role, next)}
-              onAction={(action) => onAction(action, index, message)}
-              availableActions={allowedActions}
-              extraActions={pluginActionDefs}
-              isActive={isActive}
-            />
-          )}
+	          {onAction ? (
+	            <PinnedMessageActionsBar
+	              role={role}
+	              onAction={(action) => onAction(action, index, message)}
+	              availableActions={allowedActions}
+	              extraActions={pluginActionDefs}
+	            />
+	          ) : null}
         </View>
         {content ? (
           <Text style={styles.systemText} selectable>
@@ -257,10 +243,7 @@ const SystemMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
 const ToolMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   index,
   message,
-  isActive,
-  pinnedActions,
   onAction,
-  onChangePinnedForRole,
   allowedActions,
   footerElements,
   pluginActionDefs,
@@ -298,17 +281,14 @@ const ToolMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
             {toolName && ` (${toolName})`}
           </Text>
           <View style={styles.headerIconsRow}>
-
-            {pinnedActions && onAction && onChangePinnedForRole && (
-              <MessageActionsBar
-                pinned={pinnedActions}
-                onChangePinned={(next) => onChangePinnedForRole(role, next)}
-                onAction={(action) => onAction(action, index, message)}
-                availableActions={allowedActions}
-                extraActions={pluginActionDefs}
-                isActive={isActive}
-              />
-            )}
+	            {onAction ? (
+	              <PinnedMessageActionsBar
+	                role={role}
+	                onAction={(action) => onAction(action, index, message)}
+	                availableActions={allowedActions}
+	                extraActions={pluginActionDefs}
+	              />
+	            ) : null}
           </View>
         </View>
 
@@ -365,10 +345,7 @@ const ToolMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
 const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   index,
   message,
-  isActive,
-  pinnedActions,
   onAction,
-  onChangePinnedForRole,
   allowedActions,
   isEditing,
   editingInitialText,
@@ -470,16 +447,14 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         <View style={styles.headerRow}>
           <Text style={styles.headerText}>{`[${index}] Assistant`}</Text>
           <View style={styles.headerIconsRow}>
-            {pinnedActions && onAction && onChangePinnedForRole && (
-              <MessageActionsBar
-                pinned={pinnedActions}
-                onChangePinned={(next) => onChangePinnedForRole(role, next)}
-                onAction={(action) => onAction(action, index, message)}
-                availableActions={allowedActions}
-                extraActions={pluginActionDefs}
-                isActive={isActive}
-              />
-            )}
+	            {onAction ? (
+	              <PinnedMessageActionsBar
+	                role={role}
+	                onAction={(action) => onAction(action, index, message)}
+	                availableActions={allowedActions}
+	                extraActions={pluginActionDefs}
+	              />
+	            ) : null}
           </View>
         </View>
 
@@ -610,10 +585,7 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
 export const DesktopMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   index,
   message,
-  isActive,
-  pinnedActions,
   onAction,
-  onChangePinnedForRole,
   allowedActions,
   isEditing,
   editingInitialText,
@@ -633,12 +605,9 @@ export const DesktopMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
     return (
       <UserMessageBubble
         index={index}
-        isActive={isActive}
         message={message}
-        pinnedActions={pinnedActions}
         allowedActions={allowedActions}
         onAction={onAction}
-        onChangePinnedForRole={onChangePinnedForRole}
         isEditing={isEditing}
         editingInitialText={editingInitialText}
         editingText={editingText}
@@ -655,12 +624,9 @@ export const DesktopMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
     return (
       <SystemMessageBubble
         index={index}
-        isActive={isActive}
         message={message}
-        pinnedActions={pinnedActions}
         allowedActions={allowedActions}
         onAction={onAction}
-        onChangePinnedForRole={onChangePinnedForRole}
         isEditing={isEditing}
         editingInitialText={editingInitialText}
         editingText={editingText}
@@ -677,12 +643,9 @@ export const DesktopMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
     return (
       <ToolMessageBubble
         index={index}
-        isActive={isActive}
         message={message}
-        pinnedActions={pinnedActions}
         allowedActions={allowedActions}
         onAction={onAction}
-        onChangePinnedForRole={onChangePinnedForRole}
         renderMode={renderMode}
         footerElements={footerElements}
         pluginActionDefs={pluginActionDefs}
@@ -693,12 +656,9 @@ export const DesktopMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
     return (
       <AssistantMessageBubble
         index={index}
-        isActive={isActive}
         message={message}
-        pinnedActions={pinnedActions}
         allowedActions={allowedActions}
         onAction={onAction}
-        onChangePinnedForRole={onChangePinnedForRole}
         isEditing={isEditing}
         editingInitialText={editingInitialText}
         editingText={editingText}

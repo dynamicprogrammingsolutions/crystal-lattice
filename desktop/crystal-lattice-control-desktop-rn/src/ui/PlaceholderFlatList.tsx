@@ -21,6 +21,18 @@ export interface PlaceholderFlatListProps<TItem> {
   renderItem: (info: ListRenderItemInfo<TItem>) => React.ReactElement | null;
   keyExtractor?: (item: TItem, index: number) => string;
 
+  /**
+   * Optional per-item dependency array.
+   *
+   * If provided, cached rows are recomputed when either:
+   * - the `item` object identity changes, or
+   * - the dependency array changes (shallow compare via `Object.is`).
+   *
+   * This lets callers invalidate only specific rows even if `renderItem` is
+   * recreated due to capturing external state (e.g. editing).
+   */
+  getItemDependencies?: (item: TItem, index: number) => ReadonlyArray<unknown>;
+
   style?: StyleProp<ViewStyle>;
   contentContainerStyle?: StyleProp<ViewStyle>;
 
@@ -41,8 +53,22 @@ export interface PlaceholderFlatListProps<TItem> {
 
 type RowCacheEntry<TItem> = {
   item: TItem;
+  deps: ReadonlyArray<unknown> | null;
   element: React.ReactElement | null;
 };
+
+function shallowArrayEqual(
+  a: ReadonlyArray<unknown> | null,
+  b: ReadonlyArray<unknown> | null,
+): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (!Object.is(a[i], b[i])) return false;
+  }
+  return true;
+}
 
 function renderMaybeComponent(value: unknown): React.ReactElement | null {
   if (value == null) {
@@ -60,14 +86,13 @@ function renderMaybeComponent(value: unknown): React.ReactElement | null {
 
 export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem>): React.JSX.Element {
   const cacheRef = React.useRef<Map<string, RowCacheEntry<TItem>>>(new Map());
-  const lastRenderItemRef = React.useRef(props.renderItem);
-  const lastKeyExtractorRef = React.useRef(props.keyExtractor);
   const lastExtraDataRef = React.useRef(props.extraData);
 
   const {
     data,
     renderItem,
     keyExtractor,
+    getItemDependencies,
     style,
     contentContainerStyle,
     ListHeaderComponent,
@@ -81,18 +106,7 @@ export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem
   } = props;
 
   const cache = cacheRef.current;
-  if (lastRenderItemRef.current !== renderItem) {
-    console.log('PlaceholderFlatList: renderItem function changed, clearing cache');
-    cache.clear();
-    lastRenderItemRef.current = renderItem;
-  }
-  /*if (lastKeyExtractorRef.current !== keyExtractor) {
-    console.log('PlaceholderFlatList: keyExtractor function changed, clearing cache');
-    cache.clear();
-    lastKeyExtractorRef.current = keyExtractor;
-  }*/
   if (!Object.is(lastExtraDataRef.current, props.extraData)) {
-    console.log('PlaceholderFlatList: extraData changed, clearing cache');
     cache.clear();
     lastExtraDataRef.current = props.extraData;
   }
@@ -110,14 +124,15 @@ export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem
     const key = keyExtractor ? keyExtractor(item, index) : String(index);
     keysInUse.add(key);
 
+    const deps = getItemDependencies ? getItemDependencies(item, index) : null;
+
     const cached = cache.get(key);
     let row: React.ReactElement | null;
-    if (cached && cached.item === item) {
+    if (cached && cached.item === item && shallowArrayEqual(cached.deps, deps)) {
       row = cached.element;
     } else {
-      console.log(`PlaceholderFlatList: rendering item at index ${index} with key ${key}`);
       row = renderItem({ item, index });
-      cache.set(key, { item, element: row });
+      cache.set(key, { item, deps, element: row });
     }
 
     if (!row) {
