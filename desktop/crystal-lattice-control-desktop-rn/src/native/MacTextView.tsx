@@ -36,6 +36,7 @@ export interface MacTextViewProps extends Omit<ViewProps, 'onLayout'> {
   textColor?: string;
   placeholderTextColor?: string;
   fontSize?: number;
+  addToHeight?: number;
 
   autoGrow?: boolean;
   minHeight?: number;
@@ -65,7 +66,7 @@ export interface MacTextViewHandle {
 }
 
 export const MacTextView = forwardRef<MacTextViewHandle, MacTextViewProps>(function MacTextView(
-  { autoGrow, minHeight, maxHeight, style, initialText, onHeightChange, ...props }: MacTextViewProps,
+  { autoGrow, minHeight, maxHeight, style, initialText, onHeightChange, addToHeight, ...props }: MacTextViewProps,
   ref,
 ): React.JSX.Element {
   const [contentHeight, setContentHeight] = useState<number | null>(null);
@@ -81,7 +82,9 @@ export const MacTextView = forwardRef<MacTextViewHandle, MacTextViewProps>(funct
     const measured = contentHeight ?? baseline;
     const capped = maxHeight ? Math.min(measured, maxHeight) : measured;
     const floored = minHeight ? Math.max(capped, minHeight) : capped;
-    return floored;
+    const resolved = floored + (addToHeight || 0);
+    console.log('MacTextView resolvedHeight:', { baseline, measured, capped, floored, resolved, addToHeight, contentHeight });
+    return resolved;
   }, [autoGrow, contentHeight, maxHeight, minHeight]);
 
   const shouldSelfSize = autoGrow && !onHeightChange;
@@ -159,6 +162,7 @@ export const MacTextView = forwardRef<MacTextViewHandle, MacTextViewProps>(funct
         }}
         onMacContentSizeChange={(event) => {
           const height = Number(event.nativeEvent?.contentSize?.height ?? NaN);
+          console.log('MacTextView onMacContentSizeChange:', { height, event });
           if (Number.isFinite(height)) {
           const eventTextLength = Number(event.nativeEvent?.textLength ?? NaN);
           const hasText = Number.isFinite(eventTextLength)

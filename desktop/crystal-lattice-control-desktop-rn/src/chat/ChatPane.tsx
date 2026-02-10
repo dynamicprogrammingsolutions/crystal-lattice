@@ -90,6 +90,14 @@ export function ChatPane({
   onUpdateCache,
   styleVariant = 'toolbarTabs',
 }: ChatPaneProps): React.JSX.Element {
+  console.log(`Rendering ChatPane for session ${sessionId}, props: `, {
+    visible,
+    connectionId,
+    connectionName,
+    sessionId,
+    title,
+    subtitle
+  });
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme, styleVariant), [theme, styleVariant]);
 
@@ -159,6 +167,7 @@ export function ChatPane({
 
   useEffect(() => {
     const loadPinnedFromStorage = async () => {
+      console.log('Loading pinned message actions from storage');
       try {
         const messageRaw = await asyncStorageKeyValueStore.get(pinnedMessageActionsStorageKey);
         if (messageRaw) {
@@ -779,7 +788,7 @@ export function ChatPane({
     return (
       <DesktopMessageBubble
         index={streamingIndex}
-        isActive={visible}
+        isActive={true}
         message={{
           role: 'assistant',
           content: streamingRow.content,
@@ -803,7 +812,6 @@ export function ChatPane({
     handleMessageAction,
     messages,
     streamingRow,
-    visible,
   ]);
 
   const renderMessageItem = useCallback(
@@ -820,7 +828,7 @@ export function ChatPane({
       return (
         <DesktopMessageBubble
           index={msg.index}
-          isActive={visible}
+          isActive={true}
           message={msg.message}
           pinnedActions={pinnedForRole}
           allowedActions={allowedActions}
@@ -848,7 +856,6 @@ export function ChatPane({
       handleMessageAction,
       handleSubmitEditMessage,
       messageViewModeByIndex,
-      visible,
     ],
   );
 

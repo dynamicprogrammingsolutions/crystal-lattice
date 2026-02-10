@@ -94,12 +94,12 @@ const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         <View style={[styles.bubble, styles.userBubble]}>
           <Text style={styles.headerText}>{`[${index}] User`}</Text>
           <MacTextView
-            style={[styles.editInput, styles.editInputOnBlue, { height: editHeight }]}
+            style={[styles.editInput, styles.editInputOnBlue]}
             initialText={editingInitialText ?? editingText ?? ''}
             autoGrow
             minHeight={60}
             maxHeight={140}
-            onHeightChange={setEditHeight}
+            addToHeight={8}
             onChangeText={onChangeEditingText}
             onSubmit={(text) => onSubmitEdit(index, message, text)}
           />
@@ -199,6 +199,7 @@ const SystemMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
             autoGrow
             minHeight={60}
             maxHeight={140}
+            addToHeight={16}
             onHeightChange={setEditHeight}
             onChangeText={onChangeEditingText}
             onSubmit={(text) => onSubmitEdit(index, message, text)}
@@ -508,9 +509,11 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         {reasoning && reasoningExpanded && (
           <View style={styles.collapsibleContainerReasoning}>
             <ScrollView style={styles.collapsibleScroll} nestedScrollEnabled>
-              <Text style={styles.reasoningText} selectable>
-                {reasoning}
-              </Text>
+              <View>
+                <Text style={styles.reasoningText} selectable>
+                  {reasoning}
+                </Text>
+              </View>
             </ScrollView>
           </View>
         )}
@@ -849,8 +852,8 @@ const createStyles = (theme: Theme) =>
       borderWidth: 1,
       borderColor: theme.border,
       borderRadius: 6,
-      paddingHorizontal: 8,
-      paddingVertical: 6,
+      paddingHorizontal: 4,
+      paddingVertical: 4,
       fontSize: 14,
       fontFamily: Platform.OS === 'macos' ? 'Menlo' : 'Courier',
       backgroundColor: theme.surface,
