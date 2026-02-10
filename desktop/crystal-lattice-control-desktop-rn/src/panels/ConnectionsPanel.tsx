@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, {memo, useMemo } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { ConnectionRecord } from '@crystal-lattice/frontend-sdk';

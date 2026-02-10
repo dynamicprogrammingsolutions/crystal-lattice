@@ -8,6 +8,7 @@
     "macos": "react-native run-macos",
     "lint": "eslint .",
     "start": "react-native start",
+    "rn": "react-native",
     "start-no-cache": "react-native start --reset-cache",
     "test": "jest",
     "pod-install": "cd macos && pod install && cd .."

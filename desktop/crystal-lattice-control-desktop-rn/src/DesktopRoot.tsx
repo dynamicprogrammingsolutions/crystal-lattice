@@ -8,8 +8,8 @@ import type { ConnectionRecord, SessionSummary } from '@crystal-lattice/frontend
 import { DesktopShell } from './layout/DesktopShell';
 import { ConnectionsPanel } from './panels/ConnectionsPanel';
 import { SessionsPanel } from './panels/SessionsPanel';
-import { ChatPane } from './chat/ChatPane';
 import { ChatPanePlaceholder } from './chat/ChatPanePlaceholder';
+import {ChatPaneTabStack, ChatPaneTabStackPlaceholder} from './tabs/ChatPaneTabStack';
 import { SessionTabs, type DesktopSessionTab } from './tabs/SessionTabs';
 import { usePersistedConnections } from './connections/usePersistedConnections';
 import { useOpenConnections } from './connections/useOpenConnections';
@@ -469,21 +469,15 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
                   styleVariant={tabStripStyle}
                 />
               ) : (
-                tabs.map((tab) => (
-                  <ChatPane
-                    key={tab.tabId}
-                    visible={tab.tabId === activeTabId}
-                    connectionId={tab.connectionId}
-                    connectionName={connectionNameById[tab.connectionId] ?? tab.connectionId}
-                    sessionId={tab.sessionId}
-                    title={tab.title}
-                    subtitle={tab.subtitle ?? undefined}
-                    styleVariant={tabStripStyle}
-                    backend={getBackend(tab.connectionId)}
-                    cachedEntry={messagesCache[tab.connectionId]?.[tab.sessionId] ?? null}
-                    onUpdateCache={updateMessagesCache}
-                  />
-                ))
+	                <ChatPaneTabStack
+	                  tabs={tabs}
+	                  activeTabId={activeTabId}
+	                  styleVariant={tabStripStyle}
+	                  connectionNameById={connectionNameById}
+	                  getBackend={getBackend}
+	                  messagesCache={messagesCache}
+	                  onUpdateCache={updateMessagesCache}
+	                />
               )}
             </View>
           </View>

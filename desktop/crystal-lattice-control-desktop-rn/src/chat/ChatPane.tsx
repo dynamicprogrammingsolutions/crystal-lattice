@@ -68,7 +68,7 @@ const BUILTIN_SESSION_ACTIONS: ActionDefinition[] = [
 const DEFAULT_PINNED_SESSION_ACTION_KEYS: ActionKey[] = ['reload', 'cancel'];
 
 export interface ChatPaneProps {
-  visible: boolean;
+	isActive: boolean;
   connectionId: string;
   connectionName: string;
   sessionId: string;
@@ -86,26 +86,19 @@ export interface ChatPaneProps {
   styleVariant?: TabStripStyle;
 }
 
-export function ChatPane({
-  visible,
-  connectionId,
-  connectionName,
-  sessionId,
-  title,
-  subtitle,
-  backend,
-  cachedEntry,
-  onUpdateCache,
-  styleVariant = 'toolbarTabs',
+export const ChatPane = React.memo(function ChatPane({
+	isActive,
+	connectionId,
+	connectionName,
+	sessionId,
+	title,
+	subtitle,
+	backend,
+	cachedEntry,
+	onUpdateCache,
+	styleVariant = 'toolbarTabs',
 }: ChatPaneProps): React.JSX.Element {
-  console.log(`Rendering ChatPane for session ${sessionId}, props: `, {
-    visible,
-    connectionId,
-    connectionName,
-    sessionId,
-    title,
-    subtitle
-  });
+
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme, styleVariant), [theme, styleVariant]);
 
@@ -141,7 +134,7 @@ export function ChatPane({
     setComposerHeight((prev) => {
       if (Math.abs(prev - next) < 1) {
         return prev;
-      }
+	}
       return next;
     });
   }, []);
@@ -154,7 +147,7 @@ export function ChatPane({
     initialMessages: cachedEntry?.messages ?? [],
     initialEventsCursorId: cachedEntry?.cursorEventId ?? null,
     initialActiveRequestId: cachedEntry?.activeRequestId ?? null,
-    eventsEnabled: visible && backend != null,
+	  eventsEnabled: isActive && backend != null,
   });
 
   const pinnedSessionActionsStorageKey = useMemo(() => {
@@ -175,7 +168,7 @@ export function ChatPane({
 
   useEffect(() => {
     const loadPinnedFromStorage = async () => {
-      console.log('Loading pinned message actions from storage');
+      console.log('Loading pinned message actions from storage with key', pinnedMessageActionsStorageKey);
       try {
         const messageRaw = await asyncStorageKeyValueStore.get(pinnedMessageActionsStorageKey);
         if (messageRaw) {
@@ -231,6 +224,7 @@ export function ChatPane({
 
   useEffect(() => {
     const saveMessagePinned = async () => {
+      console.log('Saving pinned message actions to storage with key', pinnedMessageActionsStorageKey, pinnedMessageActionsByRole);
       try {
         await asyncStorageKeyValueStore.set(
           pinnedMessageActionsStorageKey,
@@ -253,7 +247,7 @@ export function ChatPane({
     backend,
     cacheKey: connectionId,
     sessionId,
-    enabled: !!(backend && visible),
+	  enabled: !!(backend && isActive),
   });
 	  const footerElements = useMemo(
 	    () => filterFooterElements(sessionUiSchemaState?.elements ?? []),
@@ -397,7 +391,7 @@ export function ChatPane({
   }, [persistCacheSnapshot]);
 
   useEffect(() => {
-    if (!visible) {
+	  if (!isActive) {
       return;
     }
     if (!chatController) {
@@ -422,7 +416,7 @@ export function ChatPane({
     loadInitialMessages().catch(() => {
       // errors are handled in `loadInitialMessages`
     });
-  }, [chatController, chatState?.eventsCursorId, chatState?.loading, chatState?.messages, loadInitialMessages, visible]);
+	}, [chatController, chatState?.eventsCursorId, chatState?.loading, chatState?.messages, isActive, loadInitialMessages]);
 
   const messages: IndexedMessage[] = useMemo(() => {
     return chatState?.messages ?? cachedEntry?.messages ?? [];
@@ -432,7 +426,7 @@ export function ChatPane({
 
   const messagesCount = messages.length;
 
-  const canSend = backend != null && chatController != null && visible && !sendInFlight;
+	const canSend = backend != null && chatController != null && isActive && !sendInFlight;
 
   const handleSend = useCallback(async (overrideText?: string) => {
     if (!canSend) {
@@ -463,7 +457,7 @@ export function ChatPane({
     }
   }, [canSend, chatController, composeText]);
 
-  const canRunHeaderActions = backend != null && chatController != null && visible;
+	const canRunHeaderActions = backend != null && chatController != null && isActive;
 
   const handleReload = useCallback(async () => {
     if (!canRunHeaderActions) {
@@ -695,11 +689,11 @@ export function ChatPane({
 
 	const pinnedMessageActionsContextValue = useMemo(
 	  () => ({
-	    isActive: visible,
+		    isActive,
 	    getPinnedForRole: getPinnedActionsForRole,
 	    setPinnedForRole: setPinnedActionsForRole,
 	  }),
-	  [getPinnedActionsForRole, setPinnedActionsForRole, visible],
+		  [getPinnedActionsForRole, isActive, setPinnedActionsForRole],
 	);
 
   const handleStartEditMessage = useCallback(
@@ -850,11 +844,8 @@ export function ChatPane({
     ],
   );
 
-  return (
-    <View
-      style={[styles.root, visible ? styles.visible : styles.hidden]}
-      pointerEvents={visible ? 'auto' : 'none'}
-    >
+  return !isActive ? <View style={styles.root}></View> : (
+	  <View style={styles.root}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.title} numberOfLines={1}>
@@ -890,7 +881,7 @@ export function ChatPane({
           <ActionsMenuBar<ActionDefinition>
             title="Session actions"
             variant="dropdown"
-            isActive={visible}
+	          isActive={isActive}
             renderIcon={({ name, size, color }) => <Icon name={name} size={size} color={color} />}
             baseActions={BUILTIN_SESSION_ACTIONS}
             pinned={pinnedSessionActionKeys}
@@ -1108,7 +1099,7 @@ export function ChatPane({
       )}
     </View>
   );
-}
+});
 
 function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStripStyle) {
   const codeLike = styleVariant === 'codeTabs' || styleVariant === 'underlineTabs';
@@ -1117,7 +1108,7 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
 
   return StyleSheet.create({
     root: {
-	      ...StyleSheet.absoluteFillObject,
+		  flex: 1,
       borderWidth: codeLike ? 0 : separatorWidth,
       borderColor: codeLike ? 'transparent' : theme.border,
       borderRadius: codeLike ? 0 : radius,
@@ -1142,14 +1133,6 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
     headerRight: {
       paddingTop: Platform.OS === 'macos' ? 2 : 0,
     },
-	    visible: {
-	      opacity: 1,
-	      zIndex: 1,
-	    },
-	    hidden: {
-	      opacity: 0,
-	      zIndex: 0,
-	    },
     title: {
       fontSize: 14,
       fontWeight: '700',

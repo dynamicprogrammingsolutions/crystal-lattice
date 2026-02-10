@@ -3,8 +3,9 @@ import React, { useCallback } from 'react';
 import MessageActionsBar from './MessageActionsBar';
 import type { MessageActionDefinition, MessageActionKey } from './messageActions';
 import { usePinnedMessageActions } from './PinnedMessageActionsContext';
+import {View} from "react-native";
 
-export function PinnedMessageActionsBar({
+export const PinnedMessageActionsBar = function PinnedMessageActionsBar({
   role,
   onAction,
   availableActions,
