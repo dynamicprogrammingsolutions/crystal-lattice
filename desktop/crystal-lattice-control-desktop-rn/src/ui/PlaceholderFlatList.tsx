@@ -39,6 +39,11 @@ export interface PlaceholderFlatListProps<TItem> {
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
 }
 
+type RowCacheEntry<TItem> = {
+  item: TItem;
+  element: React.ReactElement | null;
+};
+
 function renderMaybeComponent(value: unknown): React.ReactElement | null {
   if (value == null) {
     return null;
@@ -54,6 +59,11 @@ function renderMaybeComponent(value: unknown): React.ReactElement | null {
 }
 
 export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem>): React.JSX.Element {
+  const cacheRef = React.useRef<Map<string, RowCacheEntry<TItem>>>(new Map());
+  const lastRenderItemRef = React.useRef(props.renderItem);
+  const lastKeyExtractorRef = React.useRef(props.keyExtractor);
+  const lastExtraDataRef = React.useRef(props.extraData);
+
   const {
     data,
     renderItem,
@@ -70,12 +80,69 @@ export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem
     onScroll,
   } = props;
 
+  const cache = cacheRef.current;
+  if (lastRenderItemRef.current !== renderItem) {
+    console.log('PlaceholderFlatList: renderItem function changed, clearing cache');
+    cache.clear();
+    lastRenderItemRef.current = renderItem;
+  }
+  /*if (lastKeyExtractorRef.current !== keyExtractor) {
+    console.log('PlaceholderFlatList: keyExtractor function changed, clearing cache');
+    cache.clear();
+    lastKeyExtractorRef.current = keyExtractor;
+  }*/
+  if (!Object.is(lastExtraDataRef.current, props.extraData)) {
+    console.log('PlaceholderFlatList: extraData changed, clearing cache');
+    cache.clear();
+    lastExtraDataRef.current = props.extraData;
+  }
+
   const header = renderMaybeComponent(ListHeaderComponent);
   const footer = renderMaybeComponent(ListFooterComponent);
 
   const empty = data.length === 0 ? renderMaybeComponent(ListEmptyComponent) : null;
 
   const Separator = ItemSeparatorComponent;
+
+  const keysInUse = new Set<string>();
+
+  const rows = data.map((item, index) => {
+    const key = keyExtractor ? keyExtractor(item, index) : String(index);
+    keysInUse.add(key);
+
+    const cached = cache.get(key);
+    let row: React.ReactElement | null;
+    if (cached && cached.item === item) {
+      row = cached.element;
+    } else {
+      console.log(`PlaceholderFlatList: rendering item at index ${index} with key ${key}`);
+      row = renderItem({ item, index });
+      cache.set(key, { item, element: row });
+    }
+
+    if (!row) {
+      return null;
+    }
+
+    return (
+      <React.Fragment key={key}>
+        {index > 0 && Separator ? (
+          React.isValidElement(Separator) ? (
+            Separator
+          ) : (
+            <View>{renderMaybeComponent(Separator)}</View>
+          )
+        ) : null}
+        {row}
+      </React.Fragment>
+    );
+  });
+
+  for (const cachedKey of cache.keys()) {
+    if (!keysInUse.has(cachedKey)) {
+      cache.delete(cachedKey);
+    }
+  }
 
   return (
     <ScrollView
@@ -88,29 +155,10 @@ export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem
     >
       {header}
       {empty}
-      {data.map((item, index) => {
-        const key = keyExtractor ? keyExtractor(item, index) : String(index);
-        const row = renderItem({ item, index });
-        if (!row) {
-          return null;
-        }
-
-        return (
-          <React.Fragment key={key}>
-            {index > 0 && Separator ? (
-              React.isValidElement(Separator) ? (
-                Separator
-              ) : (
-                <View>
-                  {renderMaybeComponent(Separator)}
-                </View>
-              )
-            ) : null}
-            {row}
-          </React.Fragment>
-        );
-      })}
+      {rows}
       {footer}
     </ScrollView>
   );
 }
+
+

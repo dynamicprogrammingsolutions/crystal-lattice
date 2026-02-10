@@ -46,8 +46,13 @@
   NSScrollView *_scrollView;
   NSTextView *_textView;
   NSTextField *_placeholderLabel;
+  NSTextStorage *_measurementTextStorage;
+  NSLayoutManager *_measurementLayoutManager;
+  NSTextContainer *_measurementTextContainer;
   BOOL _settingText;
   BOOL _hasUserEdited;
+  BOOL _measureScheduled;
+  BOOL _needsMeasureAfterLayout;
   CGFloat _lastContentHeight;
 }
 
@@ -90,6 +95,14 @@
     _textView.textContainer.widthTracksTextView = YES;
 
     _scrollView.documentView = _textView;
+
+    _measurementTextStorage = [[NSTextStorage alloc] initWithString:@""];
+    _measurementLayoutManager = [[NSLayoutManager alloc] init];
+    _measurementTextContainer =
+        [[NSTextContainer alloc] initWithSize:NSMakeSize(0, CGFLOAT_MAX)];
+    _measurementTextContainer.lineFragmentPadding = _textView.textContainer.lineFragmentPadding;
+    [_measurementLayoutManager addTextContainer:_measurementTextContainer];
+    [_measurementTextStorage addLayoutManager:_measurementLayoutManager];
 
     _placeholderLabel = [[CLCMacPassthroughLabel alloc] initWithFrame:NSZeroRect];
     _placeholderLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -142,6 +155,29 @@
   _textView.textContainer.widthTracksTextView = YES;
 
   [self updateContentSizeIfNeeded];
+
+  if (_needsMeasureAfterLayout && !_measureScheduled) {
+    _needsMeasureAfterLayout = NO;
+    [self scheduleMeasure];
+  }
+}
+
+- (void)viewDidMoveToWindow
+{
+  [super viewDidMoveToWindow];
+  [self scheduleMeasure];
+}
+
+- (void)scheduleMeasure
+{
+  if (_measureScheduled) {
+    return;
+  }
+  _measureScheduled = YES;
+  dispatch_async(dispatch_get_main_queue(), ^{
+    self->_measureScheduled = NO;
+    [self updateContentSizeIfNeeded];
+  });
 }
 
 - (BOOL)acceptsFirstResponder
@@ -223,6 +259,12 @@
   }
   [self updatePlaceholderVisibility];
   [self updateContentSizeIfNeeded];
+
+  // Schedule an extra pass after layout settles so initial multiline text
+  // can report a stable content height before the user types.
+  if (!_hasUserEdited) {
+    [self scheduleMeasure];
+  }
 }
 
 - (void)focusInput
@@ -287,14 +329,18 @@
 
 - (CGFloat)calculateContentHeight
 {
-  NSLayoutManager *layoutManager = _textView.layoutManager;
-  NSTextContainer *container = _textView.textContainer;
-  if (!layoutManager || !container) {
+  if (!_measurementLayoutManager || !_measurementTextContainer || !_measurementTextStorage) {
     return 0;
   }
 
-  [layoutManager ensureLayoutForTextContainer:container];
-  NSRect used = [layoutManager usedRectForTextContainer:container];
+  NSString *text = _textView.string ?: @"";
+  NSFont *font = _textView.font ?: [NSFont systemFontOfSize:_fontSize > 0 ? _fontSize : 13];
+  NSDictionary<NSAttributedStringKey, id> *attrs = @{ NSFontAttributeName : font };
+  NSAttributedString *attributed = [[NSAttributedString alloc] initWithString:text attributes:attrs];
+  [_measurementTextStorage setAttributedString:attributed];
+
+  [_measurementLayoutManager ensureLayoutForTextContainer:_measurementTextContainer];
+  NSRect used = [_measurementLayoutManager usedRectForTextContainer:_measurementTextContainer];
   CGFloat inset = _textView.textContainerInset.height * 2;
   CGFloat height = ceil(used.size.height + inset);
   return MAX(0, height);
@@ -304,6 +350,7 @@
 {
   NSRect bounds = _scrollView.contentView.bounds;
   if (!isfinite(bounds.size.width) || bounds.size.width <= 1) {
+    _needsMeasureAfterLayout = YES;
     return;
   }
 
@@ -311,6 +358,8 @@
   // measurement remains stable during React layout passes.
   _textView.textContainer.containerSize = NSMakeSize(bounds.size.width, CGFLOAT_MAX);
   _textView.textContainer.widthTracksTextView = YES;
+
+  _measurementTextContainer.size = NSMakeSize(bounds.size.width, CGFLOAT_MAX);
 
   CGFloat height = [self calculateContentHeight];
   if (!isfinite(height)) {
@@ -322,7 +371,10 @@
   // the inset (~16px). That causes JS auto-grow to oscillate.
   CGFloat insetBaseline = ceil(_textView.textContainerInset.height * 2);
   BOOL hasText = _textView.string.length > 0;
-  if (hasText && height <= insetBaseline + 1 && _lastContentHeight > insetBaseline + 8) {
+  if (hasText && height <= insetBaseline + 1) {
+    // If there is text, never emit a collapsed "inset-only" height. This can
+    // happen transiently before glyph layout completes.
+    [self scheduleMeasure];
     return;
   }
 
