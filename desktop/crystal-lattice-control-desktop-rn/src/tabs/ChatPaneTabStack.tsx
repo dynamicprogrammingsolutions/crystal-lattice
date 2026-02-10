@@ -61,7 +61,7 @@ const TabFrame = React.memo(function TabFrame(props: TabFrameProps): React.JSX.E
 
   return (
     <View
-      style={[styles.frame, isVisible ? styles.visible : styles.hidden]}
+      style={[styles.frame, isVisible ? styles.visible : styles.hidden, isActive ? styles.active : styles.inactive]}
       pointerEvents={isVisible ? 'auto' : 'none'}
     >
       <ChatPane
@@ -162,10 +162,17 @@ const styles = StyleSheet.create({
   },
   visible: {
     opacity: 1,
-    zIndex: 1,
+    //zIndex: 1,
   },
   hidden: {
+    //display: 'none'
     opacity: 0,
-    zIndex: 0,
+    //zIndex: 0,
   },
+  active: {
+
+  },
+  inactive: {
+    display: 'none',
+  }
 });

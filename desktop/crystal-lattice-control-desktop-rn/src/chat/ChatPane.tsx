@@ -99,6 +99,8 @@ export const ChatPane = React.memo(function ChatPane({
 	styleVariant = 'toolbarTabs',
 }: ChatPaneProps): React.JSX.Element {
 
+  console.log(`Rendering ChatPane for session ${sessionId} (active: ${isActive})`);
+
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme, styleVariant), [theme, styleVariant]);
 
@@ -190,37 +192,13 @@ export const ChatPane = React.memo(function ChatPane({
           return;
         }
 
-        // Migration: older desktop builds stored pinned actions in per-role keys.
-        const legacyRoles = ['user', 'assistant', 'system', 'tool'] as const;
-        const legacy: Record<string, MessageActionKey[]> = {};
-        let foundLegacy = false;
-        for (const role of legacyRoles) {
-          const key = `${LEGACY_PINNED_MESSAGE_ACTIONS_STORAGE_KEY_BASE}:${connectionId}:${role}`;
-          const raw = await asyncStorageKeyValueStore.get(key);
-          if (!raw) {
-            continue;
-          }
-          try {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) {
-              const filtered = (parsed as any[]).filter((k) => typeof k === 'string') as MessageActionKey[];
-              legacy[role] = filtered;
-              foundLegacy = true;
-            }
-          } catch {
-            // ignore
-          }
-        }
-        if (foundLegacy) {
-          setPinnedMessageActionsByRole(legacy);
-        }
       } catch (err) {
         console.log('Failed to load pinned message actions from storage', err);
       }
     };
 
-    loadPinnedFromStorage();
-	  }, [connectionId, pinnedMessageActionsStorageKey]);
+    //loadPinnedFromStorage();
+    }, [connectionId, pinnedMessageActionsStorageKey]);
 
   useEffect(() => {
     const saveMessagePinned = async () => {
@@ -234,7 +212,7 @@ export const ChatPane = React.memo(function ChatPane({
         console.log('Failed to save pinned message actions', err);
       }
     };
-    saveMessagePinned();
+    //saveMessagePinned();
   }, [pinnedMessageActionsByRole, pinnedMessageActionsStorageKey]);
 
   const { controller: agentsController, state: agentsState } = useAgentsController({
@@ -844,7 +822,7 @@ export const ChatPane = React.memo(function ChatPane({
     ],
   );
 
-  return !isActive ? <View style={styles.root}></View> : (
+  return (
 	  <View style={styles.root}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
