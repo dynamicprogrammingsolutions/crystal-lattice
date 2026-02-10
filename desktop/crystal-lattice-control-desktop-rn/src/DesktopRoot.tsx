@@ -104,6 +104,7 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
   const [focusedConnectionId, setFocusedConnectionId] = useState<string | null>(null);
   const [tabs, setTabs] = useState<DesktopSessionTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  console.log(`Active tab ID: ${activeTabId}`);
 
   const [didAutoOpenMostRecent, setDidAutoOpenMostRecent] = useState(false);
 
@@ -197,6 +198,7 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
   );
 
   const focusTab = useCallback((tabId: string) => {
+    console.log(`Focusing tab ${tabId}`);
     setActiveTabId(tabId);
   }, []);
 

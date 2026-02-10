@@ -84,6 +84,10 @@ export function SessionTabs({
           const active = tab.tabId === activeTabId;
           const hovered = tab.tabId === hoveredTabId;
           const connectionName = connectionNameById[tab.connectionId] ?? tab.connectionId;
+          const subtitleText =
+            typeof tab.subtitle === 'string' && tab.subtitle.trim().length > 0
+              ? tab.subtitle
+              : null;
           const showClose =
             styleVariant === 'codeTabs' ? true : active || hovered;
 
@@ -108,7 +112,7 @@ export function SessionTabs({
                   {tab.title}
                 </Text>
                 <Text style={styles.tabMeta} numberOfLines={1}>
-                  {connectionName}
+                  {subtitleText ?? connectionName}
                 </Text>
               </View>
 

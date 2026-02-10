@@ -828,6 +828,7 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       fontSize: 13,
       fontWeight: '700',
       color: theme.text,
+      flexShrink: 1,
     },
     rowId: {
       fontSize: 11,
