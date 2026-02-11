@@ -9,6 +9,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import type { FlatList as FlatListType } from 'react-native';
@@ -92,6 +93,8 @@ type PluginActionContext =
   | { kind: 'session'; sessionSummary: SessionSummary | null }
   | { kind: 'message'; index: number; message: ApiMessage; sessionSummary: SessionSummary | null };
 
+type AppendAsRole = 'system' | 'developer' | 'user' | 'assistant';
+
 type TranscriptRow =
   | { kind: 'status' }
   | { kind: 'stream' }
@@ -126,6 +129,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [rangeEndText, setRangeEndText] = useState('');
   const [lastReloadAt, setLastReloadAt] = useState<Date | null>(null);
   const [messageLimitVisible, setMessageLimitVisible] = useState(false);
+  const [appendAsVisible, setAppendAsVisible] = useState(false);
+  const [appendAsRole, setAppendAsRole] = useState<AppendAsRole>('user');
   const [deleteRangeVisible, setDeleteRangeVisible] = useState(false);
   const [deleteRangeStartText, setDeleteRangeStartText] = useState('');
   const [deleteRangeEndText, setDeleteRangeEndText] = useState('');
@@ -562,6 +567,49 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       setSendInProgress(false);
     }
   };
+
+  const openAppendAsModal = useCallback(() => {
+    const text = composeText.trim();
+    if (!text) {
+      return;
+    }
+    if (!chatController) {
+      Alert.alert('No connection', 'Connect to a server to append messages.');
+      return;
+    }
+    if (sendInProgress || activeRequestId) {
+      return;
+    }
+
+    setAppendAsRole('user');
+    setAppendAsVisible(true);
+  }, [activeRequestId, chatController, composeText, sendInProgress]);
+
+  const handleAppendAs = useCallback(async () => {
+    const text = composeText.trim();
+    if (!text) {
+      return;
+    }
+    if (!chatController) {
+      Alert.alert('No connection', 'Connect to a server to append messages.');
+      return;
+    }
+    if (sendInProgress || activeRequestId) {
+      return;
+    }
+
+    setSendInProgress(true);
+    try {
+      await chatController.appendMessage({ role: appendAsRole as any, content: text });
+      setAppendAsVisible(false);
+    } catch (err: any) {
+      console.log('Failed to append message', err);
+      const message = err?.message || 'Failed to append message';
+      Alert.alert('Error', message);
+    } finally {
+      setSendInProgress(false);
+    }
+  }, [activeRequestId, appendAsRole, chatController, composeText, sendInProgress]);
 
   const handleSend = async () => {
     const text = composeText.trim();
@@ -1153,7 +1201,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         <View style={styles.composerButtonsRow}>
           <TouchableOpacity
             style={[styles.button, styles.secondaryButton, styles.composerButton]}
-            onPress={handleAppend}
+            onPress={openAppendAsModal}
             disabled={!canAppend}
           >
             <Text
@@ -1215,6 +1263,71 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           );
         })()}
       </View>
+
+      {appendAsVisible && (
+        <Modal
+          visible={appendAsVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setAppendAsVisible(false)}
+        >
+          <TouchableWithoutFeedback onPress={() => setAppendAsVisible(false)}>
+            <View style={styles.modalOverlay}>
+              <TouchableWithoutFeedback onPress={() => {}}>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>Append as</Text>
+                  <Text style={styles.modalSubtitle}>
+                    Choose a role for the appended message.
+                  </Text>
+
+                  <View style={styles.chipsRow}>
+                    {([
+                      { key: 'system', label: 'System' },
+                      { key: 'developer', label: 'Developer' },
+                      { key: 'user', label: 'User' },
+                      { key: 'assistant', label: 'Assistant' },
+                    ] as Array<{ key: AppendAsRole; label: string }>).map((opt) => {
+                      const selected = opt.key === appendAsRole;
+                      return (
+                        <TouchableOpacity
+                          key={opt.key}
+                          style={selected ? styles.chipSelected : styles.chip}
+                          onPress={() => setAppendAsRole(opt.key)}
+                        >
+                          <Text style={selected ? styles.chipTextSelected : styles.chipText}>
+                            {opt.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  <View style={styles.modalButtonsRow}>
+                    <TouchableOpacity
+                      style={[styles.button, styles.secondaryButton, styles.modalButton]}
+                      onPress={() => setAppendAsVisible(false)}
+                    >
+                      <Text style={styles.buttonTextSecondary}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.button, styles.primaryButton, styles.modalButton]}
+                      onPress={() => {
+                        handleAppendAs().catch(() => {});
+                      }}
+                    >
+                      {sendInProgress ? (
+                        <ActivityIndicator size="small" color={theme.textOnPrimary} />
+                      ) : (
+                        <Text style={styles.buttonText}>Append</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
+      )}
 
 	      {messageLimitVisible && (
 	        <Modal
@@ -1570,6 +1683,39 @@ const createStyles = (theme: Theme) =>
       fontSize: 12,
       color: theme.textSecondary,
       textAlign: 'right',
+    },
+    chipsRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      marginBottom: 12,
+    },
+    chip: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      marginRight: 6,
+      marginBottom: 4,
+      backgroundColor: theme.surfaceAlt,
+    },
+    chipSelected: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 12,
+      borderWidth: 1,
+      backgroundColor: theme.primary,
+      borderColor: theme.primary,
+      marginRight: 6,
+      marginBottom: 4,
+    },
+    chipText: {
+      fontSize: 12,
+      color: theme.text,
+    },
+    chipTextSelected: {
+      fontSize: 12,
+      color: theme.textOnPrimary,
     },
     rangeRow: {
       flexDirection: 'row',
