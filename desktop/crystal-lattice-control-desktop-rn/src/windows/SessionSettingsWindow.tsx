@@ -428,6 +428,7 @@ function SessionSettingsWindowInner(): React.JSX.Element {
               style={styles.macSelect}
               options={options}
               selectedValue={selectedValue}
+              placeholder="None"
               onValueChange={(value) => actions.selectOption(item.key, value)}
             />
           </View>
