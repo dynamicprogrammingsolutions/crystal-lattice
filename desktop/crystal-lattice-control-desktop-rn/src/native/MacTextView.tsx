@@ -36,6 +36,7 @@ export interface MacTextViewProps extends Omit<ViewProps, 'onLayout'> {
   textColor?: string;
   placeholderTextColor?: string;
   fontSize?: number;
+
   addToHeight?: number;
 
   autoGrow?: boolean;
@@ -84,7 +85,7 @@ export const MacTextView = forwardRef<MacTextViewHandle, MacTextViewProps>(funct
     const floored = minHeight ? Math.max(capped, minHeight) : capped;
     const resolved = floored + (addToHeight || 0);
     return resolved;
-  }, [autoGrow, contentHeight, maxHeight, minHeight]);
+  }, [addToHeight, autoGrow, contentHeight, maxHeight, minHeight]);
 
   const shouldSelfSize = autoGrow && !onHeightChange;
   const autoHeightStyle: StyleProp<ViewStyle> = useMemo(() => {
@@ -106,7 +107,12 @@ export const MacTextView = forwardRef<MacTextViewHandle, MacTextViewProps>(funct
     if (!tag || Platform.OS !== 'macos') {
       return;
     }
-    NativeModules.MacTextView?.setText?.(tag, String(text ?? ''));
+    const next = String(text ?? '');
+    lastTextRef.current = next;
+    if (next.length === 0) {
+      setContentHeight(null);
+    }
+    NativeModules.MacTextView?.setText?.(tag, next);
   }, []);
 
   const focus = useCallback(() => {
@@ -154,6 +160,9 @@ export const MacTextView = forwardRef<MacTextViewHandle, MacTextViewProps>(funct
         onChange={(event) => {
           const next = String(event.nativeEvent?.text ?? '');
           lastTextRef.current = next;
+          if (next.length === 0) {
+            setContentHeight(null);
+          }
           props.onChangeText?.(next);
         }}
         onSubmit={(event) => {
@@ -162,17 +171,19 @@ export const MacTextView = forwardRef<MacTextViewHandle, MacTextViewProps>(funct
         onMacContentSizeChange={(event) => {
           const height = Number(event.nativeEvent?.contentSize?.height ?? NaN);
           if (Number.isFinite(height)) {
-          const eventTextLength = Number(event.nativeEvent?.textLength ?? NaN);
-          const hasText = Number.isFinite(eventTextLength)
-            ? eventTextLength > 0
-            : lastTextRef.current.length > 0;
-            setContentHeight((prev) => {
-              if (!hasText) {
-                return height;
-              }
+            const eventTextLength = Number(event.nativeEvent?.textLength ?? NaN);
+            const hasText = Number.isFinite(eventTextLength)
+              ? eventTextLength > 0
+              : lastTextRef.current.length > 0;
 
-              // Ignore transient "inset-only" measurements (~16px) while
-              // there is text, as they cause auto-grow oscillations.
+            if (!hasText) {
+              setContentHeight(null);
+              return;
+            }
+
+            setContentHeight((prev) => {
+              // Ignore transient "inset-only" measurements while there is text,
+              // as they cause auto-grow oscillations.
               const threshold = minHeight ?? 34;
               if (prev != null && height < prev && height < threshold) {
                 return prev;

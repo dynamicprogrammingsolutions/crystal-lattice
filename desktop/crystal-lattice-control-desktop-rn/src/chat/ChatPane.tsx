@@ -112,9 +112,6 @@ export const ChatPane = React.memo(function ChatPane({
 	onUpdateCache,
 	styleVariant = 'toolbarTabs',
 }: ChatPaneProps): React.JSX.Element {
-
-  console.log(`Rendering ChatPane for session ${sessionId} (active: ${isActive})`);
-
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme, styleVariant), [theme, styleVariant]);
 
@@ -1502,6 +1499,7 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       flex: 1,
       minHeight: 34,
       borderRadius: 10,
+      paddingHorizontal: 10,
       borderWidth: separatorWidth,
       borderColor: theme.border,
       backgroundColor: theme.surface,
@@ -1509,6 +1507,7 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
     },
     composerInput: {
       flex: 1,
+      flexShrink: 1,
     },
     composerInputDisabled: {
       opacity: 0.7,

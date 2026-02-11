@@ -53,6 +53,8 @@
   BOOL _hasUserEdited;
   BOOL _measureScheduled;
   BOOL _needsMeasureAfterLayout;
+  BOOL _forceComplexMeasurement;
+  CGFloat _lastAvailableWidth;
   CGFloat _lastContentHeight;
 }
 
@@ -151,8 +153,15 @@
     return;
   }
   _textView.frame = NSMakeRect(0, 0, bounds.size.width, bounds.size.height);
-  _textView.textContainer.containerSize = NSMakeSize(bounds.size.width, CGFLOAT_MAX);
-  _textView.textContainer.widthTracksTextView = YES;
+
+  CGFloat insetX = _textView.textContainerInset.width * 2;
+  CGFloat availableWidth = MAX(1, bounds.size.width - insetX);
+  if (fabs(_lastAvailableWidth - availableWidth) >= 0.5) {
+    _lastAvailableWidth = availableWidth;
+    _textView.textContainer.containerSize = NSMakeSize(availableWidth, CGFLOAT_MAX);
+    _textView.textContainer.widthTracksTextView = NO;
+    [_textView.layoutManager textContainerChangedGeometry:_textView.textContainer];
+  }
 
   [self updateContentSizeIfNeeded];
 
@@ -173,6 +182,7 @@
   if (_measureScheduled) {
     return;
   }
+  _forceComplexMeasurement = YES;
   _measureScheduled = YES;
   dispatch_async(dispatch_get_main_queue(), ^{
     self->_measureScheduled = NO;
@@ -327,11 +337,31 @@
   _placeholderLabel.hidden = hasText || !hasPlaceholder;
 }
 
-- (CGFloat)calculateContentHeight
+- (CGFloat)calculateContentHeightFast
+{
+  NSLayoutManager *layoutManager = _textView.layoutManager;
+  NSTextContainer *container = _textView.textContainer;
+  if (!layoutManager || !container) {
+    return 0;
+  }
+
+  [layoutManager ensureLayoutForTextContainer:container];
+  NSRect used = [layoutManager usedRectForTextContainer:container];
+  CGFloat inset = _textView.textContainerInset.height * 2;
+  CGFloat height = ceil(used.size.height + inset);
+  return MAX(0, height);
+}
+
+- (CGFloat)calculateContentHeightComplexForWidth:(CGFloat)width
 {
   if (!_measurementLayoutManager || !_measurementTextContainer || !_measurementTextStorage) {
     return 0;
   }
+
+  if (!isfinite(width) || width <= 1) {
+    return 0;
+  }
+  _measurementTextContainer.size = NSMakeSize(width, CGFLOAT_MAX);
 
   NSString *text = _textView.string ?: @"";
   NSFont *font = _textView.font ?: [NSFont systemFontOfSize:_fontSize > 0 ? _fontSize : 13];
@@ -356,12 +386,22 @@
 
   // Keep the text container width in sync with the visible width so
   // measurement remains stable during React layout passes.
-  _textView.textContainer.containerSize = NSMakeSize(bounds.size.width, CGFLOAT_MAX);
-  _textView.textContainer.widthTracksTextView = YES;
+  CGFloat insetX = _textView.textContainerInset.width * 2;
+  CGFloat availableWidth = MAX(1, bounds.size.width - insetX);
+  if (fabs(_lastAvailableWidth - availableWidth) >= 0.5) {
+    _lastAvailableWidth = availableWidth;
+    _textView.textContainer.containerSize = NSMakeSize(availableWidth, CGFLOAT_MAX);
+    _textView.textContainer.widthTracksTextView = NO;
+    [_textView.layoutManager textContainerChangedGeometry:_textView.textContainer];
+  }
 
-  _measurementTextContainer.size = NSMakeSize(bounds.size.width, CGFLOAT_MAX);
-
-  CGFloat height = [self calculateContentHeight];
+  CGFloat height = 0;
+  if (_forceComplexMeasurement) {
+    height = [self calculateContentHeightComplexForWidth:availableWidth];
+    _forceComplexMeasurement = NO;
+  } else {
+    height = [self calculateContentHeightFast];
+  }
   if (!isfinite(height)) {
     return;
   }
@@ -399,9 +439,25 @@
 
   if (_autoGrow && _maxHeight > 0) {
     BOOL shouldScroll = height > _maxHeight + 0.5;
+    BOOL hadScroll = _scrollView.hasVerticalScroller;
     _scrollView.hasVerticalScroller = shouldScroll;
+
+    // Toggling the scroller changes the clip view width. Re-measure on the
+    // next pass so line wrapping uses the new width (prevents right-edge
+    // clipping).
+    if (hadScroll != shouldScroll) {
+      [_scrollView tile];
+      [self scheduleMeasure];
+      return;
+    }
   } else {
+    BOOL hadScroll = _scrollView.hasVerticalScroller;
     _scrollView.hasVerticalScroller = NO;
+    if (hadScroll) {
+      [_scrollView tile];
+      [self scheduleMeasure];
+      return;
+    }
   }
 
   if (self.onMacContentSizeChange) {
@@ -433,6 +489,21 @@
   if (self.onChange) {
     self.onChange(@{ @"text" : text });
   }
+}
+
+- (BOOL)textView:(NSTextView *)textView shouldChangeTextInRange:(NSRange)affectedCharRange replacementString:(nullable NSString *)replacementString
+{
+  if (textView != _textView) {
+    return YES;
+  }
+
+  if (replacementString.length >= 32) {
+    // Likely paste or large edit: ensure we take a more reliable measurement
+    // on the next pass.
+    [self scheduleMeasure];
+  }
+
+  return YES;
 }
 
 - (BOOL)textView:(NSTextView *)textView doCommandBySelector:(SEL)commandSelector
