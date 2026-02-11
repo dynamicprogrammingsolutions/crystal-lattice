@@ -1,11 +1,13 @@
 import React from 'react';
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, StyleProp, ViewStyle } from 'react-native';
-import { ScrollView, View } from 'react-native';
+import { FlatList, ScrollView, View, VirtualizedList } from 'react-native';
 
 export interface ListRenderItemInfo<TItem> {
   item: TItem;
   index: number;
 }
+
+export type PlaceholderFlatListImplementation = 'scrollView' | 'flatList' | 'virtualizedScroll';
 
 /**
  * Placeholder FlatList-like component.
@@ -14,9 +16,12 @@ export interface ListRenderItemInfo<TItem> {
  * virtualization implementation later (e.g. if RN macOS gains a
  * reliable/performant list).
  *
- * Current behavior: renders all items in a plain ScrollView.
+ * Default behavior: renders all items in a plain ScrollView.
+ * Use `implementation` to switch to `FlatList` or `VirtualizedList`.
  */
 export interface PlaceholderFlatListProps<TItem> {
+  implementation?: PlaceholderFlatListImplementation;
+
   data: ReadonlyArray<TItem>;
   renderItem: (info: ListRenderItemInfo<TItem>) => React.ReactElement | null;
   keyExtractor?: (item: TItem, index: number) => string;
@@ -54,7 +59,12 @@ export interface PlaceholderFlatListProps<TItem> {
 type RowCacheEntry<TItem> = {
   item: TItem;
   deps: ReadonlyArray<unknown> | null;
-  element: React.ReactElement | null;
+  row: PlaceholderFlatListRow;
+};
+
+type PlaceholderFlatListRow = {
+  key: string;
+  value: React.ReactElement | null;
 };
 
 function shallowArrayEqual(
@@ -89,6 +99,7 @@ export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem
   const lastExtraDataRef = React.useRef(props.extraData);
 
   const {
+    implementation = 'virtualizedScroll',
     data,
     renderItem,
     keyExtractor,
@@ -103,20 +114,27 @@ export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem
     onLayout,
     onContentSizeChange,
     onScroll,
+    extraData,
+    inverted,
+    maintainVisibleContentPosition,
   } = props;
 
   const cache = cacheRef.current;
-  if (!Object.is(lastExtraDataRef.current, props.extraData)) {
+  if (!Object.is(lastExtraDataRef.current, extraData)) {
     cache.clear();
-    lastExtraDataRef.current = props.extraData;
+    lastExtraDataRef.current = extraData;
   }
 
-  const header = renderMaybeComponent(ListHeaderComponent);
-  const footer = renderMaybeComponent(ListFooterComponent);
-
-  const empty = data.length === 0 ? renderMaybeComponent(ListEmptyComponent) : null;
-
-  const Separator = ItemSeparatorComponent;
+  const normalizedSeparatorComponent = React.useMemo(() => {
+    if (!ItemSeparatorComponent) {
+      return undefined;
+    }
+    if (React.isValidElement(ItemSeparatorComponent)) {
+      const element = ItemSeparatorComponent;
+      return () => element;
+    }
+    return ItemSeparatorComponent as React.ComponentType<any>;
+  }, [ItemSeparatorComponent]);
 
   const keysInUse = new Set<string>();
 
@@ -127,30 +145,14 @@ export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem
     const deps = getItemDependencies ? getItemDependencies(item, index) : null;
 
     const cached = cache.get(key);
-    let row: React.ReactElement | null;
     if (cached && cached.item === item && shallowArrayEqual(cached.deps, deps)) {
-      row = cached.element;
-    } else {
-      row = renderItem({ item, index });
-      cache.set(key, { item, deps, element: row });
+      return cached.row;
     }
 
-    if (!row) {
-      return null;
-    }
-
-    return (
-      <React.Fragment key={key}>
-        {index > 0 && Separator ? (
-          React.isValidElement(Separator) ? (
-            Separator
-          ) : (
-            <View>{renderMaybeComponent(Separator)}</View>
-          )
-        ) : null}
-        {row}
-      </React.Fragment>
-    );
+    const value = renderItem({ item, index });
+    const row: PlaceholderFlatListRow = { key, value };
+    cache.set(key, { item, deps, row });
+    return row;
   });
 
   for (const cachedKey of cache.keys()) {
@@ -158,6 +160,86 @@ export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem
       cache.delete(cachedKey);
     }
   }
+
+  const extractRowKey = React.useCallback((row: PlaceholderFlatListRow) => row.key, []);
+  const renderRow = React.useCallback(
+    ({ item }: { item: PlaceholderFlatListRow }) => item.value,
+    [],
+  );
+
+  if (implementation === 'flatList') {
+    return (
+      <FlatList<PlaceholderFlatListRow>
+        style={style}
+        contentContainerStyle={contentContainerStyle}
+        data={rows}
+        inverted={inverted}
+        maintainVisibleContentPosition={maintainVisibleContentPosition}
+        scrollEventThrottle={scrollEventThrottle}
+        onLayout={onLayout}
+        onContentSizeChange={onContentSizeChange}
+        onScroll={onScroll}
+        keyExtractor={extractRowKey}
+        extraData={extraData}
+        renderItem={renderRow}
+        ListHeaderComponent={ListHeaderComponent}
+        ListFooterComponent={ListFooterComponent}
+        ListEmptyComponent={ListEmptyComponent}
+        ItemSeparatorComponent={normalizedSeparatorComponent}
+      />
+    );
+  }
+
+  if (implementation === 'virtualizedScroll') {
+    return (
+      <VirtualizedList<PlaceholderFlatListRow>
+        style={style}
+        contentContainerStyle={contentContainerStyle}
+        data={rows}
+        inverted={inverted}
+        maintainVisibleContentPosition={maintainVisibleContentPosition}
+        scrollEventThrottle={scrollEventThrottle}
+        onLayout={onLayout}
+        onContentSizeChange={onContentSizeChange}
+        onScroll={onScroll}
+        keyExtractor={extractRowKey}
+        extraData={extraData}
+        renderItem={renderRow}
+        getItemCount={(items) => items.length}
+        getItem={(items, index) => items[index]}
+        ListHeaderComponent={ListHeaderComponent}
+        ListFooterComponent={ListFooterComponent}
+        ListEmptyComponent={ListEmptyComponent}
+        ItemSeparatorComponent={normalizedSeparatorComponent}
+      />
+    );
+  }
+
+  const header = renderMaybeComponent(ListHeaderComponent);
+  const footer = renderMaybeComponent(ListFooterComponent);
+
+  const empty = data.length === 0 ? renderMaybeComponent(ListEmptyComponent) : null;
+
+  const Separator = ItemSeparatorComponent;
+
+  const scrollRows = rows.map((row, index) => {
+    if (!row.value) {
+      return null;
+    }
+
+    return (
+      <React.Fragment key={row.key}>
+        {index > 0 && Separator ? (
+          React.isValidElement(Separator) ? (
+            Separator
+          ) : (
+            <View>{renderMaybeComponent(Separator)}</View>
+          )
+        ) : null}
+        {row.value}
+      </React.Fragment>
+    );
+  });
 
   return (
     <ScrollView
@@ -170,7 +252,7 @@ export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem
     >
       {header}
       {empty}
-      {rows}
+      {scrollRows}
       {footer}
     </ScrollView>
   );
