@@ -36,15 +36,18 @@ import type { TabStripStyle } from '../tabs/tabStripStyle';
 import { asyncStorageKeyValueStore } from '../storage/asyncStorageKeyValueStore';
 import { PlaceholderFlatList } from '../ui/PlaceholderFlatList';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
+import { openDesktopPopover } from '../windows/desktopPopoverCoordinator';
+import { MessageLimitPopoverContent } from '../windows/MessageLimitPopoverContent';
 import { setActiveSessionSettingsWindow } from '../windows/sessionSettingsCoordinator';
-import { setActiveMessageLimitPopover } from '../windows/messageLimitPopoverCoordinator';
 import { MacTextView, type MacTextViewHandle } from '../native/MacTextView';
+import { AppendAsPopoverContent, type AppendAsRole } from './AppendAsPopoverContent';
 import DesktopMessageBubble from './DesktopMessageBubble';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 import { PinnedMessageActionsProvider } from './PinnedMessageActionsContext';
 
 const DEFAULT_HISTORY_WINDOW = 50;
 const PINNED_SESSION_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_session_actions_v1';
+const PINNED_COMPOSER_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_composer_actions_v1';
 const PINNED_MESSAGE_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_message_actions_by_role_v1';
 const LEGACY_PINNED_MESSAGE_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_message_actions_v1';
 
@@ -57,6 +60,8 @@ const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]>
 
 type ChatSessionActionKey = 'reload' | 'cancel' | 'agentSwitch' | 'messageLimit' | 'settings';
 
+type ChatComposerActionKey = 'append' | 'appendAs' | 'resend';
+
 const BUILTIN_SESSION_ACTIONS: ActionDefinition[] = [
   { key: 'reload', label: 'Reload', iconName: 'refresh-ccw' },
   { key: 'cancel', label: 'Cancel', iconName: 'x-circle' },
@@ -65,7 +70,14 @@ const BUILTIN_SESSION_ACTIONS: ActionDefinition[] = [
   { key: 'settings', label: 'Settings…', iconName: 'settings' },
 ];
 
+const BUILTIN_COMPOSER_ACTIONS: ActionDefinition[] = [
+  { key: 'append', label: 'Append', iconName: 'plus-circle' },
+  { key: 'appendAs', label: 'Append as…', iconName: 'layers' },
+  { key: 'resend', label: 'Resend', iconName: 'repeat' },
+];
+
 const DEFAULT_PINNED_SESSION_ACTION_KEYS: ActionKey[] = ['reload', 'cancel'];
+const DEFAULT_PINNED_COMPOSER_ACTION_KEYS: ActionKey[] = ['append', 'resend'];
 
 export interface ChatPaneProps {
 	isActive: boolean;
@@ -161,6 +173,17 @@ export const ChatPane = React.memo(function ChatPane({
       store: asyncStorageKeyValueStore,
       key: pinnedSessionActionsStorageKey,
       initialPinned: DEFAULT_PINNED_SESSION_ACTION_KEYS,
+    });
+
+  const pinnedComposerActionsStorageKey = useMemo(() => {
+    return `${PINNED_COMPOSER_ACTIONS_STORAGE_KEY_BASE}:${connectionId}`;
+  }, [connectionId]);
+
+  const { pinned: pinnedComposerActionKeys, setPinned: setPinnedComposerActionKeys } =
+    usePersistentPinnedActions<ActionKey>({
+      store: asyncStorageKeyValueStore,
+      key: pinnedComposerActionsStorageKey,
+      initialPinned: DEFAULT_PINNED_COMPOSER_ACTION_KEYS,
     });
 
   const pinnedMessageActionsStorageKey = useMemo(
@@ -404,7 +427,12 @@ export const ChatPane = React.memo(function ChatPane({
 
   const messagesCount = messages.length;
 
-	const canSend = backend != null && chatController != null && isActive && !sendInFlight;
+	const canSend =
+    backend != null &&
+    chatController != null &&
+    isActive &&
+    !sendInFlight &&
+    !chatState?.activeRequestId;
 
   const handleSend = useCallback(async (overrideText?: string) => {
     if (!canSend) {
@@ -422,6 +450,7 @@ export const ChatPane = React.memo(function ChatPane({
       setComposeText('');
       composeTextRef.current = '';
       composerRef.current?.setText('');
+      chatController.clearRequestState();
       await chatController.send();
       composerRef.current?.focus();
     } catch (err: any) {
@@ -434,6 +463,127 @@ export const ChatPane = React.memo(function ChatPane({
       setSendInFlight(false);
     }
   }, [canSend, chatController, composeText]);
+
+  const canRunComposerActions = backend != null && chatController != null && isActive;
+
+  const appendMessageForRole = useCallback(
+    async (role: AppendAsRole) => {
+      const content = (composeTextRef.current || composeText).trim();
+      if (!content) {
+        return;
+      }
+      if (!canRunComposerActions) {
+        Alert.alert('Offline', 'Connect to a server to append messages.');
+        return;
+      }
+      if (sendInFlight || chatState?.activeRequestId) {
+        return;
+      }
+
+      setSendInFlight(true);
+      try {
+        await chatController.appendMessage({ role: role as any, content });
+        composerRef.current?.focus();
+      } catch (err: any) {
+        const message = err?.message || 'Failed to append message.';
+        Alert.alert('Failed to append', message);
+      } finally {
+        setSendInFlight(false);
+      }
+    },
+    [canRunComposerActions, chatController, chatState?.activeRequestId, composeText, sendInFlight],
+  );
+
+  const handleAppend = useCallback(async () => {
+    await appendMessageForRole('user');
+  }, [appendMessageForRole]);
+
+  const openAppendAsPopover = useCallback(() => {
+    const content = (composeTextRef.current || composeText).trim();
+    if (!content) {
+      return;
+    }
+    if (!canRunComposerActions) {
+      Alert.alert('Offline', 'Connect to a server to append messages.');
+      return;
+    }
+    if (sendInFlight || chatState?.activeRequestId) {
+      return;
+    }
+
+    if (Platform.OS !== 'macos') {
+      Alert.alert('Append as', 'Choose a role for the appended message.', [
+        { text: 'System', onPress: () => appendMessageForRole('system') },
+        { text: 'Developer', onPress: () => appendMessageForRole('developer') },
+        { text: 'User', onPress: () => appendMessageForRole('user') },
+        { text: 'Assistant', onPress: () => appendMessageForRole('assistant') },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+      return;
+    }
+
+    if (!DesktopWindowManager?.openMessageLimitPopover) {
+      Alert.alert('Not supported', 'Append-as popover is not available.');
+      return;
+    }
+
+    const id = `append-as:${connectionId}:${sessionId}`;
+    openDesktopPopover({
+      id,
+      title: 'Append as',
+      anchorTag: getLastActionsPopoverAnchorTag() ?? undefined,
+      width: 360,
+      height: 220,
+      content: (
+        <AppendAsPopoverContent
+          popoverId={id}
+          onSelectRole={(role) => {
+            appendMessageForRole(role).catch(() => {});
+          }}
+        />
+      ),
+    });
+  }, [appendMessageForRole, canRunComposerActions, chatState?.activeRequestId, composeText, connectionId, sendInFlight, sessionId]);
+
+  const handleResend = useCallback(async () => {
+    if (!canRunComposerActions) {
+      Alert.alert('Offline', 'Connect to a server to resend.');
+      return;
+    }
+    if (sendInFlight || chatState?.activeRequestId) {
+      return;
+    }
+
+    setSendInFlight(true);
+    try {
+      chatController.clearRequestState();
+      await chatController.send();
+      composerRef.current?.focus();
+    } catch (err: any) {
+      const message = err?.message || 'Failed to resend request.';
+      Alert.alert('Failed to resend', message);
+    } finally {
+      setSendInFlight(false);
+    }
+  }, [canRunComposerActions, chatController, chatState?.activeRequestId, sendInFlight]);
+
+  const handleComposerAction = useCallback(
+    (key: ActionKey) => {
+      const action = key as ChatComposerActionKey;
+      if (action === 'append') {
+        handleAppend().catch(() => {});
+        return;
+      }
+      if (action === 'appendAs') {
+        openAppendAsPopover();
+        return;
+      }
+      if (action === 'resend') {
+        handleResend().catch(() => {});
+      }
+    },
+    [handleAppend, handleResend, openAppendAsPopover],
+  );
 
 	const canRunHeaderActions = backend != null && chatController != null && isActive;
 
@@ -504,28 +654,24 @@ export const ChatPane = React.memo(function ChatPane({
     }
 
     const id = `message-limit:${connectionId}:${sessionId}`;
-    setActiveMessageLimitPopover({
-      state: {
-        id,
-        connectionId,
-        sessionId,
-        startText: rangeStartText,
-        endText: rangeEndText,
-        lastReloadAtMs: lastReloadAt?.getTime() ?? null,
-      },
-      handlers: {
-        onApply: (params) => {
-          applyMessageLimitAndReload(params).catch(() => {});
-        },
-        onCancel: () => {},
-      },
-    });
-
-    const anchorTag = getLastActionsPopoverAnchorTag() ?? undefined;
-    DesktopWindowManager.openMessageLimitPopover({
-      anchorTag,
+    openDesktopPopover({
+      id,
+      title: 'Message range',
+      anchorTag: getLastActionsPopoverAnchorTag() ?? undefined,
       width: 420,
       height: 260,
+      content: (
+        <MessageLimitPopoverContent
+          popoverId={id}
+          startText={rangeStartText}
+          endText={rangeEndText}
+          lastReloadAtMs={lastReloadAt?.getTime() ?? null}
+          onCancel={() => {}}
+          onApply={(params) => {
+            applyMessageLimitAndReload(params).catch(() => {});
+          }}
+        />
+      ),
     });
   }, [applyMessageLimitAndReload, connectionId, lastReloadAt, rangeEndText, rangeStartText, sessionId]);
 
@@ -956,52 +1102,82 @@ export const ChatPane = React.memo(function ChatPane({
 	          />
 	        </PinnedMessageActionsProvider>
 
-        <View style={styles.composerRow}>
-          <View
-            style={[
-              styles.composerInputFrame,
-              { height: composerHeight },
-              !backend && styles.composerInputDisabled,
-            ]}
-          >
-            <MacTextView
-              ref={composerRef}
-              style={styles.composerInput}
-              placeholder={backend ? 'Type a message…' : 'Offline (read-only)'}
-              placeholderTextColor={theme.textMuted}
-              textColor={theme.text}
-              fontSize={13}
-              editable={backend != null && !sendInFlight}
-              autoGrow
-              minHeight={34}
-              maxHeight={120}
-              onHeightChange={handleComposerHeightChange}
-              onChangeText={(text) => {
-                composeTextRef.current = text;
-                setComposeText(text);
-              }}
-              onSubmit={(text) => {
-                handleSend(text).catch(() => {
+        <View style={styles.composerArea}>
+          <View style={styles.composerHeaderRow}>
+            <View style={styles.composerHeaderLeft} />
+            <View style={styles.composerHeaderRight}>
+              <ActionsMenuBar<ActionDefinition>
+                title="Composer actions"
+                variant="dropdown"
+                isActive={isActive}
+                renderIcon={({ name, size, color }) => <Icon name={name} size={size} color={color} />}
+                baseActions={BUILTIN_COMPOSER_ACTIONS}
+                pinned={pinnedComposerActionKeys}
+                onChangePinned={(next) => setPinnedComposerActionKeys(next)}
+                onAction={handleComposerAction}
+                isActionDisabled={(key) => {
+                  if (!canRunComposerActions) {
+                    return true;
+                  }
+                  if (sendInFlight || chatState?.activeRequestId) {
+                    return true;
+                  }
+                  if (key === 'append' || key === 'appendAs') {
+                    return !composeText.trim();
+                  }
+                  return false;
+                }}
+              />
+            </View>
+          </View>
+
+          <View style={styles.composerRow}>
+            <View
+              style={[
+                styles.composerInputFrame,
+                { height: composerHeight },
+                !backend && styles.composerInputDisabled,
+              ]}
+            >
+              <MacTextView
+                ref={composerRef}
+                style={styles.composerInput}
+                placeholder={backend ? 'Type a message…' : 'Offline (read-only)'}
+                placeholderTextColor={theme.textMuted}
+                textColor={theme.text}
+                fontSize={13}
+                editable={backend != null && !sendInFlight}
+                autoGrow
+                minHeight={34}
+                maxHeight={120}
+                onHeightChange={handleComposerHeightChange}
+                onChangeText={(text) => {
+                  composeTextRef.current = text;
+                  setComposeText(text);
+                }}
+                onSubmit={(text) => {
+                  handleSend(text).catch(() => {
+                    // errors are handled in `handleSend`
+                  });
+                }}
+              />
+            </View>
+            <Pressable
+              style={({ pressed }) => [
+                styles.sendButton,
+                (!canSend || !composeText.trim()) && styles.sendButtonDisabled,
+                pressed && canSend && composeText.trim() && styles.sendButtonPressed,
+              ]}
+              disabled={!canSend || !composeText.trim()}
+              onPress={() => {
+                handleSend(composeTextRef.current).catch(() => {
                   // errors are handled in `handleSend`
                 });
               }}
-            />
+            >
+              <Text style={styles.sendButtonText}>{sendInFlight ? '…' : 'Send'}</Text>
+            </Pressable>
           </View>
-          <Pressable
-            style={({ pressed }) => [
-              styles.sendButton,
-              (!canSend || !composeText.trim()) && styles.sendButtonDisabled,
-              pressed && canSend && composeText.trim() && styles.sendButtonPressed,
-            ]}
-            disabled={!canSend || !composeText.trim()}
-            onPress={() => {
-              handleSend(composeTextRef.current).catch(() => {
-                // errors are handled in `handleSend`
-              });
-            }}
-          >
-            <Text style={styles.sendButtonText}>{sendInFlight ? '…' : 'Send'}</Text>
-          </Pressable>
         </View>
       </View>
 
@@ -1283,13 +1459,27 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
     transcriptContent: {
       paddingBottom: 12,
     },
-    composerRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-end',
+    composerArea: {
       gap: 8,
       paddingTop: 10,
       borderTopWidth: separatorWidth,
       borderTopColor: theme.border,
+    },
+    composerHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    composerHeaderLeft: {
+      flex: 1,
+    },
+    composerHeaderRight: {
+      paddingTop: Platform.OS === 'macos' ? 2 : 0,
+    },
+    composerRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      gap: 8,
     },
     composerInputFrame: {
       flex: 1,
