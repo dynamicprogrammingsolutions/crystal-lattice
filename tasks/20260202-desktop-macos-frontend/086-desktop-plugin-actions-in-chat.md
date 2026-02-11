@@ -15,14 +15,43 @@ Depends On:
 
 ## Status
 
-- [ ] Not started
+- [x] Investigation complete; plan ready (2026-02-11)
+- [ ] Implementation not started
+
+## Investigation Notes (current state)
+
+- Desktop sessions list already supports plugin actions + dialog UI:
+  - Provider wrapper: `desktop/crystal-lattice-control-desktop-rn/src/panels/SessionsPanel.tsx:83`
+  - Action wiring (`usePluginActionDialog` + `runApplicationAction`): `desktop/crystal-lattice-control-desktop-rn/src/panels/SessionsPanel.tsx:250`
+  - Dialog surfaces:
+    - macOS window/popover via coordinator + `DesktopWindowManager`: `desktop/crystal-lattice-control-desktop-rn/src/panels/SessionsPanel.tsx:333`
+    - non-macOS fallback modal `<ApplicationActionDialog />`: `desktop/crystal-lattice-control-desktop-rn/src/panels/SessionsPanel.tsx:816`
+- Desktop chat already has:
+  - Header `ActionsMenuBar` for built-in session actions: `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx:988`
+  - Message actions UI with support for `extraActions` (but not yet wired):
+    - `desktop/crystal-lattice-control-desktop-rn/src/chat/MessageActionsBar.tsx:1`
+    - `desktop/crystal-lattice-control-desktop-rn/src/chat/DesktopMessageBubble.tsx:1`
+- Chat tabs are mounted without `ApplicationPluginsProvider`, so `useApplicationPlugins()` is currently unavailable in chat:
+  - `desktop/crystal-lattice-control-desktop-rn/src/tabs/ChatPaneTabStack.tsx:47`
+- macOS dialog presentation uses a singleton coordinator (`applicationActionDialogCoordinator`). Reusing it from both
+  sessions pane + chat pane requires scoped/owner-aware coordination to avoid one pane accidentally clearing the
+  other pane’s active dialog.
 
 ## Context to read first (files + line numbers)
 
-- Plugins registry provider + hooks (read 1–80): `packages/frontend-sdk-react/src/applicationPlugins.tsx:1`
-- SDK action runner + effects contract (read 17–120): `packages/frontend-sdk/src/plugins/actionRunner.ts:17`
-- Desktop sessions pane plugin action wiring (reference; read 237–299): `desktop/crystal-lattice-control-desktop-rn/src/panels/SessionsPanel.tsx:237`
-- Desktop macOS application action dialog coordinator (reference; read 320–387): `desktop/crystal-lattice-control-desktop-rn/src/panels/SessionsPanel.tsx:320`
+- Plugins registry provider + hooks: `packages/frontend-sdk-react/src/applicationPlugins.tsx:1`
+- SDK action runner + effects contract: `packages/frontend-sdk/src/plugins/actionRunner.ts:12`
+- Sessions pane (reference implementation):
+  - Plugin actions wiring: `desktop/crystal-lattice-control-desktop-rn/src/panels/SessionsPanel.tsx:250`
+  - macOS dialog window/popover integration: `desktop/crystal-lattice-control-desktop-rn/src/panels/SessionsPanel.tsx:333`
+  - non-macOS `<ApplicationActionDialog />` rendering: `desktop/crystal-lattice-control-desktop-rn/src/panels/SessionsPanel.tsx:816`
+- Chat pane (target):
+  - Header actions bar: `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx:988`
+  - Message actions handler: `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx:886`
+- Tab mounting (where to add provider wrapper): `desktop/crystal-lattice-control-desktop-rn/src/tabs/ChatPaneTabStack.tsx:47`
+- Tab navigation entrypoint (needed for `navigateToSession`): `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx:131`
+- macOS dialog singleton state: `desktop/crystal-lattice-control-desktop-rn/src/windows/applicationActionDialogCoordinator.ts:1`
+- macOS dialog UI host (renders the same dialog layout): `desktop/crystal-lattice-control-desktop-rn/src/windows/ApplicationActionDialogWindow.tsx:1`
 
 ## Requirements
 
@@ -35,35 +64,99 @@ Depends On:
 
 ## Deliverables
 
-### 1) Ensure chat pane is inside an `ApplicationPluginsProvider`
+Goal: make chat plugin actions behave identically to SessionsPanel session-list actions:
 
-- For each tab, wrap the chat pane subtree with:
-  - `<ApplicationPluginsProvider backend={backend} connectionId={connectionId}>...`.
+- Same action discovery: `useApplicationPlugins()` (`sessionActions`, `messageActions`, `actionsById`).
+- Same action execution: `runApplicationAction(...)`.
+- Same dialog rendering:
+  - non-macOS: `<ApplicationActionDialog />`
+  - macOS: `DesktopWindowManager` window/popover + `applicationActionDialogCoordinator` + `ApplicationActionDialogWindow`.
 
-### 2) Session-level plugin actions
+### 1) Ensure each chat tab is inside `ApplicationPluginsProvider`
 
-- Add plugin session actions as *additional* actions in the existing chat header session actions UI introduced in `081`.
-- The built-in actions bar (reload/cancel/agent switch) should remain the base set; plugin actions are appended as `extraActions`.
-- Use `useApplicationPlugins()` to get `actionsById` + `sessionActions`.
+- Update `desktop/crystal-lattice-control-desktop-rn/src/tabs/ChatPaneTabStack.tsx`:
+  - Wrap the `ChatPane` subtree per tab frame:
+    - `<ApplicationPluginsProvider backend={backend} connectionId={connectionId}>...`.
+  - This matches the SessionsPanel provider pattern and guarantees plugin actions are scoped per connection.
 
-### 3) Message-level plugin actions
+### 2) Plumb tab navigation so action effects can open/focus sessions
 
-- Add plugin message actions to `MessageActionsBar` as `extraActions`.
-- When invoked, open a plugin action dialog for the selected message context.
+- Add a callback prop so ChatPane can respond to `navigateToSession` effects.
+- Update call chain:
+  - `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx`:
+    - Pass `openTab` into `ChatPaneTabStack` as `onOpenSessionTab`.
+  - `desktop/crystal-lattice-control-desktop-rn/src/tabs/ChatPaneTabStack.tsx`:
+    - Add `onOpenSessionTab` prop and forward into each `ChatPane`.
+  - `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx`:
+    - Add `onOpenSessionTab` prop and use it when handling effects.
 
-### 4) Dialog + macOS surface integration
+### 3) Session-level plugin actions (chat header)
 
-- Reuse `usePluginActionDialog` from `@crystal-lattice/frontend-sdk-react`.
-- Reuse the desktop macOS approach used in the sessions pane:
-  - On macOS, open a dedicated window/popover via `DesktopWindowManager` and coordinate via a singleton coordinator.
-  - On non-macOS, fall back to the shared `ApplicationActionDialog` component.
+- In `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx`:
+  - Call `useApplicationPlugins()` and derive `pluginSessionActionDefs: ActionDefinition[]` from `sessionActions`.
+  - Append plugin actions in the existing header `ActionsMenuBar` using `extraActions={pluginSessionActionDefs}`.
+  - Extend `handleSessionAction`:
+    - Keep built-in actions as the base behavior.
+    - If the key matches a plugin session action element id, call `openPluginDialogForElement(...)`.
 
-If chat pane needs to duplicate coordinator boilerplate:
+### 4) Message-level plugin actions (message actions menu)
 
-- Extract a small desktop-only helper module so sessions pane + chat pane share the same window/popover integration.
+- In `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx`:
+  - Derive `pluginMessageActionDefs` from `messageActions` (same mapping as mobile).
+  - Pass `pluginActionDefs={pluginMessageActionDefs}` into `DesktopMessageBubble` so the existing
+    `MessageActionsBar` receives them as `extraActions`.
+  - Extend `handleMessageAction`:
+    - Keep built-in message actions as the base behavior.
+    - If the key matches a plugin message action element id, call `openPluginDialogForElement(...)` with
+      `{ kind: 'message', index, message, sessionSummary }` context.
+
+### 5) Run actions + apply effects
+
+- Use `usePluginActionDialog` + `runApplicationAction` in `ChatPane` (mirror SessionsPanel + mobile semantics).
+- Context mapping:
+  - Session action: `context: { sessionId, sessionSummary, dialogValues }`
+  - Message action: `context: { sessionId, sessionSummary, messageContext: { index, message }, dialogValues }`
+- Effects handling (required):
+  - `navigateToSession`: call `onOpenSessionTab({ connectionId, sessionId: effect.sessionId, title: effect.sessionId })`.
+  - `reloadSession`: call the existing `handleReload()` for the active tab (reloads chat controller).
+  - `reloadSessionsList`: `desktopEventBus.publish('sessionsReloadRequested', { connectionId, reason: ... })`.
+
+### 6) Dialog UI + macOS surface integration (reuse SessionsPanel rendering)
+
+- non-macOS:
+  - Render `<ApplicationActionDialog />` in `ChatPane` the same way SessionsPanel does.
+  - Prefill context:
+    - Session action: `{ session: sessionSummary }`
+    - Message action: `{ session: sessionSummary, message: { index, ...message } }`
+
+- macOS:
+  - Reuse the existing dialog window/popover rendering stack:
+    - `applicationActionDialogCoordinator` + `ApplicationActionDialogWindow` + `DesktopWindowManager`.
+  - Minimal “advanced coordination” required (singleton safety):
+    - Extract a small desktop-only helper (hook/module) used by *both* SessionsPanel and ChatPane so the singleton
+      dialog state is owner-scoped.
+    - The helper will:
+      - Generate a scoped dialog id (e.g. `sessions:<id>` vs `chat:<id>`).
+      - Only clear/close the active dialog if the active coordinator id matches the scoped id.
+      - Centralize the popover/window open + sizing logic currently embedded in SessionsPanel.
+      - Subscribe to the native cancel event (`applicationActionDialogCancelled`) and route cancel to the currently
+        active dialog handlers.
+  - UX stays identical; this is strictly to prevent cross-talk/leaks once multiple panes can open dialogs.
+
+### 7) SessionSummary availability (best-effort)
+
+- Mobile passes a full `SessionSummary` into plugin action context; desktop chat currently has only `sessionId`.
+- Plan:
+  - Thread an optional `sessionSummary` into `ChatPane` by looking up the session in `DesktopRoot`’s sessions cache
+    (best effort; can be `null` when unavailable/offline).
+  - Fall back to `sessionId`-only context when summary is missing.
 
 ## Verification
 
-- Run a plugin session action that mutates sessions; confirm sessions list refresh triggers.
+- Open an online session tab; confirm plugin session actions appear in chat header.
+- Run a plugin session action that mutates sessions; confirm SessionsPanel refreshes via
+  `desktopEventBus.sessionsReloadRequested`.
 - Run a plugin message action; confirm dialog opens with prefilled message context.
-- Confirm macOS window/popover closes on cancel/submit and doesn’t leak state.
+- Confirm `navigateToSession` opens/focuses the target tab.
+- Confirm `reloadSession` reloads the active tab’s chat controller.
+- On macOS, confirm the window/popover closes on cancel/submit and doesn’t leak state between SessionsPanel and ChatPane.
