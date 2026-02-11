@@ -428,7 +428,18 @@ function SessionSettingsWindowInner(): React.JSX.Element {
               style={styles.macSelect}
               options={options}
               selectedValue={selectedValue}
-              onValueChange={(value) => actions.selectOption(item.key, value)}
+              placeholder="None"
+              onValueChange={(value) => {
+                // Treat the placeholder/empty value as "no selection".
+                // If an override exists, clear it; otherwise leave state as-is.
+                if (!value) {
+                  if (item.hasOverride) {
+                    actions.revertToDefault(item.key);
+                  }
+                  return;
+                }
+                actions.selectOption(item.key, value);
+              }}
             />
           </View>
         );
