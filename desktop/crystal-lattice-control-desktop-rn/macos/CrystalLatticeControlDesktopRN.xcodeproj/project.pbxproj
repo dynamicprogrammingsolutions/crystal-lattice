@@ -425,7 +425,7 @@
 				DEVELOPMENT_TEAM = PQYLP4RSG8;
 				INFOPLIST_FILE = "CrystalLatticeControlDesktopRN-macos/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MACOSX_DEPLOYMENT_TARGET = 11.5;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -450,7 +450,7 @@
 				DEVELOPMENT_TEAM = PQYLP4RSG8;
 				INFOPLIST_FILE = "CrystalLatticeControlDesktopRN-macos/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MACOSX_DEPLOYMENT_TARGET = 11.5;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",

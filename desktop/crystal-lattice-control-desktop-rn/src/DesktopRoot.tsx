@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { useTheme } from '@crystal-lattice/frontend-rn-components';
@@ -24,6 +24,11 @@ import {
   parseTabStripStyle,
   type TabStripStyle,
 } from './tabs/tabStripStyle';
+import {
+  parsePersistedOpenTabsState,
+  serializePersistedOpenTabsState,
+  STORAGE_KEY_OPEN_TABS,
+} from './tabs/openTabsStorage';
 
 const EMPTY_CACHED_SESSIONS: SessionSummary[] = [];
 
@@ -106,7 +111,17 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   console.log(`Active tab ID: ${activeTabId}`);
 
+  const activeTabIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    activeTabIdRef.current = activeTabId;
+  }, [activeTabId]);
+
+  const [tabsHydrated, setTabsHydrated] = useState(false);
+
   const [didAutoOpenMostRecent, setDidAutoOpenMostRecent] = useState(false);
+
+  const lastValidatedOpenedAtByConnectionRef = useRef<Record<string, number>>({});
+  const validatingConnectionIdsRef = useRef<Set<string>>(new Set());
 
   const openTab = useCallback(
     ({
@@ -189,18 +204,100 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
   const closeTab = useCallback(
     (tabId: string) => {
       setTabs((prev) => {
-        const result = removeTabAndSelectNext(prev, tabId, activeTabId);
+        const result = removeTabAndSelectNext(prev, tabId, activeTabIdRef.current);
         setActiveTabId(result.nextActiveTabId);
         return result.tabs;
       });
     },
-    [activeTabId],
+    [],
   );
 
   const focusTab = useCallback((tabId: string) => {
     console.log(`Focusing tab ${tabId}`);
     setActiveTabId(tabId);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const hydrateTabs = async () => {
+      try {
+        const raw = await asyncStorageKeyValueStore.get(STORAGE_KEY_OPEN_TABS);
+        const parsed = parsePersistedOpenTabsState(raw);
+        if (!parsed || cancelled) {
+          return;
+        }
+
+        setTabs((prevTabs) => {
+          if (prevTabs.length > 0) {
+            return prevTabs;
+          }
+
+          const restoredTabs: DesktopSessionTab[] = parsed.tabs.map((tab) => {
+            const tabId = buildTabId(tab.connectionId, tab.sessionId);
+            return {
+              tabId,
+              connectionId: tab.connectionId,
+              sessionId: tab.sessionId,
+              title: tab.title,
+              subtitle: tab.subtitle ?? null,
+            };
+          });
+
+          const restoredActive =
+            parsed.activeTabId && restoredTabs.some((tab) => tab.tabId === parsed.activeTabId)
+              ? parsed.activeTabId
+              : restoredTabs[0]?.tabId ?? null;
+
+          setActiveTabId(restoredActive);
+
+          const focusedConnection = restoredActive
+            ? restoredTabs.find((tab) => tab.tabId === restoredActive)?.connectionId
+            : restoredTabs[0]?.connectionId;
+          if (focusedConnection) {
+            setFocusedConnectionId(focusedConnection);
+          }
+
+          return restoredTabs;
+        });
+      } finally {
+        if (!cancelled) {
+          setTabsHydrated(true);
+        }
+      }
+    };
+
+    hydrateTabs();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!tabsHydrated) {
+      return;
+    }
+
+    const save = async () => {
+      try {
+        await asyncStorageKeyValueStore.set(
+          STORAGE_KEY_OPEN_TABS,
+          serializePersistedOpenTabsState({
+            activeTabId,
+            tabs: tabs.map((tab) => ({
+              connectionId: tab.connectionId,
+              sessionId: tab.sessionId,
+              title: tab.title,
+              subtitle: tab.subtitle ?? null,
+            })),
+          }),
+        );
+      } catch {
+      }
+    };
+
+    save();
+  }, [activeTabId, tabs, tabsHydrated]);
 
   useEffect(() => {
     if (!connectionsHydrated) return;
@@ -236,6 +333,13 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
 
   useEffect(() => {
     if (!connectionsHydrated) return;
+    if (!tabsHydrated) return;
+
+    if (tabs.length > 0) {
+      // If tabs were restored, don't auto-open any connections.
+      setDidAutoOpenMostRecent(true);
+      return;
+    }
     if (didAutoOpenMostRecent) return;
     const mostRecent = sortedConnectionRecords[0];
     if (!mostRecent) {
@@ -245,7 +349,98 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
     setDidAutoOpenMostRecent(true);
     setFocusedConnectionId(mostRecent.id);
     openConnectionAndTouch(mostRecent);
-  }, [connectionsHydrated, didAutoOpenMostRecent, openConnectionAndTouch, sortedConnectionRecords]);
+  }, [
+    connectionsHydrated,
+    didAutoOpenMostRecent,
+    openConnectionAndTouch,
+    sortedConnectionRecords,
+    tabs,
+    tabsHydrated,
+  ]);
+
+  useEffect(() => {
+    if (!connectionsHydrated) return;
+    if (!tabsHydrated) return;
+
+    const validConnectionIds = new Set(sortedConnectionRecords.map((record) => record.id));
+    setTabs((prevTabs) => {
+      if (prevTabs.length === 0) {
+        return prevTabs;
+      }
+
+      const nextTabs = prevTabs.filter((tab) => validConnectionIds.has(tab.connectionId));
+      if (nextTabs.length === prevTabs.length) {
+        return prevTabs;
+      }
+
+      setActiveTabId((prevActive) => {
+        if (prevActive && nextTabs.some((tab) => tab.tabId === prevActive)) {
+          return prevActive;
+        }
+        return nextTabs[0]?.tabId ?? null;
+      });
+
+      return nextTabs;
+    });
+  }, [connectionsHydrated, sortedConnectionRecords, tabsHydrated]);
+
+  useEffect(() => {
+    if (!tabsHydrated) {
+      return;
+    }
+
+    const openConnectionIds = Object.keys(openConnectionsById);
+    if (openConnectionIds.length === 0) {
+      return;
+    }
+
+    for (const connectionId of openConnectionIds) {
+      const openState = openConnectionsById[connectionId];
+      if (!openState || openState.status !== 'open' || !openState.backend) {
+        continue;
+      }
+
+      const openedAt = typeof openState.lastOpenedAt === 'number' ? openState.lastOpenedAt : 0;
+      if (!openedAt) {
+        continue;
+      }
+
+      if (lastValidatedOpenedAtByConnectionRef.current[connectionId] === openedAt) {
+        continue;
+      }
+
+      if (validatingConnectionIdsRef.current.has(connectionId)) {
+        continue;
+      }
+
+      lastValidatedOpenedAtByConnectionRef.current[connectionId] = openedAt;
+      validatingConnectionIdsRef.current.add(connectionId);
+
+      const backend = openState.backend;
+      const tabsForConnection = tabs.filter((tab) => tab.connectionId === connectionId);
+      if (tabsForConnection.length === 0) {
+        validatingConnectionIdsRef.current.delete(connectionId);
+        continue;
+      }
+
+      (async () => {
+        try {
+          for (const tab of tabsForConnection) {
+            try {
+              await backend.getSessionAgent(tab.sessionId);
+            } catch (err: any) {
+              const message = typeof err?.message === 'string' ? err.message : '';
+              if (/\bHTTP 404\b/.test(message)) {
+                closeTab(tab.tabId);
+              }
+            }
+          }
+        } finally {
+          validatingConnectionIdsRef.current.delete(connectionId);
+        }
+      })();
+    }
+  }, [closeTab, openConnectionsById, tabs, tabsHydrated]);
 
   useEffect(() => {
     if (!desktopWindowEvents) return;
