@@ -49,7 +49,6 @@ const DEFAULT_HISTORY_WINDOW = 50;
 const PINNED_SESSION_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_session_actions_v1';
 const PINNED_COMPOSER_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_composer_actions_v1';
 const PINNED_MESSAGE_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_message_actions_by_role_v1';
-const LEGACY_PINNED_MESSAGE_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_message_actions_v1';
 
 const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]> = {
   user: ['modify', 'copy'],
@@ -221,7 +220,7 @@ export const ChatPane = React.memo(function ChatPane({
       }
     };
 
-    //loadPinnedFromStorage();
+    loadPinnedFromStorage();
     }, [connectionId, pinnedMessageActionsStorageKey]);
 
   useEffect(() => {
@@ -236,7 +235,7 @@ export const ChatPane = React.memo(function ChatPane({
         console.log('Failed to save pinned message actions', err);
       }
     };
-    //saveMessagePinned();
+    saveMessagePinned();
   }, [pinnedMessageActionsByRole, pinnedMessageActionsStorageKey]);
 
   const { controller: agentsController, state: agentsState } = useAgentsController({
