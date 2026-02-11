@@ -101,6 +101,7 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
 
   const {
     messagesCache,
+    hydrated: messagesCacheHydrated,
     updateMessagesCache,
     deleteConnectionMessagesCache,
     clearMessagesCache,
@@ -117,6 +118,10 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
   }, [activeTabId]);
 
   const [tabsHydrated, setTabsHydrated] = useState(false);
+  const hydratedTabRangesRef = useRef<
+    Array<{ connectionId: string; sessionId: string; rangeStartText?: string | null; rangeEndText?: string | null }>
+  >([]);
+  const didSeedTabRangesRef = useRef(false);
 
   const [didAutoOpenMostRecent, setDidAutoOpenMostRecent] = useState(false);
 
@@ -228,6 +233,13 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
           return;
         }
 
+        hydratedTabRangesRef.current = parsed.tabs.map((tab) => ({
+          connectionId: tab.connectionId,
+          sessionId: tab.sessionId,
+          rangeStartText: tab.rangeStartText,
+          rangeEndText: tab.rangeEndText,
+        }));
+
         setTabs((prevTabs) => {
           if (prevTabs.length > 0) {
             return prevTabs;
@@ -277,6 +289,51 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
     if (!tabsHydrated) {
       return;
     }
+    if (!messagesCacheHydrated) {
+      return;
+    }
+    if (didSeedTabRangesRef.current) {
+      return;
+    }
+
+    const ranges = hydratedTabRangesRef.current;
+    if (ranges.length === 0) {
+      didSeedTabRangesRef.current = true;
+      return;
+    }
+
+    didSeedTabRangesRef.current = true;
+    for (const range of ranges) {
+      const startText = range.rangeStartText;
+      const endText = range.rangeEndText;
+      if (startText == null && endText == null) {
+        continue;
+      }
+
+      const existing = messagesCache[range.connectionId]?.[range.sessionId];
+      const existingHasRange =
+        (typeof existing?.rangeStartText === 'string' || existing?.rangeStartText === null) &&
+        (typeof existing?.rangeEndText === 'string' || existing?.rangeEndText === null);
+      if (existing && existingHasRange) {
+        continue;
+      }
+
+      updateMessagesCache({
+        connectionId: range.connectionId,
+        sessionId: range.sessionId,
+        messages: existing?.messages ?? [],
+        cursorEventId: existing?.cursorEventId ?? null,
+        activeRequestId: existing?.activeRequestId ?? null,
+        rangeStartText: startText ?? null,
+        rangeEndText: endText ?? null,
+      });
+    }
+  }, [messagesCache, messagesCacheHydrated, tabsHydrated, updateMessagesCache]);
+
+  useEffect(() => {
+    if (!tabsHydrated) {
+      return;
+    }
 
     const save = async () => {
       try {
@@ -289,6 +346,9 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
               sessionId: tab.sessionId,
               title: tab.title,
               subtitle: tab.subtitle ?? null,
+              rangeStartText:
+                messagesCache[tab.connectionId]?.[tab.sessionId]?.rangeStartText ?? null,
+              rangeEndText: messagesCache[tab.connectionId]?.[tab.sessionId]?.rangeEndText ?? null,
             })),
           }),
         );
@@ -297,7 +357,7 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
     };
 
     save();
-  }, [activeTabId, tabs, tabsHydrated]);
+  }, [activeTabId, messagesCache, tabs, tabsHydrated]);
 
   useEffect(() => {
     if (!connectionsHydrated) return;

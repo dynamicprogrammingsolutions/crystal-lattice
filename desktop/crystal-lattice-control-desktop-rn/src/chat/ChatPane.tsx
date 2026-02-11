@@ -94,6 +94,8 @@ export interface ChatPaneProps {
     messages: IndexedMessage[];
     cursorEventId?: string | null;
     activeRequestId?: string | null;
+    rangeStartText?: string | null;
+    rangeEndText?: string | null;
   }) => void;
   styleVariant?: TabStripStyle;
 }
@@ -128,8 +130,10 @@ export const ChatPane = React.memo(function ChatPane({
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const [composeText, setComposeText] = useState('');
-  const [rangeStartText, setRangeStartText] = useState('');
-  const [rangeEndText, setRangeEndText] = useState('');
+  const [rangeStartText, setRangeStartText] = useState(
+    cachedEntry?.rangeStartText ?? `-${DEFAULT_HISTORY_WINDOW}`,
+  );
+  const [rangeEndText, setRangeEndText] = useState(cachedEntry?.rangeEndText ?? '');
   const [lastReloadAt, setLastReloadAt] = useState<Date | null>(null);
   const [messageLimitVisible, setMessageLimitVisible] = useState(false);
   const [sendInFlight, setSendInFlight] = useState(false);
@@ -340,8 +344,17 @@ export const ChatPane = React.memo(function ChatPane({
       messages: snapshot.messages,
       cursorEventId: snapshot.eventsCursorId,
       activeRequestId: snapshot.activeRequestId,
+      rangeStartText,
+      rangeEndText,
     });
-  }, [chatController, connectionId, onUpdateCache, sessionId]);
+  }, [
+    chatController,
+    connectionId,
+    onUpdateCache,
+    rangeEndText,
+    rangeStartText,
+    sessionId,
+  ]);
 
   useEffect(() => {
     if (!chatController) {
@@ -358,6 +371,8 @@ export const ChatPane = React.memo(function ChatPane({
       lastIndex,
       snapshot.eventsCursorId ?? '',
       snapshot.activeRequestId ?? '',
+      rangeStartText,
+      rangeEndText,
     ].join('|');
 
     if (nextKey === lastPersistKeyRef.current) {
@@ -379,6 +394,8 @@ export const ChatPane = React.memo(function ChatPane({
     chatState?.eventsCursorId,
     chatState?.messages,
     persistCacheSnapshot,
+    rangeEndText,
+    rangeStartText,
   ]);
 
   useEffect(() => {

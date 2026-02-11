@@ -16,6 +16,8 @@ export interface MessagesCacheEntry {
   lastLoadedAt: number | null;
   cursorEventId?: string | null;
   activeRequestId?: string | null;
+  rangeStartText?: string | null;
+  rangeEndText?: string | null;
   composeText?: string;
   scrollAnchor?: any;
 }

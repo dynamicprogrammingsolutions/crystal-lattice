@@ -5,6 +5,8 @@ export type PersistedOpenTab = {
   sessionId: string;
   title: string;
   subtitle?: string | null;
+  rangeStartText?: string | null;
+  rangeEndText?: string | null;
 };
 
 export type PersistedOpenTabsStateV1 = {
@@ -29,12 +31,22 @@ function parsePersistedOpenTab(value: unknown): PersistedOpenTab | null {
   const title = typeof record.title === 'string' && record.title ? record.title : record.sessionId;
   const subtitle =
     record.subtitle === null || typeof record.subtitle === 'string' ? (record.subtitle as any) : null;
+  const rangeStartText =
+    record.rangeStartText === null || typeof record.rangeStartText === 'string'
+      ? (record.rangeStartText as any)
+      : null;
+  const rangeEndText =
+    record.rangeEndText === null || typeof record.rangeEndText === 'string'
+      ? (record.rangeEndText as any)
+      : null;
 
   return {
     connectionId: record.connectionId,
     sessionId: record.sessionId,
     title,
     subtitle,
+    rangeStartText,
+    rangeEndText,
   };
 }
 
