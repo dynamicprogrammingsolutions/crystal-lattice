@@ -144,6 +144,10 @@ function SessionsPanelInner({
   const [filterText, setFilterText] = useState('');
   const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const scrollViewRef = useRef<ScrollView | null>(null);
+  const rowLayoutsRef = useRef<Record<string, { y: number; height: number }>>({});
+  const scrollOffsetRef = useRef(0);
+  const viewportHeightRef = useRef<number | null>(null);
 
   useEffect(() => {
     setSelectedSessionId(null);
@@ -443,6 +447,65 @@ function SessionsPanelInner({
     });
   }, [fieldGroups, filterText, sessions]);
 
+  const ensureSessionVisible = useCallback((sessionId: string): boolean => {
+    const layout = rowLayoutsRef.current[sessionId];
+    if (!layout) {
+      return false;
+    }
+
+    const viewportHeight = viewportHeightRef.current;
+    if (typeof viewportHeight !== 'number' || viewportHeight <= 0) {
+      return false;
+    }
+
+    const rowTop = layout.y;
+    const rowBottom = layout.y + layout.height;
+    const visibleTop = scrollOffsetRef.current;
+    const visibleBottom = visibleTop + viewportHeight;
+
+    const fullyVisible = rowTop >= visibleTop && rowBottom <= visibleBottom;
+    if (fullyVisible) {
+      return true;
+    }
+
+    let targetOffset = visibleTop;
+    if (rowTop < visibleTop) {
+      targetOffset = rowTop;
+    } else if (rowBottom > visibleBottom) {
+      targetOffset = rowBottom - viewportHeight;
+    }
+
+    const clamped = Math.max(0, targetOffset);
+    scrollOffsetRef.current = clamped;
+    scrollViewRef.current?.scrollTo({ y: clamped, animated: true });
+    return true;
+  }, []);
+
+  useEffect(() => {
+    if (!connectionId) {
+      return;
+    }
+    if (!selectedSessionId) {
+      return;
+    }
+
+    const isVisible = filteredSessions.some((session) => session.session_id === selectedSessionId);
+    if (!isVisible) {
+      return;
+    }
+
+    if (ensureSessionVisible(selectedSessionId)) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      ensureSessionVisible(selectedSessionId);
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [connectionId, ensureSessionVisible, filteredSessions, selectedSessionId]);
+
   useEffect(() => {
     if (!connectionId) {
       return;
@@ -520,12 +583,13 @@ function SessionsPanelInner({
       lastClickRef.current = { sessionId: session.session_id, atMs: now };
 
       setSelectedSessionId(session.session_id);
+      ensureSessionVisible(session.session_id);
 
       if (prev && prev.sessionId === session.session_id && now - prev.atMs <= SESSION_DOUBLE_CLICK_MS) {
         openSession(session);
       }
     },
-    [openSession],
+    [ensureSessionVisible, openSession],
   );
 
   return (
@@ -584,6 +648,14 @@ function SessionsPanelInner({
         </View>
       ) : (
         <ScrollView
+          ref={scrollViewRef}
+          onLayout={(event) => {
+            viewportHeightRef.current = event.nativeEvent.layout.height;
+          }}
+          onScroll={(event) => {
+            scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+          }}
+          scrollEventThrottle={16}
           style={styles.list}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator
@@ -620,6 +692,12 @@ function SessionsPanelInner({
                     selected && styles.rowSelected,
                     pressedOrHovered && styles.rowHovered,
                   ];
+                }}
+                onLayout={(event) => {
+                  rowLayoutsRef.current[session.session_id] = {
+                    y: event.nativeEvent.layout.y,
+                    height: event.nativeEvent.layout.height,
+                  };
                 }}
                 onPress={() => handleRowPress(session)}
                 onHoverIn={() => setHoveredSessionId(session.session_id)}
