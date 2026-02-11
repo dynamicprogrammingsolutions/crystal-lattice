@@ -18,6 +18,12 @@ type OnChangeEvent = NativeSyntheticEvent<{ value: string }>;
 export interface MacSelectProps extends ViewProps {
   options: MacSelectOption[];
   selectedValue: string;
+  /**
+   * Optional placeholder shown when `selectedValue` is empty.
+   *
+   * On macOS, this is rendered as a disabled first menu item.
+   */
+  placeholder?: string;
   enabled?: boolean;
   onValueChange?: (value: string) => void;
 }
@@ -32,9 +38,12 @@ const NativeMacSelect =
 export function MacSelect({ onValueChange, ...props }: MacSelectProps): React.JSX.Element {
   if (!NativeMacSelect) {
     const selected = props.options.find((opt) => opt.value === props.selectedValue);
+    const label =
+      selected?.label ??
+      (props.selectedValue ? props.selectedValue : props.placeholder ? props.placeholder : '');
     return (
       <View style={props.style}>
-        <Text>{selected?.label ?? props.selectedValue}</Text>
+        <Text>{label}</Text>
       </View>
     );
   }
