@@ -2,8 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
+import type { SessionSummary } from '@crystal-lattice/frontend-sdk';
 
-import type { MessagesCache, MessagesCacheEntry } from '../cache/types';
+import { ApplicationPluginsProvider } from '@crystal-lattice/frontend-sdk-react';
+
+import type { MessagesCache, MessagesCacheEntry, SessionsCache } from '../cache/types';
 import { ChatPane, type ChatPaneProps } from '../chat/ChatPane';
 import type { DesktopSessionTab } from './SessionTabs';
 import type { TabStripStyle } from './tabStripStyle';
@@ -25,8 +28,15 @@ export interface ChatPaneTabStackProps {
   styleVariant: TabStripStyle;
   connectionNameById: Record<string, string>;
   getBackend: (connectionId: string) => AgentBackend | null;
+  sessionsCache: SessionsCache;
   messagesCache: MessagesCache;
   onUpdateCache: ChatPaneProps['onUpdateCache'];
+  onOpenSessionTab: (params: {
+    connectionId: string;
+    sessionId: string;
+    title?: string;
+    subtitle?: string | null;
+  }) => void;
 }
 
 type TabFrameProps = {
@@ -40,8 +50,10 @@ type TabFrameProps = {
   subtitle?: string;
   styleVariant: TabStripStyle;
   backend: AgentBackend | null;
+  sessionSummary: SessionSummary | null;
   cachedEntry: MessagesCacheEntry | null;
   onUpdateCache: ChatPaneTabStackProps['onUpdateCache'];
+  onOpenSessionTab: ChatPaneTabStackProps['onOpenSessionTab'];
 };
 
 const TabFrame = React.memo(function TabFrame(props: TabFrameProps): React.JSX.Element {
@@ -51,12 +63,14 @@ const TabFrame = React.memo(function TabFrame(props: TabFrameProps): React.JSX.E
     connectionId,
     connectionName,
     sessionId,
+    sessionSummary,
     title,
     subtitle,
     styleVariant,
     backend,
     cachedEntry,
     onUpdateCache,
+    onOpenSessionTab,
   } = props;
 
   return (
@@ -64,18 +78,22 @@ const TabFrame = React.memo(function TabFrame(props: TabFrameProps): React.JSX.E
       style={[styles.frame, isVisible ? styles.visible : styles.hidden, isActive ? styles.active : styles.inactive]}
       pointerEvents={isVisible ? 'auto' : 'none'}
     >
-      <ChatPane
-        isActive={isActive}
-        connectionId={connectionId}
-        connectionName={connectionName}
-        sessionId={sessionId}
-        title={title}
-        subtitle={subtitle}
-        styleVariant={styleVariant}
-        backend={backend}
-        cachedEntry={cachedEntry}
-        onUpdateCache={onUpdateCache}
-      />
+      <ApplicationPluginsProvider backend={backend} connectionId={connectionId}>
+        <ChatPane
+          isActive={isActive}
+          connectionId={connectionId}
+          connectionName={connectionName}
+          sessionId={sessionId}
+          sessionSummary={sessionSummary}
+          title={title}
+          subtitle={subtitle}
+          styleVariant={styleVariant}
+          backend={backend}
+          cachedEntry={cachedEntry}
+          onUpdateCache={onUpdateCache}
+          onOpenSessionTab={onOpenSessionTab}
+        />
+      </ApplicationPluginsProvider>
     </View>
   );
 });
@@ -92,8 +110,10 @@ export function ChatPaneTabStack(props: ChatPaneTabStackProps): React.JSX.Elemen
     styleVariant,
     connectionNameById,
     getBackend,
+    sessionsCache,
     messagesCache,
     onUpdateCache,
+    onOpenSessionTab,
   } = props;
   
   // Keep MRU ordering in a ref so switching among already-active tabs
@@ -127,6 +147,10 @@ export function ChatPaneTabStack(props: ChatPaneTabStackProps): React.JSX.Elemen
       {tabs.map((tab) => {
         const connectionName = connectionNameById[tab.connectionId] ?? tab.connectionId;
         const backend = getBackend(tab.connectionId);
+	        const sessionSummary =
+	          (sessionsCache[tab.connectionId]?.sessions ?? []).find(
+	            (session) => session.session_id === tab.sessionId,
+	          ) ?? null;
         const cachedEntry = messagesCache[tab.connectionId]?.[tab.sessionId] ?? null;
         const isVisible = tab.tabId === activeTabId;
         const isActive = isVisible || warmSet.has(tab.tabId);
@@ -140,12 +164,14 @@ export function ChatPaneTabStack(props: ChatPaneTabStackProps): React.JSX.Elemen
             connectionId={tab.connectionId}
             connectionName={connectionName}
             sessionId={tab.sessionId}
+            sessionSummary={sessionSummary}
             title={tab.title}
             subtitle={tab.subtitle ?? undefined}
             styleVariant={styleVariant}
             backend={backend}
             cachedEntry={cachedEntry}
             onUpdateCache={onUpdateCache}
+            onOpenSessionTab={onOpenSessionTab}
           />
         );
       })}

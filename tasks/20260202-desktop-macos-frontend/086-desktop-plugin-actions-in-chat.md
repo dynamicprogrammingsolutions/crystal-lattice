@@ -16,7 +16,8 @@ Depends On:
 ## Status
 
 - [x] Investigation complete; plan ready (2026-02-11)
-- [ ] Implementation not started
+- [x] Implementation complete (2026-02-11)
+- [ ] Manual UI verification complete
 
 ## Investigation Notes (current state)
 
@@ -160,3 +161,23 @@ Goal: make chat plugin actions behave identically to SessionsPanel session-list 
 - Confirm `navigateToSession` opens/focuses the target tab.
 - Confirm `reloadSession` reloads the active tab’s chat controller.
 - On macOS, confirm the window/popover closes on cancel/submit and doesn’t leak state between SessionsPanel and ChatPane.
+
+---
+
+## Completion Notes (added 2026-02-11)
+
+- Wrapped each chat tab with `ApplicationPluginsProvider` so chat can consume plugin registry state:
+  - `desktop/crystal-lattice-control-desktop-rn/src/tabs/ChatPaneTabStack.tsx:1`
+- Added best-effort `sessionSummary` plumbing into `ChatPane` via `sessionsCache` lookup:
+  - `desktop/crystal-lattice-control-desktop-rn/src/tabs/ChatPaneTabStack.tsx:1`
+  - `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx:678`
+- Added session-level plugin actions to the chat header actions menu (`extraActions`) and message-level plugin actions
+  to the message actions menu (`extraActions`):
+  - `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx:1`
+- Implemented chat plugin action execution with `usePluginActionDialog` + `runApplicationAction`, including effect
+  handling for `navigateToSession`, `reloadSession`, and `reloadSessionsList`:
+  - `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx:1`
+- Extracted and reused macOS application-action dialog window/popover coordination to avoid cross-talk between the
+  Sessions panel and Chat pane:
+  - New helper: `desktop/crystal-lattice-control-desktop-rn/src/windows/useMacOSApplicationActionDialog.ts:1`
+  - Refactor Sessions panel to use helper: `desktop/crystal-lattice-control-desktop-rn/src/panels/SessionsPanel.tsx:1`
