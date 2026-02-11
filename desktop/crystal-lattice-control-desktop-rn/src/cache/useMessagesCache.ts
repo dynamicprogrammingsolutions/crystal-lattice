@@ -20,6 +20,8 @@ export interface UseMessagesCacheResult {
     messages: IndexedMessage[];
     cursorEventId?: string | null;
     activeRequestId?: string | null;
+    rangeStartText?: string | null;
+    rangeEndText?: string | null;
   }) => void;
   deleteConnectionMessagesCache: (connectionId: string) => void;
   clearMessagesCache: () => void;
@@ -67,6 +69,8 @@ export function useMessagesCache(store: KeyValueStore): UseMessagesCacheResult {
       messages: IndexedMessage[];
       cursorEventId?: string | null;
       activeRequestId?: string | null;
+      rangeStartText?: string | null;
+      rangeEndText?: string | null;
     }) => {
       setMessagesCache((prev) => {
         const bySession = prev[params.connectionId] ?? {};
@@ -85,6 +89,8 @@ export function useMessagesCache(store: KeyValueStore): UseMessagesCacheResult {
           lastLoadedAt: Date.now(),
           cursorEventId: params.cursorEventId ?? existing?.cursorEventId ?? null,
           activeRequestId: params.activeRequestId ?? existing?.activeRequestId ?? null,
+          rangeStartText: params.rangeStartText ?? existing?.rangeStartText ?? null,
+          rangeEndText: params.rangeEndText ?? existing?.rangeEndText ?? null,
         };
 
         const nextBySession: MessagesBySession = {
