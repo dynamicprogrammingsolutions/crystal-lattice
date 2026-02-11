@@ -34,6 +34,8 @@ import {
 import type { MessagesCacheEntry } from '../cache/types';
 import type { TabStripStyle } from '../tabs/tabStripStyle';
 import { asyncStorageKeyValueStore } from '../storage/asyncStorageKeyValueStore';
+import { DependencyFlatList } from '../ui/DependencyFlatList';
+import { DependencyVirtualizedScroll } from '../ui/DependencyVirtualizedScroll';
 import { PlaceholderFlatList } from '../ui/PlaceholderFlatList';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
 import { openDesktopPopover } from '../windows/desktopPopoverCoordinator';
@@ -49,6 +51,9 @@ const DEFAULT_HISTORY_WINDOW = 50;
 const PINNED_SESSION_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_session_actions_v1';
 const PINNED_COMPOSER_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_composer_actions_v1';
 const PINNED_MESSAGE_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_message_actions_by_role_v1';
+
+const TRANSCRIPT_LIST_IMPLEMENTATION = ((globalThis as any).CLC_TRANSCRIPT_LIST_IMPLEMENTATION ??
+  'virtualizedScroll') as 'scrollView' | 'flatList' | 'virtualizedScroll';
 
 const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]> = {
   user: ['modify', 'copy'],
@@ -1082,33 +1087,91 @@ export const ChatPane = React.memo(function ChatPane({
 
 
 	        <PinnedMessageActionsProvider value={pinnedMessageActionsContextValue}>
-	          <PlaceholderFlatList
-	            style={styles.transcript}
-	            contentContainerStyle={styles.transcriptContent}
-	            data={messages}
-	            keyExtractor={(item) => String(item.index)}
-	            getItemDependencies={(item) => {
-	              const role = item.message.role || 'unknown';
-	              const defaultModeForRole: 'markdown' | 'raw' =
-	                role === 'assistant' ? 'markdown' : 'raw';
-	              const renderMode =
-	                messageViewModeByIndex[item.index] ?? defaultModeForRole;
-	              const isEditing = item.index === editingIndex;
-	              return [
-	                renderMode,
-	                footerElements,
-	                isEditing,
-	                isEditing ? editingInitialText : null,
-	                isEditing ? editingText : null,
-	              ];
-	            }}
-	            scrollEventThrottle={16}
-	            renderItem={renderMessageItem}
-	            ListEmptyComponent={
-	              !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
-	            }
-	            ListFooterComponent={streamingFooter}
-	          />
+	          {TRANSCRIPT_LIST_IMPLEMENTATION === 'flatList' ? (
+	            <DependencyFlatList
+	              style={styles.transcript}
+	              contentContainerStyle={styles.transcriptContent}
+	              data={messages}
+	              keyExtractor={(item) => String(item.index)}
+	              getItemDependencies={(item) => {
+	                const role = item.message.role || 'unknown';
+	                const defaultModeForRole: 'markdown' | 'raw' =
+	                  role === 'assistant' ? 'markdown' : 'raw';
+	                const renderMode =
+	                  messageViewModeByIndex[item.index] ?? defaultModeForRole;
+	                const isEditing = item.index === editingIndex;
+	                return [
+	                  renderMode,
+	                  footerElements,
+	                  isEditing,
+	                  isEditing ? editingInitialText : null,
+	                  isEditing ? editingText : null,
+	                ];
+	              }}
+	              scrollEventThrottle={16}
+	              renderItem={renderMessageItem}
+	              ListEmptyComponent={
+	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
+	              }
+	              ListFooterComponent={streamingFooter}
+	            />
+	          ) : TRANSCRIPT_LIST_IMPLEMENTATION === 'virtualizedScroll' ? (
+	            <DependencyVirtualizedScroll
+	              style={styles.transcript}
+	              contentContainerStyle={styles.transcriptContent}
+	              data={messages}
+	              keyExtractor={(item) => String(item.index)}
+	              getItemDependencies={(item) => {
+	                const role = item.message.role || 'unknown';
+	                const defaultModeForRole: 'markdown' | 'raw' =
+	                  role === 'assistant' ? 'markdown' : 'raw';
+	                const renderMode =
+	                  messageViewModeByIndex[item.index] ?? defaultModeForRole;
+	                const isEditing = item.index === editingIndex;
+	                return [
+	                  renderMode,
+	                  footerElements,
+	                  isEditing,
+	                  isEditing ? editingInitialText : null,
+	                  isEditing ? editingText : null,
+	                ];
+	              }}
+	              scrollEventThrottle={16}
+	              renderItem={renderMessageItem}
+	              ListEmptyComponent={
+	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
+	              }
+	              ListFooterComponent={streamingFooter}
+	            />
+	          ) : (
+	            <PlaceholderFlatList
+	              style={styles.transcript}
+	              contentContainerStyle={styles.transcriptContent}
+	              data={messages}
+	              keyExtractor={(item) => String(item.index)}
+	              getItemDependencies={(item) => {
+	                const role = item.message.role || 'unknown';
+	                const defaultModeForRole: 'markdown' | 'raw' =
+	                  role === 'assistant' ? 'markdown' : 'raw';
+	                const renderMode =
+	                  messageViewModeByIndex[item.index] ?? defaultModeForRole;
+	                const isEditing = item.index === editingIndex;
+	                return [
+	                  renderMode,
+	                  footerElements,
+	                  isEditing,
+	                  isEditing ? editingInitialText : null,
+	                  isEditing ? editingText : null,
+	                ];
+	              }}
+	              scrollEventThrottle={16}
+	              renderItem={renderMessageItem}
+	              ListEmptyComponent={
+	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
+	              }
+	              ListFooterComponent={streamingFooter}
+	            />
+	          )}
 	        </PinnedMessageActionsProvider>
 
         <View style={styles.composerArea}>
