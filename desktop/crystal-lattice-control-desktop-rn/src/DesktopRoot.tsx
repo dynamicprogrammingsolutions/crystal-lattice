@@ -166,6 +166,7 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
         ];
       });
       setActiveTabId(tabId);
+      setFocusedConnectionId(connectionId);
     },
     [],
   );
@@ -211,16 +212,37 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
       setTabs((prev) => {
         const result = removeTabAndSelectNext(prev, tabId, activeTabIdRef.current);
         setActiveTabId(result.nextActiveTabId);
+
+        const nextActiveConnectionId =
+          result.nextActiveTabId != null
+            ? result.tabs.find((tab) => tab.tabId === result.nextActiveTabId)?.connectionId
+            : null;
+        if (nextActiveConnectionId) {
+          setFocusedConnectionId(nextActiveConnectionId);
+        }
+
         return result.tabs;
       });
     },
     [],
   );
 
-  const focusTab = useCallback((tabId: string) => {
-    console.log(`Focusing tab ${tabId}`);
-    setActiveTabId(tabId);
-  }, []);
+  const focusTab = useCallback(
+    (tabId: string) => {
+      console.log(`Focusing tab ${tabId}`);
+      setActiveTabId(tabId);
+      const tab = tabs.find((candidate) => candidate.tabId === tabId);
+      if (tab) {
+        setFocusedConnectionId(tab.connectionId);
+      }
+    },
+    [tabs],
+  );
+
+  const activeTab = useMemo(
+    () => (activeTabId ? tabs.find((tab) => tab.tabId === activeTabId) ?? null : null),
+    [activeTabId, tabs],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -694,6 +716,11 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
               }
               cachedLastLoadedAt={
                 focusedConnectionId ? sessionsCache[focusedConnectionId]?.lastLoadedAt ?? null : null
+              }
+              selectedSessionId={
+                activeTab && activeTab.connectionId === focusedConnectionId
+                  ? activeTab.sessionId
+                  : null
               }
               onUpdateCache={updateSessionsCache}
               onOpenSessionTab={openTab}

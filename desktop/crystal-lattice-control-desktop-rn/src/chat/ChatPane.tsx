@@ -57,13 +57,12 @@ const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]>
   tool: ['copy'],
 };
 
-type ChatSessionActionKey = 'reload' | 'cancel' | 'agentSwitch' | 'messageLimit' | 'settings';
+type ChatSessionActionKey = 'reload' | 'agentSwitch' | 'messageLimit' | 'settings';
 
-type ChatComposerActionKey = 'append' | 'appendAs' | 'resend';
+type ChatComposerActionKey = 'append' | 'appendAs' | 'resend' | 'cancel';
 
 const BUILTIN_SESSION_ACTIONS: ActionDefinition[] = [
   { key: 'reload', label: 'Reload', iconName: 'refresh-ccw' },
-  { key: 'cancel', label: 'Cancel', iconName: 'x-circle' },
   { key: 'agentSwitch', label: 'Switch agent', iconName: 'user' },
   { key: 'messageLimit', label: 'Message limit', iconName: 'sliders' },
   { key: 'settings', label: 'Settings…', iconName: 'settings' },
@@ -73,10 +72,11 @@ const BUILTIN_COMPOSER_ACTIONS: ActionDefinition[] = [
   { key: 'append', label: 'Append', iconName: 'plus-circle' },
   { key: 'appendAs', label: 'Append as…', iconName: 'layers' },
   { key: 'resend', label: 'Resend', iconName: 'repeat' },
+  { key: 'cancel', label: 'Cancel', iconName: 'x-circle' },
 ];
 
-const DEFAULT_PINNED_SESSION_ACTION_KEYS: ActionKey[] = ['reload', 'cancel'];
-const DEFAULT_PINNED_COMPOSER_ACTION_KEYS: ActionKey[] = ['append', 'resend'];
+const DEFAULT_PINNED_SESSION_ACTION_KEYS: ActionKey[] = ['reload'];
+const DEFAULT_PINNED_COMPOSER_ACTION_KEYS: ActionKey[] = ['append', 'resend', 'cancel'];
 
 export interface ChatPaneProps {
 	isActive: boolean;
@@ -580,6 +580,28 @@ export const ChatPane = React.memo(function ChatPane({
     }
   }, [canRunComposerActions, chatController, chatState?.activeRequestId, sendInFlight]);
 
+  const handleCancel = useCallback(async () => {
+    if (!canRunComposerActions) {
+      return;
+    }
+    if (cancelInFlight) {
+      return;
+    }
+    if (!chatState?.activeRequestId) {
+      return;
+    }
+
+    setCancelInFlight(true);
+    try {
+      await chatController.cancelActiveRequest();
+    } catch (err: any) {
+      const message = err?.message || 'Failed to cancel request';
+      Alert.alert('Failed to cancel', message);
+    } finally {
+      setCancelInFlight(false);
+    }
+  }, [canRunComposerActions, cancelInFlight, chatController, chatState?.activeRequestId]);
+
   const handleComposerAction = useCallback(
     (key: ActionKey) => {
       const action = key as ChatComposerActionKey;
@@ -593,9 +615,13 @@ export const ChatPane = React.memo(function ChatPane({
       }
       if (action === 'resend') {
         handleResend().catch(() => {});
+        return;
+      }
+      if (action === 'cancel') {
+        handleCancel().catch(() => {});
       }
     },
-    [handleAppend, handleResend, openAppendAsPopover],
+    [handleAppend, handleCancel, handleResend, openAppendAsPopover],
   );
 
 	const canRunHeaderActions = backend != null && chatController != null && isActive;
@@ -688,28 +714,6 @@ export const ChatPane = React.memo(function ChatPane({
     });
   }, [applyMessageLimitAndReload, connectionId, lastReloadAt, rangeEndText, rangeStartText, sessionId]);
 
-  const handleCancel = useCallback(async () => {
-    if (!canRunHeaderActions) {
-      return;
-    }
-    if (cancelInFlight) {
-      return;
-    }
-    if (!chatState?.activeRequestId) {
-      return;
-    }
-
-    setCancelInFlight(true);
-    try {
-      await chatController.cancelActiveRequest();
-    } catch (err: any) {
-      const message = err?.message || 'Failed to cancel request';
-      Alert.alert('Failed to cancel', message);
-    } finally {
-      setCancelInFlight(false);
-    }
-  }, [canRunHeaderActions, cancelInFlight, chatController, chatState?.activeRequestId]);
-
   const openAgentPickerForSwitch = useCallback(async () => {
     if (!backend) {
       return;
@@ -761,10 +765,6 @@ export const ChatPane = React.memo(function ChatPane({
         handleReload().catch(() => {});
         return;
       }
-      if (action === 'cancel') {
-        handleCancel().catch(() => {});
-        return;
-      }
       if (action === 'agentSwitch') {
         openAgentPickerForSwitch().catch(() => {});
         return;
@@ -798,7 +798,6 @@ export const ChatPane = React.memo(function ChatPane({
       backend,
       connectionId,
       connectionName,
-      handleCancel,
       handleReload,
       openAgentPickerForSwitch,
       openMessageLimitPopover,
@@ -1031,9 +1030,6 @@ export const ChatPane = React.memo(function ChatPane({
               if (key === 'reload') {
                 return reloadInFlight || (chatState?.loading ?? false);
               }
-              if (key === 'cancel') {
-                return cancelInFlight || !chatState?.activeRequestId;
-              }
               if (key === 'agentSwitch') {
                 return openingAgentPicker || (agentsState?.loading ?? false);
               }
@@ -1132,11 +1128,17 @@ export const ChatPane = React.memo(function ChatPane({
                   if (!canRunComposerActions) {
                     return true;
                   }
-                  if (sendInFlight || chatState?.activeRequestId) {
-                    return true;
-                  }
                   if (key === 'append' || key === 'appendAs') {
+                    if (sendInFlight || chatState?.activeRequestId) {
+                      return true;
+                    }
                     return !composeText.trim();
+                  }
+                  if (key === 'resend') {
+                    return sendInFlight || !!chatState?.activeRequestId;
+                  }
+                  if (key === 'cancel') {
+                    return cancelInFlight || !chatState?.activeRequestId;
                   }
                   return false;
                 }}

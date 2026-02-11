@@ -65,6 +65,7 @@ export interface SessionsPanelProps {
   cachedSessions: SessionSummary[];
   cachedLastLoadedAt: number | null;
   isOnline: boolean;
+  selectedSessionId?: string | null;
   onUpdateCache: (connectionId: string, sessions: SessionSummary[]) => void;
   onOpenSessionTab: (params: {
     connectionId: string;
@@ -95,6 +96,7 @@ function SessionsPanelInner({
   cachedSessions,
   cachedLastLoadedAt,
   isOnline,
+  selectedSessionId: selectedSessionIdFromTabs,
   onUpdateCache,
   onOpenSessionTab,
   onUpdateOpenTabsPresentation,
@@ -440,6 +442,26 @@ function SessionsPanelInner({
       return false;
     });
   }, [fieldGroups, filterText, sessions]);
+
+  useEffect(() => {
+    if (!connectionId) {
+      return;
+    }
+    if (!selectedSessionIdFromTabs) {
+      return;
+    }
+
+    const isVisible = filteredSessions.some(
+      (session) => session.session_id === selectedSessionIdFromTabs,
+    );
+    if (!isVisible) {
+      return;
+    }
+
+    setSelectedSessionId((prev) =>
+      prev === selectedSessionIdFromTabs ? prev : selectedSessionIdFromTabs,
+    );
+  }, [connectionId, filteredSessions, selectedSessionIdFromTabs]);
 
   const lastClickRef = useRef<{ sessionId: string; atMs: number } | null>(null);
 
