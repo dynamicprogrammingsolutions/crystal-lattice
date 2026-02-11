@@ -61,6 +61,18 @@ function removeTabAndSelectNext(
   return { tabs: nextTabs, nextActiveTabId: nextTabs[neighborIndex].tabId };
 }
 
+function tabArrayEqualByReference(
+  a: ReadonlyArray<DesktopSessionTab>,
+  b: ReadonlyArray<DesktopSessionTab>,
+): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
 export interface DesktopRootProps {
   initialTabStripStyle?: TabStripStyle;
 }
@@ -110,7 +122,6 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
   const [focusedConnectionId, setFocusedConnectionId] = useState<string | null>(null);
   const [tabs, setTabs] = useState<DesktopSessionTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
-  console.log(`Active tab ID: ${activeTabId}`);
 
   const activeTabIdRef = useRef<string | null>(null);
   useEffect(() => {
@@ -127,6 +138,11 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
 
   const lastValidatedOpenedAtByConnectionRef = useRef<Record<string, number>>({});
   const validatingConnectionIdsRef = useRef<Set<string>>(new Set());
+
+  const lastSavedOpenTabsStateRef = useRef<{
+    activeTabId: string | null;
+    tabs: DesktopSessionTab[];
+  } | null>(null);
 
   const openTab = useCallback(
     ({
@@ -229,7 +245,6 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
 
   const focusTab = useCallback(
     (tabId: string) => {
-      console.log(`Focusing tab ${tabId}`);
       setActiveTabId(tabId);
       const tab = tabs.find((candidate) => candidate.tabId === tabId);
       if (tab) {
@@ -251,7 +266,6 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
       try {
         const raw = await asyncStorageKeyValueStore.get(STORAGE_KEY_OPEN_TABS);
         const parsed = parsePersistedOpenTabsState(raw);
-        console.log(`Hydrating tabs from storage: raw=${raw}`);
         if (!parsed || cancelled) {
           return;
         }
@@ -292,6 +306,11 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
           if (focusedConnection) {
             setFocusedConnectionId(focusedConnection);
           }
+
+          lastSavedOpenTabsStateRef.current = {
+            activeTabId: restoredActive,
+            tabs: restoredTabs,
+          };
 
           return restoredTabs;
         });
@@ -358,6 +377,20 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
       return;
     }
 
+    const lastSaved = lastSavedOpenTabsStateRef.current;
+    if (
+      lastSaved &&
+      lastSaved.activeTabId === activeTabId &&
+      tabArrayEqualByReference(lastSaved.tabs, tabs)
+    ) {
+      return;
+    }
+
+    lastSavedOpenTabsStateRef.current = {
+      activeTabId,
+      tabs,
+    };
+
     const save = async () => {
       try {
         await asyncStorageKeyValueStore.set(
@@ -369,9 +402,6 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
               sessionId: tab.sessionId,
               title: tab.title,
               subtitle: tab.subtitle ?? null,
-              rangeStartText:
-                messagesCache[tab.connectionId]?.[tab.sessionId]?.rangeStartText ?? null,
-              rangeEndText: messagesCache[tab.connectionId]?.[tab.sessionId]?.rangeEndText ?? null,
             })),
           }),
         );
@@ -379,9 +409,8 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
       }
     };
 
-    console.log(`Saving open tabs state: activeTabId=${activeTabId}, tabs=${tabs.map((t) => t.tabId).join(',')}`);
     save();
-  }, [activeTabId, messagesCache, tabs, tabsHydrated]);
+  }, [activeTabId, tabs, tabsHydrated]);
 
   useEffect(() => {
     if (!connectionsHydrated) return;

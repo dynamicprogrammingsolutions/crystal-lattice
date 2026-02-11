@@ -135,6 +135,7 @@ export const ChatPane = React.memo(function ChatPane({
     cachedEntry?.rangeStartText ?? `-${DEFAULT_HISTORY_WINDOW}`,
   );
   const [rangeEndText, setRangeEndText] = useState(cachedEntry?.rangeEndText ?? '');
+	const didHydrateRangeFromCacheRef = useRef(false);
   const [lastReloadAt, setLastReloadAt] = useState<Date | null>(null);
   const [messageLimitVisible, setMessageLimitVisible] = useState(false);
   const [sendInFlight, setSendInFlight] = useState(false);
@@ -293,6 +294,38 @@ export const ChatPane = React.memo(function ChatPane({
         : null,
     hydrate: hydrateFromCache,
   });
+
+	useEffect(() => {
+		if (didHydrateRangeFromCacheRef.current) {
+			return;
+		}
+
+		const cachedStartText = cachedEntry?.rangeStartText ?? null;
+		const cachedEndText = cachedEntry?.rangeEndText ?? null;
+		if (cachedStartText == null && cachedEndText == null) {
+			return;
+		}
+
+		const defaultStartText = `-${DEFAULT_HISTORY_WINDOW}`;
+		const defaultEndText = '';
+		const userChangedRange =
+			rangeStartText !== defaultStartText || rangeEndText !== defaultEndText;
+		if (userChangedRange) {
+			didHydrateRangeFromCacheRef.current = true;
+			return;
+		}
+
+		const nextStartText = cachedStartText ?? defaultStartText;
+		const nextEndText = cachedEndText ?? defaultEndText;
+		if (rangeStartText === nextStartText && rangeEndText === nextEndText) {
+			didHydrateRangeFromCacheRef.current = true;
+			return;
+		}
+
+		setRangeStartText(nextStartText);
+		setRangeEndText(nextEndText);
+		didHydrateRangeFromCacheRef.current = true;
+	}, [cachedEntry?.rangeEndText, cachedEntry?.rangeStartText, rangeEndText, rangeStartText]);
 
   useEffect(() => {
     if (!chatController) {
