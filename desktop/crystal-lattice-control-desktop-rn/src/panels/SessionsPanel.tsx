@@ -15,7 +15,6 @@ import Icon from 'react-native-vector-icons/Feather';
 import {
   ActionsMenuBar,
   ApplicationActionDialog,
-  getLastActionsPopoverAnchorTag,
   useTheme,
   type ActionDefinition,
   type ActionKey,
@@ -45,12 +44,8 @@ import {
 import { asyncStorageKeyValueStore } from '../storage/asyncStorageKeyValueStore';
 import { desktopEventBus } from '../events/desktopEventBus';
 import { PanelHeader } from '../ui/PanelHeader';
-import { DesktopWindowManager, desktopWindowEvents } from '../windows/desktopWindowManager';
-import {
-  clearActiveApplicationActionDialog,
-  setActiveApplicationActionDialog,
-} from '../windows/applicationActionDialogCoordinator';
-import { APPLICATION_ACTION_DIALOG_PRESENTATION } from '../windows/applicationActionDialogPresentation';
+import { DesktopWindowManager } from '../windows/desktopWindowManager';
+import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationActionDialog';
 
 const PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_session_list_actions_v1';
 const SESSION_DOUBLE_CLICK_MS = 300;
@@ -311,93 +306,18 @@ function SessionsPanelInner({
     ),
   );
 
-  useEffect(() => {
-    if (Platform.OS !== 'macos') {
-      return;
-    }
+  const pluginDialogPrefillContext = useMemo(
+    () => ({ session: activePluginDialogContext ?? undefined }),
+    [activePluginDialogContext],
+  );
 
-    if (!desktopWindowEvents) {
-      return;
-    }
-
-    const sub = desktopWindowEvents.addListener('applicationActionDialogCancelled', () => {
-      clearActiveApplicationActionDialog();
-      handleCancelPluginDialog();
-    });
-
-    return () => {
-      sub.remove();
-    };
-  }, [handleCancelPluginDialog]);
-
-  useEffect(() => {
-    if (Platform.OS !== 'macos') {
-      return;
-    }
-
-    const dialog: any = (activePluginDialogElement as any)?.dialog;
-    const kind: string = dialog && typeof dialog.kind === 'string' ? dialog.kind : 'none';
-
-    if (!activePluginDialogElement || !dialog || kind === 'none') {
-      clearActiveApplicationActionDialog();
-      DesktopWindowManager?.closeApplicationActionDialogPopover();
-      DesktopWindowManager?.closeApplicationActionDialogWindow();
-      return;
-    }
-
-    const id = `action-dialog:${activePluginDialogElement.id}`;
-    setActiveApplicationActionDialog({
-      state: {
-        id,
-        dialog,
-        titleFallback: activePluginDialogElement.label,
-        prefillContext: {
-          session: activePluginDialogContext,
-        },
-      },
-      handlers: {
-        onCancel: () => {
-          handleCancelPluginDialog();
-        },
-        onSubmit: async (values) => {
-          await handleSubmitPluginDialog(values);
-        },
-      },
-    });
-
-    const title = activePluginDialogElement.label;
-    if (APPLICATION_ACTION_DIALOG_PRESENTATION === 'window') {
-      DesktopWindowManager?.closeApplicationActionDialogPopover();
-      DesktopWindowManager?.openApplicationActionDialogWindow({ title });
-      return;
-    }
-
-    DesktopWindowManager?.closeApplicationActionDialogWindow();
-    const anchorTag = getLastActionsPopoverAnchorTag();
-
-    const dialogInputs = Array.isArray(dialog.inputs) ? dialog.inputs : [];
-    const padding = 24;
-    const titleBlock = 34;
-    const messageBlock = typeof dialog.message === 'string' && dialog.message ? 16 : 0;
-    const buttonsBlock = 52;
-    const fieldHeights = dialogInputs.reduce((sum: number, input: any) => {
-      const type = typeof input?.type === 'string' ? input.type : 'string';
-      const description = typeof input?.description === 'string' ? input.description : '';
-      const descriptionExtra = description ? 18 : 0;
-      if (type === 'multiline') {
-        return sum + 138 + descriptionExtra;
-      }
-      return sum + 66 + descriptionExtra;
-    }, 0);
-
-    const height = Math.max(80, Math.min(640, padding + titleBlock + messageBlock + fieldHeights + buttonsBlock));
-
-    DesktopWindowManager?.openApplicationActionDialogPopover({
-      anchorTag: typeof anchorTag === 'number' ? anchorTag : undefined,
-      width: 420,
-      height,
-    });
-  }, [activePluginDialogContext, activePluginDialogElement, handleCancelPluginDialog, handleSubmitPluginDialog]);
+  useMacOSApplicationActionDialog({
+    ownerId: 'sessions-panel',
+    activeElement: activePluginDialogElement,
+    prefillContext: pluginDialogPrefillContext,
+    onCancel: handleCancelPluginDialog,
+    onSubmit: handleSubmitPluginDialog,
+  });
 
   const { controller: agentsController, state: agentsState } = useAgentsController({
     backend,

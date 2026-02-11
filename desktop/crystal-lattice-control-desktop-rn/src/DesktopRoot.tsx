@@ -790,8 +790,10 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
 	                  styleVariant={tabStripStyle}
 	                  connectionNameById={connectionNameById}
 	                  getBackend={getBackend}
+	                  sessionsCache={sessionsCache}
 	                  messagesCache={messagesCache}
 	                  onUpdateCache={updateMessagesCache}
+	                  onOpenSessionTab={openTab}
 	                />
               )}
             </View>

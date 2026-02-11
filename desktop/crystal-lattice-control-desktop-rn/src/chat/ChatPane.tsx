@@ -15,25 +15,38 @@ import Icon from 'react-native-vector-icons/Feather';
 
 import {
   ActionsMenuBar,
+  ApplicationActionDialog,
   getLastActionsPopoverAnchorTag,
   useTheme,
   type ActionDefinition,
   type ActionKey,
 } from '@crystal-lattice/frontend-rn-components';
-import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
-import type { IndexedMessage } from '@crystal-lattice/frontend-sdk';
-import { filterFooterElements, selectDisplayContent } from '@crystal-lattice/frontend-sdk';
+import type {
+  ActionUiElement,
+  AgentBackend,
+  ApiMessage,
+  IndexedMessage,
+  SessionSummary,
+} from '@crystal-lattice/frontend-sdk';
+import {
+  filterFooterElements,
+  runApplicationAction,
+  selectDisplayContent,
+} from '@crystal-lattice/frontend-sdk';
 import {
   useAgentsController,
+  useApplicationPlugins,
   useChatController,
   useHydrateControllerFromCache,
   usePersistentPinnedActions,
+  usePluginActionDialog,
   useSessionUiSchemaController,
 } from '@crystal-lattice/frontend-sdk-react';
 
 import type { MessagesCacheEntry } from '../cache/types';
 import type { TabStripStyle } from '../tabs/tabStripStyle';
 import { asyncStorageKeyValueStore } from '../storage/asyncStorageKeyValueStore';
+import { desktopEventBus } from '../events/desktopEventBus';
 import { DependencyFlatList } from '../ui/DependencyFlatList';
 import { DependencyVirtualizedScroll } from '../ui/DependencyVirtualizedScroll';
 import { PlaceholderFlatList } from '../ui/PlaceholderFlatList';
@@ -41,10 +54,15 @@ import { DesktopWindowManager } from '../windows/desktopWindowManager';
 import { openDesktopPopover } from '../windows/desktopPopoverCoordinator';
 import { MessageLimitPopoverContent } from '../windows/MessageLimitPopoverContent';
 import { setActiveSessionSettingsWindow } from '../windows/sessionSettingsCoordinator';
+import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationActionDialog';
 import { MacTextView, type MacTextViewHandle } from '../native/MacTextView';
 import { AppendAsPopoverContent, type AppendAsRole } from './AppendAsPopoverContent';
 import DesktopMessageBubble from './DesktopMessageBubble';
-import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
+import {
+  ALL_MESSAGE_ACTIONS,
+  type MessageActionDefinition,
+  type MessageActionKey,
+} from './messageActions';
 import { PinnedMessageActionsProvider } from './PinnedMessageActionsContext';
 
 const DEFAULT_HISTORY_WINDOW = 50;
@@ -65,6 +83,10 @@ const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]>
 type ChatSessionActionKey = 'reload' | 'agentSwitch' | 'messageLimit' | 'settings';
 
 type ChatComposerActionKey = 'append' | 'appendAs' | 'resend' | 'cancel';
+
+type PluginActionContext =
+  | { kind: 'session'; sessionSummary: SessionSummary | null }
+  | { kind: 'message'; index: number; message: ApiMessage; sessionSummary: SessionSummary | null };
 
 const BUILTIN_SESSION_ACTIONS: ActionDefinition[] = [
   { key: 'reload', label: 'Reload', iconName: 'refresh-ccw' },
@@ -88,10 +110,17 @@ export interface ChatPaneProps {
   connectionId: string;
   connectionName: string;
   sessionId: string;
+  sessionSummary?: SessionSummary | null;
   title: string;
   subtitle?: string;
   backend: AgentBackend | null;
   cachedEntry: MessagesCacheEntry | null;
+  onOpenSessionTab?: (params: {
+    connectionId: string;
+    sessionId: string;
+    title?: string;
+    subtitle?: string | null;
+  }) => void;
   onUpdateCache: (params: {
     connectionId: string;
     sessionId: string;
@@ -109,10 +138,12 @@ export const ChatPane = React.memo(function ChatPane({
 	connectionId,
 	connectionName,
 	sessionId,
+	sessionSummary,
 	title,
 	subtitle,
 	backend,
 	cachedEntry,
+	onOpenSessionTab,
 	onUpdateCache,
 	styleVariant = 'toolbarTabs',
 }: ChatPaneProps): React.JSX.Element {
@@ -141,6 +172,7 @@ export const ChatPane = React.memo(function ChatPane({
   const [sendInFlight, setSendInFlight] = useState(false);
   const [reloadInFlight, setReloadInFlight] = useState(false);
   const [cancelInFlight, setCancelInFlight] = useState(false);
+  const [pluginActionRunning, setPluginActionRunning] = useState(false);
   const [openingAgentPicker, setOpeningAgentPicker] = useState(false);
   const composerRef = useRef<MacTextViewHandle | null>(null);
   const composeTextRef = useRef('');
@@ -260,6 +292,42 @@ export const ChatPane = React.memo(function ChatPane({
 	    () => filterFooterElements(sessionUiSchemaState?.elements ?? []),
 	    [sessionUiSchemaState?.elements],
 	  );
+
+  const {
+    actionsById,
+    sessionActions: pluginSessionActions,
+    messageActions: pluginMessageActions,
+  } = useApplicationPlugins();
+
+  const pluginSessionActionDefs: ActionDefinition[] = useMemo(() => {
+    if (!backend) {
+      return [];
+    }
+
+    return (pluginSessionActions || [])
+      .map((el) => ({
+        key: el.id,
+        label: el.label,
+        iconName: (el as any).icon || 'zap',
+      }))
+      .filter((def) => typeof def.key === 'string' && def.key);
+  }, [backend, pluginSessionActions]);
+
+  const pluginMessageActionDefs: MessageActionDefinition[] = useMemo(() => {
+    if (!backend) {
+      return [];
+    }
+
+    return (pluginMessageActions || [])
+      .map((el) => ({
+        key: el.id,
+        label: el.label,
+        iconName: (el as any).icon || 'zap',
+        defaultPinnedRoles: ['user', 'assistant', 'system', 'tool'],
+        allowedRoles: ['user', 'assistant', 'system', 'tool'],
+      }))
+      .filter((def) => typeof def.key === 'string' && def.key);
+  }, [backend, pluginMessageActions]);
 
   const hydrateFromCache = useCallback(
     (
@@ -796,6 +864,98 @@ export const ChatPane = React.memo(function ChatPane({
     }
   }, [agentsController, backend, connectionId, connectionName, openingAgentPicker, sessionId]);
 
+  const {
+    activeElement: activePluginDialogElement,
+    context: activePluginDialogContext,
+    openForElement: openPluginDialogForElement,
+    handleSubmit: handleSubmitPluginDialog,
+    handleCancel: handleCancelPluginDialog,
+  } = usePluginActionDialog<PluginActionContext>(
+    useCallback(
+      async (
+        element: ActionUiElement,
+        context: PluginActionContext,
+        dialogValues: Record<string, any> | undefined,
+      ) => {
+        if (!backend) {
+          Alert.alert('Offline', 'Connect to a server to run actions.');
+          return;
+        }
+
+        setPluginActionRunning(true);
+        try {
+          const isMessage = context.kind === 'message';
+          const { ok, effects, errorMessage } = await runApplicationAction({
+            backend,
+            element,
+            actionsById,
+            context: {
+              sessionId,
+              sessionSummary: context.sessionSummary ?? undefined,
+              messageContext: isMessage
+                ? { index: context.index, message: context.message }
+                : undefined,
+              dialogValues,
+            },
+            effects: {
+              currentSessionId: sessionId,
+              navigateOnCreatedSession: true,
+              reloadSessionsListOnMutations: true,
+            },
+          });
+
+          if (!ok) {
+            Alert.alert('Action error', errorMessage || 'Failed to execute action');
+            return;
+          }
+
+          if (effects.some((effect) => effect.type === 'reloadSessionsList')) {
+            desktopEventBus.publish('sessionsReloadRequested', {
+              connectionId,
+              reason: `action:${element.id}`,
+            });
+          }
+
+          if (effects.some((effect) => effect.type === 'reloadSession')) {
+            await handleReload();
+          }
+
+          const navigateEffect = effects.find((effect) => effect.type === 'navigateToSession');
+          if (navigateEffect && onOpenSessionTab) {
+            onOpenSessionTab({
+              connectionId,
+              sessionId: navigateEffect.sessionId,
+              title: navigateEffect.sessionId,
+            });
+          }
+        } finally {
+          setPluginActionRunning(false);
+        }
+      },
+      [actionsById, backend, connectionId, handleReload, onOpenSessionTab, sessionId],
+    ),
+  );
+
+  const pluginDialogPrefillContext = useMemo(() => {
+    const ctx = activePluginDialogContext;
+    const message =
+      ctx && ctx.kind === 'message'
+        ? { index: ctx.index, ...(ctx.message as any) }
+        : undefined;
+    return {
+      session: ctx?.sessionSummary ?? undefined,
+      message,
+    };
+  }, [activePluginDialogContext]);
+
+  useMacOSApplicationActionDialog({
+    ownerId: `chat-pane:${connectionId}:${sessionId}`,
+    activeElement: activePluginDialogElement,
+    prefillContext: pluginDialogPrefillContext,
+    onCancel: handleCancelPluginDialog,
+    onSubmit: handleSubmitPluginDialog,
+  });
+
   const handleSessionAction = useCallback(
     (key: ActionKey) => {
       const action = key as ChatSessionActionKey;
@@ -830,6 +990,15 @@ export const ChatPane = React.memo(function ChatPane({
           },
         });
         DesktopWindowManager?.openSessionSettingsWindow({ title: 'Session settings' });
+        return;
+      }
+
+      const pluginEl = pluginSessionActions.find((el) => el.id === key);
+      if (pluginEl) {
+        openPluginDialogForElement(pluginEl, {
+          kind: 'session',
+          sessionSummary: sessionSummary ?? null,
+        });
       }
     },
     [
@@ -837,9 +1006,12 @@ export const ChatPane = React.memo(function ChatPane({
       connectionId,
       connectionName,
       handleReload,
+      openPluginDialogForElement,
       openAgentPickerForSwitch,
       openMessageLimitPopover,
+      pluginSessionActions,
       sessionId,
+      sessionSummary,
     ],
   );
 
@@ -947,9 +1119,21 @@ export const ChatPane = React.memo(function ChatPane({
         } catch {
           Alert.alert('Copy failed', 'Clipboard is not available.');
         }
+
+        return;
+      }
+
+      const pluginEl = pluginMessageActions.find((el) => el.id === action);
+      if (pluginEl) {
+        openPluginDialogForElement(pluginEl, {
+          kind: 'message',
+          index,
+          message: message as ApiMessage,
+          sessionSummary: sessionSummary ?? null,
+        });
       }
     },
-    [handleStartEditMessage],
+    [handleStartEditMessage, openPluginDialogForElement, pluginMessageActions, sessionSummary],
   );
 
   const streamingFooter = useMemo(() => {
@@ -1003,6 +1187,7 @@ export const ChatPane = React.memo(function ChatPane({
           onCancelEdit={handleCancelEditMessage}
           renderMode={renderMode}
           footerElements={footerElements}
+          pluginActionDefs={pluginMessageActionDefs}
         />
       );
     },
@@ -1015,6 +1200,7 @@ export const ChatPane = React.memo(function ChatPane({
       handleMessageAction,
       handleSubmitEditMessage,
       messageViewModeByIndex,
+      pluginMessageActionDefs,
     ],
   );
 
@@ -1058,10 +1244,14 @@ export const ChatPane = React.memo(function ChatPane({
 	          isActive={isActive}
             renderIcon={({ name, size, color }) => <Icon name={name} size={size} color={color} />}
             baseActions={BUILTIN_SESSION_ACTIONS}
+	            extraActions={pluginSessionActionDefs}
             pinned={pinnedSessionActionKeys}
             onChangePinned={(next) => setPinnedSessionActionKeys(next)}
             onAction={handleSessionAction}
             isActionDisabled={(key) => {
+	              if (pluginActionRunning) {
+	                return true;
+	              }
               if (!canRunHeaderActions) {
                 return true;
               }
@@ -1361,6 +1551,17 @@ export const ChatPane = React.memo(function ChatPane({
             </View>
           </View>
         </Modal>
+      )}
+
+      {Platform.OS === 'macos' ? null : (
+        <ApplicationActionDialog
+          visible={!!activePluginDialogElement}
+          dialog={(activePluginDialogElement as any)?.dialog}
+          titleFallback={activePluginDialogElement?.label}
+          prefillContext={pluginDialogPrefillContext}
+          onSubmit={(values) => handleSubmitPluginDialog(values)}
+          onCancel={handleCancelPluginDialog}
+        />
       )}
     </View>
   );
