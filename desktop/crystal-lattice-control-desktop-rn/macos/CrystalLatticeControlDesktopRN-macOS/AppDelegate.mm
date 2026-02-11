@@ -2,6 +2,7 @@
 #import "DesktopMenuNotifications.h"
 
 #import <React/RCTBundleURLProvider.h>
+#import <React/RCTRootView.h>
 #import <ReactAppDependencyProvider/RCTAppDependencyProvider.h>
 
 static NSString *const kTabStripStyleDefaultsKey = @"CrystalLattice.TabStripStyle";
@@ -17,6 +18,9 @@ static NSString *const kTabStripStyleRoundedPills = @"roundedPills";
 @property(nonatomic, strong) NSMenuItem *underlineTabsMenuItem;
 @property(nonatomic, strong) NSMenuItem *roundedPillsMenuItem;
 
+@property(nonatomic, strong) NSMutableArray<NSWindow *> *mainWindows;
+@property(nonatomic, assign) NSPoint mainWindowCascadePoint;
+
 @end
 
 @implementation AppDelegate
@@ -29,7 +33,191 @@ static NSString *const kTabStripStyleRoundedPills = @"roundedPills";
   self.dependencyProvider = [RCTAppDependencyProvider new];
 
   [super applicationDidFinishLaunching:notification];
+
+  // Track the initial main window created by RCTAppDelegate so we can:
+  // - release it when closed (so closing the window truly closes it)
+  // - reopen / create windows when the Dock icon is clicked
+  // - support opening additional main windows
+  [self ensureMainWindowsTrackingInitialized];
+  [self trackMainWindowIfNeeded:(NSWindow *)self.window];
+
   [self installTabStripStyleMenuWithSelectedStyle:tabStripStyle];
+}
+
+#pragma mark - Main window management (Dock reopen / New Window)
+
+- (void)ensureMainWindowsTrackingInitialized
+{
+  if (self.mainWindows != nil) {
+    return;
+  }
+  self.mainWindows = [NSMutableArray array];
+  self.mainWindowCascadePoint = NSZeroPoint;
+}
+
+- (void)trackMainWindowIfNeeded:(NSWindow *)window
+{
+  if (window == nil) {
+    return;
+  }
+
+  [self ensureMainWindowsTrackingInitialized];
+
+  // Avoid double-registration.
+  if ([self.mainWindows containsObject:window]) {
+    return;
+  }
+
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(mainWindowWillClose:)
+                                               name:NSWindowWillCloseNotification
+                                             object:window];
+
+  [self.mainWindows addObject:window];
+}
+
+- (void)mainWindowWillClose:(NSNotification *)notification
+{
+  NSWindow *window = (NSWindow *)notification.object;
+  if (window == nil) {
+    return;
+  }
+
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:NSWindowWillCloseNotification
+                                                object:window];
+
+  [self.mainWindows removeObject:window];
+
+  // If the RN-created main window is being closed, release our reference so it can be recreated later.
+  if ((NSWindow *)self.window == window) {
+    // If another main window is still open, keep `self.window` pointing at one of them.
+    self.window = (id)(self.mainWindows.lastObject);
+  }
+}
+
+- (NSDictionary *)mainWindowInitialProps
+{
+  NSMutableDictionary *props = [NSMutableDictionary dictionary];
+  if ([self.initialProps isKindOfClass:[NSDictionary class]]) {
+    [props addEntriesFromDictionary:self.initialProps];
+  }
+
+  // Always read the latest preference so new windows match the current setting.
+  props[@"initialTabStripStyle"] = [self loadTabStripStylePreference];
+  return props;
+}
+
+- (NSWindow *)createMainWindow
+{
+  NSString *moduleName = self.moduleName;
+  if (![moduleName isKindOfClass:[NSString class]] || moduleName.length == 0) {
+    moduleName = @"CrystalLatticeControlDesktopRN";
+  }
+
+  NSDictionary *initialProps = [self mainWindowInitialProps];
+
+  NSView *rootView = nil;
+  if (self.rootViewFactory != nil) {
+    @try {
+      rootView = (NSView *)[self.rootViewFactory viewWithModuleName:moduleName initialProperties:initialProps];
+    } @catch (__unused NSException *exception) {
+      rootView = nil;
+    }
+  }
+
+  if (rootView == nil) {
+    // Fallback: should not happen, but keeps behavior consistent with DesktopWindowManager.
+    rootView = [[RCTRootView alloc] initWithBridge:self.bridge moduleName:moduleName initialProperties:initialProps];
+  }
+
+  NSRect frame = NSMakeRect(0, 0, 1280, 720);
+  NSWindow *window = [[NSWindow alloc] initWithContentRect:frame
+                                                 styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskResizable |
+                                                           NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable
+                                                   backing:NSBackingStoreBuffered
+                                                     defer:NO];
+  window.title = moduleName;
+  window.autorecalculatesKeyViewLoop = YES;
+
+  NSViewController *rootViewController = [NSViewController new];
+  rootViewController.view = rootView;
+  rootView.frame = frame;
+  rootView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+  window.contentViewController = rootViewController;
+
+  // Keep explicit ownership until the window closes.
+  window.releasedWhenClosed = NO;
+
+  return window;
+}
+
+- (void)presentMainWindow:(NSWindow *)window
+{
+  if (window == nil) {
+    return;
+  }
+
+  [self trackMainWindowIfNeeded:window];
+
+  // Cascade new windows so "New Window" doesn't stack them perfectly.
+  self.mainWindowCascadePoint = [window cascadeTopLeftFromPoint:self.mainWindowCascadePoint];
+
+  [window makeKeyAndOrderFront:nil];
+  [NSApp activateIgnoringOtherApps:YES];
+}
+
+- (void)openNewMainWindow:(__unused id)sender
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSWindow *window = [self createMainWindow];
+    // Keep `self.window` pointing to the most recently created main window.
+    self.window = (id)window;
+    [self presentMainWindow:window];
+  });
+}
+
+- (BOOL)applicationShouldHandleReopen:(__unused NSApplication *)sender
+                    hasVisibleWindows:(BOOL)hasVisibleWindows
+{
+  // Match typical macOS behavior: clicking the Dock icon brings windows forward,
+  // or creates a new main window when none exist.
+
+  [NSApp activateIgnoringOtherApps:YES];
+  [NSApp unhide:nil];
+
+  BOOL restoredAnyWindow = NO;
+  for (NSWindow *window in NSApp.windows) {
+    // Ignore windows that cannot be shown/activated.
+    if (![window isKindOfClass:[NSWindow class]] || !window.canBecomeKeyWindow) {
+      continue;
+    }
+
+    if (window.isMiniaturized) {
+      [window deminiaturize:nil];
+    }
+
+    [window makeKeyAndOrderFront:nil];
+    restoredAnyWindow = YES;
+  }
+
+  if (!restoredAnyWindow && !hasVisibleWindows) {
+    [self openNewMainWindow:nil];
+  }
+
+  return YES;
+}
+
+- (NSMenu *)applicationDockMenu:(__unused NSApplication *)sender
+{
+  NSMenu *menu = [[NSMenu alloc] initWithTitle:@""];
+
+  NSMenuItem *newWindowItem =
+      [[NSMenuItem alloc] initWithTitle:@"New Window" action:@selector(openNewMainWindow:) keyEquivalent:@""];
+  newWindowItem.target = self;
+  [menu addItem:newWindowItem];
+
+  return menu;
 }
 
 - (NSURL *)sourceURLForBridge:(RCTBridge *)bridge
