@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useTheme } from '@crystal-lattice/frontend-rn-components';
@@ -25,6 +25,8 @@ export function MessageLimitPopoverContent({
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
+  const startInputRef = useRef<TextInput | null>(null);
+
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
 
@@ -33,11 +35,23 @@ export function MessageLimitPopoverContent({
     setEnd(endText ?? '');
   }, [endText, popoverId, startText]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      startInputRef.current?.focus();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [popoverId]);
+
   const lastReload =
     typeof lastReloadAtMs === 'number' ? new Date(lastReloadAtMs).toLocaleTimeString() : null;
 
   const close = () => {
     closeDesktopPopover(popoverId);
+  };
+
+  const handleApply = () => {
+    close();
+    onApply({ startText: start, endText: end });
   };
 
   return (
@@ -51,10 +65,15 @@ export function MessageLimitPopoverContent({
         <View style={styles.rangeInputContainer}>
           <Text style={styles.rangeLabel}>Start</Text>
           <TextInput
+            ref={(node) => {
+              startInputRef.current = node;
+            }}
             style={styles.input}
             value={start}
             onChangeText={setStart}
             placeholder="e.g. -50"
+            blurOnSubmit={false}
+            onSubmitEditing={handleApply}
           />
         </View>
         <View style={styles.rangeInputContainer}>
@@ -64,6 +83,8 @@ export function MessageLimitPopoverContent({
             value={end}
             onChangeText={setEnd}
             placeholder="optional"
+            blurOnSubmit={false}
+            onSubmitEditing={handleApply}
           />
         </View>
       </View>
@@ -95,8 +116,7 @@ export function MessageLimitPopoverContent({
             ];
           }}
           onPress={() => {
-            close();
-            onApply({ startText: start, endText: end });
+            handleApply();
           }}
         >
           <Text style={styles.buttonPrimaryText}>Apply</Text>

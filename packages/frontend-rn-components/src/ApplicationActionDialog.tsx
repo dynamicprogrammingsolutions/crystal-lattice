@@ -71,6 +71,9 @@ export function ApplicationActionDialogLayout({
   const [valuesByName, setValuesByName] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
+  const firstInputRef = useRef<TextInput | null>(null);
+  const submitCaptureRef = useRef<TextInput | null>(null);
+
   const lastDialogRef = useRef<any>(null);
 
   useEffect(() => {
@@ -136,6 +139,30 @@ export function ApplicationActionDialogLayout({
     setValuesByName(initial);
     setError(null);
   }, [dialog, inputs, kind, prefillContext]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'macos') {
+      return;
+    }
+    if (!dialog || kind === 'none') {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      // Ensure keyboard focus lands inside the dialog so Return/Enter
+      // does not trigger underlying UI (e.g. chat composer).
+      if (kind !== 'form' || inputs.length === 0) {
+        submitCaptureRef.current?.focus();
+        return;
+      }
+
+      firstInputRef.current?.focus();
+    }, 0);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [dialog, kind]);
 
   if (!dialog || kind === 'none') {
     return null;
@@ -220,6 +247,19 @@ export function ApplicationActionDialogLayout({
 
   return (
     <View style={[styles.dialogCard, style]}>
+      {Platform.OS === 'macos' ? (
+        <TextInput
+          ref={(node) => {
+            submitCaptureRef.current = node;
+          }}
+          style={styles.submitCapture}
+          value=""
+          onChangeText={() => {}}
+          blurOnSubmit={false}
+          onSubmitEditing={() => handlePrimary()}
+        />
+      ) : null}
+
       <Text style={styles.modalTitle}>{title}</Text>
       {message ? <Text style={styles.modalSubtitle}>{message}</Text> : null}
 
@@ -233,12 +273,18 @@ export function ApplicationActionDialogLayout({
             const value = valuesByName[name] ?? '';
             const fieldType = typeof field.type === 'string' ? field.type : 'string';
             const isMultiline = fieldType === 'multiline';
+            const isFirstField = inputs[0] === field;
 
             return (
               <View key={name} style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>{label}</Text>
                 {description ? <Text style={styles.inputDescription}>{description}</Text> : null}
                 <TextInput
+                  ref={(node) => {
+                    if (isFirstField) {
+                      firstInputRef.current = node;
+                    }
+                  }}
                   style={isMultiline ? styles.modalInputMultiline : styles.modalInput}
                   value={value}
                   onChangeText={(text) => handleChange(name, text)}
@@ -246,6 +292,16 @@ export function ApplicationActionDialogLayout({
                   placeholderTextColor={theme.textSecondary}
                   multiline={isMultiline}
                   textAlignVertical={isMultiline ? 'top' : 'center'}
+                  blurOnSubmit={!isMultiline}
+                  onSubmitEditing={() => {
+                    if (Platform.OS !== 'macos') {
+                      return;
+                    }
+                    if (isMultiline) {
+                      return;
+                    }
+                    handlePrimary();
+                  }}
                 />
               </View>
             );
@@ -326,6 +382,14 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.surface,
       borderRadius: 12,
       padding: 16,
+    },
+    submitCapture: {
+      position: 'absolute',
+      left: -1000,
+      top: -1000,
+      width: 1,
+      height: 1,
+      opacity: 0,
     },
     modalTitle: {
       fontSize: 18,

@@ -229,6 +229,7 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
       try {
         const raw = await asyncStorageKeyValueStore.get(STORAGE_KEY_OPEN_TABS);
         const parsed = parsePersistedOpenTabsState(raw);
+        console.log(`Hydrating tabs from storage: raw=${raw}`);
         if (!parsed || cancelled) {
           return;
         }
@@ -356,6 +357,7 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
       }
     };
 
+    console.log(`Saving open tabs state: activeTabId=${activeTabId}, tabs=${tabs.map((t) => t.tabId).join(',')}`);
     save();
   }, [activeTabId, messagesCache, tabs, tabsHydrated]);
 
