@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -12,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import type { FlatList as FlatListType } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Clipboard from '@react-native-clipboard/clipboard';
@@ -44,6 +44,7 @@ import {
   type SessionSummary,
 } from './api';
 import MessageBubble from './components/MessageBubble';
+import { DependencyFlatList } from './components/DependencyFlatList';
 import DebugEventsView from './components/DebugEventsView';
 import SessionSettingsModal from './components/SessionSettingsModal';
 import AgentSwitchModal from './components/AgentSwitchModal';
@@ -90,6 +91,14 @@ const STORAGE_KEY_MESSAGE_ACTIONS = 'clc_pinned_message_actions_by_role_v1';
 type PluginActionContext =
   | { kind: 'session'; sessionSummary: SessionSummary | null }
   | { kind: 'message'; index: number; message: ApiMessage; sessionSummary: SessionSummary | null };
+
+type TranscriptRow =
+  | { kind: 'status' }
+  | { kind: 'stream' }
+  | IndexedMessage;
+
+const TRANSCRIPT_STATUS_ROW: TranscriptRow = { kind: 'status' };
+const TRANSCRIPT_STREAM_ROW: TranscriptRow = { kind: 'stream' };
 
 const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   backend,
@@ -164,12 +173,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     sessionListFields,
   } = useApplicationPlugins();
 
-  type ChatRow =
-    | { kind: 'status'; key: string; parts: string[] }
-    | { kind: 'stream'; key: string }
-    | { kind: 'message'; key: string; indexedMessage: IndexedMessage };
-
-  const listRef = useRef<FlatList<ChatRow> | null>(null);
+	  const listRef = useRef<FlatListType<any> | null>(null);
   const composeTextRef = useRef<string>(initialComposeText ?? '');
   const onSaveComposeTextRef = useRef(onSaveComposeText);
   const onSaveScrollAnchorRef = useRef(onSaveScrollAnchor);
@@ -881,21 +885,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	    ],
 	  );
 
-	  const chatRows = useMemo<ChatRow[]>(() => {
-	    const rows: ChatRow[] = [
-	      { kind: 'status', key: 'row-status', parts: statusBarParts },
-	      { kind: 'stream', key: 'row-stream' },
-	    ];
+	  const transcriptRows = useMemo<TranscriptRow[]>(() => {
+	    const rows: TranscriptRow[] = [TRANSCRIPT_STATUS_ROW, TRANSCRIPT_STREAM_ROW];
 	    for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
-	      const indexedMessage = messages[idx];
-	      rows.push({
-	        kind: 'message',
-	        key: `msg-${indexedMessage.index}`,
-	        indexedMessage,
-	      });
+	      rows.push(messages[idx]);
 	    }
 	    return rows;
-	  }, [messages, statusBarParts, streamingRow]);
+	  }, [messages]);
 
 	  const handleListScroll = useCallback((event: any) => {
 	    const offset = event?.nativeEvent?.contentOffset?.y;
@@ -997,10 +993,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        </View>
 	      )}
 	
-	      <FlatList
+	      <DependencyFlatList
 	        style={styles.messagesContainer}
 	        ref={listRef}
-	        data={chatRows}
+	        data={transcriptRows}
 	        inverted
 	        onLayout={() => {
 	          maybeRestoreScroll();
@@ -1014,31 +1010,56 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	          minIndexForVisible: 0,
 	          autoscrollToTopThreshold: PINNED_TO_BOTTOM_THRESHOLD_PX,
 	        }}
-	        keyExtractor={(row) => row.key}
-	        extraData={{
-	          isActive,
-	          editingIndex,
-	          editingText,
-	          messageViewModeByIndex,
-	          pinnedMessageActionsByRole,
-	          footerElements,
-	          pluginMessageActionDefs,
-	          statusBarParts,
-	          streamingRow,
+	        keyExtractor={(row) => {
+	          if ('kind' in row) {
+	            return row.kind === 'status' ? 'row-status' : 'row-stream';
+	          }
+	          return `msg-${row.index}`;
 	        }}
-	        renderItem={({ item: row }) => {
-	          if (row.kind === 'status') {
-	            if (!row.parts || row.parts.length === 0) {
-	              return null;
+	        getItemDependencies={(row) => {
+	          if ('kind' in row) {
+	            if (row.kind === 'status') {
+	              return [statusBarParts];
 	            }
-	            return (
-	              <View style={styles.statusBarContainer}>
-	                <Text style={styles.statusBarText}>{row.parts.join('   ')}</Text>
-	              </View>
-	            );
+	            const lastMessageIndex = messages.length > 0 ? messages[messages.length - 1].index : null;
+	            return [
+	              streamingRow,
+	              lastMessageIndex,
+	              isActive,
+	              footerElements,
+	              pluginMessageActionDefs,
+	            ];
 	          }
 	
-	          if (row.kind === 'stream') {
+	          const role = row.message.role || 'unknown';
+	          const defaultModeForRole: 'markdown' | 'raw' =
+	            role === 'assistant' ? 'markdown' : 'raw';
+	          const renderMode = messageViewModeByIndex[row.index] ?? defaultModeForRole;
+	          const isEditing = editingIndex === row.index;
+	          return [
+	            isActive,
+	            footerElements,
+	            pluginMessageActionDefs,
+	            sessionSummary,
+	            pinnedMessageActionsByRole[role],
+	            renderMode,
+	            isEditing,
+	            isEditing ? editingText : null,
+	          ];
+	        }}
+	        renderItem={({ item: row }) => {
+	          if ('kind' in row) {
+	            if (row.kind === 'status') {
+	              if (!statusBarParts || statusBarParts.length === 0) {
+	                return null;
+	              }
+	              return (
+	                <View style={styles.statusBarContainer}>
+	                  <Text style={styles.statusBarText}>{statusBarParts.join('   ')}</Text>
+	                </View>
+	              );
+	            }
+	
 	            if (!streamingRow || (!streamingRow.content && !streamingRow.reasoning)) {
 	              return null;
 	            }
@@ -1068,7 +1089,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	            );
 	          }
 
-	          const m = row.indexedMessage;
+	          const m = row;
 	          const role = m.message.role || 'unknown';
 	          const allowedActions = ALL_MESSAGE_ACTIONS
 	            .filter((def) => def.allowedRoles.includes(role))

@@ -603,6 +603,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   footerElements,
   pluginActionDefs,
 }) => {
+  console.log("Rendering MessageBubble", { index, role: message.role });
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
