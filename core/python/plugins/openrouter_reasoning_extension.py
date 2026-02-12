@@ -161,17 +161,15 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
         if not reasoning_config:
             return state
 
-        request = state.get("request") or {}
-        payload = dict(request.get("payload", {}))
-
-        # Add reasoning configuration to payload
-        payload["reasoning"] = reasoning_config["reasoning"]
+        config = state.get("config", {})
+        request_options = dict(config.get("request_options", {}))
+        request_options["reasoning"] = reasoning_config["reasoning"]
 
         return {
             **state,
-            "request": {
-                **request,
-                "payload": payload,
+            "config": {
+                **config,
+                "request_options": request_options,
             },
         }
 

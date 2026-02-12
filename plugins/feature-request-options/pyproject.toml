@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "feature-request-options"
+version = "0.1.0"
+description = "Feature plugin that merges request_options from config into provider payload"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "agent-core>=0.3.0"
+]
+
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["feature_request_options*"]
+
+
+[tool.setuptools.data-files]
+"" = ["agent_plugin.json"]
+
