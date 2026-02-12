@@ -25,6 +25,33 @@
 
 RCT_EXPORT_MODULE();
 
+- (instancetype)init
+{
+  if (self = [super init]) {
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleApplicationWillHide:)
+                                                 name:NSApplicationWillHideNotification
+                                               object:nil];
+
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleApplicationDidUnhide:)
+                                                 name:NSApplicationDidUnhideNotification
+                                               object:nil];
+  }
+  return self;
+}
+
+- (void)dealloc
+{
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:NSApplicationWillHideNotification
+                                                object:nil];
+
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:NSApplicationDidUnhideNotification
+                                                object:nil];
+}
+
 + (BOOL)requiresMainQueueSetup
 {
   return YES;
@@ -68,6 +95,24 @@ RCT_EXPORT_MODULE();
   [[NSDistributedNotificationCenter defaultCenter] removeObserver:self
                                                             name:@"AppleInterfaceThemeChangedNotification"
                                                           object:nil];
+}
+
+- (void)handleApplicationWillHide:(NSNotification *)notification
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSLog(@"[DesktopWindowManager] NSApplicationWillHide: closing transient popovers/windows");
+    [self closeActionsPopover];
+    [self closeMessageLimitPopover];
+    [self closeApplicationActionDialogPopover];
+    [self closeApplicationActionDialogWindow];
+  });
+}
+
+- (void)handleApplicationDidUnhide:(NSNotification *)notification
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSLog(@"[DesktopWindowManager] NSApplicationDidUnhide");
+  });
 }
 
 - (void)handleTabStripStyleDidChange:(NSNotification *)notification
@@ -332,6 +377,7 @@ RCT_EXPORT_METHOD(openAgentPicker : (NSDictionary *)params)
 RCT_EXPORT_METHOD(openApplicationActionDialogWindow : (NSDictionary *)params)
 {
   dispatch_async(dispatch_get_main_queue(), ^{
+    NSLog(@"[DesktopWindowManager] openApplicationActionDialogWindow existing=%p", self.applicationActionDialogWindow);
     if (self.applicationActionDialogWindow != nil) {
       [self.applicationActionDialogWindow makeKeyAndOrderFront:nil];
       return;
@@ -460,6 +506,7 @@ RCT_EXPORT_METHOD(closeSessionSettingsWindow)
 RCT_EXPORT_METHOD(openApplicationActionDialogPopover : (NSDictionary *)params)
 {
   dispatch_async(dispatch_get_main_queue(), ^{
+    NSLog(@"[DesktopWindowManager] openApplicationActionDialogPopover existing=%p shown=%d", self.applicationActionDialogPopover, self.applicationActionDialogPopover != nil ? self.applicationActionDialogPopover.isShown : 0);
     if (self.applicationActionDialogPopover != nil && self.applicationActionDialogPopover.isShown) {
       self.suppressApplicationActionDialogPopoverCancel = YES;
       self.closingApplicationActionDialogPopover = self.applicationActionDialogPopover;
@@ -539,6 +586,7 @@ RCT_EXPORT_METHOD(openApplicationActionDialogPopover : (NSDictionary *)params)
 RCT_EXPORT_METHOD(closeApplicationActionDialogPopover)
 {
   dispatch_async(dispatch_get_main_queue(), ^{
+    NSLog(@"[DesktopWindowManager] closeApplicationActionDialogPopover existing=%p", self.applicationActionDialogPopover);
     if (self.applicationActionDialogPopover == nil) {
       return;
     }
@@ -553,6 +601,7 @@ RCT_EXPORT_METHOD(closeApplicationActionDialogPopover)
 RCT_EXPORT_METHOD(closeApplicationActionDialogWindow)
 {
   dispatch_async(dispatch_get_main_queue(), ^{
+    NSLog(@"[DesktopWindowManager] closeApplicationActionDialogWindow existing=%p", self.applicationActionDialogWindow);
     if (self.applicationActionDialogWindow == nil) {
       return;
     }
@@ -834,6 +883,7 @@ RCT_EXPORT_METHOD(cancelAgentPicker)
 - (void)popoverDidClose:(NSNotification *)notification
 {
   NSPopover *popover = (NSPopover *)notification.object;
+  NSLog(@"[DesktopWindowManager] popoverDidClose popover=%p appAction=%p closing=%p suppress=%d", popover, self.applicationActionDialogPopover, self.closingApplicationActionDialogPopover, self.suppressApplicationActionDialogPopoverCancel);
   if (popover == self.closingApplicationActionDialogPopover) {
     self.closingApplicationActionDialogPopover = nil;
     self.suppressApplicationActionDialogPopoverCancel = NO;
