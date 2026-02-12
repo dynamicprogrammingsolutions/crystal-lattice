@@ -9,5 +9,8 @@
   },
   "dependencies": {
     "@crystal-lattice/frontend-sdk": "0.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.10"
   }
 }
