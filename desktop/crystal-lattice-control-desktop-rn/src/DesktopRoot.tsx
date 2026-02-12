@@ -602,6 +602,13 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
 
           backend
             .switchSessionAgent(pickedSessionId, agentId)
+            .then(() => {
+              desktopEventBus.publish('sessionAgentSwitched', {
+                connectionId: pickedConnectionId,
+                sessionId: pickedSessionId,
+                agentId,
+              });
+            })
             .catch(() => {});
           return;
         }
