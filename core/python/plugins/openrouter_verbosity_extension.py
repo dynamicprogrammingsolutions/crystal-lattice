@@ -83,14 +83,14 @@ class OpenRouterVerbosityExtension(ProviderExtensionPlugin):
         if not isinstance(verbosity, str) or verbosity not in _VERBOSITY_LEVELS:
             return state
 
-        request = state.get("request") or {}
-        payload = dict(request.get("payload", {}))
-        payload["verbosity"] = verbosity
+        config = state.get("config", {})
+        request_options = dict(config.get("request_options", {}))
+        request_options["verbosity"] = verbosity
 
         return {
             **state,
-            "request": {
-                **request,
-                "payload": payload,
+            "config": {
+                **config,
+                "request_options": request_options,
             },
         }

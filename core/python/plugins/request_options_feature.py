@@ -40,6 +40,7 @@ class RequestOptionsFeature(FeaturePlugin):
 
     name: str = "request_options"
     version: str = "0.1.0"
+    priority: int = 200  # Run after extensions that prepare request_options
 
     # ---- Config / UI ----
     def get_config_schema(self) -> Dict[str, Any]:
