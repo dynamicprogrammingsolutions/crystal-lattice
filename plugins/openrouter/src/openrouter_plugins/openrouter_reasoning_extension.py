@@ -25,6 +25,7 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
 
     name: str = "openrouter_reasoning"
     version: str = "0.2.0"
+    priority: int = 50  # Run before RequestOptionsFeature
 
     def get_tags(
             self,
@@ -43,7 +44,7 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
             "reasoning_effort": {
                 "type": "string",
                 "required": False,
-                "enum": ["low", "medium", "high"],
+                "enum": ["low", "medium", "high", "xhigh"],
                 "description": "Control reasoning depth (model-specific)",
             },
             "enable_reasoning": {
@@ -152,17 +153,15 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
         if not reasoning_config:
             return state
 
-        request = state.get("request") or {}
-        payload = dict(request.get("payload", {}))
-
-        # Add reasoning configuration to payload
-        payload["reasoning"] = reasoning_config["reasoning"]
+        config = state.get("config", {})
+        request_options = dict(config.get("request_options", {}))
+        request_options["reasoning"] = reasoning_config["reasoning"]
 
         return {
             **state,
-            "request": {
-                **request,
-                "payload": payload,
+            "config": {
+                **config,
+                "request_options": request_options,
             },
         }
 
