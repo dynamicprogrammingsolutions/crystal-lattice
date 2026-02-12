@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { Platform } from 'react-native';
 
 import { getLastActionsPopoverAnchorTag } from '@crystal-lattice/frontend-rn-components';
@@ -11,6 +11,8 @@ import {
 } from './applicationActionDialogCoordinator';
 import { APPLICATION_ACTION_DIALOG_PRESENTATION } from './applicationActionDialogPresentation';
 import { DesktopWindowManager, desktopWindowEvents } from './desktopWindowManager';
+
+const DEBUG_ACTION_DIALOG = (globalThis as any).CLC_DEBUG_ACTION_DIALOG === true;
 
 function calculatePopoverHeight(dialog: any): number {
   const dialogInputs = Array.isArray(dialog?.inputs) ? dialog.inputs : [];
@@ -48,6 +50,14 @@ export function useMacOSApplicationActionDialog({
 }: UseMacOSApplicationActionDialogOptions): void {
   const ownerPrefix = useMemo(() => `${ownerId}:`, [ownerId]);
 
+  const closeNativeDialog = useCallback(() => {
+    if (DEBUG_ACTION_DIALOG) {
+      console.log('[action-dialog] closeNativeDialog', { ownerId });
+    }
+    DesktopWindowManager?.closeApplicationActionDialogPopover();
+    DesktopWindowManager?.closeApplicationActionDialogWindow();
+  }, [ownerId]);
+
   useEffect(() => {
     if (Platform.OS !== 'macos') {
       return;
@@ -66,15 +76,14 @@ export function useMacOSApplicationActionDialog({
       }
 
       clearActiveApplicationActionDialog(active.state.id);
-      DesktopWindowManager?.closeApplicationActionDialogPopover();
-      DesktopWindowManager?.closeApplicationActionDialogWindow();
+      closeNativeDialog();
       onCancel();
     });
 
     return () => {
       sub.remove();
     };
-  }, [onCancel, ownerPrefix]);
+  }, [closeNativeDialog, onCancel, ownerPrefix]);
 
   useEffect(() => {
     if (Platform.OS !== 'macos') {
@@ -84,27 +93,40 @@ export function useMacOSApplicationActionDialog({
     const dialog: any = (activeElement as any)?.dialog;
     const kind: string = dialog && typeof dialog.kind === 'string' ? dialog.kind : 'none';
 
+    const existing = getActiveApplicationActionDialog();
+
     if (!activeElement || !dialog || kind === 'none') {
-      const active = getActiveApplicationActionDialog();
-      if (active && active.state.id.startsWith(ownerPrefix)) {
-        clearActiveApplicationActionDialog(active.state.id);
-        DesktopWindowManager?.closeApplicationActionDialogPopover();
-        DesktopWindowManager?.closeApplicationActionDialogWindow();
+      if (existing) {
+        if (existing.state.id.startsWith(ownerPrefix)) {
+          clearActiveApplicationActionDialog(existing.state.id);
+          closeNativeDialog();
+        }
+        return;
       }
+
+      // Match the previous behavior: if there is no active dialog state,
+      // still close any leftover window/popover.
+      closeNativeDialog();
       return;
     }
 
     const dialogId = `${ownerPrefix}${activeElement.id}`;
 
-    const existing = getActiveApplicationActionDialog();
+    if (DEBUG_ACTION_DIALOG) {
+      console.log('[action-dialog] present', {
+        ownerId,
+        dialogId,
+        kind,
+        presentation: APPLICATION_ACTION_DIALOG_PRESENTATION,
+      });
+    }
+
     if (existing && existing.state.id !== dialogId) {
       try {
         existing.handlers.onCancel();
       } catch {
       }
       clearActiveApplicationActionDialog(existing.state.id);
-      DesktopWindowManager?.closeApplicationActionDialogPopover();
-      DesktopWindowManager?.closeApplicationActionDialogWindow();
     }
 
     setActiveApplicationActionDialog({
@@ -123,22 +145,34 @@ export function useMacOSApplicationActionDialog({
     });
 
     const title = activeElement.label;
+
+    // Ensure the native view is fresh (avoid window reuse / leftover contents).
+    closeNativeDialog();
+
     if (APPLICATION_ACTION_DIALOG_PRESENTATION === 'window') {
-      DesktopWindowManager?.closeApplicationActionDialogPopover();
       DesktopWindowManager?.openApplicationActionDialogWindow({ title });
       return;
     }
 
-    DesktopWindowManager?.closeApplicationActionDialogWindow();
     const anchorTag = getLastActionsPopoverAnchorTag();
     const height = calculatePopoverHeight(dialog);
+
+    if (DEBUG_ACTION_DIALOG) {
+      console.log('[action-dialog] openPopover', {
+        ownerId,
+        dialogId,
+        anchorTag,
+        width: 420,
+        height,
+      });
+    }
 
     DesktopWindowManager?.openApplicationActionDialogPopover({
       anchorTag: typeof anchorTag === 'number' ? anchorTag : undefined,
       width: 420,
       height,
     });
-  }, [activeElement, onCancel, onSubmit, ownerPrefix, prefillContext]);
+  }, [activeElement, closeNativeDialog, onCancel, onSubmit, ownerPrefix, prefillContext]);
 
   useEffect(() => {
     return () => {
@@ -148,9 +182,8 @@ export function useMacOSApplicationActionDialog({
       const active = getActiveApplicationActionDialog();
       if (active && active.state.id.startsWith(ownerPrefix)) {
         clearActiveApplicationActionDialog(active.state.id);
-        DesktopWindowManager?.closeApplicationActionDialogPopover();
-        DesktopWindowManager?.closeApplicationActionDialogWindow();
+        closeNativeDialog();
       }
     };
-  }, [ownerPrefix]);
+  }, [closeNativeDialog, ownerPrefix]);
 }
