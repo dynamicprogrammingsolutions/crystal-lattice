@@ -34,7 +34,6 @@ import {
   selectDisplayContent,
 } from '@crystal-lattice/frontend-sdk';
 import {
-  useAgentsController,
   useApplicationPlugins,
   useChatController,
   useHydrateControllerFromCache,
@@ -64,6 +63,7 @@ import {
   type MessageActionKey,
 } from './messageActions';
 import { PinnedMessageActionsProvider } from './PinnedMessageActionsContext';
+import { useSessionStatusBarParts } from './useSessionStatusBarParts';
 
 const DEFAULT_HISTORY_WINDOW = 50;
 const PINNED_SESSION_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_session_actions_v1';
@@ -276,22 +276,18 @@ export const ChatPane = React.memo(function ChatPane({
     saveMessagePinned();
   }, [pinnedMessageActionsByRole, pinnedMessageActionsStorageKey]);
 
-  const { controller: agentsController, state: agentsState } = useAgentsController({
-    backend,
-    cacheKey: connectionId,
-    enabled: false,
-  });
-
   const { state: sessionUiSchemaState } = useSessionUiSchemaController({
     backend,
     cacheKey: connectionId,
     sessionId,
 	  enabled: !!(backend && isActive),
   });
-	  const footerElements = useMemo(
-	    () => filterFooterElements(sessionUiSchemaState?.elements ?? []),
-	    [sessionUiSchemaState?.elements],
-	  );
+
+  const uiSchemaElements = sessionUiSchemaState?.elements ?? [];
+  const footerElements = useMemo(
+    () => filterFooterElements(uiSchemaElements),
+    [uiSchemaElements],
+  );
 
   const {
     actionsById,
@@ -543,6 +539,17 @@ export const ChatPane = React.memo(function ChatPane({
   }, [chatState?.messages, cachedEntry?.messages]);
 
   const streamingRow = chatState?.streamingRow ?? null;
+
+  const { statusBarParts, ensureAgentsLoaded, agentsLoading } = useSessionStatusBarParts({
+    backend,
+    connectionId,
+    sessionId,
+    isActive,
+    uiSchemaElements,
+    messages,
+    streamingRow,
+    sessionSummary: sessionSummary ?? null,
+  });
 
   const messagesCount = messages.length;
 
@@ -824,17 +831,13 @@ export const ChatPane = React.memo(function ChatPane({
     if (!backend) {
       return;
     }
-    if (!agentsController) {
-      Alert.alert('Error', 'Agent controller is not available.');
-      return;
-    }
     if (openingAgentPicker) {
       return;
     }
 
     setOpeningAgentPicker(true);
     try {
-      const agents = await agentsController.ensureLoaded();
+	  	const agents = await ensureAgentsLoaded();
 
       let initialAgentId: string | undefined;
       try {
@@ -862,7 +865,7 @@ export const ChatPane = React.memo(function ChatPane({
     } finally {
       setOpeningAgentPicker(false);
     }
-  }, [agentsController, backend, connectionId, connectionName, openingAgentPicker, sessionId]);
+  }, [backend, connectionId, connectionName, ensureAgentsLoaded, openingAgentPicker, sessionId]);
 
   const {
     activeElement: activePluginDialogElement,
@@ -1259,7 +1262,7 @@ export const ChatPane = React.memo(function ChatPane({
                 return reloadInFlight || (chatState?.loading ?? false);
               }
               if (key === 'agentSwitch') {
-                return openingAgentPicker || (agentsState?.loading ?? false);
+	              return openingAgentPicker || agentsLoading;
               }
               if (key === 'settings') {
                 const caps = backend.getCapabilities?.();
@@ -1480,6 +1483,18 @@ export const ChatPane = React.memo(function ChatPane({
             </Pressable>
           </View>
         </View>
+
+        {statusBarParts.length > 0 ? (
+          <View style={styles.sessionStatusBarContainer}>
+            <Text
+              style={styles.sessionStatusBarText}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {statusBarParts.join('   ')}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       {Platform.OS !== 'macos' && messageLimitVisible && (
@@ -1776,6 +1791,16 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       paddingTop: 10,
       borderTopWidth: separatorWidth,
       borderTopColor: theme.border,
+    },
+    sessionStatusBarContainer: {
+      borderTopWidth: separatorWidth,
+      borderTopColor: theme.border,
+      paddingTop: 8,
+    },
+    sessionStatusBarText: {
+      fontSize: 11,
+      color: theme.textSecondary,
+      fontFamily: Platform.OS === 'macos' ? 'Menlo' : 'Courier',
     },
     composerHeaderRow: {
       flexDirection: 'row',

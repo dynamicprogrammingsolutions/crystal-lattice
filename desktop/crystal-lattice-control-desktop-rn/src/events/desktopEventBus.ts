@@ -3,6 +3,12 @@ export type DesktopEventMap = {
     connectionId: string;
     reason?: string;
   };
+
+  sessionAgentSwitched: {
+    connectionId: string;
+    sessionId: string;
+    agentId: string;
+  };
 };
 
 type DesktopEventKey = keyof DesktopEventMap;
@@ -13,6 +19,7 @@ const listenersByEvent: {
   [K in DesktopEventKey]: Set<Listener<K>>;
 } = {
   sessionsReloadRequested: new Set(),
+  sessionAgentSwitched: new Set(),
 };
 
 export const desktopEventBus = {
