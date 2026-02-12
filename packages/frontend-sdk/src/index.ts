@@ -58,6 +58,8 @@ export type {
   HttpMethod,
 } from './transport/transport';
 
+export type { KeyValueStore } from './storage/keyValueStore';
+
 export { FetchTransport } from './transport/fetchTransport';
 export { BridgeTransport } from './transport/bridgeTransport';
 
@@ -107,3 +109,14 @@ export type {
 } from './backend/backend';
 
 export { RestAgentBackend } from './backend/restBackend';
+
+export type {
+  ConnectionKind,
+  BaseConnectionRecord,
+  ManualConnectionRecord,
+  DiscoveryConnectionRecord,
+  BridgeConnectionRecord,
+  ConnectionRecord,
+} from './connections/types';
+
+export { CONNECTIONS_STORAGE_KEY, loadConnections, saveConnections } from './connections/store';

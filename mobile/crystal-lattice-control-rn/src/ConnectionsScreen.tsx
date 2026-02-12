@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
-import type { ConnectionRecord } from '../App';
+import type { ConnectionRecord } from '@crystal-lattice/frontend-sdk';
 import { getConnectionAdditionalInfo } from './connectionInfo';
 import { useTheme, type Theme } from './theme';
 

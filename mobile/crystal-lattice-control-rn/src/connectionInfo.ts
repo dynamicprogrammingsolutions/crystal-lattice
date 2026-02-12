@@ -1,4 +1,4 @@
-import type { ConnectionRecord } from '../App';
+import type { ConnectionRecord } from '@crystal-lattice/frontend-sdk';
 
 export function getConnectionAdditionalInfo(record: ConnectionRecord): string {
   if (record.kind === 'bridge') {
