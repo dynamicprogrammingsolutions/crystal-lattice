@@ -54,29 +54,115 @@ class OpenRouterProvider(ProviderPlugin):
         ]
 
     # ---------- Models / capabilities ----------
-    def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Return minimal model descriptors for this provider.
-
-        Currently returns the configured `model` (if any) as a single
-        ModelDescriptor with only an `id` field.
+    def _fetch_models_from_api(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Fetch model data from OpenRouter /models API.
+        
+        Returns list of model descriptors with id, name, and supported_parameters.
+        Returns empty list on error (logs warning).
         """
-        model = config.get("model")
-        if isinstance(model, str) and model:
-            return [{"id": model}]
-        return []
+        base_url = (config.get("base_url") or "https://openrouter.ai/api/v1").rstrip("/")
+        models_url = f"{base_url}/models"
+        
+        try:
+            response = requests.get(models_url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Extract models array from response
+            models = data.get("data", [])
+            if not isinstance(models, list):
+                get_logger("openrouter_provider").warning(
+                    "Invalid models response format",
+                    response=data
+                )
+                return []
+            
+            return models
+            
+        except requests.RequestException as e:
+            get_logger("openrouter_provider").warning(
+                "Failed to fetch models from OpenRouter API",
+                error=str(e),
+                url=models_url
+            )
+            return []
+        except Exception as e:
+            get_logger("openrouter_provider").warning(
+                "Unexpected error fetching models",
+                error=str(e)
+            )
+            return []
+    
+    def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return model descriptors from OpenRouter API.
+        
+        Fetches full model data from https://openrouter.ai/api/v1/models
+        and returns models that match the configured model. Returns minimal
+        model descriptor with just 'id' field on API failure.
+        
+        Results are cached in the config to avoid repeated API calls.
+        """
+        # Check cache first
+        cached_models = config.get("_openrouter_models_cache")
+        if cached_models is not None:
+            all_models = cached_models
+        else:
+            # Fetch from API
+            all_models = self._fetch_models_from_api(config)
+            # Cache the results in config (mutable dict)
+            config["_openrouter_models_cache"] = all_models
+        
+        # Filter to configured model
+        model_id = config.get("model")
+        if not isinstance(model_id, str) or not model_id:
+            return []
+        
+        # If API fetch succeeded, find the specific model
+        if all_models:
+            matching_models = [m for m in all_models if m.get("id") == model_id]
+            if matching_models:
+                return matching_models
+        
+        # Fallback: return minimal model descriptor
+        return [{"id": model_id}]
 
     def get_tags(
         self,
         config: Dict[str, Any],
         models: List[Dict[str, Any]],
     ) -> List[str]:
-        """Return capability tags for the OpenRouter provider.
-
-        OpenRouter supports streaming, tool calling, and reasoning across
-        multiple model providers.
+        """Return capability tags based on model's supported_parameters.
+        
+        Checks the model's supported_parameters array from the OpenRouter API:
+        - 'reasoning' → 'supports_reasoning'
+        - 'verbosity' → 'supports_verbosity'
+        - 'tools' → 'supports_tools'
+        
+        Always includes: provider:openrouter, openrouter, supports_streaming
+        Falls back to hardcoded tags if model data unavailable.
         """
         tags: List[str] = ["provider:openrouter", "openrouter"]
-        tags.append("supports_streaming")
+        tags.append("supports_streaming")  # All OpenRouter models support streaming
+        
+        # Check if we have model capability data
+        if models and isinstance(models, list) and len(models) > 0:
+            model = models[0]
+            supported_params = model.get("supported_parameters", [])
+            
+            if isinstance(supported_params, list) and len(supported_params) > 0:
+                # Map supported_parameters to capability tags
+                if "tools" in supported_params or "tool" in supported_params:
+                    tags.append("supports_tools")
+                if "reasoning" in supported_params:
+                    tags.append("supports_reasoning")
+                if "verbosity" in supported_params:
+                    tags.append("supports_verbosity")
+                if "reasoning_effort" in supported_params:
+                    tags.append("supports_reasoning_effort")
+                
+                return tags
+        
+        # Fallback: assume common capabilities (backward compatibility)
         tags.append("supports_tools")
         tags.append("supports_reasoning")
         return tags
