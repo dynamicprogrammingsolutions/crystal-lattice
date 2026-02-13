@@ -16,7 +16,7 @@ Depends On:
 
 ## Status
 
-- [ ] Not started
+- [x] Completed
 
 ## Context to read first (files + line numbers)
 
@@ -59,3 +59,111 @@ Depends On:
 - Type a draft in Tab A, switch to Tab B, then back: draft is restored.
 - Scroll up in Tab A, switch away/back: scroll offset is restored.
 - Restart the app: both draft + scroll restoration still work for cached tabs.
+
+---
+
+## Implementation plan (added during completion)
+
+### 1) Extend messages cache updater to accept UI fields
+
+File:
+
+- `desktop/crystal-lattice-control-desktop-rn/src/cache/useMessagesCache.ts`
+
+Changes:
+
+- Extend `updateMessagesCache(params)` to accept optional:
+  - `composeText?: string`
+  - `scrollAnchor?: unknown`
+- Merge into the existing entry (preserving prior values when omitted).
+
+### 2) Introduce a typed scroll-anchor model (desktop-local, mirrors mobile)
+
+File:
+
+- `desktop/crystal-lattice-control-desktop-rn/src/chat/chatScroll.ts`
+
+Exports:
+
+- `ChatScrollAnchor` (`{ bottomGapPx: number; pinnedToBottom: boolean; updatedAtMs: number }`)
+- `PINNED_TO_BOTTOM_THRESHOLD_PX`
+- `isChatScrollAnchor(...)`
+- `createChatScrollAnchor(...)`
+
+Rationale: keep cache payload validated/stable while `MessagesCacheEntry.scrollAnchor` remains `unknown`.
+
+### 3) Add hook: persisted composer draft (restore + debounce-save)
+
+File:
+
+- `desktop/crystal-lattice-control-desktop-rn/src/chat/usePersistedChatDraft.ts`
+
+Hook behavior:
+
+- Initialize composer text from `cachedEntry?.composeText ?? ''`.
+- If cache hydrates after mount, hydrate once (only if the user hasn’t typed yet) and update the native `MacTextView` via `ref.setText(...)`.
+- Debounce persistence into `MessagesCacheEntry.composeText`; flush on unmount.
+
+Integration goal:
+
+- Keep `ChatPane` focused on rendering + existing send flow; draft persistence stays in the hook.
+
+### 4) Add hook: persisted scroll anchor (capture + restore once)
+
+File:
+
+- `desktop/crystal-lattice-control-desktop-rn/src/chat/usePersistedChatScrollAnchor.ts`
+
+Hook behavior:
+
+- Track `contentHeight`, `layoutHeight`, and `offsetY` from list events.
+- Persist `{ bottomGapPx, pinnedToBottom, updatedAtMs }` into `MessagesCacheEntry.scrollAnchor` (debounced; flush on unmount).
+- Restore scroll once per mount after both layout and content dimensions are known.
+
+### 5) Small plumbing: allow transcript list components to accept an imperative ref
+
+Files:
+
+- `desktop/crystal-lattice-control-desktop-rn/src/ui/PlaceholderFlatList.tsx`
+- `desktop/crystal-lattice-control-desktop-rn/src/ui/DependencyFlatList.tsx`
+- `desktop/crystal-lattice-control-desktop-rn/src/ui/DependencyVirtualizedScroll.tsx`
+
+Changes:
+
+- Add `listRef?: React.Ref<any>` to `PlaceholderFlatListProps<TItem>` and pass it through to the underlying `ScrollView` / `FlatList` / `VirtualizedList`.
+
+### 6) Wire hooks into `ChatPane`
+
+File:
+
+- `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx`
+
+Changes:
+
+- Use `usePersistedChatDraft` to control `composeText` + persistence.
+- Use `usePersistedChatScrollAnchor` to capture/restore scroll state.
+- Pass `listRef` and scroll handlers to the transcript component.
+
+### Verification (manual)
+
+- Draft: type in Tab A → switch to Tab B → back → draft restored.
+- Scroll: scroll up in Tab A → switch away/back (or cold-start) → scroll restored.
+- Restart app: reopen tab/session → draft + scroll restored from cache.
+
+---
+
+## Completion notes (added during completion)
+
+- Draft persistence implemented via `usePersistedChatDraft` and cached `composeText`.
+- Scroll persistence on macOS implemented via a native pull-based metrics module (`MacScrollViewMetrics`) since transcript `ScrollView` does not emit scroll events.
+- Cached sessions no longer appear "in flight" on restart; `activeRequestId` is scrubbed during hydration.
+
+Implementation details:
+
+- Draft storage key: `MessagesCacheEntry.composeText`.
+- Draft debug: set `globalThis.CLC_DEBUG_DRAFT_PERSIST = true` to log init/flush/restore.
+- Scroll storage key: `MessagesCacheEntry.scrollAnchor` (stored as `ChatScrollAnchor` from `desktop/.../src/chat/chatScroll.ts`).
+- Scroll persistence triggers:
+  - `isActive` transitions `true -> false` (tab deactivated)
+  - unmount cleanup (covers tab close / app quit)
+- Scroll restore trigger: `isActive` transitions `false -> true` (reset + restore).

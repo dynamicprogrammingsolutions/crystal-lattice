@@ -22,6 +22,8 @@ export interface UseMessagesCacheResult {
     activeRequestId?: string | null;
     rangeStartText?: string | null;
     rangeEndText?: string | null;
+    composeText?: string;
+    scrollAnchor?: unknown;
   }) => void;
   deleteConnectionMessagesCache: (connectionId: string) => void;
   clearMessagesCache: () => void;
@@ -40,7 +42,20 @@ export function useMessagesCache(store: KeyValueStore): UseMessagesCacheResult {
         }
         const parsed = JSON.parse(raw) as MessagesCache;
         if (parsed && typeof parsed === 'object') {
-          setMessagesCache(parsed);
+          const scrubbed: MessagesCache = {};
+          for (const [connectionId, bySession] of Object.entries(parsed)) {
+            const nextBySession: MessagesBySession = {};
+            for (const [sessionId, entry] of Object.entries(bySession ?? {})) {
+              nextBySession[sessionId] = {
+                ...entry,
+                // Persisted active request IDs cannot be resumed across restarts.
+                // Scrub them so the UI doesn't treat cached sessions as "in flight".
+                activeRequestId: null,
+              };
+            }
+            scrubbed[connectionId] = nextBySession;
+          }
+          setMessagesCache(scrubbed);
         }
       } catch {
       } finally {
@@ -71,6 +86,8 @@ export function useMessagesCache(store: KeyValueStore): UseMessagesCacheResult {
       activeRequestId?: string | null;
       rangeStartText?: string | null;
       rangeEndText?: string | null;
+      composeText?: string;
+      scrollAnchor?: unknown;
     }) => {
       setMessagesCache((prev) => {
         const bySession = prev[params.connectionId] ?? {};
@@ -91,6 +108,8 @@ export function useMessagesCache(store: KeyValueStore): UseMessagesCacheResult {
           activeRequestId: params.activeRequestId ?? existing?.activeRequestId ?? null,
           rangeStartText: params.rangeStartText ?? existing?.rangeStartText ?? null,
           rangeEndText: params.rangeEndText ?? existing?.rangeEndText ?? null,
+          composeText: params.composeText ?? existing?.composeText,
+          scrollAnchor: params.scrollAnchor ?? existing?.scrollAnchor,
         };
 
         const nextBySession: MessagesBySession = {

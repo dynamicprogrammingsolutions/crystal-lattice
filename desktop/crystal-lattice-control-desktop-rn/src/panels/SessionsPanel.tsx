@@ -573,6 +573,7 @@ function SessionsPanelInner({
             viewportHeightRef.current = event.nativeEvent.layout.height;
           }}
           onScroll={(event) => {
+            console.log('[SessionsPanel] onScroll', event.nativeEvent.contentOffset.y)
             scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
           }}
           scrollEventThrottle={16}

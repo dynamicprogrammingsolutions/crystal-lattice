@@ -64,6 +64,8 @@ import {
 } from './messageActions';
 import { PinnedMessageActionsProvider } from './PinnedMessageActionsContext';
 import { useSessionStatusBarParts } from './useSessionStatusBarParts';
+import { usePersistedChatDraft } from './usePersistedChatDraft';
+import { useProactiveChatScrollPersistence } from './useProactiveChatScrollPersistence';
 
 const DEFAULT_HISTORY_WINDOW = 50;
 const PINNED_SESSION_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_session_actions_v1';
@@ -129,6 +131,8 @@ export interface ChatPaneProps {
     activeRequestId?: string | null;
     rangeStartText?: string | null;
     rangeEndText?: string | null;
+    composeText?: string;
+    scrollAnchor?: unknown;
   }) => void;
   styleVariant?: TabStripStyle;
 }
@@ -161,7 +165,6 @@ export const ChatPane = React.memo(function ChatPane({
   >({});
 
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [composeText, setComposeText] = useState('');
   const [rangeStartText, setRangeStartText] = useState(
     cachedEntry?.rangeStartText ?? `-${DEFAULT_HISTORY_WINDOW}`,
   );
@@ -175,7 +178,6 @@ export const ChatPane = React.memo(function ChatPane({
   const [pluginActionRunning, setPluginActionRunning] = useState(false);
   const [openingAgentPicker, setOpeningAgentPicker] = useState(false);
   const composerRef = useRef<MacTextViewHandle | null>(null);
-  const composeTextRef = useRef('');
   const attemptedInitialLoadRef = useRef(false);
   const pendingPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPersistKeyRef = useRef<string | null>(null);
@@ -538,6 +540,55 @@ export const ChatPane = React.memo(function ChatPane({
     return chatState?.messages ?? cachedEntry?.messages ?? [];
   }, [chatState?.messages, cachedEntry?.messages]);
 
+  const messagesForCacheRef = useRef<IndexedMessage[]>(messages);
+  useEffect(() => {
+    messagesForCacheRef.current = messages;
+  }, [messages]);
+
+  const getMessagesForCache = useCallback(() => {
+    return messagesForCacheRef.current ?? [];
+  }, []);
+
+  const {
+    composeText,
+    setComposeText,
+    composeTextRef,
+    handleChangeText: handleComposerChangeText,
+    initialText: initialComposeText,
+  } = usePersistedChatDraft({
+    connectionId,
+    sessionId,
+    cachedComposeText: cachedEntry?.composeText,
+    getMessagesForCache,
+    onUpdateCache,
+    composerRef,
+  });
+
+  const transcriptScroll = useProactiveChatScrollPersistence({
+    connectionId,
+    sessionId,
+    cachedScrollAnchor: cachedEntry?.scrollAnchor,
+    getMessagesForCache,
+    onUpdateCache,
+    enabled: isActive,
+  });
+
+  const requestPersistTranscriptScroll = transcriptScroll.requestPersist;
+  const resetTranscriptRestore = transcriptScroll.resetRestore;
+
+  const prevIsActiveRef = useRef(isActive);
+  useEffect(() => {
+    const prev = prevIsActiveRef.current;
+    prevIsActiveRef.current = isActive;
+    if (prev && !isActive) {
+      requestPersistTranscriptScroll('tabDeactivated');
+    }
+    if (!prev && isActive) {
+      resetTranscriptRestore('becameActive');
+    }
+  }, [isActive, requestPersistTranscriptScroll, resetTranscriptRestore]);
+
+
   const streamingRow = chatState?.streamingRow ?? null;
 
   const { statusBarParts, ensureAgentsLoaded, agentsLoading } = useSessionStatusBarParts({
@@ -574,7 +625,6 @@ export const ChatPane = React.memo(function ChatPane({
     try {
       await chatController.appendMessage({ role: 'user', content });
       setComposeText('');
-      composeTextRef.current = '';
       composerRef.current?.setText('');
       chatController.clearRequestState();
       await chatController.send();
@@ -588,7 +638,7 @@ export const ChatPane = React.memo(function ChatPane({
     } finally {
       setSendInFlight(false);
     }
-  }, [canSend, chatController, composeText]);
+  }, [canSend, chatController, composeText, setComposeText, composeTextRef]);
 
   const canRunComposerActions = backend != null && chatController != null && isActive;
 
@@ -1315,6 +1365,7 @@ export const ChatPane = React.memo(function ChatPane({
 	        <PinnedMessageActionsProvider value={pinnedMessageActionsContextValue}>
 	          {TRANSCRIPT_LIST_IMPLEMENTATION === 'flatList' ? (
 	            <DependencyFlatList
+	              listRef={transcriptScroll.listRef}
 	              style={styles.transcript}
 	              contentContainerStyle={styles.transcriptContent}
 	              data={messages}
@@ -1335,6 +1386,9 @@ export const ChatPane = React.memo(function ChatPane({
 	                ];
 	              }}
 	              scrollEventThrottle={16}
+	              onLayout={transcriptScroll.onLayout}
+	              onContentSizeChange={transcriptScroll.onContentSizeChange}
+	              onScroll={transcriptScroll.onScroll}
 	              renderItem={renderMessageItem}
 	              ListEmptyComponent={
 	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
@@ -1343,6 +1397,7 @@ export const ChatPane = React.memo(function ChatPane({
 	            />
 	          ) : TRANSCRIPT_LIST_IMPLEMENTATION === 'virtualizedScroll' ? (
 	            <DependencyVirtualizedScroll
+	              listRef={transcriptScroll.listRef}
 	              style={styles.transcript}
 	              contentContainerStyle={styles.transcriptContent}
 	              data={messages}
@@ -1363,6 +1418,9 @@ export const ChatPane = React.memo(function ChatPane({
 	                ];
 	              }}
 	              scrollEventThrottle={16}
+	              onLayout={transcriptScroll.onLayout}
+	              onContentSizeChange={transcriptScroll.onContentSizeChange}
+	              onScroll={transcriptScroll.onScroll}
 	              renderItem={renderMessageItem}
 	              ListEmptyComponent={
 	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
@@ -1371,10 +1429,12 @@ export const ChatPane = React.memo(function ChatPane({
 	            />
 	          ) : (
 	            <PlaceholderFlatList
+	              listRef={transcriptScroll.listRef}
 	              style={styles.transcript}
 	              contentContainerStyle={styles.transcriptContent}
 	              data={messages}
 	              keyExtractor={(item) => String(item.index)}
+	              showsVerticalScrollIndicator
 	              getItemDependencies={(item) => {
 	                const role = item.message.role || 'unknown';
 	                const defaultModeForRole: 'markdown' | 'raw' =
@@ -1391,6 +1451,8 @@ export const ChatPane = React.memo(function ChatPane({
 	                ];
 	              }}
 	              scrollEventThrottle={16}
+	              onLayout={transcriptScroll.onLayout}
+	              onContentSizeChange={transcriptScroll.onContentSizeChange}
 	              renderItem={renderMessageItem}
 	              ListEmptyComponent={
 	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
@@ -1446,6 +1508,7 @@ export const ChatPane = React.memo(function ChatPane({
               <MacTextView
                 ref={composerRef}
                 style={styles.composerInput}
+                initialText={initialComposeText}
                 placeholder={backend ? 'Type a message…' : 'Offline (read-only)'}
                 placeholderTextColor={theme.textMuted}
                 textColor={theme.text}
@@ -1456,8 +1519,7 @@ export const ChatPane = React.memo(function ChatPane({
                 maxHeight={120}
                 onHeightChange={handleComposerHeightChange}
                 onChangeText={(text) => {
-                  composeTextRef.current = text;
-                  setComposeText(text);
+                  handleComposerChangeText(text);
                 }}
                 onSubmit={(text) => {
                   handleSend(text).catch(() => {
