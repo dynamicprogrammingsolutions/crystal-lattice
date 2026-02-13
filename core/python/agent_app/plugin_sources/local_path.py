@@ -112,7 +112,7 @@ class LocalPathRepoSource:
         cache_dir = ctx.cache_dir
         cache_dir.mkdir(parents=True, exist_ok=True)
 
-        git_fp = self._fingerprint_git(base)
+        git_fp = self._fingerprint_git(base, project_dir)
         fp = git_fp or self._fingerprint_files(project_dir)
         revision = hashlib.sha256(fp.encode("utf-8", errors="ignore")).hexdigest()
         safe_id = base.name or "plugin"
@@ -123,9 +123,15 @@ class LocalPathRepoSource:
             "entry": entries[0] if len(entries) == 1 else None,
         }
         if git_fp and git_fp.startswith("git:"):
-            _tag, commit, status_hash = git_fp.split(":", 2)
-            metadata["commit"] = commit
-            metadata["status_hash"] = status_hash
+            parts = git_fp.split(":", 3)
+            # Back-compat: older fingerprints were "git:<commit>:<status_hash>".
+            # New fingerprints include a scope: "git:<commit>:<status_hash>:<scope>".
+            if len(parts) >= 3:
+                _tag, commit, status_hash = parts[:3]
+                metadata["commit"] = commit
+                metadata["status_hash"] = status_hash
+            if len(parts) == 4:
+                metadata["scope"] = parts[3]
 
         src_root = cache_dir / "src"
         src_root.mkdir(parents=True, exist_ok=True)
@@ -183,17 +189,54 @@ class LocalPathRepoSource:
     def _is_installable_project(self, project_dir: Path) -> bool:
         return (project_dir / "pyproject.toml").is_file() or (project_dir / "setup.py").is_file()
 
-    def _fingerprint_git(self, base: Path) -> Optional[str]:
+    def _fingerprint_git(self, base: Path, project_dir: Path) -> Optional[str]:
+        """Return a git-based fingerprint scoped to the plugin project directory.
+
+        The goal is that unrelated commits elsewhere in the repository do not
+        trigger a reinstall.
+
+        Fingerprint format:
+          - "git:<commit>:<status_hash>:<scope>"
+
+        Where:
+          - <commit> is the last commit that touched <scope>
+          - <status_hash> is a hash of `git status --porcelain` output scoped to <scope>
+          - <scope> is the repo-relative directory ("." for repo root)
+        """
+
         try:
-            commit = subprocess.check_output(["git", "-C", str(base), "rev-parse", "HEAD"]).decode().strip()
+            repo_root = subprocess.check_output(
+                ["git", "-C", str(base), "rev-parse", "--show-toplevel"]
+            ).decode().strip()
         except Exception:
             return None
+
+        repo_root_path = Path(repo_root)
         try:
-            status = subprocess.check_output(["git", "-C", str(base), "status", "--porcelain", "--", "."]).decode()
+            scope_path = project_dir.resolve().relative_to(repo_root_path.resolve())
+        except Exception:
+            return None
+
+        scope = "." if str(scope_path) == "." else str(scope_path)
+
+        try:
+            commit = subprocess.check_output(
+                ["git", "-C", str(repo_root_path), "rev-list", "-1", "HEAD", "--", scope]
+            ).decode().strip()
+            if not commit:
+                return None
+        except Exception:
+            return None
+
+        try:
+            status = subprocess.check_output(
+                ["git", "-C", str(repo_root_path), "status", "--porcelain", "--", scope]
+            ).decode()
         except Exception:
             status = ""
+
         status_hash = hashlib.sha256(status.encode("utf-8", errors="ignore")).hexdigest()
-        return f"git:{commit}:{status_hash}"
+        return f"git:{commit}:{status_hash}:{scope}"
 
     def _fingerprint_files(self, project_dir: Path) -> str:
         hasher = hashlib.sha256()
