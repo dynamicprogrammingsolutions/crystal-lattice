@@ -26,3 +26,10 @@ include = ["openrouter_plugins*"]
 
 [tool.setuptools.data-files]
 "" = ["agent_plugin.json"]
+
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests as integration tests (may require API keys and network access)",
+]
+
