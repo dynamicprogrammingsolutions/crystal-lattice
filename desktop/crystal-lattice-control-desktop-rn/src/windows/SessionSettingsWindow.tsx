@@ -75,7 +75,7 @@ function SessionSettingsWindowInner(): React.JSX.Element {
     if (active?.state.id) {
       clearActiveSessionSettingsWindow(active.state.id);
     }
-    DesktopWindowManager?.closeSessionSettingsWindow();
+    DesktopWindowManager?.closeReactWindow({ windowKey: 'sessionSettings' });
   }, [active]);
 
   useEffect(() => {

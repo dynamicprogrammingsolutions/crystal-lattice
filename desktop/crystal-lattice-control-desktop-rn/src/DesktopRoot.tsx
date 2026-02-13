@@ -16,6 +16,7 @@ import { useOpenConnections } from './connections/useOpenConnections';
 import { asyncStorageKeyValueStore } from './storage/asyncStorageKeyValueStore';
 import { desktopWindowEvents, DesktopWindowManager } from './windows/desktopWindowManager';
 import { clearActiveSessionSettingsWindow } from './windows/sessionSettingsCoordinator';
+import { clearActiveSessionPluginsWindow } from './windows/sessionPluginsCoordinator';
 import { useMessagesCache } from './cache/useMessagesCache';
 import { useSessionsCache } from './cache/useSessionsCache';
 import { desktopEventBus } from './events/desktopEventBus';
@@ -642,9 +643,15 @@ export function DesktopRoot({
     );
 
     const sessionSettingsCancelledSub = desktopWindowEvents.addListener(
-      'sessionSettingsWindowCancelled',
-      () => {
-        clearActiveSessionSettingsWindow();
+      'reactWindowCancelled',
+      (payload) => {
+        const windowKey = payload?.windowKey;
+        if (windowKey === 'sessionSettings') {
+          clearActiveSessionSettingsWindow();
+        }
+        if (windowKey === 'sessionPlugins') {
+          clearActiveSessionPluginsWindow();
+        }
       },
     );
 

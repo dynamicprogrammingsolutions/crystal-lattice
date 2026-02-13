@@ -46,6 +46,19 @@ export interface OpenSessionSettingsWindowParams {
   title?: string;
 }
 
+export interface OpenReactWindowParams {
+  windowKey: string;
+  moduleName: string;
+  title?: string;
+  width?: number;
+  height?: number;
+  initialProps?: Record<string, any>;
+}
+
+export interface CloseReactWindowParams {
+  windowKey: string;
+}
+
 export interface DesktopWindowManagerModule {
   openConnectionEditor(params: OpenConnectionEditorParams): void;
   submitConnectionEditor(payload: { record: ConnectionRecord }): void;
@@ -74,6 +87,9 @@ export interface DesktopWindowManagerModule {
 
   openSessionSettingsWindow(params?: OpenSessionSettingsWindowParams): void;
   closeSessionSettingsWindow(): void;
+
+  openReactWindow(params: OpenReactWindowParams): void;
+  closeReactWindow(params: CloseReactWindowParams): void;
 
   getSystemTheme?(): Promise<MacOSSystemThemePayload>;
 }

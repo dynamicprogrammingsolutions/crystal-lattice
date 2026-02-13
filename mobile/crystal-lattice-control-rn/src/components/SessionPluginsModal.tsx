@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
@@ -48,16 +49,28 @@ const SessionPluginsModal: React.FC<SessionPluginsModalProps> = ({
   });
 
   const [optimisticEnabledById, setOptimisticEnabledById] = useState<Record<string, boolean>>({});
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [mutationCount, setMutationCount] = useState(0);
 
   useEffect(() => {
     if (!visible) {
       setOptimisticEnabledById({});
+      setSuccessMessage(null);
+      setMutationCount(0);
     }
   }, [visible]);
 
   useEffect(() => {
     setOptimisticEnabledById({});
   }, [state.lastLoadedAt]);
+
+  useEffect(() => {
+    if (!successMessage) {
+      return;
+    }
+    const timer = setTimeout(() => setSuccessMessage(null), 1400);
+    return () => clearTimeout(timer);
+  }, [successMessage]);
 
   const supported = isSessionPluginsSupported(backend);
 
@@ -86,13 +99,22 @@ const SessionPluginsModal: React.FC<SessionPluginsModalProps> = ({
         return;
       }
 
+      setSuccessMessage(null);
+      setMutationCount((prev) => prev + 1);
       setOptimisticEnabledById((prev) => ({ ...prev, [pluginId]: nextEnabled }));
-      await setEnabled(pluginId, nextEnabled);
-      setOptimisticEnabledById((prev) => {
-        const next = { ...prev };
-        delete next[pluginId];
-        return next;
-      });
+      try {
+        await setEnabled(pluginId, nextEnabled);
+        setSuccessMessage('Saved.');
+      } catch {
+        // Controller state captures errors.
+      } finally {
+        setMutationCount((prev) => Math.max(0, prev - 1));
+        setOptimisticEnabledById((prev) => {
+          const next = { ...prev };
+          delete next[pluginId];
+          return next;
+        });
+      }
     },
     [backend, setEnabled, supported],
   );
@@ -113,9 +135,18 @@ const SessionPluginsModal: React.FC<SessionPluginsModalProps> = ({
         text: 'Reset',
         style: 'destructive',
         onPress: () => {
-          resetToDefaults().catch(() => {
-            // Errors are captured in controller state.
-          });
+          setSuccessMessage(null);
+          setMutationCount((prev) => prev + 1);
+          resetToDefaults()
+            .then(() => {
+              setSuccessMessage('Reset to defaults.');
+            })
+            .catch(() => {
+              // Errors are captured in controller state.
+            })
+            .finally(() => {
+              setMutationCount((prev) => Math.max(0, prev - 1));
+            });
         },
       },
     ]);
@@ -130,6 +161,10 @@ const SessionPluginsModal: React.FC<SessionPluginsModalProps> = ({
     : !supported
       ? 'Session plugins are not supported by this server.'
       : state.error;
+
+  const showSpinner = (state.loading || mutationCount > 0) && !error;
+  const statusText = error || successMessage;
+  const statusTone = error ? 'error' : successMessage ? 'success' : showSpinner ? 'busy' : 'idle';
 
   return (
     <Modal
@@ -151,6 +186,25 @@ const SessionPluginsModal: React.FC<SessionPluginsModalProps> = ({
             Enable/disable plugins for this session. “Inactive” means it can’t run due to the current config.
           </Text>
 
+          <View style={styles.statusLine}>
+            {showSpinner ? <ActivityIndicator size="small" color={theme.primary} /> : null}
+            {statusText ? (
+              <Text
+                style={[
+                  styles.statusText,
+                  statusTone === 'error'
+                    ? styles.statusTextError
+                    : statusTone === 'success'
+                      ? styles.statusTextSuccess
+                      : null,
+                ]}
+                numberOfLines={1}
+              >
+                {statusText}
+              </Text>
+            ) : null}
+          </View>
+
           {!backend || !supported ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateText}>{error}</Text>
@@ -164,8 +218,6 @@ const SessionPluginsModal: React.FC<SessionPluginsModalProps> = ({
               >
                 <SessionPluginsList
                   plugins={plugins}
-                  loading={state.loading}
-                  error={error}
                   onToggle={handleToggle}
                   onReset={handleReset}
                 />
@@ -214,9 +266,29 @@ const createStyles = (theme: Theme) =>
     },
     modalSubtitle: {
       marginTop: 6,
-      marginBottom: 12,
+      marginBottom: 10,
       fontSize: 12,
       color: theme.textSecondary,
+    },
+    statusLine: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      minHeight: 22,
+      marginBottom: 10,
+    },
+    statusText: {
+      color: theme.textSecondary,
+      fontSize: 13,
+      flexShrink: 1,
+    },
+    statusTextError: {
+      color: theme.danger,
+      fontWeight: '600',
+    },
+    statusTextSuccess: {
+      color: theme.success,
+      fontWeight: '600',
     },
     body: {
       flexGrow: 0,
