@@ -53,6 +53,7 @@ import { DesktopWindowManager } from '../windows/desktopWindowManager';
 import { openDesktopPopover } from '../windows/desktopPopoverCoordinator';
 import { MessageLimitPopoverContent } from '../windows/MessageLimitPopoverContent';
 import { setActiveSessionSettingsWindow } from '../windows/sessionSettingsCoordinator';
+import { setActiveSessionPluginsWindow } from '../windows/sessionPluginsCoordinator';
 import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationActionDialog';
 import { MacTextView, type MacTextViewHandle } from '../native/MacTextView';
 import { AppendAsPopoverContent, type AppendAsRole } from './AppendAsPopoverContent';
@@ -82,7 +83,7 @@ const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]>
   tool: ['copy'],
 };
 
-type ChatSessionActionKey = 'reload' | 'agentSwitch' | 'messageLimit' | 'settings';
+type ChatSessionActionKey = 'reload' | 'agentSwitch' | 'messageLimit' | 'settings' | 'plugins';
 
 type ChatComposerActionKey = 'append' | 'appendAs' | 'resend' | 'cancel';
 
@@ -95,6 +96,7 @@ const BUILTIN_SESSION_ACTIONS: ActionDefinition[] = [
   { key: 'agentSwitch', label: 'Switch agent', iconName: 'user' },
   { key: 'messageLimit', label: 'Message limit', iconName: 'sliders' },
   { key: 'settings', label: 'Settings…', iconName: 'settings' },
+  { key: 'plugins', label: 'Plugins…', iconName: 'package' },
 ];
 
 const BUILTIN_COMPOSER_ACTIONS: ActionDefinition[] = [
@@ -1042,7 +1044,46 @@ export const ChatPane = React.memo(function ChatPane({
             backend,
           },
         });
-        DesktopWindowManager?.openSessionSettingsWindow({ title: 'Session settings' });
+        DesktopWindowManager?.openReactWindow({
+          windowKey: 'sessionSettings',
+          moduleName: 'SessionSettingsWindow',
+          title: 'Session settings',
+          width: 560,
+          height: 640,
+          initialProps: {},
+        });
+        return;
+      }
+
+      if (action === 'plugins') {
+        if (!backend) {
+          return;
+        }
+
+        const caps = backend.getCapabilities?.();
+        if (caps && !caps.sessionPlugins) {
+          Alert.alert('Not supported', 'This backend does not support session plugins.');
+          return;
+        }
+
+        setActiveSessionPluginsWindow({
+          state: {
+            id: `session-plugins:${connectionId}:${sessionId}`,
+            connectionId,
+            connectionName,
+            sessionId,
+            backend,
+          },
+        });
+
+        DesktopWindowManager?.openReactWindow({
+          windowKey: 'sessionPlugins',
+          moduleName: 'SessionPluginsWindow',
+          title: 'Session plugins',
+          width: 560,
+          height: 640,
+          initialProps: {},
+        });
         return;
       }
 
@@ -1317,6 +1358,13 @@ export const ChatPane = React.memo(function ChatPane({
               if (key === 'settings') {
                 const caps = backend.getCapabilities?.();
                 if (caps && (!caps.sessionUiSchema || !caps.sessionConfigOverrides)) {
+                  return true;
+                }
+                return false;
+              }
+              if (key === 'plugins') {
+                const caps = backend.getCapabilities?.();
+                if (caps && !caps.sessionPlugins) {
                   return true;
                 }
                 return false;

@@ -78,3 +78,11 @@ Whichever container you choose, the inner content should:
 - Desktop ChatPane has a “Plugins…” action next to “Settings…”.
 - Clicking it opens a UI and toggles persist to server.
 - Capability gating disables action on backends that don’t support it.
+
+---
+
+## Completion notes (2026-02-13)
+
+- Implemented a generic native window manager API (`openReactWindow` / `closeReactWindow`) and migrated Session Settings to use it.
+- Added a new desktop “Plugins…” session action that opens a dedicated `SessionPluginsWindow`.
+- Plugin enable/disable uses a desktop-specific UI control (`MacCheckbox`) rendered in the desktop app (controller logic reused via `useSessionPluginsController`).

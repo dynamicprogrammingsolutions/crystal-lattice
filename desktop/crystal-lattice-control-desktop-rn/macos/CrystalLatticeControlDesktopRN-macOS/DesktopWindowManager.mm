@@ -11,7 +11,8 @@
 @property(nonatomic, strong) NSWindow *connectionEditorWindow;
 @property(nonatomic, strong) NSWindow *agentPickerWindow;
 @property(nonatomic, strong) NSWindow *applicationActionDialogWindow;
-@property(nonatomic, strong) NSWindow *sessionSettingsWindow;
+@property(nonatomic, strong) NSMutableDictionary<NSString *, NSWindow *> *reactWindowsByKey;
+@property(nonatomic, strong) NSMapTable<NSWindow *, NSString *> *reactWindowKeysByWindow;
 @property(nonatomic, strong) NSPopover *applicationActionDialogPopover;
 @property(nonatomic, strong) NSPopover *closingApplicationActionDialogPopover;
 @property(nonatomic, strong) NSPopover *actionsPopover;
@@ -28,6 +29,8 @@ RCT_EXPORT_MODULE();
 - (instancetype)init
 {
   if (self = [super init]) {
+    _reactWindowsByKey = [[NSMutableDictionary alloc] init];
+    _reactWindowKeysByWindow = [NSMapTable weakToStrongObjectsMapTable];
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(handleApplicationWillHide:)
                                                  name:NSApplicationWillHideNotification
@@ -59,7 +62,7 @@ RCT_EXPORT_MODULE();
 
 - (NSArray<NSString *> *)supportedEvents
 {
-  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"sessionSettingsWindowCancelled", @"tabStripStyleChanged", @"sessionsFollowActiveTabChanged", @"systemThemeChanged" ];
+  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"reactWindowCancelled", @"tabStripStyleChanged", @"sessionsFollowActiveTabChanged", @"systemThemeChanged" ];
 }
 
 - (void)startObserving
@@ -458,13 +461,42 @@ RCT_EXPORT_METHOD(openApplicationActionDialogWindow : (NSDictionary *)params)
 
 RCT_EXPORT_METHOD(openSessionSettingsWindow : (NSDictionary *)params)
 {
+  [self openReactWindow:@{
+    @"windowKey": @"sessionSettings",
+    @"moduleName": @"SessionSettingsWindow",
+    @"title": [params[@"title"] isKindOfClass:[NSString class]] ? params[@"title"] : @"Session settings",
+    @"width": @560,
+    @"height": @640,
+    @"initialProps": @{},
+  }];
+}
+
+RCT_EXPORT_METHOD(closeSessionSettingsWindow)
+{
+  [self closeReactWindow:@{ @"windowKey": @"sessionSettings" }];
+}
+
+RCT_EXPORT_METHOD(openReactWindow : (NSDictionary *)params)
+{
   dispatch_async(dispatch_get_main_queue(), ^{
-    if (self.sessionSettingsWindow != nil) {
-      [self.sessionSettingsWindow makeKeyAndOrderFront:nil];
+    if (![params[@"windowKey"] isKindOfClass:[NSString class]] || ![params[@"moduleName"] isKindOfClass:[NSString class]]) {
+      return;
+    }
+
+    NSString *windowKey = (NSString *)params[@"windowKey"];
+    NSString *moduleName = (NSString *)params[@"moduleName"];
+
+    NSWindow *existing = self.reactWindowsByKey[windowKey];
+    if (existing != nil) {
+      [existing makeKeyAndOrderFront:nil];
       return;
     }
 
     NSDictionary *initialProps = @{};
+    if ([params[@"initialProps"] isKindOfClass:[NSDictionary class]]) {
+      initialProps = (NSDictionary *)params[@"initialProps"];
+    }
+
     NSView *rootView = nil;
     id appDelegate = NSApp.delegate;
     id rootViewFactory = nil;
@@ -477,50 +509,62 @@ RCT_EXPORT_METHOD(openSessionSettingsWindow : (NSDictionary *)params)
       SEL selector = NSSelectorFromString(@"viewWithModuleName:initialProperties:");
       if ([rootViewFactory respondsToSelector:selector]) {
         using MsgSendType = NSView *(*)(id, SEL, NSString *, NSDictionary *);
-        rootView = ((MsgSendType)objc_msgSend)(rootViewFactory, selector, @"SessionSettingsWindow", initialProps);
+        rootView = ((MsgSendType)objc_msgSend)(rootViewFactory, selector, moduleName, initialProps);
       }
     }
     if (rootView == nil) {
-      rootView = [[RCTRootView alloc] initWithBridge:self.bridge moduleName:@"SessionSettingsWindow" initialProperties:initialProps];
+      rootView = [[RCTRootView alloc] initWithBridge:self.bridge moduleName:moduleName initialProperties:initialProps];
     }
 
-    NSRect frame = NSMakeRect(0, 0, 560, 640);
+    CGFloat width = 560;
+    CGFloat height = 640;
+    if ([params[@"width"] respondsToSelector:@selector(doubleValue)]) {
+      width = (CGFloat)[params[@"width"] doubleValue];
+    }
+    if ([params[@"height"] respondsToSelector:@selector(doubleValue)]) {
+      height = (CGFloat)[params[@"height"] doubleValue];
+    }
+    NSRect frame = NSMakeRect(0, 0, width, height);
     NSWindow *window = [[NSWindow alloc] initWithContentRect:frame
                                                    styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
                                                      backing:NSBackingStoreBuffered
                                                        defer:NO];
+
     NSString *title = nil;
     if ([params[@"title"] isKindOfClass:[NSString class]]) {
-      title = params[@"title"];
+      title = (NSString *)params[@"title"];
     }
-    window.title = title ?: @"Session settings";
+    window.title = title ?: moduleName;
     rootView.frame = frame;
     rootView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     window.contentView = rootView;
     window.releasedWhenClosed = NO;
 
     [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(sessionSettingsWindowWillClose:)
+                                             selector:@selector(reactWindowWillClose:)
                                                  name:NSWindowWillCloseNotification
                                                object:window];
 
-    self.sessionSettingsWindow = window;
+    self.reactWindowsByKey[windowKey] = window;
+    [self.reactWindowKeysByWindow setObject:windowKey forKey:window];
+
     [window center];
     [window makeKeyAndOrderFront:nil];
   });
 }
 
-RCT_EXPORT_METHOD(closeSessionSettingsWindow)
+RCT_EXPORT_METHOD(closeReactWindow : (NSDictionary *)params)
 {
   dispatch_async(dispatch_get_main_queue(), ^{
-    if (self.sessionSettingsWindow == nil) {
+    if (![params[@"windowKey"] isKindOfClass:[NSString class]]) {
       return;
     }
-    [[NSNotificationCenter defaultCenter] removeObserver:self
-                                                    name:NSWindowWillCloseNotification
-                                                  object:self.sessionSettingsWindow];
-    [self.sessionSettingsWindow close];
-    self.sessionSettingsWindow = nil;
+    NSString *windowKey = (NSString *)params[@"windowKey"];
+    NSWindow *window = self.reactWindowsByKey[windowKey];
+    if (window == nil) {
+      return;
+    }
+    [window close];
   });
 }
 
@@ -890,15 +934,26 @@ RCT_EXPORT_METHOD(cancelAgentPicker)
   }
 }
 
-- (void)sessionSettingsWindowWillClose:(NSNotification *)notification
+- (void)reactWindowWillClose:(NSNotification *)notification
 {
-  if (notification.object == self.sessionSettingsWindow) {
-    [self sendEventWithName:@"sessionSettingsWindowCancelled" body:@{}];
-    [[NSNotificationCenter defaultCenter] removeObserver:self
-                                                    name:NSWindowWillCloseNotification
-                                                  object:self.sessionSettingsWindow];
-    self.sessionSettingsWindow = nil;
+  NSWindow *window = (NSWindow *)notification.object;
+  if (window == nil) {
+    return;
   }
+
+  NSString *windowKey = [self.reactWindowKeysByWindow objectForKey:window];
+  if (![windowKey isKindOfClass:[NSString class]] || windowKey.length == 0) {
+    return;
+  }
+
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:NSWindowWillCloseNotification
+                                                object:window];
+
+  [self.reactWindowKeysByWindow removeObjectForKey:window];
+  [self.reactWindowsByKey removeObjectForKey:windowKey];
+
+  [self sendEventWithName:@"reactWindowCancelled" body:@{ @"windowKey" : windowKey }];
 }
 
 - (void)popoverDidClose:(NSNotification *)notification

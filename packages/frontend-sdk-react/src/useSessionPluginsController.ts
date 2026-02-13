@@ -23,6 +23,13 @@ export interface UseSessionPluginsControllerResult {
   resetToDefaults: () => Promise<void>;
 }
 
+function toError(value: unknown): Error {
+  if (value instanceof Error) {
+    return value;
+  }
+  return new Error(formatErrorMessage(value));
+}
+
 function formatErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message || 'Request failed.';
@@ -117,7 +124,7 @@ export function useSessionPluginsController(
           ...prev,
           error: 'Session plugins are not supported by this server.',
         }));
-        return;
+        throw new Error('Session plugins are not supported by this server.');
       }
 
       let plugins = state.plugins;
@@ -129,7 +136,7 @@ export function useSessionPluginsController(
             ...prev,
             error: formatErrorMessage(error),
           }));
-          return;
+          throw toError(error);
         }
       }
 
@@ -145,7 +152,7 @@ export function useSessionPluginsController(
           ...prev,
           error: formatErrorMessage(error),
         }));
-        return;
+        throw toError(error);
       }
 
       await reload({ force: true });
@@ -162,7 +169,7 @@ export function useSessionPluginsController(
         ...prev,
         error: 'Session plugins are not supported by this server.',
       }));
-      return;
+      throw new Error('Session plugins are not supported by this server.');
     }
 
     setState((prev) => ({ ...prev, loading: true, error: null }));
@@ -174,7 +181,7 @@ export function useSessionPluginsController(
         loading: false,
         error: formatErrorMessage(error),
       }));
-      return;
+      throw toError(error);
     }
 
     await reload({ force: true });
