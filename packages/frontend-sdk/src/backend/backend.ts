@@ -7,6 +7,7 @@ import type {
   ApplicationUiElement,
   ExecuteActionResponse,
 } from '../types/plugins';
+import type { SessionPluginEntry } from '../types/sessionPlugins';
 
 export interface ListMessagesResult {
   messages: IndexedMessage[];
@@ -26,6 +27,7 @@ export interface BackendCapabilities {
   featureCompletions: boolean;
   sessionUiSchema: boolean;
   sessionConfigOverrides: boolean;
+  sessionPlugins: boolean;
   applicationActions: boolean;
   applicationConfig: boolean;
 }
@@ -50,6 +52,11 @@ export interface AgentBackend {
     sessionId: string,
     params?: { index?: number },
   ): Promise<{ session: { session_id: string; [key: string]: any }; source_session_id: string }>;
+
+  // --- Session plugins ---
+  listSessionPlugins(sessionId: string): Promise<SessionPluginEntry[]>;
+  setSessionPlugins(sessionId: string, enabled: string[]): Promise<void>;
+  clearSessionPlugins(sessionId: string): Promise<void>;
 
   // --- Messages ---
   listMessages(

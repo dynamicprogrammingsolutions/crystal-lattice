@@ -48,6 +48,7 @@ import MessageBubble from './components/MessageBubble';
 import { DependencyFlatList } from './components/DependencyFlatList';
 import DebugEventsView from './components/DebugEventsView';
 import SessionSettingsModal from './components/SessionSettingsModal';
+import SessionPluginsModal from './components/SessionPluginsModal';
 import AgentSwitchModal from './components/AgentSwitchModal';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 import { selectDisplayContent } from './messageUtils';
@@ -170,6 +171,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [debugVisible, setDebugVisible] = useState(false);
   const [debugEvents, setDebugEvents] = useState<Event[]>([]);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [pluginsVisible, setPluginsVisible] = useState(false);
   const [pluginActionInProgress, setPluginActionInProgress] = useState(false);
   const {
     actionsById,
@@ -453,6 +455,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     setDeleteRangeVisible(false);
     setAgentModalVisible(false);
     setSettingsVisible(false);
+    setPluginsVisible(false);
     setDebugVisible(false);
     handleCancelPluginDialog();
   }, [handleCancelPluginDialog]);
@@ -767,6 +770,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
     if (action === 'settings') {
       setSettingsVisible(true);
+      return;
+    }
+    if (action === 'plugins') {
+      setPluginsVisible(true);
       return;
     }
 
@@ -1455,6 +1462,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        sessionId={sessionId}
 	        visible={settingsVisible}
 	        onRequestClose={() => setSettingsVisible(false)}
+	      />
+	      <SessionPluginsModal
+	        backend={backend}
+	        sessionId={sessionId}
+	        visible={pluginsVisible}
+	        onRequestClose={() => setPluginsVisible(false)}
 	      />
 	      <ApplicationActionDialog
 	        visible={!!activePluginDialogElement}

@@ -6,6 +6,8 @@ export type {
 
 export type { SessionSummary } from './types/sessions';
 
+export type { SessionPluginEntry } from './types/sessionPlugins';
+
 export type {
   BaseEvent,
   SessionCreatedEvent,

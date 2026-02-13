@@ -8,6 +8,7 @@ import type {
 import type { IndexedMessage } from '../types/messages';
 import type { SessionSummary } from '../types/sessions';
 import type { ConfigSchemaEntry, UiSchemaElement } from '../types/uiSchema';
+import type { SessionPluginEntry } from '../types/sessionPlugins';
 import type {
   AgentBackend,
   BackendCapabilities,
@@ -37,9 +38,41 @@ export class RestAgentBackend implements AgentBackend {
       featureCompletions: false,
       sessionUiSchema: true,
       sessionConfigOverrides: true,
+      sessionPlugins: true,
       applicationActions: true,
       applicationConfig: false,
     };
+  }
+
+  async listSessionPlugins(sessionId: string): Promise<SessionPluginEntry[]> {
+    const path = `/sessions/${encodeURIComponent(sessionId)}/plugins`;
+    const resp = await this.transport.request<
+      SessionPluginEntry[] | { plugins?: SessionPluginEntry[] }
+    >({
+      method: 'GET',
+      path,
+    });
+
+    const data: any = resp.data as any;
+    const plugins = Array.isArray(data?.plugins) ? data.plugins : data;
+    return Array.isArray(plugins) ? (plugins as SessionPluginEntry[]) : [];
+  }
+
+  async setSessionPlugins(sessionId: string, enabled: string[]): Promise<void> {
+    const path = `/sessions/${encodeURIComponent(sessionId)}/plugins`;
+    await this.transport.request({
+      method: 'PUT',
+      path,
+      body: { enabled },
+    });
+  }
+
+  async clearSessionPlugins(sessionId: string): Promise<void> {
+    const path = `/sessions/${encodeURIComponent(sessionId)}/plugins`;
+    await this.transport.request({
+      method: 'DELETE',
+      path,
+    });
   }
 
   async listAgents(): Promise<string[]> {
