@@ -38,6 +38,7 @@ export function DependencyVirtualizedScroll<TItem>(
     renderItem,
     keyExtractor,
     getItemDependencies,
+    listRef,
     style,
     contentContainerStyle,
     ListHeaderComponent,
@@ -103,6 +104,7 @@ export function DependencyVirtualizedScroll<TItem>(
 
   return (
     <VirtualizedList<DependencyVirtualizedScrollRow>
+      ref={listRef}
       style={style}
       contentContainerStyle={contentContainerStyle}
       data={rows}

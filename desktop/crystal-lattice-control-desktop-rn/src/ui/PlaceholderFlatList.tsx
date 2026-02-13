@@ -21,6 +21,8 @@ export interface PlaceholderFlatListProps<TItem> {
   renderItem: (info: ListRenderItemInfo<TItem>) => React.ReactElement | null;
   keyExtractor?: (item: TItem, index: number) => string;
 
+  listRef?: React.Ref<any>;
+
   /**
    * Optional per-item dependency array.
    *
@@ -45,10 +47,15 @@ export interface PlaceholderFlatListProps<TItem> {
   inverted?: boolean;
   maintainVisibleContentPosition?: any;
 
+  scrollEnabled?: boolean;
+  showsVerticalScrollIndicator?: boolean;
+
   scrollEventThrottle?: number;
   onLayout?: (event: LayoutChangeEvent) => void;
   onContentSizeChange?: (width: number, height: number) => void;
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onScrollEndDrag?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onMomentumScrollEnd?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
 }
 
 type RowCacheEntry<TItem> = {
@@ -87,12 +94,17 @@ function renderMaybeComponent(value: unknown): React.ReactElement | null {
 export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem>): React.JSX.Element {
   const cacheRef = React.useRef<Map<string, RowCacheEntry<TItem>>>(new Map());
   const lastExtraDataRef = React.useRef(props.extraData);
+  const debugEnabled =
+    (globalThis as any).CLC_DEBUG_SCROLL_PERSIST === true ||
+    (globalThis as any).CLC_DEBUG_SCROLL_PERSIST === 'true';
+  const lastScrollDebugAtRef = React.useRef(0);
 
   const {
     data,
     renderItem,
     keyExtractor,
     getItemDependencies,
+    listRef,
     style,
     contentContainerStyle,
     ListHeaderComponent,
@@ -103,7 +115,37 @@ export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem
     onLayout,
     onContentSizeChange,
     onScroll,
+    onScrollEndDrag,
+    onMomentumScrollEnd,
+    scrollEnabled,
+    showsVerticalScrollIndicator,
   } = props;
+
+  const wrapScrollHandler = React.useCallback(
+    (
+      kind: 'scroll' | 'endDrag' | 'momentumEnd',
+      handler?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void,
+    ) => {
+      if (!debugEnabled && !handler) {
+        return undefined;
+      }
+      return (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+        if (debugEnabled) {
+          const now = Date.now();
+          if (now - lastScrollDebugAtRef.current > 500) {
+            lastScrollDebugAtRef.current = now;
+            console.log('[PlaceholderFlatList] scroll event', {
+              kind,
+              hasNativeEvent: !!event?.nativeEvent,
+              contentOffset: (event as any)?.nativeEvent?.contentOffset,
+            });
+          }
+        }
+        handler?.(event);
+      };
+    },
+    [debugEnabled],
+  );
 
   const cache = cacheRef.current;
   if (!Object.is(lastExtraDataRef.current, props.extraData)) {
@@ -161,12 +203,17 @@ export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem
 
   return (
     <ScrollView
+      ref={listRef}
       style={style}
       contentContainerStyle={contentContainerStyle}
       scrollEventThrottle={scrollEventThrottle}
       onLayout={onLayout}
       onContentSizeChange={onContentSizeChange}
-      onScroll={onScroll}
+      onScroll={wrapScrollHandler('scroll', onScroll)}
+      onScrollEndDrag={wrapScrollHandler('endDrag', onScrollEndDrag)}
+      onMomentumScrollEnd={wrapScrollHandler('momentumEnd', onMomentumScrollEnd)}
+      scrollEnabled={scrollEnabled}
+      showsVerticalScrollIndicator={showsVerticalScrollIndicator ?? true}
     >
       {header}
       {empty}

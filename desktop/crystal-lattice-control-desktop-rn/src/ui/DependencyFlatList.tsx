@@ -36,6 +36,7 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
     renderItem,
     keyExtractor,
     getItemDependencies,
+    listRef,
     style,
     contentContainerStyle,
     ListHeaderComponent,
@@ -98,6 +99,7 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
 
   return (
     <FlatList<DependencyFlatListRow>
+      ref={listRef}
       style={style}
       contentContainerStyle={contentContainerStyle}
       data={rows}
