@@ -11,12 +11,17 @@ static NSString *const kTabStripStyleCodeTabs = @"codeTabs";
 static NSString *const kTabStripStyleUnderlineTabs = @"underlineTabs";
 static NSString *const kTabStripStyleRoundedPills = @"roundedPills";
 
+static NSString *const kSessionsFollowActiveTabDefaultsKey =
+    @"CrystalLattice.SessionsFollowActiveTabEnabled";
+
 @interface AppDelegate ()
 
 @property(nonatomic, strong) NSMenuItem *toolbarTabsMenuItem;
 @property(nonatomic, strong) NSMenuItem *codeTabsMenuItem;
 @property(nonatomic, strong) NSMenuItem *underlineTabsMenuItem;
 @property(nonatomic, strong) NSMenuItem *roundedPillsMenuItem;
+
+@property(nonatomic, strong) NSMenuItem *sessionsFollowActiveTabMenuItem;
 
 @property(nonatomic, strong) NSMutableArray<NSWindow *> *mainWindows;
 @property(nonatomic, assign) NSPoint mainWindowCascadePoint;
@@ -29,7 +34,11 @@ static NSString *const kTabStripStyleRoundedPills = @"roundedPills";
 {
   self.moduleName = @"CrystalLatticeControlDesktopRN";
   NSString *tabStripStyle = [self loadTabStripStylePreference];
-  self.initialProps = @{ @"initialTabStripStyle" : tabStripStyle };
+  BOOL followEnabled = [self loadSessionsFollowActiveTabEnabledPreference];
+  self.initialProps = @{
+    @"initialTabStripStyle" : tabStripStyle,
+    @"initialSessionsFollowActiveTabEnabled" : @(followEnabled),
+  };
   self.dependencyProvider = [RCTAppDependencyProvider new];
 
   [super applicationDidFinishLaunching:notification];
@@ -42,6 +51,7 @@ static NSString *const kTabStripStyleRoundedPills = @"roundedPills";
   [self trackMainWindowIfNeeded:(NSWindow *)self.window];
 
   [self installTabStripStyleMenuWithSelectedStyle:tabStripStyle];
+  [self installSessionsFollowActiveTabMenuWithEnabled:followEnabled];
 }
 
 #pragma mark - Main window management (Dock reopen / New Window)
@@ -105,6 +115,7 @@ static NSString *const kTabStripStyleRoundedPills = @"roundedPills";
 
   // Always read the latest preference so new windows match the current setting.
   props[@"initialTabStripStyle"] = [self loadTabStripStylePreference];
+  props[@"initialSessionsFollowActiveTabEnabled"] = @([self loadSessionsFollowActiveTabEnabledPreference]);
   return props;
 }
 
@@ -258,6 +269,72 @@ static NSString *const kTabStripStyleRoundedPills = @"roundedPills";
     return value;
   }
   return kTabStripStyleToolbarTabs;
+}
+
+- (BOOL)loadSessionsFollowActiveTabEnabledPreference
+{
+  id raw = [[NSUserDefaults standardUserDefaults] objectForKey:kSessionsFollowActiveTabDefaultsKey];
+  if (raw == nil) {
+    return YES;
+  }
+  return [[NSUserDefaults standardUserDefaults] boolForKey:kSessionsFollowActiveTabDefaultsKey];
+}
+
+- (void)saveSessionsFollowActiveTabEnabledPreference:(BOOL)enabled
+{
+  [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:kSessionsFollowActiveTabDefaultsKey];
+}
+
+- (void)installSessionsFollowActiveTabMenuWithEnabled:(BOOL)enabled
+{
+  NSMenu *mainMenu = [NSApp mainMenu];
+  if (mainMenu == nil) {
+    return;
+  }
+
+  NSMenuItem *viewMenuItem = [mainMenu itemWithTitle:@"View"];
+  if (viewMenuItem == nil || viewMenuItem.submenu == nil) {
+    return;
+  }
+
+  NSMenu *viewMenu = viewMenuItem.submenu;
+
+  if (self.sessionsFollowActiveTabMenuItem == nil) {
+    self.sessionsFollowActiveTabMenuItem =
+        [[NSMenuItem alloc] initWithTitle:@"Follow Active Tab in Sessions List"
+                                   action:@selector(toggleSessionsFollowActiveTab:)
+                            keyEquivalent:@""];
+    self.sessionsFollowActiveTabMenuItem.target = self;
+  }
+
+  self.sessionsFollowActiveTabMenuItem.state = enabled ? NSControlStateValueOn : NSControlStateValueOff;
+
+  // Insert near the tab strip style section if possible.
+  NSInteger insertionIndex = viewMenu.numberOfItems;
+  for (NSInteger i = 0; i < viewMenu.numberOfItems; i++) {
+    NSMenuItem *item = [viewMenu itemAtIndex:i];
+    if ([[item title] isEqualToString:@"Tab Strip Style"]) {
+      insertionIndex = i + 1;
+      break;
+    }
+  }
+
+  if (![viewMenu.itemArray containsObject:self.sessionsFollowActiveTabMenuItem]) {
+    [viewMenu insertItem:self.sessionsFollowActiveTabMenuItem atIndex:insertionIndex];
+  }
+}
+
+- (void)toggleSessionsFollowActiveTab:(__unused id)sender
+{
+  BOOL current = [self loadSessionsFollowActiveTabEnabledPreference];
+  BOOL next = !current;
+  [self saveSessionsFollowActiveTabEnabledPreference:next];
+  if (self.sessionsFollowActiveTabMenuItem != nil) {
+    self.sessionsFollowActiveTabMenuItem.state = next ? NSControlStateValueOn : NSControlStateValueOff;
+  }
+  [[NSNotificationCenter defaultCenter] postNotificationName:CLCSessionsFollowActiveTabDidChangeNotification
+                                                      object:nil
+                                                    userInfo:@{ CLCSessionsFollowActiveTabEnabledUserInfoKey : @(next) }];
 }
 
 - (void)saveTabStripStylePreference:(NSString *)style

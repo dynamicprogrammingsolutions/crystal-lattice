@@ -75,14 +75,24 @@ function tabArrayEqualByReference(
 
 export interface DesktopRootProps {
   initialTabStripStyle?: TabStripStyle;
+  initialSessionsFollowActiveTabEnabled?: boolean;
 }
 
-export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.JSX.Element {
+export function DesktopRoot({
+  initialTabStripStyle,
+  initialSessionsFollowActiveTabEnabled,
+}: DesktopRootProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [tabStripStyle, setTabStripStyle] = useState<TabStripStyle>(
     parseTabStripStyle(initialTabStripStyle) ?? DEFAULT_TAB_STRIP_STYLE,
+  );
+
+  const [sessionsFollowActiveTabEnabled, setSessionsFollowActiveTabEnabled] = useState<boolean>(
+    initialSessionsFollowActiveTabEnabled !== undefined
+      ? !!initialSessionsFollowActiveTabEnabled
+      : true,
   );
 
   const {
@@ -182,7 +192,6 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
         ];
       });
       setActiveTabId(tabId);
-      setFocusedConnectionId(connectionId);
     },
     [],
   );
@@ -228,31 +237,15 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
       setTabs((prev) => {
         const result = removeTabAndSelectNext(prev, tabId, activeTabIdRef.current);
         setActiveTabId(result.nextActiveTabId);
-
-        const nextActiveConnectionId =
-          result.nextActiveTabId != null
-            ? result.tabs.find((tab) => tab.tabId === result.nextActiveTabId)?.connectionId
-            : null;
-        if (nextActiveConnectionId) {
-          setFocusedConnectionId(nextActiveConnectionId);
-        }
-
         return result.tabs;
       });
     },
     [],
   );
 
-  const focusTab = useCallback(
-    (tabId: string) => {
-      setActiveTabId(tabId);
-      const tab = tabs.find((candidate) => candidate.tabId === tabId);
-      if (tab) {
-        setFocusedConnectionId(tab.connectionId);
-      }
-    },
-    [tabs],
-  );
+  const focusTab = useCallback((tabId: string) => {
+    setActiveTabId(tabId);
+  }, []);
 
   const activeTab = useMemo(
     () => (activeTabId ? tabs.find((tab) => tab.tabId === activeTabId) ?? null : null),
@@ -576,6 +569,15 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
       setTabStripStyle(style);
     });
 
+    const followSub = desktopWindowEvents.addListener(
+      'sessionsFollowActiveTabChanged',
+      (payload: any) => {
+        if (payload && typeof payload.enabled === 'boolean') {
+          setSessionsFollowActiveTabEnabled(payload.enabled);
+        }
+      },
+    );
+
     const agentPickerSub = desktopWindowEvents.addListener(
       'agentPickerSelected',
       (payload: any) => {
@@ -649,6 +651,7 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
     return () => {
       savedSub.remove();
       styleSub.remove();
+      followSub.remove();
       agentPickerSub.remove();
       sessionSettingsCancelledSub.remove();
     };
@@ -753,11 +756,10 @@ export function DesktopRoot({ initialTabStripStyle }: DesktopRootProps): React.J
               cachedLastLoadedAt={
                 focusedConnectionId ? sessionsCache[focusedConnectionId]?.lastLoadedAt ?? null : null
               }
-              selectedSessionId={
-                activeTab && activeTab.connectionId === focusedConnectionId
-                  ? activeTab.sessionId
-                  : null
-              }
+              activeTabId={activeTabId}
+              activeTabConnectionId={activeTab?.connectionId ?? null}
+              activeTabSessionId={activeTab?.sessionId ?? null}
+              followActiveTabEnabled={sessionsFollowActiveTabEnabled}
               onUpdateCache={updateSessionsCache}
               onOpenSessionTab={openTab}
               onUpdateOpenTabsPresentation={updateOpenTabsPresentation}

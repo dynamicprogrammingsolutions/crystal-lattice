@@ -13,6 +13,7 @@ import {
 
 export interface AppProps {
   initialTabStripStyle?: TabStripStyle;
+  initialSessionsFollowActiveTabEnabled?: boolean;
 }
 
 export default function App(props: AppProps) {
@@ -23,7 +24,14 @@ export default function App(props: AppProps) {
   return (
     <ThemeProvider theme={theme}>
       <View style={styles.root}>
-        <DesktopRoot initialTabStripStyle={initialTabStripStyle} />
+        <DesktopRoot
+          initialTabStripStyle={initialTabStripStyle}
+          initialSessionsFollowActiveTabEnabled={
+            typeof (props as any)?.initialSessionsFollowActiveTabEnabled === 'boolean'
+              ? (props as any).initialSessionsFollowActiveTabEnabled
+              : undefined
+          }
+        />
       </View>
     </ThemeProvider>
   );
