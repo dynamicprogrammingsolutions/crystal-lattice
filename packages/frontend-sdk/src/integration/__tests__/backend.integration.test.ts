@@ -110,6 +110,16 @@ describeIf('backend integration (real FastAPI server + plugins + SDK)', () => {
     return messages.map((m) => `${m.index}:${m.message.role}:${m.message.content}`);
   }
 
+  function indexPlugins(plugins: Array<{ id: string; [k: string]: any }>): Record<string, any> {
+    const byId: Record<string, any> = {};
+    for (const p of plugins) {
+      if (p && typeof p.id === 'string' && p.id) {
+        byId[p.id] = p;
+      }
+    }
+    return byId;
+  }
+
   it('A: system_message_feature first append triggers one auto reload and recovers', async () => {
     const { controller, tracking, sessionId } = await bootstrapController({
       transportOptions: { tracking: true },
@@ -227,5 +237,53 @@ describeIf('backend integration (real FastAPI server + plugins + SDK)', () => {
       const hasAssistant = snap.messages.some((m) => m.message.role === 'assistant');
       return snap.dirty === false && hasAssistant && snap.activeRequestId == null;
     }, { timeoutMs: 20000, intervalMs: 100 });
+  }, 30000);
+
+  it('D: session plugins list/set/clear roundtrip', async () => {
+    await ensureServer();
+
+    const transport = new FetchTransport({ baseUrl });
+    const backend = new RestAgentBackend({ transport });
+    const sessionId = await createSession(backend);
+
+    const initial = await backend.listSessionPlugins(sessionId);
+    const initialById = indexPlugins(initial);
+
+    expect(initialById.deterministic_stream).toBeDefined();
+    expect(initialById.system_message).toBeDefined();
+    expect(initialById.system_message.enabled).toBe(true);
+    expect(initialById.system_message.source).toBe('implicit');
+
+    await backend.setSessionPlugins(sessionId, ['deterministic_stream']);
+
+    const afterSet = await backend.listSessionPlugins(sessionId);
+    const afterSetById = indexPlugins(afterSet);
+    expect(afterSetById.deterministic_stream.enabled).toBe(true);
+    expect(afterSetById.deterministic_stream.source).toBe('session');
+    expect(afterSetById.system_message.enabled).toBe(false);
+    expect(afterSetById.system_message.source).toBe('session');
+
+    await backend.clearSessionPlugins(sessionId);
+
+    const afterClear = await backend.listSessionPlugins(sessionId);
+    const afterClearById = indexPlugins(afterClear);
+    expect(afterClearById.system_message.enabled).toBe(true);
+    expect(afterClearById.system_message.source).toBe('implicit');
+  }, 30000);
+
+  it('E: disabling system_message removes the synthetic system message from stored history', async () => {
+    await ensureServer();
+
+    const transport = new FetchTransport({ baseUrl });
+    const backend = new RestAgentBackend({ transport });
+    const sessionId = await createSession(backend);
+
+    await backend.setSessionPlugins(sessionId, ['deterministic_stream']);
+
+    await backend.appendMessage(sessionId, { role: 'user', content: 'hi' });
+    const listed = await backend.listMessages(sessionId);
+    const contents = getContents(listed.messages);
+
+    expect(contents).toEqual(['0:user:hi']);
   }, 30000);
 });

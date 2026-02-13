@@ -64,3 +64,5 @@ export { ActionsMenuBar } from './actions/ActionsMenuBar';
 export type { SessionActionsBarProps } from './actions/SessionActionsBar';
 export { SessionActionsBar } from './actions/SessionActionsBar';
 
+export { SessionPluginsList } from './SessionPluginsList';
+

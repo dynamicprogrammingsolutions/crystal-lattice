@@ -11,6 +11,7 @@ function buildBackend(response: ExecuteActionResponseOk): AgentBackend {
       featureCompletions: false,
       sessionUiSchema: false,
       sessionConfigOverrides: false,
+      sessionPlugins: false,
       applicationActions: true,
       applicationConfig: false,
     }),

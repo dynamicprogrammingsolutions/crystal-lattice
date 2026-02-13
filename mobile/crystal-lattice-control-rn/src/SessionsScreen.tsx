@@ -32,6 +32,7 @@ import {
 } from '@crystal-lattice/frontend-sdk-react';
 import { useTheme, type Theme } from './theme';
 import SessionSettingsModal from './components/SessionSettingsModal';
+import SessionPluginsModal from './components/SessionPluginsModal';
 import {
   type ActionUiElement,
   type SessionSummary,
@@ -53,7 +54,9 @@ interface SessionsScreenProps {
 
 const STORAGE_KEY_SESSION_LIST_ACTIONS = 'clc_pinned_session_list_actions_v1';
 
-const BUILTIN_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settings'];
+const DEFAULT_PINNED_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settings'];
+
+const BUILTIN_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settings', 'plugins'];
 
 const SessionsScreen: React.FC<SessionsScreenProps> = ({
   backend,
@@ -118,7 +121,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const { pinned: pinnedSessionActions, setPinned: setPinnedSessionActions } =
     usePersistentPinnedActions<SessionActionKey>(
       scopedSessionListActionsStorageKey,
-      BUILTIN_SESSION_LIST_ACTIONS,
+	      DEFAULT_PINNED_SESSION_LIST_ACTIONS,
       { migrateFromKeys: [STORAGE_KEY_SESSION_LIST_ACTIONS] },
     );
   const [agentSwitchVisible, setAgentSwitchVisible] = useState(false);
@@ -126,11 +129,14 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const [agentSwitchCurrentId, setAgentSwitchCurrentId] = useState<string | null>(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [settingsSessionId, setSettingsSessionId] = useState<string | null>(null);
+  const [pluginsVisible, setPluginsVisible] = useState(false);
+  const [pluginsSessionId, setPluginsSessionId] = useState<string | null>(null);
 
   const closeNonPluginOverlays = useCallback(() => {
     setAgentPickerVisible(false);
     setAgentSwitchVisible(false);
     setSettingsVisible(false);
+    setPluginsVisible(false);
   }, []);
 
   const navigateToSession = useCallback(
@@ -215,6 +221,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     setSettingsSessionId(null);
     setAgentSwitchSessionId(null);
     setAgentSwitchCurrentId(null);
+    setPluginsSessionId(null);
   }, [closeNonPluginOverlays, handleCancelPluginDialog]);
 
   useEffect(() => {
@@ -287,6 +294,12 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       if (action === 'settings') {
         setSettingsSessionId(s.session_id);
         setSettingsVisible(true);
+        return;
+      }
+
+      if (action === 'plugins') {
+        setPluginsSessionId(s.session_id);
+        setPluginsVisible(true);
         return;
       }
 
@@ -577,6 +590,15 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
           sessionId={settingsSessionId}
           visible={settingsVisible}
           onRequestClose={() => setSettingsVisible(false)}
+        />
+      )}
+
+      {pluginsSessionId && (
+        <SessionPluginsModal
+          backend={backend}
+          sessionId={pluginsSessionId}
+          visible={pluginsVisible}
+          onRequestClose={() => setPluginsVisible(false)}
         />
       )}
 

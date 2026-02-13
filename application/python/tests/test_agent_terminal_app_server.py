@@ -227,6 +227,59 @@ def test_get_session_base_config_returns_mapping(tmp_path: Path) -> None:
   assert isinstance(cfg, dict)
 
 
+def test_session_plugins_endpoints_roundtrip(tmp_path: Path) -> None:
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "default_config.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    listed = server_mod.get_session_plugins(session_id, app_instance=app)["plugins"]
+    assert isinstance(listed, list) and listed
+
+    ids: list[str] = []
+    for entry in listed:
+        assert isinstance(entry, dict)
+        assert isinstance(entry.get("id"), str) and entry["id"]
+        assert isinstance(entry.get("enabled"), bool)
+        assert isinstance(entry.get("source"), str)
+        assert isinstance(entry.get("active"), bool)
+        ids.append(entry["id"])
+
+    subset = ids[:2]
+    put_resp = server_mod.put_session_plugins(
+        session_id, {"enabled": subset}, app_instance=app
+    )
+    updated_session = put_resp["session"]
+    metadata = updated_session.get("metadata") or {}
+    assert metadata.get("plugins") == subset
+
+    put_plugins = put_resp["plugins"]
+    assert isinstance(put_plugins, list)
+    for entry in put_plugins:
+        assert isinstance(entry, dict)
+        assert entry.get("source") == "session"
+        if entry.get("id") in subset:
+            assert entry.get("enabled") is True
+        else:
+            assert entry.get("enabled") is False
+
+    deleted = server_mod.delete_session_plugins(session_id, app_instance=app)
+    deleted_session = deleted["session"]
+    deleted_metadata = deleted_session.get("metadata") or {}
+    assert "plugins" not in deleted_metadata
+
+    deleted_plugins = deleted["plugins"]
+    assert isinstance(deleted_plugins, list) and deleted_plugins
+    assert all(p.get("source") != "session" for p in deleted_plugins if isinstance(p, dict))
+
+
 def test_run_send_request_background_helper_sends_and_persists(tmp_path: Path) -> None:
     """Internal helper _run_send_request_background mirrors /send behaviour.
 

@@ -553,6 +553,84 @@ def _normalize_index(raw_index: int, message_count: int) -> int:
     return target_index
 
 
+def _list_plugins_for_session(
+    app_instance: AgentApplication,
+    core: Any,
+    base_config: Dict[str, Any],
+    session: Session,
+) -> List[Dict[str, Any]]:
+    """Return plugin metadata with enabled/source/active state for a session.
+
+    Mirrors :meth:`TerminalApplication.list_plugins_for_session` so that
+    mobile/desktop clients can manage plugins via HTTP without drifting
+    from terminal behaviour.
+    """
+
+    all_plugins = app_instance.list_plugins()
+    metadata = session.metadata or {}
+
+    plugins_from_session = metadata.get("plugins")
+    enabled_ids: Optional[set[str]]
+    source: str
+
+    if isinstance(plugins_from_session, list):
+        enabled_ids = {p for p in plugins_from_session if isinstance(p, str)}
+        source = "session"
+    else:
+        agent_val = metadata.get("agent_id")
+        agent_id = agent_val.strip() if isinstance(agent_val, str) else ""
+        if not agent_id:
+            agents = [a for a in app_instance.list_agents() if isinstance(a, str) and a]
+            agent_id = agents[0] if agents else ""
+
+        default_ids = app_instance.get_agent_plugins(agent_id) if agent_id else None
+        if default_ids is None:
+            enabled_ids = None
+            source = "implicit"
+        else:
+            enabled_ids = {p for p in default_ids if isinstance(p, str)}
+            source = "agent"
+
+    overrides_val = metadata.get("overrides")
+    overrides: Dict[str, Any] = overrides_val if isinstance(overrides_val, dict) else {}
+    config = resolve_request_config(base_config, overrides)
+
+    try:
+        active_by_kind = core.get_plugins_for_config(config)
+    except Exception:
+        active_by_kind = None
+
+    def _is_active(kind: str, pid: str) -> bool:
+        if not isinstance(active_by_kind, dict):
+            return True
+        raw = active_by_kind.get(kind)
+        if not isinstance(raw, list):
+            return True
+        return pid in raw
+
+    result: List[Dict[str, Any]] = []
+    for entry in all_plugins:
+        pid = entry.get("id")
+        if not isinstance(pid, str) or not pid:
+            continue
+
+        kind_val = entry.get("kind")
+        kind = kind_val if isinstance(kind_val, str) else ""
+
+        if enabled_ids is None:
+            enabled = True
+            src = "implicit"
+        else:
+            enabled = pid in enabled_ids
+            src = source
+
+        result.append(
+            {**entry, "enabled": enabled, "source": src, "active": _is_active(kind, pid)}
+        )
+
+    return result
+
+
 def _run_send_request_background(
     app_instance: AgentApplication,
     session_id: str,
@@ -846,6 +924,121 @@ def get_session_overrides(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     return {"overrides": overrides}
+
+
+@app.get("/sessions/{session_id}/plugins")
+def get_session_plugins(
+    session_id: str,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return plugin metadata with enabled/source/active state for a session."""
+
+    try:
+        ctx = app_instance.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        core, base_config, session = ctx
+        cfg = base_config if isinstance(base_config, dict) else {}
+        plugins = _list_plugins_for_session(app_instance, core, cfg, session)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {"plugins": plugins}
+
+
+@app.put("/sessions/{session_id}/plugins")
+def put_session_plugins(
+    session_id: str,
+    payload: Dict[str, Any],
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Persist an explicit list of enabled plugin ids for a session."""
+
+    enabled_val = (payload or {}).get("enabled")
+    if not isinstance(enabled_val, list):
+        raise HTTPException(status_code=400, detail="enabled must be a list of plugin ids")
+
+    seen: Dict[str, None] = {}
+    normalized: List[str] = []
+    for pid in enabled_val:
+        if not isinstance(pid, str) or not pid:
+            continue
+        if pid in seen:
+            continue
+        seen[pid] = None
+        normalized.append(pid)
+
+    try:
+        with app_instance.acquire_session_lock(session_id):
+            ctx = app_instance.load_session(session_id)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
+
+            _core, _base_config, session = ctx
+            metadata = session.metadata if isinstance(session.metadata, dict) else {}
+            new_metadata = {**metadata, "plugins": normalized}
+            updated = Session(
+                session_id=session.session_id,
+                messages=session.messages,
+                metadata=new_metadata,
+            )
+            app_instance.save_session(updated)
+
+            refreshed = app_instance.load_session(session_id)
+            if refreshed is None:
+                core, base_config, loaded_session = _core, _base_config, updated
+            else:
+                core, base_config, loaded_session = refreshed
+
+            cfg = base_config if isinstance(base_config, dict) else {}
+            plugins = _list_plugins_for_session(app_instance, core, cfg, loaded_session)
+
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {"session": loaded_session.to_dict(), "plugins": plugins}
+
+
+@app.delete("/sessions/{session_id}/plugins")
+def delete_session_plugins(
+    session_id: str,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Clear session-specific plugin overrides (returning to agent defaults)."""
+
+    try:
+        with app_instance.acquire_session_lock(session_id):
+            ctx = app_instance.load_session(session_id)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
+
+            _core, _base_config, session = ctx
+            metadata = session.metadata if isinstance(session.metadata, dict) else {}
+            if "plugins" not in metadata:
+                core, base_config, loaded_session = _core, _base_config, session
+            else:
+                new_metadata = dict(metadata)
+                new_metadata.pop("plugins", None)
+                updated = Session(
+                    session_id=session.session_id,
+                    messages=session.messages,
+                    metadata=new_metadata,
+                )
+                app_instance.save_session(updated)
+
+                refreshed = app_instance.load_session(session_id)
+                if refreshed is None:
+                    core, base_config, loaded_session = _core, _base_config, updated
+                else:
+                    core, base_config, loaded_session = refreshed
+
+            cfg = base_config if isinstance(base_config, dict) else {}
+            plugins = _list_plugins_for_session(app_instance, core, cfg, loaded_session)
+
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {"session": loaded_session.to_dict(), "plugins": plugins}
 
 
 @app.patch("/sessions/{session_id}/overrides")

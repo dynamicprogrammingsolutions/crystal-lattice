@@ -3,13 +3,13 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
@@ -424,47 +424,44 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
       animationType="fade"
       onRequestClose={onRequestClose}
     >
-      <TouchableWithoutFeedback onPress={onRequestClose}>
-        <View style={styles.overlay}>
-          <TouchableWithoutFeedback onPress={() => {}}>
-            <View style={styles.content}>
-              <Text style={styles.title}>Session settings</Text>
-              {loading && (
-                <View style={styles.loadingRow}>
-                  <ActivityIndicator size="small" color={theme.primary} />
-                  <Text style={styles.loadingText}>Loading settings...</Text>
-                </View>
-              )}
-              {!loading && error && <Text style={styles.errorText}>{error}</Text>}
-              {!loading && !error && items.length === 0 && (
-                <Text style={styles.helperText}>
-                  No configurable settings are available for this session.
-                </Text>
-              )}
-              {!loading && !error && items.length > 0 && (
-                <SessionSettingsHost
-                  items={items}
-                  actions={{
-                    toggleCheckbox: handleToggleCheckbox,
-                    selectOption: handleSelectOption,
-                    saveText: handleSaveText,
-                    revertToDefault: handleRevertToDefault,
-                  }}
-                  renderers={renderers}
-                  renderFrame={({ children }) => (
-                    <ScrollView style={styles.list}>{children}</ScrollView>
-                  )}
-                />
-              )}
-              <View style={styles.footerRow}>
-                <TouchableOpacity style={styles.closeButton} onPress={onRequestClose}>
-                  <Text style={styles.closeButtonText}>Close</Text>
-                </TouchableOpacity>
-              </View>
+      <View style={styles.overlay}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onRequestClose} />
+        <View style={styles.content}>
+          <Text style={styles.title}>Session settings</Text>
+          {loading && (
+            <View style={styles.loadingRow}>
+              <ActivityIndicator size="small" color={theme.primary} />
+              <Text style={styles.loadingText}>Loading settings...</Text>
             </View>
-          </TouchableWithoutFeedback>
+          )}
+          {!loading && error && <Text style={styles.errorText}>{error}</Text>}
+          {!loading && !error && items.length === 0 && (
+            <Text style={styles.helperText}>
+              No configurable settings are available for this session.
+            </Text>
+          )}
+          {!loading && !error && items.length > 0 && (
+            <View style={styles.body}>
+              <SessionSettingsHost
+                items={items}
+                actions={{
+                  toggleCheckbox: handleToggleCheckbox,
+                  selectOption: handleSelectOption,
+                  saveText: handleSaveText,
+                  revertToDefault: handleRevertToDefault,
+                }}
+                renderers={renderers}
+                renderFrame={({ children }) => <ScrollView style={styles.list}>{children}</ScrollView>}
+              />
+            </View>
+          )}
+          <View style={styles.footerRow}>
+            <TouchableOpacity style={styles.closeButton} onPress={onRequestClose}>
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </TouchableWithoutFeedback>
+      </View>
     </Modal>
   );
 };
@@ -514,7 +511,14 @@ const createStyles = (theme: Theme) =>
       color: theme.textSecondary,
       marginBottom: 8,
     },
+    body: {
+      flexGrow: 0,
+      flexShrink: 1,
+
+    },
     list: {
+      flexGrow: 0,
+      flexShrink: 1,
       marginVertical: 8,
     },
     itemRow: {
