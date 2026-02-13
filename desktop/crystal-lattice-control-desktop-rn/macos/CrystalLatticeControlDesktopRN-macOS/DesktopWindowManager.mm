@@ -59,7 +59,7 @@ RCT_EXPORT_MODULE();
 
 - (NSArray<NSString *> *)supportedEvents
 {
-  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"sessionSettingsWindowCancelled", @"tabStripStyleChanged", @"systemThemeChanged" ];
+  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"sessionSettingsWindowCancelled", @"tabStripStyleChanged", @"sessionsFollowActiveTabChanged", @"systemThemeChanged" ];
 }
 
 - (void)startObserving
@@ -67,6 +67,11 @@ RCT_EXPORT_MODULE();
   [[NSNotificationCenter defaultCenter] addObserver:self
                                            selector:@selector(handleTabStripStyleDidChange:)
                                                name:CLCTabStripStyleDidChangeNotification
+                                             object:nil];
+
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(handleSessionsFollowActiveTabDidChange:)
+                                               name:CLCSessionsFollowActiveTabDidChangeNotification
                                              object:nil];
 
   [[NSNotificationCenter defaultCenter] addObserver:self
@@ -86,6 +91,10 @@ RCT_EXPORT_MODULE();
 {
   [[NSNotificationCenter defaultCenter] removeObserver:self
                                                   name:CLCTabStripStyleDidChangeNotification
+                                                object:nil];
+
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:CLCSessionsFollowActiveTabDidChangeNotification
                                                 object:nil];
 
   [[NSNotificationCenter defaultCenter] removeObserver:self
@@ -122,6 +131,18 @@ RCT_EXPORT_MODULE();
     return;
   }
   [self sendEventWithName:@"tabStripStyleChanged" body:@{ @"style" : style }];
+}
+
+- (void)handleSessionsFollowActiveTabDidChange:(NSNotification *)notification
+{
+  id enabled = notification.userInfo[CLCSessionsFollowActiveTabEnabledUserInfoKey];
+  BOOL resolved = NO;
+  if ([enabled isKindOfClass:[NSNumber class]]) {
+    resolved = [enabled boolValue];
+  } else {
+    resolved = NO;
+  }
+  [self sendEventWithName:@"sessionsFollowActiveTabChanged" body:@{ @"enabled" : @(resolved) }];
 }
 
 - (void)handleSystemColorsDidChange:(NSNotification *)notification

@@ -46,6 +46,7 @@ import { desktopEventBus } from '../events/desktopEventBus';
 import { PanelHeader } from '../ui/PanelHeader';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
 import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationActionDialog';
+import { useSessionsPanelTabAutoSelect } from './useSessionsPanelTabAutoSelect';
 
 const PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_session_list_actions_v1';
 const SESSION_DOUBLE_CLICK_MS = 300;
@@ -60,7 +61,10 @@ export interface SessionsPanelProps {
   cachedSessions: SessionSummary[];
   cachedLastLoadedAt: number | null;
   isOnline: boolean;
-  selectedSessionId?: string | null;
+  activeTabId?: string | null;
+  activeTabConnectionId?: string | null;
+  activeTabSessionId?: string | null;
+  followActiveTabEnabled?: boolean;
   onUpdateCache: (connectionId: string, sessions: SessionSummary[]) => void;
   onOpenSessionTab: (params: {
     connectionId: string;
@@ -91,7 +95,10 @@ function SessionsPanelInner({
   cachedSessions,
   cachedLastLoadedAt,
   isOnline,
-  selectedSessionId: selectedSessionIdFromTabs,
+  activeTabId,
+  activeTabConnectionId,
+  activeTabSessionId,
+  followActiveTabEnabled = true,
   onUpdateCache,
   onOpenSessionTab,
   onUpdateOpenTabsPresentation,
@@ -138,15 +145,6 @@ function SessionsPanelInner({
 
   const [filterText, setFilterText] = useState('');
   const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const scrollViewRef = useRef<ScrollView | null>(null);
-  const rowLayoutsRef = useRef<Record<string, { y: number; height: number }>>({});
-  const scrollOffsetRef = useRef(0);
-  const viewportHeightRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    setSelectedSessionId(null);
-  }, [focusedConnectionId]);
 
   const subtitle = useMemo(() => {
     if (!focusedConnectionName) {
@@ -367,84 +365,22 @@ function SessionsPanelInner({
     });
   }, [fieldGroups, filterText, sessions]);
 
-  const ensureSessionVisible = useCallback((sessionId: string): boolean => {
-    const layout = rowLayoutsRef.current[sessionId];
-    if (!layout) {
-      return false;
-    }
-
-    const viewportHeight = viewportHeightRef.current;
-    if (typeof viewportHeight !== 'number' || viewportHeight <= 0) {
-      return false;
-    }
-
-    const rowTop = layout.y;
-    const rowBottom = layout.y + layout.height;
-    const visibleTop = scrollOffsetRef.current;
-    const visibleBottom = visibleTop + viewportHeight;
-
-    const fullyVisible = rowTop >= visibleTop && rowBottom <= visibleBottom;
-    if (fullyVisible) {
-      return true;
-    }
-
-    let targetOffset = visibleTop;
-    if (rowTop < visibleTop) {
-      targetOffset = rowTop;
-    } else if (rowBottom > visibleBottom) {
-      targetOffset = rowBottom - viewportHeight;
-    }
-
-    const clamped = Math.max(0, targetOffset);
-    scrollOffsetRef.current = clamped;
-    scrollViewRef.current?.scrollTo({ y: clamped, animated: true });
-    return true;
-  }, []);
-
-  useEffect(() => {
-    if (!connectionId) {
-      return;
-    }
-    if (!selectedSessionId) {
-      return;
-    }
-
-    const isVisible = filteredSessions.some((session) => session.session_id === selectedSessionId);
-    if (!isVisible) {
-      return;
-    }
-
-    if (ensureSessionVisible(selectedSessionId)) {
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      ensureSessionVisible(selectedSessionId);
-    }, 0);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [connectionId, ensureSessionVisible, filteredSessions, selectedSessionId]);
-
-  useEffect(() => {
-    if (!connectionId) {
-      return;
-    }
-    if (!selectedSessionIdFromTabs) {
-      return;
-    }
-
-    const isVisible = filteredSessions.some(
-      (session) => session.session_id === selectedSessionIdFromTabs,
-    );
-    if (!isVisible) {
-      return;
-    }
-
-    setSelectedSessionId((prev) =>
-      prev === selectedSessionIdFromTabs ? prev : selectedSessionIdFromTabs,
-    );
-  }, [connectionId, filteredSessions, selectedSessionIdFromTabs]);
+  const {
+    selectedSessionId,
+    onUserSelectSessionId,
+    scrollViewRef,
+    getRowLayoutHandler,
+  } = useSessionsPanelTabAutoSelect({
+    connectionId,
+    visibleSessionIds: filteredSessions.map((session) => session.session_id),
+    activeTab: {
+      tabId: typeof activeTabId === 'string' ? activeTabId : null,
+      connectionId:
+        typeof activeTabConnectionId === 'string' ? activeTabConnectionId : null,
+      sessionId: typeof activeTabSessionId === 'string' ? activeTabSessionId : null,
+    },
+    enabled: followActiveTabEnabled,
+  });
 
   const lastClickRef = useRef<{ sessionId: string; atMs: number } | null>(null);
 
@@ -502,14 +438,13 @@ function SessionsPanelInner({
       const prev = lastClickRef.current;
       lastClickRef.current = { sessionId: session.session_id, atMs: now };
 
-      setSelectedSessionId(session.session_id);
-      ensureSessionVisible(session.session_id);
+      onUserSelectSessionId(session.session_id);
 
       if (prev && prev.sessionId === session.session_id && now - prev.atMs <= SESSION_DOUBLE_CLICK_MS) {
         openSession(session);
       }
     },
-    [ensureSessionVisible, openSession],
+    [onUserSelectSessionId, openSession],
   );
 
   return (
@@ -569,14 +504,6 @@ function SessionsPanelInner({
       ) : (
         <ScrollView
           ref={scrollViewRef}
-          onLayout={(event) => {
-            viewportHeightRef.current = event.nativeEvent.layout.height;
-          }}
-          onScroll={(event) => {
-            console.log('[SessionsPanel] onScroll', event.nativeEvent.contentOffset.y)
-            scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
-          }}
-          scrollEventThrottle={16}
           style={styles.list}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator
@@ -614,12 +541,7 @@ function SessionsPanelInner({
                     pressedOrHovered && styles.rowHovered,
                   ];
                 }}
-                onLayout={(event) => {
-                  rowLayoutsRef.current[session.session_id] = {
-                    y: event.nativeEvent.layout.y,
-                    height: event.nativeEvent.layout.height,
-                  };
-                }}
+                onLayout={getRowLayoutHandler(session.session_id)}
                 onPress={() => handleRowPress(session)}
                 onHoverIn={() => setHoveredSessionId(session.session_id)}
                 onHoverOut={() =>
