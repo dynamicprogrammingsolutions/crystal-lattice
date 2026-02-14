@@ -7,7 +7,7 @@ Compatible with OpenAI Chat Completions API format.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterator, List, Tuple
+from typing import Any, Dict, Iterator, List, Tuple, Optional
 import json
 
 import requests
@@ -19,6 +19,10 @@ from agent_core.utils import get_logger
 class OpenRouterProvider(ProviderPlugin):
     name: str = "openrouter"
     version: str = "0.1.0"
+    
+    def __init__(self):
+        super().__init__()
+        self._api_models_cache: Optional[List[Dict[str, Any]]] = None
 
     # ---------- Schemas ----------
     def get_config_schema(self) -> Dict[str, Any]:
@@ -96,23 +100,13 @@ class OpenRouterProvider(ProviderPlugin):
     def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return model descriptors from OpenRouter API.
         
-        Fetches full model data from https://openrouter.ai/api/v1/models
-        and returns models that match the configured model. Returns minimal
-        model descriptor with just 'id' field on API failure.
-        
-        Results are cached in the config to avoid repeated API calls.
+        Fetches all models once per provider instance and filters by config.
+        Core framework caches results per config.
         """
-        # Check cache first
-        cached_models = config.get("_openrouter_models_cache")
-        if cached_models is not None:
-            all_models = cached_models
-        else:
-            # Fetch from API
-            all_models = self._fetch_models_from_api(config)
-            # Cache the results in config (mutable dict)
-            config["_openrouter_models_cache"] = all_models
+        if self._api_models_cache is None:
+            self._api_models_cache = self._fetch_models_from_api(config)
         
-        # Filter to configured model
+        all_models = self._api_models_cache
         model_id = config.get("model")
         if not isinstance(model_id, str) or not model_id:
             return []

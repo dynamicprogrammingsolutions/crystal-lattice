@@ -41,7 +41,7 @@ def test_fetch_models_from_api_success():
 
 @pytest.mark.integration
 def test_get_models_with_api_caching():
-    """Verify get_models fetches from API and caches results."""
+    """Verify get_models fetches from API and caches at provider instance level."""
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         pytest.skip("OPENROUTER_API_KEY not set")
@@ -52,17 +52,20 @@ def test_get_models_with_api_caching():
         "api_key": api_key,
     }
     
+    # Provider cache should start empty
+    assert provider._api_models_cache is None
+    
     # First call should fetch from API
     models1 = provider.get_models(config)
     assert isinstance(models1, list)
     assert len(models1) > 0
     assert models1[0]["id"] == "openai/gpt-4o"
     
-    # Cache should be populated
-    assert "_openrouter_models_cache" in config
-    assert isinstance(config["_openrouter_models_cache"], list)
+    # Provider instance cache should now be populated
+    assert provider._api_models_cache is not None
+    assert isinstance(provider._api_models_cache, list)
     
-    # Second call should use cache
+    # Second call should use instance cache
     models2 = provider.get_models(config)
     assert models2 == models1
 
