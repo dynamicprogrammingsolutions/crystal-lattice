@@ -286,4 +286,38 @@ describeIf('backend integration (real FastAPI server + plugins + SDK)', () => {
 
     expect(contents).toEqual(['0:user:hi']);
   }, 30000);
+
+  it('F: append message with multipartContent roundtrips', async () => {
+    await ensureServer();
+
+    const transport = new FetchTransport({ baseUrl });
+    const backend = new RestAgentBackend({ transport });
+    const sessionId = await createSession(backend);
+
+    const multipart = [
+      {
+        type: 'image',
+        content: {
+          url: 'data:image/png;base64,AAAA',
+          mime_type: 'image/png',
+          filename: 'test.png',
+        },
+        metadata: { source: 'sdk-test' },
+      },
+    ];
+
+    await backend.appendMessage(sessionId, {
+      role: 'user',
+      content: '',
+      multipartContent: multipart,
+    });
+
+    const listed = await backend.listMessages(sessionId);
+    expect(listed.messages.length).toBeGreaterThanOrEqual(1);
+
+    const last = listed.messages[listed.messages.length - 1].message;
+    expect(last.role).toBe('user');
+    expect(last.content).toBe('');
+    expect((last as any).multipartContent).toEqual(multipart);
+  }, 30000);
 });

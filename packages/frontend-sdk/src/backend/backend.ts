@@ -69,6 +69,7 @@ export interface AgentBackend {
     message: {
       role: 'user' | 'assistant' | 'system' | 'tool';
       content: string;
+      multipartContent?: any[] | null;
       metadata?: Record<string, any>;
     },
   ): Promise<void>;

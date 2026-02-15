@@ -847,9 +847,26 @@ def add_message(
     role = payload.get("role")
     content = payload.get("content")
     metadata = payload.get("metadata")
+    multipart_content = payload.get("multipartContent")
+
+    if multipart_content is not None:
+        if not isinstance(multipart_content, list):
+            raise HTTPException(
+                status_code=400, detail="multipartContent must be a list"
+            )
+        if not all(isinstance(part, dict) for part in multipart_content):
+            raise HTTPException(
+                status_code=400, detail="multipartContent parts must be objects"
+            )
 
     if not isinstance(role, str) or not isinstance(content, str):
         raise HTTPException(status_code=400, detail="role and content must be strings")
+
+    if content.strip() == "" and not (isinstance(multipart_content, list) and multipart_content):
+        raise HTTPException(
+            status_code=400,
+            detail="content may be empty only when multipartContent is non-empty",
+        )
 
     try:
         with app_instance.acquire_session_lock(session_id):
@@ -864,7 +881,12 @@ def add_message(
             )
 
             new_session = core.add_message(
-                session, normalized_role, content, metadata, base_config
+                session,
+                normalized_role,
+                content,
+                metadata,
+                base_config,
+                multipart_content=multipart_content,
             )
             app_instance.save_session(new_session)
 

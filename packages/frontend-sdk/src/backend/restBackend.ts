@@ -138,11 +138,15 @@ export class RestAgentBackend implements AgentBackend {
     message: {
       role: 'user' | 'assistant' | 'system' | 'tool';
       content: string;
+      multipartContent?: any[] | null;
       metadata?: Record<string, any>;
     },
   ): Promise<void> {
     const path = `/sessions/${encodeURIComponent(sessionId)}/messages`;
     const payload: any = { role: message.role, content: message.content };
+    if (message.multipartContent !== undefined) {
+      payload.multipartContent = message.multipartContent;
+    }
     if (message.metadata && Object.keys(message.metadata).length > 0) {
       payload.metadata = message.metadata;
     }

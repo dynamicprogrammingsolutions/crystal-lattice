@@ -214,6 +214,7 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
   async appendMessage(message: {
     role: 'user' | 'assistant' | 'system' | 'tool';
     content: string;
+    multipartContent?: any[] | null;
     metadata?: Record<string, any>;
   }): Promise<void> {
     this.beginEpoch();

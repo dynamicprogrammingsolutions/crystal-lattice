@@ -1676,7 +1676,18 @@ class AgentCore:
             native_messages, state = feature.initialize_request(native_messages, state)
             provider.set_state(state)
  
-        logger.info("request init complete", request=state.get("request"), native_messages=native_messages)
+        try:
+            native_preview = str(native_messages)
+            if len(native_preview) > 2000:
+                native_preview = native_preview[:2000] + "...<truncated>"
+        except Exception:  # pragma: no cover - defensive
+            native_preview = "<unprintable>"
+
+        logger.info(
+            "request init complete",
+            request=state.get("request"),
+            native_messages=native_preview,
+        )
  
         return messages, native_messages, state
 
