@@ -8,10 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		04EA418F455E1DA49A5B5C02 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
-		0C80B921A6F3F58F76C31292 /* libPods-BonjourExampleRN.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-BonjourExampleRN.a */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
+		E39F652CC015AD6577F69616 /* libPods-CrystalLatticeControlRN.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 8890A10E2BAAD04914FFE1D4 /* libPods-CrystalLatticeControlRN.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -21,10 +21,12 @@
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = CrystalLatticeControlRN/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		3B4392A12AC88292D35C810B /* Pods-BonjourExampleRN.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-BonjourExampleRN.debug.xcconfig"; path = "Target Support Files/Pods-BonjourExampleRN/Pods-BonjourExampleRN.debug.xcconfig"; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-BonjourExampleRN.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-BonjourExampleRN.release.xcconfig"; path = "Target Support Files/Pods-BonjourExampleRN/Pods-BonjourExampleRN.release.xcconfig"; sourceTree = "<group>"; };
-		5DCACB8F33CDC322A6C60F78 /* libPods-BonjourExampleRN.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-BonjourExampleRN.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = CrystalLatticeControlRN/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = CrystalLatticeControlRN/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		8890A10E2BAAD04914FFE1D4 /* libPods-CrystalLatticeControlRN.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-CrystalLatticeControlRN.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		D4B450F7F923E48664FB5950 /* Pods-CrystalLatticeControlRN.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CrystalLatticeControlRN.debug.xcconfig"; path = "Target Support Files/Pods-CrystalLatticeControlRN/Pods-CrystalLatticeControlRN.debug.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		FBB3C9F33C8E6F3D9EA54212 /* Pods-CrystalLatticeControlRN.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CrystalLatticeControlRN.release.xcconfig"; path = "Target Support Files/Pods-CrystalLatticeControlRN/Pods-CrystalLatticeControlRN.release.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -32,7 +34,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0C80B921A6F3F58F76C31292 /* libPods-BonjourExampleRN.a in Frameworks */,
+				E39F652CC015AD6577F69616 /* libPods-CrystalLatticeControlRN.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -55,7 +57,7 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				5DCACB8F33CDC322A6C60F78 /* libPods-BonjourExampleRN.a */,
+				8890A10E2BAAD04914FFE1D4 /* libPods-CrystalLatticeControlRN.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -94,6 +96,8 @@
 			children = (
 				3B4392A12AC88292D35C810B /* Pods-BonjourExampleRN.debug.xcconfig */,
 				5709B34CF0A7D63546082F79 /* Pods-BonjourExampleRN.release.xcconfig */,
+				D4B450F7F923E48664FB5950 /* Pods-CrystalLatticeControlRN.debug.xcconfig */,
+				FBB3C9F33C8E6F3D9EA54212 /* Pods-CrystalLatticeControlRN.release.xcconfig */,
 			);
 			path = Pods;
 			sourceTree = "<group>";
@@ -189,19 +193,15 @@
 			files = (
 			);
 			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-BonjourExampleRN/Pods-BonjourExampleRN-frameworks-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-CrystalLatticeControlRN/Pods-CrystalLatticeControlRN-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-BonjourExampleRN/Pods-BonjourExampleRN-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-CrystalLatticeControlRN/Pods-CrystalLatticeControlRN-frameworks-${CONFIGURATION}-output-files.xcfilelist",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-BonjourExampleRN/Pods-BonjourExampleRN-frameworks.sh\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-CrystalLatticeControlRN/Pods-CrystalLatticeControlRN-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 		C38B50BA6285516D6DCD4F65 /* [CP] Check Pods Manifest.lock */ = {
@@ -219,7 +219,7 @@
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-BonjourExampleRN-checkManifestLockResult.txt",
+				"$(DERIVED_FILE_DIR)/Pods-CrystalLatticeControlRN-checkManifestLockResult.txt",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -232,19 +232,15 @@
 			files = (
 			);
 			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-BonjourExampleRN/Pods-BonjourExampleRN-resources-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-CrystalLatticeControlRN/Pods-CrystalLatticeControlRN-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-BonjourExampleRN/Pods-BonjourExampleRN-resources-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-CrystalLatticeControlRN/Pods-CrystalLatticeControlRN-resources-${CONFIGURATION}-output-files.xcfilelist",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-BonjourExampleRN/Pods-BonjourExampleRN-resources.sh\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-CrystalLatticeControlRN/Pods-CrystalLatticeControlRN-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
@@ -263,7 +259,7 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 3B4392A12AC88292D35C810B /* Pods-BonjourExampleRN.debug.xcconfig */;
+			baseConfigurationReference = D4B450F7F923E48664FB5950 /* Pods-CrystalLatticeControlRN.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -292,7 +288,7 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 5709B34CF0A7D63546082F79 /* Pods-BonjourExampleRN.release.xcconfig */;
+			baseConfigurationReference = FBB3C9F33C8E6F3D9EA54212 /* Pods-CrystalLatticeControlRN.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;

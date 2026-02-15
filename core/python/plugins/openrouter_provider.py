@@ -185,7 +185,7 @@ class OpenRouterProvider(ProviderPlugin):
                         "[openrouter_provider] image multipartContent part requires content.url or content.data_base64"
                     )
 
-                parts.append({"type": "image_url", "image_url": {"url": url}})
+                parts.append({"type": "image_url", "imageUrl": {"url": url}})
 
             native.append({"role": role, "content": parts})
 
