@@ -51,6 +51,13 @@ class OpenRouterProvider(ProviderPlugin):
                 "key": "model",
                 "label": "Openrouter Model ID",
             },
+            {
+                "ui_type": "composer_attachment",
+                "attachment_type": "image",
+                "supported_file_types": ["png", "jpg", "jpeg", "webp", "gif"],
+                "display_placement": "below",
+                "label": "Image",
+            },
         ]
 
     # ---------- Models / capabilities ----------
@@ -130,7 +137,59 @@ class OpenRouterProvider(ProviderPlugin):
     def to_native_messages(
         self, messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        return [{"role": m["role"], "content": m.get("content", "")} for m in messages]
+        native: List[Dict[str, Any]] = []
+
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if not isinstance(content, str):
+                content = ""
+
+            multipart = msg.get("multipartContent")
+            if not isinstance(multipart, list) or not multipart:
+                native.append({"role": role, "content": content})
+                continue
+
+            parts: List[Dict[str, Any]] = [{"type": "text", "text": content}]
+            for part in multipart:
+                if not isinstance(part, dict):
+                    continue
+
+                part_type = part.get("type")
+                part_content = part.get("content")
+                if part_type != "image":
+                    raise ValueError(
+                        f"[openrouter_provider] unsupported multipartContent part type: {part_type!r}"
+                    )
+                if not isinstance(part_content, dict):
+                    raise ValueError(
+                        "[openrouter_provider] image multipartContent part requires dict content"
+                    )
+
+                url = part_content.get("url")
+                if not isinstance(url, str) or not url:
+                    data_base64 = part_content.get("data_base64")
+                    mime_type = part_content.get("mime_type")
+                    if isinstance(data_base64, str) and data_base64:
+                        if not isinstance(mime_type, str) or not mime_type:
+                            raise ValueError(
+                                "[openrouter_provider] image multipartContent part using data_base64 requires mime_type"
+                            )
+                        url = f"data:{mime_type};base64,{data_base64}"
+
+                if not isinstance(url, str) or not url:
+                    raise ValueError(
+                        "[openrouter_provider] image multipartContent part requires content.url or content.data_base64"
+                    )
+
+                parts.append({"type": "image_url", "image_url": {"url": url}})
+
+            native.append({"role": role, "content": parts})
+
+        return native
 
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
@@ -147,11 +206,47 @@ class OpenRouterProvider(ProviderPlugin):
                 continue
             if not ("role" in m or "content" in m):
                 continue
-            msg = {
-                "role": m.get("role", "assistant"),
-                "content": m.get("content", ""),
-            }
+
+            role = m.get("role", "assistant")
+            content = m.get("content", "")
+
+            msg: Dict[str, Any] = {"role": role, "content": ""}
+            multipart_out: List[Dict[str, Any]] = []
+
+            if isinstance(content, list):
+                text_parts: List[str] = []
+                for part in content:
+                    if not isinstance(part, dict):
+                        continue
+                    part_type = part.get("type")
+                    if part_type == "text":
+                        text = part.get("text")
+                        if isinstance(text, str) and text:
+                            text_parts.append(text)
+                        continue
+                    if part_type == "image_url":
+                        image_url = part.get("image_url")
+                        if isinstance(image_url, dict):
+                            url = image_url.get("url")
+                            if isinstance(url, str) and url:
+                                multipart_out.append(
+                                    {
+                                        "type": "image",
+                                        "content": {"url": url},
+                                        "metadata": {},
+                                    }
+                                )
+                        continue
+
+                msg["content"] = "\n".join(text_parts)
+                if multipart_out:
+                    msg["multipartContent"] = multipart_out
+
+            else:
+                msg["content"] = content if isinstance(content, str) else ""
+
             normalized.append({**msg, "metadata": {}})
+
         return normalized
 
     # ---------- Core API calls ----------
@@ -181,9 +276,16 @@ class OpenRouterProvider(ProviderPlugin):
             override = request.get("messages")
             messages = override if isinstance(override, list) else native_messages
             payload = {**request["payload"], "messages": messages, "stream": False}
+            try:
+                payload_preview = json.dumps(payload, ensure_ascii=False)
+            except Exception:  # pragma: no cover - defensive
+                payload_preview = str(payload)
+            if len(payload_preview) > 2000:
+                payload_preview = payload_preview[:2000] + "...<truncated>"
+
             get_logger("openrouter_provider").info(
                 "sending request",
-                payload=str(payload),
+                payload=payload_preview,
             )
             r = requests.post(
                 request["url"],
@@ -258,7 +360,13 @@ class OpenRouterProvider(ProviderPlugin):
             override = request.get("messages")
             messages = override if isinstance(override, list) else native_messages
             payload = {**request["payload"], "messages": messages, "stream": True}
-            get_logger('openrouter_provider').info("sending request", payload=str(payload))
+            try:
+                payload_preview = json.dumps(payload, ensure_ascii=False)
+            except Exception:  # pragma: no cover - defensive
+                payload_preview = str(payload)
+            if len(payload_preview) > 2000:
+                payload_preview = payload_preview[:2000] + "...<truncated>"
+            get_logger("openrouter_provider").info("sending request", payload=payload_preview)
             with requests.post(
                 request["url"],
                 json=payload,
