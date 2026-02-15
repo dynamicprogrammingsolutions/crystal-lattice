@@ -98,3 +98,44 @@ Optional: jest component tests for rendering of multipart attachments.
 - Mobile app can send/receive multipart attachments.
 - Composer is driven by plugin UI schema elements.
 - Reordering works within each placement side.
+
+---
+
+## Notes added during completion (2026-02-15)
+
+### Implemented
+
+- Composer attachment support is implemented in `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx`:
+  - Reads session UI schema `elements` and filters `ui_type === "composer_attachment"`.
+  - Maintains draft attachment state split by placement: `attachmentsAbove` / `attachmentsBelow`.
+  - Renders per-type attachment buttons plus draft lists above/below the main `TextInput`.
+  - Supports remove + reorder (up/down) within each side.
+  - Send/append payload includes `{ content, multipartContent }` and allows empty `content` if attachments exist.
+- Message rendering is implemented in `mobile/crystal-lattice-control-rn/src/components/MessageBubble.tsx`:
+  - Renders `message.multipartContent` above the text content for all roles.
+  - `image` parts render inline via `<Image>`.
+  - `pdf` parts render as a tappable row (opens http(s) URLs if possible; otherwise copies URL to clipboard).
+  - Unknown types fall back to a generic attachment row.
+
+### Picking strategy (bridge-compatible JSON)
+
+- Image attachments:
+  - Uses `react-native-image-picker` for both photo library and camera capture.
+  - Adds support for image URLs as attachments (http/https or `data:image/...`), stored as `multipartContent[].content.url`.
+- PDF attachments:
+  - Uses `react-native-document-picker` and reads base64 via `react-native-fs`.
+- Helper: `mobile/crystal-lattice-control-rn/src/attachmentPicking.ts`.
+
+### Native setup notes
+
+- iOS:
+  - Added `NSPhotoLibraryUsageDescription` and `NSCameraUsageDescription` to `mobile/crystal-lattice-control-rn/ios/CrystalLatticeControlRN/Info.plist`.
+- Android:
+  - Per upstream docs, no manifest permissions were added.
+  - Added `implementation("androidx.activity:activity:1.9.+")` in `mobile/crystal-lattice-control-rn/android/app/build.gradle` because `minSdkVersion` is 24 (< 30), to ensure the AndroidX Photo Picker backport is available.
+
+### Test notes
+
+- Jest was updated to mock new native dependencies so `npm test` can run in CI/dev without native modules.
+  - `mobile/crystal-lattice-control-rn/jest.setup.js`
+  - `mobile/crystal-lattice-control-rn/jest.config.js`

@@ -67,3 +67,23 @@ Extend the core SDK `Message` type to support an optional top-level `multipartCo
 - Core can persist `multipartContent` through all serialization layers.
 - `AgentCore.add_message()` can create messages with multipart.
 - Unit tests cover roundtripping.
+
+---
+
+## Implementation Notes (Added 2026-02-15)
+
+- Implemented `Message.multipart_content` as an optional field on the core dataclass, serialized with the JSON key `multipartContent`.
+  - `core/python/agent_core/types.py:1015` defines the new field.
+  - `core/python/agent_core/types.py:1036` (`to_dict`) includes `multipartContent` only when `multipart_content` is a non-empty list.
+  - `core/python/agent_core/types.py:1050` (`from_dict`) accepts missing/`null`; raises `TypeError` if `multipartContent` is present but not a list.
+
+- Extended core message creation helpers so multipart survives both core-only and native-history paths.
+  - `core/python/agent_core/core.py:609` (`AgentCore.add_message`) adds kw-only `multipart_content` and forwards it into the internal `message_dict` as `multipartContent`.
+  - `core/python/agent_core/core.py:177` (`_append_single_message_with_native`) persists multipart both in the core-only append (`Message(...)`) and in the core→native suffix dict.
+  - `core/python/agent_core/core.py:316` (`_insert_single_message_with_native`) persists multipart in the core-only insertion path.
+  - `core/python/agent_core/core.py:719` (`_slice_session_core_only`) preserves multipart when reconstructing messages.
+  - `core/python/agent_core/core.py:421` (`_modify_single_message_with_native` core-only path) preserves multipart when reconstructing messages.
+
+- Added regression tests.
+  - `core/python/tests/test_types.py:33` and `core/python/tests/test_types.py:58` cover `Message` dict roundtrips for `multipartContent`.
+  - `core/python/tests/test_core.py:208` covers `AgentCore.export_session()`/`import_session()` roundtrip preserving multipart.

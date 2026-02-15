@@ -57,3 +57,17 @@ Extend the TypeScript frontend SDK types and REST backend so clients can send/re
 - SDK compiles with updated types.
 - REST append includes multipart payload.
 - Integration test covers roundtrip.
+
+---
+
+## Completion Notes (Added 2026-02-15)
+
+- Implemented `multipartContent?: any[] | null` on `ApiMessage` in `packages/frontend-sdk/src/types/messages.ts`.
+- Extended the `appendMessage(...)` parameter types in `packages/frontend-sdk/src/backend/backend.ts` and `packages/frontend-sdk/src/chat/chatController.ts`.
+- Updated REST `appendMessage` payload to send `multipartContent` when provided (`!== undefined`) in `packages/frontend-sdk/src/backend/restBackend.ts`.
+- Added integration coverage for a true roundtrip by appending with `content: ""` and non-empty `multipartContent` and then listing messages: `packages/frontend-sdk/src/integration/__tests__/backend.integration.test.ts`.
+- Follow-up fix required for the integration harness: the test provider (`core/python/plugins/deterministic_stream_provider.py`) rebuilt core messages from provider-native history and initially dropped `multipartContent`. Updated it to preserve `multipartContent` in both `to_native_messages` and `from_native_messages`.
+
+Test run:
+
+- `RUN_BACKEND_INTEGRATION=1 npm test -w @crystal-lattice/frontend-sdk`
