@@ -18,6 +18,7 @@ import time
 
 import pytest
 from fastapi.testclient import TestClient
+from fastapi import HTTPException
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -1561,6 +1562,70 @@ def test_checkpoint_cursor_after_message_appended(tmp_path: Path) -> None:
     # The messages endpoint should expose the same cursor_event_id.
     resp = server_mod.list_session_messages(session_id, app_instance=app)
     assert resp["cursor_event_id"] == last_checkpoint.get("event_id")
+
+
+def test_add_message_accepts_multipart_content_and_allows_empty_content(tmp_path: Path) -> None:
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create["session"]["session_id"]
+
+    multipart = [
+        {
+            "type": "image",
+            "content": {"url": "data:image/png;base64,AA=="},
+            "metadata": {"filename": "a.png"},
+        }
+    ]
+
+    resp = server_mod.add_message(
+        session_id,
+        {"role": "user", "content": "", "multipartContent": multipart, "metadata": None},
+        app_instance=app,
+    )
+
+    session = resp["session"]
+    last = session["messages"][-1]
+    assert last["role"] == "user"
+    assert last["content"] == ""
+    assert last.get("multipartContent") == multipart
+
+    evs = app.get_event_store().list(session_id=session_id, limit=100)
+    appended = [ev for ev in evs if ev.get("type") == "message_appended"]
+    assert appended, "expected message_appended event"
+    msg = appended[-1].get("message")
+    assert isinstance(msg, dict)
+    assert msg.get("multipartContent") == multipart
+
+
+def test_add_message_rejects_empty_content_without_multipart(tmp_path: Path) -> None:
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create["session"]["session_id"]
+
+    with pytest.raises(HTTPException) as excinfo:
+        server_mod.add_message(
+            session_id,
+            {"role": "user", "content": "   ", "metadata": None},
+            app_instance=app,
+        )
+
+    assert excinfo.value.status_code == 400
 
 
 def test_list_session_messages_endpoint_supports_slice_bounds(tmp_path: Path) -> None:

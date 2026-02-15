@@ -55,14 +55,17 @@ class EchoOpenAILikeProvider(ProviderPlugin):
         for msg in messages:
             role = msg.get("role")
             content = msg.get("content", "")
+            multipart_content = msg.get("multipartContent")
             md = msg.get("metadata")
             internal_md = dict(md) if isinstance(md, dict) else {}
             internal_md.pop("native_indices", None)
 
+            entry: Dict[str, Any] = {"role": role, "content": content}
             if internal_md:
-                native.append({"role": role, "content": content, "_metadata": internal_md})
-            else:
-                native.append({"role": role, "content": content})
+                entry["_metadata"] = internal_md
+            if multipart_content is not None:
+                entry["multipartContent"] = multipart_content
+            native.append(entry)
         return native
 
     def from_native_messages(
@@ -78,13 +81,15 @@ class EchoOpenAILikeProvider(ProviderPlugin):
             raw_internal = m.get("_metadata") or {}
             internal_md = dict(raw_internal) if isinstance(raw_internal, dict) else {}
             internal_md.pop("native_indices", None)
-            finals.append(
-                {
-                    "role": m.get("role", "assistant"),
-                    "content": m.get("content", ""),
-                    "metadata": internal_md,
-                }
-            )
+
+            msg: Dict[str, Any] = {
+                "role": m.get("role", "assistant"),
+                "content": m.get("content", ""),
+                "metadata": internal_md,
+            }
+            if "multipartContent" in m:
+                msg["multipartContent"] = m.get("multipartContent")
+            finals.append(msg)
         return finals
 
     # ---------- Request initialization ----------
