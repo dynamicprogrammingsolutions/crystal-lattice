@@ -22,6 +22,7 @@ This task is structured as a main task + subtasks, intended as a handoff package
 - `tasks/20260215-multipart-upload/070-desktop-composer-attachments.md`
 - `tasks/20260215-multipart-upload/080-docs-and-compat.md`
 - `tasks/20260215-multipart-upload/090-asset-prepare-upload-action.md`
+- `tasks/20260215-multipart-upload/100-bridge-chunked-http-over-websocket.md`
 
 ## Requirements (Locked)
 
@@ -158,3 +159,15 @@ This is intentionally Phase 2 because it adds complexity and is not required for
 - Server: endpoint test for append+list with multipart.
 - Frontend SDK: integration test verifying append payload includes `multipartContent`.
 - UIs: minimal component tests or manual test checklist.
+
+---
+
+## Implementation Notes (2026-02-15)
+
+- OpenRouter v1 implemented (images only):
+  - Provider mapping in `plugins/openrouter/src/openrouter_plugins/openrouter_provider.py`.
+  - Composer attachment UI element emitted by the same provider (`ui_type: "composer_attachment"`, image attachment, `display_placement: "below"`).
+- Added OpenRouter multipart integration tests:
+  - Provider-level: `plugins/openrouter/tests/test_openrouter_multipart_integration.py`.
+  - Real-server HTTP flow: `application/python/tests/test_agent_terminal_app_server_openrouter_multipart_http_integration.py`.
+

@@ -94,3 +94,57 @@ Test outline (exact details to be updated once samples are provided):
 
 - OpenRouter provider can handle multipart mapping without breaking text-only flows.
 - OpenRouter integration test covers at least one multipart message path.
+
+## Implementation Notes (2026-02-15)
+
+### Provider-native schema implemented (OpenRouter)
+
+OpenRouter uses OpenAI-style multimodal `content` arrays on messages:
+
+```json
+{
+  "role": "user",
+  "content": [
+    {"type": "text", "text": "What's in this image?"},
+    {"type": "image_url", "image_url": {"url": "https://..."}}
+  ]
+}
+```
+
+### Core part conventions accepted (v1)
+
+Provider mapping expects core messages to optionally include:
+
+```json
+{
+  "role": "user",
+  "content": "...",
+  "multipartContent": [
+    {"type": "image", "content": {"url": "..."}, "metadata": {}}
+  ]
+}
+```
+
+And additionally supports base64 inputs:
+
+- `multipartContent[].content.data_base64` + `multipartContent[].content.mime_type`
+- Converted into a `data:<mime_type>;base64,<data_base64>` URL for OpenRouter.
+
+### Code changes
+
+- Implemented `{content, multipartContent}` -> OpenRouter-native in `plugins/openrouter/src/openrouter_plugins/openrouter_provider.py` (`to_native_messages`).
+  - Text is always first part (`{"type":"text"...}`), then image parts.
+  - Raises `ValueError` for unsupported `multipartContent[].type` (only `image` supported in this task).
+- Implemented OpenRouter-native -> `{content, multipartContent}` in `plugins/openrouter/src/openrouter_plugins/openrouter_provider.py` (`from_native_messages`).
+  - Extracts `text` parts into core `content` (joined by `\n`).
+  - Extracts `image_url` parts into core `multipartContent` entries of `type: "image"`.
+
+### Tests added
+
+- Provider-only integration test: `plugins/openrouter/tests/test_openrouter_multipart_integration.py` (marked `integration` + `openrouter`, gated by `OPENROUTER_API_KEY`).
+- Real-server (FastAPI HTTP) integration test: `application/python/tests/test_agent_terminal_app_server_openrouter_multipart_http_integration.py` (marked `openrouter`, gated by `OPENROUTER_API_KEY`).
+
+### Notes
+
+- The integration tests intentionally do not attempt to detect model capabilities; they will fail if the configured model does not support images.
+

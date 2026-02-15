@@ -89,3 +89,14 @@ return [
 
 - At least one provider/plugin emits `composer_attachment` elements.
 - Mobile/desktop UIs can rely on this schema for showing attach controls.
+
+## Implementation Notes (2026-02-15)
+
+- Implemented the `ui_type: "composer_attachment"` element for OpenRouter (images only) in `plugins/openrouter/src/openrouter_plugins/openrouter_provider.py`.
+- Element emitted:
+  - `attachment_type: "image"`
+  - `supported_file_types: ["png", "jpg", "jpeg", "webp", "gif"]`
+  - `display_placement: "below"` (OpenRouter recommends text-first in provider-native content arrays)
+  - `label: "Image"`
+- No `prepare_action` wired in v1.
+

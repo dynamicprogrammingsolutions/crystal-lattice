@@ -69,3 +69,30 @@ Update the FastAPI server so clients can append messages containing optional `mu
 - Endpoint accepts multipart payloads and persists them.
 - Empty `content` is allowed when multipart exists.
 - Tests validate behavior.
+
+---
+
+## Implementation Notes (Added 2026-02-15)
+
+### Server changes
+
+- Updated `POST /sessions/{session_id}/messages` to accept optional `multipartContent`.
+- Validation rules implemented in `application/python/agent_terminal_app/server.py:839`:
+  - `role` and `content` must both be strings.
+  - `multipartContent` (when provided) must be a list of objects.
+  - `content.strip() == ""` is allowed only when `multipartContent` is a non-empty list.
+- Persistence uses `AgentCore.add_message(..., multipart_content=multipart_content)`; the emitted `message_appended` event continues to rely on `message: last_message.to_dict()` (no new top-level event field added).
+
+### Provider (Echo) changes
+
+- The Echo provider stack is used by server tests via `application/python/agent_terminal_app/config_echo_app.json`.
+- To ensure multipart survives the provider-native rebuild step, `core/python/plugins/echo_openai_like_provider.py` was updated to roundtrip `multipartContent` through `to_native_messages` and `from_native_messages`.
+
+### Tests
+
+- Added regression tests in `application/python/tests/test_agent_terminal_app_server.py`:
+  - Append with `content: ""` + non-empty `multipartContent` succeeds and persists (also verified in `message_appended` event payload).
+  - Append with whitespace-only `content` and no multipart rejects with `400`.
+- Verified with:
+  - `pytest application/python/tests/test_agent_terminal_app_server.py -k multipart -q`
+  - `pytest application/python/tests/test_agent_terminal_app_server.py -q`
