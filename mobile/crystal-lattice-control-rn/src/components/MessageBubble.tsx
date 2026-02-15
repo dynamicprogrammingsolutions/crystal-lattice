@@ -1,5 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import {
+  Alert,
+  Image,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -8,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
+import Clipboard from '@react-native-clipboard/clipboard';
 import type { ApiMessage, UiSchemaElement } from '../api';
 import MessageActionsBar from './MessageActionsBar';
 import type { MessageActionKey, MessageActionDefinition } from '../messageActions';
@@ -15,6 +19,106 @@ import { selectDisplayContent, selectSingleLineContent } from '../messageUtils';
 import MarkdownMessageContent from './MarkdownMessageContent';
 import { useTheme, type Theme } from '../theme';
 import { extractByPath, renderTemplate } from '../uiSchemaUtils';
+
+type MultipartPart = {
+  type?: string;
+  content?: any;
+  metadata?: any;
+};
+
+function selectMultipartParts(message: ApiMessage): MultipartPart[] {
+  const parts = (message as any)?.multipartContent;
+  return Array.isArray(parts) ? (parts as MultipartPart[]) : [];
+}
+
+function selectAttachmentUrl(content: any): string | null {
+  if (!content || typeof content !== 'object') return null;
+  if (typeof content.url === 'string' && content.url) return content.url;
+  if (typeof content.data_base64 === 'string' && content.data_base64) {
+    const mimeType =
+      typeof content.mime_type === 'string' && content.mime_type
+        ? content.mime_type
+        : 'application/octet-stream';
+    return `data:${mimeType};base64,${content.data_base64}`;
+  }
+  return null;
+}
+
+function selectAttachmentFilename(part: MultipartPart): string {
+  const content = part?.content;
+  const raw = content && typeof content === 'object' ? content.filename ?? content.name : undefined;
+  if (typeof raw === 'string' && raw.trim()) return raw.trim();
+  if (typeof part?.type === 'string' && part.type.trim()) return part.type.trim();
+  return 'attachment';
+}
+
+const MessageAttachments: React.FC<{ message: ApiMessage; onBlue?: boolean }> = ({
+  message,
+  onBlue,
+}) => {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const parts = selectMultipartParts(message);
+
+  if (parts.length === 0) return null;
+
+  return (
+    <View style={[styles.attachmentsContainer, onBlue && styles.attachmentsContainerOnBlue]}>
+      {parts.map((part, idx) => {
+        const type = typeof part?.type === 'string' ? part.type : 'attachment';
+        const content = part?.content;
+        const url = selectAttachmentUrl(content);
+        const filename = selectAttachmentFilename(part);
+        const isImage = type === 'image' && url;
+        const isPdf = type === 'pdf' && url;
+
+        if (isImage) {
+          return (
+            <Image
+              key={`${type}:${idx}`}
+              source={{ uri: url ?? undefined }}
+              style={styles.attachmentImage}
+            />
+          );
+        }
+
+        const iconName = type === 'pdf' ? 'file-text' : 'paperclip';
+
+        return (
+          <TouchableOpacity
+            key={`${type}:${idx}`}
+            style={[styles.attachmentRow, onBlue && styles.attachmentRowOnBlue]}
+            onPress={async () => {
+              if (typeof url !== 'string' || !url) return;
+              if (isPdf && (url.startsWith('http://') || url.startsWith('https://'))) {
+                try {
+                  await Linking.openURL(url);
+                  return;
+                } catch (err) {
+                  console.log('Failed to open attachment url', err);
+                }
+              }
+              Clipboard.setString(url);
+              Alert.alert('Copied', 'Attachment URL copied to clipboard.');
+            }}
+          >
+            <Icon
+              name={iconName as any}
+              size={16}
+              color={onBlue ? '#FFFFFF' : theme.textSecondary}
+            />
+            <Text
+              style={[styles.attachmentText, onBlue && styles.attachmentTextOnBlue]}
+              numberOfLines={1}
+            >
+              {filename}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+};
 
 export interface MessageBubbleProps {
   index: number;
@@ -102,6 +206,10 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
     <View style={styles.row}>
       <View style={[styles.bubble, styles.userBubble]}>
         <Text style={styles.headerText}>{`[${index}] User`}</Text>
+        <MessageAttachments
+          message={message}
+          onBlue
+        />
         {content ? (
           <Text
             style={[styles.contentText, styles.userContentText]}
@@ -198,6 +306,7 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
     <View style={styles.row}>
       <View style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}>
         <Text style={styles.headerText}>{`[${index}] System`}</Text>
+        <MessageAttachments message={message} />
         {content ? (
           <Text
             style={styles.systemText}
@@ -283,6 +392,8 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
             </TouchableOpacity>
           )}
         </View>
+
+        <MessageAttachments message={message} />
 
         {hasContent && expanded && (
           <View style={styles.collapsibleContainerTool}>
@@ -462,6 +573,8 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
             )}
           </View>
         </View>
+
+        <MessageAttachments message={message} />
 
         {reasoning && reasoningExpanded && (
           <View style={styles.collapsibleContainerReasoning}>
@@ -868,6 +981,45 @@ const createStyles = (theme: Theme) =>
       color: theme.text,
       fontSize: 14,
       fontWeight: '600',
+    },
+    attachmentsContainer: {
+      marginTop: 6,
+      marginBottom: 6,
+      gap: 6,
+    },
+    attachmentsContainerOnBlue: {
+      marginTop: 8,
+    },
+    attachmentImage: {
+      width: '100%',
+      height: 160,
+      borderRadius: 8,
+      backgroundColor: theme.surfaceAlt,
+    },
+    attachmentRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.surface,
+    },
+    attachmentRowOnBlue: {
+      borderColor: 'rgba(255,255,255,0.25)',
+      backgroundColor: 'rgba(255,255,255,0.12)',
+    },
+    attachmentText: {
+      marginLeft: 8,
+      flex: 1,
+      minWidth: 0,
+      fontSize: 12,
+      fontWeight: '600',
+      color: theme.textSecondary,
+    },
+    attachmentTextOnBlue: {
+      color: '#FFFFFF',
     },
     rawReadonlyInput: {
       marginTop: 2,
