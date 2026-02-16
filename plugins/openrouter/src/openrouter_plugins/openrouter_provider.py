@@ -53,10 +53,108 @@ class OpenRouterProvider(ProviderPlugin):
             },
             {
                 "ui_type": "composer_attachment",
+                "key": "openrouter:attachment:image",
                 "attachment_type": "image",
                 "supported_file_types": ["png", "jpg", "jpeg", "webp", "gif"],
                 "display_placement": "below",
                 "label": "Image",
+                "icon": "image",
+                "metadata_ui": {
+                    "prompt": "if_missing_required",
+                    "defaults": {
+                        "notes": "",
+                    },
+                    "config_schema": [
+                        {
+                            "key": "title",
+                            "type": "string",
+                            "label": "Title",
+                            "description": "Testing-only attachment metadata (not sent to OpenRouter).",
+                            "required": True,
+                        },
+                        {
+                            "key": "notes",
+                            "type": "multiline",
+                            "label": "Notes",
+                            "description": "Testing-only attachment metadata (not sent to OpenRouter).",
+                            "required": False,
+                            "default": "",
+                        },
+                        {
+                            "key": "source_url",
+                            "type": "string",
+                            "label": "Source URL",
+                            "description": "Testing-only attachment metadata (not sent to OpenRouter).",
+                            "required": False,
+                        },
+                    ],
+                    "ui_schema": [
+                        {
+                            "ui_type": "config",
+                            "type": "string",
+                            "key": "title",
+                            "label": "Title",
+                        },
+                        {
+                            "ui_type": "config",
+                            "type": "multiline",
+                            "key": "notes",
+                            "label": "Notes",
+                        },
+                        {
+                            "ui_type": "config",
+                            "type": "string",
+                            "key": "source_url",
+                            "label": "Source URL",
+                        },
+                    ],
+                },
+            },
+            {
+                "ui_type": "composer_attachment",
+                "key": "openrouter:attachment:pdf",
+                "attachment_type": "pdf",
+                "supported_file_types": ["pdf"],
+                "display_placement": "below",
+                "label": "PDF (UI only)",
+                "icon": "file-text",
+                "metadata_ui": {
+                    "prompt": "if_missing_required",
+                    "defaults": {
+                        "notes": "",
+                    },
+                    "config_schema": [
+                        {
+                            "key": "title",
+                            "type": "string",
+                            "label": "Title",
+                            "description": "Testing-only attachment metadata (not sent to OpenRouter).",
+                            "required": True,
+                        },
+                        {
+                            "key": "notes",
+                            "type": "multiline",
+                            "label": "Notes",
+                            "description": "Testing-only attachment metadata (not sent to OpenRouter).",
+                            "required": False,
+                            "default": "",
+                        },
+                    ],
+                    "ui_schema": [
+                        {
+                            "ui_type": "config",
+                            "type": "string",
+                            "key": "title",
+                            "label": "Title",
+                        },
+                        {
+                            "ui_type": "config",
+                            "type": "multiline",
+                            "key": "notes",
+                            "label": "Notes",
+                        },
+                    ],
+                },
             },
         ]
 
@@ -161,9 +259,10 @@ class OpenRouterProvider(ProviderPlugin):
                 part_type = part.get("type")
                 part_content = part.get("content")
                 if part_type != "image":
-                    raise ValueError(
-                        f"[openrouter_provider] unsupported multipartContent part type: {part_type!r}"
-                    )
+                    # UI may advertise additional attachment types for
+                    # testing, but OpenRouter only supports images in the
+                    # request format used here. Silently ignore others.
+                    continue
                 if not isinstance(part_content, dict):
                     raise ValueError(
                         "[openrouter_provider] image multipartContent part requires dict content"

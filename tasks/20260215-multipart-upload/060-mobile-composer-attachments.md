@@ -139,3 +139,120 @@ Optional: jest component tests for rendering of multipart attachments.
 - Jest was updated to mock new native dependencies so `npm test` can run in CI/dev without native modules.
   - `mobile/crystal-lattice-control-rn/jest.setup.js`
   - `mobile/crystal-lattice-control-rn/jest.config.js`
+
+---
+
+## Notes added during completion (2026-02-16)
+
+### Plan (agreed in-session)
+
+1) Desktop-style composer actions (pinnable) at top of composer
+
+- Use the standard pinnable actions component (`ActionsMenuBar`) in the composer area (not the screen header).
+- Move `Resend` + `Cancel` into this pinned composer actions bar.
+- Keep `Send` + `Append` at the bottom.
+- Attachment action buttons should be driven by `ui_type: "composer_attachment"` elements and rendered inside the pinnable actions bar.
+- Plugins define the attachment action label/title + icon for each attachment type.
+
+2) Add a PDF attachment UI element for OpenRouter (UI-only)
+
+- Add a `composer_attachment` element for `attachment_type: "pdf"` for testing.
+- Do not add provider support for PDFs; PDFs should be silently ignored during provider message conversion so the UI can be exercised without breaking sends.
+
+3) Attachment metadata capture and editing
+
+- Support per-attachment metadata as `multipartContent[].metadata`.
+- OpenRouter does not support metadata; metadata should be ignored by the provider when processing messages (but persisted in session history).
+- Plugins provide metadata UI schema via `metadata_ui` on each `composer_attachment` element.
+- Metadata schema + rendering should match the session settings modal (same schema style + rendering).
+- Prompt rules:
+  - If any metadata field is `required` and has no default, the metadata modal must be shown after selecting the file/image (mandatory to set).
+  - Otherwise the plugin controls whether to always prompt or skip (but users can edit metadata later).
+
+4) Compact attachment display in composer
+
+- Replace the vertical attachment lists that push content upward.
+- Use a horizontally scrollable thumbnail filmstrip to consume minimal vertical space.
+- Provide a single edit affordance for the filmstrip that opens a popup/modal with a vertical list view:
+  - One row per attachment
+  - Thumbnail on the left
+  - Icons: up/down/edit-metadata/delete
+
+5) Attachment display in transcript
+
+- When rendering sent messages that include `multipartContent`, use the same horizontal thumbnail filmstrip display.
+
+6) Keyboard avoidance
+
+- Only the composer input should be keyboard-avoiding.
+- If the bottom attachment strip exists, it may be allowed to be covered by the keyboard.
+
+### Implemented (including corrections)
+
+#### Composer: pinnable actions bar (top)
+
+- Implemented a composer actions bar using the shared `ActionsMenuBar` component:
+  - Attachment actions are generated from session UI schema `composer_attachment` elements.
+  - `Resend` and `Cancel` are in this bar.
+  - `Append` and `Send` remain as bottom buttons.
+- Added pinned persistence for composer actions using `PinnedActionsContext` (`usePersistentPinnedActions`).
+- Files:
+  - `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx`
+
+#### Plugin-defined titles/icons + PDF UI-only action
+
+- Implemented plugin-driven `composer_attachment` UI schema additions in the OpenRouter plugin (not the core copy):
+  - Adds `key` and `icon` to the existing `image` attachment element.
+  - Adds a `pdf` attachment element labeled `"PDF (UI only)"` with an icon.
+  - Adds `metadata_ui` to both.
+- Updated OpenRouter provider conversion to silently ignore non-image multipart parts (so PDF attachments do not break sends).
+- Files:
+  - `plugins/openrouter/src/openrouter_plugins/openrouter_provider.py`
+
+#### Attachment metadata modal (settings-style)
+
+- Added a metadata modal that renders a settings-style form based on `metadata_ui` supplied by the plugin and stores values into `multipartContent[].metadata`.
+- Enforces required fields (blocks save if required fields are missing).
+- Prompt logic:
+  - If required defaults are missing, the modal is automatically shown after picking.
+  - If not required, modal is shown only when plugin `metadata_ui.prompt == "always"`.
+- Files:
+  - `mobile/crystal-lattice-control-rn/src/components/AttachmentMetadataModal.tsx`
+  - `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx`
+
+#### Composer attachment rendering: horizontal filmstrip + manage modal
+
+- Replaced the previous vertical draft attachment lists with a horizontal thumbnail filmstrip.
+- Implemented a single manage/edit affordance that opens a modal containing a vertical list of all attachments for that placement side, with per-row controls:
+  - Thumbnail left
+  - Icons: up/down/edit metadata/delete
+- The filmstrip manage icon was refined to be a rounded overlay button on the right edge, vertically centered.
+- Files:
+  - `mobile/crystal-lattice-control-rn/src/components/AttachmentThumbnailStrip.tsx`
+  - `mobile/crystal-lattice-control-rn/src/components/ComposerAttachmentsManageModal.tsx`
+  - `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx`
+
+#### Transcript attachment rendering: shared filmstrip
+
+- Updated message rendering to display `multipartContent` using the shared horizontal filmstrip UI.
+- Files:
+  - `mobile/crystal-lattice-control-rn/src/components/MessageBubble.tsx`
+
+#### Keyboard avoidance (correction and final state)
+
+- Attempted to change keyboard avoidance to apply only to the composer input area; this caused issues (composer could still be covered) and was reverted.
+- Current behavior is restored to the previous state: the entire screen is wrapped in a `KeyboardAvoidingView` (same as before these changes).
+- File:
+  - `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx`
+
+#### Cleanup
+
+- Removed components that were superseded by the filmstrip + manage modal approach:
+  - Deleted `mobile/crystal-lattice-control-rn/src/components/ComposerAttachments.tsx`
+  - Deleted `mobile/crystal-lattice-control-rn/src/components/AttachmentEditModal.tsx`
+
+#### Note on core OpenRouter provider
+
+- Any UI-schema changes for OpenRouter should live in the plugin package.
+- Core copy was reverted to avoid accumulating work in a module scheduled for removal:
+  - `core/python/plugins/openrouter_provider.py`

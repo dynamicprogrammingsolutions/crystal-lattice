@@ -1,4 +1,11 @@
-import DocumentPicker from 'react-native-document-picker';
+import {
+  errorCodes,
+  isErrorWithCode,
+  keepLocalCopy,
+  pick,
+  types as DocumentPickerTypes,
+} from '@react-native-documents/picker';
+import type { FileToCopy } from '@react-native-documents/picker';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
 
@@ -44,25 +51,28 @@ function pickTypeForExtensions(exts: string[]): string[] {
   const hasImage = normalized.some((ext) => imageExts.has(ext));
 
   if (hasImage && !hasPdf) {
-    return [DocumentPicker.types.images];
+    return [DocumentPickerTypes.images];
   }
   if (hasPdf && !hasImage) {
-    return [DocumentPicker.types.pdf];
+    return [DocumentPickerTypes.pdf];
   }
   if (hasPdf && hasImage) {
-    return [DocumentPicker.types.images, DocumentPicker.types.pdf];
+    return [DocumentPickerTypes.images, DocumentPickerTypes.pdf];
   }
-  return [DocumentPicker.types.allFiles];
+  return [DocumentPickerTypes.allFiles];
 }
 
 async function pickDocumentAsDataUrl(options: {
   supportedFileTypes: string[];
 }): Promise<PickedAssetDataUrl | null> {
   try {
-    const result = await DocumentPicker.pickSingle({
+    const picked = await pick({
       type: pickTypeForExtensions(options.supportedFileTypes),
-      copyTo: 'cachesDirectory',
+      allowMultiSelection: false,
+      mode: 'import',
     });
+
+    const result = picked[0];
 
     const filenameRaw =
       typeof (result as any).name === 'string' && (result as any).name.trim()
@@ -80,21 +90,25 @@ async function pickDocumentAsDataUrl(options: {
       }
     }
 
-    const fileUri =
-      typeof (result as any).fileCopyUri === 'string' && (result as any).fileCopyUri
-        ? (result as any).fileCopyUri
-        : typeof (result as any).uri === 'string'
-          ? (result as any).uri
-          : null;
-    if (!fileUri) {
+    const pickedUri = typeof (result as any).uri === 'string' ? (result as any).uri : null;
+    if (!pickedUri) {
       throw new Error('No file URI from document picker');
     }
 
-    if (fileUri.startsWith('content://') && !(result as any).fileCopyUri) {
-      throw new Error(
-        'Picked asset has a content:// URI without a file copy; cannot read as base64.',
-      );
+    const filesToCopy: [FileToCopy] = [{ uri: pickedUri, fileName: filename }];
+    const localCopies = await keepLocalCopy({
+      files: filesToCopy,
+      destination: 'cachesDirectory',
+    });
+    const copyResult = localCopies[0];
+    if (!copyResult || copyResult.status !== 'success') {
+      const message =
+        copyResult && copyResult.status === 'error'
+          ? copyResult.copyError
+          : 'Unable to read picked asset; cannot create local copy.';
+      throw new Error(message);
     }
+    const fileUri = copyResult.localUri;
 
     const mimeTypeRaw = typeof (result as any).type === 'string' ? (result as any).type : '';
     const mimeType = mimeTypeRaw || inferMimeTypeFromExtension(ext);
@@ -103,7 +117,7 @@ async function pickDocumentAsDataUrl(options: {
     const dataUrl = `data:${mimeType};base64,${base64}`;
     return { filename, mimeType, dataUrl, sizeBytes };
   } catch (err: any) {
-    if (DocumentPicker.isCancel(err)) {
+    if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) {
       return null;
     }
     throw err;
