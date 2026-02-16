@@ -64,6 +64,51 @@ defmodule Bridge.ServerChannel do
   end
 
   @impl true
+  def handle_in("http_response_init", params, socket) do
+    %{
+      "request_id" => request_id
+    } = params
+
+    Phoenix.PubSub.broadcast(
+      Bridge.PubSub,
+      "tunnel:request:#{request_id}",
+      {:http_response_init, params}
+    )
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_in("http_response_chunk", params, socket) do
+    %{
+      "request_id" => request_id
+    } = params
+
+    Phoenix.PubSub.broadcast(
+      Bridge.PubSub,
+      "tunnel:request:#{request_id}",
+      {:http_response_chunk, params}
+    )
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_in("http_response_end", params, socket) do
+    %{
+      "request_id" => request_id
+    } = params
+
+    Phoenix.PubSub.broadcast(
+      Bridge.PubSub,
+      "tunnel:request:#{request_id}",
+      {:http_response_end, params}
+    )
+
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_info({:pairing_requested, client_id, code, expires_at}, socket) do
     push(socket, "pairing_requested", %{
       client_id: client_id,
@@ -87,6 +132,24 @@ defmodule Bridge.ServerChannel do
   @impl true
   def handle_info({:http_request, request}, socket) do
     push(socket, "http_request", request)
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:http_request_init, request}, socket) do
+    push(socket, "http_request_init", request)
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:http_request_chunk, request}, socket) do
+    push(socket, "http_request_chunk", request)
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:http_request_end, request}, socket) do
+    push(socket, "http_request_end", request)
     {:noreply, socket}
   end
 

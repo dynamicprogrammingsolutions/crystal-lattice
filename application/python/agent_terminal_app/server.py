@@ -2323,6 +2323,8 @@ def run_api(
     host: str = "127.0.0.1",
     port: int = 8000,
     app_instance: Optional[AgentApplication] = None,
+    *,
+    log_config: object = "default",
 ) -> None:  # pragma: no cover
     """Run the FastAPI app with uvicorn on the given host/port."""
 
@@ -2350,4 +2352,16 @@ def run_api(
     os.environ.setdefault("SERVER_HOST", host)
     os.environ.setdefault("SERVER_PORT", str(port))
 
-    uvicorn.run("agent_terminal_app.server:app", host=host, port=port, reload=False)
+    kwargs: Dict[str, Any] = {
+        "host": host,
+        "port": port,
+        "reload": False,
+    }
+
+    # By default, uvicorn configures logging (and emits to stdout). When the
+    # terminal console is also running, that can be noisy. Allow the CLI to
+    # disable uvicorn logging configuration by passing log_config=None.
+    if log_config != "default":
+        kwargs["log_config"] = log_config
+
+    uvicorn.run("agent_terminal_app.server:app", **kwargs)

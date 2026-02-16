@@ -74,6 +74,41 @@ def _configure_logging(
         pass
 
 
+def _configure_fastapi_logging(fastapi_log_file: Optional[str]) -> None:
+    """Route uvicorn/FastAPI logs to a dedicated file when requested.
+
+    Uvicorn configures its own logging by default. When running the FastAPI
+    server in a background thread alongside the interactive console, that
+    default behavior produces noisy stdout output.
+
+    This helper configures relevant loggers with a FileHandler and disables
+    propagation so they don't also show up on stdout.
+    """
+
+    if not fastapi_log_file:
+        return
+
+    try:
+        Path(fastapi_log_file).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        # If the directory can't be created, let FileHandler raise with a clear error.
+        pass
+
+    root_level = logging.getLogger().getEffectiveLevel()
+
+    handler = logging.FileHandler(fastapi_log_file)
+    handler.setLevel(root_level)
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s - %(message)s")
+    handler.setFormatter(formatter)
+
+    for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "fastapi", "starlette"):
+        logger = logging.getLogger(name)
+        logger.handlers = []
+        logger.addHandler(handler)
+        logger.setLevel(root_level)
+        logger.propagate = False
+
+
 def _ensure_default_config(path: Path) -> Path:
     """Create a default echo-based config at ``path`` if missing.
 
@@ -215,6 +250,16 @@ def main() -> None:  # pragma: no cover - manual execution only
         type=str,
         default=None,
         help="optional path to a log file; output still goes to stdout",
+    )
+    parser.add_argument(
+        "--fastapi-log-file",
+        type=str,
+        default=None,
+        help=(
+            "optional path to a FastAPI/uvicorn log file. When provided, uvicorn "
+            "and FastAPI logs are routed to this file (instead of stdout), which "
+            "is useful when running --server and --console together."
+        ),
     )
     parser.add_argument(
         "--log-level",
@@ -362,6 +407,7 @@ def main() -> None:  # pragma: no cover - manual execution only
     run_console = args.console
 
     _configure_logging(args.log_file, log_level=args.log_level, disable_structlog_colors=False)
+    _configure_fastapi_logging(args.fastapi_log_file)
 
     if args.app_name:
         _set_terminal_title(args.app_name)
@@ -463,11 +509,14 @@ def main() -> None:  # pragma: no cover - manual execution only
         os.environ.setdefault("SERVER_HOST", args.host)
         os.environ.setdefault("SERVER_PORT", str(args.port))
 
+        from uvicorn.config import LOGGING_CONFIG  # type: ignore[import-not-found]
+
         config = uvicorn.Config(
             "agent_terminal_app.server:app",
             host=args.host,
             port=args.port,
             reload=False,
+            log_config=None if args.fastapi_log_file else LOGGING_CONFIG,
         )
         uvicorn_server = uvicorn.Server(config)
 
@@ -494,7 +543,12 @@ def main() -> None:  # pragma: no cover - manual execution only
         run_terminal(logger=console_logger, app_instance=terminal_app)
     else:
         app_instance = AgentApplication(str(config_path), str(session_root))
-        run_api(host=args.host, port=args.port, app_instance=app_instance)
+        run_api(
+            host=args.host,
+            port=args.port,
+            app_instance=app_instance,
+            log_config=None if args.fastapi_log_file else "default",
+        )
 
 
 if __name__ == "__main__":  # pragma: no cover - manual execution only
