@@ -7,7 +7,7 @@ Compatible with OpenAI Chat Completions API format.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterator, List, Tuple, Optional
+from typing import Any, Dict, Iterator, List, Tuple
 import json
 
 import requests
@@ -20,10 +20,6 @@ class OpenRouterProvider(ProviderPlugin):
     name: str = "openrouter"
     version: str = "0.1.0"
     
-    def __init__(self):
-        super().__init__()
-        self._api_models_cache: Optional[List[Dict[str, Any]]] = None
-
     # ---------- Schemas ----------
     def get_config_schema(self) -> Dict[str, Any]:
         return {
@@ -100,18 +96,14 @@ class OpenRouterProvider(ProviderPlugin):
     def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return model descriptors from OpenRouter API.
         
-        Fetches all models once per provider instance and filters by config.
+        Fetches all models and filters by config.
         Core framework caches results per config.
         """
-        if self._api_models_cache is None:
-            self._api_models_cache = self._fetch_models_from_api(config)
-        
-        all_models = self._api_models_cache
+        all_models = self._fetch_models_from_api(config)
         model_id = config.get("model")
         if not isinstance(model_id, str) or not model_id:
             return []
         
-        # If API fetch succeeded, find the specific model
         if all_models:
             matching_models = [m for m in all_models if m.get("id") == model_id]
             if matching_models:
