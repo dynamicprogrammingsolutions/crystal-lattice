@@ -62,6 +62,16 @@ class BridgeConfig:
     location: Optional[str]
     local_http_base: str
 
+    ws_max_size_bytes: Optional[int] = 16 * 1024 * 1024
+    http_timeout_seconds: float = 120.0
+    # Keep a safe headroom so the Phoenix envelope stays < ~1MiB.
+    request_chunk_size_bytes: int = 900 * 1024
+    request_chunking_threshold_bytes: int = 256 * 1024
+    response_chunking_threshold_bytes: int = 256 * 1024
+    max_body_bytes: int = 10 * 1024 * 1024
+
+    debug: bool = False
+
 
 class BridgeClient:
     """WebSocket client that proxies bridge HTTP requests to FastAPI.
@@ -90,6 +100,13 @@ class BridgeClient:
         # For tests / observability
         self.pairing_code: Optional[str] = None
         self.session_id: Optional[str] = None
+
+        # Chunked HTTP request buffering keyed by request_id.
+        self._chunked_requests: Dict[str, Dict[str, Any]] = {}
+
+    def _debug_print(self, message: str) -> None:
+        if self.config.debug and not self.test_mode:
+            print(f"[bridge][debug] {message}")
 
     # ------------------------------------------------------------------
     # Phoenix wire protocol helpers
@@ -140,7 +157,10 @@ class BridgeClient:
                 )
 
             try:
-                self._ws = await websockets.connect(ws_url)
+                self._ws = await websockets.connect(
+                    ws_url,
+                    max_size=self.config.ws_max_size_bytes,
+                )
                 self._connected = True
                 log.info("Connected to bridge WebSocket")
                 if not self.test_mode:
@@ -251,6 +271,12 @@ class BridgeClient:
                     self._handle_paired(payload)
                 elif event == "http_request":
                     await self._handle_http_request(payload)
+                elif event == "http_request_init":
+                    await self._handle_http_request_init(payload)
+                elif event == "http_request_chunk":
+                    await self._handle_http_request_chunk(payload)
+                elif event == "http_request_end":
+                    await self._handle_http_request_end(payload)
                 elif event == "phx_reply":
                     # Replies are handled synchronously where needed.
                     continue
@@ -317,27 +343,223 @@ class BridgeClient:
 
         if self.test_mode:
             log.info("Bridge HTTP %s %s (request_id=%s)", method, path, request_id)
+        else:
+            self._debug_print(f"http_request request_id={request_id} {method} {path}")
 
-        response = await self.execute_local_request(method, path, body)
+        headers = payload.get("headers") or {}
+        response = await self.execute_local_request(method, path, body, headers=headers)
+        await self._send_http_response_maybe_chunked(
+            str(request_id),
+            int(response["status"]),
+            response.get("headers") or {},
+            response.get("body") or "",
+        )
 
+    async def _handle_http_request_init(self, payload: Dict[str, Any]) -> None:
+        if self._ws is None:  # pragma: no cover - defensive
+            return
+
+        request_id = payload.get("request_id")
+        method = (payload.get("method") or "GET").upper()
+        path = payload.get("path") or "/"
+        headers = payload.get("headers") or {}
+
+        if not isinstance(request_id, str) or not request_id:
+            return
+
+        self._debug_print(
+            f"http_request_init request_id={request_id} {method} {path} body_length_bytes={payload.get('body_length_bytes')}"
+        )
+
+        self._chunked_requests[request_id] = {
+            "method": method,
+            "path": path,
+            "headers": headers,
+            "chunks": [],
+            "bytes_received": 0,
+            "error": None,
+        }
+
+    async def _handle_http_request_chunk(self, payload: Dict[str, Any]) -> None:
+        request_id = payload.get("request_id")
+        seq = payload.get("seq")
+        chunk = payload.get("chunk")
+
+        if not isinstance(request_id, str) or not request_id:
+            return
+
+        state = self._chunked_requests.get(request_id)
+        if state is None:
+            return
+
+        if state.get("error") is not None:
+            return
+
+        if not isinstance(seq, int) or seq != len(state["chunks"]):
+            state["error"] = {
+                "status": 400,
+                "body": json.dumps({"error": "invalid_chunk_sequence"}),
+            }
+            # Stop buffering to avoid unbounded memory growth.
+            state["chunks"] = []
+            return
+
+        if not isinstance(chunk, str):
+            chunk = ""
+
+        # Enforce a maximum total body size.
+        chunk_size = len(chunk.encode("utf-8"))
+        next_size = int(state.get("bytes_received") or 0) + chunk_size
+        if next_size > self.config.max_body_bytes:
+            state["error"] = {
+                "status": 413,
+                "body": json.dumps({"error": "payload_too_large"}),
+            }
+            state["chunks"] = []
+            return
+
+        state["chunks"].append(chunk)
+        state["bytes_received"] = next_size
+
+        self._debug_print(
+            f"http_request_chunk request_id={request_id} seq={seq} bytes_received={next_size}"
+        )
+
+    async def _handle_http_request_end(self, payload: Dict[str, Any]) -> None:
+        if self._ws is None:  # pragma: no cover - defensive
+            return
+
+        request_id = payload.get("request_id")
+        final_seq = payload.get("final_seq")
+
+        if not isinstance(request_id, str) or not request_id:
+            return
+
+        self._debug_print(
+            f"http_request_end request_id={request_id} final_seq={final_seq}"
+        )
+
+        state = self._chunked_requests.pop(request_id, None)
+        if state is None:
+            return
+
+        error = state.get("error")
+        chunks = state.get("chunks") or []
+
+        if not isinstance(final_seq, int) or final_seq != len(chunks) - 1:
+            error = {
+                "status": 400,
+                "body": json.dumps({"error": "invalid_final_seq"}),
+            }
+
+        if error is not None:
+            await self._send_http_response(request_id, error["status"], {}, error["body"])
+            return
+
+        method = state.get("method") or "GET"
+        path = state.get("path") or "/"
+        headers = state.get("headers") or {}
+        body = "".join(chunks)
+
+        self._debug_print(
+            f"http_request_reassembled request_id={request_id} body_bytes={len(body.encode('utf-8'))}"
+        )
+
+        response = await self.execute_local_request(method, path, body, headers=headers)
+        await self._send_http_response_maybe_chunked(
+            request_id,
+            response["status"],
+            response.get("headers") or {},
+            response.get("body") or "",
+        )
+
+    async def _send_http_response(self, request_id: str, status: int, headers: Dict[str, Any], body: str) -> None:
+        assert self._ws is not None
         msg = self._phoenix_message(
             f"server:{self.config.server_id}",
             "http_response",
             {
                 "request_id": request_id,
-                "status": response["status"],
-                "headers": response.get("headers", {}),
-                "body": response.get("body", ""),
+                "status": status,
+                "headers": headers,
+                "body": body,
             },
         )
-
         await self._ws.send(msg)
+
+    async def _send_http_response_maybe_chunked(
+        self,
+        request_id: str,
+        status: int,
+        headers: Dict[str, Any],
+        body: str,
+    ) -> None:
+        assert self._ws is not None
+
+        body_bytes = len(body.encode("utf-8"))
+        if body_bytes <= self.config.response_chunking_threshold_bytes:
+            self._debug_print(
+                f"http_response request_id={request_id} status={status} body_bytes={body_bytes} threshold={self.config.response_chunking_threshold_bytes}"
+            )
+            await self._send_http_response(request_id, status, headers, body)
+            return
+
+        self._debug_print(
+            f"http_response_chunked request_id={request_id} status={status} body_bytes={body_bytes} threshold={self.config.response_chunking_threshold_bytes} chunk_size_bytes={self.config.request_chunk_size_bytes}"
+        )
+
+        init_msg = self._phoenix_message(
+            f"server:{self.config.server_id}",
+            "http_response_init",
+            {
+                "request_id": request_id,
+                "status": status,
+                "headers": headers,
+                "body_encoding": "utf8",
+                "body_length_bytes": body_bytes,
+                "chunk_size_bytes": self.config.request_chunk_size_bytes,
+            },
+        )
+        await self._ws.send(init_msg)
+
+        chunk_size = max(1, int(self.config.request_chunk_size_bytes - 2048))
+        chunks = [body[i : i + chunk_size] for i in range(0, len(body), chunk_size)]
+        for idx, chunk in enumerate(chunks):
+            chunk_msg = self._phoenix_message(
+                f"server:{self.config.server_id}",
+                "http_response_chunk",
+                {
+                    "request_id": request_id,
+                    "seq": idx,
+                    "chunk": chunk,
+                },
+            )
+            await self._ws.send(chunk_msg)
+
+            self._debug_print(f"http_response_chunk request_id={request_id} seq={idx}/{len(chunks) - 1}")
+
+        end_msg = self._phoenix_message(
+            f"server:{self.config.server_id}",
+            "http_response_end",
+            {
+                "request_id": request_id,
+                "final_seq": len(chunks) - 1,
+            },
+        )
+        await self._ws.send(end_msg)
 
     # ------------------------------------------------------------------
     # Local HTTP proxying
     # ------------------------------------------------------------------
 
-    async def execute_local_request(self, method: str, path: str, body: Optional[str]) -> Dict[str, Any]:
+    async def execute_local_request(
+        self,
+        method: str,
+        path: str,
+        body: Optional[str],
+        *,
+        headers: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """Execute an HTTP request against the local FastAPI server.
 
         ``path`` is appended to the configured ``local_http_base``; it is
@@ -350,17 +572,24 @@ class BridgeClient:
             path = "/" + path
         url = base + path
 
-        headers: Dict[str, str] = {}
+        outgoing_headers: Dict[str, str] = {}
+        if headers and isinstance(headers, dict):
+            for key, value in headers.items():
+                if not isinstance(key, str):
+                    continue
+                if isinstance(value, str):
+                    outgoing_headers[key] = value
         content: Optional[bytes] = None
 
         if body is not None:
             # The bridge payload always represents JSON as a UTF-8 string.
-            headers["Content-Type"] = "application/json"
+            if not any(k.lower() == "content-type" for k in outgoing_headers.keys()):
+                outgoing_headers["Content-Type"] = "application/json"
             content = body.encode("utf-8")
 
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.request(method, url, headers=headers, content=content)
+            async with httpx.AsyncClient(timeout=self.config.http_timeout_seconds) as client:
+                resp = await client.request(method, url, headers=outgoing_headers, content=content)
 
             return {
                 "status": resp.status_code,
@@ -422,6 +651,31 @@ def create_bridge_client_from_env() -> Optional[BridgeClient]:
         computer_name=computer_name,
         location=location,
         local_http_base=local_http_base,
+        ws_max_size_bytes=_parse_optional_int(os.getenv("BRIDGE_WS_MAX_SIZE_BYTES"), default=16 * 1024 * 1024),
+        http_timeout_seconds=_parse_float(os.getenv("BRIDGE_HTTP_TIMEOUT_SECONDS"), default=120.0),
+        request_chunk_size_bytes=int(os.getenv("BRIDGE_HTTP_CHUNK_SIZE_BYTES", str(900 * 1024))),
+        request_chunking_threshold_bytes=int(os.getenv("BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES", str(256 * 1024))),
+        response_chunking_threshold_bytes=int(os.getenv("BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES", str(256 * 1024))),
+        max_body_bytes=int(os.getenv("BRIDGE_HTTP_MAX_BODY_BYTES", str(10 * 1024 * 1024))),
+        debug=os.getenv("BRIDGE_DEBUG", "").strip() in {"1", "true", "True", "yes", "YES"},
     )
 
     return BridgeClient(cfg)
+
+
+def _parse_optional_int(value: Optional[str], *, default: Optional[int]) -> Optional[int]:
+    if value is None or value == "":
+        return default
+
+
+def _parse_float(value: Optional[str], *, default: float) -> float:
+    if value is None or value == "":
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default

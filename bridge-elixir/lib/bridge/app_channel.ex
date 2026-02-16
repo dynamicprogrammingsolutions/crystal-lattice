@@ -2,6 +2,43 @@ defmodule Bridge.AppChannel do
   use Phoenix.Channel
   require Logger
 
+  defp http_timeout_ms() do
+    case System.get_env("BRIDGE_HTTP_TIMEOUT_MS") do
+      nil -> 120_000
+      "" -> 120_000
+      value ->
+        case Integer.parse(value) do
+          {n, _} when n > 0 -> n
+          _ -> 120_000
+        end
+    end
+  end
+
+  defp await_http_response(socket, request_id) do
+    receive do
+      {:http_response, response} ->
+        Phoenix.PubSub.unsubscribe(Bridge.PubSub, "tunnel:request:#{request_id}")
+        {:reply, {:ok, response}, socket}
+
+      {:http_response_init, payload} ->
+        push(socket, "http_response_init", payload)
+        await_http_response(socket, request_id)
+
+      {:http_response_chunk, payload} ->
+        push(socket, "http_response_chunk", payload)
+        await_http_response(socket, request_id)
+
+      {:http_response_end, payload} ->
+        push(socket, "http_response_end", payload)
+        Phoenix.PubSub.unsubscribe(Bridge.PubSub, "tunnel:request:#{request_id}")
+        {:reply, {:ok, %{type: "http_response_chunked", request_id: request_id}}, socket}
+    after
+      http_timeout_ms() ->
+        Phoenix.PubSub.unsubscribe(Bridge.PubSub, "tunnel:request:#{request_id}")
+        {:reply, {:error, %{reason: "timeout"}}, socket}
+    end
+  end
+
   @impl true
   def join("app:" <> client_id, _params, socket) do
     socket = assign(socket, :client_id, client_id)
@@ -174,15 +211,115 @@ defmodule Bridge.AppChannel do
           {:http_request, request}
         )
 
-        receive do
-          {:http_response, response} ->
-            Phoenix.PubSub.unsubscribe(Bridge.PubSub, "tunnel:request:#{request_id}")
-            {:reply, {:ok, response}, socket}
-        after
-          60_000 ->
-            Phoenix.PubSub.unsubscribe(Bridge.PubSub, "tunnel:request:#{request_id}")
-            {:reply, {:error, %{reason: "timeout"}}, socket}
-        end
+        await_http_response(socket, request_id)
+
+      {:error, :not_found} ->
+        {:reply, {:error, %{reason: "invalid_session"}}, socket}
+    end
+  end
+
+  @impl true
+  def handle_in("http_request_init", params, socket) do
+    %{
+      "request_id" => request_id,
+      "session_id" => session_id,
+      "method" => method,
+      "path" => path,
+      "headers" => headers
+    } = params
+
+    body_encoding = Map.get(params, "body_encoding")
+    body_length_bytes = Map.get(params, "body_length_bytes")
+    chunk_size_bytes = Map.get(params, "chunk_size_bytes")
+
+    case Bridge.SessionManager.get_session(session_id) do
+      {:ok, session} ->
+        Bridge.SessionManager.update_activity(session_id)
+
+        request = %{
+          type: "http_request_init",
+          request_id: request_id,
+          method: method,
+          path: path,
+          headers: headers,
+          body_encoding: body_encoding,
+          body_length_bytes: body_length_bytes,
+          chunk_size_bytes: chunk_size_bytes
+        }
+
+        Phoenix.PubSub.broadcast(
+          Bridge.PubSub,
+          "tunnel:server:#{session.server_id}",
+          {:http_request_init, request}
+        )
+
+        {:reply, {:ok, %{status: "accepted"}}, socket}
+
+      {:error, :not_found} ->
+        {:reply, {:error, %{reason: "invalid_session"}}, socket}
+    end
+  end
+
+  @impl true
+  def handle_in("http_request_chunk", params, socket) do
+    %{
+      "request_id" => request_id,
+      "session_id" => session_id,
+      "seq" => seq,
+      "chunk" => chunk
+    } = params
+
+    case Bridge.SessionManager.get_session(session_id) do
+      {:ok, session} ->
+        Bridge.SessionManager.update_activity(session_id)
+
+        request = %{
+          type: "http_request_chunk",
+          request_id: request_id,
+          seq: seq,
+          chunk: chunk
+        }
+
+        Phoenix.PubSub.broadcast(
+          Bridge.PubSub,
+          "tunnel:server:#{session.server_id}",
+          {:http_request_chunk, request}
+        )
+
+        {:reply, {:ok, %{status: "accepted"}}, socket}
+
+      {:error, :not_found} ->
+        {:reply, {:error, %{reason: "invalid_session"}}, socket}
+    end
+  end
+
+  @impl true
+  def handle_in("http_request_end", params, socket) do
+    %{
+      "request_id" => request_id,
+      "session_id" => session_id,
+      "final_seq" => final_seq
+    } = params
+
+    case Bridge.SessionManager.get_session(session_id) do
+      {:ok, session} ->
+        Bridge.SessionManager.update_activity(session_id)
+
+        request = %{
+          type: "http_request_end",
+          request_id: request_id,
+          final_seq: final_seq
+        }
+
+        Phoenix.PubSub.subscribe(Bridge.PubSub, "tunnel:request:#{request_id}")
+
+        Phoenix.PubSub.broadcast(
+          Bridge.PubSub,
+          "tunnel:server:#{session.server_id}",
+          {:http_request_end, request}
+        )
+
+        await_http_response(socket, request_id)
 
       {:error, :not_found} ->
         {:reply, {:error, %{reason: "invalid_session"}}, socket}

@@ -494,7 +494,7 @@ function App(): React.JSX.Element {
     try {
       console.log('🚀 Starting bridge connection...');
       
-      const bridge = new BridgeTransport({ bridgeUrl });
+      const bridge = new BridgeTransport({ bridgeUrl, debug: true });
       await bridge.connect();
       console.log('✅ Bridge connected, fetching servers...');
       
@@ -913,6 +913,7 @@ function App(): React.JSX.Element {
           bridgeUrl: record.bridgeUrl,
           serverId: record.serverId,
           pairingToken: record.pairingToken,
+          debug: true
         });
         await bridge.connect();
         nextTransport = bridge;
