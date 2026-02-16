@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
-  Image,
   Linking,
   ScrollView,
   StyleSheet,
@@ -17,6 +16,7 @@ import MessageActionsBar from './MessageActionsBar';
 import type { MessageActionKey, MessageActionDefinition } from '../messageActions';
 import { selectDisplayContent, selectSingleLineContent } from '../messageUtils';
 import MarkdownMessageContent from './MarkdownMessageContent';
+import { AttachmentThumbnailStrip, type AttachmentLike } from './AttachmentThumbnailStrip';
 import { useTheme, type Theme } from '../theme';
 import { extractByPath, renderTemplate } from '../uiSchemaUtils';
 
@@ -44,14 +44,6 @@ function selectAttachmentUrl(content: any): string | null {
   return null;
 }
 
-function selectAttachmentFilename(part: MultipartPart): string {
-  const content = part?.content;
-  const raw = content && typeof content === 'object' ? content.filename ?? content.name : undefined;
-  if (typeof raw === 'string' && raw.trim()) return raw.trim();
-  if (typeof part?.type === 'string' && part.type.trim()) return part.type.trim();
-  return 'attachment';
-}
-
 const MessageAttachments: React.FC<{ message: ApiMessage; onBlue?: boolean }> = ({
   message,
   onBlue,
@@ -62,60 +54,38 @@ const MessageAttachments: React.FC<{ message: ApiMessage; onBlue?: boolean }> = 
 
   if (parts.length === 0) return null;
 
+  const attachments: AttachmentLike[] = parts.map((part, idx) => {
+    const type = typeof part?.type === 'string' ? part.type : 'attachment';
+    return {
+      id: `${idx}`,
+      type,
+      content: part?.content,
+      metadata: part?.metadata,
+    };
+  });
+
   return (
-    <View style={[styles.attachmentsContainer, onBlue && styles.attachmentsContainerOnBlue]}>
-      {parts.map((part, idx) => {
-        const type = typeof part?.type === 'string' ? part.type : 'attachment';
-        const content = part?.content;
-        const url = selectAttachmentUrl(content);
-        const filename = selectAttachmentFilename(part);
-        const isImage = type === 'image' && url;
-        const isPdf = type === 'pdf' && url;
-
-        if (isImage) {
-          return (
-            <Image
-              key={`${type}:${idx}`}
-              source={{ uri: url ?? undefined }}
-              style={styles.attachmentImage}
-            />
-          );
-        }
-
-        const iconName = type === 'pdf' ? 'file-text' : 'paperclip';
-
-        return (
-          <TouchableOpacity
-            key={`${type}:${idx}`}
-            style={[styles.attachmentRow, onBlue && styles.attachmentRowOnBlue]}
-            onPress={async () => {
-              if (typeof url !== 'string' || !url) return;
-              if (isPdf && (url.startsWith('http://') || url.startsWith('https://'))) {
-                try {
-                  await Linking.openURL(url);
-                  return;
-                } catch (err) {
-                  console.log('Failed to open attachment url', err);
-                }
-              }
-              Clipboard.setString(url);
-              Alert.alert('Copied', 'Attachment URL copied to clipboard.');
-            }}
-          >
-            <Icon
-              name={iconName as any}
-              size={16}
-              color={onBlue ? '#FFFFFF' : theme.textSecondary}
-            />
-            <Text
-              style={[styles.attachmentText, onBlue && styles.attachmentTextOnBlue]}
-              numberOfLines={1}
-            >
-              {filename}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
+    <View style={[styles.attachmentsWrapper, onBlue && styles.attachmentsWrapperOnBlue]}>
+      <AttachmentThumbnailStrip
+        attachments={attachments}
+        onPress={async (attachment) => {
+          const url = selectAttachmentUrl(attachment.content);
+          const isPdf = attachment.type === 'pdf' && url;
+          if (typeof url !== 'string' || !url) {
+            return;
+          }
+          if (isPdf && (url.startsWith('http://') || url.startsWith('https://'))) {
+            try {
+              await Linking.openURL(url);
+              return;
+            } catch (err) {
+              console.log('Failed to open attachment url', err);
+            }
+          }
+          Clipboard.setString(url);
+          Alert.alert('Copied', 'Attachment URL copied to clipboard.');
+        }}
+      />
     </View>
   );
 };
@@ -982,44 +952,12 @@ const createStyles = (theme: Theme) =>
       fontSize: 14,
       fontWeight: '600',
     },
-    attachmentsContainer: {
+    attachmentsWrapper: {
       marginTop: 6,
-      marginBottom: 6,
-      gap: 6,
+      marginBottom: 2,
     },
-    attachmentsContainerOnBlue: {
+    attachmentsWrapperOnBlue: {
       marginTop: 8,
-    },
-    attachmentImage: {
-      width: '100%',
-      height: 160,
-      borderRadius: 8,
-      backgroundColor: theme.surfaceAlt,
-    },
-    attachmentRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: theme.border,
-      backgroundColor: theme.surface,
-    },
-    attachmentRowOnBlue: {
-      borderColor: 'rgba(255,255,255,0.25)',
-      backgroundColor: 'rgba(255,255,255,0.12)',
-    },
-    attachmentText: {
-      marginLeft: 8,
-      flex: 1,
-      minWidth: 0,
-      fontSize: 12,
-      fontWeight: '600',
-      color: theme.textSecondary,
-    },
-    attachmentTextOnBlue: {
-      color: '#FFFFFF',
     },
     rawReadonlyInput: {
       marginTop: 2,

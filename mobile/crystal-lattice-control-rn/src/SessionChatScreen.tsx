@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   Alert,
   KeyboardAvoidingView,
   Modal,
@@ -28,8 +29,10 @@ import {
 } from '@crystal-lattice/frontend-sdk';
 import {
   ApplicationActionDialog,
+  ActionsMenuBar,
   SessionActionsBar,
   SESSION_ACTIONS,
+  type ActionDefinition,
   type SessionActionKey,
 } from '@crystal-lattice/frontend-rn-components';
 import { useChatController, useAgentsController } from '@crystal-lattice/frontend-sdk-react';
@@ -53,10 +56,14 @@ import AgentSwitchModal from './components/AgentSwitchModal';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 import { selectDisplayContent } from './messageUtils';
 import { pickAssetAsDataUrl } from './attachmentPicking';
+import { AttachmentThumbnailStrip, type AttachmentLike } from './components/AttachmentThumbnailStrip';
+import { ComposerAttachmentsManageModal } from './components/ComposerAttachmentsManageModal';
 import {
-  ComposerAttachmentsList,
-  type MultipartPartDraft,
-} from './components/ComposerAttachments';
+  AttachmentMetadataModal,
+  buildAttachmentMetadataDefaults,
+  shouldPromptForAttachmentMetadata,
+  type AttachmentMetadataUi,
+} from './components/AttachmentMetadataModal';
 import {
   createChatScrollAnchor,
   isChatScrollAnchor,
@@ -93,6 +100,7 @@ interface SessionChatScreenProps {
 }
 
 const STORAGE_KEY_SESSION_ACTIONS = 'clc_pinned_session_actions_v1';
+const STORAGE_KEY_COMPOSER_ACTIONS = 'clc_pinned_composer_actions_v1';
 const STORAGE_KEY_MESSAGE_ACTIONS = 'clc_pinned_message_actions_by_role_v1';
 
 type PluginActionContext =
@@ -108,10 +116,25 @@ type TranscriptRow =
 
 type ComposerAttachmentUiElement = UiSchemaElement & {
   ui_type: 'composer_attachment';
+  key?: string;
   attachment_type: string;
   supported_file_types?: string[];
   display_placement: 'above' | 'below';
   label?: string;
+  title?: string;
+  icon?: string;
+  metadata_ui?: AttachmentMetadataUi;
+};
+
+type MultipartPartDraft = {
+  draftId: string;
+  type: string;
+  content: any;
+  metadata?: any;
+  attachmentKey: string;
+  title: string;
+  iconName: string | null;
+  metadataUi: AttachmentMetadataUi | null;
 };
 
 const TRANSCRIPT_STATUS_ROW: TranscriptRow = { kind: 'status' };
@@ -137,10 +160,28 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const [isAppActive, setIsAppActive] = useState(() => AppState.currentState === 'active');
   const [sendInProgress, setSendInProgress] = useState(false);
   const [composeText, setComposeText] = useState(initialComposeText ?? '');
   const [attachmentsAbove, setAttachmentsAbove] = useState<MultipartPartDraft[]>([]);
   const [attachmentsBelow, setAttachmentsBelow] = useState<MultipartPartDraft[]>([]);
+  const [attachmentsManageVisible, setAttachmentsManageVisible] = useState(false);
+  const [attachmentsManageSide, setAttachmentsManageSide] = useState<'above' | 'below' | null>(
+    null,
+  );
+  const [attachmentMetadataVisible, setAttachmentMetadataVisible] = useState(false);
+  const [attachmentMetadataTitle, setAttachmentMetadataTitle] = useState('');
+  const [attachmentMetadataUi, setAttachmentMetadataUi] = useState<AttachmentMetadataUi | null>(
+    null,
+  );
+  const [attachmentMetadataInitial, setAttachmentMetadataInitial] = useState<Record<string, any>>(
+    {},
+  );
+  const [attachmentMetadataContext, setAttachmentMetadataContext] = useState<
+    | { kind: 'new'; element: ComposerAttachmentUiElement; content: any }
+    | { kind: 'edit'; side: 'above' | 'below'; draftId: string }
+    | null
+  >(null);
   const [attachmentPickInProgress, setAttachmentPickInProgress] = useState(false);
   const [imageAttachVisible, setImageAttachVisible] = useState(false);
   const [imageAttachElement, setImageAttachElement] = useState<ComposerAttachmentUiElement | null>(
@@ -165,11 +206,23 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     [connectionId],
   );
 
+  const scopedComposerActionsStorageKey = useMemo(
+    () => `${STORAGE_KEY_COMPOSER_ACTIONS}:${connectionId ?? 'default'}`,
+    [connectionId],
+  );
+
   const { pinned: pinnedSessionActions, setPinned: setPinnedSessionActions } =
     usePersistentPinnedActions<SessionActionKey>(
       scopedSessionActionsStorageKey,
       defaultPinnedSessionActions,
       { migrateFromKeys: [STORAGE_KEY_SESSION_ACTIONS] },
+    );
+
+  const { pinned: pinnedComposerActions, setPinned: setPinnedComposerActions } =
+    usePersistentPinnedActions<string>(
+      scopedComposerActionsStorageKey,
+      ['resend', 'cancel'],
+      { migrateFromKeys: [STORAGE_KEY_COMPOSER_ACTIONS] },
     );
   const { controller: agentsController, state: agentsState } = useAgentsController({
     backend,
@@ -243,6 +296,17 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     });
   }, []);
 
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      setIsAppActive(nextState === 'active');
+    });
+    return () => {
+      sub.remove();
+    };
+  }, []);
+
+  const eventsEnabled = !!(backend && sessionId && isActive && isAppActive);
+
   const { controller: chatController, state: chatState } = useChatController({
     backend,
     sessionId,
@@ -250,7 +314,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     initialEventsCursorId: cachedEventsCursorId ?? null,
     initialActiveRequestId: cachedActiveRequestId ?? null,
     onEvents: appendEventsToDebugBuffer,
-    eventsEnabled: !!(backend && sessionId && isActive),
+    eventsEnabled,
   });
 
   const messages: IndexedMessage[] = chatState?.messages ?? cachedMessages ?? [];
@@ -367,8 +431,101 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }) as ComposerAttachmentUiElement[];
   }, [uiSchemaElements]);
 
+  const composerAttachmentElementByActionKey = useMemo(() => {
+    const map: Record<string, ComposerAttachmentUiElement> = {};
+    for (const el of composerAttachmentElements) {
+      const pluginName =
+        typeof (el as any).plugin === 'string' && (el as any).plugin
+          ? String((el as any).plugin)
+          : 'unknown';
+      const actionKey =
+        typeof el.key === 'string' && el.key.trim()
+          ? el.key.trim()
+          : `composer_attachment:${pluginName}:${el.attachment_type}:${el.display_placement}`;
+      map[actionKey] = el;
+    }
+    return map;
+  }, [composerAttachmentElements]);
+
+  const composerActions: ActionDefinition[] = useMemo(() => {
+    const builtins: ActionDefinition[] = [
+      { key: 'resend', label: 'Resend', iconName: 'rotate-ccw' },
+      { key: 'cancel', label: 'Cancel', iconName: 'x-circle' },
+    ];
+
+    const attachmentActions: ActionDefinition[] = composerAttachmentElements.map((el) => {
+      const pluginName =
+        typeof (el as any).plugin === 'string' && (el as any).plugin
+          ? String((el as any).plugin)
+          : 'unknown';
+      const key =
+        typeof el.key === 'string' && el.key.trim()
+          ? el.key.trim()
+          : `composer_attachment:${pluginName}:${el.attachment_type}:${el.display_placement}`;
+      const label =
+        (typeof (el as any).title === 'string' && String((el as any).title).trim()) ||
+        (typeof el.label === 'string' && el.label.trim()) ||
+        el.attachment_type;
+      const iconName =
+        typeof (el as any).icon === 'string' && String((el as any).icon).trim()
+          ? String((el as any).icon).trim()
+          : el.attachment_type === 'image'
+            ? 'image'
+            : el.attachment_type === 'pdf'
+              ? 'file-text'
+              : 'paperclip';
+      return {
+        key,
+        label,
+        iconName,
+      } as ActionDefinition;
+    });
+
+    return [...attachmentActions, ...builtins];
+  }, [composerAttachmentElements]);
+
   const hasDraftMessage =
     composeText.trim().length > 0 || attachmentsAbove.length > 0 || attachmentsBelow.length > 0;
+
+  const attachmentsAboveStrip: AttachmentLike[] = useMemo(
+    () =>
+      attachmentsAbove.map((part) => ({
+        id: part.draftId,
+        type: part.type,
+        content: part.content,
+        metadata: part.metadata,
+      })),
+    [attachmentsAbove],
+  );
+
+  const attachmentsBelowStrip: AttachmentLike[] = useMemo(
+    () =>
+      attachmentsBelow.map((part) => ({
+        id: part.draftId,
+        type: part.type,
+        content: part.content,
+        metadata: part.metadata,
+      })),
+    [attachmentsBelow],
+  );
+
+  const attachmentsManageRows = useMemo(() => {
+    if (!attachmentsManageVisible || !attachmentsManageSide) {
+      return [];
+    }
+    const list = attachmentsManageSide === 'above' ? attachmentsAbove : attachmentsBelow;
+    return list.map((part) => ({
+      draftId: part.draftId,
+      type: part.type,
+      content: part.content,
+      title: part.title,
+    }));
+  }, [
+    attachmentsAbove,
+    attachmentsBelow,
+    attachmentsManageSide,
+    attachmentsManageVisible,
+  ]);
 
   const pluginSessionActionDefs = useMemo(
     () =>
@@ -621,12 +778,40 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     content: any;
     metadata?: any;
   }) => {
+    const pluginName =
+      typeof (options.element as any).plugin === 'string' && (options.element as any).plugin
+        ? String((options.element as any).plugin)
+        : 'unknown';
+    const attachmentKeyRaw =
+      typeof options.element.key === 'string' && options.element.key.trim()
+        ? options.element.key.trim()
+        : `composer_attachment:${pluginName}:${options.element.attachment_type}:${options.element.display_placement}`;
+    const titleRaw =
+      (typeof (options.element as any).title === 'string' && String((options.element as any).title).trim()) ||
+      (typeof options.element.label === 'string' && options.element.label.trim()) ||
+      options.element.attachment_type;
+    const iconNameRaw =
+      typeof (options.element as any).icon === 'string' && String((options.element as any).icon).trim()
+        ? String((options.element as any).icon).trim()
+        : options.element.attachment_type === 'image'
+          ? 'image'
+          : options.element.attachment_type === 'pdf'
+            ? 'file-text'
+            : 'paperclip';
+
     const draftId = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
     const part: MultipartPartDraft = {
       draftId,
       type: options.element.attachment_type,
       content: options.content,
       metadata: options.metadata ?? {},
+      attachmentKey: attachmentKeyRaw,
+      title: String(titleRaw),
+      iconName: iconNameRaw,
+      metadataUi:
+        options.element.metadata_ui && typeof options.element.metadata_ui === 'object'
+          ? (options.element.metadata_ui as AttachmentMetadataUi)
+          : null,
     };
 
     if (options.element.display_placement === 'above') {
@@ -635,6 +820,59 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       setAttachmentsBelow((prev) => [...prev, part]);
     }
   }, []);
+
+  const beginAddAttachmentPart = useCallback(
+    (options: { element: ComposerAttachmentUiElement; content: any }) => {
+      const metadataUi =
+        options.element.metadata_ui && typeof options.element.metadata_ui === 'object'
+          ? (options.element.metadata_ui as AttachmentMetadataUi)
+          : null;
+      const defaults = buildAttachmentMetadataDefaults(metadataUi);
+
+      const shouldPrompt = shouldPromptForAttachmentMetadata({ metadataUi });
+      if (shouldPrompt) {
+        const titleRaw =
+          (typeof (options.element as any).title === 'string' &&
+            String((options.element as any).title).trim()) ||
+          (typeof options.element.label === 'string' && options.element.label.trim()) ||
+          options.element.attachment_type;
+
+        setAttachmentMetadataTitle(`${String(titleRaw)} metadata`);
+        setAttachmentMetadataUi(metadataUi);
+        setAttachmentMetadataInitial(defaults);
+        setAttachmentMetadataContext({ kind: 'new', element: options.element, content: options.content });
+        setAttachmentMetadataVisible(true);
+        return;
+      }
+
+      addAttachmentPart({
+        element: options.element,
+        content: options.content,
+        metadata: defaults,
+      });
+    },
+    [addAttachmentPart],
+  );
+
+  const updateAttachmentMetadata = useCallback(
+    (side: 'above' | 'below', draftId: string, metadata: Record<string, any>) => {
+      const update = (prev: MultipartPartDraft[]) =>
+        prev.map((part) => {
+          if (part.draftId !== draftId) return part;
+          return {
+            ...part,
+            metadata,
+          };
+        });
+
+      if (side === 'above') {
+        setAttachmentsAbove(update);
+        return;
+      }
+      setAttachmentsBelow(update);
+    },
+    [],
+  );
 
   const filenameFromUrl = useCallback((url: string): string => {
     const trimmed = url.trim();
@@ -688,7 +926,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           return;
         }
 
-        addAttachmentPart({
+        beginAddAttachmentPart({
           element,
           content: {
             url: picked.dataUrl,
@@ -704,7 +942,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         setAttachmentPickInProgress(false);
       }
     },
-    [addAttachmentPart, attachmentPickInProgress],
+    [attachmentPickInProgress, beginAddAttachmentPart],
   );
 
   const pickImageForElement = useCallback(
@@ -728,8 +966,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         if (!picked) {
           return;
         }
+        setImageAttachVisible(false);
 
-        addAttachmentPart({
+        beginAddAttachmentPart({
           element: imageAttachElement,
           content: {
             url: picked.dataUrl,
@@ -737,7 +976,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
             filename: picked.filename,
           },
         });
-        setImageAttachVisible(false);
       } catch (err: any) {
         console.log('Failed to pick image attachment', err);
         const message = err?.message || 'Failed to pick image attachment';
@@ -746,7 +984,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         setAttachmentPickInProgress(false);
       }
     },
-    [addAttachmentPart, attachmentPickInProgress, imageAttachElement],
+    [attachmentPickInProgress, beginAddAttachmentPart, imageAttachElement],
   );
 
   const addImageUrlForElement = useCallback(() => {
@@ -768,8 +1006,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
     const filename = filenameFromUrl(url);
     const mimeType = mimeTypeFromImageUrl(url, filename);
+    setImageAttachVisible(false);
 
-    addAttachmentPart({
+    beginAddAttachmentPart({
       element: imageAttachElement,
       content: {
         url,
@@ -777,9 +1016,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         filename,
       },
     });
-    setImageAttachVisible(false);
   }, [
-    addAttachmentPart,
+    beginAddAttachmentPart,
     filenameFromUrl,
     imageAttachElement,
     imageUrlText,
@@ -800,7 +1038,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const handleAppend = async () => {
     const text = composeText.trim();
     const multipartContent = [...attachmentsAbove, ...attachmentsBelow].map(
-      ({ draftId, ...part }) => part,
+      ({ type, content, metadata }) => ({
+        type,
+        content,
+        metadata: metadata ?? {},
+      }),
     );
     if (!text && multipartContent.length === 0) {
       return;
@@ -845,7 +1087,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const handleAppendAs = useCallback(async () => {
     const text = composeText.trim();
     const multipartContent = [...attachmentsAbove, ...attachmentsBelow].map(
-      ({ draftId, ...part }) => part,
+      ({ type, content, metadata }) => ({
+        type,
+        content,
+        metadata: metadata ?? {},
+      }),
     );
     if (!text && multipartContent.length === 0) {
       return;
@@ -888,7 +1134,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const handleSend = async () => {
     const text = composeText.trim();
     const multipartContent = [...attachmentsAbove, ...attachmentsBelow].map(
-      ({ draftId, ...part }) => part,
+      ({ type, content, metadata }) => ({
+        type,
+        content,
+        metadata: metadata ?? {},
+      }),
     );
     if (!text && multipartContent.length === 0) {
       return;
@@ -956,6 +1206,53 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       Alert.alert('Error', message);
     }
   };
+
+  const handleComposerAction = useCallback(
+    (key: string) => {
+      if (key === 'resend') {
+        handleResend().catch(() => {});
+        return;
+      }
+      if (key === 'cancel') {
+        handleCancel().catch(() => {});
+        return;
+      }
+
+      const element = composerAttachmentElementByActionKey[key];
+      if (element) {
+        handlePickAttachment(element).catch(() => {});
+      }
+    },
+    [composerAttachmentElementByActionKey, handleCancel, handlePickAttachment, handleResend],
+  );
+
+  const isComposerActionDisabled = useCallback(
+    (key: string): boolean => {
+      if (!backend) {
+        return true;
+      }
+      if (key === 'resend') {
+        return sendInProgress || !!activeRequestId || hasDraftMessage;
+      }
+      if (key === 'cancel') {
+        return sendInProgress || !activeRequestId;
+      }
+
+      if (composerAttachmentElementByActionKey[key]) {
+        return sendInProgress || !!activeRequestId || attachmentPickInProgress;
+      }
+
+      return false;
+    },
+    [
+      activeRequestId,
+      attachmentPickInProgress,
+      backend,
+      composerAttachmentElementByActionKey,
+      hasDraftMessage,
+      sendInProgress,
+    ],
+  );
 	  const confirmDeleteRange = async () => {
 	    if (!chatController) {
       Alert.alert('No connection', 'Connect to a server to delete messages.');
@@ -1253,6 +1550,56 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	    hasRestoredScrollRef.current = true;
 	  }, []);
 
+    const openAttachmentMetadataForEdit = useCallback(
+      (side: 'above' | 'below', draftId: string) => {
+        const list = side === 'above' ? attachmentsAbove : attachmentsBelow;
+        const part = list.find((p) => p.draftId === draftId);
+        if (!part) {
+          return;
+        }
+
+        setAttachmentsManageVisible(false);
+        setAttachmentMetadataTitle(`${part.title} metadata`);
+        setAttachmentMetadataUi(part.metadataUi);
+        setAttachmentMetadataInitial({
+          ...buildAttachmentMetadataDefaults(part.metadataUi),
+          ...(part.metadata ?? {}),
+        });
+        setAttachmentMetadataContext({ kind: 'edit', side, draftId });
+        setAttachmentMetadataVisible(true);
+      },
+      [attachmentsAbove, attachmentsBelow],
+    );
+
+    const handleAttachmentMetadataCancel = useCallback(() => {
+      setAttachmentMetadataVisible(false);
+      setAttachmentMetadataContext(null);
+    }, []);
+
+    const handleAttachmentMetadataSave = useCallback(
+      (metadata: Record<string, any>) => {
+        const ctx = attachmentMetadataContext;
+        if (!ctx) {
+          setAttachmentMetadataVisible(false);
+          return;
+        }
+
+        if (ctx.kind === 'new') {
+          addAttachmentPart({
+            element: ctx.element,
+            content: ctx.content,
+            metadata,
+          });
+        } else if (ctx.kind === 'edit') {
+          updateAttachmentMetadata(ctx.side, ctx.draftId, metadata);
+        }
+
+        setAttachmentMetadataVisible(false);
+        setAttachmentMetadataContext(null);
+      },
+      [addAttachmentPart, attachmentMetadataContext, updateAttachmentMetadata],
+    );
+
 	  return (
 	    <KeyboardAvoidingView
 	      style={styles.keyboardAvoiding}
@@ -1462,60 +1809,36 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       )}
 
       <View style={styles.composer}>
-        <ComposerAttachmentsList
-          title="Attachments (above)"
-          attachments={attachmentsAbove}
-          onRemove={(draftId) => removeAttachmentFromSide('above', draftId)}
-          onMove={(draftId, direction) =>
-            moveAttachmentWithinSide('above', draftId, direction)
-          }
+        <View style={styles.composerTopRow}>
+          <ActionsMenuBar<ActionDefinition>
+            title="Composer actions"
+            variant="modal"
+            renderIcon={({ name, size, color }) => (
+              <Icon name={name} size={size} color={color} />
+            )}
+            renderPinIcon={({ pinned: isPinned, size, color }) => (
+              <Icon name={isPinned ? 'star' : 'star'} size={size} color={color} />
+            )}
+            renderCloseIcon={({ size, color, renderIcon }) =>
+              renderIcon ? renderIcon({ name: 'x', size, color }) : null
+            }
+            baseActions={composerActions as any}
+            pinned={pinnedComposerActions}
+            onChangePinned={setPinnedComposerActions}
+            onAction={handleComposerAction}
+            isActionDisabled={isComposerActionDisabled}
+            isActive={isActive}
+          />
+        </View>
+
+        <AttachmentThumbnailStrip
+          attachments={attachmentsAboveStrip}
+          onPressManageAll={() => {
+            setAttachmentsManageSide('above');
+            setAttachmentsManageVisible(true);
+          }}
           disabled={sendInProgress || !!activeRequestId}
         />
-
-        {composerAttachmentElements.length > 0 && (
-          <View style={styles.attachmentButtonsRow}>
-            {composerAttachmentElements.map((el, idx) => {
-              const label =
-                typeof el.label === 'string' && el.label.trim()
-                  ? el.label.trim()
-                  : el.attachment_type;
-              const iconName =
-                el.attachment_type === 'image'
-                  ? 'image'
-                  : el.attachment_type === 'pdf'
-                    ? 'file-text'
-                    : 'paperclip';
-              const canPick =
-                !!backend &&
-                !sendInProgress &&
-                !activeRequestId &&
-                !attachmentPickInProgress;
-
-              return (
-                <TouchableOpacity
-                  key={`${el.attachment_type}:${el.display_placement}:${idx}`}
-                  style={[styles.attachmentButton, !canPick && styles.attachmentButtonDisabled]}
-                  onPress={() => handlePickAttachment(el)}
-                  disabled={!canPick}
-                >
-                  <Icon
-                    name={iconName as any}
-                    size={14}
-                    color={canPick ? theme.textSecondary : theme.border}
-                  />
-                  <Text
-                    style={[
-                      styles.attachmentButtonText,
-                      !canPick && styles.attachmentButtonTextDisabled,
-                    ]}
-                  >
-                    {label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
 
         <TextInput
           style={styles.composerInput}
@@ -1531,89 +1854,97 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           multiline
         />
 
-        <ComposerAttachmentsList
-          title="Attachments (below)"
-          attachments={attachmentsBelow}
-          onRemove={(draftId) => removeAttachmentFromSide('below', draftId)}
-          onMove={(draftId, direction) =>
-            moveAttachmentWithinSide('below', draftId, direction)
-          }
-          disabled={sendInProgress || !!activeRequestId}
-        />
         {/** Compute per-button enablement so we can style text when disabled. */}
         {(() => {
-          const canAppend = !!backend && !sendInProgress && !activeRequestId && hasDraftMessage;
-          const canResend =
-            !!backend && !sendInProgress && !activeRequestId && !hasDraftMessage;
-          const canCancel = !!backend && !sendInProgress && !!activeRequestId;
-          const canSend = !!backend && !sendInProgress && !activeRequestId && hasDraftMessage;
+          const canAppend =
+            !!backend && !sendInProgress && !activeRequestId && hasDraftMessage;
+          const canSend =
+            !!backend && !sendInProgress && !activeRequestId && hasDraftMessage;
 
           return (
-        <View style={styles.composerButtonsRow}>
-          <TouchableOpacity
-            style={[styles.button, styles.secondaryButton, styles.composerButton]}
-            onPress={openAppendAsModal}
-            disabled={!canAppend}
-          >
-            <Text
-              style={[
-                styles.buttonTextSecondary,
-                !canAppend && styles.buttonTextDisabled,
-              ]}
-            >
-              Append
-            </Text>
-          </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.button, styles.secondaryButton, styles.composerButton]}
-        onPress={handleResend}
-            disabled={!canResend}
-      >
-            <Text
-              style={[
-                styles.buttonTextSecondary,
-                !canResend && styles.buttonTextDisabled,
-              ]}
-            >
-              Resend
-            </Text>
-      </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.button, styles.secondaryButton, styles.composerButton]}
-            onPress={handleCancel}
-            disabled={!canCancel}
-          >
-            <Text
-              style={[
-                styles.buttonTextSecondary,
-                !canCancel && styles.buttonTextDisabled,
-              ]}
-            >
-              Cancel
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.button, styles.primaryButton, styles.composerButton]}
-            onPress={handleSend}
-            disabled={!canSend}
-          >
-            {sendInProgress || activeRequestId ? (
-              <ActivityIndicator size="small" color={theme.textOnPrimary} />
-            ) : (
-              <Text
-                style={[
-                  styles.buttonText,
-                  !canSend && styles.buttonTextDisabled,
-                ]}
+            <View style={styles.composerButtonsRow}>
+              <TouchableOpacity
+                style={[styles.button, styles.secondaryButton, styles.composerButton]}
+                onPress={openAppendAsModal}
+                disabled={!canAppend}
               >
-                Send
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
+                <Text
+                  style={[
+                    styles.buttonTextSecondary,
+                    !canAppend && styles.buttonTextDisabled,
+                  ]}
+                >
+                  Append
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.button, styles.primaryButton, styles.composerButton]}
+                onPress={handleSend}
+                disabled={!canSend}
+              >
+                {sendInProgress || activeRequestId ? (
+                  <ActivityIndicator size="small" color={theme.textOnPrimary} />
+                ) : (
+                  <Text
+                    style={[
+                      styles.buttonText,
+                      !canSend && styles.buttonTextDisabled,
+                    ]}
+                  >
+                    Send
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
           );
         })()}
+
+        <AttachmentThumbnailStrip
+          attachments={attachmentsBelowStrip}
+          onPressManageAll={() => {
+            setAttachmentsManageSide('below');
+            setAttachmentsManageVisible(true);
+          }}
+          disabled={sendInProgress || !!activeRequestId}
+        />
       </View>
+
+      <ComposerAttachmentsManageModal
+        visible={attachmentsManageVisible}
+        title={
+          attachmentsManageSide === 'above'
+            ? 'Attachments (above)'
+            : attachmentsManageSide === 'below'
+              ? 'Attachments (below)'
+              : 'Attachments'
+        }
+        attachments={attachmentsManageRows}
+        disabled={sendInProgress || !!activeRequestId}
+        onMove={(draftId, direction) => {
+          if (!attachmentsManageSide) return;
+          moveAttachmentWithinSide(attachmentsManageSide, draftId, direction);
+        }}
+        onEditMetadata={(draftId) => {
+          if (!attachmentsManageSide) return;
+          openAttachmentMetadataForEdit(attachmentsManageSide, draftId);
+        }}
+        onDelete={(draftId) => {
+          if (!attachmentsManageSide) return;
+          removeAttachmentFromSide(attachmentsManageSide, draftId);
+        }}
+        onRequestClose={() => {
+          setAttachmentsManageVisible(false);
+        }}
+      />
+
+      <AttachmentMetadataModal
+        visible={attachmentMetadataVisible}
+        title={attachmentMetadataTitle}
+        metadataUi={attachmentMetadataUi}
+        initialMetadata={attachmentMetadataInitial}
+        onCancel={handleAttachmentMetadataCancel}
+        onSave={handleAttachmentMetadataSave}
+      />
 
       {imageAttachVisible && (
         <Modal
@@ -2036,33 +2367,11 @@ const createStyles = (theme: Theme) =>
       borderTopColor: theme.border,
       paddingTop: 8,
     },
-    attachmentButtonsRow: {
+    composerTopRow: {
       flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-      marginBottom: 8,
-    },
-    attachmentButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
+      justifyContent: 'flex-end',
       paddingHorizontal: 10,
-      paddingVertical: 8,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: theme.border,
-      backgroundColor: theme.surface,
-    },
-    attachmentButtonDisabled: {
-      backgroundColor: theme.surfaceAlt,
-    },
-    attachmentButtonText: {
-      fontSize: 12,
-      fontWeight: '600',
-      color: theme.textSecondary,
-    },
-    attachmentButtonTextDisabled: {
-      color: theme.border,
+      marginBottom: 4,
     },
     composerInput: {
       minHeight: 60,

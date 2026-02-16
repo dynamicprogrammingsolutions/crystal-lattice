@@ -2,29 +2,39 @@ global.__fbBatchedBridgeConfig = global.__fbBatchedBridgeConfig || {
   remoteModuleConfig: [],
 };
 
-jest.mock('react-native-document-picker', () => {
+jest.mock('@react-native-documents/picker', () => {
   const types = {
     images: 'public.image',
     pdf: 'com.adobe.pdf',
     allFiles: 'public.item',
   };
 
-  const canceled = Object.assign(new Error('Document picker canceled'), {
-    code: 'DOCUMENT_PICKER_CANCELED',
-  });
-
-  const mock = {
-    types,
-    isCancel: (err) => err?.code === 'DOCUMENT_PICKER_CANCELED',
-    pickSingle: jest.fn(async () => {
-      throw canceled;
-    }),
+  const errorCodes = {
+    OPERATION_CANCELED: 'OPERATION_CANCELED',
+    IN_PROGRESS: 'ASYNC_OP_IN_PROGRESS',
+    UNABLE_TO_OPEN_FILE_TYPE: 'UNABLE_TO_OPEN_FILE_TYPE',
+    NULL_PRESENTER: 'NULL_PRESENTER',
   };
+
+  const canceled = Object.assign(new Error('Document picker canceled'), {
+    code: errorCodes.OPERATION_CANCELED,
+  });
 
   return {
     __esModule: true,
-    default: mock,
-    ...mock,
+    types,
+    errorCodes,
+    isErrorWithCode: (err) => typeof err?.code === 'string',
+    pick: jest.fn(async () => {
+      throw canceled;
+    }),
+    keepLocalCopy: jest.fn(async () => [
+      {
+        status: 'error',
+        sourceUri: 'content://mock',
+        copyError: 'not implemented',
+      },
+    ]),
   };
 });
 
