@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 
 import type { WebSocketLike } from './bridgeTransport';
 import { BridgeTransport } from './bridgeTransport';
@@ -89,6 +89,89 @@ class FakeWebSocket implements WebSocketLike {
   }
 }
 
+class FakeWebSocketNoHttpReply implements WebSocketLike {
+  readonly readyState = 1;
+  onopen: ((ev?: any) => void) | null = null;
+  onmessage: ((ev: { data: string }) => void) | null = null;
+  onerror: ((ev: any) => void) | null = null;
+  onclose: ((ev: { code?: number; reason?: string; wasClean?: boolean }) => void) | null = null;
+
+  sent: any[] = [];
+
+  constructor() {
+    setTimeout(() => this.onopen?.(), 0);
+  }
+
+  send(data: string): void {
+    const msg = JSON.parse(data);
+    this.sent.push(msg);
+
+    if (msg.event === 'phx_join') {
+      this.onmessage?.({
+        data: JSON.stringify({
+          topic: msg.topic,
+          event: 'phx_reply',
+          ref: msg.ref,
+          payload: { status: 'ok', response: {} },
+        }),
+      });
+    }
+  }
+
+  close(): void {
+    this.onclose?.({ code: 1000, wasClean: true });
+  }
+}
+
+class FakeWebSocketCloseOnHttpRequest implements WebSocketLike {
+  readonly readyState = 1;
+  onopen: ((ev?: any) => void) | null = null;
+  onmessage: ((ev: { data: string }) => void) | null = null;
+  onerror: ((ev: any) => void) | null = null;
+  onclose: ((ev: { code?: number; reason?: string; wasClean?: boolean }) => void) | null = null;
+
+  sent: any[] = [];
+
+  constructor(private closeDelayMs: number = 1) {
+    setTimeout(() => this.onopen?.(), 0);
+  }
+
+  send(data: string): void {
+    const msg = JSON.parse(data);
+    this.sent.push(msg);
+
+    const replyOk = (response: any) => {
+      this.onmessage?.({
+        data: JSON.stringify({
+          topic: msg.topic,
+          event: 'phx_reply',
+          ref: msg.ref,
+          payload: { status: 'ok', response },
+        }),
+      });
+    };
+
+    if (msg.event === 'phx_join') {
+      replyOk({});
+      return;
+    }
+
+    if (msg.event === 'http_request') {
+      setTimeout(() => {
+        this.onclose?.({ code: 1006, wasClean: false, reason: 'simulated close' });
+      }, this.closeDelayMs);
+      return;
+    }
+
+    // Default: acknowledge other events so the transport doesn't hang.
+    replyOk({ status: 'accepted' });
+  }
+
+  close(): void {
+    this.onclose?.({ code: 1000, wasClean: true });
+  }
+}
+
 it('BridgeTransport uses legacy http_request for small payloads', async () => {
   const ws = new FakeWebSocket();
   const transport = new BridgeTransport({ bridgeUrl: 'ws://example.test/ws', wsFactory: () => ws });
@@ -131,4 +214,59 @@ it('BridgeTransport chunks large request bodies and reassembles a chunked respon
   expect(events).toContain('http_request_init');
   expect(events).toContain('http_request_chunk');
   expect(events).toContain('http_request_end');
+});
+
+it('BridgeTransport does not emit unhandledRejection when a legacy request times out', async () => {
+  vi.useFakeTimers();
+
+  const unhandled: any[] = [];
+  const onUnhandled = (reason: any) => {
+    unhandled.push(reason);
+  };
+  process.on('unhandledRejection', onUnhandled);
+
+  try {
+    const ws = new FakeWebSocketNoHttpReply();
+    const transport = new BridgeTransport({ bridgeUrl: 'ws://example.test/ws', wsFactory: () => ws });
+    (transport as any).sessionId = 'sess-1';
+
+    const promise = transport.request({ method: 'GET', path: '/events', timeoutMs: 10 });
+    const settled = promise.then(
+      () => null,
+      (err) => err,
+    );
+    await vi.advanceTimersByTimeAsync(20);
+    const err = await settled;
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toMatch(/timeout/i);
+    await vi.advanceTimersByTimeAsync(0);
+  } finally {
+    process.off('unhandledRejection', onUnhandled);
+    vi.useRealTimers();
+  }
+
+  expect(unhandled).toEqual([]);
+});
+
+it('BridgeTransport rejects in-flight requests immediately when the WebSocket closes', async () => {
+  vi.useFakeTimers();
+  try {
+    const ws = new FakeWebSocketCloseOnHttpRequest(1);
+    const transport = new BridgeTransport({ bridgeUrl: 'ws://example.test/ws', wsFactory: () => ws });
+    (transport as any).sessionId = 'sess-1';
+
+    const start = Date.now();
+    const promise = transport.request({ method: 'GET', path: '/api/data', timeoutMs: 60_000 });
+    const settled = promise.then(
+      () => null,
+      (err) => err,
+    );
+    await vi.advanceTimersByTimeAsync(10);
+    const err = await settled;
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toMatch(/Connection closed|closed/i);
+    expect(Date.now() - start).toBeLessThan(500);
+  } finally {
+    vi.useRealTimers();
+  }
 });

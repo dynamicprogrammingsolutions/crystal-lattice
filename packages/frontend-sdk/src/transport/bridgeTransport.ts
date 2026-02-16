@@ -44,7 +44,16 @@ export class BridgeTransport implements Transport {
   private readonly logger: (msg: string, meta?: any) => void;
   private readonly timeoutMsByPathPrefix: Array<{ pathPrefix: string; timeoutMs: number }>;
 
-  private responseHandlers: Map<string, (data: any) => void> = new Map();
+  private pendingReplies: Map<
+    string,
+    {
+      timeoutId: any;
+      resolve: (value: any) => void;
+      reject: (err: any) => void;
+      event: string;
+      context?: { method?: string; path?: string; requestId?: string; phase?: string };
+    }
+  > = new Map();
   private streamingResponses: Map<
     string,
     {
@@ -115,6 +124,8 @@ export class BridgeTransport implements Transport {
   }
 
   disconnect(): void {
+    this.failAllPendingReplies(new Error('Disconnected'));
+    this.failAllStreamingResponses(new Error('Disconnected'));
     if (this.ws) {
       this.ws.close();
       this.ws = null;
@@ -149,6 +160,11 @@ export class BridgeTransport implements Transport {
     const responsePromise = this.createStreamingResponsePromise(requestId, timeoutMs, {
       method: req.method,
       path: req.path,
+    });
+    // This promise may time out before we ever `await` it (e.g. legacy requests).
+    // Attach a handler so a timeout can't surface as an unhandled rejection.
+    responsePromise.catch(() => {
+      // Intentionally ignored; the main request promise will surface errors.
     });
 
     if (this.debug) {
@@ -337,11 +353,30 @@ export class BridgeTransport implements Transport {
         }
 
         const ref = data?.ref;
-        if (ref && this.responseHandlers.has(ref)) {
-          const handler = this.responseHandlers.get(ref)!;
-          this.responseHandlers.delete(ref);
-          handler(data);
-          return;
+        if (ref) {
+          const pending = this.pendingReplies.get(ref);
+          if (pending) {
+            this.pendingReplies.delete(ref);
+            clearTimeout(pending.timeoutId);
+
+            if (data.event === 'phx_reply' && data.payload?.status === 'ok') {
+              pending.resolve(data.payload.response);
+            } else {
+              pending.reject(
+                new Error(
+                  this.formatBridgeError({
+                    error: data.payload?.response?.error || 'Request failed',
+                    event: pending.event,
+                    method: pending.context?.method,
+                    path: pending.context?.path,
+                    requestId: pending.context?.requestId,
+                    phase: pending.context?.phase,
+                  }),
+                ),
+              );
+            }
+            return;
+          }
         }
 
         // Server pushes (no ref).
@@ -364,20 +399,70 @@ export class BridgeTransport implements Transport {
 
       ws.onerror = () => {
         clearTimeout(timeoutId);
-        reject(new Error('WebSocket error'));
+        const err = new Error('WebSocket error');
+        this.failAllPendingReplies(err);
+        this.failAllStreamingResponses(err);
+        this.ws = null;
+        this.sessionId = null;
+        try {
+          ws.close();
+        } catch {
+          // Ignore close failures.
+        }
+        reject(err);
       };
 
       ws.onclose = (event) => {
         clearTimeout(timeoutId);
+        const code = typeof event?.code === 'number' ? event.code : undefined;
+        const reason = typeof event?.reason === 'string' ? event.reason : undefined;
+        const closeError = new Error(
+          `Connection closed${code ? ` (code: ${code})` : ''}${reason ? `: ${reason}` : ''}`,
+        );
+        this.failAllPendingReplies(closeError);
+        this.failAllStreamingResponses(closeError);
         this.ws = null;
         this.sessionId = null;
 
-        const code = typeof event?.code === 'number' ? event.code : undefined;
         if (code && code !== 1000 && code !== 1005) {
           reject(new Error(`Connection closed unexpectedly (code: ${code})`));
         }
       };
     });
+  }
+
+  private failAllPendingReplies(err: Error): void {
+    if (this.pendingReplies.size === 0) {
+      return;
+    }
+
+    for (const pending of this.pendingReplies.values()) {
+      clearTimeout(pending.timeoutId);
+      try {
+        pending.reject(err);
+      } catch {
+        // Ignore failures from userland promise handlers.
+      }
+    }
+
+    this.pendingReplies.clear();
+  }
+
+  private failAllStreamingResponses(err: Error): void {
+    if (this.streamingResponses.size === 0) {
+      return;
+    }
+
+    for (const state of this.streamingResponses.values()) {
+      clearTimeout(state.timeoutId);
+      try {
+        state.reject(err);
+      } catch {
+        // Ignore failures from userland promise handlers.
+      }
+    }
+
+    this.streamingResponses.clear();
   }
 
   private getRef(): string {
@@ -413,44 +498,34 @@ export class BridgeTransport implements Transport {
       const message = JSON.stringify({ topic, event, payload, ref });
 
       const timeoutId = setTimeout(() => {
-        if (this.responseHandlers.has(ref)) {
-          this.responseHandlers.delete(ref);
-          reject(
-            new Error(
-              this.formatTimeoutError({
-                timeoutMs,
-                event,
-                method: context?.method,
-                path: context?.path,
-                requestId: context?.requestId,
-                phase: context?.phase,
-              }),
-            ),
-          );
+        const pending = this.pendingReplies.get(ref);
+        if (!pending) {
+          return;
         }
+        this.pendingReplies.delete(ref);
+        reject(
+          new Error(
+            this.formatTimeoutError({
+              timeoutMs,
+              event,
+              method: context?.method,
+              path: context?.path,
+              requestId: context?.requestId,
+              phase: context?.phase,
+            }),
+          ),
+        );
       }, timeoutMs);
 
-      this.responseHandlers.set(ref, (data) => {
-        clearTimeout(timeoutId);
-        if (data.event === 'phx_reply' && data.payload?.status === 'ok') {
-          resolve(data.payload.response);
-        } else {
-          reject(
-            new Error(
-              this.formatBridgeError({
-                error: data.payload?.response?.error || 'Request failed',
-                event,
-                method: context?.method,
-                path: context?.path,
-                requestId: context?.requestId,
-                phase: context?.phase,
-              }),
-            ),
-          );
-        }
-      });
+      this.pendingReplies.set(ref, { timeoutId, resolve, reject, event, context });
 
-      this.ws.send(message);
+      try {
+        this.ws.send(message);
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        this.pendingReplies.delete(ref);
+        reject(err);
+      }
     });
   }
 
@@ -706,25 +781,7 @@ export class BridgeTransport implements Transport {
 
   private async joinChannel(): Promise<void> {
     const topic = `app:${this.clientId}`;
-    const ref = this.getRef();
-    const msg = JSON.stringify({ topic, event: 'phx_join', payload: {}, ref });
-
-    await new Promise<void>((resolve, reject) => {
-      if (!this.ws || this.ws.readyState !== 1) {
-        reject(new Error('WebSocket not connected'));
-        return;
-      }
-
-      this.responseHandlers.set(ref, (data) => {
-        if (data.event === 'phx_reply' && data.payload?.status === 'ok') {
-          resolve();
-        } else {
-          reject(new Error('Failed to join channel'));
-        }
-      });
-
-      this.ws.send(msg);
-    });
+    await this.sendMessageRaw(topic, 'phx_join', {}, 10000);
   }
 
   private async resumeSessionRaw(): Promise<void> {
