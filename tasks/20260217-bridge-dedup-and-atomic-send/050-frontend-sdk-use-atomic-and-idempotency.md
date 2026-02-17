@@ -38,7 +38,7 @@ In `packages/frontend-sdk/src/backend/backend.ts` add:
 
 Implement in `packages/frontend-sdk/src/backend/restBackend.ts`:
 
-* POST to `/sessions/{id}/turns` (or chosen path)
+* POST to `/sessions/{id}/send_message`
 * Include `Idempotency-Key` header if provided
 * Expect response `{status, request_id, session_id?}` (exact shape depends on 040)
 

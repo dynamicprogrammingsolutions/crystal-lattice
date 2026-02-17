@@ -205,6 +205,76 @@ def _generate_request_id(app_instance: AgentApplication) -> str:
     return str(uuid.uuid4())
 
 
+def _load_session_ctx_for_send(
+    app_instance: AgentApplication,
+    session_id: str,
+) -> Tuple[Any, Any, Session]:
+    try:
+        session_record = app_instance.load_session_record(session_id)
+        if session_record is None:
+            raise KeyError(f"Session {session_id!r} not found")
+
+        ctx = app_instance.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+
+        return ctx
+    except KeyError as exc:
+        detail = exc.args[0] if exc.args and isinstance(exc.args[0], str) else str(exc)
+        if isinstance(detail, str) and detail.startswith("Unknown agent_id"):
+            raise HTTPException(status_code=400, detail=detail) from exc
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _append_message_to_session_locked(
+    app_instance: AgentApplication,
+    core: Any,
+    base_config: Any,
+    session: Session,
+    *,
+    role: str,
+    content: str,
+    metadata: Any,
+    multipart_content: Optional[List[Dict[str, Any]]],
+) -> Session:
+    new_session = core.add_message(
+        session,
+        role,
+        content,
+        metadata,
+        base_config,
+        multipart_content=multipart_content,
+    )
+    app_instance.save_session(new_session)
+
+    last_message = new_session.messages[-1] if new_session.messages else None
+    last_index = len(new_session.messages) - 1
+
+    stored = app_instance.publish_event(
+        {
+            "type": "message_appended",
+            "session_id": new_session.session_id,
+            "index": last_index,
+            "role": role,
+            "content": content,
+            "metadata": metadata or {},
+            "message": last_message.to_dict() if last_message is not None else None,
+        },
+    )
+
+    try:
+        app_instance.record_checkpoint(new_session.session_id, stored.get("request_id"))
+    except Exception:  # pragma: no cover - defensive
+        _log.exception(
+            "failed to publish checkpoint event after message append for %r",
+            new_session.session_id,
+        )
+
+    return new_session
+
+
 @app.on_event("startup")
 async def _on_startup() -> None:
     """FastAPI startup hook.
@@ -1030,29 +1100,9 @@ def add_message(
     if cached is not None:
         return cached
 
-    role = payload.get("role")
-    content = payload.get("content")
-    metadata = payload.get("metadata")
-    multipart_content = payload.get("multipartContent")
-
-    if multipart_content is not None:
-        if not isinstance(multipart_content, list):
-            raise HTTPException(
-                status_code=400, detail="multipartContent must be a list"
-            )
-        if not all(isinstance(part, dict) for part in multipart_content):
-            raise HTTPException(
-                status_code=400, detail="multipartContent parts must be objects"
-            )
-
-    if not isinstance(role, str) or not isinstance(content, str):
-        raise HTTPException(status_code=400, detail="role and content must be strings")
-
-    if content.strip() == "" and not (isinstance(multipart_content, list) and multipart_content):
-        raise HTTPException(
-            status_code=400,
-            detail="content may be empty only when multipartContent is non-empty",
-        )
+    normalized_role, content, metadata, multipart_content = _validate_and_normalize_message_payload(
+        payload
+    )
 
     try:
         with app_instance.acquire_session_lock(session_id):
@@ -1061,43 +1111,16 @@ def add_message(
                 raise KeyError(f"Session {session_id!r} not found")
 
             core, base_config, session = ctx
-
-            normalized_role = (
-                role if role in {"system", "user", "assistant", "tool"} else "user"
-            )
-
-            new_session = core.add_message(
-                session,
-                normalized_role,
-                content,
-                metadata,
+            new_session = _append_message_to_session_locked(
+                app_instance,
+                core,
                 base_config,
+                session,
+                role=normalized_role,
+                content=content,
+                metadata=metadata,
                 multipart_content=multipart_content,
             )
-            app_instance.save_session(new_session)
-
-            last_message = new_session.messages[-1] if new_session.messages else None
-            last_index = len(new_session.messages) - 1
-
-            stored = app_instance.publish_event(
-                {
-                    "type": "message_appended",
-                    "session_id": new_session.session_id,
-                    "index": last_index,
-                    "role": normalized_role,
-                    "content": content,
-                    "metadata": metadata or {},
-                    "message": last_message.to_dict() if last_message is not None else None,
-                },
-            )
-
-            try:
-                app_instance.record_checkpoint(new_session.session_id, stored.get("request_id"))
-            except Exception:  # pragma: no cover - defensive
-                _log.exception(
-                    "failed to publish checkpoint event after message append for %r",
-                    session_id,
-                )
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -1105,6 +1128,37 @@ def add_message(
     response = {"session": new_session.to_dict()}
     _idempotency_store(scope, idempotency_key, payload, response)
     return response
+
+
+def _validate_and_normalize_message_payload(
+    message_payload: Dict[str, Any],
+) -> Tuple[str, str, Any, Optional[List[Dict[str, Any]]]]:
+    role = message_payload.get("role")
+    content = message_payload.get("content")
+    metadata = message_payload.get("metadata")
+    multipart_content = message_payload.get("multipartContent")
+
+    if multipart_content is not None:
+        if not isinstance(multipart_content, list):
+            raise HTTPException(status_code=400, detail="multipartContent must be a list")
+        if not all(isinstance(part, dict) for part in multipart_content):
+            raise HTTPException(
+                status_code=400, detail="multipartContent parts must be objects"
+            )
+
+    if not isinstance(role, str) or not isinstance(content, str):
+        raise HTTPException(status_code=400, detail="role and content must be strings")
+
+    if content.strip() == "" and not (
+        isinstance(multipart_content, list) and multipart_content
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="content may be empty only when multipartContent is non-empty",
+        )
+
+    normalized_role = role if role in {"system", "user", "assistant", "tool"} else "user"
+    return normalized_role, content, metadata, multipart_content
 
 
 @app.get("/sessions/{session_id}/overrides")
@@ -1573,26 +1627,7 @@ def send_request(
             detail="config_overrides must be a mapping if provided",
         )
 
-    try:
-        # Validate that the session exists before starting the
-        # background worker so that clients receive an immediate 404 for
-        # unknown sessions.
-        session = app_instance.load_session_record(session_id)
-        if session is None:
-            raise KeyError(f"Session {session_id!r} not found")
-
-        # Validate that the session's agent configuration is resolvable.
-        # If an agent referenced by the stored session metadata is no
-        # longer configured, return a 400 rather than a 404 (the session
-        # exists, but it is not runnable).
-        _ = app_instance.load_session(session_id)
-    except KeyError as exc:
-        detail = exc.args[0] if exc.args and isinstance(exc.args[0], str) else str(exc)
-        if isinstance(detail, str) and detail.startswith("Unknown agent_id"):
-            raise HTTPException(status_code=400, detail=detail) from exc
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _ = _load_session_ctx_for_send(app_instance, session_id)
 
     request_id = _generate_request_id(app_instance)
     existing = _reserve_active_send_request_id(session_id, request_id)
@@ -1609,6 +1644,101 @@ def send_request(
 
     response = {"status": "started", "request_id": request_id}
     _idempotency_store(scope, idempotency_key, data, response)
+    return response
+
+
+@app.post("/sessions/{session_id}/send_message")
+def send_message(
+    session_id: str,
+    payload: Dict[str, Any],
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Atomically append a message and start ``send_request``.
+
+    This endpoint exists to eliminate the retry window created by the
+    legacy two-call flow (append message, then POST /send).
+    """
+
+    body = payload or {}
+    message = body.get("message")
+    if not isinstance(message, dict):
+        raise HTTPException(status_code=400, detail="message must be an object")
+
+    normalized_role, content, metadata, multipart_content = _validate_and_normalize_message_payload(
+        message
+    )
+
+    raw_overrides = body.get("config_overrides")
+    overrides = raw_overrides if raw_overrides is not None else {}
+    if not isinstance(overrides, dict):
+        raise HTTPException(
+            status_code=400,
+            detail="config_overrides must be a mapping if provided",
+        )
+
+    body_idem = body.get("idempotency_key")
+    effective_idempotency_key = idempotency_key
+    if _normalize_idempotency_key(effective_idempotency_key) is None and isinstance(
+        body_idem, str
+    ):
+        effective_idempotency_key = body_idem
+
+    scope = f"POST /sessions/{session_id}/send_message"
+    idempotency_payload = {
+        "message": message,
+        "config_overrides": overrides,
+    }
+
+    cached = _idempotency_maybe_replay(scope, effective_idempotency_key, idempotency_payload)
+    if cached is not None:
+        return cached
+
+    with app_instance.acquire_session_lock(session_id):
+        cached = _idempotency_maybe_replay(
+            scope, effective_idempotency_key, idempotency_payload
+        )
+        if cached is not None:
+            return cached
+
+        core, base_config, session = _load_session_ctx_for_send(app_instance, session_id)
+
+        request_id = _generate_request_id(app_instance)
+        existing = _reserve_active_send_request_id(session_id, request_id)
+        if existing is not None:
+            raise HTTPException(
+                status_code=409,
+                detail={"status": "already_running", "request_id": existing},
+            )
+
+        try:
+            _append_message_to_session_locked(
+                app_instance,
+                core,
+                base_config,
+                session,
+                role=normalized_role,
+                content=content,
+                metadata=metadata,
+                multipart_content=multipart_content,
+            )
+        except Exception:
+            _clear_active_send_request_id(session_id, request_id)
+            raise
+
+        response = {
+            "status": "started",
+            "request_id": request_id,
+            "session_id": session_id,
+        }
+        _idempotency_store(scope, effective_idempotency_key, idempotency_payload, response)
+
+    threading.Thread(
+        target=_run_send_request_background,
+        args=(app_instance, session_id, overrides, request_id),
+        daemon=True,
+    ).start()
+
     return response
 
 
