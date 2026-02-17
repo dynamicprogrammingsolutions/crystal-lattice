@@ -26,6 +26,11 @@ There is no concurrency gating before spawning the thread.
 
 ### A) Track active send per session (single-flight)
 
+Important note about `acquire_session_lock`:
+
+* `AgentApplication.acquire_session_lock(session_id)` is a **process-local lock** provided by the event store (see `core/python/agent_app/application_future.py`), and the server already acquires/releases it multiple times while a request runs (e.g., around checkpoint saves).
+* Therefore, do **not** hold this lock for the full duration of a request. Use it only for short critical sections (session file mutation / consistent reads) and use a separate lock for the “single-flight” bookkeeping.
+
 Add a small in-memory registry in `server.py`:
 
 * `active_request_by_session: Dict[str, str]`
@@ -33,18 +38,18 @@ Add a small in-memory registry in `server.py`:
 
 On `/send`:
 
-1. Acquire `app_instance.acquire_session_lock(session_id)` (already available on `AgentApplication`).
-2. Check if `active_request_by_session[session_id]` exists:
-   * if yes: return `409 Conflict` or `200` with `{ status: "already_running", request_id }`.
-3. Otherwise:
-   * generate a `request_id` now
-   * store it in `active_request_by_session`
-   * start background worker thread passing that request_id
+1. Validate session exists (as today). Any operations that touch session files should continue to use `with app_instance.acquire_session_lock(session_id):`.
+2. Single-flight gating should be done with the dedicated in-memory lock (`active_request_lock`), not with the session lock:
+   * if `active_request_by_session[session_id]` exists: return 409 or `{status:"already_running", request_id: existing}`.
+   * else generate a `request_id`, store it, proceed.
+3. Start the background worker thread **after** releasing any session lock scope.
 
 In `_run_send_request_background`:
 
 * ensure it calls `app_instance.send_request(... request_id=<the one created>)` so the event stream is keyed.
 * in a `finally:` block, clear `active_request_by_session[session_id]` if it matches.
+
+Avoid introducing any long-lived `acquire_session_lock` spans inside the worker; keep existing behavior (lock only around checkpoint saves / persistence).
 
 ### B) Idempotency key support
 
