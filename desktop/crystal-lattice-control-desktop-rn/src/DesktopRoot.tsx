@@ -16,6 +16,7 @@ import { useOpenConnections } from './connections/useOpenConnections';
 import { asyncStorageKeyValueStore } from './storage/asyncStorageKeyValueStore';
 import { desktopWindowEvents, DesktopWindowManager } from './windows/desktopWindowManager';
 import { clearActiveSessionSettingsWindow } from './windows/sessionSettingsCoordinator';
+import { cancelAttachmentMetadataWindowFromSystem } from './windows/attachmentMetadataCoordinator';
 import { clearActiveSessionPluginsWindow } from './windows/sessionPluginsCoordinator';
 import { useMessagesCache } from './cache/useMessagesCache';
 import { useSessionsCache } from './cache/useSessionsCache';
@@ -651,6 +652,9 @@ export function DesktopRoot({
         }
         if (windowKey === 'sessionPlugins') {
           clearActiveSessionPluginsWindow();
+        }
+        if (windowKey === 'attachmentMetadata') {
+          cancelAttachmentMetadataWindowFromSystem();
         }
       },
     );

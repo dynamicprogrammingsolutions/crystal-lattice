@@ -10,6 +10,7 @@ import {
   Text,
   TextInput,
   View,
+  findNodeHandle,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 
@@ -58,15 +59,18 @@ import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationA
 import { MacTextView, type MacTextViewHandle } from '../native/MacTextView';
 import { pickMacAttachment } from '../native/MacAttachmentPicker';
 import { AppendAsPopoverContent, type AppendAsRole } from './AppendAsPopoverContent';
-import { AttachmentAddPopoverContent } from './AttachmentAddPopoverContent';
 import {
-  AttachmentMetadataPopoverContent,
   buildAttachmentMetadataDefaults,
+  hasEditableAttachmentMetadataFields,
   shouldPromptForAttachmentMetadata,
   type AttachmentMetadataUi,
 } from './AttachmentMetadataPopoverContent';
 import { AttachmentThumbnailStrip, type AttachmentLike } from './AttachmentThumbnailStrip';
 import { AttachmentUrlPopoverContent } from './AttachmentUrlPopoverContent';
+import {
+  ComposerAttachmentPlusPopoverContent,
+  type ComposerAttachmentPlusRow,
+} from './ComposerAttachmentPlusPopoverContent';
 import {
   ComposerAttachmentsExpandedPanel,
   type ComposerAttachmentDraftRow,
@@ -81,6 +85,7 @@ import { PinnedMessageActionsProvider } from './PinnedMessageActionsContext';
 import { useSessionStatusBarParts } from './useSessionStatusBarParts';
 import { usePersistedChatDraft } from './usePersistedChatDraft';
 import { useProactiveChatScrollPersistence } from './useProactiveChatScrollPersistence';
+import { openAttachmentMetadataWindow } from '../windows/attachmentMetadataCoordinator';
 
 const DEFAULT_HISTORY_WINDOW = 50;
 const PINNED_SESSION_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_session_actions_v1';
@@ -107,6 +112,7 @@ type ComposerAttachmentUiElement = {
   plugin?: string;
   attachment_type?: string;
   supported_file_types?: string[];
+  supports_url?: boolean;
   display_placement?: 'above' | 'below' | string;
   label?: string;
   icon?: string;
@@ -217,6 +223,7 @@ export const ChatPane = React.memo(function ChatPane({
   const [pluginActionRunning, setPluginActionRunning] = useState(false);
   const [openingAgentPicker, setOpeningAgentPicker] = useState(false);
   const composerRef = useRef<MacTextViewHandle | null>(null);
+  const attachmentPlusButtonRef = useRef<any>(null);
   const attemptedInitialLoadRef = useRef(false);
   const pendingPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPersistKeyRef = useRef<string | null>(null);
@@ -359,23 +366,44 @@ export const ChatPane = React.memo(function ChatPane({
     return map;
   }, [composerAttachmentElements]);
 
-  const composerAttachmentActionDefs: ActionDefinition[] = useMemo(() => {
-    return composerAttachmentElements.map((el) => {
+  const composerAttachmentPlusRows = useMemo((): ComposerAttachmentPlusRow[] => {
+    const rows: ComposerAttachmentPlusRow[] = [];
+    composerAttachmentElements.forEach((el) => {
       const attachmentType = String((el as any).attachment_type ?? '');
-      const key =
-        typeof (el as any).key === 'string' && (el as any).key
-          ? String((el as any).key)
-          : `${String((el as any).plugin ?? 'unknown')}:attachment:${attachmentType}`;
+      if (!attachmentType) {
+        return;
+      }
       const label =
         typeof (el as any).label === 'string' && (el as any).label
           ? String((el as any).label)
           : attachmentType;
+      const baseKey =
+        typeof (el as any).key === 'string' && (el as any).key
+          ? String((el as any).key)
+          : `${String((el as any).plugin ?? 'unknown')}:attachment:${attachmentType}`;
+
       const iconName =
         typeof (el as any).icon === 'string' && (el as any).icon
           ? String((el as any).icon)
           : 'paperclip';
-      return { key, label, iconName };
+
+      rows.push({
+        id: `${baseKey}:file`,
+        label: `Select ${label}…`,
+        iconName,
+      });
+
+      const supportsUrl = Boolean((el as any).supports_url ?? true);
+      if (supportsUrl) {
+        rows.push({
+          id: `${baseKey}:url`,
+          label: `${label} URL…`,
+          iconName: 'link',
+        });
+      }
     });
+
+    return rows;
   }, [composerAttachmentElements]);
 
   const [attachmentsAbove, setAttachmentsAbove] = useState<ComposerAttachmentDraft[]>([]);
@@ -736,39 +764,35 @@ export const ChatPane = React.memo(function ChatPane({
     [],
   );
 
-  const openAttachmentMetadataPopover = useCallback(
-    (params: {
-      draft: ComposerAttachmentDraft;
-      element: ComposerAttachmentUiElement;
-      anchorTag?: number;
-    }) => {
+  const openAttachmentMetadataEditorWindowForDraft = useCallback(
+    (params: { draft: ComposerAttachmentDraft; element: ComposerAttachmentUiElement }) => {
       const metadataUi = ((params.element as any).metadata_ui ?? null) as AttachmentMetadataUi | null;
       if (!metadataUi) {
         Alert.alert('No metadata', 'This attachment type does not define metadata fields.');
         return;
       }
+      if (!hasEditableAttachmentMetadataFields(metadataUi)) {
+        Alert.alert('No metadata', 'No metadata fields are defined for this attachment type.');
+        return;
+      }
 
-      const popoverId = `attachment-metadata:${connectionId}:${sessionId}:${params.draft.draftId}`;
-      openDesktopPopover({
-        id: popoverId,
-        title: 'Attachment metadata',
-        anchorTag: params.anchorTag ?? getLastActionsPopoverAnchorTag() ?? undefined,
-        width: 520,
-        height: 520,
-        content: (
-          <AttachmentMetadataPopoverContent
-            title={String((params.element as any).label ?? params.draft.type)}
-            metadataUi={metadataUi}
-            initialMetadata={params.draft.metadata ?? {}}
-            onCancel={() => {
-              closeDesktopPopover(popoverId);
-            }}
-            onSave={(metadata) => {
-              updateDraftMetadata(params.draft.draftId, params.draft.placement, metadata);
-              closeDesktopPopover(popoverId);
-            }}
-          />
-        ),
+      const attachmentType = String((params.element as any).attachment_type ?? params.draft.type);
+      const title =
+        typeof (params.element as any).label === 'string' && (params.element as any).label
+          ? String((params.element as any).label)
+          : attachmentType;
+
+      openAttachmentMetadataWindow({
+        id: `attachment-metadata:${connectionId}:${sessionId}:${params.draft.draftId}`,
+        title: `${title} metadata`,
+        attachmentType,
+        attachmentContent: params.draft.content,
+        metadataUi,
+        initialMetadata: params.draft.metadata ?? {},
+        onCancel: () => {},
+        onSave: (metadata) => {
+          updateDraftMetadata(params.draft.draftId, params.draft.placement, metadata);
+        },
       });
     },
     [connectionId, sessionId, updateDraftMetadata],
@@ -837,39 +861,32 @@ export const ChatPane = React.memo(function ChatPane({
       const metadataUi = ((params.element as any).metadata_ui ?? null) as AttachmentMetadataUi | null;
       const defaults = buildAttachmentMetadataDefaults(metadataUi);
 
-      if (shouldPromptForAttachmentMetadata({ metadataUi })) {
+      if (
+        shouldPromptForAttachmentMetadata({ metadataUi }) &&
+        hasEditableAttachmentMetadataFields(metadataUi)
+      ) {
         const attachmentType = String((params.element as any).attachment_type ?? '');
         const title =
           typeof (params.element as any).label === 'string' && (params.element as any).label
             ? String((params.element as any).label)
             : attachmentType;
 
-        const popoverId = `attachment-metadata-new:${connectionId}:${sessionId}:${attachmentType}:${Date.now()}`;
-        openDesktopPopover({
-          id: popoverId,
-          title: 'Attachment metadata',
-          anchorTag: getLastActionsPopoverAnchorTag() ?? undefined,
-          width: 520,
-          height: 520,
-          content: (
-            <AttachmentMetadataPopoverContent
-              title={`${title} metadata`}
-              metadataUi={metadataUi}
-              initialMetadata={defaults}
-              onCancel={() => {
-                closeDesktopPopover(popoverId);
-              }}
-              onSave={(metadata) => {
-                addDraftAttachment({
-                  element: params.element,
-                  placement: params.placement,
-                  content: params.content,
-                  metadata,
-                });
-                closeDesktopPopover(popoverId);
-              }}
-            />
-          ),
+        openAttachmentMetadataWindow({
+          id: `attachment-metadata-new:${connectionId}:${sessionId}:${attachmentType}:${Date.now()}`,
+          title: `${title} metadata`,
+          attachmentType,
+          attachmentContent: params.content,
+          metadataUi,
+          initialMetadata: defaults,
+          onCancel: () => {},
+          onSave: (metadata) => {
+            addDraftAttachment({
+              element: params.element,
+              placement: params.placement,
+              content: params.content,
+              metadata,
+            });
+          },
         });
         return;
       }
@@ -924,6 +941,12 @@ export const ChatPane = React.memo(function ChatPane({
   }, [buildMultipartContentPayload, canSendNow, chatController, clearComposerAttachments, composeText, composeTextRef, setComposeText]);
 
   const canRunComposerActions = backend != null && chatController != null && isActive;
+
+  const canOpenAttachmentPlus =
+    canRunComposerActions &&
+    composerAttachmentPlusRows.length > 0 &&
+    !sendInFlight &&
+    !chatState?.activeRequestId;
 
   const appendMessageForRole = useCallback(
     async (role: AppendAsRole) => {
@@ -1053,7 +1076,7 @@ export const ChatPane = React.memo(function ChatPane({
   }, [canRunComposerActions, cancelInFlight, chatController, chatState?.activeRequestId]);
 
   const openAttachmentUrlPopover = useCallback(
-    (params: { element: ComposerAttachmentUiElement }) => {
+    (params: { element: ComposerAttachmentUiElement; anchorTag?: number }) => {
       const attachmentType = String((params.element as any).attachment_type ?? '');
       const attachmentTitle =
         typeof (params.element as any).label === 'string' && (params.element as any).label
@@ -1064,7 +1087,7 @@ export const ChatPane = React.memo(function ChatPane({
       openDesktopPopover({
         id: popoverId,
         title: 'Attach URL',
-        anchorTag: getLastActionsPopoverAnchorTag() ?? undefined,
+        anchorTag: params.anchorTag ?? getLastActionsPopoverAnchorTag() ?? undefined,
         width: 520,
         height: 240,
         content: (
@@ -1118,44 +1141,60 @@ export const ChatPane = React.memo(function ChatPane({
     [beginAddDraftAttachment],
   );
 
-  const openAttachmentAddPopover = useCallback(
-    (params: { element: ComposerAttachmentUiElement; actionKey: string }) => {
-      const attachmentType = String((params.element as any).attachment_type ?? '');
-      const label =
-        typeof (params.element as any).label === 'string' && (params.element as any).label
-          ? String((params.element as any).label)
-          : attachmentType;
+  const getAttachmentPlusAnchorTag = useCallback((): number | undefined => {
+    const tag = attachmentPlusButtonRef.current
+      ? (findNodeHandle(attachmentPlusButtonRef.current) as any)
+      : null;
+    return typeof tag === 'number' ? tag : undefined;
+  }, []);
 
-      const popoverId = `attachment-add:${connectionId}:${sessionId}:${params.actionKey}`;
-      openDesktopPopover({
-        id: popoverId,
-        title: 'Add attachment',
-        anchorTag: getLastActionsPopoverAnchorTag() ?? undefined,
-        width: 320,
-        height: 220,
-        content: (
-          <AttachmentAddPopoverContent
-            label={label}
-            onPickFile={() => {
-              closeDesktopPopover(popoverId);
-              pickAttachmentFile({ element: params.element }).catch((err: any) => {
+  const openComposerAttachmentPlusPopover = useCallback(() => {
+    if (composerAttachmentPlusRows.length === 0) {
+      return;
+    }
+
+    const anchorTag = getAttachmentPlusAnchorTag();
+    const popoverId = `composer-attachments-plus:${connectionId}:${sessionId}`;
+
+    openDesktopPopover({
+      id: popoverId,
+      title: 'Add attachment',
+      anchorTag,
+      width: 360,
+      height: Math.min(500, 90 + composerAttachmentPlusRows.length * 52),
+      content: (
+        <ComposerAttachmentPlusPopoverContent
+          rows={composerAttachmentPlusRows}
+          onSelectRow={(rowId) => {
+            closeDesktopPopover(popoverId);
+
+            const method = rowId.endsWith(':url') ? 'url' : rowId.endsWith(':file') ? 'file' : null;
+            if (!method) {
+              return;
+            }
+            const baseKey = rowId.slice(0, -(method.length + 1));
+            const element = composerAttachmentElementByActionKey[baseKey];
+            if (!element) {
+              return;
+            }
+
+            if (method === 'file') {
+              pickAttachmentFile({ element }).catch((err: any) => {
                 const message = err?.message || 'Failed to pick file.';
                 Alert.alert('Failed to attach', message);
               });
-            }}
-            onPickUrl={() => {
-              closeDesktopPopover(popoverId);
-              openAttachmentUrlPopover({ element: params.element });
-            }}
-            onCancel={() => {
-              closeDesktopPopover(popoverId);
-            }}
-          />
-        ),
-      });
-    },
-    [connectionId, openAttachmentUrlPopover, pickAttachmentFile, sessionId],
-  );
+              return;
+            }
+
+            openAttachmentUrlPopover({ element, anchorTag });
+          }}
+          onCancel={() => {
+            closeDesktopPopover(popoverId);
+          }}
+        />
+      ),
+    });
+  }, [composerAttachmentElementByActionKey, composerAttachmentPlusRows, connectionId, getAttachmentPlusAnchorTag, openAttachmentUrlPopover, pickAttachmentFile, sessionId]);
 
   const handleComposerAction = useCallback(
     (key: ActionKey) => {
@@ -1176,13 +1215,8 @@ export const ChatPane = React.memo(function ChatPane({
         handleCancel().catch(() => {});
         return;
       }
-
-      const element = composerAttachmentElementByActionKey[String(key)];
-      if (element) {
-        openAttachmentAddPopover({ element, actionKey: String(key) });
-      }
     },
-    [composerAttachmentElementByActionKey, handleAppend, handleCancel, handleResend, openAppendAsPopover, openAttachmentAddPopover],
+    [handleAppend, handleCancel, handleResend, openAppendAsPopover],
   );
 
   const buildAttachmentStripRows = useCallback(
@@ -1263,9 +1297,9 @@ export const ChatPane = React.memo(function ChatPane({
         Alert.alert('Not supported', 'Attachment metadata schema was not found.');
         return;
       }
-      openAttachmentMetadataPopover({ draft, element, anchorTag });
+      openAttachmentMetadataEditorWindowForDraft({ draft, element });
     },
-    [attachmentsAbove, attachmentsBelow, findElementForDraft, openAttachmentMetadataPopover],
+    [attachmentsAbove, attachmentsBelow, findElementForDraft, openAttachmentMetadataEditorWindowForDraft],
   );
 
 	const canRunHeaderActions = backend != null && chatController != null && isActive;
@@ -1999,16 +2033,12 @@ export const ChatPane = React.memo(function ChatPane({
                 isActive={isActive}
                 renderIcon={({ name, size, color }) => <Icon name={name} size={size} color={color} />}
                 baseActions={BUILTIN_COMPOSER_ACTIONS}
-                extraActions={composerAttachmentActionDefs}
                 pinned={pinnedComposerActionKeys}
                 onChangePinned={(next) => setPinnedComposerActionKeys(next)}
                 onAction={handleComposerAction}
                 isActionDisabled={(key) => {
                   if (!canRunComposerActions) {
                     return true;
-                  }
-                  if (composerAttachmentElementByActionKey[String(key)]) {
-                    return sendInFlight || !!chatState?.activeRequestId;
                   }
                   if (key === 'append' || key === 'appendAs') {
                     if (sendInFlight || chatState?.activeRequestId) {
@@ -2063,6 +2093,29 @@ export const ChatPane = React.memo(function ChatPane({
           ) : null}
 
           <View style={styles.composerRow}>
+            {composerAttachmentPlusRows.length > 0 ? (
+              <View ref={attachmentPlusButtonRef} collapsable={false}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.attachmentPlusButton,
+                    !canOpenAttachmentPlus && styles.attachmentPlusButtonDisabled,
+                    pressed && canOpenAttachmentPlus && styles.attachmentPlusButtonPressed,
+                  ]}
+                  disabled={!canOpenAttachmentPlus}
+                  onPress={() => {
+                    openComposerAttachmentPlusPopover();
+                  }}
+                >
+                  <Icon
+                    name="plus"
+                    size={16}
+                    color={
+                      canOpenAttachmentPlus ? theme.textSecondary : theme.textMuted
+                    }
+                  />
+                </Pressable>
+              </View>
+            ) : null}
             <View
               style={[
                 styles.composerInputFrame,
@@ -2476,8 +2529,25 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
     },
     composerRow: {
       flexDirection: 'row',
-      alignItems: 'flex-end',
+      alignItems: 'center',
       gap: 8,
+    },
+    attachmentPlusButton: {
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      borderWidth: separatorWidth,
+      borderColor: theme.border,
+      backgroundColor: theme.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 1,
+    },
+    attachmentPlusButtonPressed: {
+      opacity: 0.85,
+    },
+    attachmentPlusButtonDisabled: {
+      opacity: 0.5,
     },
     composerInputFrame: {
       flex: 1,

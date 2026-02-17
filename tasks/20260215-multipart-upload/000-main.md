@@ -20,6 +20,7 @@ This task is structured as a main task + subtasks, intended as a handoff package
 - `tasks/20260215-multipart-upload/050-provider-mapping-multipartcontent.md`
 - `tasks/20260215-multipart-upload/060-mobile-composer-attachments.md`
 - `tasks/20260215-multipart-upload/070-desktop-composer-attachments.md`
+- `tasks/20260215-multipart-upload/075-desktop-composer-attachment-plus-and-metadata-window.md`
 - `tasks/20260215-multipart-upload/080-docs-and-compat.md`
 - `tasks/20260215-multipart-upload/090-asset-prepare-upload-action.md`
 - `tasks/20260215-multipart-upload/100-bridge-chunked-http-over-websocket.md`

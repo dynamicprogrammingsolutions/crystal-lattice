@@ -54,6 +54,7 @@ class OpenRouterProvider(ProviderPlugin):
             {
                 "ui_type": "composer_attachment",
                 "attachment_type": "image",
+                "supports_url": True,
                 "supported_file_types": ["png", "jpg", "jpeg", "webp", "gif"],
                 "display_placement": "below",
                 "label": "Image",
