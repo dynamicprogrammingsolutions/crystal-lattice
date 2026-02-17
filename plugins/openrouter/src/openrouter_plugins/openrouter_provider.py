@@ -56,7 +56,7 @@ class OpenRouterProvider(ProviderPlugin):
                 "key": "openrouter:attachment:image",
                 "attachment_type": "image",
                 "supported_file_types": ["png", "jpg", "jpeg", "webp", "gif"],
-                "display_placement": "below",
+                "display_placement": "above",
                 "label": "Image",
                 "icon": "image",
                 "metadata_ui": {
@@ -115,7 +115,7 @@ class OpenRouterProvider(ProviderPlugin):
                 "key": "openrouter:attachment:pdf",
                 "attachment_type": "pdf",
                 "supported_file_types": ["pdf"],
-                "display_placement": "below",
+                "display_placement": "above",
                 "label": "PDF (UI only)",
                 "icon": "file-text",
                 "metadata_ui": {

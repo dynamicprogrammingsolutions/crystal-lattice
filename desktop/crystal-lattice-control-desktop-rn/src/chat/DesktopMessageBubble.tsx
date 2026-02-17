@@ -21,6 +21,8 @@ import { useTheme, type Theme } from '@crystal-lattice/frontend-rn-components';
 
 import { MacTextView } from '../native/MacTextView';
 
+import { AttachmentThumbnailStrip, type AttachmentLike } from './AttachmentThumbnailStrip';
+
 import type { MessageActionKey, MessageActionDefinition } from './messageActions';
 import { PinnedMessageActionsBar } from './PinnedMessageActionsBar';
 import MarkdownMessageContent from './MarkdownMessageContent';
@@ -49,6 +51,47 @@ function toSingleLinePreview(text: string, maxLen = 160): string {
 }
 
 const EMPTY_TOOL_CALLS: any[] = [];
+
+function buildMessageAttachments(message: ApiMessage, prefix: string): AttachmentLike[] {
+  const parts = Array.isArray((message as any).multipartContent)
+    ? (((message as any).multipartContent as any[]) ?? [])
+    : [];
+
+  return parts
+    .map((part, idx) => {
+      if (!part || typeof part !== 'object') {
+        return null;
+      }
+      const type = typeof (part as any).type === 'string' ? (part as any).type : 'attachment';
+      const attachment: AttachmentLike = {
+        id: `${prefix}:${idx}:${type}`,
+        type,
+        content: (part as any).content,
+      };
+      if (Object.prototype.hasOwnProperty.call(part as any, 'metadata')) {
+        (attachment as any).metadata = (part as any).metadata;
+      }
+
+      return attachment;
+    })
+    .filter((v): v is AttachmentLike => v != null);
+}
+
+const MessageAttachmentsStrip: React.FC<{ message: ApiMessage; idPrefix: string }> = ({
+  message,
+  idPrefix,
+}) => {
+  const attachments = useMemo(
+    () => buildMessageAttachments(message, idPrefix),
+    [idPrefix, message],
+  );
+
+  if (attachments.length === 0) {
+    return null;
+  }
+
+  return <AttachmentThumbnailStrip attachments={attachments} />;
+};
 
 const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   index,
@@ -129,6 +172,7 @@ const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
 	            />
 	          ) : null}
         </View>
+        <MessageAttachmentsStrip message={message} idPrefix={`user:${index}`} />
         {content ? (
           <Text style={[styles.contentText, styles.userContentText]} selectable>
             {content}
@@ -225,6 +269,7 @@ const SystemMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
 	            />
 	          ) : null}
         </View>
+        <MessageAttachmentsStrip message={message} idPrefix={`system:${index}`} />
         {content ? (
           <Text style={styles.systemText} selectable>
             {content}
@@ -291,6 +336,8 @@ const ToolMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
 	            ) : null}
           </View>
         </View>
+
+        <MessageAttachmentsStrip message={message} idPrefix={`tool:${index}`} />
 
         {hasContent && (
           <View>
@@ -457,6 +504,8 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
 	            ) : null}
           </View>
         </View>
+
+        <MessageAttachmentsStrip message={message} idPrefix={`assistant:${index}`} />
 
         {reasoning && (
           <TouchableOpacity
