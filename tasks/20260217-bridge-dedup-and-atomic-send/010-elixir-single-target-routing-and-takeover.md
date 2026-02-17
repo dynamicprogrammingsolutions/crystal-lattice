@@ -165,3 +165,41 @@ Add/extend tests in `bridge-elixir/test/...`:
 * Under takeover policy, registering the second server actively supersedes/terminates the first.
 * Under reject policy, second register fails with a clear error.
 * Chunked request events follow the same single-target semantics.
+
+## Execution plan (confirmed)
+
+- [x] Update `Bridge.ServerRegistry` to enforce a single active `channel_pid` per `server_id`.
+- [x] Add `Process.monitor/1` and `{:DOWN, ...}` cleanup so dead server channels are unregistered.
+- [x] Implement conflict policy `BRIDGE_SERVER_ID_CONFLICT_POLICY=takeover|reject` (default `takeover`).
+- [x] Change unregister to be pid-aware (`unregister_server(server_id, channel_pid)`) to prevent old disconnects from deleting new registrations.
+- [x] Replace app→server PubSub broadcast with direct `send(channel_pid, ...)` for `http_request` and `http_request_{init,chunk,end}`.
+- [x] Remove server-side subscription to `tunnel:server:<server_id>`.
+- [x] Implement takeover notification (`{:superseded, ...}`) so the old server channel can close itself.
+- [x] Route pairing notifications directly to the active server channel (no PubSub fan-out) for `pairing_requested` and `paired`.
+- [x] Add/extend Elixir tests covering takeover, reject, single-target routing, and `:DOWN` cleanup.
+
+## Implementation notes
+
+- Single-target routing is now enforced by directing app→server messages to the active `channel_pid` from `Bridge.ServerRegistry`.
+  - Updated: `bridge-elixir/lib/bridge/app_channel.ex`
+  - Removed all broadcasts to `tunnel:server:<server_id>`.
+
+- `Bridge.ServerRegistry` now owns active connection selection and cleanup:
+  - Updated: `bridge-elixir/lib/bridge/server_registry.ex`
+  - `register_server/3` returns `{:ok, :registered}` / `{:ok, {:took_over, old_pid}}` / `{:error, :already_registered}`.
+  - `unregister_server/2` only unregisters if the stored pid matches.
+  - Cluster unregistration broadcast now includes the pid: `{:server_unregistered, server_id, channel_pid}` to avoid late deletes clobbering newer registrations.
+  - Uses `Process.monitor/1` and removes registry entries on `{:DOWN, ...}` when still current.
+
+- `Bridge.ServerChannel` no longer subscribes to per-server PubSub topics for request delivery.
+  - Updated: `bridge-elixir/lib/bridge/server_channel.ex`
+  - Handles `{:superseded, server_id, new_pid}` by pushing a `"superseded"` event and terminating.
+
+- Pairing flow now avoids PubSub fan-out:
+  - Updated: `bridge-elixir/lib/bridge/pairing_manager.ex`, `bridge-elixir/lib/bridge/session_manager.ex`
+  - Pairing/session notifications are delivered with direct `send/2` to the active server channel pid.
+
+- Tests added/updated:
+  - Added: `bridge-elixir/test/bridge/single_target_routing_test.exs`
+  - Updated: `bridge-elixir/test/bridge/server_registry_test.exs`, `bridge-elixir/test/bridge/pairing_manager_test.exs`, `bridge-elixir/test/bridge/session_manager_test.exs`
+  - `mix test` passes.
