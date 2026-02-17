@@ -16,6 +16,11 @@ This introduces a race/retry window where duplicates can occur (especially under
 
 Add a single endpoint that performs both operations **atomically under the same session lock**.
 
+This endpoint must reuse the concepts introduced in Subtask 030:
+
+- **Single-flight** (session-scoped): do not allow a new send while another is running.
+- **Idempotency** (key-scoped): allow safe retries without double-append.
+
 ## Proposed endpoint
 
 Suggested API:
@@ -26,7 +31,7 @@ Suggested API:
   {
     "message": { "role": "user", "content": "...", "multipartContent": [], "metadata": {} },
     "config_overrides": {},
-    "idempotency_key": "..." // optional if not using header
+    "idempotency_key": "..." // optional; prefer Idempotency-Key header
   }
   ```
 
@@ -34,15 +39,35 @@ Response:
 
 * `{ status, request_id, session_id }`
 
+Notes:
+
+- Use `Idempotency-Key` header for retries.
+- `request_id` must match the event stream (`request_started` / `final` / `request_completed`).
+
 ## Implementation details
 
 1. Acquire `app_instance.acquire_session_lock(session_id)` **only for the mutation portion**.
    * Reminder: `acquire_session_lock` is used intermittently while a request runs; do not hold it while running the full send.
-2. Validate session exists.
-3. Check single-flight state (from Subtask 030) and decide behavior if active.
-4. Append message (reuse existing append route logic) and persist it.
-5. Release the session lock.
-6. Trigger send by starting the background worker thread (Subtask 030), passing the chosen `request_id`.
+
+2. Idempotency replay:
+   - Use the Subtask 030 helper (`Idempotency-Key`) to replay and return the cached response.
+   - For correctness under concurrency, check idempotency **inside** the session-lock span as well (double-check pattern).
+
+3. Validate session exists.
+
+4. Single-flight gating:
+   - If there is already an active send for the session, do **not** append.
+   - Return `409` (conflict) and include the active request id in the response body.
+
+5. Create a `request_id` and reserve it as active send for this session (same mechanism as `/send`).
+
+6. Append message (reuse existing append route logic) and persist it.
+
+7. Store idempotency response before releasing the session lock so retries can't double-append.
+
+8. Release the session lock.
+
+9. Trigger send by starting the background worker thread (Subtask 030), passing the reserved `request_id`.
 
 Important: define semantics if there is already an active send:
 
@@ -68,8 +93,19 @@ Add tests in `application/python/tests/test_agent_terminal_app_server.py`:
    * Call endpoint twice with same `Idempotency-Key`.
    * Ensure only one message is appended and only one send started.
 
+4. **Idempotency key reused with different payload**
+   * Call endpoint twice with same `Idempotency-Key` but different message content.
+   * Ensure the second returns 409.
+
 ## Acceptance criteria
 
 * There is a single endpoint that appends a message and triggers send under one lock.
 * Duplicate/retry with idempotency key does not create duplicated messages.
 * If a send is already active, endpoint behavior is well-defined and tested.
+
+## Notes (updated after Subtask 030 implementation)
+
+- Subtask 030 already adds broad idempotency support for mutating endpoints via `Idempotency-Key`.
+  - The atomic endpoint should reuse the same helper and scope conventions.
+- Subtask 030 changes `/send` response to `{status, request_id}`.
+  - The atomic endpoint should match this style.

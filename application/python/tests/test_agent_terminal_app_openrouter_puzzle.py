@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+import time
 
 import pytest
 
@@ -120,7 +121,7 @@ def test_agent_terminal_app_openrouter_puzzle(ensure_api_key: None, puzzle_dir: 
         app_instance=app,
     )
 
-    server_mod.send_request(
+    send_resp = server_mod.send_request(
         session_id,
         {
             "config_overrides": {
@@ -130,6 +131,25 @@ def test_agent_terminal_app_openrouter_puzzle(ensure_api_key: None, puzzle_dir: 
         },
         app_instance=app,
     )
+
+    request_id = send_resp.get("request_id")
+    assert isinstance(request_id, str) and request_id
+
+    # Wait for the background tool loop to finish.
+    #
+    # Note: tool loops may publish intermediate "final" events for
+    # individual model calls (e.g. a tool_call round), so we wait for the
+    # request-level completion marker.
+    types: set[str] = set()
+    deadline = time.time() + 120.0
+    while time.time() < deadline:
+        evs = app.get_event_store().list(request_id=request_id, limit=5000)
+        types = {ev.get("type") for ev in evs if isinstance(ev, dict)}
+        if "request_completed" in types:
+            break
+        time.sleep(0.2)
+
+    assert "request_completed" in types, "timed out waiting for request completion"
 
     # Regardless of what the model replied, the puzzle is considered
     # solved if puzzle_main.run_tests() passes after its edits.
