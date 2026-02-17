@@ -362,6 +362,30 @@ def main() -> None:  # pragma: no cover - manual execution only
             "with the bridge (default: random UUID)."
         ),
     )
+    parser.add_argument(
+        "--bridge-exit-on-superseded",
+        action="store_true",
+        help=(
+            "Exit the current process if the bridge indicates this server was "
+            "superseded by a newer connection."
+        ),
+    )
+    parser.add_argument(
+        "--bridge-local-guard",
+        action="store_true",
+        help=(
+            "Opt-in local single-instance guard for the bridge server_id "
+            "(lockfile under ~/.crystal/bridge_locks)."
+        ),
+    )
+    parser.add_argument(
+        "--bridge-takeover-local",
+        action="store_true",
+        help=(
+            "When --bridge-local-guard is enabled, attempt to SIGTERM the "
+            "existing local process holding the lock and take over."
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -393,6 +417,12 @@ def main() -> None:  # pragma: no cover - manual execution only
             os.environ["BRIDGE_LOCAL_HTTP_BASE"] = args.bridge_local_http_base
         if args.bridge_server_id:
             os.environ["BRIDGE_SERVER_ID"] = args.bridge_server_id
+        if args.bridge_exit_on_superseded:
+            os.environ["BRIDGE_EXIT_ON_SUPERSEDED"] = "1"
+        if args.bridge_local_guard:
+            os.environ["BRIDGE_LOCAL_GUARD"] = "1"
+        if args.bridge_takeover_local:
+            os.environ["BRIDGE_TAKEOVER_LOCAL"] = "1"
 
         display_name = args.bridge_display_name or "Agent Terminal App"
         print(
