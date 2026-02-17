@@ -75,3 +75,4 @@ That work adds `http_request_init/chunk/end` and chunked responses and explicitl
 
 * Prefer a config toggle for bridge behavior (takeover vs reject), defaulting to takeover for UX.
 * Ensure behavior covers both legacy and chunked request paths.
+* `AgentApplication.acquire_session_lock(session_id)` is used intermittently during request execution (e.g., checkpoint persistence). Do not hold it for the whole duration of a send; use it for short mutation sections and use separate bookkeeping locks for single-flight/idempotency.

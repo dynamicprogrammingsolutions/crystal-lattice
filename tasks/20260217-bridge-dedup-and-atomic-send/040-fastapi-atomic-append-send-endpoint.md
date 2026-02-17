@@ -36,11 +36,13 @@ Response:
 
 ## Implementation details
 
-1. Acquire `app_instance.acquire_session_lock(session_id)`.
+1. Acquire `app_instance.acquire_session_lock(session_id)` **only for the mutation portion**.
+   * Reminder: `acquire_session_lock` is used intermittently while a request runs; do not hold it while running the full send.
 2. Validate session exists.
-3. Append message (reuse existing append route logic).
-4. Trigger send using the single-flight/idempotent mechanism introduced in Subtask 030.
-   * Must not start a second send if one is already active.
+3. Check single-flight state (from Subtask 030) and decide behavior if active.
+4. Append message (reuse existing append route logic) and persist it.
+5. Release the session lock.
+6. Trigger send by starting the background worker thread (Subtask 030), passing the chosen `request_id`.
 
 Important: define semantics if there is already an active send:
 
@@ -48,6 +50,8 @@ Important: define semantics if there is already an active send:
 * Option B (queue-like): append but return "already_running" and do not start a second request.
 
 Prefer **Option A** for correctness and to avoid multiple user turns being appended without being processed.
+
+If Option A is used, the active-send check must happen *inside* the session-lock span so that “check + append” is atomic from the perspective of other session mutations.
 
 ## Tests
 
