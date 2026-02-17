@@ -1,4 +1,4 @@
-# FastAPI: atomic append+send endpoint
+# FastAPI: atomic append+send endpoint (`send_message`)
 
 Parent Task: `tasks/20260217-bridge-dedup-and-atomic-send/000-main.md`
 
@@ -25,7 +25,7 @@ This endpoint must reuse the concepts introduced in Subtask 030:
 
 Suggested API:
 
-* `POST /sessions/{session_id}/turns` (or `/send_message`)
+* `POST /sessions/{session_id}/send_message`
 * Request body:
   ```json
   {
@@ -109,3 +109,19 @@ Add tests in `application/python/tests/test_agent_terminal_app_server.py`:
   - The atomic endpoint should reuse the same helper and scope conventions.
 - Subtask 030 changes `/send` response to `{status, request_id}`.
   - The atomic endpoint should match this style.
+
+## Implementation notes (to fill in after completion)
+
+- Implemented `POST /sessions/{session_id}/send_message` in `application/python/agent_terminal_app/server.py`.
+- The endpoint:
+  - Validates the message payload using shared message validation.
+  - Uses `Idempotency-Key` (header) with an optional `idempotency_key` body fallback.
+  - Performs idempotency replay + response caching while holding the session lock so retries cannot double-append.
+  - Reserves the per-session single-flight `request_id` before appending and returns `409` if a send is already active.
+  - Appends the message + publishes `message_appended`, then starts the background send worker after releasing the session lock.
+- Refactoring note: the append+publish logic and the "session is runnable" validation are shared helpers used by both legacy endpoints and `send_message`.
+- Added tests in `application/python/tests/test_agent_terminal_app_server.py` covering:
+  - Atomic append+send starts exactly one background request.
+  - Active-send conflict returns `409` and does not append.
+  - Idempotency replay avoids double-append and reuses the same `request_id`.
+  - Reusing the same idempotency key with a different payload returns `409`.

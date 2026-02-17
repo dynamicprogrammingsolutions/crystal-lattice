@@ -304,6 +304,377 @@ def test_send_request_idempotency_key_replays_request_id(tmp_path: Path) -> None
     assert call_count == 1
 
 
+def test_send_message_endpoint_appends_and_starts_request(tmp_path: Path) -> None:
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    started_evt = threading.Event()
+    release_evt = threading.Event()
+    call_count = 0
+    seen_request_ids: list[str | None] = []
+
+    def _fake_send_request(
+        core_arg: Any,
+        session_arg: Any,
+        base_config_arg: Any,
+        overrides_arg: Dict[str, Any] | None,
+        *,
+        stream: bool = True,
+        request_id: str | None = None,
+    ):
+        nonlocal call_count
+        call_count += 1
+        seen_request_ids.append(request_id)
+        started_evt.set()
+        yield {
+            "type": "request_started",
+            "session_id": session_id,
+            "request_id": request_id,
+            "stream": bool(stream),
+        }
+        release_evt.wait(timeout=5)
+        yield {
+            "type": "final",
+            "session_id": session_id,
+            "request_id": request_id,
+            "messages": [],
+        }
+        yield {
+            "type": "request_completed",
+            "session_id": session_id,
+            "request_id": request_id,
+        }
+
+    app.send_request = _fake_send_request  # type: ignore[assignment]
+
+    resp = server_mod.send_message(
+        session_id,
+        {
+            "message": {"role": "user", "content": "hello", "metadata": None},
+            "config_overrides": {},
+        },
+        app_instance=app,
+    )
+    assert resp.get("status") == "started"
+    rid = resp.get("request_id")
+    assert isinstance(rid, str) and rid
+
+    assert started_evt.wait(timeout=2.0), "background worker did not start"
+    assert call_count == 1
+    assert seen_request_ids == [rid]
+
+    ctx = app.load_session(session_id)
+    assert ctx is not None
+    _core, _base_config, session = ctx
+    session_dict = session.to_dict()
+    messages = session_dict.get("messages") or []
+    assert len(messages) == 1
+    assert messages[0].get("role") == "user"
+    assert messages[0].get("content") == "hello"
+
+    release_evt.set()
+
+    deadline = time.time() + 5.0
+    while time.time() < deadline:
+        if server_mod._get_active_send_request_id(session_id) is None:
+            break
+        time.sleep(0.05)
+
+    assert server_mod._get_active_send_request_id(session_id) is None
+
+
+def test_send_message_endpoint_rejects_when_active(tmp_path: Path) -> None:
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    started_evt = threading.Event()
+    release_evt = threading.Event()
+    call_count = 0
+
+    def _fake_send_request(
+        core_arg: Any,
+        session_arg: Any,
+        base_config_arg: Any,
+        overrides_arg: Dict[str, Any] | None,
+        *,
+        stream: bool = True,
+        request_id: str | None = None,
+    ):
+        nonlocal call_count
+        call_count += 1
+        started_evt.set()
+        yield {
+            "type": "request_started",
+            "session_id": session_id,
+            "request_id": request_id,
+            "stream": bool(stream),
+        }
+        release_evt.wait(timeout=5)
+        yield {
+            "type": "final",
+            "session_id": session_id,
+            "request_id": request_id,
+            "messages": [],
+        }
+        yield {
+            "type": "request_completed",
+            "session_id": session_id,
+            "request_id": request_id,
+        }
+
+    app.send_request = _fake_send_request  # type: ignore[assignment]
+
+    resp1 = server_mod.send_message(
+        session_id,
+        {
+            "message": {"role": "user", "content": "one", "metadata": None},
+            "config_overrides": {},
+        },
+        app_instance=app,
+    )
+    rid = resp1.get("request_id")
+    assert isinstance(rid, str) and rid
+    assert started_evt.wait(timeout=2.0)
+
+    with pytest.raises(HTTPException) as excinfo:
+        server_mod.send_message(
+            session_id,
+            {
+                "message": {"role": "user", "content": "two", "metadata": None},
+                "config_overrides": {},
+            },
+            app_instance=app,
+        )
+
+    err = excinfo.value
+    assert err.status_code == 409
+    assert isinstance(err.detail, dict)
+    assert err.detail.get("request_id") == rid
+
+    ctx = app.load_session(session_id)
+    assert ctx is not None
+    _core, _base_config, session = ctx
+    messages = session.to_dict().get("messages") or []
+    assert len(messages) == 1
+    assert messages[0].get("content") == "one"
+    assert call_count == 1
+
+    release_evt.set()
+
+    deadline = time.time() + 5.0
+    while time.time() < deadline:
+        if server_mod._get_active_send_request_id(session_id) is None:
+            break
+        time.sleep(0.05)
+
+    assert server_mod._get_active_send_request_id(session_id) is None
+
+
+def test_send_message_endpoint_idempotency_replays_without_double_append(tmp_path: Path) -> None:
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    release_evt = threading.Event()
+    call_count = 0
+
+    def _fake_send_request(
+        core_arg: Any,
+        session_arg: Any,
+        base_config_arg: Any,
+        overrides_arg: Dict[str, Any] | None,
+        *,
+        stream: bool = True,
+        request_id: str | None = None,
+    ):
+        nonlocal call_count
+        call_count += 1
+        yield {
+            "type": "request_started",
+            "session_id": session_id,
+            "request_id": request_id,
+            "stream": bool(stream),
+        }
+        release_evt.wait(timeout=5)
+        yield {
+            "type": "final",
+            "session_id": session_id,
+            "request_id": request_id,
+            "messages": [],
+        }
+        yield {
+            "type": "request_completed",
+            "session_id": session_id,
+            "request_id": request_id,
+        }
+
+    app.send_request = _fake_send_request  # type: ignore[assignment]
+
+    import uuid
+
+    idem_key = f"test-{uuid.uuid4()}"
+
+    resp1 = server_mod.send_message(
+        session_id,
+        {
+            "message": {"role": "user", "content": "hello", "metadata": None},
+            "config_overrides": {},
+        },
+        idempotency_key=idem_key,
+        app_instance=app,
+    )
+    resp2 = server_mod.send_message(
+        session_id,
+        {
+            "message": {"role": "user", "content": "hello", "metadata": None},
+            "config_overrides": {},
+        },
+        idempotency_key=idem_key,
+        app_instance=app,
+    )
+
+    assert resp2 == resp1
+
+    ctx = app.load_session(session_id)
+    assert ctx is not None
+    _core, _base_config, session = ctx
+    messages = session.to_dict().get("messages") or []
+    assert len(messages) == 1
+
+    deadline = time.time() + 2.0
+    while time.time() < deadline and call_count < 1:
+        time.sleep(0.01)
+    assert call_count == 1
+
+    release_evt.set()
+
+    deadline = time.time() + 5.0
+    while time.time() < deadline:
+        if server_mod._get_active_send_request_id(session_id) is None:
+            break
+        time.sleep(0.05)
+
+    assert server_mod._get_active_send_request_id(session_id) is None
+
+
+def test_send_message_endpoint_idempotency_key_reused_with_different_payload_conflicts(
+    tmp_path: Path,
+) -> None:
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    release_evt = threading.Event()
+
+    def _fake_send_request(
+        core_arg: Any,
+        session_arg: Any,
+        base_config_arg: Any,
+        overrides_arg: Dict[str, Any] | None,
+        *,
+        stream: bool = True,
+        request_id: str | None = None,
+    ):
+        yield {
+            "type": "request_started",
+            "session_id": session_id,
+            "request_id": request_id,
+            "stream": bool(stream),
+        }
+        release_evt.wait(timeout=5)
+        yield {
+            "type": "final",
+            "session_id": session_id,
+            "request_id": request_id,
+            "messages": [],
+        }
+        yield {
+            "type": "request_completed",
+            "session_id": session_id,
+            "request_id": request_id,
+        }
+
+    app.send_request = _fake_send_request  # type: ignore[assignment]
+
+    import uuid
+
+    idem_key = f"test-{uuid.uuid4()}"
+
+    _ = server_mod.send_message(
+        session_id,
+        {
+            "message": {"role": "user", "content": "one", "metadata": None},
+            "config_overrides": {},
+        },
+        idempotency_key=idem_key,
+        app_instance=app,
+    )
+
+    release_evt.set()
+
+    deadline = time.time() + 5.0
+    while time.time() < deadline:
+        if server_mod._get_active_send_request_id(session_id) is None:
+            break
+        time.sleep(0.05)
+
+    assert server_mod._get_active_send_request_id(session_id) is None
+
+    with pytest.raises(HTTPException) as excinfo:
+        server_mod.send_message(
+            session_id,
+            {
+                "message": {"role": "user", "content": "two", "metadata": None},
+                "config_overrides": {},
+            },
+            idempotency_key=idem_key,
+            app_instance=app,
+        )
+
+    assert excinfo.value.status_code == 409
+
+    ctx = app.load_session(session_id)
+    assert ctx is not None
+    _core, _base_config, session = ctx
+    messages = session.to_dict().get("messages") or []
+    assert len(messages) == 1
+    assert messages[0].get("content") == "one"
+
+
 def test_create_session_idempotency_key_replays_session_id(tmp_path: Path) -> None:
     from agent_terminal_app import server as server_mod
 
