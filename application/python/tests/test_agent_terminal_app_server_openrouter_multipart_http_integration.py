@@ -123,7 +123,10 @@ def test_http_openrouter_multipart_image_flow(ensure_api_key: None, tmp_path: Pa
             json={"config_overrides": {}},
         )
         assert send_resp.status_code == 200
-        assert send_resp.json() == {}
+        body = send_resp.json()
+        assert body.get("status") == "started"
+        request_id = body.get("request_id")
+        assert isinstance(request_id, str) and request_id
 
         last_event_id: str | None = None
         deadline = time.time() + 60.0
