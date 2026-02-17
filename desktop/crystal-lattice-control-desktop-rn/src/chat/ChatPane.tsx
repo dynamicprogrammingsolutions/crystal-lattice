@@ -50,13 +50,27 @@ import { DependencyFlatList } from '../ui/DependencyFlatList';
 import { DependencyVirtualizedScroll } from '../ui/DependencyVirtualizedScroll';
 import { PlaceholderFlatList } from '../ui/PlaceholderFlatList';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
-import { openDesktopPopover } from '../windows/desktopPopoverCoordinator';
+import { closeDesktopPopover, openDesktopPopover } from '../windows/desktopPopoverCoordinator';
 import { MessageLimitPopoverContent } from '../windows/MessageLimitPopoverContent';
 import { setActiveSessionSettingsWindow } from '../windows/sessionSettingsCoordinator';
 import { setActiveSessionPluginsWindow } from '../windows/sessionPluginsCoordinator';
 import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationActionDialog';
 import { MacTextView, type MacTextViewHandle } from '../native/MacTextView';
+import { pickMacAttachment } from '../native/MacAttachmentPicker';
 import { AppendAsPopoverContent, type AppendAsRole } from './AppendAsPopoverContent';
+import { AttachmentAddPopoverContent } from './AttachmentAddPopoverContent';
+import {
+  AttachmentMetadataPopoverContent,
+  buildAttachmentMetadataDefaults,
+  shouldPromptForAttachmentMetadata,
+  type AttachmentMetadataUi,
+} from './AttachmentMetadataPopoverContent';
+import { AttachmentThumbnailStrip, type AttachmentLike } from './AttachmentThumbnailStrip';
+import { AttachmentUrlPopoverContent } from './AttachmentUrlPopoverContent';
+import {
+  ComposerAttachmentsExpandedPanel,
+  type ComposerAttachmentDraftRow,
+} from './ComposerAttachmentsExpandedPanel';
 import DesktopMessageBubble from './DesktopMessageBubble';
 import {
   ALL_MESSAGE_ACTIONS,
@@ -86,6 +100,29 @@ const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]>
 type ChatSessionActionKey = 'reload' | 'agentSwitch' | 'messageLimit' | 'settings' | 'plugins';
 
 type ChatComposerActionKey = 'append' | 'appendAs' | 'resend' | 'cancel';
+
+type ComposerAttachmentUiElement = {
+  ui_type: 'composer_attachment';
+  key?: string;
+  plugin?: string;
+  attachment_type?: string;
+  supported_file_types?: string[];
+  display_placement?: 'above' | 'below' | string;
+  label?: string;
+  icon?: string;
+  metadata_ui?: AttachmentMetadataUi;
+  [k: string]: any;
+};
+
+type ComposerAttachmentDraft = {
+  draftId: string;
+  type: string;
+  content: any;
+  metadata?: Record<string, any> | null;
+  schemaKey?: string;
+  plugin?: string;
+  placement: 'above' | 'below';
+};
 
 type PluginActionContext =
   | { kind: 'session'; sessionSummary: SessionSummary | null }
@@ -287,11 +324,66 @@ export const ChatPane = React.memo(function ChatPane({
 	  enabled: !!(backend && isActive),
   });
 
-  const uiSchemaElements = sessionUiSchemaState?.elements ?? [];
+  const uiSchemaElements = useMemo(
+    () => sessionUiSchemaState?.elements ?? [],
+    [sessionUiSchemaState?.elements],
+  );
   const footerElements = useMemo(
     () => filterFooterElements(uiSchemaElements),
     [uiSchemaElements],
   );
+
+  const composerAttachmentElements = useMemo(() => {
+    return (uiSchemaElements || []).filter(
+      (el): el is ComposerAttachmentUiElement =>
+        el &&
+        typeof el === 'object' &&
+        (el as any).ui_type === 'composer_attachment' &&
+        typeof (el as any).attachment_type === 'string',
+    );
+  }, [uiSchemaElements]);
+
+  const composerAttachmentElementByActionKey = useMemo(() => {
+    const map: Record<string, ComposerAttachmentUiElement> = {};
+    composerAttachmentElements.forEach((el) => {
+      const attachmentType = String((el as any).attachment_type ?? '');
+      if (!attachmentType) {
+        return;
+      }
+      const key =
+        typeof (el as any).key === 'string' && (el as any).key
+          ? String((el as any).key)
+          : `${String((el as any).plugin ?? 'unknown')}:attachment:${attachmentType}`;
+      map[key] = el;
+    });
+    return map;
+  }, [composerAttachmentElements]);
+
+  const composerAttachmentActionDefs: ActionDefinition[] = useMemo(() => {
+    return composerAttachmentElements.map((el) => {
+      const attachmentType = String((el as any).attachment_type ?? '');
+      const key =
+        typeof (el as any).key === 'string' && (el as any).key
+          ? String((el as any).key)
+          : `${String((el as any).plugin ?? 'unknown')}:attachment:${attachmentType}`;
+      const label =
+        typeof (el as any).label === 'string' && (el as any).label
+          ? String((el as any).label)
+          : attachmentType;
+      const iconName =
+        typeof (el as any).icon === 'string' && (el as any).icon
+          ? String((el as any).icon)
+          : 'paperclip';
+      return { key, label, iconName };
+    });
+  }, [composerAttachmentElements]);
+
+  const [attachmentsAbove, setAttachmentsAbove] = useState<ComposerAttachmentDraft[]>([]);
+  const [attachmentsBelow, setAttachmentsBelow] = useState<ComposerAttachmentDraft[]>([]);
+  const [attachmentsAboveExpanded, setAttachmentsAboveExpanded] = useState(false);
+  const [attachmentsBelowExpanded, setAttachmentsBelowExpanded] = useState(false);
+
+  const hasAttachments = attachmentsAbove.length + attachmentsBelow.length > 0;
 
   const {
     actionsById,
@@ -613,21 +705,210 @@ export const ChatPane = React.memo(function ChatPane({
     !sendInFlight &&
     !chatState?.activeRequestId;
 
+  const canSendNow = canSend && (composeText.trim().length > 0 || hasAttachments);
+
+  const buildMultipartContentPayload = useCallback(() => {
+    const mapDraft = (d: ComposerAttachmentDraft) => ({
+      type: d.type,
+      content: d.content,
+      metadata: d.metadata,
+    });
+    return [...attachmentsAbove.map(mapDraft), ...attachmentsBelow.map(mapDraft)];
+  }, [attachmentsAbove, attachmentsBelow]);
+
+  const clearComposerAttachments = useCallback(() => {
+    setAttachmentsAbove([]);
+    setAttachmentsBelow([]);
+    setAttachmentsAboveExpanded(false);
+    setAttachmentsBelowExpanded(false);
+  }, []);
+
+  const updateDraftMetadata = useCallback(
+    (draftId: string, placement: 'above' | 'below', nextMetadata: Record<string, any>) => {
+      const updater = (prev: ComposerAttachmentDraft[]) =>
+        prev.map((d) => (d.draftId === draftId ? { ...d, metadata: nextMetadata } : d));
+      if (placement === 'above') {
+        setAttachmentsAbove(updater);
+      } else {
+        setAttachmentsBelow(updater);
+      }
+    },
+    [],
+  );
+
+  const openAttachmentMetadataPopover = useCallback(
+    (params: {
+      draft: ComposerAttachmentDraft;
+      element: ComposerAttachmentUiElement;
+      anchorTag?: number;
+    }) => {
+      const metadataUi = ((params.element as any).metadata_ui ?? null) as AttachmentMetadataUi | null;
+      if (!metadataUi) {
+        Alert.alert('No metadata', 'This attachment type does not define metadata fields.');
+        return;
+      }
+
+      const popoverId = `attachment-metadata:${connectionId}:${sessionId}:${params.draft.draftId}`;
+      openDesktopPopover({
+        id: popoverId,
+        title: 'Attachment metadata',
+        anchorTag: params.anchorTag ?? getLastActionsPopoverAnchorTag() ?? undefined,
+        width: 520,
+        height: 520,
+        content: (
+          <AttachmentMetadataPopoverContent
+            title={String((params.element as any).label ?? params.draft.type)}
+            metadataUi={metadataUi}
+            initialMetadata={params.draft.metadata ?? {}}
+            onCancel={() => {
+              closeDesktopPopover(popoverId);
+            }}
+            onSave={(metadata) => {
+              updateDraftMetadata(params.draft.draftId, params.draft.placement, metadata);
+              closeDesktopPopover(popoverId);
+            }}
+          />
+        ),
+      });
+    },
+    [connectionId, sessionId, updateDraftMetadata],
+  );
+
+  const findElementForDraft = useCallback(
+    (draft: ComposerAttachmentDraft): ComposerAttachmentUiElement | null => {
+      if (draft.schemaKey && composerAttachmentElementByActionKey[draft.schemaKey]) {
+        return composerAttachmentElementByActionKey[draft.schemaKey];
+      }
+
+      const byType = composerAttachmentElements.find(
+        (el) => String((el as any).attachment_type ?? '') === draft.type,
+      );
+      return byType ?? null;
+    },
+    [composerAttachmentElementByActionKey, composerAttachmentElements],
+  );
+
+  const addDraftAttachment = useCallback(
+    (params: {
+      element: ComposerAttachmentUiElement;
+      content: any;
+      placement: 'above' | 'below';
+      metadata: Record<string, any>;
+    }) => {
+      const attachmentType = String((params.element as any).attachment_type ?? '');
+      if (!attachmentType) {
+        return;
+      }
+
+      const actionKey =
+        typeof (params.element as any).key === 'string' && (params.element as any).key
+          ? String((params.element as any).key)
+          : `${String((params.element as any).plugin ?? 'unknown')}:attachment:${attachmentType}`;
+
+      const draft: ComposerAttachmentDraft = {
+        draftId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        type: attachmentType,
+        content: params.content,
+        metadata: params.metadata,
+        schemaKey: actionKey,
+        plugin:
+          typeof (params.element as any).plugin === 'string'
+            ? (params.element as any).plugin
+            : undefined,
+        placement: params.placement,
+      };
+
+      const append = (prev: ComposerAttachmentDraft[]) => [...prev, draft];
+      if (params.placement === 'above') {
+        setAttachmentsAbove(append);
+      } else {
+        setAttachmentsBelow(append);
+      }
+    },
+    [],
+  );
+
+  const beginAddDraftAttachment = useCallback(
+    (params: {
+      element: ComposerAttachmentUiElement;
+      content: any;
+      placement: 'above' | 'below';
+    }) => {
+      const metadataUi = ((params.element as any).metadata_ui ?? null) as AttachmentMetadataUi | null;
+      const defaults = buildAttachmentMetadataDefaults(metadataUi);
+
+      if (shouldPromptForAttachmentMetadata({ metadataUi })) {
+        const attachmentType = String((params.element as any).attachment_type ?? '');
+        const title =
+          typeof (params.element as any).label === 'string' && (params.element as any).label
+            ? String((params.element as any).label)
+            : attachmentType;
+
+        const popoverId = `attachment-metadata-new:${connectionId}:${sessionId}:${attachmentType}:${Date.now()}`;
+        openDesktopPopover({
+          id: popoverId,
+          title: 'Attachment metadata',
+          anchorTag: getLastActionsPopoverAnchorTag() ?? undefined,
+          width: 520,
+          height: 520,
+          content: (
+            <AttachmentMetadataPopoverContent
+              title={`${title} metadata`}
+              metadataUi={metadataUi}
+              initialMetadata={defaults}
+              onCancel={() => {
+                closeDesktopPopover(popoverId);
+              }}
+              onSave={(metadata) => {
+                addDraftAttachment({
+                  element: params.element,
+                  placement: params.placement,
+                  content: params.content,
+                  metadata,
+                });
+                closeDesktopPopover(popoverId);
+              }}
+            />
+          ),
+        });
+        return;
+      }
+
+      addDraftAttachment({
+        element: params.element,
+        placement: params.placement,
+        content: params.content,
+        metadata: defaults,
+      });
+    },
+    [addDraftAttachment, connectionId, sessionId],
+  );
+
   const handleSend = useCallback(async (overrideText?: string) => {
-    if (!canSend) {
+    if (!canSendNow) {
       return;
     }
 
-    const content = overrideText ?? composeTextRef.current ?? composeText;
-    if (!content.trim()) {
+    const raw = overrideText ?? composeTextRef.current ?? composeText;
+    const trimmed = String(raw ?? '').trim();
+    const multipartContent = buildMultipartContentPayload();
+
+    if (!trimmed && multipartContent.length === 0) {
       return;
     }
+
+    const content = trimmed.length > 0 ? trimmed : '';
 
     setSendInFlight(true);
     try {
-      await chatController.appendMessage({ role: 'user', content });
+      await chatController.appendMessage({
+        role: 'user',
+        content,
+        multipartContent,
+      });
       setComposeText('');
       composerRef.current?.setText('');
+      clearComposerAttachments();
       chatController.clearRequestState();
       await chatController.send();
       composerRef.current?.focus();
@@ -640,14 +921,16 @@ export const ChatPane = React.memo(function ChatPane({
     } finally {
       setSendInFlight(false);
     }
-  }, [canSend, chatController, composeText, setComposeText, composeTextRef]);
+  }, [buildMultipartContentPayload, canSendNow, chatController, clearComposerAttachments, composeText, composeTextRef, setComposeText]);
 
   const canRunComposerActions = backend != null && chatController != null && isActive;
 
   const appendMessageForRole = useCallback(
     async (role: AppendAsRole) => {
-      const content = (composeTextRef.current || composeText).trim();
-      if (!content) {
+      const raw = composeTextRef.current || composeText;
+      const content = String(raw ?? '').trim();
+      const multipartContent = buildMultipartContentPayload();
+      if (!content && multipartContent.length === 0) {
         return;
       }
       if (!canRunComposerActions) {
@@ -660,7 +943,7 @@ export const ChatPane = React.memo(function ChatPane({
 
       setSendInFlight(true);
       try {
-        await chatController.appendMessage({ role: role as any, content });
+        await chatController.appendMessage({ role: role as any, content: content.length > 0 ? content : '', multipartContent });
         composerRef.current?.focus();
       } catch (err: any) {
         const message = err?.message || 'Failed to append message.';
@@ -669,7 +952,7 @@ export const ChatPane = React.memo(function ChatPane({
         setSendInFlight(false);
       }
     },
-    [canRunComposerActions, chatController, chatState?.activeRequestId, composeText, sendInFlight],
+    [buildMultipartContentPayload, canRunComposerActions, chatController, chatState?.activeRequestId, composeText, composeTextRef, sendInFlight],
   );
 
   const handleAppend = useCallback(async () => {
@@ -677,8 +960,10 @@ export const ChatPane = React.memo(function ChatPane({
   }, [appendMessageForRole]);
 
   const openAppendAsPopover = useCallback(() => {
-    const content = (composeTextRef.current || composeText).trim();
-    if (!content) {
+    const raw = composeTextRef.current || composeText;
+    const content = String(raw ?? '').trim();
+    const multipartContent = buildMultipartContentPayload();
+    if (!content && multipartContent.length === 0) {
       return;
     }
     if (!canRunComposerActions) {
@@ -721,7 +1006,7 @@ export const ChatPane = React.memo(function ChatPane({
         />
       ),
     });
-  }, [appendMessageForRole, canRunComposerActions, chatState?.activeRequestId, composeText, connectionId, sendInFlight, sessionId]);
+  }, [appendMessageForRole, buildMultipartContentPayload, canRunComposerActions, chatState?.activeRequestId, composeText, composeTextRef, connectionId, sendInFlight, sessionId]);
 
   const handleResend = useCallback(async () => {
     if (!canRunComposerActions) {
@@ -767,6 +1052,111 @@ export const ChatPane = React.memo(function ChatPane({
     }
   }, [canRunComposerActions, cancelInFlight, chatController, chatState?.activeRequestId]);
 
+  const openAttachmentUrlPopover = useCallback(
+    (params: { element: ComposerAttachmentUiElement }) => {
+      const attachmentType = String((params.element as any).attachment_type ?? '');
+      const attachmentTitle =
+        typeof (params.element as any).label === 'string' && (params.element as any).label
+          ? String((params.element as any).label)
+          : attachmentType;
+
+      const popoverId = `attachment-url:${connectionId}:${sessionId}:${attachmentType}`;
+      openDesktopPopover({
+        id: popoverId,
+        title: 'Attach URL',
+        anchorTag: getLastActionsPopoverAnchorTag() ?? undefined,
+        width: 520,
+        height: 240,
+        content: (
+          <AttachmentUrlPopoverContent
+            title={attachmentTitle}
+            onCancel={() => closeDesktopPopover(popoverId)}
+            onAttach={(url) => {
+              beginAddDraftAttachment({
+                element: params.element,
+                placement:
+                  (params.element as any).display_placement === 'above' ? 'above' : 'below',
+                content: {
+                  url,
+                },
+              });
+              closeDesktopPopover(popoverId);
+            }}
+          />
+        ),
+      });
+    },
+    [beginAddDraftAttachment, connectionId, sessionId],
+  );
+
+  const pickAttachmentFile = useCallback(
+    async (params: { element: ComposerAttachmentUiElement }) => {
+      const supported = Array.isArray((params.element as any).supported_file_types)
+        ? ((params.element as any).supported_file_types as any[]).filter((v) => typeof v === 'string')
+        : [];
+      const allowedExtensions = supported.map((v) => String(v));
+
+      const picked = await pickMacAttachment({
+        allowedExtensions,
+        maxBytes: 15 * 1024 * 1024,
+      });
+
+      if (!picked) {
+        return;
+      }
+
+      beginAddDraftAttachment({
+        element: params.element,
+        placement: (params.element as any).display_placement === 'above' ? 'above' : 'below',
+        content: {
+          filename: picked.filename,
+          mime_type: picked.mime_type,
+          data_base64: picked.data_base64,
+        },
+      });
+    },
+    [beginAddDraftAttachment],
+  );
+
+  const openAttachmentAddPopover = useCallback(
+    (params: { element: ComposerAttachmentUiElement; actionKey: string }) => {
+      const attachmentType = String((params.element as any).attachment_type ?? '');
+      const label =
+        typeof (params.element as any).label === 'string' && (params.element as any).label
+          ? String((params.element as any).label)
+          : attachmentType;
+
+      const popoverId = `attachment-add:${connectionId}:${sessionId}:${params.actionKey}`;
+      openDesktopPopover({
+        id: popoverId,
+        title: 'Add attachment',
+        anchorTag: getLastActionsPopoverAnchorTag() ?? undefined,
+        width: 320,
+        height: 220,
+        content: (
+          <AttachmentAddPopoverContent
+            label={label}
+            onPickFile={() => {
+              closeDesktopPopover(popoverId);
+              pickAttachmentFile({ element: params.element }).catch((err: any) => {
+                const message = err?.message || 'Failed to pick file.';
+                Alert.alert('Failed to attach', message);
+              });
+            }}
+            onPickUrl={() => {
+              closeDesktopPopover(popoverId);
+              openAttachmentUrlPopover({ element: params.element });
+            }}
+            onCancel={() => {
+              closeDesktopPopover(popoverId);
+            }}
+          />
+        ),
+      });
+    },
+    [connectionId, openAttachmentUrlPopover, pickAttachmentFile, sessionId],
+  );
+
   const handleComposerAction = useCallback(
     (key: ActionKey) => {
       const action = key as ChatComposerActionKey;
@@ -784,9 +1174,98 @@ export const ChatPane = React.memo(function ChatPane({
       }
       if (action === 'cancel') {
         handleCancel().catch(() => {});
+        return;
+      }
+
+      const element = composerAttachmentElementByActionKey[String(key)];
+      if (element) {
+        openAttachmentAddPopover({ element, actionKey: String(key) });
       }
     },
-    [handleAppend, handleCancel, handleResend, openAppendAsPopover],
+    [composerAttachmentElementByActionKey, handleAppend, handleCancel, handleResend, openAppendAsPopover, openAttachmentAddPopover],
+  );
+
+  const buildAttachmentStripRows = useCallback(
+    (drafts: ComposerAttachmentDraft[]): AttachmentLike[] => {
+      return drafts.map((d) => ({
+        id: d.draftId,
+        type: d.type,
+        content: d.content,
+        metadata: d.metadata,
+      }));
+    },
+    [],
+  );
+
+  const buildManageRows = useCallback(
+    (drafts: ComposerAttachmentDraft[]): ComposerAttachmentDraftRow[] => {
+      return drafts.map((d) => ({
+        draftId: d.draftId,
+        type: d.type,
+        content: d.content,
+        title: typeof d.metadata?.title === 'string' ? d.metadata?.title : undefined,
+      }));
+    },
+    [],
+  );
+
+  const handleMoveDraft = useCallback(
+    (placement: 'above' | 'below', draftId: string, direction: 'up' | 'down') => {
+      const update = (prev: ComposerAttachmentDraft[]) => {
+        const idx = prev.findIndex((d) => d.draftId === draftId);
+        if (idx === -1) return prev;
+        const nextIdx = direction === 'up' ? idx - 1 : idx + 1;
+        if (nextIdx < 0 || nextIdx >= prev.length) return prev;
+        const next = [...prev];
+        const [item] = next.splice(idx, 1);
+        next.splice(nextIdx, 0, item);
+        return next;
+      };
+
+      if (placement === 'above') {
+        setAttachmentsAbove(update);
+      } else {
+        setAttachmentsBelow(update);
+      }
+    },
+    [],
+  );
+
+  const handleDeleteDraft = useCallback(
+    (placement: 'above' | 'below', draftId: string) => {
+      const update = (prev: ComposerAttachmentDraft[]) => {
+        const next = prev.filter((d) => d.draftId !== draftId);
+        if (next.length === 0) {
+          if (placement === 'above') {
+            setAttachmentsAboveExpanded(false);
+          } else {
+            setAttachmentsBelowExpanded(false);
+          }
+        }
+        return next;
+      };
+      if (placement === 'above') {
+        setAttachmentsAbove(update);
+      } else {
+        setAttachmentsBelow(update);
+      }
+    },
+    [],
+  );
+
+  const handleEditDraftMetadata = useCallback(
+    (placement: 'above' | 'below', draftId: string, anchorTag?: number) => {
+      const list = placement === 'above' ? attachmentsAbove : attachmentsBelow;
+      const draft = list.find((d) => d.draftId === draftId);
+      if (!draft) return;
+      const element = findElementForDraft(draft);
+      if (!element) {
+        Alert.alert('Not supported', 'Attachment metadata schema was not found.');
+        return;
+      }
+      openAttachmentMetadataPopover({ draft, element, anchorTag });
+    },
+    [attachmentsAbove, attachmentsBelow, findElementForDraft, openAttachmentMetadataPopover],
   );
 
 	const canRunHeaderActions = backend != null && chatController != null && isActive;
@@ -1520,6 +1999,7 @@ export const ChatPane = React.memo(function ChatPane({
                 isActive={isActive}
                 renderIcon={({ name, size, color }) => <Icon name={name} size={size} color={color} />}
                 baseActions={BUILTIN_COMPOSER_ACTIONS}
+                extraActions={composerAttachmentActionDefs}
                 pinned={pinnedComposerActionKeys}
                 onChangePinned={(next) => setPinnedComposerActionKeys(next)}
                 onAction={handleComposerAction}
@@ -1527,11 +2007,14 @@ export const ChatPane = React.memo(function ChatPane({
                   if (!canRunComposerActions) {
                     return true;
                   }
+                  if (composerAttachmentElementByActionKey[String(key)]) {
+                    return sendInFlight || !!chatState?.activeRequestId;
+                  }
                   if (key === 'append' || key === 'appendAs') {
                     if (sendInFlight || chatState?.activeRequestId) {
                       return true;
                     }
-                    return !composeText.trim();
+                    return !composeText.trim() && !hasAttachments;
                   }
                   if (key === 'resend') {
                     return sendInFlight || !!chatState?.activeRequestId;
@@ -1544,6 +2027,40 @@ export const ChatPane = React.memo(function ChatPane({
               />
             </View>
           </View>
+
+          {attachmentsAbove.length > 0 ? (
+            attachmentsAboveExpanded ? (
+              <View style={styles.attachmentsExpandedContainer}>
+                <View style={styles.attachmentsExpandedChevronRow}>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.attachmentsChevronButton,
+                      pressed && styles.attachmentsChevronButtonPressed,
+                    ]}
+                    onPress={() => setAttachmentsAboveExpanded(false)}
+                  >
+                    <Icon name="chevron-up" size={16} color={theme.textSecondary} />
+                  </Pressable>
+                </View>
+                <ComposerAttachmentsExpandedPanel
+                  attachments={buildManageRows(attachmentsAbove)}
+                  disabled={!canRunComposerActions}
+                  onMove={(draftId, direction) => handleMoveDraft('above', draftId, direction)}
+                  onEditMetadata={(draftId, anchorTag) =>
+                    handleEditDraftMetadata('above', draftId, anchorTag)
+                  }
+                  onDelete={(draftId) => handleDeleteDraft('above', draftId)}
+                />
+              </View>
+            ) : (
+              <AttachmentThumbnailStrip
+                attachments={buildAttachmentStripRows(attachmentsAbove)}
+                disabled={!canRunComposerActions}
+                expanded={false}
+                onToggleExpanded={() => setAttachmentsAboveExpanded(true)}
+              />
+            )
+          ) : null}
 
           <View style={styles.composerRow}>
             <View
@@ -1579,10 +2096,10 @@ export const ChatPane = React.memo(function ChatPane({
             <Pressable
               style={({ pressed }) => [
                 styles.sendButton,
-                (!canSend || !composeText.trim()) && styles.sendButtonDisabled,
-                pressed && canSend && composeText.trim() && styles.sendButtonPressed,
+                !canSendNow && styles.sendButtonDisabled,
+                pressed && canSendNow && styles.sendButtonPressed,
               ]}
-              disabled={!canSend || !composeText.trim()}
+              disabled={!canSendNow}
               onPress={() => {
                 handleSend(composeTextRef.current).catch(() => {
                   // errors are handled in `handleSend`
@@ -1592,6 +2109,40 @@ export const ChatPane = React.memo(function ChatPane({
               <Text style={styles.sendButtonText}>{sendInFlight ? '…' : 'Send'}</Text>
             </Pressable>
           </View>
+
+          {attachmentsBelow.length > 0 ? (
+            attachmentsBelowExpanded ? (
+              <View style={styles.attachmentsExpandedContainer}>
+                <View style={styles.attachmentsExpandedChevronRow}>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.attachmentsChevronButton,
+                      pressed && styles.attachmentsChevronButtonPressed,
+                    ]}
+                    onPress={() => setAttachmentsBelowExpanded(false)}
+                  >
+                    <Icon name="chevron-up" size={16} color={theme.textSecondary} />
+                  </Pressable>
+                </View>
+                <ComposerAttachmentsExpandedPanel
+                  attachments={buildManageRows(attachmentsBelow)}
+                  disabled={!canRunComposerActions}
+                  onMove={(draftId, direction) => handleMoveDraft('below', draftId, direction)}
+                  onEditMetadata={(draftId, anchorTag) =>
+                    handleEditDraftMetadata('below', draftId, anchorTag)
+                  }
+                  onDelete={(draftId) => handleDeleteDraft('below', draftId)}
+                />
+              </View>
+            ) : (
+              <AttachmentThumbnailStrip
+                attachments={buildAttachmentStripRows(attachmentsBelow)}
+                disabled={!canRunComposerActions}
+                expanded={false}
+                onToggleExpanded={() => setAttachmentsBelowExpanded(true)}
+              />
+            )
+          ) : null}
         </View>
 
         {statusBarParts.length > 0 ? (
@@ -1958,6 +2509,28 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
     },
     sendButtonDisabled: {
       opacity: 0.5,
+    },
+    attachmentsExpandedContainer: {
+      marginBottom: 4,
+    },
+    attachmentsExpandedChevronRow: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      paddingHorizontal: 10,
+      marginBottom: 4,
+    },
+    attachmentsChevronButton: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: separatorWidth,
+      borderColor: theme.border,
+      backgroundColor: theme.surface,
+    },
+    attachmentsChevronButtonPressed: {
+      opacity: 0.85,
     },
     sendButtonText: {
       fontSize: 13,

@@ -11,11 +11,15 @@ Implement desktop (React Native macOS) composer support for attachments driven b
 - `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx`
 - `desktop/crystal-lattice-control-desktop-rn/src/chat/DesktopMessageBubble.tsx`
 
+Note: for the desktop we need the pinnable actions similar to the mobile, and display can be similar. It will differ only in the document picking. Implementation notes were added to the task tasks/20260215-multipart-upload/060-mobile-composer-attachments.md.
+
 3) Inspect how session UI schema is loaded/consumed on desktop.
 
 4) Decide how attachments will be selected on macOS for v1:
 - URL-only attach (no native work), or
 - file dialog + base64 encoding (requires native bridge/library).
+
+Note: there is one document picker for macos, source checked out here: /Users/ferenci84/Dev/Mine/react-native-document-picker-macos
 
 5) Share a plan with the user:
 - Proposed UI changes
