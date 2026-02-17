@@ -79,6 +79,13 @@ export function buildAttachmentMetadataDefaults(metadataUi: AttachmentMetadataUi
   };
 }
 
+export function hasEditableAttachmentMetadataFields(metadataUi: AttachmentMetadataUi | null): boolean {
+  if (!metadataUi) return false;
+  const rawElements = (metadataUi?.ui_schema ?? []) as UiSchemaElement[];
+  const filtered = filterConfigUiSchemaElements(rawElements || []);
+  return filtered.length > 0;
+}
+
 export function shouldPromptForAttachmentMetadata(options: {
   metadataUi: AttachmentMetadataUi | null;
 }): boolean {
@@ -109,11 +116,13 @@ export function shouldPromptForAttachmentMetadata(options: {
 
 export const AttachmentMetadataPopoverContent: React.FC<{
   title: string;
+  showTitle?: boolean;
+  header?: React.ReactNode;
   metadataUi: AttachmentMetadataUi | null;
   initialMetadata: Record<string, any>;
   onCancel: () => void;
   onSave: (metadata: Record<string, any>) => void;
-}> = ({ title, metadataUi, initialMetadata, onCancel, onSave }) => {
+}> = ({ title, showTitle = true, header, metadataUi, initialMetadata, onCancel, onSave }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -309,7 +318,8 @@ export const AttachmentMetadataPopoverContent: React.FC<{
 
   return (
     <View style={styles.root}>
-      <Text style={styles.title}>{title}</Text>
+      {header ?? null}
+      {showTitle ? <Text style={styles.title}>{title}</Text> : null}
       {items.length === 0 ? (
         <Text style={styles.helperText}>No metadata fields are defined for this attachment.</Text>
       ) : (

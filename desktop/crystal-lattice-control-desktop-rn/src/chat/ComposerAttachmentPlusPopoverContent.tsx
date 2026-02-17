@@ -4,26 +4,34 @@ import Icon from 'react-native-vector-icons/Feather';
 
 import { useTheme } from '@crystal-lattice/frontend-rn-components';
 
-export const AttachmentAddPopoverContent: React.FC<{
+export type ComposerAttachmentPlusRow = {
+  id: string;
   label: string;
-  onPickFile: () => void;
-  onPickUrl: () => void;
+  iconName: string;
+};
+
+export const ComposerAttachmentPlusPopoverContent: React.FC<{
+  title?: string;
+  rows: ComposerAttachmentPlusRow[];
+  onSelectRow: (rowId: string) => void;
   onCancel?: () => void;
-}> = ({ label, onPickFile, onPickUrl, onCancel }) => {
+}> = ({ title = 'Add attachment', rows, onSelectRow, onCancel }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   return (
     <View style={styles.root}>
-      <Text style={styles.title}>{label}</Text>
-      <TouchableOpacity style={styles.rowButton} onPress={onPickFile}>
-        <Icon name="folder" size={16} color={theme.textSecondary} />
-        <Text style={styles.rowButtonText}>Choose File…</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.rowButton} onPress={onPickUrl}>
-        <Icon name="link" size={16} color={theme.textSecondary} />
-        <Text style={styles.rowButtonText}>Attach URL…</Text>
-      </TouchableOpacity>
+      <Text style={styles.title}>{title}</Text>
+      {rows.map((row) => (
+        <TouchableOpacity
+          key={row.id}
+          style={styles.rowButton}
+          onPress={() => onSelectRow(row.id)}
+        >
+          <Icon name={row.iconName} size={16} color={theme.textSecondary} />
+          <Text style={styles.rowButtonText}>{row.label}</Text>
+        </TouchableOpacity>
+      ))}
       {onCancel && (
         <TouchableOpacity style={[styles.rowButton, styles.cancelButton]} onPress={onCancel}>
           <Icon name="x" size={16} color={theme.textSecondary} />
