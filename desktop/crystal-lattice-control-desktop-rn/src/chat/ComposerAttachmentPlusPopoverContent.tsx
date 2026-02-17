@@ -21,7 +21,7 @@ export const ComposerAttachmentPlusPopoverContent: React.FC<{
 
   return (
     <View style={styles.root}>
-      <Text style={styles.title}>{title}</Text>
+      {/*<Text style={styles.title}>{title}</Text>*/}
       {rows.map((row) => (
         <TouchableOpacity
           key={row.id}
@@ -32,12 +32,12 @@ export const ComposerAttachmentPlusPopoverContent: React.FC<{
           <Text style={styles.rowButtonText}>{row.label}</Text>
         </TouchableOpacity>
       ))}
-      {onCancel && (
+      {/*{onCancel && (
         <TouchableOpacity style={[styles.rowButton, styles.cancelButton]} onPress={onCancel}>
           <Icon name="x" size={16} color={theme.textSecondary} />
           <Text style={styles.rowButtonText}>Cancel</Text>
         </TouchableOpacity>
-      )}
+      )}*/}
     </View>
   );
 };

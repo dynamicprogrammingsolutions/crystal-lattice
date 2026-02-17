@@ -1089,7 +1089,7 @@ export const ChatPane = React.memo(function ChatPane({
         title: 'Attach URL',
         anchorTag: params.anchorTag ?? getLastActionsPopoverAnchorTag() ?? undefined,
         width: 520,
-        height: 240,
+        height: 200,
         content: (
           <AttachmentUrlPopoverContent
             title={attachmentTitle}
@@ -1161,7 +1161,7 @@ export const ChatPane = React.memo(function ChatPane({
       title: 'Add attachment',
       anchorTag,
       width: 360,
-      height: Math.min(500, 90 + composerAttachmentPlusRows.length * 52),
+      height: Math.min(200, 50 + composerAttachmentPlusRows.length * 52),
       content: (
         <ComposerAttachmentPlusPopoverContent
           rows={composerAttachmentPlusRows}
