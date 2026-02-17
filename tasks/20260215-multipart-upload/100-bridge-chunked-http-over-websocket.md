@@ -601,10 +601,5 @@ These items overlap with the earlier "not implemented" list above and are kept h
    - Currently only a global `BRIDGE_HTTP_MAX_BODY_BYTES` cap exists.
    - Consider different caps for `/events` vs `/sessions/.../messages` vs `/send`.
 
-14) **Clean up unrelated staged changes**
-   - Consider splitting out these unrelated changes into a separate PR/commit:
-     - `core/python/agent_app/application_future.py` (tool-loop max loops)
-     - `mobile/crystal-lattice-control-rn/App.tsx` (hard-coded `debug: true`)
-     - `application/python/agent_terminal_app/__main__.py` + `application/python/agent_terminal_app/server.py` (`--fastapi-log-file`)
 
 
