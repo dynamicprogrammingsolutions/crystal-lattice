@@ -26,13 +26,17 @@ enabled or disabled without changing application code.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 import asyncio
 import json
 import logging
 import os
+import signal
 import socket
+import sys
+import time
 import uuid
 
 try:  # Optional import; the package is declared as a dependency.
@@ -72,6 +76,10 @@ class BridgeConfig:
 
     debug: bool = False
 
+    exit_on_superseded: bool = False
+    local_guard: bool = False
+    takeover_local: bool = False
+
 
 class BridgeClient:
     """WebSocket client that proxies bridge HTTP requests to FastAPI.
@@ -91,6 +99,8 @@ class BridgeClient:
         self.config = config
         self.test_mode = test_mode
 
+        self.instance_id = str(uuid.uuid4())
+
         self._ws: Optional[websockets.WebSocketClientProtocol] = None  # type: ignore[name-defined]
         self._connected: bool = False
         self._registered: bool = False
@@ -103,6 +113,9 @@ class BridgeClient:
 
         # Chunked HTTP request buffering keyed by request_id.
         self._chunked_requests: Dict[str, Dict[str, Any]] = {}
+
+        self._local_lock_path: Optional[Path] = None
+        self._local_lock_fd: Optional[int] = None
 
     def _debug_print(self, message: str) -> None:
         if self.config.debug and not self.test_mode:
@@ -149,6 +162,16 @@ class BridgeClient:
         # from transient bridge outages without a full restart.
         backoff = 1.0
 
+        if self.config.local_guard:
+            try:
+                await self._acquire_local_lock()
+            except Exception as exc:
+                log.error("Bridge local guard prevented startup: %s", exc)
+                if not self.test_mode:
+                    print(f"[bridge] local guard prevented startup: {exc}")
+                self._stopped = True
+                return
+
         while not self._stopped:
             log.info("Connecting to bridge at %s", ws_url)
             if not self.test_mode:
@@ -167,7 +190,10 @@ class BridgeClient:
                     print("[bridge] connected to WebSocket")
 
                 await self._join_channel()
-                await self._register_server()
+                registered = await self._register_server()
+                if not registered:
+                    self._stopped = True
+                    break
 
                 await self._handle_messages()
             except asyncio.CancelledError:  # pragma: no cover - cooperative shutdown
@@ -185,11 +211,14 @@ class BridgeClient:
 
             await asyncio.sleep(backoff)
 
+        await self._release_local_lock()
+
     async def stop(self) -> None:
         """Request graceful shutdown of the bridge connection."""
 
         self._stopped = True
         await self._close_ws()
+        await self._release_local_lock()
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -221,13 +250,14 @@ class BridgeClient:
             if not self.test_mode:
                 print("[bridge] unexpected join reply from bridge; see logs for details")
 
-    async def _register_server(self) -> None:
+    async def _register_server(self) -> bool:
         assert self._ws is not None
         payload = {
             "server_id": self.config.server_id,
             "display_name": self.config.display_name,
             "computer_name": self.config.computer_name,
             "location": self.config.location,
+            "instance_id": self.instance_id,
         }
         msg = self._phoenix_message(f"server:{self.config.server_id}", "register", payload)
         await self._ws.send(msg)
@@ -240,16 +270,24 @@ class BridgeClient:
             if not self.test_mode:
                 print(
                     f"[bridge] registered as '{self.config.display_name}' "
-                    f"on computer '{self.config.computer_name}'"
+                    f"on computer '{self.config.computer_name}' (instance_id={self.instance_id})"
                 )
                 if self.config.location:
                     print(f"[bridge] location: {self.config.location}")
                 print(f"[bridge] local HTTP base: {self.config.local_http_base}")
                 print("[bridge] waiting for pairing requests…")
-        else:  # pragma: no cover - protocol error
-            log.warning("Unexpected register reply from bridge: %s", data)
-            if not self.test_mode:
-                print("[bridge] unexpected register reply from bridge; see logs for details")
+            return True
+
+        payload = data.get("payload") or {}
+        reason = payload.get("response", {}).get("reason")
+        log.warning("Bridge server registration failed: %s", data)
+        if not self.test_mode:
+            print(
+                "[bridge] registration failed; bridge may already have a server with this server_id"
+            )
+            if reason:
+                print(f"[bridge] registration failure reason: {reason}")
+        return False
 
     async def _handle_messages(self) -> None:
         """Main message loop: handle events from the bridge."""
@@ -277,6 +315,9 @@ class BridgeClient:
                     await self._handle_http_request_chunk(payload)
                 elif event == "http_request_end":
                     await self._handle_http_request_end(payload)
+                elif event == "superseded":
+                    await self._handle_superseded(payload)
+                    break
                 elif event == "phx_reply":
                     # Replies are handled synchronously where needed.
                     continue
@@ -329,6 +370,28 @@ class BridgeClient:
         print("\nThe client can now make HTTP requests through the bridge.")
         print("Use the mobile app to issue requests to this server.")
         print("=" * 70 + "\n")
+
+    async def _handle_superseded(self, payload: Dict[str, Any]) -> None:
+        reason = payload.get("reason")
+        log.warning(
+            "Bridge client superseded: server_id=%s display_name=%s instance_id=%s reason=%s",
+            self.config.server_id,
+            self.config.display_name,
+            self.instance_id,
+            reason,
+        )
+
+        if not self.test_mode:
+            print(
+                f"[bridge] superseded by another server connection (server_id={self.config.server_id}, instance_id={self.instance_id})"
+            )
+            if reason:
+                print(f"[bridge] superseded reason: {reason}")
+
+        await self.stop()
+
+        if self.config.exit_on_superseded and not self.test_mode:
+            self._terminate_current_process()
 
     async def _handle_http_request(self, payload: Dict[str, Any]) -> None:
         """Handle ``http_request`` forwarded from the bridge."""
@@ -604,6 +667,132 @@ class BridgeClient:
                 "body": json.dumps({"error": str(exc)}),
             }
 
+    # ------------------------------------------------------------------
+    # Optional local single-instance guard
+    # ------------------------------------------------------------------
+
+    def _lockfile_path(self) -> Path:
+        return Path.home() / ".crystal" / "bridge_locks" / f"{self.config.server_id}.lock"
+
+    async def _acquire_local_lock(self) -> None:
+        if self._local_lock_fd is not None:
+            return
+
+        path = self._lockfile_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        def _write_lock(fd: int) -> None:
+            payload = {
+                "pid": os.getpid(),
+                "started_at": time.time(),
+                "argv": sys.argv,
+                "local_http_base": self.config.local_http_base,
+                "instance_id": self.instance_id,
+            }
+            os.write(fd, (json.dumps(payload) + "\n").encode("utf-8"))
+
+        try:
+            fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            _write_lock(fd)
+            self._local_lock_fd = fd
+            self._local_lock_path = path
+            return
+        except FileExistsError:
+            pass
+
+        existing = self._read_lockfile(path)
+        existing_pid = existing.get("pid")
+
+        if isinstance(existing_pid, int) and self._pid_alive(existing_pid):
+            if not self.config.takeover_local:
+                raise RuntimeError(
+                    f"bridge server_id={self.config.server_id} already running (pid={existing_pid}); "
+                    "stop the other process or set BRIDGE_TAKEOVER_LOCAL=1"
+                )
+
+            log.warning(
+                "Bridge local takeover: attempting to terminate pid=%s for server_id=%s",
+                existing_pid,
+                self.config.server_id,
+            )
+            self._terminate_pid(existing_pid)
+
+            deadline = time.time() + 3.0
+            while time.time() < deadline and self._pid_alive(existing_pid):
+                await asyncio.sleep(0.1)
+
+            if self._pid_alive(existing_pid):
+                raise RuntimeError(
+                    f"timed out waiting for pid={existing_pid} to exit for server_id={self.config.server_id}"
+                )
+
+        try:
+            path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+        fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        _write_lock(fd)
+        self._local_lock_fd = fd
+        self._local_lock_path = path
+
+    async def _release_local_lock(self) -> None:
+        fd = self._local_lock_fd
+        path = self._local_lock_path
+        self._local_lock_fd = None
+        self._local_lock_path = None
+
+        if fd is not None:
+            try:
+                os.close(fd)
+            except Exception:
+                pass
+
+        if path is not None:
+            try:
+                path.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+    def _read_lockfile(self, path: Path) -> Dict[str, Any]:
+        try:
+            raw = path.read_text(encoding="utf-8").strip()
+            if not raw:
+                return {}
+            data = json.loads(raw)
+            if not isinstance(data, dict):
+                return {}
+            pid = data.get("pid")
+            if isinstance(pid, str) and pid.isdigit():
+                data["pid"] = int(pid)
+            return data
+        except Exception:
+            return {}
+
+    def _pid_alive(self, pid: int) -> bool:
+        if pid <= 0:
+            return False
+
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        except Exception:
+            return True
+        else:
+            return True
+
+    def _terminate_pid(self, pid: int) -> None:
+        os.kill(pid, signal.SIGTERM)
+
+    def _terminate_current_process(self) -> None:
+        try:
+            os.kill(os.getpid(), signal.SIGTERM)
+        except Exception:
+            raise SystemExit(0)
+
 
 def create_bridge_client_from_env() -> Optional[BridgeClient]:
     """Create a :class:`BridgeClient` from environment variables.
@@ -621,6 +810,16 @@ def create_bridge_client_from_env() -> Optional[BridgeClient]:
                               seen from this process
                               (default: ``http://127.0.0.1:<PORT>`` where
                               PORT comes from ``SERVER_PORT`` or ``8000``).
+
+        BRIDGE_EXIT_ON_SUPERSEDED
+                              Exit the current process if the bridge
+                              signals that this server has been
+                              superseded by a newer connection.
+        BRIDGE_LOCAL_GUARD    Opt-in local single-instance guard
+                              (lockfile keyed by server_id).
+        BRIDGE_TAKEOVER_LOCAL When BRIDGE_LOCAL_GUARD is enabled,
+                              attempt to SIGTERM the existing pid and
+                              take over the lock.
 
     Returns ``None`` when ``BRIDGE_URL`` is not defined so that callers
     can treat bridge support as entirely optional.
@@ -658,6 +857,9 @@ def create_bridge_client_from_env() -> Optional[BridgeClient]:
         response_chunking_threshold_bytes=int(os.getenv("BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES", str(256 * 1024))),
         max_body_bytes=int(os.getenv("BRIDGE_HTTP_MAX_BODY_BYTES", str(10 * 1024 * 1024))),
         debug=os.getenv("BRIDGE_DEBUG", "").strip() in {"1", "true", "True", "yes", "YES"},
+        exit_on_superseded=_parse_bool(os.getenv("BRIDGE_EXIT_ON_SUPERSEDED")),
+        local_guard=_parse_bool(os.getenv("BRIDGE_LOCAL_GUARD")),
+        takeover_local=_parse_bool(os.getenv("BRIDGE_TAKEOVER_LOCAL")),
     )
 
     return BridgeClient(cfg)
@@ -666,6 +868,16 @@ def create_bridge_client_from_env() -> Optional[BridgeClient]:
 def _parse_optional_int(value: Optional[str], *, default: Optional[int]) -> Optional[int]:
     if value is None or value == "":
         return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+def _parse_bool(value: Optional[str]) -> bool:
+    if value is None:
+        return False
+    return value.strip() in {"1", "true", "True", "yes", "YES"}
 
 
 def _parse_float(value: Optional[str], *, default: float) -> float:
@@ -673,9 +885,5 @@ def _parse_float(value: Optional[str], *, default: float) -> float:
         return default
     try:
         return float(value)
-    except ValueError:
-        return default
-    try:
-        return int(value)
     except ValueError:
         return default
