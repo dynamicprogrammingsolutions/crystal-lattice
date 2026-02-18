@@ -30,39 +30,33 @@ Notes (updated after Subtask 030 scope change):
 
 ## Proposed changes
 
-### A) Add new backend method for atomic turn
+### A) Add new backend method for atomic send
 
 In `packages/frontend-sdk/src/backend/backend.ts` add:
 
-* `sendTurn(sessionId, { message, configOverrides?, idempotencyKey? })`
+* `sendMessage(sessionId, { message, configOverrides?, idempotencyKey? })`
 
 Implement in `packages/frontend-sdk/src/backend/restBackend.ts`:
 
 * POST to `/sessions/{id}/send_message`
-* Include `Idempotency-Key` header if provided
+* Always include an `Idempotency-Key` header:
+  - If caller provides `idempotencyKey`, use it.
+  - Otherwise generate a fresh key in the SDK for this request.
 * Expect response `{status, request_id, session_id?}` (exact shape depends on 040)
 
 ### B) Update ChatController API
 
-Option 1 (preferred): add `chatController.sendTurn()` and update UI to call it.
+Option 1 (preferred): add `chatController.sendMessage()` and update UI to call it.
 
 Option 2: keep current methods but modify `send()` to optionally include a pending message; this is harder because messages are appended separately today.
 
-### C) Generate and reuse idempotency key per send click
+### C) Idempotency key behavior
 
-In UI (`mobile/.../SessionChatScreen.tsx`):
+Generate a fresh idempotency key per SDK request invocation (low-level guard against duplicate HTTP delivery/retries).
 
-* generate a UUID when user presses Send
-* call atomic endpoint once
-* if request errors and user retries, reuse the same idempotency key (store it in component state until success/failure is terminal)
-
-At minimum, ensure within a single press attempt the key is stable.
-
-Implementation guidance:
-
-- Generate a UUID per user-initiated send attempt.
-- Reuse the same UUID across all retries of the same attempt (timeout, bridge reconnect, app resume).
-- When a request succeeds (or is acknowledged with a `request_id`), persist the UUID alongside that `request_id` until the request completes so the UI can safely retry polling/refresh without re-sending.
+- The SDK should generate the key automatically for mutating requests.
+- The frontend has the option to provide a key explicitly via SDK method params, but the mobile UI will not do this today.
+- Do not reuse keys across separate user button presses.
 
 ### D) Transport-level support
 
@@ -74,7 +68,7 @@ If `Transport.request` doesn’t currently accept per-request headers in the cal
 ### E) Tests
 
 * `packages/frontend-sdk` unit/integration tests:
-  1. `sendTurn` calls correct endpoint with correct payload and idempotency header.
+  1. `sendMessage` calls correct endpoint with correct payload and idempotency header.
   2. (Optional) an integration test that simulates retry: same key results in same request_id response.
 
 * Add/adjust tests to reflect Subtask 030 response changes:
@@ -90,3 +84,23 @@ If `Transport.request` doesn’t currently accept per-request headers in the cal
 Additional acceptance criteria (due to Subtask 030 broad idempotency):
 
 - Frontend SDK supports `Idempotency-Key` for other retry-prone mutating calls (at minimum: legacy `appendMessage`, legacy `send`, and `executeAction`).
+
+## Implementation notes (added during completion)
+
+- Added `generateIdempotencyKey()` in `packages/frontend-sdk/src/utils/idempotency.ts`.
+- Updated `packages/frontend-sdk/src/backend/backend.ts`:
+  - Added `sendMessage(...)` (atomic append+send).
+  - Added optional `idempotencyKey` plumbing for other mutating calls (append/send/actions/plugins/etc).
+- Updated `packages/frontend-sdk/src/backend/restBackend.ts`:
+  - Implemented `sendMessage(...)` → `POST /sessions/{id}/send_message`.
+  - Added `Idempotency-Key` header to mutating requests, generating a fresh key per request invocation unless caller provides one.
+- Updated `packages/frontend-sdk/src/chat/chatController.ts`:
+  - Added `ChatController.sendMessage(...)`.
+  - Threaded optional `idempotencyKey` through `appendMessage()` and `send()` wrappers.
+  - Updates `activeRequestId` immediately when `{request_id}` is returned.
+- Updated `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx`:
+  - `handleSend` now uses the atomic `chatController.sendMessage(...)` call.
+  - Added a UI guard to prevent sending while `activeRequestId` is set (avoids 409 conflict from the atomic endpoint).
+- Tests:
+  - Updated `packages/frontend-sdk/src/backend/restBackend.sessionPlugins.test.ts` to account for the new `Idempotency-Key` header.
+  - Added `packages/frontend-sdk/src/backend/restBackend.idempotency.test.ts` to cover default-generated keys and caller-provided overrides.

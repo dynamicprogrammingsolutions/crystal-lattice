@@ -1143,6 +1143,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     if (!text && multipartContent.length === 0) {
       return;
     }
+    if (sendInProgress) {
+      return;
+    }
+    if (activeRequestId) {
+      Alert.alert('Request in progress', 'Wait for the active request to finish before sending.');
+      return;
+    }
     setSendInProgress(true);
     if (!chatController) {
       Alert.alert('No connection', 'Connect to a server to send messages.');
@@ -1150,14 +1157,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       return;
     }
     try {
-      await chatController.appendMessage({
-        role: 'user',
-        content: text,
-        multipartContent,
-      });
-
       chatController.clearRequestState();
-      await chatController.send();
+      await chatController.sendMessage({
+        message: {
+          role: 'user',
+          content: text,
+          multipartContent,
+        },
+      });
       clearComposerDraft();
     } catch (err: any) {
       console.log('Failed to send request', err);

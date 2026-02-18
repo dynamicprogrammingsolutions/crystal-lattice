@@ -44,11 +44,16 @@ describe('RestAgentBackend session plugins', () => {
     const backend = new RestAgentBackend({ transport });
     await backend.setSessionPlugins('s1', ['p1', 'p2']);
 
-    expect(transport.request).toHaveBeenCalledWith({
-      method: 'PUT',
-      path: '/sessions/s1/plugins',
-      body: { enabled: ['p1', 'p2'] },
-    });
+    expect(transport.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'PUT',
+        path: '/sessions/s1/plugins',
+        body: { enabled: ['p1', 'p2'] },
+        headers: expect.objectContaining({
+          'Idempotency-Key': expect.any(String),
+        }),
+      }),
+    );
   });
 
   it('clears session plugins', async () => {
@@ -59,9 +64,14 @@ describe('RestAgentBackend session plugins', () => {
     const backend = new RestAgentBackend({ transport });
     await backend.clearSessionPlugins('s1');
 
-    expect(transport.request).toHaveBeenCalledWith({
-      method: 'DELETE',
-      path: '/sessions/s1/plugins',
-    });
+    expect(transport.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'DELETE',
+        path: '/sessions/s1/plugins',
+        headers: expect.objectContaining({
+          'Idempotency-Key': expect.any(String),
+        }),
+      }),
+    );
   });
 });
