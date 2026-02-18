@@ -40,23 +40,32 @@ export interface AgentBackend {
   // --- Agents ---
   listAgents(): Promise<string[]>;
   getSessionAgent(sessionId: string): Promise<string>;
-  switchSessionAgent(sessionId: string, agentId: string): Promise<void>;
+  switchSessionAgent(
+    sessionId: string,
+    agentId: string,
+    options?: { idempotencyKey?: string },
+  ): Promise<void>;
 
   // --- Sessions ---
   createSession(params?: {
     agentId?: string;
     systemMessage?: string;
+    idempotencyKey?: string;
   }): Promise<{ session: { session_id: string; [key: string]: any } }>;
   listSessions(params?: { limit?: number }): Promise<SessionSummary[]>;
   forkSession(
     sessionId: string,
-    params?: { index?: number },
+    params?: { index?: number; idempotencyKey?: string },
   ): Promise<{ session: { session_id: string; [key: string]: any }; source_session_id: string }>;
 
   // --- Session plugins ---
   listSessionPlugins(sessionId: string): Promise<SessionPluginEntry[]>;
-  setSessionPlugins(sessionId: string, enabled: string[]): Promise<void>;
-  clearSessionPlugins(sessionId: string): Promise<void>;
+  setSessionPlugins(
+    sessionId: string,
+    enabled: string[],
+    options?: { idempotencyKey?: string },
+  ): Promise<void>;
+  clearSessionPlugins(sessionId: string, options?: { idempotencyKey?: string }): Promise<void>;
 
   // --- Messages ---
   listMessages(
@@ -72,22 +81,43 @@ export interface AgentBackend {
       multipartContent?: any[] | null;
       metadata?: Record<string, any>;
     },
+    options?: { idempotencyKey?: string },
   ): Promise<void>;
 
-  modifyMessage(sessionId: string, index: number, content: string): Promise<void>;
+  sendMessage(
+    sessionId: string,
+    params: {
+      message: {
+        role: 'user' | 'assistant' | 'system' | 'tool';
+        content: string;
+        multipartContent?: any[] | null;
+        metadata?: Record<string, any>;
+      };
+      configOverrides?: Record<string, any>;
+      idempotencyKey?: string;
+    },
+  ): Promise<{ status?: string; request_id?: string; session_id?: string }>;
+
+  modifyMessage(
+    sessionId: string,
+    index: number,
+    content: string,
+    options?: { idempotencyKey?: string },
+  ): Promise<void>;
 
   deleteMessages(
     sessionId: string,
     params: { indices?: number[]; range?: { start?: number; end?: number } },
+    options?: { idempotencyKey?: string },
   ): Promise<{ deleted_indices?: number[]; session?: any }>;
 
   // --- Request lifecycle ---
   send(
     sessionId: string,
-    params?: { configOverrides?: Record<string, any> },
-  ): Promise<{ status?: string }>;
+    params?: { configOverrides?: Record<string, any>; idempotencyKey?: string },
+  ): Promise<{ status?: string; request_id?: string }>;
 
-  cancelRequest(requestId: string): Promise<void>;
+  cancelRequest(requestId: string, options?: { idempotencyKey?: string }): Promise<void>;
 
   // --- Events ---
   listEvents(params: {
@@ -108,8 +138,16 @@ export interface AgentBackend {
   // --- UI schema / configuration ---
   getSessionUiSchema(sessionId: string): Promise<UiSchemaElement[]>;
   getSessionOverrides(sessionId: string): Promise<Record<string, any>>;
-  patchSessionOverrides(sessionId: string, values: Record<string, any>): Promise<void>;
-  deleteSessionOverride(sessionId: string, key: string): Promise<void>;
+  patchSessionOverrides(
+    sessionId: string,
+    values: Record<string, any>,
+    options?: { idempotencyKey?: string },
+  ): Promise<void>;
+  deleteSessionOverride(
+    sessionId: string,
+    key: string,
+    options?: { idempotencyKey?: string },
+  ): Promise<void>;
   getSessionConfigSchema(sessionId: string): Promise<ConfigSchemaEntry[]>;
   getSessionBaseConfig(sessionId: string): Promise<Record<string, any>>;
 
@@ -120,6 +158,7 @@ export interface AgentBackend {
     pluginId: string;
     actionId: string;
     inputs: Record<string, any>;
+    idempotencyKey?: string;
   }): Promise<ExecuteActionResponse>;
 
   // --- Application-level config (optional; used by terminal today) ---
