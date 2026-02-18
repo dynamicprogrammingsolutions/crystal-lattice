@@ -9,14 +9,6 @@ export function selectLastAssistantMessage(options: {
 }): ApiMessage | null {
   const { messages, streamingRow } = options;
 
-  if (streamingRow && (streamingRow.content || streamingRow.reasoning)) {
-    return {
-      role: 'assistant',
-      content: streamingRow.content,
-      metadata: streamingRow.metadata || {},
-    };
-  }
-
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const message = messages[i].message;
     if ((message.role || 'unknown') === 'assistant') {
