@@ -82,7 +82,17 @@ def test_openrouter_usage_metadata_streaming(ensure_api_key):
     assert isinstance(tokens_str_1, str) and tokens_str_1
     assert isinstance(cost_str_1, str) and cost_str_1
 
-    cost1 = float(usage1.get("cost", 0.0) or 0.0)
+    # Normalize cost value: prefer explicit "cost" field, fall back to
+    # cost_details.upstream_inference_cost when present.
+    def _usage_cost(usage: dict) -> float:
+        if not isinstance(usage, dict):
+            return 0.0
+        c = usage.get("cost")
+        if isinstance(c, (int, float)) and c:
+            return float(c)
+        return float((usage.get("cost_details") or {}).get("upstream_inference_cost", 0.0) or 0.0)
+
+    cost1 = _usage_cost(usage1)
 
     # ---- Second turn ----
     session = core.add_message(session, "user", "Say another short greeting.", config=config)
@@ -108,7 +118,7 @@ def test_openrouter_usage_metadata_streaming(ensure_api_key):
     assert isinstance(tokens_str_2, str) and tokens_str_2
     assert isinstance(cost_str_2, str) and cost_str_2
 
-    cost2 = float(usage2.get("cost", 0.0) or 0.0)
+    cost2 = _usage_cost(usage2)
 
     # Cumulative cost metadata should be present and approximately
     # equal to the sum of the individual response costs.

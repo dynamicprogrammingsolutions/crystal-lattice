@@ -72,6 +72,11 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                 "template": "cost: {{data}}",
             },
             {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_turn_cost_cumulative_formatted",
+                "template": "turn: {{data}}",
+            },
+            {
                 "ui_type": "status_bar",
                 "data": "metadata.usage_total_cost_cumulative_formatted",
                 "template": "Total: {{data}}",
@@ -138,6 +143,22 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                         core_md["usage_total_cost_cumulative_formatted"] = internal_md[
                             "usage_total_cost_cumulative_formatted"
                         ]
+                    # Only surface per-turn turn-cost fields on assistant
+                    # messages that do not have tool calls.
+                    has_tool_calls = False
+                    if isinstance(native, dict):
+                        tcs = native.get("tool_calls")
+                        if isinstance(tcs, list) and tcs:
+                            has_tool_calls = True
+                    if not has_tool_calls:
+                        if "usage_turn_cost_cumulative" in internal_md:
+                            core_md["usage_turn_cost_cumulative"] = internal_md[
+                                "usage_turn_cost_cumulative"
+                            ]
+                        if "usage_turn_cost_cumulative_formatted" in internal_md:
+                            core_md["usage_turn_cost_cumulative_formatted"] = internal_md[
+                                "usage_turn_cost_cumulative_formatted"
+                            ]
                 enhanced.append({**msg, "metadata": core_md})
             return enhanced
 
@@ -145,7 +166,8 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
         # back to copying only onto the last core message.
         enhanced.extend(messages)
         if native_messages and messages:
-            internal_md = native_messages[-1].get("_metadata") or {}
+            native_last = native_messages[-1] if isinstance(native_messages[-1], dict) else {}
+            internal_md = native_last.get("_metadata") or {}
             if isinstance(internal_md, dict) and "usage" in internal_md:
                 last_msg = dict(messages[-1])
                 core_md = dict(last_msg.get("metadata") or {})
@@ -166,6 +188,23 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                     core_md["usage_total_cost_cumulative_formatted"] = internal_md[
                         "usage_total_cost_cumulative_formatted"
                     ]
+
+                # Per-turn fields should only be surfaced when the native
+                # assistant message does not have tool calls.
+                has_tool_calls = False
+                tcs = native_last.get("tool_calls")
+                if isinstance(tcs, list) and tcs:
+                    has_tool_calls = True
+                if not has_tool_calls:
+                    if "usage_turn_cost_cumulative" in internal_md:
+                        core_md["usage_turn_cost_cumulative"] = internal_md[
+                            "usage_turn_cost_cumulative"
+                        ]
+                    if "usage_turn_cost_cumulative_formatted" in internal_md:
+                        core_md["usage_turn_cost_cumulative_formatted"] = internal_md[
+                            "usage_turn_cost_cumulative_formatted"
+                        ]
+
                 enhanced[-1] = {**last_msg, "metadata": core_md}
 
         return enhanced
@@ -259,6 +298,58 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                 cumulative_cost = base_total + current_cost
                 cumulative_cost_str = f"${cumulative_cost:.6f}"
 
+                # Compute per-turn running total. The turn runs from the
+                # last separator up to the current message. A separator is
+                # defined as the most recent message that is either a
+                # user/system message or an assistant message that has no
+                # tool calls. Sum assistant costs after that separator.
+                base_total_turn = 0.0
+                try:
+                    last_sep_idx = -1
+                    for idx, msg in enumerate(native_messages):
+                        if not isinstance(msg, dict):
+                            continue
+                        role = msg.get("role")
+                        if role in ("user", "system"):
+                            last_sep_idx = idx
+                            continue
+                        if role == "assistant":
+                            # Detect tool calls on the assistant message.
+                            has_tool_calls = False
+                            tcs = msg.get("tool_calls")
+                            if isinstance(tcs, list) and tcs:
+                                has_tool_calls = True
+                            else:
+                                md_prev = msg.get("_metadata") or {}
+                                if isinstance(md_prev, dict) and md_prev.get("tool_calls"):
+                                    has_tool_calls = True
+                            if not has_tool_calls:
+                                last_sep_idx = idx
+
+                    for idx, msg in enumerate(native_messages):
+                        if not isinstance(msg, dict):
+                            continue
+                        if idx <= last_sep_idx:
+                            continue
+                        if msg.get("role") != "assistant":
+                            continue
+                        md_prev = msg.get("_metadata") or {}
+                        if not isinstance(md_prev, dict):
+                            continue
+                        usage_prev = md_prev.get("usage") or {}
+                        if not isinstance(usage_prev, dict):
+                            continue
+                        prev_cost = usage_prev.get("cost") or usage_prev.get(
+                            "cost_details", {}
+                        ).get("upstream_inference_cost", 0)
+                        if isinstance(prev_cost, (int, float)):
+                            base_total_turn += float(prev_cost)
+                except Exception:
+                    base_total_turn = 0.0
+
+                usage_turn_cumulative = base_total_turn + current_cost
+                usage_turn_cumulative_str = f"${usage_turn_cumulative:.6f}"
+
         accumulated = state.get("partial")
         if isinstance(accumulated, dict):
             internal_md = dict(accumulated.get("_metadata") or {})
@@ -273,6 +364,18 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                 internal_md["usage_total_cost_cumulative_formatted"] = (
                     cumulative_cost_str
                 )
+            # Attach per-turn cumulative cost (for assistant messages
+            # that have no tool calls). These are computed above.
+            try:
+                if "usage_turn_cumulative" in locals():
+                    internal_md["usage_turn_cost_cumulative"] = usage_turn_cumulative
+                if "usage_turn_cumulative_str" in locals():
+                    internal_md["usage_turn_cost_cumulative_formatted"] = (
+                        usage_turn_cumulative_str
+                    )
+            except Exception:
+                # Be defensive; do not fail the provider because of UI fields.
+                pass
             accumulated = {**accumulated, "_metadata": internal_md}
             new_state: Dict[str, Any] = {**state, "partial": accumulated}
         else:
