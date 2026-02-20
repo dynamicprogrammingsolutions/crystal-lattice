@@ -77,6 +77,11 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                 "template": "turn: {{data}}",
             },
             {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_turn_reasoning_tokens_cumulative_formatted",
+                "template": "reasoning: {{data}}",
+            },
+            {
                 "ui_type": "status_bar",
                 "data": "metadata.usage_total_cost_cumulative_formatted",
                 "template": "Total: {{data}}",
@@ -159,6 +164,14 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                             core_md["usage_turn_cost_cumulative_formatted"] = internal_md[
                                 "usage_turn_cost_cumulative_formatted"
                             ]
+                        if "usage_turn_reasoning_tokens_cumulative" in internal_md:
+                            core_md["usage_turn_reasoning_tokens_cumulative"] = internal_md[
+                                "usage_turn_reasoning_tokens_cumulative"
+                            ]
+                        if "usage_turn_reasoning_tokens_cumulative_formatted" in internal_md:
+                            core_md["usage_turn_reasoning_tokens_cumulative_formatted"] = internal_md[
+                                "usage_turn_reasoning_tokens_cumulative_formatted"
+                            ]
                 enhanced.append({**msg, "metadata": core_md})
             return enhanced
 
@@ -201,6 +214,14 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                     if "usage_turn_cost_cumulative_formatted" in internal_md:
                         core_md["usage_turn_cost_cumulative_formatted"] = internal_md[
                             "usage_turn_cost_cumulative_formatted"
+                        ]
+                    if "usage_turn_reasoning_tokens_cumulative" in internal_md:
+                        core_md["usage_turn_reasoning_tokens_cumulative"] = internal_md[
+                            "usage_turn_reasoning_tokens_cumulative"
+                        ]
+                    if "usage_turn_reasoning_tokens_cumulative_formatted" in internal_md:
+                        core_md["usage_turn_reasoning_tokens_cumulative_formatted"] = internal_md[
+                            "usage_turn_reasoning_tokens_cumulative_formatted"
                         ]
 
                 enhanced[-1] = {**last_msg, "metadata": core_md}
@@ -298,6 +319,7 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                 # last separator: either the most recent user/system message
                 # or the most recent assistant message that had no tool calls.
                 base_total_turn = 0.0
+                base_total_turn_reasoning = 0
                 try:
                     last_sep_idx = -1
                     for idx, msg in enumerate(native_messages):
@@ -335,11 +357,49 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                         prev_cost = usage_prev.get("cost") or usage_prev.get("cost_details", {}).get("upstream_inference_cost", 0)
                         if isinstance(prev_cost, (int, float)):
                             base_total_turn += float(prev_cost)
+                        # Sum reasoning tokens for per-turn reasoning total.
+                        prev_reasoning = None
+                        try:
+                            prev_reasoning = (
+                                usage_prev.get("completion_tokens_details") or {}
+                            ).get("reasoning_tokens", None)
+                        except Exception:
+                            prev_reasoning = None
+                        if isinstance(prev_reasoning, (int, float)):
+                            try:
+                                base_total_turn_reasoning += int(prev_reasoning)
+                            except Exception:
+                                pass
                 except Exception:
                     base_total_turn = 0.0
+                    base_total_turn_reasoning = 0
 
                 usage_turn_cumulative = base_total_turn + current_cost
                 usage_turn_cumulative_str = f"${usage_turn_cumulative:.6f}"
+
+                # Compute per-turn reasoning tokens (if present in usage).
+                usage_turn_reasoning_cumulative = None
+                usage_turn_reasoning_cumulative_str = None
+                try:
+                    current_reasoning = (
+                        usage.get("completion_tokens_details") or {}
+                    ).get("reasoning_tokens", None)
+                    if isinstance(current_reasoning, (int, float)):
+                        try:
+                            current_reasoning_int = int(current_reasoning)
+                        except Exception:
+                            current_reasoning_int = None
+                        if current_reasoning_int is not None:
+                            if "base_total_turn_reasoning" not in locals():
+                                base_total_turn_reasoning = 0
+                            usage_turn_reasoning_cumulative = base_total_turn_reasoning + current_reasoning_int
+                            try:
+                                usage_turn_reasoning_cumulative_str = f"{int(usage_turn_reasoning_cumulative):,}"
+                            except Exception:
+                                usage_turn_reasoning_cumulative_str = str(usage_turn_reasoning_cumulative)
+                except Exception:
+                    usage_turn_reasoning_cumulative = None
+                    usage_turn_reasoning_cumulative_str = None
 
         accumulated = state.get("partial")
         if isinstance(accumulated, dict):
@@ -360,6 +420,12 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                     internal_md["usage_turn_cost_cumulative"] = usage_turn_cumulative
                 if "usage_turn_cumulative_str" in locals():
                     internal_md["usage_turn_cost_cumulative_formatted"] = usage_turn_cumulative_str
+                if "usage_turn_reasoning_cumulative" in locals() and usage_turn_reasoning_cumulative is not None:
+                    internal_md["usage_turn_reasoning_tokens_cumulative"] = usage_turn_reasoning_cumulative
+                if "usage_turn_reasoning_cumulative_str" in locals() and usage_turn_reasoning_cumulative_str is not None:
+                    internal_md["usage_turn_reasoning_tokens_cumulative_formatted"] = (
+                        usage_turn_reasoning_cumulative_str
+                    )
             except Exception:
                 pass
             accumulated = {**accumulated, "_metadata": internal_md}
