@@ -47,6 +47,7 @@ export type {
 export {
   extractByPath,
   renderTemplate,
+  formatValueForElement,
   filterFooterElements,
   filterStatusBarElements,
 } from './utils/uiSchema';

@@ -38,6 +38,7 @@ class TimestampExtension(FeaturePlugin):
                 "ui_type": "message_footer",
                 "data": "metadata.timestamp",
                 "template": "{{data}}",
+                "metadata": {"format": "datetime"},
             }
         ]
 

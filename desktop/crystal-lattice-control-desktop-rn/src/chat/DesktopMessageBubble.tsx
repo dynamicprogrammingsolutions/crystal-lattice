@@ -13,6 +13,7 @@ import Icon from 'react-native-vector-icons/Feather';
 import type { ApiMessage, UiSchemaElement } from '@crystal-lattice/frontend-sdk';
 import {
   extractByPath,
+  formatValueForElement,
   renderTemplate,
   selectDisplayContent,
   selectSingleLineContent,
@@ -116,9 +117,10 @@ const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
     const parts: string[] = [];
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
-      const value = extractByPath(message, el.data);
-      if (value === null || value === undefined || value === '') return;
-      const text = renderTemplate(el.template ?? '{{data}}', value);
+      const rawValue = extractByPath(message, el.data);
+      const valueForTemplate = formatValueForElement(el, rawValue);
+      if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
+      const text = renderTemplate(el.template ?? '{{data}}', valueForTemplate);
       if (text) parts.push(text);
     });
     return parts;
@@ -212,9 +214,10 @@ const SystemMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
     const parts: string[] = [];
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
-      const value = extractByPath(message, el.data);
-      if (value === null || value === undefined || value === '') return;
-      const text = renderTemplate(el.template ?? '{{data}}', value);
+      const rawValue = extractByPath(message, el.data);
+      const valueForTemplate = formatValueForElement(el, rawValue);
+      if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
+      const text = renderTemplate(el.template ?? '{{data}}', valueForTemplate);
       if (text) parts.push(text);
     });
     return parts;
@@ -309,9 +312,10 @@ const ToolMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
     const parts: string[] = [];
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
-      const value = extractByPath(message, el.data);
-      if (value === null || value === undefined || value === '') return;
-      const text = renderTemplate(el.template ?? '{{data}}', value);
+      const rawValue = extractByPath(message, el.data);
+      const valueForTemplate = formatValueForElement(el, rawValue);
+      if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
+      const text = renderTemplate(el.template ?? '{{data}}', valueForTemplate);
       if (text) parts.push(text);
     });
     return parts;
@@ -444,9 +448,10 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
     const parts: string[] = [];
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
-      const value = extractByPath(message, el.data);
-      if (value === null || value === undefined || value === '') return;
-      const text = renderTemplate(el.template ?? '{{data}}', value);
+      const rawValue = extractByPath(message, el.data);
+      const valueForTemplate = formatValueForElement(el, rawValue);
+      if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
+      const text = renderTemplate(el.template ?? '{{data}}', valueForTemplate);
       if (text) parts.push(text);
     });
     return parts;

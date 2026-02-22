@@ -9,6 +9,7 @@ export interface UiSchemaElement {
   // Footer / status bar fields
   data?: string;
   template?: string;
+  metadata?: Record<string, any>;
   // Plugin / misc
   plugin?: string;
   [k: string]: any;
