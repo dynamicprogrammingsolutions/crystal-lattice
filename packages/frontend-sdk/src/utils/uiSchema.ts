@@ -1,5 +1,21 @@
 import type { UiSchemaElement } from '../types/uiSchema';
 
+export function formatValueForElement(el: UiSchemaElement, rawValue: any): any {
+  const metadata = (el as any)?.metadata || {};
+  if (metadata.format === 'datetime') {
+    if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
+      return new Date(rawValue * 1000).toLocaleString();
+    }
+    if (typeof rawValue === 'string' && rawValue) {
+      const dt = new Date(rawValue);
+      if (Number.isFinite(dt.getTime())) {
+        return dt.toLocaleString();
+      }
+    }
+  }
+  return rawValue;
+}
+
 export function extractByPath(obj: any, path: string | undefined | null): any {
   if (!obj || typeof path !== 'string' || !path) return null;
   const parts = path.split('.');

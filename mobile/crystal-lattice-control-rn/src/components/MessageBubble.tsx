@@ -18,7 +18,7 @@ import { selectDisplayContent, selectSingleLineContent } from '../messageUtils';
 import MarkdownMessageContent from './MarkdownMessageContent';
 import { AttachmentThumbnailStrip, type AttachmentLike } from './AttachmentThumbnailStrip';
 import { useTheme, type Theme } from '../theme';
-import { extractByPath, renderTemplate } from '../uiSchemaUtils';
+import { extractByPath, renderTemplate, formatValueForElement } from '../uiSchemaUtils';
 
 type MultipartPart = {
   type?: string;
@@ -134,9 +134,10 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
     const parts: string[] = [];
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
-      const value = extractByPath(message, el.data);
-      if (value === null || value === undefined || value === '') return;
-      const text = renderTemplate(el.template ?? '{{data}}', value);
+      const rawValue = extractByPath(message, el.data);
+      const valueForTemplate = formatValueForElement(el, rawValue);
+      if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
+      const text = renderTemplate(el.template ?? '{{data}}', valueForTemplate);
       if (text) parts.push(text);
     });
     return parts;
@@ -234,9 +235,10 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
     const parts: string[] = [];
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
-      const value = extractByPath(message, el.data);
-      if (value === null || value === undefined || value === '') return;
-      const text = renderTemplate(el.template ?? '{{data}}', value);
+      const rawValue = extractByPath(message, el.data);
+      const valueForTemplate = formatValueForElement(el, rawValue);
+      if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
+      const text = renderTemplate(el.template ?? '{{data}}', valueForTemplate);
       if (text) parts.push(text);
     });
     return parts;
@@ -333,9 +335,10 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
     const parts: string[] = [];
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
-      const value = extractByPath(message, el.data);
-      if (value === null || value === undefined || value === '') return;
-      const text = renderTemplate(el.template ?? '{{data}}', value);
+      const rawValue = extractByPath(message, el.data);
+      const valueForTemplate = formatValueForElement(el, rawValue);
+      if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
+      const text = renderTemplate(el.template ?? '{{data}}', valueForTemplate);
       if (text) parts.push(text);
     });
     return parts;
@@ -471,9 +474,10 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
     const parts: string[] = [];
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
-      const value = extractByPath(message, el.data);
-      if (value === null || value === undefined || value === '') return;
-      const text = renderTemplate(el.template ?? '{{data}}', value);
+      const rawValue = extractByPath(message, el.data);
+      const valueForTemplate = formatValueForElement(el, rawValue);
+      if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
+      const text = renderTemplate(el.template ?? '{{data}}', valueForTemplate);
       if (text) parts.push(text);
     });
     return parts;

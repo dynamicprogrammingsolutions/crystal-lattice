@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from logging import Logger
 from typing import Any, Callable, Dict, List, Optional
 
@@ -138,6 +139,30 @@ def _render_footer_template(template: str, value: Any) -> str:
     return out
 
 
+def _format_ui_value(el: Dict[str, Any], value: Any) -> Any:
+    metadata = el.get("metadata") or {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+
+    if metadata.get("format") != "datetime":
+        return value
+
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        dt = datetime.fromtimestamp(float(value), tz=timezone.utc).astimezone()
+        return dt.strftime("%c")
+
+    if isinstance(value, str) and value:
+        try:
+            dt = datetime.fromisoformat(value)
+        except Exception:
+            return value
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone().strftime("%c")
+
+    return value
+
+
 class BaseMessageRenderer:
     """Interface for renderers that handle both events and stored messages."""
 
@@ -218,6 +243,7 @@ class UserRenderer(BaseMessageRenderer):
             value = _extract_by_path(msg, data_path)
             if value is None or value == "":
                 continue
+            value = _format_ui_value(el, value)
             text = _render_footer_template(template, value)
             if text:
                 parts.append(f"{GRAY}{text}{RESET}")
@@ -407,6 +433,7 @@ class AssistantRenderer(BaseMessageRenderer):
             value = _extract_by_path(msg, data_path)
             if value is None or value == "":
                 continue
+            value = _format_ui_value(el, value)
             text = _render_footer_template(template, value)
             if text:
                 parts.append(f"{GRAY}{text}{RESET}")
