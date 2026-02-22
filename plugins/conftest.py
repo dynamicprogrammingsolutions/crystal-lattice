@@ -28,6 +28,7 @@ for repo_name in (
     "feature-system-message",
     "feature-file-context",
     "feature-web-context",
+    "timestamp-extension",
 ):
     repo_dir = PLUGIN_REPOS / repo_name
     if not repo_dir.is_dir():
