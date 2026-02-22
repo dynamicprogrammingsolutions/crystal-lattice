@@ -30,6 +30,6 @@ include = ["openrouter_plugins*"]
 
 [tool.pytest.ini_options]
 markers = [
-    "integration: marks tests as integration tests (may require API keys and network access)",
+  "integration: integration tests that call real services",
+  "openrouter: tests requiring OpenRouter",
 ]
-

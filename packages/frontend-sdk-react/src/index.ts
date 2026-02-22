@@ -41,7 +41,28 @@ export { usePluginActionDialog } from './usePluginActionDialog';
 export { useHydrateControllerFromCache } from './useHydrateControllerFromCache';
 
 export type {
+  UsePersistentStringArrayOptions,
+  UsePersistentStringArrayResult,
+} from './usePersistentStringArray';
+export { usePersistentStringArray } from './usePersistentStringArray';
+
+export type {
+  UsePersistentPinnedActionsOptions,
+  UsePersistentPinnedActionsResult,
+} from './usePersistentPinnedActions';
+export { usePersistentPinnedActions } from './usePersistentPinnedActions';
+
+export type {
   UseSessionUiSchemaControllerOptions,
   UseSessionUiSchemaControllerResult,
 } from './useSessionUiSchemaController';
 export { useSessionUiSchemaController } from './useSessionUiSchemaController';
+
+export type {
+  SessionPluginsState,
+  UseSessionPluginsControllerOptions,
+  UseSessionPluginsControllerResult,
+} from './useSessionPluginsController';
+export { useSessionPluginsController } from './useSessionPluginsController';
+
+export * from './sessionSettings';

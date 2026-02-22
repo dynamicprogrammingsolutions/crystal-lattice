@@ -205,6 +205,26 @@ def test_import_session():
     assert session2.messages[0].content == "Hello"
 
 
+def test_export_import_session_roundtrips_multipart_content():
+    core = AgentCore()
+    session1 = core.create_session(session_id="test")
+    session1 = core.add_message(
+        session1,
+        "user",
+        "",
+        multipart_content=[{"type": "image", "content": {"url": "data:..."}}],
+    )
+
+    exported = core.export_session(session1)
+    session2 = core.import_session(exported)
+
+    assert session2.session_id == "test"
+    assert len(session2.messages) == 1
+    assert session2.messages[0].multipart_content == [
+        {"type": "image", "content": {"url": "data:..."}}
+    ]
+
+
 def test_send_request_without_provider():
     """Test error when sending request without provider."""
     core = AgentCore()

@@ -57,13 +57,18 @@ class DeterministicStreamProvider(ProviderPlugin):
         for msg in messages:
             role = msg.get("role")
             content = msg.get("content", "")
+            multipart_content = msg.get("multipartContent")
             md = msg.get("metadata")
             internal_md = dict(md) if isinstance(md, dict) else {}
             internal_md.pop("native_indices", None)
+
+            native_msg: Dict[str, Any] = {"role": role, "content": content}
+            if multipart_content is not None:
+                native_msg["multipartContent"] = multipart_content
             if internal_md:
-                native.append({"role": role, "content": content, "_metadata": internal_md})
-            else:
-                native.append({"role": role, "content": content})
+                native_msg["_metadata"] = internal_md
+
+            native.append(native_msg)
         return native
 
     def from_native_messages(
@@ -78,13 +83,18 @@ class DeterministicStreamProvider(ProviderPlugin):
             raw_internal = msg.get("_metadata") or {}
             internal_md = dict(raw_internal) if isinstance(raw_internal, dict) else {}
             internal_md.pop("native_indices", None)
-            finals.append(
-                {
-                    "role": msg.get("role", "assistant"),
-                    "content": msg.get("content", ""),
-                    "metadata": internal_md,
-                }
-            )
+
+            final: Dict[str, Any] = {
+                "role": msg.get("role", "assistant"),
+                "content": msg.get("content", ""),
+                "metadata": internal_md,
+            }
+
+            multipart_content = msg.get("multipartContent")
+            if multipart_content is not None:
+                final["multipartContent"] = multipart_content
+
+            finals.append(final)
         return finals
 
     def initialize_request(

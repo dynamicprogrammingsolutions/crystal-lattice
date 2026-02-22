@@ -214,15 +214,51 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
   async appendMessage(message: {
     role: 'user' | 'assistant' | 'system' | 'tool';
     content: string;
+    multipartContent?: any[] | null;
     metadata?: Record<string, any>;
-  }): Promise<void> {
+  },
+  options: { idempotencyKey?: string } = {}): Promise<void> {
     this.beginEpoch();
-    await this.backend.appendMessage(this.sessionId, message);
+    await this.backend.appendMessage(this.sessionId, message, options);
   }
 
-  async send(params?: { configOverrides?: Record<string, any> }): Promise<void> {
+  async sendMessage(params: {
+    message: {
+      role: 'user' | 'assistant' | 'system' | 'tool';
+      content: string;
+      multipartContent?: any[] | null;
+      metadata?: Record<string, any>;
+    };
+    configOverrides?: Record<string, any>;
+    idempotencyKey?: string;
+  }): Promise<void> {
     this.beginEpoch();
-    await this.backend.send(this.sessionId, params);
+    const response = await this.backend.sendMessage(this.sessionId, params);
+
+    const requestId = response?.request_id;
+    if (typeof requestId === 'string' && requestId.trim()) {
+      const current = this.getSnapshot();
+      this.setSnapshot({
+        ...current,
+        activeRequestId: requestId,
+      });
+    }
+  }
+
+  async send(
+    params: { configOverrides?: Record<string, any>; idempotencyKey?: string } = {},
+  ): Promise<void> {
+    this.beginEpoch();
+    const response = await this.backend.send(this.sessionId, params);
+
+    const requestId = response?.request_id;
+    if (typeof requestId === 'string' && requestId.trim()) {
+      const current = this.getSnapshot();
+      this.setSnapshot({
+        ...current,
+        activeRequestId: requestId,
+      });
+    }
   }
 
   async cancelActiveRequest(): Promise<void> {

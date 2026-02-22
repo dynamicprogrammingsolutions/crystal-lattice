@@ -27,7 +27,9 @@ Manual only (no discovery/bridge).
 ## Sessions panel
 
 - Lists sessions for the focused connection.
-- Clicking a session opens it as a tab in the main column.
+- Clicking a session row selects it.
+- Use an explicit “Open” affordance (visible on hover) to open it as a tab in the main column.
+- Double-clicking a row opens it.
 - If already open, focuses the existing tab.
 
 ## Session tabs

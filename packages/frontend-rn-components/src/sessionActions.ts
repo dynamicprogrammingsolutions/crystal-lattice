@@ -44,6 +44,12 @@ export const SESSION_ACTIONS: Record<SessionActionKey, SessionActionDefinition> 
     iconName: 'settings',
     defaultPinned: false,
   },
+  plugins: {
+    key: 'plugins',
+    label: 'Plugins',
+    iconName: 'package',
+    defaultPinned: false,
+  },
 };
 
 export const ALL_SESSION_ACTIONS: SessionActionDefinition[] = Object.values(SESSION_ACTIONS);

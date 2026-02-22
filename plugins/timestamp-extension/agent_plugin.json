@@ -2,9 +2,11 @@
   "module": "timestamp_extension",
   "subdirectory": ".",
   "entries": [
-    "timestamp_extension.TimestampExtension"
+    "timestamp_extension.timestamp_extension.TimestampExtension",
+    "timestamp_extension.duration_extension.DurationExtension"
   ],
   "kinds": {
-    "timestamp_extension.TimestampExtension": "extensions"
+    "timestamp_extension.timestamp_extension.TimestampExtension": "features",
+    "timestamp_extension.duration_extension.DurationExtension": "features"
   }
 }
