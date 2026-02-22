@@ -30,6 +30,20 @@ def test_message_to_dict():
     assert data["metadata"]["key"] == "value"
 
 
+def test_message_to_dict_includes_multipart_content():
+    msg = Message(
+        role="user",
+        content="",
+        multipart_content=[{"type": "image", "content": {"url": "data:..."}}],
+    )
+
+    data = msg.to_dict()
+
+    assert data["role"] == "user"
+    assert data["content"] == ""
+    assert data["multipartContent"] == [{"type": "image", "content": {"url": "data:..."}}]
+
+
 def test_message_from_dict():
     """Test message deserialization."""
     data = {"role": "assistant", "content": "Response", "metadata": {"tokens": 50}}
@@ -39,6 +53,18 @@ def test_message_from_dict():
     assert msg.content == "Response"
     assert msg.metadata is not None
     assert msg.metadata["tokens"] == 50
+
+
+def test_message_from_dict_roundtrips_multipart_content():
+    data = {
+        "role": "user",
+        "content": "",
+        "multipartContent": [{"type": "pdf", "content": {"filename": "a.pdf"}}],
+    }
+
+    msg = Message.from_dict(data)
+    assert msg.multipart_content == [{"type": "pdf", "content": {"filename": "a.pdf"}}]
+    assert msg.to_dict()["multipartContent"] == data["multipartContent"]
 
 
 def test_session_creation():

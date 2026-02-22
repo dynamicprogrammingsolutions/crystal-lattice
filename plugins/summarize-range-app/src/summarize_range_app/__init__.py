@@ -147,7 +147,40 @@ class SummarizeRangeAppPlugin:
                         },
                     ],
                 },
-            }
+            },
+            {
+                "ui_type": "message_action",
+                "id": "summarize_before_message",
+                "label": "Summarize messages up to here",
+                "icon": "file-text",
+                "order": 20,
+                "action_id": "summarize_range",
+                "fixed_params": {"start": 0},
+                "param_map": {
+                    "session_id": "$session.session_id",
+                    "end": "$message.index",
+                    "prompt": "$dialog.prompt",
+                },
+                "dialog": {
+                    "kind": "form",
+                    "title": "Summarize messages up to here",
+                    "message": (
+                        "The messages up to here will be summarized into a single assistant message."
+                    ),
+                    "inputs": [
+                        {
+                            "name": "prompt",
+                            # Custom input type interpreted by frontends as a
+                            # multiline text field.
+                            "type": "multiline",
+                            "label": "Prompt",
+                            "required": False,
+                            "default": prompt,
+                            "placeholder": "Optional – edit the instruction if needed",
+                        },
+                    ],
+                },
+            },
         ]
 
     def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:

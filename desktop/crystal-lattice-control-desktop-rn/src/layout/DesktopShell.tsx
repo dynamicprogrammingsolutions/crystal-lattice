@@ -21,6 +21,8 @@ export function DesktopShell({ left, main }: DesktopShellProps): React.JSX.Eleme
 }
 
 function createStyles(theme: ReturnType<typeof useTheme>) {
+  const separatorWidth = 1;
+
   return StyleSheet.create({
     root: {
       flex: 1,
@@ -28,7 +30,7 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
     },
     left: {
       width: 340,
-      borderRightWidth: StyleSheet.hairlineWidth,
+      borderRightWidth: separatorWidth,
       borderRightColor: theme.border,
       backgroundColor: theme.backgroundAlt,
     },

@@ -4,34 +4,34 @@ import { ActionsMenuBar } from '@crystal-lattice/frontend-rn-components';
 import Icon from 'react-native-vector-icons/Feather';
 
 import {
-  ALL_SESSION_ACTIONS,
-  type SessionActionDefinition,
-  type SessionActionKey,
-} from '../sessionActions';
+  ALL_MESSAGE_ACTIONS,
+  type MessageActionDefinition,
+  type MessageActionKey,
+} from './messageActions';
 
-export interface SessionActionsBarProps {
-  pinned: SessionActionKey[];
-  onChangePinned: (pinned: SessionActionKey[]) => void;
-  onAction: (action: SessionActionKey) => void;
-  isActionDisabled?: (action: SessionActionKey) => boolean;
-  extraActions?: SessionActionDefinition[];
-  availableActions?: SessionActionKey[];
+export interface MessageActionsBarProps {
+  pinned: MessageActionKey[];
+  onChangePinned: (pinned: MessageActionKey[]) => void;
+  onAction: (action: MessageActionKey) => void;
+  isActionDisabled?: (action: MessageActionKey) => boolean;
+  availableActions?: MessageActionKey[];
+  extraActions?: MessageActionDefinition[];
   isActive?: boolean;
 }
 
-const SessionActionsBar: React.FC<SessionActionsBarProps> = ({
+const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
   pinned,
   onChangePinned,
   onAction,
   isActionDisabled,
-  extraActions,
   availableActions,
+  extraActions,
   isActive,
 }) => {
   return (
-    <ActionsMenuBar<SessionActionDefinition>
-      title="Session actions"
-      variant="modal"
+    <ActionsMenuBar<MessageActionDefinition>
+      title="Message actions"
+      variant="dropdown"
       renderIcon={({ name, size, color }) => <Icon name={name} size={size} color={color} />}
       renderPinIcon={({ pinned: isPinned, size, color }) => (
         <Icon name={isPinned ? 'star' : 'star'} size={size} color={color} />
@@ -39,7 +39,7 @@ const SessionActionsBar: React.FC<SessionActionsBarProps> = ({
       renderCloseIcon={({ size, color, renderIcon }) =>
         renderIcon ? renderIcon({ name: 'x', size, color }) : null
       }
-      baseActions={ALL_SESSION_ACTIONS}
+      baseActions={ALL_MESSAGE_ACTIONS}
       extraActions={extraActions}
       availableActions={availableActions}
       pinned={pinned}
@@ -51,4 +51,4 @@ const SessionActionsBar: React.FC<SessionActionsBarProps> = ({
   );
 };
 
-export default SessionActionsBar;
+export default MessageActionsBar;

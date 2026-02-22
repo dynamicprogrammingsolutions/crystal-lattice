@@ -1,21 +1,38 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { useTheme } from '@crystal-lattice/frontend-rn-components';
 
-import type { ConnectionRecord } from '@crystal-lattice/frontend-sdk';
+import type { ConnectionRecord, SessionSummary } from '@crystal-lattice/frontend-sdk';
 
 import { DesktopShell } from './layout/DesktopShell';
 import { ConnectionsPanel } from './panels/ConnectionsPanel';
-import { SessionsPanelPlaceholder } from './panels/SessionsPanelPlaceholder';
+import { SessionsPanel } from './panels/SessionsPanel';
 import { ChatPanePlaceholder } from './chat/ChatPanePlaceholder';
+import {ChatPaneTabStack, ChatPaneTabStackPlaceholder} from './tabs/ChatPaneTabStack';
 import { SessionTabs, type DesktopSessionTab } from './tabs/SessionTabs';
 import { usePersistedConnections } from './connections/usePersistedConnections';
 import { useOpenConnections } from './connections/useOpenConnections';
 import { asyncStorageKeyValueStore } from './storage/asyncStorageKeyValueStore';
 import { desktopWindowEvents, DesktopWindowManager } from './windows/desktopWindowManager';
+import { clearActiveSessionSettingsWindow } from './windows/sessionSettingsCoordinator';
+import { cancelAttachmentMetadataWindowFromSystem } from './windows/attachmentMetadataCoordinator';
+import { clearActiveSessionPluginsWindow } from './windows/sessionPluginsCoordinator';
 import { useMessagesCache } from './cache/useMessagesCache';
 import { useSessionsCache } from './cache/useSessionsCache';
+import { desktopEventBus } from './events/desktopEventBus';
+import {
+  DEFAULT_TAB_STRIP_STYLE,
+  parseTabStripStyle,
+  type TabStripStyle,
+} from './tabs/tabStripStyle';
+import {
+  parsePersistedOpenTabsState,
+  serializePersistedOpenTabsState,
+  STORAGE_KEY_OPEN_TABS,
+} from './tabs/openTabsStorage';
+
+const EMPTY_CACHED_SESSIONS: SessionSummary[] = [];
 
 const DEFAULT_CONNECTION_ROW_CLICK_BEHAVIOR = 'focusAndOpen' as const;
 
@@ -46,9 +63,39 @@ function removeTabAndSelectNext(
   return { tabs: nextTabs, nextActiveTabId: nextTabs[neighborIndex].tabId };
 }
 
-export function DesktopRoot(): React.JSX.Element {
+function tabArrayEqualByReference(
+  a: ReadonlyArray<DesktopSessionTab>,
+  b: ReadonlyArray<DesktopSessionTab>,
+): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+export interface DesktopRootProps {
+  initialTabStripStyle?: TabStripStyle;
+  initialSessionsFollowActiveTabEnabled?: boolean;
+}
+
+export function DesktopRoot({
+  initialTabStripStyle,
+  initialSessionsFollowActiveTabEnabled,
+}: DesktopRootProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const [tabStripStyle, setTabStripStyle] = useState<TabStripStyle>(
+    parseTabStripStyle(initialTabStripStyle) ?? DEFAULT_TAB_STRIP_STYLE,
+  );
+
+  const [sessionsFollowActiveTabEnabled, setSessionsFollowActiveTabEnabled] = useState<boolean>(
+    initialSessionsFollowActiveTabEnabled !== undefined
+      ? !!initialSessionsFollowActiveTabEnabled
+      : true,
+  );
 
   const {
     hydrated: connectionsHydrated,
@@ -64,6 +111,7 @@ export function DesktopRoot(): React.JSX.Element {
     openConnection,
     closeConnection,
     closeAllConnections,
+    getBackend,
   } = useOpenConnections();
 
   // Cache hooks are introduced in task 060 so tabs can remain viewable offline.
@@ -75,13 +123,289 @@ export function DesktopRoot(): React.JSX.Element {
     clearSessionsCache,
   } = useSessionsCache(asyncStorageKeyValueStore);
 
-  const { deleteConnectionMessagesCache, clearMessagesCache } = useMessagesCache(asyncStorageKeyValueStore);
+  const {
+    messagesCache,
+    hydrated: messagesCacheHydrated,
+    updateMessagesCache,
+    deleteConnectionMessagesCache,
+    clearMessagesCache,
+  } = useMessagesCache(asyncStorageKeyValueStore);
 
   const [focusedConnectionId, setFocusedConnectionId] = useState<string | null>(null);
   const [tabs, setTabs] = useState<DesktopSessionTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
 
+  const activeTabIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    activeTabIdRef.current = activeTabId;
+  }, [activeTabId]);
+
+  const [tabsHydrated, setTabsHydrated] = useState(false);
+  const hydratedTabRangesRef = useRef<
+    Array<{ connectionId: string; sessionId: string; rangeStartText?: string | null; rangeEndText?: string | null }>
+  >([]);
+  const didSeedTabRangesRef = useRef(false);
+
   const [didAutoOpenMostRecent, setDidAutoOpenMostRecent] = useState(false);
+
+  const lastValidatedOpenedAtByConnectionRef = useRef<Record<string, number>>({});
+  const validatingConnectionIdsRef = useRef<Set<string>>(new Set());
+
+  const lastSavedOpenTabsStateRef = useRef<{
+    activeTabId: string | null;
+    tabs: DesktopSessionTab[];
+  } | null>(null);
+
+  const openTab = useCallback(
+    ({
+      connectionId,
+      sessionId,
+      title,
+      subtitle,
+    }: {
+      connectionId: string;
+      sessionId: string;
+      title?: string;
+      subtitle?: string | null;
+    }) => {
+      const tabId = buildTabId(connectionId, sessionId);
+      setTabs((prev) => {
+        const existingIndex = prev.findIndex((tab) => tab.tabId === tabId);
+        if (existingIndex >= 0) {
+          const existing = prev[existingIndex];
+          const nextTitle = typeof title === 'string' && title ? title : existing.title;
+          const nextSubtitle = subtitle !== undefined ? subtitle : existing.subtitle;
+          if (existing.title === nextTitle && existing.subtitle === nextSubtitle) {
+            return prev;
+          }
+          const next = [...prev];
+          next[existingIndex] = { ...existing, title: nextTitle, subtitle: nextSubtitle };
+          return next;
+        }
+        return [
+          ...prev,
+          {
+            tabId,
+            connectionId,
+            sessionId,
+            title: title ?? sessionId,
+            subtitle: subtitle ?? null,
+          },
+        ];
+      });
+      setActiveTabId(tabId);
+    },
+    [],
+  );
+
+  const updateOpenTabsPresentation = useCallback(
+    (params: {
+      connectionId: string;
+      presentations: Record<string, { title: string; subtitle: string | null }>;
+    }) => {
+      setTabs((prev) => {
+        if (prev.length === 0) {
+          return prev;
+        }
+
+        let changed = false;
+        const next = prev.map((tab) => {
+          if (tab.connectionId !== params.connectionId) {
+            return tab;
+          }
+
+          const presentation = params.presentations[tab.sessionId];
+          if (!presentation) {
+            return tab;
+          }
+
+          const nextTitle = presentation.title || tab.title;
+          const nextSubtitle = presentation.subtitle;
+          if (tab.title === nextTitle && tab.subtitle === nextSubtitle) {
+            return tab;
+          }
+          changed = true;
+          return { ...tab, title: nextTitle, subtitle: nextSubtitle };
+        });
+
+        return changed ? next : prev;
+      });
+    },
+    [],
+  );
+
+  const closeTab = useCallback(
+    (tabId: string) => {
+      setTabs((prev) => {
+        const result = removeTabAndSelectNext(prev, tabId, activeTabIdRef.current);
+        setActiveTabId(result.nextActiveTabId);
+        return result.tabs;
+      });
+    },
+    [],
+  );
+
+  const focusTab = useCallback((tabId: string) => {
+    setActiveTabId(tabId);
+  }, []);
+
+  const activeTab = useMemo(
+    () => (activeTabId ? tabs.find((tab) => tab.tabId === activeTabId) ?? null : null),
+    [activeTabId, tabs],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const hydrateTabs = async () => {
+      try {
+        const raw = await asyncStorageKeyValueStore.get(STORAGE_KEY_OPEN_TABS);
+        const parsed = parsePersistedOpenTabsState(raw);
+        if (!parsed || cancelled) {
+          return;
+        }
+
+        hydratedTabRangesRef.current = parsed.tabs.map((tab) => ({
+          connectionId: tab.connectionId,
+          sessionId: tab.sessionId,
+          rangeStartText: tab.rangeStartText,
+          rangeEndText: tab.rangeEndText,
+        }));
+
+        setTabs((prevTabs) => {
+          if (prevTabs.length > 0) {
+            return prevTabs;
+          }
+
+          const restoredTabs: DesktopSessionTab[] = parsed.tabs.map((tab) => {
+            const tabId = buildTabId(tab.connectionId, tab.sessionId);
+            return {
+              tabId,
+              connectionId: tab.connectionId,
+              sessionId: tab.sessionId,
+              title: tab.title,
+              subtitle: tab.subtitle ?? null,
+            };
+          });
+
+          const restoredActive =
+            parsed.activeTabId && restoredTabs.some((tab) => tab.tabId === parsed.activeTabId)
+              ? parsed.activeTabId
+              : restoredTabs[0]?.tabId ?? null;
+
+          setActiveTabId(restoredActive);
+
+          const focusedConnection = restoredActive
+            ? restoredTabs.find((tab) => tab.tabId === restoredActive)?.connectionId
+            : restoredTabs[0]?.connectionId;
+          if (focusedConnection) {
+            setFocusedConnectionId(focusedConnection);
+          }
+
+          lastSavedOpenTabsStateRef.current = {
+            activeTabId: restoredActive,
+            tabs: restoredTabs,
+          };
+
+          return restoredTabs;
+        });
+      } finally {
+        if (!cancelled) {
+          setTabsHydrated(true);
+        }
+      }
+    };
+
+    hydrateTabs();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!tabsHydrated) {
+      return;
+    }
+    if (!messagesCacheHydrated) {
+      return;
+    }
+    if (didSeedTabRangesRef.current) {
+      return;
+    }
+
+    const ranges = hydratedTabRangesRef.current;
+    if (ranges.length === 0) {
+      didSeedTabRangesRef.current = true;
+      return;
+    }
+
+    didSeedTabRangesRef.current = true;
+    for (const range of ranges) {
+      const startText = range.rangeStartText;
+      const endText = range.rangeEndText;
+      if (startText == null && endText == null) {
+        continue;
+      }
+
+      const existing = messagesCache[range.connectionId]?.[range.sessionId];
+      const existingHasRange =
+        (typeof existing?.rangeStartText === 'string' || existing?.rangeStartText === null) &&
+        (typeof existing?.rangeEndText === 'string' || existing?.rangeEndText === null);
+      if (existing && existingHasRange) {
+        continue;
+      }
+
+      updateMessagesCache({
+        connectionId: range.connectionId,
+        sessionId: range.sessionId,
+        messages: existing?.messages ?? [],
+        cursorEventId: existing?.cursorEventId ?? null,
+        activeRequestId: existing?.activeRequestId ?? null,
+        rangeStartText: startText ?? null,
+        rangeEndText: endText ?? null,
+      });
+    }
+  }, [messagesCache, messagesCacheHydrated, tabsHydrated, updateMessagesCache]);
+
+  useEffect(() => {
+    if (!tabsHydrated) {
+      return;
+    }
+
+    const lastSaved = lastSavedOpenTabsStateRef.current;
+    if (
+      lastSaved &&
+      lastSaved.activeTabId === activeTabId &&
+      tabArrayEqualByReference(lastSaved.tabs, tabs)
+    ) {
+      return;
+    }
+
+    lastSavedOpenTabsStateRef.current = {
+      activeTabId,
+      tabs,
+    };
+
+    const save = async () => {
+      try {
+        await asyncStorageKeyValueStore.set(
+          STORAGE_KEY_OPEN_TABS,
+          serializePersistedOpenTabsState({
+            activeTabId,
+            tabs: tabs.map((tab) => ({
+              connectionId: tab.connectionId,
+              sessionId: tab.sessionId,
+              title: tab.title,
+              subtitle: tab.subtitle ?? null,
+            })),
+          }),
+        );
+      } catch {
+      }
+    };
+
+    save();
+  }, [activeTabId, tabs, tabsHydrated]);
 
   useEffect(() => {
     if (!connectionsHydrated) return;
@@ -109,6 +433,7 @@ export function DesktopRoot(): React.JSX.Element {
         const sessions = await backend.listSessions({ limit: 50 });
         updateSessionsCache(record.id, sessions);
       } catch {
+        // Ignore; cache remains stale.
       }
     },
     [openConnection, touchConnection, updateSessionsCache],
@@ -116,6 +441,13 @@ export function DesktopRoot(): React.JSX.Element {
 
   useEffect(() => {
     if (!connectionsHydrated) return;
+    if (!tabsHydrated) return;
+
+    if (tabs.length > 0) {
+      // If tabs were restored, don't auto-open any connections.
+      setDidAutoOpenMostRecent(true);
+      return;
+    }
     if (didAutoOpenMostRecent) return;
     const mostRecent = sortedConnectionRecords[0];
     if (!mostRecent) {
@@ -125,54 +457,216 @@ export function DesktopRoot(): React.JSX.Element {
     setDidAutoOpenMostRecent(true);
     setFocusedConnectionId(mostRecent.id);
     openConnectionAndTouch(mostRecent);
-  }, [connectionsHydrated, didAutoOpenMostRecent, openConnectionAndTouch, sortedConnectionRecords]);
+  }, [
+    connectionsHydrated,
+    didAutoOpenMostRecent,
+    openConnectionAndTouch,
+    sortedConnectionRecords,
+    tabs,
+    tabsHydrated,
+  ]);
+
+  useEffect(() => {
+    if (!connectionsHydrated) return;
+    if (!tabsHydrated) return;
+
+    const validConnectionIds = new Set(sortedConnectionRecords.map((record) => record.id));
+    setTabs((prevTabs) => {
+      if (prevTabs.length === 0) {
+        return prevTabs;
+      }
+
+      const nextTabs = prevTabs.filter((tab) => validConnectionIds.has(tab.connectionId));
+      if (nextTabs.length === prevTabs.length) {
+        return prevTabs;
+      }
+
+      setActiveTabId((prevActive) => {
+        if (prevActive && nextTabs.some((tab) => tab.tabId === prevActive)) {
+          return prevActive;
+        }
+        return nextTabs[0]?.tabId ?? null;
+      });
+
+      return nextTabs;
+    });
+  }, [connectionsHydrated, sortedConnectionRecords, tabsHydrated]);
+
+  useEffect(() => {
+    if (!tabsHydrated) {
+      return;
+    }
+
+    const openConnectionIds = Object.keys(openConnectionsById);
+    if (openConnectionIds.length === 0) {
+      return;
+    }
+
+    for (const connectionId of openConnectionIds) {
+      const openState = openConnectionsById[connectionId];
+      if (!openState || openState.status !== 'open' || !openState.backend) {
+        continue;
+      }
+
+      const openedAt = typeof openState.lastOpenedAt === 'number' ? openState.lastOpenedAt : 0;
+      if (!openedAt) {
+        continue;
+      }
+
+      if (lastValidatedOpenedAtByConnectionRef.current[connectionId] === openedAt) {
+        continue;
+      }
+
+      if (validatingConnectionIdsRef.current.has(connectionId)) {
+        continue;
+      }
+
+      lastValidatedOpenedAtByConnectionRef.current[connectionId] = openedAt;
+      validatingConnectionIdsRef.current.add(connectionId);
+
+      const backend = openState.backend;
+      const tabsForConnection = tabs.filter((tab) => tab.connectionId === connectionId);
+      if (tabsForConnection.length === 0) {
+        validatingConnectionIdsRef.current.delete(connectionId);
+        continue;
+      }
+
+      (async () => {
+        try {
+          for (const tab of tabsForConnection) {
+            try {
+              await backend.getSessionAgent(tab.sessionId);
+            } catch (err: any) {
+              const message = typeof err?.message === 'string' ? err.message : '';
+              if (/\bHTTP 404\b/.test(message)) {
+                closeTab(tab.tabId);
+              }
+            }
+          }
+        } finally {
+          validatingConnectionIdsRef.current.delete(connectionId);
+        }
+      })();
+    }
+  }, [closeTab, openConnectionsById, tabs, tabsHydrated]);
 
   useEffect(() => {
     if (!desktopWindowEvents) return;
 
-    const savedSub = desktopWindowEvents.addListener(
-      'connectionEditorSaved',
+    const savedSub = desktopWindowEvents.addListener('connectionEditorSaved', (payload: any) => {
+      const record = payload?.record;
+      if (!record || typeof record !== 'object' || typeof record.id !== 'string') {
+        return;
+      }
+      upsertConnection(record);
+      setFocusedConnectionId(record.id);
+      openConnectionAndTouch(record);
+    });
+
+    const styleSub = desktopWindowEvents.addListener('tabStripStyleChanged', (payload: any) => {
+      const style = parseTabStripStyle(payload?.style);
+      if (!style) {
+        return;
+      }
+      setTabStripStyle(style);
+    });
+
+    const followSub = desktopWindowEvents.addListener(
+      'sessionsFollowActiveTabChanged',
       (payload: any) => {
-        const record = payload?.record;
-        if (!record || typeof record !== 'object' || typeof record.id !== 'string') {
+        if (payload && typeof payload.enabled === 'boolean') {
+          setSessionsFollowActiveTabEnabled(payload.enabled);
+        }
+      },
+    );
+
+    const agentPickerSub = desktopWindowEvents.addListener(
+      'agentPickerSelected',
+      (payload: any) => {
+        const pickedConnectionId = payload?.connectionId;
+        const agentId = payload?.agentId;
+        const mode = payload?.mode;
+        const pickedSessionId = payload?.sessionId;
+        if (typeof pickedConnectionId !== 'string' || !pickedConnectionId) {
           return;
         }
-        upsertConnection(record);
-        setFocusedConnectionId(record.id);
-        openConnectionAndTouch(record);
+        if (typeof agentId !== 'string' || !agentId) {
+          return;
+        }
+
+        const backend = getBackend(pickedConnectionId);
+        if (!backend) {
+          return;
+        }
+
+        if (mode === 'switchSessionAgent') {
+          if (typeof pickedSessionId !== 'string' || !pickedSessionId) {
+            return;
+          }
+
+          backend
+            .switchSessionAgent(pickedSessionId, agentId)
+            .then(() => {
+              desktopEventBus.publish('sessionAgentSwitched', {
+                connectionId: pickedConnectionId,
+                sessionId: pickedSessionId,
+                agentId,
+              });
+            })
+            .catch(() => {});
+          return;
+        }
+
+        backend
+          .createSession({ agentId })
+          .then((resp) => {
+            const sessionId = resp?.session?.session_id;
+            if (typeof sessionId !== 'string' || !sessionId) {
+              return;
+            }
+            openTab({ connectionId: pickedConnectionId, sessionId, title: `Session ${sessionId.slice(0, 8)}` });
+            desktopEventBus.publish('sessionsReloadRequested', {
+              connectionId: pickedConnectionId,
+              reason: 'sessionCreated',
+            });
+
+            backend
+              .listSessions({ limit: 50 })
+              .then((sessions) => {
+                if (Array.isArray(sessions)) {
+                  updateSessionsCache(pickedConnectionId, sessions);
+                }
+              })
+              .catch(() => {});
+          })
+          .catch(() => {});
+      },
+    );
+
+    const sessionSettingsCancelledSub = desktopWindowEvents.addListener(
+      'reactWindowCancelled',
+      (payload) => {
+        const windowKey = payload?.windowKey;
+        if (windowKey === 'sessionSettings') {
+          clearActiveSessionSettingsWindow();
+        }
+        if (windowKey === 'sessionPlugins') {
+          clearActiveSessionPluginsWindow();
+        }
+        if (windowKey === 'attachmentMetadata') {
+          cancelAttachmentMetadataWindowFromSystem();
+        }
       },
     );
 
     return () => {
       savedSub.remove();
+      styleSub.remove();
+      followSub.remove();
+      agentPickerSub.remove();
+      sessionSettingsCancelledSub.remove();
     };
-  }, [openConnectionAndTouch, upsertConnection]);
-
-  const openTab = useCallback(
-    ({ connectionId, sessionId, title }: { connectionId: string; sessionId: string; title?: string }) => {
-      const tabId = buildTabId(connectionId, sessionId);
-      setTabs((prev) => {
-        if (prev.some((tab) => tab.tabId === tabId)) {
-          return prev;
-        }
-        return [...prev, { tabId, connectionId, sessionId, title: title ?? sessionId }];
-      });
-      setActiveTabId(tabId);
-    },
-    [],
-  );
-
-  const closeTab = useCallback((tabId: string) => {
-    setTabs((prev) => {
-      const result = removeTabAndSelectNext(prev, tabId, activeTabId);
-      setActiveTabId(result.nextActiveTabId);
-      return result.tabs;
-    });
-  }, [activeTabId]);
-
-  const focusTab = useCallback((tabId: string) => {
-    setActiveTabId(tabId);
-  }, []);
+  }, [getBackend, openConnectionAndTouch, openTab, updateSessionsCache, upsertConnection]);
 
   const connectionNameById = useMemo(() => {
     const map: Record<string, string> = {};
@@ -253,27 +747,33 @@ export function DesktopRoot(): React.JSX.Element {
               onOpenEditConnectionEditor={openEditConnectionEditor}
             />
 
-            <SessionsPanelPlaceholder
+            <SessionsPanel
               focusedConnectionId={focusedConnectionId}
-              focusedConnectionName={focusedConnectionId ? connectionNameById[focusedConnectionId] : null}
-              isFocusedConnectionOpen={
+              focusedConnectionName={
+                focusedConnectionId ? connectionNameById[focusedConnectionId] : null
+              }
+              connectionId={focusedConnectionId}
+              backend={focusedConnectionId ? getBackend(focusedConnectionId) : null}
+              isOnline={
                 focusedConnectionId
                   ? openConnectionsById[focusedConnectionId]?.status === 'open'
                   : false
               }
               cachedSessions={
                 focusedConnectionId
-                  ? sessionsCache[focusedConnectionId]?.sessions ?? []
-                  : []
+                  ? sessionsCache[focusedConnectionId]?.sessions ?? EMPTY_CACHED_SESSIONS
+                  : EMPTY_CACHED_SESSIONS
               }
               cachedLastLoadedAt={
-                focusedConnectionId
-                  ? sessionsCache[focusedConnectionId]?.lastLoadedAt ?? null
-                  : null
+                focusedConnectionId ? sessionsCache[focusedConnectionId]?.lastLoadedAt ?? null : null
               }
-              onOpenSession={({ connectionId, sessionId, title }) => {
-                openTab({ connectionId, sessionId, title });
-              }}
+              activeTabId={activeTabId}
+              activeTabConnectionId={activeTab?.connectionId ?? null}
+              activeTabSessionId={activeTab?.sessionId ?? null}
+              followActiveTabEnabled={sessionsFollowActiveTabEnabled}
+              onUpdateCache={updateSessionsCache}
+              onOpenSessionTab={openTab}
+              onUpdateOpenTabsPresentation={updateOpenTabsPresentation}
             />
           </View>
         )}
@@ -282,27 +782,39 @@ export function DesktopRoot(): React.JSX.Element {
             <SessionTabs
               tabs={tabs}
               activeTabId={activeTabId}
+              styleVariant={tabStripStyle}
               connectionNameById={connectionNameById}
               onSelectTab={focusTab}
               onCloseTab={closeTab}
             />
 
-            <View style={styles.mainContent}>
+            <View
+              style={[
+                styles.mainContent,
+                tabStripStyle === 'codeTabs' || tabStripStyle === 'underlineTabs'
+                  ? styles.mainContentCodeLike
+                  : styles.mainContentCardLike,
+              ]}
+            >
               {tabs.length === 0 ? (
                 <ChatPanePlaceholder
                   visible
                   title="No sessions open"
                   subtitle="Select a session from the left to open it in a tab."
+                  styleVariant={tabStripStyle}
                 />
               ) : (
-                tabs.map((tab) => (
-                  <ChatPanePlaceholder
-                    key={tab.tabId}
-                    visible={tab.tabId === activeTabId}
-                    title={tab.title}
-                    subtitle={`${connectionNameById[tab.connectionId] ?? tab.connectionId} • ${tab.sessionId}`}
-                  />
-                ))
+	                <ChatPaneTabStack
+	                  tabs={tabs}
+	                  activeTabId={activeTabId}
+	                  styleVariant={tabStripStyle}
+	                  connectionNameById={connectionNameById}
+	                  getBackend={getBackend}
+	                  sessionsCache={sessionsCache}
+	                  messagesCache={messagesCache}
+	                  onUpdateCache={updateMessagesCache}
+	                  onOpenSessionTab={openTab}
+	                />
               )}
             </View>
           </View>
@@ -329,6 +841,13 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
     mainContent: {
       flex: 1,
       padding: 12,
+    },
+    mainContentCardLike: {
+      backgroundColor: theme.backgroundAlt,
+    },
+    mainContentCodeLike: {
+      padding: 0,
+      backgroundColor: theme.surface,
     },
   });
 }

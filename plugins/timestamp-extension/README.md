@@ -1,5 +1,12 @@
 # timestamp-extension
 
-Timestamp provider extension plugin.
+Timing-related feature plugins.
 
-Adds footer timestamp UI elements derived from message metadata.
+## TimestampExtension
+
+- Adds a footer timestamp derived from `metadata.timestamp`.
+
+## DurationExtension
+
+- Adds per-request `duration` (start/end timestamps + elapsed time).
+- Adds per-turn cumulative `turn duration` similar to OpenRouter usage turn totals.

@@ -1,6 +1,6 @@
 import type { SessionListFieldElement } from '../types/plugins';
 import type { SessionSummary } from '../types/sessions';
-import { extractByPath, renderTemplate } from '../utils/uiSchema';
+import { extractByPath, renderTemplate, formatValueForElement } from '../utils/uiSchema';
 
 export interface SessionListFieldGroups {
   titleFields: SessionListFieldElement[];
@@ -68,11 +68,7 @@ export function deriveSessionListPresentationFromGroups(
       const path = field.data;
       if (typeof path !== 'string' || !path) continue;
       const rawValue = extractByPath(session as any, path);
-      let valueForTemplate: any = rawValue;
-      const metadata = (field as any).metadata || {};
-      if (metadata.format === 'datetime' && typeof rawValue === 'number') {
-        valueForTemplate = new Date(rawValue * 1000).toLocaleString();
-      }
+      const valueForTemplate: any = formatValueForElement(field as any, rawValue);
       if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') {
         continue;
       }

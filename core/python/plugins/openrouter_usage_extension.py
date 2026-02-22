@@ -63,13 +63,28 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
         return [
             {
                 "ui_type": "message_footer",
-                "data": "metadata.usage_total_tokens_formatted",
-                "template": "tokens: {{data}}",
+                "data": "metadata.usage_prompt_tokens_formatted",
+                "template": "input: {{data}}",
             },
             {
                 "ui_type": "message_footer",
-                "data": "metadata.usage_total_cost_formatted",
-                "template": "cost: {{data}}",
+                "data": "metadata.usage_cached_tokens_formatted",
+                "template": "cached: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_completion_tokens_formatted",
+                "template": "completion: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_turn_cost_cumulative_formatted",
+                "template": "turn: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_turn_reasoning_tokens_cumulative_formatted",
+                "template": "reasoning: {{data}}",
             },
             {
                 "ui_type": "status_bar",
@@ -110,7 +125,9 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
         message's internal ``_metadata``:
 
         - ``usage`` – the full usage object as returned by OpenRouter.
-        - ``usage_total_tokens_formatted`` – human-friendly token count.
+        - ``usage_prompt_tokens_formatted`` – human-friendly prompt (input) token count.
+        - ``usage_cached_tokens_formatted`` – human-friendly cached token count.
+        - ``usage_completion_tokens_formatted`` – human-friendly completion token count.
         - ``usage_total_cost_formatted`` – human-friendly cost string.
         """
 
@@ -122,9 +139,17 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                 internal_md = native.get("_metadata") or {}
                 if isinstance(internal_md, dict) and "usage" in internal_md:
                     core_md["usage"] = internal_md.get("usage")
-                    if "usage_total_tokens_formatted" in internal_md:
-                        core_md["usage_total_tokens_formatted"] = internal_md[
-                            "usage_total_tokens_formatted"
+                    if "usage_prompt_tokens_formatted" in internal_md:
+                        core_md["usage_prompt_tokens_formatted"] = internal_md[
+                            "usage_prompt_tokens_formatted"
+                        ]
+                    if "usage_cached_tokens_formatted" in internal_md:
+                        core_md["usage_cached_tokens_formatted"] = internal_md[
+                            "usage_cached_tokens_formatted"
+                        ]
+                    if "usage_completion_tokens_formatted" in internal_md:
+                        core_md["usage_completion_tokens_formatted"] = internal_md[
+                            "usage_completion_tokens_formatted"
                         ]
                     if "usage_total_cost_formatted" in internal_md:
                         core_md["usage_total_cost_formatted"] = internal_md[
@@ -138,6 +163,30 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                         core_md["usage_total_cost_cumulative_formatted"] = internal_md[
                             "usage_total_cost_cumulative_formatted"
                         ]
+                    # Only expose per-turn cost on assistant messages that
+                    # do not include tool calls.
+                    has_tool_calls = False
+                    if isinstance(native, dict):
+                        tcs = native.get("tool_calls")
+                        if isinstance(tcs, list) and tcs:
+                            has_tool_calls = True
+                    if not has_tool_calls:
+                        if "usage_turn_cost_cumulative" in internal_md:
+                            core_md["usage_turn_cost_cumulative"] = internal_md[
+                                "usage_turn_cost_cumulative"
+                            ]
+                        if "usage_turn_cost_cumulative_formatted" in internal_md:
+                            core_md["usage_turn_cost_cumulative_formatted"] = internal_md[
+                                "usage_turn_cost_cumulative_formatted"
+                            ]
+                        if "usage_turn_reasoning_tokens_cumulative" in internal_md:
+                            core_md["usage_turn_reasoning_tokens_cumulative"] = internal_md[
+                                "usage_turn_reasoning_tokens_cumulative"
+                            ]
+                        if "usage_turn_reasoning_tokens_cumulative_formatted" in internal_md:
+                            core_md["usage_turn_reasoning_tokens_cumulative_formatted"] = internal_md[
+                                "usage_turn_reasoning_tokens_cumulative_formatted"
+                            ]
                 enhanced.append({**msg, "metadata": core_md})
             return enhanced
 
@@ -145,14 +194,23 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
         # back to copying only onto the last core message.
         enhanced.extend(messages)
         if native_messages and messages:
-            internal_md = native_messages[-1].get("_metadata") or {}
+            native_last = native_messages[-1] if isinstance(native_messages[-1], dict) else {}
+            internal_md = native_last.get("_metadata") or {}
             if isinstance(internal_md, dict) and "usage" in internal_md:
                 last_msg = dict(messages[-1])
                 core_md = dict(last_msg.get("metadata") or {})
                 core_md["usage"] = internal_md.get("usage")
-                if "usage_total_tokens_formatted" in internal_md:
-                    core_md["usage_total_tokens_formatted"] = internal_md[
-                        "usage_total_tokens_formatted"
+                if "usage_prompt_tokens_formatted" in internal_md:
+                    core_md["usage_prompt_tokens_formatted"] = internal_md[
+                        "usage_prompt_tokens_formatted"
+                    ]
+                if "usage_cached_tokens_formatted" in internal_md:
+                    core_md["usage_cached_tokens_formatted"] = internal_md[
+                        "usage_cached_tokens_formatted"
+                    ]
+                if "usage_completion_tokens_formatted" in internal_md:
+                    core_md["usage_completion_tokens_formatted"] = internal_md[
+                        "usage_completion_tokens_formatted"
                     ]
                 if "usage_total_cost_formatted" in internal_md:
                     core_md["usage_total_cost_formatted"] = internal_md[
@@ -166,6 +224,29 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                     core_md["usage_total_cost_cumulative_formatted"] = internal_md[
                         "usage_total_cost_cumulative_formatted"
                     ]
+
+                has_tool_calls = False
+                tcs = native_last.get("tool_calls")
+                if isinstance(tcs, list) and tcs:
+                    has_tool_calls = True
+                if not has_tool_calls:
+                    if "usage_turn_cost_cumulative" in internal_md:
+                        core_md["usage_turn_cost_cumulative"] = internal_md[
+                            "usage_turn_cost_cumulative"
+                        ]
+                    if "usage_turn_cost_cumulative_formatted" in internal_md:
+                        core_md["usage_turn_cost_cumulative_formatted"] = internal_md[
+                            "usage_turn_cost_cumulative_formatted"
+                        ]
+                    if "usage_turn_reasoning_tokens_cumulative" in internal_md:
+                        core_md["usage_turn_reasoning_tokens_cumulative"] = internal_md[
+                            "usage_turn_reasoning_tokens_cumulative"
+                        ]
+                    if "usage_turn_reasoning_tokens_cumulative_formatted" in internal_md:
+                        core_md["usage_turn_reasoning_tokens_cumulative_formatted"] = internal_md[
+                            "usage_turn_reasoning_tokens_cumulative_formatted"
+                        ]
+
                 enhanced[-1] = {**last_msg, "metadata": core_md}
 
         return enhanced
@@ -215,12 +296,39 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
         total_tokens = usage.get("total_tokens")
         total_cost = usage.get("cost") or usage.get("cost_details",{}).get("upstream_inference_cost",0)
 
-        tokens_str = None
-        if isinstance(total_tokens, (int, float)):
-            try:
-                tokens_str = f"{int(total_tokens):,}"
-            except Exception:
-                tokens_str = str(total_tokens)
+        # Per-message token breakdown: prompt (input), cached, completion.
+        prompt_tokens_str = None
+        cached_tokens_str = None
+        completion_tokens_str = None
+        try:
+            prompt_tokens = usage.get("prompt_tokens")
+            if isinstance(prompt_tokens, (int, float)):
+                try:
+                    prompt_tokens_str = f"{int(prompt_tokens):,}"
+                except Exception:
+                    prompt_tokens_str = str(prompt_tokens)
+        except Exception:
+            prompt_tokens_str = None
+
+        try:
+            cached_tokens = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
+            if isinstance(cached_tokens, (int, float)):
+                try:
+                    cached_tokens_str = f"{int(cached_tokens):,}"
+                except Exception:
+                    cached_tokens_str = str(cached_tokens)
+        except Exception:
+            cached_tokens_str = None
+
+        try:
+            completion_tokens = usage.get("completion_tokens")
+            if isinstance(completion_tokens, (int, float)):
+                try:
+                    completion_tokens_str = f"{int(completion_tokens):,}"
+                except Exception:
+                    completion_tokens_str = str(completion_tokens)
+        except Exception:
+            completion_tokens_str = None
 
         cost_str = None
         cumulative_cost = None
@@ -248,7 +356,7 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                         usage_prev = md_prev.get("usage") or {}
                         if not isinstance(usage_prev, dict):
                             continue
-                        prev_cost = usage_prev.get("cost") or usage.get("cost_details",{}).get("upstream_inference_cost",0)
+                        prev_cost = usage_prev.get("cost") or usage_prev.get("cost_details", {}).get("upstream_inference_cost", 0)
                         if isinstance(prev_cost, (int, float)):
                             base_total += float(prev_cost)
                 except Exception:
@@ -257,12 +365,102 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                 cumulative_cost = base_total + current_cost
                 cumulative_cost_str = f"${cumulative_cost:.6f}"
 
+                # Compute per-turn running total. The turn begins after the
+                # last separator: either the most recent user/system message
+                # or the most recent assistant message that had no tool calls.
+                base_total_turn = 0.0
+                base_total_turn_reasoning = 0
+                try:
+                    last_sep_idx = -1
+                    for idx, msg in enumerate(native_messages):
+                        if not isinstance(msg, dict):
+                            continue
+                        role = msg.get("role")
+                        if role in ("user", "system"):
+                            last_sep_idx = idx
+                            continue
+                        if role == "assistant":
+                            has_tool_calls = False
+                            tcs = msg.get("tool_calls")
+                            if isinstance(tcs, list) and tcs:
+                                has_tool_calls = True
+                            else:
+                                md_prev = msg.get("_metadata") or {}
+                                if isinstance(md_prev, dict) and md_prev.get("tool_calls"):
+                                    has_tool_calls = True
+                            if not has_tool_calls:
+                                last_sep_idx = idx
+
+                    for idx, msg in enumerate(native_messages):
+                        if not isinstance(msg, dict):
+                            continue
+                        if idx <= last_sep_idx:
+                            continue
+                        if msg.get("role") != "assistant":
+                            continue
+                        md_prev = msg.get("_metadata") or {}
+                        if not isinstance(md_prev, dict):
+                            continue
+                        usage_prev = md_prev.get("usage") or {}
+                        if not isinstance(usage_prev, dict):
+                            continue
+                        prev_cost = usage_prev.get("cost") or usage_prev.get("cost_details", {}).get("upstream_inference_cost", 0)
+                        if isinstance(prev_cost, (int, float)):
+                            base_total_turn += float(prev_cost)
+                        # Sum reasoning tokens for per-turn reasoning total.
+                        prev_reasoning = None
+                        try:
+                            prev_reasoning = (
+                                usage_prev.get("completion_tokens_details") or {}
+                            ).get("reasoning_tokens", None)
+                        except Exception:
+                            prev_reasoning = None
+                        if isinstance(prev_reasoning, (int, float)):
+                            try:
+                                base_total_turn_reasoning += int(prev_reasoning)
+                            except Exception:
+                                pass
+                except Exception:
+                    base_total_turn = 0.0
+                    base_total_turn_reasoning = 0
+
+                usage_turn_cumulative = base_total_turn + current_cost
+                usage_turn_cumulative_str = f"${usage_turn_cumulative:.6f}"
+
+                # Compute per-turn reasoning tokens (if present in usage).
+                usage_turn_reasoning_cumulative = None
+                usage_turn_reasoning_cumulative_str = None
+                try:
+                    current_reasoning = (
+                        usage.get("completion_tokens_details") or {}
+                    ).get("reasoning_tokens", None)
+                    if isinstance(current_reasoning, (int, float)):
+                        try:
+                            current_reasoning_int = int(current_reasoning)
+                        except Exception:
+                            current_reasoning_int = None
+                        if current_reasoning_int is not None:
+                            if "base_total_turn_reasoning" not in locals():
+                                base_total_turn_reasoning = 0
+                            usage_turn_reasoning_cumulative = base_total_turn_reasoning + current_reasoning_int
+                            try:
+                                usage_turn_reasoning_cumulative_str = f"{int(usage_turn_reasoning_cumulative):,}"
+                            except Exception:
+                                usage_turn_reasoning_cumulative_str = str(usage_turn_reasoning_cumulative)
+                except Exception:
+                    usage_turn_reasoning_cumulative = None
+                    usage_turn_reasoning_cumulative_str = None
+
         accumulated = state.get("partial")
         if isinstance(accumulated, dict):
             internal_md = dict(accumulated.get("_metadata") or {})
             internal_md["usage"] = usage
-            if tokens_str is not None:
-                internal_md["usage_total_tokens_formatted"] = tokens_str
+            if prompt_tokens_str is not None:
+                internal_md["usage_prompt_tokens_formatted"] = prompt_tokens_str
+            if cached_tokens_str is not None:
+                internal_md["usage_cached_tokens_formatted"] = cached_tokens_str
+            if completion_tokens_str is not None:
+                internal_md["usage_completion_tokens_formatted"] = completion_tokens_str
             if cost_str is not None:
                 internal_md["usage_total_cost_formatted"] = cost_str
             if cumulative_cost is not None:
@@ -271,6 +469,19 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                 internal_md["usage_total_cost_cumulative_formatted"] = (
                     cumulative_cost_str
                 )
+            try:
+                if "usage_turn_cumulative" in locals():
+                    internal_md["usage_turn_cost_cumulative"] = usage_turn_cumulative
+                if "usage_turn_cumulative_str" in locals():
+                    internal_md["usage_turn_cost_cumulative_formatted"] = usage_turn_cumulative_str
+                if "usage_turn_reasoning_cumulative" in locals() and usage_turn_reasoning_cumulative is not None:
+                    internal_md["usage_turn_reasoning_tokens_cumulative"] = usage_turn_reasoning_cumulative
+                if "usage_turn_reasoning_cumulative_str" in locals() and usage_turn_reasoning_cumulative_str is not None:
+                    internal_md["usage_turn_reasoning_tokens_cumulative_formatted"] = (
+                        usage_turn_reasoning_cumulative_str
+                    )
+            except Exception:
+                pass
             accumulated = {**accumulated, "_metadata": internal_md}
             new_state: Dict[str, Any] = {**state, "partial": accumulated}
         else:

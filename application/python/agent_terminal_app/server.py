@@ -4,10 +4,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import asyncio
+import hashlib
 import json
 import os
 import threading
 import logging
+import time
 import uuid
 from datetime import datetime
 
@@ -16,7 +18,7 @@ try:  # Optional convenience in local usage
 except Exception:  # pragma: no cover - optional dependency
     load_dotenv = None  # type: ignore[assignment]
 
-from fastapi import Depends, FastAPI, HTTPException  # type: ignore[reportMissingImports]
+from fastapi import Depends, FastAPI, Header, HTTPException  # type: ignore[reportMissingImports]
 
 from agent_app.application_future import AgentApplication
 from agent_app.config import resolve_request_config
@@ -47,6 +49,230 @@ _bridge_client: Optional[bridge_mod.BridgeClient] = None
 _bridge_task: Optional[asyncio.Task[None]] = None
 
 _log = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Process-local concurrency guards
+# ---------------------------------------------------------------------------
+
+
+_send_single_flight_lock = threading.Lock()
+_active_send_request_by_session: Dict[str, str] = {}
+
+
+def _get_active_send_request_id(session_id: str) -> Optional[str]:
+    with _send_single_flight_lock:
+        return _active_send_request_by_session.get(session_id)
+
+
+def _set_active_send_request_id(session_id: str, request_id: str) -> None:
+    with _send_single_flight_lock:
+        _active_send_request_by_session[session_id] = request_id
+
+
+def _reserve_active_send_request_id(session_id: str, request_id: str) -> Optional[str]:
+    """Reserve ``request_id`` as the active send for ``session_id``.
+
+    Returns the existing active request id when the session already has
+    a send in flight; returns ``None`` when the reservation succeeds.
+    """
+
+    with _send_single_flight_lock:
+        existing = _active_send_request_by_session.get(session_id)
+        if existing is not None:
+            return existing
+        _active_send_request_by_session[session_id] = request_id
+        return None
+
+
+def _clear_active_send_request_id(session_id: str, request_id: str) -> None:
+    with _send_single_flight_lock:
+        current = _active_send_request_by_session.get(session_id)
+        if current == request_id:
+            _active_send_request_by_session.pop(session_id, None)
+
+
+_IDEMPOTENCY_TTL_SECONDS = 10 * 60.0
+_IDEMPOTENCY_MAX_ENTRIES = 2048
+
+_idempotency_lock = threading.Lock()
+_idempotency_cache: Dict[Tuple[str, str], Tuple[float, str, Any]] = {}
+
+
+def _normalize_idempotency_key(raw: Optional[str]) -> Optional[str]:
+    # When these route functions are called directly (outside FastAPI's
+    # dependency injection), default parameters that use ``Header(...)``
+    # will be instances of ``fastapi.params.Header`` rather than a string.
+    if not isinstance(raw, str):
+        return None
+    key = raw.strip()
+    return key or None
+
+
+def _payload_fingerprint(payload: Any) -> str:
+    try:
+        encoded = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            default=str,
+        ).encode("utf-8")
+    except Exception:
+        encoded = repr(payload).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _idempotency_cleanup_locked(now: float) -> None:
+    if len(_idempotency_cache) <= _IDEMPOTENCY_MAX_ENTRIES and not _idempotency_cache:
+        return
+
+    expired: List[Tuple[str, str]] = []
+    for cache_key, (created_at, _fingerprint, _resp) in _idempotency_cache.items():
+        if (now - created_at) > _IDEMPOTENCY_TTL_SECONDS:
+            expired.append(cache_key)
+    for cache_key in expired:
+        _idempotency_cache.pop(cache_key, None)
+
+    if len(_idempotency_cache) <= _IDEMPOTENCY_MAX_ENTRIES:
+        return
+
+    # Best-effort eviction: drop the oldest entries.
+    ordered = sorted(_idempotency_cache.items(), key=lambda item: item[1][0])
+    overflow = len(_idempotency_cache) - _IDEMPOTENCY_MAX_ENTRIES
+    for idx in range(max(0, overflow)):
+        cache_key, _ = ordered[idx]
+        _idempotency_cache.pop(cache_key, None)
+
+
+def _idempotency_maybe_replay(scope: str, key: Optional[str], payload: Any) -> Optional[Any]:
+    idem_key = _normalize_idempotency_key(key)
+    if idem_key is None:
+        return None
+
+    now = time.monotonic()
+    fingerprint = _payload_fingerprint(payload)
+    cache_key = (scope, idem_key)
+
+    with _idempotency_lock:
+        _idempotency_cleanup_locked(now)
+        entry = _idempotency_cache.get(cache_key)
+        if entry is None:
+            return None
+
+        created_at, stored_fingerprint, response = entry
+        if (now - created_at) > _IDEMPOTENCY_TTL_SECONDS:
+            _idempotency_cache.pop(cache_key, None)
+            return None
+
+        if stored_fingerprint != fingerprint:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Idempotency-Key has already been used with a different payload "
+                    f"for scope {scope!r}"
+                ),
+            )
+
+        return response
+
+
+def _idempotency_store(scope: str, key: Optional[str], payload: Any, response: Any) -> None:
+    idem_key = _normalize_idempotency_key(key)
+    if idem_key is None:
+        return
+
+    now = time.monotonic()
+    fingerprint = _payload_fingerprint(payload)
+    cache_key = (scope, idem_key)
+
+    with _idempotency_lock:
+        _idempotency_cleanup_locked(now)
+        _idempotency_cache[cache_key] = (now, fingerprint, response)
+
+
+def _generate_request_id(app_instance: AgentApplication) -> str:
+    """Generate a request id matching AgentApplication conventions."""
+
+    new_rid = getattr(app_instance, "_new_request_id", None)
+    if callable(new_rid):
+        try:
+            rid = new_rid()
+            if isinstance(rid, str) and rid:
+                return rid
+        except Exception:  # pragma: no cover - defensive
+            pass
+    return str(uuid.uuid4())
+
+
+def _load_session_ctx_for_send(
+    app_instance: AgentApplication,
+    session_id: str,
+) -> Tuple[Any, Any, Session]:
+    try:
+        session_record = app_instance.load_session_record(session_id)
+        if session_record is None:
+            raise KeyError(f"Session {session_id!r} not found")
+
+        ctx = app_instance.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+
+        return ctx
+    except KeyError as exc:
+        detail = exc.args[0] if exc.args and isinstance(exc.args[0], str) else str(exc)
+        if isinstance(detail, str) and detail.startswith("Unknown agent_id"):
+            raise HTTPException(status_code=400, detail=detail) from exc
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _append_message_to_session_locked(
+    app_instance: AgentApplication,
+    core: Any,
+    base_config: Any,
+    session: Session,
+    *,
+    role: str,
+    content: str,
+    metadata: Any,
+    multipart_content: Optional[List[Dict[str, Any]]],
+) -> Session:
+    new_session = core.add_message(
+        session,
+        role,
+        content,
+        metadata,
+        base_config,
+        multipart_content=multipart_content,
+    )
+    app_instance.save_session(new_session)
+
+    last_message = new_session.messages[-1] if new_session.messages else None
+    last_index = len(new_session.messages) - 1
+
+    stored = app_instance.publish_event(
+        {
+            "type": "message_appended",
+            "session_id": new_session.session_id,
+            "index": last_index,
+            "role": role,
+            "content": content,
+            "metadata": metadata or {},
+            "message": last_message.to_dict() if last_message is not None else None,
+        },
+    )
+
+    try:
+        app_instance.record_checkpoint(new_session.session_id, stored.get("request_id"))
+    except Exception:  # pragma: no cover - defensive
+        _log.exception(
+            "failed to publish checkpoint event after message append for %r",
+            new_session.session_id,
+        )
+
+    return new_session
 
 
 @app.on_event("startup")
@@ -375,7 +601,10 @@ def get_api_data() -> Dict[str, Any]:
 
 
 @app.put("/api/data")
-def put_api_data(payload: Dict[str, Any]) -> Dict[str, Any]:
+def put_api_data(
+    payload: Dict[str, Any],
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+) -> Dict[str, Any]:
     """Merge the given JSON body into the ``DataStore`` and return it.
 
     The behaviour mirrors the Bonjour example server's ``PUT /api/data``
@@ -383,12 +612,19 @@ def put_api_data(payload: Dict[str, Any]) -> Dict[str, Any]:
     includes the full updated mapping under ``updated``.
     """
 
+    scope = "PUT /api/data"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, payload)
+    if cached is not None:
+        return cached
+
     try:
         updated = _bonjour_data_store.update(payload or {})
     except ValueError as exc:  # pragma: no cover - defensive; FastAPI validates payload
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return {"success": True, "updated": updated}
+    response = {"success": True, "updated": updated}
+    _idempotency_store(scope, idempotency_key, payload, response)
+    return response
 
 
 @app.get("/api/hello")
@@ -433,6 +669,7 @@ if _TEST_CONTROL_ENABLED:
 @app.post("/sessions")
 def create_session(
     payload: Optional[Dict[str, Any]] = None,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     app_instance: AgentApplication = Depends(get_agent_app),
 ) -> Dict[str, Any]:
     """Create a session and publish a ``session_created`` event.
@@ -443,6 +680,10 @@ def create_session(
     """
 
     data = payload or {}
+    scope = "POST /sessions"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, data)
+    if cached is not None:
+        return cached
     raw_agent_id = data.get("agent_id")
     agent_id = raw_agent_id if isinstance(raw_agent_id, str) else ""
     agent_id = agent_id.strip()
@@ -482,7 +723,9 @@ def create_session(
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    return {"session": session.to_dict(), "errors": app_instance.get_config_errors()}
+    response = {"session": session.to_dict(), "errors": app_instance.get_config_errors()}
+    _idempotency_store(scope, idempotency_key, data, response)
+    return response
 
 
 def _get_session_root(app_instance: AgentApplication) -> Path:
@@ -553,10 +796,89 @@ def _normalize_index(raw_index: int, message_count: int) -> int:
     return target_index
 
 
+def _list_plugins_for_session(
+    app_instance: AgentApplication,
+    core: Any,
+    base_config: Dict[str, Any],
+    session: Session,
+) -> List[Dict[str, Any]]:
+    """Return plugin metadata with enabled/source/active state for a session.
+
+    Mirrors :meth:`TerminalApplication.list_plugins_for_session` so that
+    mobile/desktop clients can manage plugins via HTTP without drifting
+    from terminal behaviour.
+    """
+
+    all_plugins = app_instance.list_plugins()
+    metadata = session.metadata or {}
+
+    plugins_from_session = metadata.get("plugins")
+    enabled_ids: Optional[set[str]]
+    source: str
+
+    if isinstance(plugins_from_session, list):
+        enabled_ids = {p for p in plugins_from_session if isinstance(p, str)}
+        source = "session"
+    else:
+        agent_val = metadata.get("agent_id")
+        agent_id = agent_val.strip() if isinstance(agent_val, str) else ""
+        if not agent_id:
+            agents = [a for a in app_instance.list_agents() if isinstance(a, str) and a]
+            agent_id = agents[0] if agents else ""
+
+        default_ids = app_instance.get_agent_plugins(agent_id) if agent_id else None
+        if default_ids is None:
+            enabled_ids = None
+            source = "implicit"
+        else:
+            enabled_ids = {p for p in default_ids if isinstance(p, str)}
+            source = "agent"
+
+    overrides_val = metadata.get("overrides")
+    overrides: Dict[str, Any] = overrides_val if isinstance(overrides_val, dict) else {}
+    config = resolve_request_config(base_config, overrides)
+
+    try:
+        active_by_kind = core.get_plugins_for_config(config)
+    except Exception:
+        active_by_kind = None
+
+    def _is_active(kind: str, pid: str) -> bool:
+        if not isinstance(active_by_kind, dict):
+            return True
+        raw = active_by_kind.get(kind)
+        if not isinstance(raw, list):
+            return True
+        return pid in raw
+
+    result: List[Dict[str, Any]] = []
+    for entry in all_plugins:
+        pid = entry.get("id")
+        if not isinstance(pid, str) or not pid:
+            continue
+
+        kind_val = entry.get("kind")
+        kind = kind_val if isinstance(kind_val, str) else ""
+
+        if enabled_ids is None:
+            enabled = True
+            src = "implicit"
+        else:
+            enabled = pid in enabled_ids
+            src = source
+
+        result.append(
+            {**entry, "enabled": enabled, "source": src, "active": _is_active(kind, pid)}
+        )
+
+    return result
+
+
 def _run_send_request_background(
     app_instance: AgentApplication,
     session_id: str,
     overrides: Dict[str, Any],
+    request_id: Optional[str] = None,
 ) -> None:
     """Run ``AgentApplication.send_request`` and publish all events.
 
@@ -564,6 +886,8 @@ def _run_send_request_background(
     but is designed to run in a background thread so that the HTTP
     route can return immediately.
     """
+
+    rid = request_id or _generate_request_id(app_instance)
 
     try:
         ctx = app_instance.load_session(session_id)
@@ -589,7 +913,7 @@ def _run_send_request_background(
 
         final_session_dict: Optional[Dict[str, Any]] = session.to_dict()
         final_messages: List[Dict[str, Any]] = []
-        request_id: Optional[str] = None
+        final_request_id: Optional[str] = None
 
         for ev in app_instance.send_request(
             core,
@@ -597,6 +921,7 @@ def _run_send_request_background(
             base_config,
             merged_overrides,
             stream=True,
+            request_id=rid,
         ):
             etype = ev.get("type")
 
@@ -633,7 +958,7 @@ def _run_send_request_background(
 
             if stored.get("type") == "final":
                 final_messages = list(stored.get("messages") or [])
-                request_id = stored.get("request_id")
+                final_request_id = stored.get("request_id")
             elif "session" in stored and isinstance(stored.get("session"), dict):
                 # Backwards compatibility for older event shapes that include
                 # a serialized session payload.
@@ -660,11 +985,14 @@ def _run_send_request_background(
                 "failed to publish post-completion checkpoint for %r", session_id,
             )
 
+
     except Exception:  # pragma: no cover - defensive
         _log.exception(
             "unexpected error in send_request background worker for session %r",
             session_id,
         )
+    finally:
+        _clear_active_send_request_id(session_id, rid)
 
 
 @app.get("/sessions/{session_id}/ui-schema")
@@ -762,16 +1090,19 @@ def get_session_base_config(
 def add_message(
     session_id: str,
     payload: Dict[str, Any],
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     app_instance: AgentApplication = Depends(get_agent_app),
 ) -> Dict[str, Any]:
     """Append a message and publish a ``message_appended`` event."""
 
-    role = payload.get("role")
-    content = payload.get("content")
-    metadata = payload.get("metadata")
+    scope = f"POST /sessions/{session_id}/messages"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, payload)
+    if cached is not None:
+        return cached
 
-    if not isinstance(role, str) or not isinstance(content, str):
-        raise HTTPException(status_code=400, detail="role and content must be strings")
+    normalized_role, content, metadata, multipart_content = _validate_and_normalize_message_payload(
+        payload
+    )
 
     try:
         with app_instance.acquire_session_lock(session_id):
@@ -780,43 +1111,54 @@ def add_message(
                 raise KeyError(f"Session {session_id!r} not found")
 
             core, base_config, session = ctx
-
-            normalized_role = (
-                role if role in {"system", "user", "assistant", "tool"} else "user"
+            new_session = _append_message_to_session_locked(
+                app_instance,
+                core,
+                base_config,
+                session,
+                role=normalized_role,
+                content=content,
+                metadata=metadata,
+                multipart_content=multipart_content,
             )
-
-            new_session = core.add_message(
-                session, normalized_role, content, metadata, base_config
-            )
-            app_instance.save_session(new_session)
-
-            last_message = new_session.messages[-1] if new_session.messages else None
-            last_index = len(new_session.messages) - 1
-
-            stored = app_instance.publish_event(
-                {
-                    "type": "message_appended",
-                    "session_id": new_session.session_id,
-                    "index": last_index,
-                    "role": normalized_role,
-                    "content": content,
-                    "metadata": metadata or {},
-                    "message": last_message.to_dict() if last_message is not None else None,
-                },
-            )
-
-            try:
-                app_instance.record_checkpoint(new_session.session_id, stored.get("request_id"))
-            except Exception:  # pragma: no cover - defensive
-                _log.exception(
-                    "failed to publish checkpoint event after message append for %r",
-                    session_id,
-                )
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    return {"session": new_session.to_dict()}
+    response = {"session": new_session.to_dict()}
+    _idempotency_store(scope, idempotency_key, payload, response)
+    return response
+
+
+def _validate_and_normalize_message_payload(
+    message_payload: Dict[str, Any],
+) -> Tuple[str, str, Any, Optional[List[Dict[str, Any]]]]:
+    role = message_payload.get("role")
+    content = message_payload.get("content")
+    metadata = message_payload.get("metadata")
+    multipart_content = message_payload.get("multipartContent")
+
+    if multipart_content is not None:
+        if not isinstance(multipart_content, list):
+            raise HTTPException(status_code=400, detail="multipartContent must be a list")
+        if not all(isinstance(part, dict) for part in multipart_content):
+            raise HTTPException(
+                status_code=400, detail="multipartContent parts must be objects"
+            )
+
+    if not isinstance(role, str) or not isinstance(content, str):
+        raise HTTPException(status_code=400, detail="role and content must be strings")
+
+    if content.strip() == "" and not (
+        isinstance(multipart_content, list) and multipart_content
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="content may be empty only when multipartContent is non-empty",
+        )
+
+    normalized_role = role if role in {"system", "user", "assistant", "tool"} else "user"
+    return normalized_role, content, metadata, multipart_content
 
 
 @app.get("/sessions/{session_id}/overrides")
@@ -848,10 +1190,142 @@ def get_session_overrides(
     return {"overrides": overrides}
 
 
+@app.get("/sessions/{session_id}/plugins")
+def get_session_plugins(
+    session_id: str,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return plugin metadata with enabled/source/active state for a session."""
+
+    try:
+        ctx = app_instance.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        core, base_config, session = ctx
+        cfg = base_config if isinstance(base_config, dict) else {}
+        plugins = _list_plugins_for_session(app_instance, core, cfg, session)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {"plugins": plugins}
+
+
+@app.put("/sessions/{session_id}/plugins")
+def put_session_plugins(
+    session_id: str,
+    payload: Dict[str, Any],
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Persist an explicit list of enabled plugin ids for a session."""
+
+    scope = f"PUT /sessions/{session_id}/plugins"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, payload)
+    if cached is not None:
+        return cached
+
+    enabled_val = (payload or {}).get("enabled")
+    if not isinstance(enabled_val, list):
+        raise HTTPException(status_code=400, detail="enabled must be a list of plugin ids")
+
+    seen: Dict[str, None] = {}
+    normalized: List[str] = []
+    for pid in enabled_val:
+        if not isinstance(pid, str) or not pid:
+            continue
+        if pid in seen:
+            continue
+        seen[pid] = None
+        normalized.append(pid)
+
+    try:
+        with app_instance.acquire_session_lock(session_id):
+            ctx = app_instance.load_session(session_id)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
+
+            _core, _base_config, session = ctx
+            metadata = session.metadata if isinstance(session.metadata, dict) else {}
+            new_metadata = {**metadata, "plugins": normalized}
+            updated = Session(
+                session_id=session.session_id,
+                messages=session.messages,
+                metadata=new_metadata,
+            )
+            app_instance.save_session(updated)
+
+            refreshed = app_instance.load_session(session_id)
+            if refreshed is None:
+                core, base_config, loaded_session = _core, _base_config, updated
+            else:
+                core, base_config, loaded_session = refreshed
+
+            cfg = base_config if isinstance(base_config, dict) else {}
+            plugins = _list_plugins_for_session(app_instance, core, cfg, loaded_session)
+
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    response = {"session": loaded_session.to_dict(), "plugins": plugins}
+    _idempotency_store(scope, idempotency_key, payload, response)
+    return response
+
+
+@app.delete("/sessions/{session_id}/plugins")
+def delete_session_plugins(
+    session_id: str,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Clear session-specific plugin overrides (returning to agent defaults)."""
+
+    scope = f"DELETE /sessions/{session_id}/plugins"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, {})
+    if cached is not None:
+        return cached
+
+    try:
+        with app_instance.acquire_session_lock(session_id):
+            ctx = app_instance.load_session(session_id)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
+
+            _core, _base_config, session = ctx
+            metadata = session.metadata if isinstance(session.metadata, dict) else {}
+            if "plugins" not in metadata:
+                core, base_config, loaded_session = _core, _base_config, session
+            else:
+                new_metadata = dict(metadata)
+                new_metadata.pop("plugins", None)
+                updated = Session(
+                    session_id=session.session_id,
+                    messages=session.messages,
+                    metadata=new_metadata,
+                )
+                app_instance.save_session(updated)
+
+                refreshed = app_instance.load_session(session_id)
+                if refreshed is None:
+                    core, base_config, loaded_session = _core, _base_config, updated
+                else:
+                    core, base_config, loaded_session = refreshed
+
+            cfg = base_config if isinstance(base_config, dict) else {}
+            plugins = _list_plugins_for_session(app_instance, core, cfg, loaded_session)
+
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    response = {"session": loaded_session.to_dict(), "plugins": plugins}
+    _idempotency_store(scope, idempotency_key, {}, response)
+    return response
+
+
 @app.patch("/sessions/{session_id}/overrides")
 def patch_session_overrides(
     session_id: str,
     payload: Dict[str, Any],
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     app_instance: AgentApplication = Depends(get_agent_app),
 ) -> Dict[str, Any]:
     """Upsert one or more configuration overrides for a session.
@@ -867,6 +1341,10 @@ def patch_session_overrides(
     """
 
     body = payload or {}
+    scope = f"PATCH /sessions/{session_id}/overrides"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, body)
+    if cached is not None:
+        return cached
     has_single = "key" in body or "value" in body
     has_bulk = "values" in body
 
@@ -921,7 +1399,9 @@ def patch_session_overrides(
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    return {"session": new_session.to_dict()}
+    response = {"session": new_session.to_dict()}
+    _idempotency_store(scope, idempotency_key, body, response)
+    return response
 
 
 @app.get("/sessions/{session_id}/config/schema")
@@ -977,6 +1457,7 @@ def get_session_base_config(
 def delete_session_override(
     session_id: str,
     key: str,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     app_instance: AgentApplication = Depends(get_agent_app),
 ) -> Dict[str, Any]:
     """Remove a single configuration override for the given session.
@@ -994,6 +1475,11 @@ def delete_session_override(
             detail="key must be a non-empty string",
         )
 
+    scope = f"DELETE /sessions/{session_id}/overrides/{key}"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, {})
+    if cached is not None:
+        return cached
+
     try:
         with app_instance.acquire_session_lock(session_id):
             ctx = app_instance.load_session(session_id)
@@ -1008,28 +1494,31 @@ def delete_session_override(
             )
 
             if key not in overrides:
-                return {"session": session.to_dict()}
-
-            new_overrides = dict(overrides)
-            new_overrides.pop(key, None)
-
-            new_metadata = dict(metadata)
-            if new_overrides:
-                new_metadata["overrides"] = new_overrides
+                result_session = session
             else:
-                new_metadata.pop("overrides", None)
+                new_overrides = dict(overrides)
+                new_overrides.pop(key, None)
 
-            new_session = Session(
-                session_id=session.session_id,
-                messages=session.messages,
-                metadata=new_metadata,
-            )
-            app_instance.save_session(new_session)
+                new_metadata = dict(metadata)
+                if new_overrides:
+                    new_metadata["overrides"] = new_overrides
+                else:
+                    new_metadata.pop("overrides", None)
+
+                result_session = Session(
+                    session_id=session.session_id,
+                    messages=session.messages,
+                    metadata=new_metadata,
+                )
+                app_instance.save_session(result_session)
+
+            response = {"session": result_session.to_dict()}
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    return {"session": new_session.to_dict()}
+    _idempotency_store(scope, idempotency_key, {}, response)
+    return response
 
 
 @app.patch("/sessions/{session_id}/messages/{index}")
@@ -1037,6 +1526,7 @@ def update_message(
     session_id: str,
     index: int,
     payload: Dict[str, Any],
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     app_instance: AgentApplication = Depends(get_agent_app),
 ) -> Dict[str, Any]:
     """Modify the content of a single message at ``index``.
@@ -1044,6 +1534,11 @@ def update_message(
     This mirrors :meth:`TerminalApplication.modify_message` using
     Python-style indices (0-based, negatives allowed).
     """
+
+    scope = f"PATCH /sessions/{session_id}/messages/{index}"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, payload)
+    if cached is not None:
+        return cached
 
     content = payload.get("content")
     if not isinstance(content, str):
@@ -1099,13 +1594,16 @@ def update_message(
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    return {"session": new_session.to_dict()}
+    response = {"session": new_session.to_dict()}
+    _idempotency_store(scope, idempotency_key, payload, response)
+    return response
 
 
 @app.post("/sessions/{session_id}/send")
 def send_request(
     session_id: str,
     payload: Optional[Dict[str, Any]] = None,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     app_instance: AgentApplication = Depends(get_agent_app),
 ) -> Dict[str, Any]:
     """Start ``AgentApplication.send_request`` in the background.
@@ -1116,6 +1614,11 @@ def send_request(
     """
 
     data = payload or {}
+    scope = f"POST /sessions/{session_id}/send"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, data)
+    if cached is not None:
+        return cached
+
     overrides = data.get("config_overrides") or {}
 
     if overrides is not None and not isinstance(overrides, dict):
@@ -1124,44 +1627,126 @@ def send_request(
             detail="config_overrides must be a mapping if provided",
         )
 
-    try:
-        # Validate that the session exists before starting the
-        # background worker so that clients receive an immediate 404 for
-        # unknown sessions.
-        session = app_instance.load_session_record(session_id)
-        if session is None:
-            raise KeyError(f"Session {session_id!r} not found")
+    _ = _load_session_ctx_for_send(app_instance, session_id)
 
-        # Validate that the session's agent configuration is resolvable.
-        # If an agent referenced by the stored session metadata is no
-        # longer configured, return a 400 rather than a 404 (the session
-        # exists, but it is not runnable).
-        _ = app_instance.load_session(session_id)
-    except KeyError as exc:
-        detail = exc.args[0] if exc.args and isinstance(exc.args[0], str) else str(exc)
-        if isinstance(detail, str) and detail.startswith("Unknown agent_id"):
-            raise HTTPException(status_code=400, detail=detail) from exc
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    request_id = _generate_request_id(app_instance)
+    existing = _reserve_active_send_request_id(session_id, request_id)
+    if existing is not None:
+        return {"status": "already_running", "request_id": existing}
 
     # Start the send_request flow in a background thread so that the
     # HTTP response can return immediately.
     threading.Thread(
         target=_run_send_request_background,
-        args=(app_instance, session_id, overrides),
+        args=(app_instance, session_id, overrides, request_id),
         daemon=True,
     ).start()
 
-    # The response intentionally omits session/messages/request_id; they
-    # can be observed via the event store and subsequent session loads.
-    return {}
+    response = {"status": "started", "request_id": request_id}
+    _idempotency_store(scope, idempotency_key, data, response)
+    return response
+
+
+@app.post("/sessions/{session_id}/send_message")
+def send_message(
+    session_id: str,
+    payload: Dict[str, Any],
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Atomically append a message and start ``send_request``.
+
+    This endpoint exists to eliminate the retry window created by the
+    legacy two-call flow (append message, then POST /send).
+    """
+
+    body = payload or {}
+    message = body.get("message")
+    if not isinstance(message, dict):
+        raise HTTPException(status_code=400, detail="message must be an object")
+
+    normalized_role, content, metadata, multipart_content = _validate_and_normalize_message_payload(
+        message
+    )
+
+    raw_overrides = body.get("config_overrides")
+    overrides = raw_overrides if raw_overrides is not None else {}
+    if not isinstance(overrides, dict):
+        raise HTTPException(
+            status_code=400,
+            detail="config_overrides must be a mapping if provided",
+        )
+
+    body_idem = body.get("idempotency_key")
+    effective_idempotency_key = idempotency_key
+    if _normalize_idempotency_key(effective_idempotency_key) is None and isinstance(
+        body_idem, str
+    ):
+        effective_idempotency_key = body_idem
+
+    scope = f"POST /sessions/{session_id}/send_message"
+    idempotency_payload = {
+        "message": message,
+        "config_overrides": overrides,
+    }
+
+    cached = _idempotency_maybe_replay(scope, effective_idempotency_key, idempotency_payload)
+    if cached is not None:
+        return cached
+
+    with app_instance.acquire_session_lock(session_id):
+        cached = _idempotency_maybe_replay(
+            scope, effective_idempotency_key, idempotency_payload
+        )
+        if cached is not None:
+            return cached
+
+        core, base_config, session = _load_session_ctx_for_send(app_instance, session_id)
+
+        request_id = _generate_request_id(app_instance)
+        existing = _reserve_active_send_request_id(session_id, request_id)
+        if existing is not None:
+            raise HTTPException(
+                status_code=409,
+                detail={"status": "already_running", "request_id": existing},
+            )
+
+        try:
+            _append_message_to_session_locked(
+                app_instance,
+                core,
+                base_config,
+                session,
+                role=normalized_role,
+                content=content,
+                metadata=metadata,
+                multipart_content=multipart_content,
+            )
+        except Exception:
+            _clear_active_send_request_id(session_id, request_id)
+            raise
+
+        response = {
+            "status": "started",
+            "request_id": request_id,
+            "session_id": session_id,
+        }
+        _idempotency_store(scope, effective_idempotency_key, idempotency_payload, response)
+
+    threading.Thread(
+        target=_run_send_request_background,
+        args=(app_instance, session_id, overrides, request_id),
+        daemon=True,
+    ).start()
+
+    return response
 
 
 @app.delete("/sessions/{session_id}/messages")
 def delete_messages(
     session_id: str,
     payload: Dict[str, Any],
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     app_instance: AgentApplication = Depends(get_agent_app),
 ) -> Dict[str, Any]:
     """Delete one or more messages from a session.
@@ -1177,6 +1762,10 @@ def delete_messages(
     """
 
     body = payload or {}
+    scope = f"DELETE /sessions/{session_id}/messages"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, body)
+    if cached is not None:
+        return cached
     has_indices = "indices" in body
     has_range = "range" in body
     has_last = "last" in body
@@ -1210,7 +1799,9 @@ def delete_messages(
                     )
                 if not raw_indices:
                     # Nothing to delete; return the current session unchanged.
-                    return {"session": session.to_dict(), "deleted_indices": []}
+                    response = {"session": session.to_dict(), "deleted_indices": []}
+                    _idempotency_store(scope, idempotency_key, body, response)
+                    return response
 
                 delete_indices = []
                 for raw in raw_indices:
@@ -1295,7 +1886,9 @@ def delete_messages(
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    return {"session": new_session.to_dict(), "deleted_indices": concrete_indices}
+    response = {"session": new_session.to_dict(), "deleted_indices": concrete_indices}
+    _idempotency_store(scope, idempotency_key, body, response)
+    return response
 
 
 @app.get("/sessions")
@@ -1661,6 +2254,7 @@ def _apply_session_list_ordering(
 def fork_session(
     session_id: str,
     payload: Optional[Dict[str, Any]] = None,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     app_instance: AgentApplication = Depends(get_agent_app),
 ) -> Dict[str, Any]:
     """Create a new session by forking history up to ``index``.
@@ -1671,6 +2265,10 @@ def fork_session(
     """
 
     data = payload or {}
+    scope = f"POST /sessions/{session_id}/fork"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, data)
+    if cached is not None:
+        return cached
     raw_index = data.get("index", -1)
     if not isinstance(raw_index, int):
         raise HTTPException(status_code=400, detail="index must be an integer")
@@ -1736,7 +2334,9 @@ def fork_session(
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    return {"session": new_session.to_dict(), "source_session_id": session.session_id}
+    response = {"session": new_session.to_dict(), "source_session_id": session.session_id}
+    _idempotency_store(scope, idempotency_key, data, response)
+    return response
 
 
 @app.get("/sessions/{session_id}/messages")
@@ -1866,6 +2466,7 @@ def list_events(
 @app.post("/requests/{request_id}/cancel")
 def cancel_request(
     request_id: str,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     app_instance: AgentApplication = Depends(get_agent_app),
 ) -> Dict[str, Any]:
     """Request cooperative cancellation for an in-flight request.
@@ -1873,12 +2474,19 @@ def cancel_request(
     This is a thin wrapper around :meth:`AgentApplication.cancel_request`.
     """
 
+    scope = f"POST /requests/{request_id}/cancel"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, {})
+    if cached is not None:
+        return cached
+
     try:
         app_instance.cancel_request(request_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return {"request_id": request_id, "status": "cancelled"}
+    response = {"request_id": request_id, "status": "cancelled"}
+    _idempotency_store(scope, idempotency_key, {}, response)
+    return response
 
 
 @app.get("/agents")
@@ -1926,6 +2534,7 @@ def get_session_agent(
 def update_session_agent(
     session_id: str,
     payload: Dict[str, Any],
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     app_instance: AgentApplication = Depends(get_agent_app),
 ) -> Dict[str, Any]:
     """Switch the agent for a given session.
@@ -1937,6 +2546,11 @@ def update_session_agent(
     * The updated session metadata is persisted when the session has
       messages or has previously been saved to disk.
     """
+
+    scope = f"PATCH /sessions/{session_id}/agent"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, payload)
+    if cached is not None:
+        return cached
 
     target_agent_id = payload.get("agent_id")
     if not isinstance(target_agent_id, str) or not target_agent_id:
@@ -1982,7 +2596,9 @@ def update_session_agent(
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    return {"session": new_session.to_dict(), "agent_id": target_agent_id}
+    response = {"session": new_session.to_dict(), "agent_id": target_agent_id}
+    _idempotency_store(scope, idempotency_key, payload, response)
+    return response
 
 
 @app.get("/application/actions")
@@ -2028,6 +2644,7 @@ def list_application_ui_schema(
 @app.post("/actions")
 def execute_action(
     payload: Dict[str, Any],
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     app_instance: AgentApplication = Depends(get_agent_app),
 ) -> Dict[str, Any]:
     """Execute an application-level action.
@@ -2043,14 +2660,27 @@ def execute_action(
     action_id = body.get("action_id")
     raw_inputs = body.get("inputs") or {}
 
+    scope = f"POST /actions/{plugin_id}/{action_id}"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, body)
+    if cached is not None:
+        return cached
+
     try:
         result = app_instance.execute_application_action(
             plugin_id=plugin_id,
             action_id=action_id,
             params=raw_inputs,
         )
+        if not isinstance(result, dict):
+            result = {}
+        response: Dict[str, Any] = {
+            "status": "ok",
+            "plugin": plugin_id,
+            "action_id": action_id,
+            "result": result,
+        }
     except AgentApplication._ApplicationActionValidationError as exc:  # type: ignore[attr-defined]
-        return {
+        response = {
             "status": "error",
             "plugin": plugin_id,
             "action_id": action_id,
@@ -2059,7 +2689,7 @@ def execute_action(
             "details": getattr(exc, "details", {}) or {},
         }
     except KeyError as exc:
-        return {
+        response = {
             "status": "error",
             "plugin": plugin_id,
             "action_id": action_id,
@@ -2069,7 +2699,7 @@ def execute_action(
         }
     except ValueError as exc:
         # Includes invalid plugin/action identifiers or non-dict params.
-        return {
+        response = {
             "status": "error",
             "plugin": plugin_id,
             "action_id": action_id,
@@ -2079,7 +2709,7 @@ def execute_action(
         }
     except Exception as exc:  # pragma: no cover - defensive
         _log.exception("unexpected error executing application action")
-        return {
+        response = {
             "status": "error",
             "plugin": plugin_id,
             "action_id": action_id,
@@ -2088,15 +2718,8 @@ def execute_action(
             "details": {},
         }
 
-    if not isinstance(result, dict):
-        result = {}
-
-    return {
-        "status": "ok",
-        "plugin": plugin_id,
-        "action_id": action_id,
-        "result": result,
-    }
+    _idempotency_store(scope, idempotency_key, body, response)
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -2108,6 +2731,8 @@ def run_api(
     host: str = "127.0.0.1",
     port: int = 8000,
     app_instance: Optional[AgentApplication] = None,
+    *,
+    log_config: object = "default",
 ) -> None:  # pragma: no cover
     """Run the FastAPI app with uvicorn on the given host/port."""
 
@@ -2135,4 +2760,16 @@ def run_api(
     os.environ.setdefault("SERVER_HOST", host)
     os.environ.setdefault("SERVER_PORT", str(port))
 
-    uvicorn.run("agent_terminal_app.server:app", host=host, port=port, reload=False)
+    kwargs: Dict[str, Any] = {
+        "host": host,
+        "port": port,
+        "reload": False,
+    }
+
+    # By default, uvicorn configures logging (and emits to stdout). When the
+    # terminal console is also running, that can be noisy. Allow the CLI to
+    # disable uvicorn logging configuration by passing log_config=None.
+    if log_config != "default":
+        kwargs["log_config"] = log_config
+
+    uvicorn.run("agent_terminal_app.server:app", **kwargs)

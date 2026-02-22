@@ -25,16 +25,21 @@ defmodule Bridge.ServerChannel do
       channel_pid: self()
     }
 
-    Bridge.ServerRegistry.register_server(server_id, server_info)
-    
-    Phoenix.PubSub.subscribe(Bridge.PubSub, "pairing:#{server_id}")
-    Phoenix.PubSub.subscribe(Bridge.PubSub, "tunnel:server:#{server_id}")
+    case Bridge.ServerRegistry.register_server(server_id, server_info) do
+      {:ok, _result} ->
+        socket =
+          socket
+          |> assign(:server_id, server_id)
+          |> assign(:registered, true)
 
-    socket = socket
-      |> assign(:server_id, server_id)
-      |> assign(:registered, true)
+        {:reply, {:ok, %{status: "registered"}}, socket}
 
-    {:reply, {:ok, %{status: "registered"}}, socket}
+      {:error, :already_registered} ->
+        {:reply, {:error, %{reason: "already_registered"}}, socket}
+
+      {:error, reason} ->
+        {:reply, {:error, %{reason: Atom.to_string(reason)}}, socket}
+    end
   end
 
   @impl true
@@ -61,6 +66,57 @@ defmodule Bridge.ServerChannel do
     )
 
     {:noreply, socket}
+  end
+
+  @impl true
+  def handle_in("http_response_init", params, socket) do
+    %{
+      "request_id" => request_id
+    } = params
+
+    Phoenix.PubSub.broadcast(
+      Bridge.PubSub,
+      "tunnel:request:#{request_id}",
+      {:http_response_init, params}
+    )
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_in("http_response_chunk", params, socket) do
+    %{
+      "request_id" => request_id
+    } = params
+
+    Phoenix.PubSub.broadcast(
+      Bridge.PubSub,
+      "tunnel:request:#{request_id}",
+      {:http_response_chunk, params}
+    )
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_in("http_response_end", params, socket) do
+    %{
+      "request_id" => request_id
+    } = params
+
+    Phoenix.PubSub.broadcast(
+      Bridge.PubSub,
+      "tunnel:request:#{request_id}",
+      {:http_response_end, params}
+    )
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:superseded, server_id, _new_pid}, socket) do
+    push(socket, "superseded", %{server_id: server_id, reason: "new_connection"})
+    {:stop, :normal, socket}
   end
 
   @impl true
@@ -91,10 +147,29 @@ defmodule Bridge.ServerChannel do
   end
 
   @impl true
+  def handle_info({:http_request_init, request}, socket) do
+    push(socket, "http_request_init", request)
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:http_request_chunk, request}, socket) do
+    push(socket, "http_request_chunk", request)
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:http_request_end, request}, socket) do
+    push(socket, "http_request_end", request)
+    {:noreply, socket}
+  end
+
+  @impl true
   def terminate(_reason, socket) do
     if socket.assigns[:registered] && socket.assigns[:server_id] do
-      Bridge.ServerRegistry.unregister_server(socket.assigns.server_id)
+      Bridge.ServerRegistry.unregister_server(socket.assigns.server_id, self())
     end
+
     :ok
   end
 end
