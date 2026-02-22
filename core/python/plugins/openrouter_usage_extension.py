@@ -63,13 +63,18 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
         return [
             {
                 "ui_type": "message_footer",
-                "data": "metadata.usage_total_tokens_formatted",
-                "template": "tokens: {{data}}",
+                "data": "metadata.usage_prompt_tokens_formatted",
+                "template": "input: {{data}}",
             },
             {
                 "ui_type": "message_footer",
-                "data": "metadata.usage_total_cost_formatted",
-                "template": "cost: {{data}}",
+                "data": "metadata.usage_cached_tokens_formatted",
+                "template": "cached: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_completion_tokens_formatted",
+                "template": "completion: {{data}}",
             },
             {
                 "ui_type": "message_footer",
@@ -120,7 +125,9 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
         message's internal ``_metadata``:
 
         - ``usage`` – the full usage object as returned by OpenRouter.
-        - ``usage_total_tokens_formatted`` – human-friendly token count.
+        - ``usage_prompt_tokens_formatted`` – human-friendly prompt (input) token count.
+        - ``usage_cached_tokens_formatted`` – human-friendly cached token count.
+        - ``usage_completion_tokens_formatted`` – human-friendly completion token count.
         - ``usage_total_cost_formatted`` – human-friendly cost string.
         """
 
@@ -132,9 +139,17 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                 internal_md = native.get("_metadata") or {}
                 if isinstance(internal_md, dict) and "usage" in internal_md:
                     core_md["usage"] = internal_md.get("usage")
-                    if "usage_total_tokens_formatted" in internal_md:
-                        core_md["usage_total_tokens_formatted"] = internal_md[
-                            "usage_total_tokens_formatted"
+                    if "usage_prompt_tokens_formatted" in internal_md:
+                        core_md["usage_prompt_tokens_formatted"] = internal_md[
+                            "usage_prompt_tokens_formatted"
+                        ]
+                    if "usage_cached_tokens_formatted" in internal_md:
+                        core_md["usage_cached_tokens_formatted"] = internal_md[
+                            "usage_cached_tokens_formatted"
+                        ]
+                    if "usage_completion_tokens_formatted" in internal_md:
+                        core_md["usage_completion_tokens_formatted"] = internal_md[
+                            "usage_completion_tokens_formatted"
                         ]
                     if "usage_total_cost_formatted" in internal_md:
                         core_md["usage_total_cost_formatted"] = internal_md[
@@ -185,9 +200,17 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                 last_msg = dict(messages[-1])
                 core_md = dict(last_msg.get("metadata") or {})
                 core_md["usage"] = internal_md.get("usage")
-                if "usage_total_tokens_formatted" in internal_md:
-                    core_md["usage_total_tokens_formatted"] = internal_md[
-                        "usage_total_tokens_formatted"
+                if "usage_prompt_tokens_formatted" in internal_md:
+                    core_md["usage_prompt_tokens_formatted"] = internal_md[
+                        "usage_prompt_tokens_formatted"
+                    ]
+                if "usage_cached_tokens_formatted" in internal_md:
+                    core_md["usage_cached_tokens_formatted"] = internal_md[
+                        "usage_cached_tokens_formatted"
+                    ]
+                if "usage_completion_tokens_formatted" in internal_md:
+                    core_md["usage_completion_tokens_formatted"] = internal_md[
+                        "usage_completion_tokens_formatted"
                     ]
                 if "usage_total_cost_formatted" in internal_md:
                     core_md["usage_total_cost_formatted"] = internal_md[
@@ -273,12 +296,39 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
         total_tokens = usage.get("total_tokens")
         total_cost = usage.get("cost") or usage.get("cost_details",{}).get("upstream_inference_cost",0)
 
-        tokens_str = None
-        if isinstance(total_tokens, (int, float)):
-            try:
-                tokens_str = f"{int(total_tokens):,}"
-            except Exception:
-                tokens_str = str(total_tokens)
+        # Per-message token breakdown: prompt (input), cached, completion.
+        prompt_tokens_str = None
+        cached_tokens_str = None
+        completion_tokens_str = None
+        try:
+            prompt_tokens = usage.get("prompt_tokens")
+            if isinstance(prompt_tokens, (int, float)):
+                try:
+                    prompt_tokens_str = f"{int(prompt_tokens):,}"
+                except Exception:
+                    prompt_tokens_str = str(prompt_tokens)
+        except Exception:
+            prompt_tokens_str = None
+
+        try:
+            cached_tokens = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
+            if isinstance(cached_tokens, (int, float)):
+                try:
+                    cached_tokens_str = f"{int(cached_tokens):,}"
+                except Exception:
+                    cached_tokens_str = str(cached_tokens)
+        except Exception:
+            cached_tokens_str = None
+
+        try:
+            completion_tokens = usage.get("completion_tokens")
+            if isinstance(completion_tokens, (int, float)):
+                try:
+                    completion_tokens_str = f"{int(completion_tokens):,}"
+                except Exception:
+                    completion_tokens_str = str(completion_tokens)
+        except Exception:
+            completion_tokens_str = None
 
         cost_str = None
         cumulative_cost = None
@@ -405,8 +455,12 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
         if isinstance(accumulated, dict):
             internal_md = dict(accumulated.get("_metadata") or {})
             internal_md["usage"] = usage
-            if tokens_str is not None:
-                internal_md["usage_total_tokens_formatted"] = tokens_str
+            if prompt_tokens_str is not None:
+                internal_md["usage_prompt_tokens_formatted"] = prompt_tokens_str
+            if cached_tokens_str is not None:
+                internal_md["usage_cached_tokens_formatted"] = cached_tokens_str
+            if completion_tokens_str is not None:
+                internal_md["usage_completion_tokens_formatted"] = completion_tokens_str
             if cost_str is not None:
                 internal_md["usage_total_cost_formatted"] = cost_str
             if cumulative_cost is not None:

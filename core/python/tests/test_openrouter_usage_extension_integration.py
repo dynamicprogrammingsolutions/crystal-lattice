@@ -76,10 +76,14 @@ def test_openrouter_usage_metadata_streaming(ensure_api_key):
     usage1 = md1.get("usage")
     assert isinstance(usage1, dict), "expected usage dict in first message metadata"
 
-    tokens_str_1 = md1.get("usage_total_tokens_formatted")
+    prompt_str_1 = md1.get("usage_prompt_tokens_formatted")
+    cached_str_1 = md1.get("usage_cached_tokens_formatted")
+    completion_str_1 = md1.get("usage_completion_tokens_formatted")
     cost_str_1 = md1.get("usage_total_cost_formatted")
 
-    assert isinstance(tokens_str_1, str) and tokens_str_1
+    assert isinstance(prompt_str_1, str) and prompt_str_1
+    assert isinstance(cached_str_1, (str, type(None)))
+    assert isinstance(completion_str_1, str) and completion_str_1
     assert isinstance(cost_str_1, str) and cost_str_1
 
     # Normalize cost value: prefer explicit "cost" field, fall back to
@@ -112,10 +116,14 @@ def test_openrouter_usage_metadata_streaming(ensure_api_key):
     usage2 = md2.get("usage")
     assert isinstance(usage2, dict), "expected usage dict in second message metadata"
 
-    tokens_str_2 = md2.get("usage_total_tokens_formatted")
+    prompt_str_2 = md2.get("usage_prompt_tokens_formatted")
+    cached_str_2 = md2.get("usage_cached_tokens_formatted")
+    completion_str_2 = md2.get("usage_completion_tokens_formatted")
     cost_str_2 = md2.get("usage_total_cost_formatted")
 
-    assert isinstance(tokens_str_2, str) and tokens_str_2
+    assert isinstance(prompt_str_2, str) and prompt_str_2
+    assert isinstance(cached_str_2, (str, type(None)))
+    assert isinstance(completion_str_2, str) and completion_str_2
     assert isinstance(cost_str_2, str) and cost_str_2
 
     cost2 = _usage_cost(usage2)
