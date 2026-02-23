@@ -33,24 +33,36 @@ class NodeToolSource:
     """
 
     def supports(self, spec: Any) -> bool:
-        if not isinstance(spec, dict):
-            return False
-        return isinstance(spec.get("node_tool"), dict)
+        if isinstance(spec, str):
+            s = spec.strip()
+            return s.startswith("node:") or s.startswith("node+git:")
+        if isinstance(spec, dict):
+            return isinstance(spec.get("node_tool"), dict)
+        return False
 
     def resolve(self, spec: Any, ctx: PluginContext) -> PluginResolution:
-        if not isinstance(spec, dict) or not isinstance(spec.get("node_tool"), dict):
+        if isinstance(spec, str):
+            parsed, err = self._parse_string_spec(spec)
+            if err is not None or parsed is None:
+                return PluginResolution(classes=[], errors=[err or {
+                    "type": "plugin_path_invalid",
+                    "detail": "Invalid node tool spec",
+                    "path": spec,
+                }])
+            node_spec = parsed
+        elif isinstance(spec, dict) and isinstance(spec.get("node_tool"), dict):
+            node_spec = dict(spec.get("node_tool") or {})
+        else:
             return PluginResolution(
                 classes=[],
                 errors=[
                     {
                         "type": "plugin_path_invalid",
-                        "detail": "node_tool spec must be a dict",
+                        "detail": "node_tool spec must be a dict or a supported string shortcut",
                         "path": spec,
                     }
                 ],
             )
-
-        node_spec = dict(spec.get("node_tool") or {})
         if "path" in node_spec:
             return self._resolve_local_path(node_spec, ctx)
         if "git" in node_spec:
@@ -68,6 +80,45 @@ class NodeToolSource:
                 }
             ],
         )
+
+    def _parse_string_spec(
+        self, spec: str
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        s = spec.strip()
+        if s.startswith("node+git:"):
+            url_ref = s[len("node+git:") :]
+            if "#" in url_ref:
+                url, ref = url_ref.split("#", 1)
+            else:
+                url, ref = url_ref, None
+            url = url.strip()
+            if not url:
+                return None, {
+                    "type": "plugin_path_invalid",
+                    "detail": "node+git spec must include a URL/path",
+                    "path": spec,
+                }
+            node_spec: Dict[str, Any] = {"git": url}
+            if isinstance(ref, str) and ref.strip():
+                node_spec["ref"] = ref.strip()
+            return node_spec, None
+
+        if s.startswith("node:"):
+            raw_path = s[len("node:") :].strip()
+            if not raw_path:
+                return None, {
+                    "type": "plugin_path_invalid",
+                    "detail": "node: spec must include a path",
+                    "path": spec,
+                }
+            # The loader decides file vs directory when resolving.
+            return {"path": raw_path}, None
+
+        return None, {
+            "type": "plugin_path_invalid",
+            "detail": "Unsupported node tool shortcut; expected node:<path> or node+git:<url>[#ref]",
+            "path": spec,
+        }
 
     # ---------------------------------------------------------------------
     # Local path
@@ -89,6 +140,12 @@ class NodeToolSource:
                 "detail": f"Local path {str(base)!r} does not exist",
                 "path": raw_path,
             }])
+
+        if base.is_file():
+            spec_overrides = dict(node_spec)
+            spec_overrides.pop("path", None)
+            spec_overrides.setdefault("file", raw_path)
+            return self._resolve_file(spec_overrides, ctx)
 
         subdir = node_spec.get("subdirectory")
         project_dir = (base / subdir).resolve() if isinstance(subdir, str) and subdir.strip() else base
@@ -230,16 +287,54 @@ class NodeToolSource:
         install_dir = ctx.cache_dir / "node" / f"{safe_id}@{revision}"
         install_dir.mkdir(parents=True, exist_ok=True)
 
+        ext = path.suffix.lower()
+        spec_overrides = dict(node_spec)
+        spec_overrides.setdefault("id", safe_id)
+        if ext == ".ts":
+            src_dir = install_dir / "src"
+            src_dir.mkdir(parents=True, exist_ok=True)
+
+            tool_src = src_dir / path.name
+            index_ts = src_dir / "index.ts"
+            pkg_json = install_dir / "package.json"
+
+            if not tool_src.exists():
+                shutil.copy2(path, tool_src)
+            if not index_ts.exists():
+                index_ts.write_text(
+                    f"export {{ default }} from './{path.stem}';\n",
+                    encoding="utf-8",
+                )
+            if not pkg_json.exists():
+                pkg_json.write_text(
+                    json.dumps(
+                        {
+                            "name": safe_id,
+                            "version": "0.0.0",
+                            "type": "module",
+                            "main": "dist/index.js",
+                            "scripts": {
+                                "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outdir=dist"
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+            spec_overrides.setdefault("entry", "dist/index.js")
+            self._maybe_install_and_build(install_dir, ctx.policy)
+            return self._classes_from_install(install_dir, spec_overrides, ctx.policy)
+
+        # Plain JS file: copy directly and run as an entry module.
         dst_file = install_dir / path.name
         if not dst_file.exists():
             shutil.copy2(path, dst_file)
-            # Ensure ESM mode so single-file examples can use `export` syntax.
             (install_dir / "package.json").write_text(
                 json.dumps({"name": safe_id, "version": "0.0.0", "type": "module"}),
                 encoding="utf-8",
             )
 
-        spec_overrides = dict(node_spec)
+        spec_overrides = dict(spec_overrides)
         spec_overrides.setdefault("entry", dst_file.name)
         return self._classes_from_install(install_dir, spec_overrides, ctx.policy)
 

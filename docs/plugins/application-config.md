@@ -33,6 +33,10 @@ Each plugin reference is a “spec” that can take one of the following forms:
   - Git repo: `{ "node_tool": { "git": "https://github.com/acme/my-js-tool.git", "ref": "v0.1.0" } }`
   - Single file: `{ "node_tool": { "file": "./my_tool.js", "id": "my_tool", "entry": "my_tool.js" } }`
 
+String shortcuts:
+- Local directory or single file: `"node:/abs/or/rel"`
+- Git repo: `"node+git:<url-or-local>[#<ref>]"`
+
 For repos, `subdirectory` selects a subfolder within the repo to install (useful for monorepos).
 
 ### Descriptor (agent_plugin.json)

@@ -15,6 +15,9 @@ class DottedClassSource:
         s = spec.strip()
         if not s or s.startswith("path:") or s.startswith("git+"):
             return False
+        # Reserved string shortcuts for non-Python plugin sources.
+        if s.startswith("node:") or s.startswith("node+git:"):
+            return False
         return "." in s
 
     def resolve(self, spec: Any, ctx: PluginContext) -> PluginResolution:

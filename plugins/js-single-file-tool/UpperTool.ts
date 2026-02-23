@@ -1,8 +1,10 @@
-export default {
+type ToolHostEmit = (event: { type: string; payload?: unknown }) => void;
+
+export const UpperTool = {
   name: "js_single_file_tool",
   version: "0.1.0",
 
-  init(config) {
+  init(config: Record<string, unknown>) {
     return { config };
   },
 
@@ -25,11 +27,13 @@ export default {
     ];
   },
 
-  async executeTool(toolName, args, _state, emit) {
+  async executeTool(toolName: string, args: Record<string, unknown>, _state: any, emit: ToolHostEmit) {
     if (toolName !== "upper") {
       return { success: false, error: `Unknown tool: ${toolName}` };
     }
     emit({ type: "part", payload: { message: "uppercasing" } });
     return { success: true, result: String(args?.value ?? "").toUpperCase() };
   },
-};
+} as const;
+
+export default UpperTool;

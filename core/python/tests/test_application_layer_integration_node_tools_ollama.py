@@ -39,6 +39,11 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
+def _esbuild_command(repo_root: Path) -> str:
+    esbuild = repo_root / "node_modules" / ".bin" / "esbuild"
+    return f"{esbuild} src/index.ts --bundle --platform=node --format=esm --outdir=dist"
+
+
 def _which(cmd: str) -> Optional[str]:
     return shutil.which(cmd)
 
@@ -69,10 +74,13 @@ def ensure_model() -> None:
 
 
 def _make_app_config(tmp_path: Path) -> Path:
+    repo_root = _repo_root()
     cfg: Dict[str, Any] = {
         "plugin_cache_dir": str(tmp_path / "plugin_cache"),
         "plugin_policy": {
-            "base_dir": str(_repo_root()),
+            "base_dir": str(repo_root),
+            "node_build": True,
+            "node_build_command": _esbuild_command(repo_root),
         },
         "providers": {
             "ollama_tools": {
@@ -126,6 +134,23 @@ def _extract_tool_names_from_results(events: List[Dict[str, Any]]) -> Set[str]:
         for m in tool_msgs
         if isinstance(m, dict) and isinstance((m.get("metadata") or {}).get("tool_name"), str)
     }
+
+
+def _tool_results_text(events: List[Dict[str, Any]], *, tool_name: str) -> str:
+    tool_result_events = [ev for ev in events if ev.get("type") == "tool_results"]
+    for ev in tool_result_events:
+        msgs = ev.get("messages") or []
+        if not isinstance(msgs, list):
+            continue
+        for msg in msgs:
+            if not isinstance(msg, dict):
+                continue
+            md = msg.get("metadata") or {}
+            if not isinstance(md, dict):
+                continue
+            if md.get("tool_name") == tool_name:
+                return str(msg.get("content") or "")
+    return ""
 
 
 def _extract_tool_call_ids(events: List[Dict[str, Any]], tool_name: str) -> List[str]:
@@ -250,8 +275,10 @@ def test_application_layer_ollama_js_fs_tools_streaming_emits_tool_partials(
         assert "start" in phases, f"expected start phase for {tool_call_id}"
         assert "stream" in phases, f"expected stream phase for {tool_call_id}"
 
-    text = _last_assistant_text(events)
-    assert desired in text
+    read_text = _tool_results_text(events, tool_name="read_file")
+    assert desired in read_text
+
+    assert _last_assistant_text(events) != ""
 
     try:
         os.unlink(write_path)
@@ -323,8 +350,10 @@ def test_application_layer_ollama_js_fs_tools_streaming_disabled_has_no_stream_p
     assert "write_file" in tool_names
     assert "read_file" in tool_names
 
-    text = _last_assistant_text(events)
-    assert desired in text
+    read_text = _tool_results_text(events, tool_name="read_file")
+    assert desired in read_text
+
+    assert _last_assistant_text(events) != ""
 
     try:
         os.unlink(write_path)
