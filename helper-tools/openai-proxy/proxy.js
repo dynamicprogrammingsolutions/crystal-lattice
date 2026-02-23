@@ -4,13 +4,17 @@ const axios = require("axios");
 // Parse command line arguments
 const args = process.argv.slice(2);
 if (args.length < 2) {
-  console.log("Usage: node proxy.js <endpoint> <port>");
-  console.log("Example: node proxy.js https://openrouter.ai/api/v1 3000");
+  console.log("Usage: node proxy.js <endpoint> <port> [base-path]");
+  console.log("Example (OpenAI-compatible): node proxy.js https://openrouter.ai/api/v1 3000");
+  console.log("Example (Anthropic):         node proxy.js https://api.anthropic.com 3000 /v1");
   process.exit(1);
 }
 
 const TARGET_ENDPOINT = args[0];
 const PORT = parseInt(args[1]);
+// Optional base path: defaults to /api/v1 (OpenAI-compatible style).
+// For Anthropic pass /v1 so that Claude Code's requests to /v1/messages are forwarded correctly.
+const BASE_PATH = (args[2] || "/api/v1").replace(/\/$/, "");
 
 // Validate arguments
 if (isNaN(PORT) || PORT < 1 || PORT > 65535) {
@@ -60,6 +64,23 @@ function extractLongTexts(
   return obj;
 }
 
+// Shared helper: pretty-print a body object, extracting long texts
+function logBody(label, data) {
+  const longTexts = [];
+  const counter = { value: 0 };
+  const truncated = extractLongTexts(data, "", longTexts, counter);
+  console.log(`${label}:`, JSON.stringify(truncated, null, 2));
+  if (longTexts.length > 0) {
+    console.log("\n--- Long Text Fields ---");
+    longTexts.forEach(({ number, path, content, length }) => {
+      console.log(`LONG_TEXT_${number} - ${path} (${length} chars):`);
+      console.log("---");
+      console.log(content);
+      console.log("---\n");
+    });
+  }
+}
+
 // Function to log request with numbered long text extraction
 function logRequest(req) {
   console.log("\n=== Incoming Request ===");
@@ -70,24 +91,19 @@ function logRequest(req) {
 
   // Only log body for methods that typically have bodies
   if (["POST", "PUT", "PATCH"].includes(req.method) && req.body) {
-    const longTexts = [];
-    const counter = { value: 0 };
-    const truncatedBody = extractLongTexts(req.body, "", longTexts, counter);
-
-    console.log("Body:", JSON.stringify(truncatedBody, null, 2));
-
-    // Output long texts separately with numbers
-    if (longTexts.length > 0) {
-      console.log("\n--- Long Text Fields ---");
-      longTexts.forEach(({ number, path, content, length }) => {
-        console.log(`LONG_TEXT_${number} - ${path} (${length} chars):`);
-        console.log("---");
-        console.log(content);
-        console.log("---\n");
-      });
-    }
+    logBody("Body", req.body);
   }
   console.log("========================\n");
+}
+
+// Function to log response
+function logResponse(status, data) {
+  console.log("\n=== Response ===");
+  console.log("Status:", status);
+  if (data !== undefined && data !== null && data !== "") {
+    logBody("Body", data);
+  }
+  console.log("================\n");
 }
 
 // Health check endpoint (before the wildcard)
@@ -96,17 +112,18 @@ app.get("/health", (req, res) => {
     status: "ok",
     target: cleanEndpoint,
     port: PORT,
-    proxy_pattern: "/api/v1/*",
+    base_path: BASE_PATH,
+    proxy_pattern: `${BASE_PATH}/*`,
   });
 });
 
-// Middleware to handle all /api/v1 routes
-app.use("/api/v1", async (req, res) => {
+// Shared proxy handler — used for both OpenAI-compatible and Anthropic base paths
+async function proxyHandler(req, res) {
   try {
-    // Get the path after /api/v1
+    // Get the path after BASE_PATH
     const apiPath = req.path === "/" ? "" : req.path;
 
-    // Log the incoming request with numbered long text extraction
+    // Log the incoming request
     logRequest(req);
 
     // Prepare headers for forwarding
@@ -115,10 +132,18 @@ app.use("/api/v1", async (req, res) => {
     delete forwardHeaders.connection;
     delete forwardHeaders["content-length"];
 
-    // Build target URL
-    const targetUrl = `${cleanEndpoint}${apiPath}`;
+    // Build target URL: cleanEndpoint already contains the full base (e.g.
+    // "https://api.anthropic.com" for Anthropic, or
+    // "https://openrouter.ai/api/v1" for OpenAI-compatible).
+    // We append BASE_PATH only when it isn't already part of cleanEndpoint.
+    const targetUrl = cleanEndpoint.endsWith(BASE_PATH)
+      ? `${cleanEndpoint}${apiPath}`
+      : `${cleanEndpoint}${BASE_PATH}${apiPath}`;
 
     console.log(`Forwarding ${req.method} request to: ${targetUrl}`);
+
+    const isStreaming =
+      req.body?.stream === true || req.body?.stream === "true";
 
     // Prepare axios config
     const axiosConfig = {
@@ -127,6 +152,8 @@ app.use("/api/v1", async (req, res) => {
       headers: forwardHeaders,
       params: req.query, // Forward query parameters
       validateStatus: () => true, // Don't throw on any status code
+      // Use a stream response type so we can pipe SSE / chunked responses
+      responseType: isStreaming ? "stream" : "json",
     };
 
     // Add body for methods that support it
@@ -149,11 +176,31 @@ app.use("/api/v1", async (req, res) => {
 
     res.status(response.status);
 
-    // Send response based on content type
-    if (response.headers["content-type"]?.includes("application/json")) {
-      res.json(response.data);
+    if (isStreaming) {
+      // Pipe the SSE stream directly to the client, logging each chunk
+      console.log("Streaming response — piping chunks:");
+      response.data.on("data", (chunk) => {
+        const text = chunk.toString();
+        console.log("[chunk]", text);
+        res.write(chunk);
+      });
+      response.data.on("end", () => {
+        console.log("[stream end]");
+        res.end();
+      });
+      response.data.on("error", (err) => {
+        console.error("[stream error]", err.message);
+        res.end();
+      });
     } else {
-      res.send(response.data);
+      // Non-streaming: log full response then send
+      logResponse(response.status, response.data);
+
+      if (response.headers["content-type"]?.includes("application/json")) {
+        res.json(response.data);
+      } else {
+        res.send(response.data);
+      }
     }
 
     console.log(`Response status: ${response.status}`);
@@ -181,32 +228,42 @@ app.use("/api/v1", async (req, res) => {
       });
     }
   }
-});
+}
+
+// Register the single handler under the configured base path
+app.use(BASE_PATH, proxyHandler);
 
 // Handle 404s for other routes
 app.use((req, res) => {
   res.status(404).json({
     error: "Not Found",
-    message: "This proxy only supports paths under /api/v1/",
-    available_endpoints: ["ALL /api/v1/*", "GET /health"],
+    message: `This proxy only supports paths under ${BASE_PATH}/`,
+    available_endpoints: [`ALL ${BASE_PATH}/*`, "GET /health"],
   });
 });
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`OpenAI Proxy Server running on port ${PORT}`);
+  console.log(`Proxy Server running on port ${PORT}`);
   console.log(`Target endpoint: ${cleanEndpoint}`);
-  console.log(`Proxy pattern: http://localhost:${PORT}/api/v1/*`);
-  console.log(`Health check: http://localhost:${PORT}/health`);
-  console.log("\nSupported endpoints:");
-  console.log(`  - POST   /api/v1/chat/completions`);
-  console.log(`  - GET    /api/v1/models`);
-  console.log(`  - POST   /api/v1/embeddings`);
-  console.log(`  - POST   /api/v1/completions`);
-  console.log(`  - And any other /api/v1/* endpoint`);
+  console.log(`Base path:       ${BASE_PATH}`);
+  console.log(`Proxy pattern:   http://localhost:${PORT}${BASE_PATH}/*`);
+  console.log(`Health check:    http://localhost:${PORT}/health`);
+  console.log("\nExample endpoints:");
+  if (BASE_PATH === "/v1") {
+    console.log(`  - POST   ${BASE_PATH}/messages          (Anthropic)`);
+    console.log(`  - GET    ${BASE_PATH}/models             (Anthropic)`);
+  } else {
+    console.log(`  - POST   ${BASE_PATH}/chat/completions   (OpenAI-compatible)`);
+    console.log(`  - GET    ${BASE_PATH}/models              (OpenAI-compatible)`);
+    console.log(`  - POST   ${BASE_PATH}/embeddings`);
+    console.log(`  - POST   ${BASE_PATH}/completions`);
+  }
+  console.log(`  - And any other ${BASE_PATH}/* endpoint`);
   console.log(
     "\nLong text detection: Enabled (>1000 characters, numbered for easy search)"
   );
+  console.log("Streaming support: Enabled (SSE chunks are piped and logged)");
   console.log("\nWaiting for requests...\n");
 });
 
