@@ -1,5 +1,6 @@
 const express = require("express");
 const axios = require("axios");
+const crypto = require("crypto");
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -25,6 +26,31 @@ if (isNaN(PORT) || PORT < 1 || PORT > 65535) {
 // Remove trailing slash from endpoint if present
 const cleanEndpoint = TARGET_ENDPOINT.replace(/\/$/, "");
 
+
+// Global long-text registry persisted across all requests.
+// Maps sha256 hash -> { number, path (first seen), length }
+const longTextRegistry = new Map();
+let longTextCounter = 0;
+
+function hashText(str) {
+  return crypto.createHash("sha256").update(str).digest("hex");
+}
+
+// Returns the zero-padded placeholder number for the given text,
+// registering it in the global registry if it hasn't been seen before.
+// Also pushes to `newTexts` when the text is genuinely new.
+function getOrRegisterLongText(str, path, newTexts) {
+  const hash = hashText(str);
+  if (longTextRegistry.has(hash)) {
+    return longTextRegistry.get(hash).number;
+  }
+  longTextCounter++;
+  const num = String(longTextCounter).padStart(3, "0");
+  longTextRegistry.set(hash, { number: num, path, length: str.length });
+  newTexts.push({ number: num, path, content: str, length: str.length });
+  return num;
+}
+
 const app = express();
 
 // Middleware to parse JSON and handle raw data
@@ -36,28 +62,20 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 function extractLongTexts(
   obj,
   path = "",
-  longTexts = [],
-  counter = { value: 0 }
+  newTexts = []
 ) {
   if (typeof obj === "string" && obj.length > 1000) {
-    counter.value++;
-    const textNumber = counter.value;
-    longTexts.push({
-      number: textNumber,
-      path,
-      content: obj,
-      length: obj.length,
-    });
-    return `[LONG_TEXT_${textNumber}]`;
+    const num = getOrRegisterLongText(obj, path, newTexts);
+    return `[LONG_TEXT_${num}]`;
   } else if (Array.isArray(obj)) {
     return obj.map((item, index) =>
-      extractLongTexts(item, `${path}[${index}]`, longTexts, counter)
+      extractLongTexts(item, `${path}[${index}]`, newTexts)
     );
   } else if (obj && typeof obj === "object") {
     const result = {};
     for (const [key, value] of Object.entries(obj)) {
       const newPath = path ? `${path}.${key}` : key;
-      result[key] = extractLongTexts(value, newPath, longTexts, counter);
+      result[key] = extractLongTexts(value, newPath, newTexts);
     }
     return result;
   }
@@ -66,13 +84,12 @@ function extractLongTexts(
 
 // Shared helper: pretty-print a body object, extracting long texts
 function logBody(label, data) {
-  const longTexts = [];
-  const counter = { value: 0 };
-  const truncated = extractLongTexts(data, "", longTexts, counter);
+  const newTexts = [];
+  const truncated = extractLongTexts(data, "", newTexts);
   console.log(`${label}:`, JSON.stringify(truncated, null, 2));
-  if (longTexts.length > 0) {
-    console.log("\n--- Long Text Fields ---");
-    longTexts.forEach(({ number, path, content, length }) => {
+  if (newTexts.length > 0) {
+    console.log("\n--- New Long Text Fields ---");
+    newTexts.forEach(({ number, path, content, length }) => {
       console.log(`LONG_TEXT_${number} - ${path} (${length} chars):`);
       console.log("---");
       console.log(content);
