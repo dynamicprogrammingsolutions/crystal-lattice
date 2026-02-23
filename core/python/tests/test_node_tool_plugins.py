@@ -16,9 +16,22 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
+def _esbuild_command(repo_root: Path) -> str:
+    esbuild = repo_root / "node_modules" / ".bin" / "esbuild"
+    return f"{esbuild} src/index.ts --bundle --platform=node --format=esm --outdir=dist"
+
+
+def _node_tool_policy(repo_root: Path) -> dict:
+    return {
+        "base_dir": str(repo_root),
+        "node_build": True,
+        "node_build_command": _esbuild_command(repo_root),
+    }
+
+
 def _make_git_js_tool_repo(tmp_path: Path) -> Path:
     repo = tmp_path / "js_tool_repo"
-    (repo / "dist").mkdir(parents=True)
+    (repo / "src").mkdir(parents=True)
     (repo / "package.json").write_text(
         json.dumps(
             {
@@ -26,13 +39,33 @@ def _make_git_js_tool_repo(tmp_path: Path) -> Path:
                 "version": "0.1.0",
                 "private": True,
                 "type": "module",
-                "agent": {"kinds": ["tools"], "tools": [{"id": "js_git_tool", "entry": "dist/index.js"}]},
+                "main": "dist/index.js",
+                "scripts": {
+                    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js"
+                },
+                "agent": {
+                    "kinds": ["tools"],
+                    "tools": [{"id": "js_git_tool", "entry": "dist/index.js"}],
+                },
             }
         ),
         encoding="utf-8",
     )
-    (repo / "dist" / "index.js").write_text(
-        "export default { name: 'js_git_tool', version: '0.1.0', getToolSchemas() { return [{type:'function', function:{name:'ping', parameters:{type:'object', properties:{}, required:[]}}}]; }, async executeTool(name) { return name === 'ping' ? { success: true, result: 'pong' } : { success: false, error: 'unknown' }; } };\n",
+    (repo / "src" / "PingTool.ts").write_text(
+        "export default {\n"
+        "  name: 'js_git_tool',\n"
+        "  version: '0.1.0',\n"
+        "  getToolSchemas() {\n"
+        "    return [{ type: 'function', function: { name: 'ping', parameters: { type: 'object', properties: {}, required: [] } } }];\n"
+        "  },\n"
+        "  async executeTool(name) {\n"
+        "    return name === 'ping' ? { success: true, result: 'pong' } : { success: false, error: 'unknown' };\n"
+        "  },\n"
+        "};\n",
+        encoding="utf-8",
+    )
+    (repo / "src" / "index.ts").write_text(
+        "export { default } from './PingTool';\n",
         encoding="utf-8",
     )
     subprocess.check_call(["git", "init"], cwd=str(repo))
@@ -56,7 +89,8 @@ def _make_git_js_tool_repo(tmp_path: Path) -> Path:
 @pytest.mark.skipif(shutil.which("node") is None, reason="node executable not available")
 def test_plugin_manager_resolves_js_echo_tool(tmp_path: Path) -> None:
     cache_dir = tmp_path / "cache"
-    mgr = PluginManager(cache_dir=cache_dir, policy={"base_dir": str(_repo_root())})
+    repo_root = _repo_root()
+    mgr = PluginManager(cache_dir=cache_dir, policy=_node_tool_policy(repo_root))
 
     res = mgr.resolve_all([
         {"node_tool": {"path": "plugins/js-echo-tool"}},
@@ -74,11 +108,56 @@ def test_plugin_manager_resolves_js_echo_tool(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node executable not available")
+def test_plugin_manager_resolves_node_shorthand_path(tmp_path: Path) -> None:
+    cache_dir = tmp_path / "cache"
+    repo_root = _repo_root()
+    mgr = PluginManager(cache_dir=cache_dir, policy=_node_tool_policy(repo_root))
+
+    res = mgr.resolve_all([
+        "node:plugins/js-echo-tool",
+    ])
+    assert res.errors == []
+    assert len(res.classes) == 1
+    assert getattr(res.classes[0], "name", None) == "js_echo_tool"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node executable not available")
+def test_plugin_manager_resolves_node_shorthand_file(tmp_path: Path) -> None:
+    cache_dir = tmp_path / "cache"
+    repo_root = _repo_root()
+    mgr = PluginManager(cache_dir=cache_dir, policy=_node_tool_policy(repo_root))
+
+    res = mgr.resolve_all([
+        "node:plugins/js-single-file-tool/UpperTool.ts",
+    ])
+    assert res.errors == []
+    assert len(res.classes) == 1
+
+    core = AgentCore()
+    core.register_tool(res.classes[0])
+
+    tool_calls = [
+        {
+            "id": "call_1",
+            "type": "function",
+            "function": {"name": "upper", "arguments": {"value": "hi"}},
+        }
+    ]
+    items = list(core.iter_tool_messages(tool_calls, config={}))
+    finals = [it for it in items if isinstance(it, dict) and "part" not in it]
+    assert len(finals) == 1
+    assert "HI" in finals[0].get("content", "")
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node executable not available")
 @pytest.mark.skipif(shutil.which("git") is None, reason="git executable not available")
 def test_node_tool_git_local_repo_resolves_and_executes(tmp_path: Path) -> None:
     repo = _make_git_js_tool_repo(tmp_path)
     cache_dir = tmp_path / "cache"
-    mgr = PluginManager(cache_dir=cache_dir, policy={"base_dir": str(tmp_path)})
+    repo_root = _repo_root()
+    policy = _node_tool_policy(repo_root)
+    policy["base_dir"] = str(tmp_path)
+    mgr = PluginManager(cache_dir=cache_dir, policy=policy)
 
     res = mgr.resolve_all([
         {"node_tool": {"git": str(repo)}},
@@ -106,9 +185,27 @@ def test_node_tool_git_local_repo_resolves_and_executes(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node executable not available")
+@pytest.mark.skipif(shutil.which("git") is None, reason="git executable not available")
+def test_plugin_manager_resolves_node_git_shorthand(tmp_path: Path) -> None:
+    repo = _make_git_js_tool_repo(tmp_path)
+    cache_dir = tmp_path / "cache"
+    repo_root = _repo_root()
+    policy = _node_tool_policy(repo_root)
+    policy["base_dir"] = str(tmp_path)
+    mgr = PluginManager(cache_dir=cache_dir, policy=policy)
+
+    res = mgr.resolve_all([
+        f"node+git:{repo}",
+    ])
+    assert res.errors == []
+    assert len(res.classes) == 1
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node executable not available")
 def test_node_tool_executes_and_streams_with_state_round_trip(tmp_path: Path) -> None:
     cache_dir = tmp_path / "cache"
-    mgr = PluginManager(cache_dir=cache_dir, policy={"base_dir": str(_repo_root())})
+    repo_root = _repo_root()
+    mgr = PluginManager(cache_dir=cache_dir, policy=_node_tool_policy(repo_root))
     res = mgr.resolve_all([
         {"node_tool": {"path": "plugins/js-echo-tool"}},
     ])
@@ -153,7 +250,8 @@ def test_node_tool_executes_and_streams_with_state_round_trip(tmp_path: Path) ->
 @pytest.mark.skipif(shutil.which("node") is None, reason="node executable not available")
 def test_node_tool_multiple_exports_resolve_and_execute(tmp_path: Path) -> None:
     cache_dir = tmp_path / "cache"
-    mgr = PluginManager(cache_dir=cache_dir, policy={"base_dir": str(_repo_root())})
+    repo_root = _repo_root()
+    mgr = PluginManager(cache_dir=cache_dir, policy=_node_tool_policy(repo_root))
     res = mgr.resolve_all([
         {"node_tool": {"path": "plugins/js-multi-tools"}},
     ])
@@ -184,15 +282,47 @@ def test_node_tool_multiple_exports_resolve_and_execute(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node executable not available")
+def test_node_tool_class_export_instantiated_by_host(tmp_path: Path) -> None:
+    cache_dir = tmp_path / "cache"
+    repo_root = _repo_root()
+    mgr = PluginManager(cache_dir=cache_dir, policy=_node_tool_policy(repo_root))
+
+    res = mgr.resolve_all([
+        {"node_tool": {"path": "plugins/js-class-tool"}},
+    ])
+    assert res.errors == []
+    assert len(res.classes) == 1
+
+    core = AgentCore()
+    core.register_tool(res.classes[0])
+
+    tool_calls = [
+        {
+            "id": "call_1",
+            "type": "function",
+            "function": {"name": "class_echo", "arguments": {"value": "hello"}},
+        }
+    ]
+    items = list(core.iter_tool_messages(tool_calls, config={}))
+    partials = [it for it in items if isinstance(it, dict) and "part" in it]
+    finals = [it for it in items if isinstance(it, dict) and "part" not in it]
+
+    assert partials
+    assert len(finals) == 1
+    assert "ClassEcho" in finals[0].get("content", "")
+    assert "hello" in finals[0].get("content", "")
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node executable not available")
 def test_node_tool_single_file_spec_executes(tmp_path: Path) -> None:
     cache_dir = tmp_path / "cache"
-    mgr = PluginManager(cache_dir=cache_dir, policy={"base_dir": str(_repo_root())})
+    repo_root = _repo_root()
+    mgr = PluginManager(cache_dir=cache_dir, policy=_node_tool_policy(repo_root))
     res = mgr.resolve_all([
         {
             "node_tool": {
-                "file": "plugins/js-single-file-tool.js",
+                "file": "plugins/js-single-file-tool/UpperTool.ts",
                 "id": "js_single_file_tool",
-                "entry": "js-single-file-tool.js",
             }
         },
     ])
@@ -220,7 +350,11 @@ def test_agent_application_lists_node_tool_plugin(tmp_path: Path) -> None:
     repo_root = _repo_root()
     config = {
         "plugin_cache_dir": str(tmp_path / "plugin_cache"),
-        "plugin_policy": {"base_dir": str(repo_root)},
+        "plugin_policy": {
+            "base_dir": str(repo_root),
+            "node_build": True,
+            "node_build_command": _esbuild_command(repo_root),
+        },
         "providers": {"dummy": {"provider": "dummy_provider", "model": "test"}},
         "plugins": [
             "tests.dummy_provider.DummyProvider",
