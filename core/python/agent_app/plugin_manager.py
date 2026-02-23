@@ -14,6 +14,7 @@ from agent_app.plugin_sources import (
     DottedClassSource,
     GitRepoSource,
     LocalPathRepoSource,
+    NodeToolSource,
     PluginContext,
     PluginResolution,
     PluginSource,
@@ -35,6 +36,7 @@ class PluginManager:
             installer = PipTargetInstallStrategy()
             self.sources: List[PluginSource] = [
                 DottedClassSource(),
+                NodeToolSource(),
                 LocalPathRepoSource(installer=installer),
                 GitRepoSource(installer=installer),
             ]
