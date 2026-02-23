@@ -28,6 +28,11 @@ Each plugin reference is a “spec” that can take one of the following forms:
   - Local: `{ "path": "/abs/or/rel", "subdirectory": "optional/subdir", "entry": "pkg.module.Class" }`
   - Git: `{ "git": "<url-or-local>", "ref": "tag-or-commit", "subdirectory": "optional/subdir", "entry": "pkg.module.Class" }`
 
+- JavaScript/TypeScript tool plugins (Node.js)
+  - Local directory: `{ "node_tool": { "path": "./path/to/js-tool" } }`
+  - Git repo: `{ "node_tool": { "git": "https://github.com/acme/my-js-tool.git", "ref": "v0.1.0" } }`
+  - Single file: `{ "node_tool": { "file": "./my_tool.js", "id": "my_tool", "entry": "my_tool.js" } }`
+
 For repos, `subdirectory` selects a subfolder within the repo to install (useful for monorepos).
 
 ### Descriptor (agent_plugin.json)
@@ -45,6 +50,29 @@ Optional fields:
 - `subdirectory`: default install subdirectory (used when the config spec does not provide `subdirectory`).
 
 Other fields may exist for authoring convenience; the loader only requires `entries`.
+
+### Descriptor (Node.js tools via package.json)
+
+For `node_tool` directory specs, the loader reads `package.json#agent.tools`.
+
+Example:
+
+```
+{
+  "name": "@acme/my-js-tools",
+  "version": "0.1.0",
+  "type": "module",
+  "agent": {
+    "kinds": ["tools"],
+    "tools": [
+      { "id": "echo", "entry": "dist/index.js" },
+      { "id": "reverse", "entry": "dist/index.js", "export": "reverseTool" }
+    ]
+  }
+}
+```
+
+When `export` is present, the Node tool host selects `module[export]`; otherwise it uses the default export.
 
 ## Config Forms
 
@@ -75,6 +103,14 @@ Other fields may exist for authoring convenience; the loader only requires `entr
   - `pip_args`: extra pip args for Git and local installs.
   - `install_deps` (default false): when false, installs run with `--no-deps`.
 
+Node.js tool policy keys:
+- `node_timeout_seconds` (default 60): timeout per tool RPC.
+- `node_install_deps` (default false): run dependency install in cached copies.
+- `node_build` (default false): run a build command in cached copies.
+- `node_package_manager` (default `npm`): `npm`, `pnpm`, or `yarn`.
+- `node_allow_install_scripts` (default false): allow install-time scripts.
+- `node_build_command` (default `npm run build`): override build command.
+
 Security guidance:
 - Git installs run arbitrary code via pip; prefer pinned refs (tags/commits), and use `allowed_git_hosts` where possible.
 
@@ -93,3 +129,4 @@ for err in app.get_config_errors():
 
 ## See Also
 - docs/plugins/development.md — authoring, packaging, and wiring guidelines
+- docs/reference/tool-host-protocol.md — the NDJSON tool host protocol

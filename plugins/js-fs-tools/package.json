@@ -1,0 +1,15 @@
+{
+  "name": "js-fs-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "agent": {
+    "kinds": ["tools"],
+    "tools": [
+      {
+        "id": "js_fs_tools",
+        "entry": "dist/index.js"
+      }
+    ]
+  }
+}

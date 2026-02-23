@@ -683,6 +683,52 @@ class Calculator(ToolPlugin):
     #     return {"type": "text", "content": text}
 ```
 
+### JavaScript/TypeScript Tool Plugins (Node.js)
+
+Tools can also be authored in JavaScript/TypeScript and executed out-of-process by Node.js.
+
+Key points:
+- Tools are executed by a Node subprocess speaking the NDJSON tool host protocol.
+- Tool `state` is treated as per-request working state; it is round-tripped on every call.
+- JavaScript tools must not write to stdout (stdout is reserved for protocol messages); write logs to stderr.
+
+#### Module shape
+
+The Node host loads an entry module and selects either:
+- the default export, or
+- a named export specified by `package.json#agent.tools[].export`.
+
+Example (single tool, default export):
+
+```js
+export default {
+  name: "echo_tool",
+  version: "0.1.0",
+  init(config) {
+    return { config };
+  },
+  getToolSchemas() {
+    return [{
+      type: "function",
+      function: {
+        name: "echo",
+        parameters: {
+          type: "object",
+          properties: { value: { type: "string" } },
+          required: ["value"],
+        },
+      },
+    }];
+  },
+  async executeTool(toolName, args, state, emit) {
+    emit({ type: "part", payload: { message: "working..." } });
+    return { success: true, result: String(args?.value ?? "") };
+  },
+};
+```
+
+See `docs/reference/tool-host-protocol.md` for the full NDJSON RPC surface.
+
 ## Registering Plugins
 
 ```python

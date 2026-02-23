@@ -1,0 +1,13 @@
+{
+  "name": "js-multi-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "agent": {
+    "kinds": ["tools"],
+    "tools": [
+      { "id": "js_echo", "entry": "dist/index.js", "export": "echoTool" },
+      { "id": "js_reverse", "entry": "dist/index.js", "export": "reverseTool" }
+    ]
+  }
+}
