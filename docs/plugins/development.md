@@ -698,6 +698,10 @@ The Node host loads an entry module and selects either:
 - the default export, or
 - a named export specified by `package.json#agent.tools[].export`.
 
+The selected export can be either:
+- a plain object implementing the tool methods (existing semantics), or
+- a class / constructor (the host instantiates it with `new` and then calls instance methods).
+
 Example (single tool, default export):
 
 ```js

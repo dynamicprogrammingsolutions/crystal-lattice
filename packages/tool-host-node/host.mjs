@@ -78,6 +78,24 @@ function normalizePlugin(plugin) {
   };
 }
 
+function instantiatePluginIfNeeded(value) {
+  if (typeof value !== "function") {
+    return value;
+  }
+
+  // Support exporting a class (preferred) or a factory function.
+  try {
+    return new value();
+  } catch (err) {
+    // If it's not constructable, fall back to calling as a function.
+    try {
+      return value();
+    } catch (_err2) {
+      throw err;
+    }
+  }
+}
+
 async function loadPlugin(entryPath, exportName) {
   const url = pathToFileURL(entryPath).href;
   const mod = await import(url);
@@ -107,7 +125,8 @@ async function loadPlugin(entryPath, exportName) {
         : `No default export found in ${entryPath}`
     );
   }
-  return normalizePlugin(plugin);
+  const instantiated = instantiatePluginIfNeeded(plugin);
+  return normalizePlugin(instantiated);
 }
 
 function protocolViolation(detail) {
