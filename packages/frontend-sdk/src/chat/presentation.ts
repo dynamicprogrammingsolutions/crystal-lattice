@@ -1,6 +1,6 @@
 import type { ApiMessage, IndexedMessage } from '../types/messages';
 import type { UiSchemaElement } from '../types/uiSchema';
-import { extractByPath, renderTemplate, formatValueForElement } from '../utils/uiSchema';
+import { extractByPath, renderTemplate, formatValueForElement, evaluateCondition } from '../utils/uiSchema';
 import type { StreamingRow } from './chatController';
 
 export function selectLastAssistantMessage(options: {
@@ -48,6 +48,8 @@ export function deriveChatStatusBarParts(options: {
 
   statusBarElements.forEach((el) => {
     if (!el || el.ui_type !== 'status_bar') return;
+    const condition = (el as any).condition;
+    if (condition != null && !evaluateCondition(condition, lastAssistantMessage as Record<string, unknown>)) return;
     const rawValue = extractByPath(lastAssistantMessage, el.data);
     const valueForTemplate = formatValueForElement(el, rawValue);
     if (valueForTemplate === undefined || valueForTemplate === null || valueForTemplate === '') return;

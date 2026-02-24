@@ -10,6 +10,8 @@ export interface UiSchemaElement {
   data?: string;
   template?: string;
   metadata?: Record<string, any>;
+  /** Optional condition (all/any/not + path/eq|exists|empty) evaluated against message; when false, element is hidden. */
+  condition?: unknown;
   // Plugin / misc
   plugin?: string;
   [k: string]: any;

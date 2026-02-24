@@ -5,6 +5,7 @@ from logging import Logger
 from typing import Any, Callable, Dict, List, Optional
 
 from agent_core.types import Message
+from agent_app.utils.ui_condition import evaluate_condition
 from agent_core.utils import get_logger
 
 from .terminal_app import TerminalApplication, TerminalUserError
@@ -236,6 +237,9 @@ class UserRenderer(BaseMessageRenderer):
         for el in elements:
             if not isinstance(el, dict) or el.get("ui_type") != "message_footer":
                 continue
+            condition = el.get("condition")
+            if condition is not None and not evaluate_condition(condition, msg):
+                continue
             data_path = el.get("data")
             template = el.get("template") or "{{data}}"
             if not isinstance(data_path, str) or not data_path:
@@ -425,6 +429,9 @@ class AssistantRenderer(BaseMessageRenderer):
             elements = []
         for el in elements:
             if not isinstance(el, dict) or el.get("ui_type") != "message_footer":
+                continue
+            condition = el.get("condition")
+            if condition is not None and not evaluate_condition(condition, msg):
                 continue
             data_path = el.get("data")
             template = el.get("template") or "{{data}}"

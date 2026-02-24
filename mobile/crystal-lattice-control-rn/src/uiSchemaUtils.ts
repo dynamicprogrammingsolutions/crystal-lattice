@@ -6,4 +6,5 @@ export {
   formatValueForElement,
   filterFooterElements,
   filterStatusBarElements,
+  evaluateCondition,
 } from '@crystal-lattice/frontend-sdk';

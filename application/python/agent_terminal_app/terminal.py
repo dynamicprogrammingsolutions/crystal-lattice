@@ -13,6 +13,7 @@ from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.patch_stdout import patch_stdout
 
+from agent_app.utils.ui_condition import evaluate_condition
 from .event_rendering import TerminalRenderContext, _render_terminal_exception, _extract_by_path
 from .terminal_app import TerminalApplication, TerminalUserError, TerminalApplicationError
 from agent_app.config import resolve_request_config
@@ -218,13 +219,15 @@ def _status_bar_text(app: TerminalApplication) -> str:
             for el in elements:
                 if not isinstance(el, dict):
                     continue
-                    
+                condition = el.get("condition")
+                if condition is not None and not evaluate_condition(condition, last_msg):
+                    continue
                 data_path = el.get("data")
                 template = el.get("template") or "{{data}}"
-                
+
                 if not isinstance(data_path, str) or not data_path:
                     continue
-                
+
                 # Extract value from the last assistant message
                 value = _extract_by_path(last_msg, data_path)
                 if value is None or value == "":
