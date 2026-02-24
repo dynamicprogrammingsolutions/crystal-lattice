@@ -861,10 +861,14 @@ class TerminalApplication:
         return new_session
 
     def session_ui_elements(self) -> list[dict[str, object]]:
-        core, _base_config, _session = self.require_session()
+        core, base_config, session = self.require_session()
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        raw = metadata.get("overrides")
+        overrides = raw if isinstance(raw, dict) else {}
+        effective_config = resolve_request_config(base_config, overrides)
 
         try:
-            ui_schema = core.get_ui_schema()
+            ui_schema = core.get_ui_schema(config=effective_config)
         except Exception:
             return []
 
@@ -887,10 +891,14 @@ class TerminalApplication:
         footer area.
         """
 
-        core, _base_config, _session = self.require_session()
+        core, base_config, session = self.require_session()
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        raw = metadata.get("overrides")
+        overrides = raw if isinstance(raw, dict) else {}
+        effective_config = resolve_request_config(base_config, overrides)
 
         try:
-            ui_schema = core.get_ui_schema()
+            ui_schema = core.get_ui_schema(config=effective_config)
         except Exception:
             return []
 
@@ -910,10 +918,14 @@ class TerminalApplication:
         reference JSON paths within messages. These are extracted from the
         last assistant message and displayed in the terminal's bottom toolbar.
         """
-        core, _base_config, _session = self.require_session()
+        core, base_config, session = self.require_session()
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        raw = metadata.get("overrides")
+        overrides = raw if isinstance(raw, dict) else {}
+        effective_config = resolve_request_config(base_config, overrides)
 
         try:
-            ui_schema = core.get_ui_schema()
+            ui_schema = core.get_ui_schema(config=effective_config)
         except Exception:
             return []
 

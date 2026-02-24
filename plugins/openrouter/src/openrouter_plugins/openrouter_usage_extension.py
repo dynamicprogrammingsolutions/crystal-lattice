@@ -24,6 +24,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 from agent_core.types import ProviderExtensionPlugin
+from agent_core.constants import UIConfigKeys
 
 
 class OpenRouterUsageExtension(ProviderExtensionPlugin):
@@ -98,6 +99,11 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
             },
         ]
 
+    def get_ui_elements_for_config(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return usage UI elements only when show_usage is not disabled in config."""
+        if config.get(UIConfigKeys.SHOW_USAGE) is False:
+            return []
+        return self.get_ui_elements()
 
     def get_tags(
         self,
