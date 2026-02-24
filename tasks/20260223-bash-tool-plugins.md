@@ -112,7 +112,6 @@ Example `agent_plugin.json` (bash tools):
 
 ```json
 {
-  "kinds": ["tools"],
   "bash_tools": [
     {"file": "tools/sed_lines.bash"},
     {"file": "tools/grep_context.bash"}
@@ -133,6 +132,10 @@ Notes:
   - Python plugin repos use `entries: ["pkg.module.Class", ...]`.
   - Bash tool repos use `bash_tools: [{"file": "..."}, ...]`.
   - Because bash repos are only loaded via explicit `bash_tool` specs in v1, this shape difference is not ambiguous.
+
+  The `kinds` field is intentionally omitted here. In existing Python manifests,
+  `kinds` is an optional mapping (not a list) from entry to kind. For bash tool
+  repos the kind is always `tools`, so it would be redundant.
 
 ### 2) Schema JSON returned from `schema`
 
