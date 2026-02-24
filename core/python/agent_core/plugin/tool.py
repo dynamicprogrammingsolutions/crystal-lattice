@@ -45,6 +45,10 @@ class ToolWrapper(ToolPlugin):
         """Get tool UI elements."""
         return self.plugin.get_ui_elements()
 
+    def get_ui_elements_for_config(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Get tool UI elements for the given config."""
+        return self.plugin.get_ui_elements_for_config(config)
+
     def get_tags(
         self,
         config: Dict[str, Any],

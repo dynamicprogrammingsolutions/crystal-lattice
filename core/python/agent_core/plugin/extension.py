@@ -37,6 +37,9 @@ class ExtensionWrapper(ProviderExtensionPlugin):
     def get_ui_elements(self) -> List[Dict[str, Any]]:
         return self.plugin.get_ui_elements()
 
+    def get_ui_elements_for_config(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        return self.plugin.get_ui_elements_for_config(config)
+
     def get_models(
         self,
         config: Dict[str, Any],

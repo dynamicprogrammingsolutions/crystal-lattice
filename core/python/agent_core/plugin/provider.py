@@ -119,6 +119,16 @@ class ProviderWrapper(ProviderPlugin):
         """
         return self.plugin.get_ui_elements()
 
+    def get_ui_elements_for_config(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Get provider UI elements for the given config."""
+        return self.plugin.get_ui_elements_for_config(config)
+
+    def get_extension_ui_elements_for_config(
+        self, config: Dict[str, Any]
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """Get UI elements from all extensions for the given config."""
+        return {ext.name: ext.get_ui_elements_for_config(config) for ext in self._extensions}
+
     def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Delegate model discovery to the underlying provider via adapter."""
         return self.plugin.get_models(config)

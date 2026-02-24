@@ -131,6 +131,10 @@ class BasePlugin(Protocol):
         """
         return []
 
+    # Optional: plugins may implement get_ui_elements_for_config(config) to
+    # return config-dependent UI elements. When absent, the core uses
+    # get_ui_elements() (see AgentCore.get_ui_schema).
+
     # Common lifecycle across provider/extension/feature
     # No dedicated update_state lifecycle step is required; plugins are free
     # to define and use whatever state shape they need. Configuration and
