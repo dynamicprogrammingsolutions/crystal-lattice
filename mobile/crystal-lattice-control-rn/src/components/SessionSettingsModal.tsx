@@ -32,6 +32,8 @@ export interface SessionSettingsModalProps {
   sessionId: string;
   visible: boolean;
   onRequestClose: () => void;
+  /** Called after overrides are successfully updated so the chat can refetch UI schema. */
+  onOverridesSaved?: () => void;
 }
 
 const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
@@ -39,6 +41,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   sessionId,
   visible,
   onRequestClose,
+  onOverridesSaved,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -106,6 +109,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     setOverrides((prev) => ({ ...prev, [key]: next }));
     try {
       await backend.patchSessionOverrides(sessionId, { [key]: next });
+      onOverridesSaved?.();
     } catch (err: any) {
       console.log('Failed to update checkbox setting', err);
       const msg = err?.message || 'Failed to update setting.';
@@ -122,6 +126,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     setOverrides((prev) => ({ ...prev, [key]: value }));
     try {
       await backend.patchSessionOverrides(sessionId, { [key]: value });
+      onOverridesSaved?.();
     } catch (err: any) {
       console.log('Failed to update select setting', err);
       const msg = err?.message || 'Failed to update setting.';
@@ -139,6 +144,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     try {
       await backend.patchSessionOverrides(sessionId, { [key]: value });
       setOverrides((prev) => ({ ...prev, [key]: value }));
+      onOverridesSaved?.();
     } catch (err: any) {
       console.log('Failed to update text setting', err);
       const msg = err?.message || 'Failed to update setting.';
@@ -168,6 +174,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     });
     try {
       await backend.deleteSessionOverride(sessionId, key);
+      onOverridesSaved?.();
     } catch (err: any) {
       console.log('Failed to revert setting override', err);
       const msg = err?.message || 'Failed to revert setting.';
