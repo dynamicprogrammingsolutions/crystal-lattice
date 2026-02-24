@@ -743,6 +743,53 @@ def test_get_session_ui_schema_includes_ui_types(tmp_path: Path) -> None:
     assert "status_bar" in ui_types
 
 
+def test_get_session_ui_schema_respects_session_overrides(tmp_path: Path) -> None:
+    """GET /sessions/{id}/ui-schema returns different elements when overrides change.
+
+    Uses default config with openrouter_usage extension, which implements
+    get_ui_elements_for_config and returns no elements when show_usage is false.
+    """
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "default_config.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    # Baseline: no overrides → openrouter_usage contributes footer/status_bar elements.
+    resp1 = server_mod.get_session_ui_schema(session_id, app_instance=app)
+    elements1 = resp1.get("elements") or []
+    from_openrouter_usage1 = [
+        el for el in elements1 if isinstance(el, dict) and el.get("plugin") == "openrouter_usage"
+    ]
+    assert len(from_openrouter_usage1) > 0, "expected openrouter_usage elements without overrides"
+
+    # Set override that disables usage UI.
+    server_mod.patch_session_overrides(
+        session_id,
+        {"key": "show_usage", "value": False},
+        app_instance=app,
+    )
+
+    # With show_usage: false, openrouter_usage contributes no elements.
+    resp2 = server_mod.get_session_ui_schema(session_id, app_instance=app)
+    elements2 = resp2.get("elements") or []
+    from_openrouter_usage2 = [
+        el for el in elements2 if isinstance(el, dict) and el.get("plugin") == "openrouter_usage"
+    ]
+    assert len(from_openrouter_usage2) == 0, (
+        "expected no openrouter_usage elements when show_usage is false"
+    )
+    assert len(elements2) < len(elements1), (
+        "schema should have fewer elements when usage UI is disabled"
+    )
+
+
 def test_get_session_config_schema_exposes_known_keys(tmp_path: Path) -> None:
   """GET /sessions/{id}/config/schema returns flattened config entries.
 

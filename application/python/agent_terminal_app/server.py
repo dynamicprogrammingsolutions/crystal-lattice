@@ -1002,6 +1002,11 @@ def get_session_ui_schema(
 ) -> Dict[str, Any]:
     """Return the full flattened UI schema for this session.
 
+    The schema is computed using the session's effective config (base
+    agent config merged with ``session.metadata["overrides"]``), so
+    plugins can vary the returned elements by config (e.g. hide usage
+    footer when ``show_usage`` is false).
+
     The returned list mirrors :meth:`AgentCore.get_ui_schema` for the
     session's configured agent and plugins. Each element is an
     application-defined dictionary that may describe:
@@ -1022,10 +1027,15 @@ def get_session_ui_schema(
         if ctx is None:
             raise KeyError(f"Session {session_id!r} not found")
 
-        core, _base_config, _session = ctx
+        core, base_config, session = ctx
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides = metadata.get("overrides")
+        if not isinstance(overrides, dict):
+            overrides = {}
+        effective_config = resolve_request_config(base_config, overrides)
 
         try:
-            ui_schema = core.get_ui_schema()
+            ui_schema = core.get_ui_schema(config=effective_config)
         except Exception:  # pragma: no cover - defensive
             ui_schema = []
     except KeyError as exc:

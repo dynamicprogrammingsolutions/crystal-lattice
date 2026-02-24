@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 from agent_core.types import ProviderExtensionPlugin
+from agent_core.constants import UIConfigKeys
 
 
 class OpenRouterReasoningExtension(ProviderExtensionPlugin):
@@ -61,7 +62,7 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
 
     def get_ui_elements(self, tags: List[str] = None) -> List[Dict[str, Any]]:
         """Return UI elements with all reasoning effort levels.
-        
+
         Per OpenRouter docs, the API automatically converts between effort levels
         and max_tokens based on what each model supports, so we can safely offer
         all effort levels for all reasoning-capable models.
@@ -72,7 +73,7 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
             {"value": "high", "label": "High"},
             {"value": "xhigh", "label": "Extra High"},
         ]
-        
+
         return [
             {
                 "type": "checkbox",
@@ -86,6 +87,14 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
                 "options": effort_options,
             },
         ]
+
+    def get_ui_elements_for_config(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return reasoning UI; hide effort dropdown when reasoning is disabled."""
+        elements = self.get_ui_elements()
+        if config.get(UIConfigKeys.ENABLE_REASONING) is False:
+            # Only show the enable checkbox so user can turn reasoning on.
+            return [el for el in elements if isinstance(el, dict) and el.get("key") == UIConfigKeys.ENABLE_REASONING]
+        return elements
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         # Check if any reasoning-related config is present
