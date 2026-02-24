@@ -2020,8 +2020,14 @@ class AgentCore:
             _extend(tool.get_config_schema(), tool.name)
         return entries
 
-    def get_ui_schema(self) -> List[Dict[str, Any]]:
+    def get_ui_schema(self, config: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Get flattened UI schema from all registered plugins.
+
+        When ``config`` is provided, plugins that implement
+        ``get_ui_elements_for_config(config)`` are asked for config-dependent
+        elements; others fall back to ``get_ui_elements()``. When ``config`` is
+        None, all plugins are asked for elements via ``get_ui_elements()``
+        (current behaviour).
 
         Each element is a dictionary describing a UI element contributed by a
         provider, extension, feature, or tool. The core treats the dictionaries
@@ -2114,6 +2120,11 @@ class AgentCore:
 
         Callers that are only interested in configuration inputs should filter
         for elements with ``element.get("ui_type", "config") == "config"``.
+
+        Args:
+            config: Optional effective config (e.g. base + session overrides).
+                When provided, plugins may return config-dependent elements
+                via ``get_ui_elements_for_config(config)``.
         """
 
         # We treat configuration-oriented elements (ui_type == "config")
@@ -2147,15 +2158,26 @@ class AgentCore:
 
                 elements.append(entry)
 
+        use_config = config is not None
         for provider in self._providers:
-            _extend(provider.get_ui_elements(), provider.name)
-            # Include provider extension UI schemas
-            for name, ext_ui in provider.get_extension_ui_elements().items():
-                _extend(ext_ui, name)
+            if use_config:
+                _extend(provider.get_ui_elements_for_config(config), provider.name)
+                for name, ext_ui in provider.get_extension_ui_elements_for_config(config).items():
+                    _extend(ext_ui, name)
+            else:
+                _extend(provider.get_ui_elements(), provider.name)
+                for name, ext_ui in provider.get_extension_ui_elements().items():
+                    _extend(ext_ui, name)
         for feature in self._features:
-            _extend(feature.get_ui_elements(), feature.name)
+            if use_config:
+                _extend(feature.get_ui_elements_for_config(config), feature.name)
+            else:
+                _extend(feature.get_ui_elements(), feature.name)
         for tool in self._tools:
-            _extend(tool.get_ui_elements(), tool.name)
+            if use_config:
+                _extend(tool.get_ui_elements_for_config(config), tool.name)
+            else:
+                _extend(tool.get_ui_elements(), tool.name)
 
         # Append deduplicated config elements after non-config ones.
         elements.extend(config_by_key.values())

@@ -75,6 +75,15 @@ class _BasePluginDefaults:
             return [i for i in items if isinstance(i, dict)]
         return []
 
+    def get_ui_elements_for_config(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return UI elements for the given config; fall back to get_ui_elements if not implemented."""
+        fn = getattr(self.impl, "get_ui_elements_for_config", None)
+        if callable(fn):
+            raw = fn(config)
+            items = self._safe_list(raw)
+            return [i for i in items if isinstance(i, dict)]
+        return self.get_ui_elements()
+
 
 class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
     """Adapter providing defaults for ProviderPlugin implementations.
