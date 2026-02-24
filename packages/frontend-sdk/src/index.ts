@@ -50,6 +50,7 @@ export {
   formatValueForElement,
   filterFooterElements,
   filterStatusBarElements,
+  evaluateCondition,
 } from './utils/uiSchema';
 
 export { selectDisplayContent, selectSingleLineContent } from './utils/messages';

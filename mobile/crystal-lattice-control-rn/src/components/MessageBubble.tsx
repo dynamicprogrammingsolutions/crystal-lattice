@@ -18,7 +18,7 @@ import { selectDisplayContent, selectSingleLineContent } from '../messageUtils';
 import MarkdownMessageContent from './MarkdownMessageContent';
 import { AttachmentThumbnailStrip, type AttachmentLike } from './AttachmentThumbnailStrip';
 import { useTheme, type Theme } from '../theme';
-import { extractByPath, renderTemplate, formatValueForElement } from '../uiSchemaUtils';
+import { extractByPath, renderTemplate, formatValueForElement, evaluateCondition } from '../uiSchemaUtils';
 
 type MultipartPart = {
   type?: string;
@@ -134,6 +134,8 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
     const parts: string[] = [];
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
+      const condition = (el as any).condition;
+      if (condition != null && !evaluateCondition(condition, message as Record<string, unknown>)) return;
       const rawValue = extractByPath(message, el.data);
       const valueForTemplate = formatValueForElement(el, rawValue);
       if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
@@ -235,6 +237,8 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
     const parts: string[] = [];
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
+      const condition = (el as any).condition;
+      if (condition != null && !evaluateCondition(condition, message as Record<string, unknown>)) return;
       const rawValue = extractByPath(message, el.data);
       const valueForTemplate = formatValueForElement(el, rawValue);
       if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
@@ -335,6 +339,8 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
     const parts: string[] = [];
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
+      const condition = (el as any).condition;
+      if (condition != null && !evaluateCondition(condition, message as Record<string, unknown>)) return;
       const rawValue = extractByPath(message, el.data);
       const valueForTemplate = formatValueForElement(el, rawValue);
       if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
@@ -474,6 +480,8 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
     const parts: string[] = [];
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
+      const condition = (el as any).condition;
+      if (condition != null && !evaluateCondition(condition, message as Record<string, unknown>)) return;
       const rawValue = extractByPath(message, el.data);
       const valueForTemplate = formatValueForElement(el, rawValue);
       if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
