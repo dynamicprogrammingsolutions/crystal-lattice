@@ -1,5 +1,38 @@
 # JavaScript Tool Plugins (Node.js) — detailed investigation + implementation plan
 
+## Implementation notes (landed)
+
+This plan has been implemented.
+
+Key pieces:
+
+- Tool host protocol: `docs/reference/tool-host-protocol.md` (NDJSON; per-message `v` field, no handshake).
+- Node host runner + SDK: `packages/tool-host-node/host.mjs`, `packages/tool-host-node/sdk.mjs`.
+- Python proxy tool plugin: `core/python/agent_core/tool_hosts/node_tool_plugin.py`.
+- Application plugin source (caching + install/build): `core/python/agent_app/plugin_sources/node_tool.py`.
+- PluginManager integration: `core/python/agent_app/plugin_manager.py` (adds `NodeToolSource`).
+
+Notable decisions / deltas vs the original plan:
+
+- Default behavior is **install + build** (MVP ergonomics):
+  - `node_install_deps` default `true`
+  - `node_build` default `true`
+  - `node_allow_install_scripts` default `true`
+  - All are globally disable-able via `plugin_policy`.
+- Package manager is inferred from the plugin repo (`package.json#packageManager` or lockfiles), with optional global override via `plugin_policy.node_package_manager`.
+- Build uses the repo’s `package.json#scripts.build` (`<pm> run build`) by default; `plugin_policy.node_build_command` remains an optional global override.
+- Tools can be exported as:
+  - default export object,
+  - named export object (selected via `agent.tools[].export`),
+  - a class (auto-instantiated), or
+  - a factory function (called to get the tool object).
+
+Examples + tests:
+
+- Example plugins: `plugins/js-echo-tool`, `plugins/js-multi-tools`, `plugins/js-fs-tools`, `plugins/js-single-file-tool`, `plugins/js-class-tool`.
+- Core tests: `core/python/tests/test_node_tool_plugins.py`, `core/python/tests/test_application_layer_integration_node_tools_ollama.py`.
+- App regression test: `application/python/tests/test_agent_terminal_app_server_ollama_js_fs_tools.py` using `application/python/agent_terminal_app/config_ollama_js_fs_tools.json`.
+
 ## Description
 
 Enable **tool plugins** to be authored in **JavaScript/TypeScript** (executed by Node.js) while keeping the existing Python `agent_core` orchestration unchanged.
@@ -411,28 +444,27 @@ Resolver behavior:
 For JS tools, implement analogous caching:
 * Cache directory: `plugin_cache_dir/node/<safe_id>@<revision>/...`
 * Copy (or clone) source into cache (like existing sources do with temp dirs).
-* Install deps/build (optional, controlled by policy):
+* Install deps/build (MVP defaults are on; controlled by policy):
   * defaults:
-    * `node_install_deps: false`
-    * `node_build: false`
-  * allow via policy:
-    * `plugin_policy.node_install_deps: true`
-    * `plugin_policy.node_build: true`
-  * choose package manager via:
-    * `plugin_policy.node_package_manager: "npm" | "pnpm" | "yarn"` (default: npm)
-  * install command selection:
-    * prefer lockfile-based install when present (`npm ci`, `pnpm i --frozen-lockfile`, `yarn --frozen-lockfile`)
-    * else fall back to install (`npm install`, etc)
+    * `node_install_deps: true`
+    * `node_build: true`
+    * `node_allow_install_scripts: true`
+  * disable via policy:
+    * `plugin_policy.node_install_deps: false`
+    * `plugin_policy.node_build: false`
+    * `plugin_policy.node_allow_install_scripts: false`
+  * package manager selection:
+    * override: `plugin_policy.node_package_manager: "npm" | "pnpm" | "yarn"`
+    * otherwise infer from `package.json#packageManager` (preferred) or lockfiles (fallback)
+  * install command:
+    * `<pm> install` (uses `corepack` automatically for `pnpm`/`yarn` when available)
   * build command:
-    * default: `npm run build` (or package-manager equivalent)
-    * override: `plugin_policy.node_build_command`
+    * default: `<pm> run build` when `package.json#scripts.build` exists
+    * override: `plugin_policy.node_build_command` (global escape hatch)
 
 Security defaults:
 * Mirror current stance: remote Git disabled unless `plugin_policy.allow_remote = true`.
-* For Node dependency installs, default to **ignore scripts** to reduce the blast radius:
-  * npm: set env `npm_config_ignore_scripts=true`
-  * pnpm/yarn equivalents when available
-  * allow scripts only when explicitly enabled: `plugin_policy.node_allow_install_scripts: true`
+* Node dependency installs run with scripts enabled by default (MVP assumes plugins are trusted); disable scripts globally via `plugin_policy.node_allow_install_scripts=false`.
 
 #### Resolving returns a Python class
 
@@ -573,23 +605,22 @@ Update:
 
 ---
 
-## Open questions / decisions to confirm
+## Open questions / decisions (resolved)
 
 1) **Do we accept JSON-only tool state for JS plugins in v1?**
-   * Recommended: yes. It matches the current “state is a dict passed between methods for the current request” semantics and avoids introducing any persistence/cleanup API.
+   * Yes. State is round-tripped as JSON via the tool-host protocol.
 
 2) **Where should the Node host live?**
-   * `packages/tool-host-node` (clean) vs `core/node/...` (co-located with core).
+   * `packages/tool-host-node`.
 
 3) **Which package manager and install behavior?**
-   * Recommended defaults:
-     * do not install by default
-     * if enabled: `npm ci` when lockfile exists, else `npm install`
-     * ignore scripts unless explicitly allowed
+   * Defaults are install + build:
+     * `node_install_deps=true`, `node_build=true`, `node_allow_install_scripts=true`
+     * package manager inferred from `package.json#packageManager` or lockfiles (override via `plugin_policy.node_package_manager`)
+     * install is `<pm> install`; build is `<pm> run build` when `scripts.build` exists
 
 4) **Manifest naming**
-   * `agent_node_plugin.json` is clear and avoids overloading `agent_plugin.json`.
-   * Alternative: extend `agent_plugin.json` with `runtime: "node"` and `entry: "dist/index.js"`.
+   * Node tools use `package.json#agent.tools` (no separate manifest file).
 
 ---
 
