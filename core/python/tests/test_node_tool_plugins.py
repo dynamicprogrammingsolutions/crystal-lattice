@@ -16,16 +16,9 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
-def _esbuild_command(repo_root: Path) -> str:
-    esbuild = repo_root / "node_modules" / ".bin" / "esbuild"
-    return f"{esbuild} src/index.ts --bundle --platform=node --format=esm --outdir=dist"
-
-
 def _node_tool_policy(repo_root: Path) -> dict:
     return {
         "base_dir": str(repo_root),
-        "node_build": True,
-        "node_build_command": _esbuild_command(repo_root),
     }
 
 
@@ -43,6 +36,7 @@ def _make_git_js_tool_repo(tmp_path: Path) -> Path:
                 "scripts": {
                     "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js"
                 },
+                "devDependencies": {"esbuild": "^0.25.0"},
                 "agent": {
                     "kinds": ["tools"],
                     "tools": [{"id": "js_git_tool", "entry": "dist/index.js"}],
@@ -352,8 +346,6 @@ def test_agent_application_lists_node_tool_plugin(tmp_path: Path) -> None:
         "plugin_cache_dir": str(tmp_path / "plugin_cache"),
         "plugin_policy": {
             "base_dir": str(repo_root),
-            "node_build": True,
-            "node_build_command": _esbuild_command(repo_root),
         },
         "providers": {"dummy": {"provider": "dummy_provider", "model": "test"}},
         "plugins": [

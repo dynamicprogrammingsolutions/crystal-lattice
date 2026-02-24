@@ -50,13 +50,16 @@ Note: these examples assume you are using the application plugin manager (`Agent
 
 ### TypeScript build
 
-Because `dist/` is gitignored, enable build-in-cache via policy:
+Because `dist/` is gitignored, the application plugin manager will install dependencies and run the plugin's build script in its cache automatically.
+
+For safety/hardening, you can disable Node installs/builds globally via `plugin_policy` (applies to all Node tools):
 
 ```json
 {
   "plugin_policy": {
-    "node_build": true,
-    "node_build_command": "${env:REPO_ROOT}/node_modules/.bin/esbuild src/index.ts --bundle --platform=node --format=esm --outdir=dist"
+    "node_install_deps": false,
+    "node_build": false,
+    "node_allow_install_scripts": false
   }
 }
 ```

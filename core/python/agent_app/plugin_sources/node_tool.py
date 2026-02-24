@@ -311,11 +311,13 @@ class NodeToolSource:
                         {
                             "name": safe_id,
                             "version": "0.0.0",
+                            "private": True,
                             "type": "module",
                             "main": "dist/index.js",
                             "scripts": {
                                 "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outdir=dist"
                             },
+                            "devDependencies": {"esbuild": "^0.25.0"},
                         }
                     ),
                     encoding="utf-8",
@@ -515,32 +517,40 @@ class NodeToolSource:
         return target
 
     def _maybe_install_and_build(self, install_dir: Path, policy: Mapping[str, Any]) -> None:
-        install_deps = bool(policy.get("node_install_deps", False))
-        build = bool(policy.get("node_build", False))
+        install_deps = bool(policy.get("node_install_deps", True))
+        build = bool(policy.get("node_build", True))
         if not install_deps and not build:
             return
 
-        pkg_json = install_dir / "package.json"
-        if not pkg_json.is_file():
+        pkg_json_path = install_dir / "package.json"
+        if not pkg_json_path.is_file():
             return
 
-        manager = policy.get("node_package_manager")
-        pm = str(manager).strip() if isinstance(manager, str) and manager.strip() else "npm"
-        allow_scripts = bool(policy.get("node_allow_install_scripts", False))
-        env = dict(os.environ)
-        if not allow_scripts:
-            env.setdefault("npm_config_ignore_scripts", "true")
+        try:
+            pkg_json_raw: Any = json.loads(pkg_json_path.read_text(encoding="utf-8"))
+        except Exception:
+            pkg_json_raw = {}
+        pkg_json: Mapping[str, Any] = pkg_json_raw if isinstance(pkg_json_raw, dict) else {}
 
-        lockfiles = {
-            "npm": ("package-lock.json", "npm", ["npm", "ci"], ["npm", "install"]),
-            "pnpm": ("pnpm-lock.yaml", "pnpm", ["pnpm", "install", "--frozen-lockfile"], ["pnpm", "install"]),
-            "yarn": ("yarn.lock", "yarn", ["yarn", "install", "--frozen-lockfile"], ["yarn", "install"]),
-        }
-        lockfile, binary, locked_cmd, fallback_cmd = lockfiles.get(pm, lockfiles["npm"])
-        has_lock = (install_dir / lockfile).is_file()
+        manager = policy.get("node_package_manager")
+        if isinstance(manager, str) and manager.strip():
+            pm = manager.strip()
+        else:
+            pm = self._detect_node_package_manager(install_dir, pkg_json)
+
+        if pm not in {"npm", "pnpm", "yarn"}:
+            pm = "npm"
+
+        pm_cmd = self._node_package_manager_command(pm)
+
+        allow_scripts = bool(policy.get("node_allow_install_scripts", True))
+        env = dict(os.environ)
 
         if install_deps:
-            cmd = locked_cmd if has_lock else fallback_cmd
+            cmd = pm_cmd + ["install"]
+            if not allow_scripts:
+                cmd.append("--ignore-scripts")
+                env.setdefault("npm_config_ignore_scripts", "true")
             try:
                 subprocess.check_call(cmd, cwd=str(install_dir), env=env)
             except Exception as exc:
@@ -551,11 +561,33 @@ class NodeToolSource:
             if isinstance(raw_cmd, str) and raw_cmd.strip():
                 cmd = raw_cmd.strip().split()
             else:
-                cmd = [binary, "run", "build"] if pm != "npm" else ["npm", "run", "build"]
-            try:
-                subprocess.check_call(cmd, cwd=str(install_dir), env=env)
-            except Exception as exc:
-                logger.error("node_tool_build_failed", err=str(exc), cwd=str(install_dir))
+                scripts = pkg_json.get("scripts")
+                has_build = isinstance(scripts, dict) and isinstance(scripts.get("build"), str)
+                cmd = pm_cmd + ["run", "build"] if has_build else None
+
+            if cmd is not None:
+                try:
+                    subprocess.check_call(cmd, cwd=str(install_dir), env=env)
+                except Exception as exc:
+                    logger.error("node_tool_build_failed", err=str(exc), cwd=str(install_dir))
+
+    def _detect_node_package_manager(self, install_dir: Path, pkg_json: Mapping[str, Any]) -> str:
+        package_manager = pkg_json.get("packageManager")
+        if isinstance(package_manager, str) and package_manager.strip():
+            name = package_manager.strip().split("@", 1)[0]
+            if name in {"npm", "pnpm", "yarn"}:
+                return name
+
+        if (install_dir / "pnpm-lock.yaml").is_file():
+            return "pnpm"
+        if (install_dir / "yarn.lock").is_file():
+            return "yarn"
+        return "npm"
+
+    def _node_package_manager_command(self, pm: str) -> List[str]:
+        if pm in {"pnpm", "yarn"} and shutil.which("corepack") is not None:
+            return ["corepack", pm]
+        return [pm]
 
     # ---------------------------------------------------------------------
     # Descriptor parsing

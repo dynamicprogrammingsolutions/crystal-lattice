@@ -109,11 +109,13 @@ When `export` is present, the Node tool host selects `module[export]`; otherwise
 
 Node.js tool policy keys:
 - `node_timeout_seconds` (default 60): timeout per tool RPC.
-- `node_install_deps` (default false): run dependency install in cached copies.
-- `node_build` (default false): run a build command in cached copies.
-- `node_package_manager` (default `npm`): `npm`, `pnpm`, or `yarn`.
-- `node_allow_install_scripts` (default false): allow install-time scripts.
-- `node_build_command` (default `npm run build`): override build command.
+- `node_install_deps` (default true): run a package manager install step in cached copies.
+- `node_build` (default true): run a build step in cached copies (uses `package.json#scripts.build` when present).
+- `node_package_manager`:
+  - If set: force `npm`, `pnpm`, or `yarn` for all Node tool plugins.
+  - If omitted: inferred from `package.json#packageManager` (preferred) or lockfiles (`pnpm-lock.yaml`, `yarn.lock`), falling back to `npm`.
+- `node_allow_install_scripts` (default true): allow install-time scripts.
+- `node_build_command`: optional global override for the build command (otherwise uses `<pm> run build`).
 
 Security guidance:
 - Git installs run arbitrary code via pip; prefer pinned refs (tags/commits), and use `allowed_git_hosts` where possible.
