@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   AppState,
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -247,6 +248,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [pluginsVisible, setPluginsVisible] = useState(false);
   const [pluginActionInProgress, setPluginActionInProgress] = useState(false);
+  const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
   const {
     actionsById,
     sessionActions: pluginSessionActions,
@@ -273,6 +275,20 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   useEffect(() => {
     onSaveComposeTextRef.current = onSaveComposeText;
   }, [onSaveComposeText]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const show = Keyboard.addListener('keyboardDidShow', (e) => {
+      setAndroidKeyboardHeight((e.endCoordinates?.height ?? 0) - 30);
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => {
+      setAndroidKeyboardHeight(0);
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   useEffect(() => {
     onSaveScrollAnchorRef.current = onSaveScrollAnchor;
@@ -413,12 +429,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     loadPinnedFromStorage();
   }, []);
 
-  const { state: sessionUiSchemaState } = useSessionUiSchemaController({
-    backend,
-    cacheKey: connectionId ?? 'default',
-    sessionId,
-    enabled: !!(backend && isActive),
-  });
+  const { state: sessionUiSchemaState, controller: sessionUiSchemaController } =
+    useSessionUiSchemaController({
+      backend,
+      cacheKey: connectionId ?? 'default',
+      sessionId,
+      enabled: !!(backend && isActive),
+    });
   const uiSchemaElements = sessionUiSchemaState?.elements ?? [];
 
   const composerAttachmentElements: ComposerAttachmentUiElement[] = useMemo(() => {
@@ -1613,7 +1630,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
 	      keyboardVerticalOffset={64}
 	    >
-	      <View style={styles.container}>
+	      <View
+	        style={[
+	          styles.container,
+	          Platform.OS === 'android' &&
+	            androidKeyboardHeight > 0 && { paddingBottom: androidKeyboardHeight },
+	        ]}
+	      >
 	        <View style={styles.headerRow}>
 	          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
 	            <Text style={styles.backButtonText}>← Sessions</Text>
@@ -2210,6 +2233,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        sessionId={sessionId}
 	        visible={settingsVisible}
 	        onRequestClose={() => setSettingsVisible(false)}
+	        onOverridesSaved={() => {
+	          sessionUiSchemaController?.invalidate();
+	          sessionUiSchemaController?.load();
+	        }}
 	      />
 	      <SessionPluginsModal
 	        backend={backend}
