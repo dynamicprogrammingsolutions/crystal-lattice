@@ -185,6 +185,7 @@ class AgentCore:
         role_value = message_dict.get("role", "user")
         role = role_value
         content = message_dict.get("content", "")
+        multipart_content = message_dict.get("multipartContent")
         raw_md = message_dict.get("metadata") or {}
         md = dict(raw_md) if isinstance(raw_md, dict) else {}
 
@@ -206,7 +207,12 @@ class AgentCore:
         def _core_only_session(clean_metadata):
             cleaned = dict(clean_metadata)
             cleaned.pop("native_indices", None)
-            new_message = Message(role=role, content=content, metadata=cleaned or None)
+            new_message = Message(
+                role=role,
+                content=content,
+                metadata=cleaned or None,
+                multipart_content=multipart_content,
+            )
             new_messages = [*session.messages, new_message]
             new_session_metadata = dict(base_metadata)
             new_session_metadata.pop("native_messages", None)
@@ -259,6 +265,8 @@ class AgentCore:
                     "metadata": md,
                 }
             ]
+            if multipart_content:
+                core_suffix[0]["multipartContent"] = multipart_content
             suffix_native = self._core_messages_to_native_for_config(core_suffix, config or {})
         except Exception as e:
             raise e
@@ -317,6 +325,7 @@ class AgentCore:
         role_value = message_dict.get("role", "user")
         role = role_value
         content = message_dict.get("content", "")
+        multipart_content = message_dict.get("multipartContent")
         raw_md = message_dict.get("metadata") or {}
         md_new = dict(raw_md) if isinstance(raw_md, dict) else {}
 
@@ -345,6 +354,7 @@ class AgentCore:
                             role=role,
                             content=content,
                             metadata=md_new or None,
+                            multipart_content=multipart_content,
                         )
                     )
                 new_messages.append(msg)
@@ -354,6 +364,7 @@ class AgentCore:
                         role=role,
                         content=content,
                         metadata=md_new or None,
+                        multipart_content=multipart_content,
                     )
                 )
 
@@ -424,12 +435,14 @@ class AgentCore:
                 data = msg.to_dict()
                 md = dict(data.get("metadata") or {})
                 md.pop("native_indices", None)
+                multipart_content = data.get("multipartContent")
                 if idx == target_index:
                     new_messages.append(
                         Message(
                             role=data["role"],
                             content=content,
                             metadata=md or None,
+                            multipart_content=multipart_content,
                         )
                     )
                 else:
@@ -438,6 +451,7 @@ class AgentCore:
                             role=data["role"],
                             content=data["content"],
                             metadata=md or None,
+                            multipart_content=multipart_content,
                         )
                     )
 
@@ -600,6 +614,7 @@ class AgentCore:
         metadata: Optional[Dict[str, Any]] = None,
         config: Optional[Dict[str, Any]] = None,
         *,
+        multipart_content: Optional[List[Dict[str, Any]]] = None,
         after_index: Optional[int] = None,
     ) -> Session:
         """Add a message to the session (pure function).
@@ -636,6 +651,8 @@ class AgentCore:
             "content": content,
             "metadata": msg_md,
         }
+        if multipart_content:
+            message_dict["multipartContent"] = multipart_content
         # Compute insertion point. When after_index is None, append at end.
         message_count = len(session.messages)
         if after_index is None:
@@ -723,12 +740,14 @@ class AgentCore:
             data = msg.to_dict()
             md = dict(data.get("metadata") or {})
             md.pop("native_indices", None)
+            multipart_content = data.get("multipartContent")
             if md:
                 kept_messages.append(
                     Message(
                         role=data["role"],
                         content=data["content"],
                         metadata=md,
+                        multipart_content=multipart_content,
                     )
                 )
             else:
@@ -737,6 +756,7 @@ class AgentCore:
                         role=data["role"],
                         content=data["content"],
                         metadata=None,
+                        multipart_content=multipart_content,
                     )
                 )
 
@@ -1658,7 +1678,18 @@ class AgentCore:
             native_messages, state = feature.initialize_request(native_messages, state)
             provider.set_state(state)
  
-        logger.info("request init complete", request=state.get("request"), native_messages=native_messages)
+        try:
+            native_preview = str(native_messages)
+            if len(native_preview) > 2000:
+                native_preview = native_preview[:2000] + "...<truncated>"
+        except Exception:  # pragma: no cover - defensive
+            native_preview = "<unprintable>"
+
+        logger.info(
+            "request init complete",
+            request=state.get("request"),
+            native_messages=native_preview,
+        )
  
         return messages, native_messages, state
 

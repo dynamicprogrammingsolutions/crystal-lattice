@@ -1045,6 +1045,7 @@ class Message:
     role: MessageRole
     content: str
     metadata: Optional[Dict[str, Any]] = None
+    multipart_content: Optional[List[Dict[str, Any]]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert message to dictionary format.
@@ -1055,6 +1056,8 @@ class Message:
         result: Dict[str, Any] = {"role": self.role, "content": self.content}
         if self.metadata:
             result["metadata"] = deepcopy(self.metadata)
+        if self.multipart_content:
+            result["multipartContent"] = deepcopy(self.multipart_content)
         return result
 
     @classmethod
@@ -1067,10 +1070,15 @@ class Message:
         Returns:
             New Message instance.
         """
+        multipart_content = data.get("multipartContent")
+        if multipart_content is not None and not isinstance(multipart_content, list):
+            raise TypeError("multipartContent must be a list or null")
+
         return cls(
             role=data["role"],
             content=data["content"],
             metadata=deepcopy(data.get("metadata")),
+            multipart_content=deepcopy(multipart_content),
         )
 
 

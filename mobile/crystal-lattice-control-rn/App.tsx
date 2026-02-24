@@ -1,6 +1,7 @@
 import 'react-native-url-polyfill/auto';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
+  AppState,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -132,6 +133,30 @@ function App(): React.JSX.Element {
 
     loadSavedConnections();
   }, []);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        return;
+      }
+
+      if (transport && 'disconnect' in transport && typeof (transport as any).disconnect === 'function') {
+        (transport as any).disconnect();
+      }
+
+      if (
+        connectingBridgeTransport &&
+        'disconnect' in connectingBridgeTransport &&
+        typeof (connectingBridgeTransport as any).disconnect === 'function'
+      ) {
+        (connectingBridgeTransport as any).disconnect();
+      }
+    });
+
+    return () => {
+      sub.remove();
+    };
+  }, [connectingBridgeTransport, transport]);
 
   useEffect(() => {
     const loadSessionsCache = async () => {
@@ -494,7 +519,11 @@ function App(): React.JSX.Element {
     try {
       console.log('🚀 Starting bridge connection...');
       
-      const bridge = new BridgeTransport({ bridgeUrl });
+      const bridge = new BridgeTransport({
+        bridgeUrl,
+        debug: true,
+        timeoutMsByPathPrefix: [{ pathPrefix: '/events', timeoutMs: 10_000 }],
+      });
       await bridge.connect();
       console.log('✅ Bridge connected, fetching servers...');
       
@@ -913,6 +942,8 @@ function App(): React.JSX.Element {
           bridgeUrl: record.bridgeUrl,
           serverId: record.serverId,
           pairingToken: record.pairingToken,
+          debug: true,
+          timeoutMsByPathPrefix: [{ pathPrefix: '/events', timeoutMs: 10_000 }],
         });
         await bridge.connect();
         nextTransport = bridge;

@@ -23,6 +23,7 @@ describe('SessionTabs', () => {
       <SessionTabs
         tabs={[]}
         activeTabId={null}
+        styleVariant="toolbarTabs"
         connectionNameById={{}}
         onSelectTab={() => {}}
         onCloseTab={() => {}}
@@ -32,5 +33,29 @@ describe('SessionTabs', () => {
     fireEvent.press(screen.getByText('⋯'));
     const { ActionSheetIOS } = require('react-native');
     expect(ActionSheetIOS.showActionSheetWithOptions).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the tab subtitle instead of the connection id', () => {
+    const screen = render(
+      <SessionTabs
+        tabs={[
+          {
+            tabId: 'conn-123:session-abc',
+            connectionId: 'conn-123',
+            sessionId: 'session-abc',
+            title: 'Test Session',
+            subtitle: 'Actual subtitle',
+          },
+        ]}
+        activeTabId="conn-123:session-abc"
+        styleVariant="toolbarTabs"
+        connectionNameById={{}}
+        onSelectTab={() => {}}
+        onCloseTab={() => {}}
+      />,
+    );
+
+    expect(screen.getByText('Actual subtitle')).toBeTruthy();
+    expect(screen.queryByText('conn-123')).toBeNull();
   });
 });

@@ -39,6 +39,10 @@
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>This app discovers local Bonjour services on your network</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app lets you attach photos to chat messages.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>This app lets you take a photo to attach to chat messages.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
 	<key>RCTNewArchEnabled</key>

@@ -20,19 +20,23 @@ import {
   runApplicationAction,
 } from '@crystal-lattice/frontend-sdk';
 import {
+  ApplicationActionDialog,
+  SessionActionsBar,
+  type SessionActionDefinition,
+  type SessionActionKey,
+} from '@crystal-lattice/frontend-rn-components';
+import {
   useAgentsController,
   useHydrateControllerFromCache,
   useSessionsController,
 } from '@crystal-lattice/frontend-sdk-react';
 import { useTheme, type Theme } from './theme';
-import SessionActionsBar from './components/SessionActionsBar';
 import SessionSettingsModal from './components/SessionSettingsModal';
-import { type SessionActionKey, type SessionActionDefinition } from './sessionActions';
+import SessionPluginsModal from './components/SessionPluginsModal';
 import {
   type ActionUiElement,
   type SessionSummary,
 } from './api';
-import ApplicationActionDialog from './components/ApplicationActionDialog';
 import { useApplicationPlugins } from './ApplicationPluginsContext';
 import { usePersistentPinnedActions } from './usePersistentPinnedActions';
 import { usePluginActionDialog } from './usePluginActionDialog';
@@ -50,7 +54,9 @@ interface SessionsScreenProps {
 
 const STORAGE_KEY_SESSION_LIST_ACTIONS = 'clc_pinned_session_list_actions_v1';
 
-const BUILTIN_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settings'];
+const DEFAULT_PINNED_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settings'];
+
+const BUILTIN_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settings', 'plugins'];
 
 const SessionsScreen: React.FC<SessionsScreenProps> = ({
   backend,
@@ -106,21 +112,31 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     sessionListFields,
     sessionListPinnedToggles,
   } = useApplicationPlugins();
+
+  const scopedSessionListActionsStorageKey = useMemo(
+    () => `${STORAGE_KEY_SESSION_LIST_ACTIONS}:${connectionId ?? 'default'}`,
+    [connectionId],
+  );
+
   const { pinned: pinnedSessionActions, setPinned: setPinnedSessionActions } =
     usePersistentPinnedActions<SessionActionKey>(
-      STORAGE_KEY_SESSION_LIST_ACTIONS,
-      BUILTIN_SESSION_LIST_ACTIONS,
+      scopedSessionListActionsStorageKey,
+	      DEFAULT_PINNED_SESSION_LIST_ACTIONS,
+      { migrateFromKeys: [STORAGE_KEY_SESSION_LIST_ACTIONS] },
     );
   const [agentSwitchVisible, setAgentSwitchVisible] = useState(false);
   const [agentSwitchSessionId, setAgentSwitchSessionId] = useState<string | null>(null);
   const [agentSwitchCurrentId, setAgentSwitchCurrentId] = useState<string | null>(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [settingsSessionId, setSettingsSessionId] = useState<string | null>(null);
+  const [pluginsVisible, setPluginsVisible] = useState(false);
+  const [pluginsSessionId, setPluginsSessionId] = useState<string | null>(null);
 
   const closeNonPluginOverlays = useCallback(() => {
     setAgentPickerVisible(false);
     setAgentSwitchVisible(false);
     setSettingsVisible(false);
+    setPluginsVisible(false);
   }, []);
 
   const navigateToSession = useCallback(
@@ -205,6 +221,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     setSettingsSessionId(null);
     setAgentSwitchSessionId(null);
     setAgentSwitchCurrentId(null);
+    setPluginsSessionId(null);
   }, [closeNonPluginOverlays, handleCancelPluginDialog]);
 
   useEffect(() => {
@@ -277,6 +294,12 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       if (action === 'settings') {
         setSettingsSessionId(s.session_id);
         setSettingsVisible(true);
+        return;
+      }
+
+      if (action === 'plugins') {
+        setPluginsSessionId(s.session_id);
+        setPluginsVisible(true);
         return;
       }
 
@@ -419,6 +442,15 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         {hasAnyActions && (
           <View style={styles.sessionActionsRow}>
             <SessionActionsBar
+              renderIcon={({ name, size, color }) => (
+                <Icon name={name} size={size} color={color} />
+              )}
+              renderPinIcon={({ size, color }) => (
+                <Icon name="star" size={size} color={color} />
+              )}
+              renderCloseIcon={({ size, color, renderIcon }) =>
+                renderIcon ? renderIcon({ name: 'x', size, color }) : null
+              }
               pinned={pinnedSessionActions}
               onChangePinned={setPinnedSessionActions}
               onAction={handleRowAction}
@@ -558,6 +590,15 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
           sessionId={settingsSessionId}
           visible={settingsVisible}
           onRequestClose={() => setSettingsVisible(false)}
+        />
+      )}
+
+      {pluginsSessionId && (
+        <SessionPluginsModal
+          backend={backend}
+          sessionId={pluginsSessionId}
+          visible={pluginsVisible}
+          onRequestClose={() => setPluginsVisible(false)}
         />
       )}
 
