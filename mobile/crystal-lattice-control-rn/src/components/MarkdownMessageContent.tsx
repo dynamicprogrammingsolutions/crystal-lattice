@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import SyntaxHighlighter from 'react-native-syntax-highlighter';
-import { atomOneDark } from 'react-syntax-highlighter/styles/hljs';
+import * as hljsStyles from 'react-syntax-highlighter/styles/hljs';
 import { useTheme } from '../theme';
 
 export type MarkdownMessageVariant = 'assistant' | 'tool' | 'system' | 'user';
@@ -17,6 +17,11 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
   variant = 'assistant',
 }) => {
   const theme = useTheme();
+
+  const isDarkCodeBlock = useMemo(() => {
+    return theme.codeBlockBg !== '#FFFFFF';
+  }, [theme.codeBlockBg]);
+
   const markdownStyle = useMemo(() => {
     const baseTextColor = variant === 'user' ? theme.textOnPrimary : theme.text;
 
@@ -34,6 +39,11 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
       },
       em: {
         fontStyle: 'italic',
+      },
+      blockquote: {
+        ...styles.blockquote,
+        backgroundColor: theme.surfaceAlt,
+        borderColor: theme.border,
       },
       code_inline: {
         ...styles.inlineCode,
@@ -65,7 +75,13 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
         return (
           <View
             key={node.key}
-            style={[styles.codeBlockOuter, { backgroundColor: theme.codeBlockBg }]}
+            style={[
+              styles.codeBlockOuter,
+              {
+                backgroundColor: theme.codeBlockBg,
+                borderColor: theme.border,
+              },
+            ]}
           >
             <ScrollView
               style={styles.codeBlockScrollVertical}
@@ -80,7 +96,11 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
               >
                 <SyntaxHighlighter
                   language={language}
-                  style={atomOneDark as any}
+                  style={
+                    (isDarkCodeBlock
+                      ? (hljsStyles as any).atomOneDark
+                      : (hljsStyles as any).atomOneLight) as any
+                  }
                   highlighter="hljs"
                   customStyle={styles.codeBlockInner}
                   PreTag={View as any}
@@ -103,7 +123,13 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
         return (
           <View
             key={node.key}
-            style={[styles.codeBlockOuter, { backgroundColor: theme.codeBlockBg }]}
+            style={[
+              styles.codeBlockOuter,
+              {
+                backgroundColor: theme.codeBlockBg,
+                borderColor: theme.border,
+              },
+            ]}
           >
             <ScrollView
               style={styles.codeBlockScrollVertical}
@@ -118,7 +144,11 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
               >
                 <SyntaxHighlighter
                   language={language}
-                  style={atomOneDark as any}
+                  style={
+                    (isDarkCodeBlock
+                      ? (hljsStyles as any).atomOneDark
+                      : (hljsStyles as any).atomOneLight) as any
+                  }
                   highlighter="hljs"
                   customStyle={styles.codeBlockInner}
                   PreTag={View as any}
@@ -132,7 +162,7 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
         );
       },
     }),
-    [],
+    [isDarkCodeBlock, theme.border, theme.codeBlockBg],
   );
 
   return (
@@ -167,6 +197,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
     paddingVertical: 1,
   },
+  blockquote: {
+    borderLeftWidth: 4,
+    marginLeft: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
   codeBlockContainer: {
     marginTop: 4,
     marginBottom: 4,
@@ -175,6 +212,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 4,
     borderRadius: 6,
+    borderWidth: 1,
     overflow: 'hidden',
   },
   codeBlockScrollVertical: {

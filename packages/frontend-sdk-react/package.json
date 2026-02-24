@@ -2,6 +2,10 @@
   "name": "@crystal-lattice/frontend-sdk-react",
   "version": "0.0.0",
   "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
   "main": "src/index.ts",
   "types": "src/index.ts",
   "peerDependencies": {
@@ -11,6 +15,7 @@
     "@crystal-lattice/frontend-sdk": "0.0.0"
   },
   "devDependencies": {
-    "@types/react": "^19.2.10"
+    "@types/react": "^19.2.10",
+    "vitest": "^1.6.0"
   }
 }

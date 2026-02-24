@@ -7,9 +7,13 @@ function msg(role: ApiMessage['role'], content: string, metadata?: ApiMessage['m
   return { role, content, metadata: metadata ?? null };
 }
 
+function freezeMessages(messages: IndexedMessage[]): IndexedMessage[] {
+  return Object.freeze(messages) as unknown as IndexedMessage[];
+}
+
 describe('reduceMessageHistory', () => {
   it('appends final messages when start_index matches local length', () => {
-    const initial: IndexedMessage[] = Object.freeze([
+    const initial: IndexedMessage[] = freezeMessages([
       { index: 0, message: Object.freeze(msg('user', 'hello')) },
     ]);
 
@@ -27,7 +31,7 @@ describe('reduceMessageHistory', () => {
   });
 
   it('marks dirty when start_index does not match local length', () => {
-    const initial: IndexedMessage[] = Object.freeze([
+    const initial: IndexedMessage[] = freezeMessages([
       { index: 0, message: Object.freeze(msg('user', 'hello')) },
     ]);
 
@@ -43,7 +47,7 @@ describe('reduceMessageHistory', () => {
   });
 
   it('marks dirty when a final/tool_results payload contains invalid messages', () => {
-    const initial: IndexedMessage[] = Object.freeze([]);
+    const initial: IndexedMessage[] = freezeMessages([]);
     const event = {
       type: 'tool_results',
       start_index: 0,
@@ -56,7 +60,7 @@ describe('reduceMessageHistory', () => {
   });
 
   it('appends message_appended when index matches local length', () => {
-    const initial: IndexedMessage[] = Object.freeze([
+    const initial: IndexedMessage[] = freezeMessages([
       { index: 0, message: Object.freeze(msg('user', 'hi')) },
     ]);
 
@@ -74,7 +78,7 @@ describe('reduceMessageHistory', () => {
   });
 
   it('marks dirty when message_appended index does not match local length', () => {
-    const initial: IndexedMessage[] = Object.freeze([
+    const initial: IndexedMessage[] = freezeMessages([
       { index: 0, message: Object.freeze(msg('user', 'hi')) },
     ]);
 
@@ -90,7 +94,7 @@ describe('reduceMessageHistory', () => {
   });
 
   it('replaces a message_modified payload by index', () => {
-    const initial: IndexedMessage[] = Object.freeze([
+    const initial: IndexedMessage[] = freezeMessages([
       { index: 0, message: Object.freeze(msg('user', 'hi')) },
       { index: 1, message: Object.freeze(msg('assistant', 'old')) },
     ]);
@@ -108,7 +112,7 @@ describe('reduceMessageHistory', () => {
   });
 
   it('removes messages_deleted indices and reindexes', () => {
-    const initial: IndexedMessage[] = Object.freeze([
+    const initial: IndexedMessage[] = freezeMessages([
       { index: 0, message: Object.freeze(msg('user', '0')) },
       { index: 1, message: Object.freeze(msg('user', '1')) },
       { index: 2, message: Object.freeze(msg('user', '2')) },
@@ -126,7 +130,7 @@ describe('reduceMessageHistory', () => {
   });
 
   it('no-ops for unsupported event types', () => {
-    const initial: IndexedMessage[] = Object.freeze([
+    const initial: IndexedMessage[] = freezeMessages([
       { index: 0, message: Object.freeze(msg('user', 'hi')) },
     ]);
 
@@ -138,7 +142,7 @@ describe('reduceMessageHistory', () => {
   });
 
   it('treats message indices as global (windowed history)', () => {
-    const initial: IndexedMessage[] = Object.freeze([
+    const initial: IndexedMessage[] = freezeMessages([
       { index: 100, message: Object.freeze(msg('user', 'hi')) },
     ]);
 
@@ -154,7 +158,7 @@ describe('reduceMessageHistory', () => {
   });
 
   it('trims to maxMessages when configured', () => {
-    const initial: IndexedMessage[] = Object.freeze([
+    const initial: IndexedMessage[] = freezeMessages([
       { index: 2, message: Object.freeze(msg('user', '2')) },
       { index: 3, message: Object.freeze(msg('user', '3')) },
       { index: 4, message: Object.freeze(msg('user', '4')) },
@@ -172,7 +176,7 @@ describe('reduceMessageHistory', () => {
   });
 
   it('shifts indices on delete even when deleted messages are outside the window', () => {
-    const initial: IndexedMessage[] = Object.freeze([
+    const initial: IndexedMessage[] = freezeMessages([
       { index: 10, message: Object.freeze(msg('user', '10')) },
       { index: 11, message: Object.freeze(msg('user', '11')) },
       { index: 12, message: Object.freeze(msg('user', '12')) },
@@ -189,7 +193,7 @@ describe('reduceMessageHistory', () => {
   });
 
   it('signals needsBackfill when delete reduces the window size below maxMessages', () => {
-    const initial: IndexedMessage[] = Object.freeze([
+    const initial: IndexedMessage[] = freezeMessages([
       { index: 10, message: Object.freeze(msg('user', '10')) },
       { index: 11, message: Object.freeze(msg('user', '11')) },
       { index: 12, message: Object.freeze(msg('user', '12')) },
@@ -207,7 +211,7 @@ describe('reduceMessageHistory', () => {
   });
 
   it('no-ops message_modified when the target index is older than the window', () => {
-    const initial: IndexedMessage[] = Object.freeze([
+    const initial: IndexedMessage[] = freezeMessages([
       { index: 10, message: Object.freeze(msg('user', '10')) },
       { index: 11, message: Object.freeze(msg('user', '11')) },
     ]);

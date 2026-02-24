@@ -326,9 +326,20 @@ def test_terminal_rendering_with_ollama_tools_and_timestamp(tmp_path: Path, ensu
             break
 
     assert isinstance(ts_value, str) and ts_value
-    # Assert that the timestamp from metadata appears in the rendered output
-    # (either via the blue time footer or the plugin-provided message_footer).
-    assert ts_value in rendered
+    # Assert that the timestamp from metadata appears in the rendered output.
+    # The terminal renderer formats datetime footer values using the local
+    # locale/clock.
+    try:
+        from datetime import datetime, timezone
+
+        dt = datetime.fromisoformat(ts_value)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        formatted = dt.astimezone().strftime("%c")
+    except Exception:  # pragma: no cover - defensive
+        formatted = None
+
+    assert (ts_value in rendered) or (isinstance(formatted, str) and formatted in rendered)
 
 
 @pytest.mark.ollama

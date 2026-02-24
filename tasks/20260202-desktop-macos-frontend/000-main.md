@@ -68,7 +68,8 @@ This task directory is a handoff package for implementing Phase 5 of `tasks/2026
 - Desktop bootstrap: `020` + `030` (scaffold macOS app, then wire Metro/TS)
 - Shared foundations (can happen early / in parallel): `010` + `040` (shared UI package + shared connection model)
 - Desktop shell + left column: `050` + `060` + `070` (layout, connections, sessions; relies on `010` + `040`)
-- Chat + docs: `080` + `090` (tabs/chat, then smoke checklist + README)
+- Chat baseline + docs: `080` + `090` (minimal tabs/chat, then smoke checklist + README)
+- Chat UX follow-ups: `081`–`087` + `089` (header dropdowns, settings UI, markdown, rich rendering, actions)
 
 ## Tasks that need more planning up front
 
@@ -84,8 +85,18 @@ This task directory is a handoff package for implementing Phase 5 of `tasks/2026
 - `tasks/20260202-desktop-macos-frontend/040-shared-connection-model.md`
 - `tasks/20260202-desktop-macos-frontend/050-desktop-shell-layout.md`
 - `tasks/20260202-desktop-macos-frontend/060-desktop-connections-panel.md`
+- `tasks/20260202-desktop-macos-frontend/065-desktop-tab-strip-styles-and-view-menu.md`
+- `tasks/20260202-desktop-macos-frontend/066-desktop-theming-semantic-colors.md`
 - `tasks/20260202-desktop-macos-frontend/070-desktop-sessions-pane.md`
 - `tasks/20260202-desktop-macos-frontend/080-desktop-chat-tabs-and-chat-pane.md`
+- `tasks/20260202-desktop-macos-frontend/081-desktop-chat-header-and-session-actions.md`
+- `tasks/20260202-desktop-macos-frontend/082-desktop-session-settings-ui.md`
+- `tasks/20260202-desktop-macos-frontend/083-desktop-markdown-renderer.md`
+- `tasks/20260202-desktop-macos-frontend/084-desktop-rich-assistant-rendering.md`
+- `tasks/20260202-desktop-macos-frontend/085-desktop-session-status-bar.md`
+- `tasks/20260202-desktop-macos-frontend/086-desktop-plugin-actions-in-chat.md`
+- `tasks/20260202-desktop-macos-frontend/087-desktop-chat-state-persistence.md`
+- `tasks/20260202-desktop-macos-frontend/089-session-metadata-single-source-of-truth.md`
 - `tasks/20260202-desktop-macos-frontend/090-smoke-tests-and-docs.md`
 
 ## Supporting docs

@@ -1,20 +1,59 @@
 #import "DesktopWindowManager.h"
+#import "DesktopMenuNotifications.h"
 
 #import <Cocoa/Cocoa.h>
 #import <React/RCTBridge.h>
 #import <React/RCTRootView.h>
-#import <React/RCTUtils.h>
 #import <objc/message.h>
 
-@interface DesktopWindowManager ()
+@interface DesktopWindowManager () <NSPopoverDelegate>
 
 @property(nonatomic, strong) NSWindow *connectionEditorWindow;
+@property(nonatomic, strong) NSWindow *agentPickerWindow;
+@property(nonatomic, strong) NSWindow *applicationActionDialogWindow;
+@property(nonatomic, strong) NSMutableDictionary<NSString *, NSWindow *> *reactWindowsByKey;
+@property(nonatomic, strong) NSMapTable<NSWindow *, NSString *> *reactWindowKeysByWindow;
+@property(nonatomic, strong) NSPopover *applicationActionDialogPopover;
+@property(nonatomic, strong) NSPopover *closingApplicationActionDialogPopover;
+@property(nonatomic, strong) NSPopover *actionsPopover;
+@property(nonatomic, strong) NSPopover *messageLimitPopover;
+
+@property(nonatomic, assign) BOOL suppressApplicationActionDialogPopoverCancel;
 
 @end
 
 @implementation DesktopWindowManager
 
 RCT_EXPORT_MODULE();
+
+- (instancetype)init
+{
+  if (self = [super init]) {
+    _reactWindowsByKey = [[NSMutableDictionary alloc] init];
+    _reactWindowKeysByWindow = [NSMapTable weakToStrongObjectsMapTable];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleApplicationWillHide:)
+                                                 name:NSApplicationWillHideNotification
+                                               object:nil];
+
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleApplicationDidUnhide:)
+                                                 name:NSApplicationDidUnhideNotification
+                                               object:nil];
+  }
+  return self;
+}
+
+- (void)dealloc
+{
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:NSApplicationWillHideNotification
+                                                object:nil];
+
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:NSApplicationDidUnhideNotification
+                                                object:nil];
+}
 
 + (BOOL)requiresMainQueueSetup
 {
@@ -23,7 +62,224 @@ RCT_EXPORT_MODULE();
 
 - (NSArray<NSString *> *)supportedEvents
 {
-  return @[ @"connectionEditorSaved", @"connectionEditorCancelled" ];
+  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"reactWindowCancelled", @"tabStripStyleChanged", @"sessionsFollowActiveTabChanged", @"systemThemeChanged" ];
+}
+
+- (void)startObserving
+{
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(handleTabStripStyleDidChange:)
+                                               name:CLCTabStripStyleDidChangeNotification
+                                             object:nil];
+
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(handleSessionsFollowActiveTabDidChange:)
+                                               name:CLCSessionsFollowActiveTabDidChangeNotification
+                                             object:nil];
+
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(handleSystemColorsDidChange:)
+                                               name:@"NSSystemColorsDidChangeNotification"
+                                             object:nil];
+
+  [[NSDistributedNotificationCenter defaultCenter]
+      addObserver:self
+         selector:@selector(handleAppleInterfaceThemeDidChangeDistributed:)
+             name:@"AppleInterfaceThemeChangedNotification"
+           object:nil
+  suspensionBehavior:NSNotificationSuspensionBehaviorDeliverImmediately];
+}
+
+- (void)stopObserving
+{
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:CLCTabStripStyleDidChangeNotification
+                                                object:nil];
+
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:CLCSessionsFollowActiveTabDidChangeNotification
+                                                object:nil];
+
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:@"NSSystemColorsDidChangeNotification"
+                                                object:nil];
+
+  [[NSDistributedNotificationCenter defaultCenter] removeObserver:self
+                                                            name:@"AppleInterfaceThemeChangedNotification"
+                                                          object:nil];
+}
+
+- (void)handleApplicationWillHide:(NSNotification *)notification
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSLog(@"[DesktopWindowManager] NSApplicationWillHide: closing transient popovers/windows");
+    [self closeActionsPopover];
+    [self closeMessageLimitPopover];
+    [self closeApplicationActionDialogPopover];
+    [self closeApplicationActionDialogWindow];
+  });
+}
+
+- (void)handleApplicationDidUnhide:(NSNotification *)notification
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSLog(@"[DesktopWindowManager] NSApplicationDidUnhide");
+  });
+}
+
+- (void)handleTabStripStyleDidChange:(NSNotification *)notification
+{
+  NSString *style = notification.userInfo[CLCTabStripStyleUserInfoKey];
+  if (![style isKindOfClass:[NSString class]]) {
+    return;
+  }
+  [self sendEventWithName:@"tabStripStyleChanged" body:@{ @"style" : style }];
+}
+
+- (void)handleSessionsFollowActiveTabDidChange:(NSNotification *)notification
+{
+  id enabled = notification.userInfo[CLCSessionsFollowActiveTabEnabledUserInfoKey];
+  BOOL resolved = NO;
+  if ([enabled isKindOfClass:[NSNumber class]]) {
+    resolved = [enabled boolValue];
+  } else {
+    resolved = NO;
+  }
+  [self sendEventWithName:@"sessionsFollowActiveTabChanged" body:@{ @"enabled" : @(resolved) }];
+}
+
+- (void)handleSystemColorsDidChange:(NSNotification *)notification
+{
+  [self emitSystemThemeChanged];
+}
+
+- (void)handleAppleInterfaceThemeDidChangeDistributed:(NSNotification *)notification
+{
+  [self emitSystemThemeChanged];
+}
+
+static id CLCPreferredAppearanceObject(NSString *appearance)
+{
+  NSString *name = [appearance isEqualToString:@"dark"] ? @"NSAppearanceNameDarkAqua" : @"NSAppearanceNameAqua";
+  Class appearanceClass = NSClassFromString(@"NSAppearance");
+  SEL selector = NSSelectorFromString(@"appearanceNamed:");
+  if (appearanceClass != Nil && [appearanceClass respondsToSelector:selector]) {
+    using MsgSendType = id (*)(id, SEL, NSString *);
+    return ((MsgSendType)objc_msgSend)(appearanceClass, selector, name);
+  }
+  return nil;
+}
+
+typedef void (^CLCNoArgBlock)(void);
+
+static void CLCPerformAsCurrentDrawingAppearance(id appearance, CLCNoArgBlock block)
+{
+  if (appearance == nil || block == nil) {
+    if (block != nil) {
+      block();
+    }
+    return;
+  }
+
+  SEL selector = NSSelectorFromString(@"performAsCurrentDrawingAppearance:");
+  if ([appearance respondsToSelector:selector]) {
+    using MsgSendType = void (*)(id, SEL, CLCNoArgBlock);
+    ((MsgSendType)objc_msgSend)(appearance, selector, block);
+    return;
+  }
+
+  block();
+}
+
+static NSString *CLCColorToString(NSColor *color, id appearance)
+{
+  if (color == nil) {
+    return @"#000000";
+  }
+
+  __block CGFloat r = 0;
+  __block CGFloat g = 0;
+  __block CGFloat b = 0;
+  __block CGFloat a = 1;
+
+  CLCPerformAsCurrentDrawingAppearance(appearance, ^{
+    NSColor *srgb = [color colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+    if (srgb == nil) {
+      srgb = color;
+    }
+    [srgb getRed:&r green:&g blue:&b alpha:&a];
+  });
+
+  int ri = (int)lround(r * 255.0);
+  int gi = (int)lround(g * 255.0);
+  int bi = (int)lround(b * 255.0);
+  ri = MAX(0, MIN(255, ri));
+  gi = MAX(0, MIN(255, gi));
+  bi = MAX(0, MIN(255, bi));
+
+  if (a >= 0.999) {
+    return [NSString stringWithFormat:@"#%02X%02X%02X", ri, gi, bi];
+  }
+
+  return [NSString stringWithFormat:@"rgba(%d, %d, %d, %.3f)", ri, gi, bi, a];
+}
+
+static NSString *CLCSystemAppearance(void)
+{
+  NSString *interfaceStyle = [[NSUserDefaults standardUserDefaults] stringForKey:@"AppleInterfaceStyle"];
+  if ([interfaceStyle isKindOfClass:[NSString class]] && interfaceStyle.length > 0) {
+    if ([[interfaceStyle lowercaseString] containsString:@"dark"]) {
+      return @"dark";
+    }
+  }
+  return @"light";
+}
+
+static NSColor *CLCSystemColor(NSString *selectorName, NSColor *fallback)
+{
+  SEL selector = NSSelectorFromString(selectorName);
+  if ([NSColor respondsToSelector:selector]) {
+    using MsgSendType = NSColor *(*)(id, SEL);
+    return ((MsgSendType)objc_msgSend)(NSColor.class, selector);
+  }
+  return fallback;
+}
+
+- (NSDictionary *)currentSystemThemePayload
+{
+  NSString *appearance = CLCSystemAppearance();
+  id preferredAppearance = CLCPreferredAppearanceObject(appearance);
+
+  return @{
+    @"appearance" : appearance,
+    @"accent" : CLCColorToString(CLCSystemColor(@"controlAccentColor", [NSColor blueColor]), preferredAppearance),
+    @"windowBackground" : CLCColorToString(CLCSystemColor(@"windowBackgroundColor", [NSColor windowBackgroundColor]), preferredAppearance),
+    @"controlBackground" : CLCColorToString(CLCSystemColor(@"controlBackgroundColor", [NSColor controlColor]), preferredAppearance),
+    @"separator" : CLCColorToString(CLCSystemColor(@"separatorColor", [NSColor lightGrayColor]), preferredAppearance),
+    @"text" : CLCColorToString(CLCSystemColor(@"labelColor", [NSColor textColor]), preferredAppearance),
+    @"textSecondary" : CLCColorToString(CLCSystemColor(@"secondaryLabelColor", [NSColor disabledControlTextColor]), preferredAppearance),
+    @"textMuted" : CLCColorToString(CLCSystemColor(@"tertiaryLabelColor", [NSColor disabledControlTextColor]), preferredAppearance),
+    @"danger" : CLCColorToString(CLCSystemColor(@"systemRedColor", [NSColor redColor]), preferredAppearance),
+    @"success" : CLCColorToString(CLCSystemColor(@"systemGreenColor", [NSColor greenColor]), preferredAppearance),
+  };
+}
+- (void)emitSystemThemeChanged
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSDictionary *payload = [self currentSystemThemePayload];
+    [self sendEventWithName:@"systemThemeChanged" body:payload];
+  });
+}
+
+RCT_EXPORT_METHOD(getSystemTheme : (RCTPromiseResolveBlock)resolve rejecter : (RCTPromiseRejectBlock)reject)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    @try {
+      resolve([self currentSystemThemePayload]);
+    } @catch (NSException *exception) {
+      reject(@"system_theme_error", exception.reason ?: @"Failed to read system theme", nil);
+    }
+  });
 }
 
 RCT_EXPORT_METHOD(openConnectionEditor : (NSDictionary *)params)
@@ -66,9 +322,9 @@ RCT_EXPORT_METHOD(openConnectionEditor : (NSDictionary *)params)
                                                      backing:NSBackingStoreBuffered
                                                        defer:NO];
     window.title = @"Connection";
-    rootView.frame = frame;
-    rootView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    window.contentView = rootView;
+	    rootView.frame = frame;
+	    rootView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+	    window.contentView = rootView;
     window.releasedWhenClosed = NO;
 
     [[NSNotificationCenter defaultCenter] addObserver:self
@@ -79,6 +335,513 @@ RCT_EXPORT_METHOD(openConnectionEditor : (NSDictionary *)params)
     self.connectionEditorWindow = window;
     [window center];
     [window makeKeyAndOrderFront:nil];
+  });
+}
+
+RCT_EXPORT_METHOD(openAgentPicker : (NSDictionary *)params)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (self.agentPickerWindow != nil) {
+      [self.agentPickerWindow makeKeyAndOrderFront:nil];
+      return;
+    }
+
+    NSDictionary *initialProps = params ?: @{};
+    NSView *rootView = nil;
+    id appDelegate = NSApp.delegate;
+    id rootViewFactory = nil;
+    @try {
+      rootViewFactory = [appDelegate valueForKey:@"rootViewFactory"];
+    } @catch (__unused NSException *exception) {
+      rootViewFactory = nil;
+    }
+    if (rootViewFactory != nil) {
+      SEL selector = NSSelectorFromString(@"viewWithModuleName:initialProperties:");
+      if ([rootViewFactory respondsToSelector:selector]) {
+        using MsgSendType = NSView *(*)(id, SEL, NSString *, NSDictionary *);
+        rootView = ((MsgSendType)objc_msgSend)(
+            rootViewFactory,
+            selector,
+            @"AgentPickerWindow",
+            initialProps);
+      }
+    }
+
+    if (rootView == nil) {
+      rootView =
+          [[RCTRootView alloc] initWithBridge:self.bridge moduleName:@"AgentPickerWindow" initialProperties:initialProps];
+    }
+
+    NSRect frame = NSMakeRect(0, 0, 460, 380);
+    NSWindow *window = [[NSWindow alloc] initWithContentRect:frame
+                                                   styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
+                                                     backing:NSBackingStoreBuffered
+                                                       defer:NO];
+    NSString *title = nil;
+    if ([params[@"title"] isKindOfClass:[NSString class]]) {
+      title = params[@"title"];
+    }
+    window.title = title ?: @"New Session";
+    rootView.frame = frame;
+    rootView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    window.contentView = rootView;
+    window.releasedWhenClosed = NO;
+
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(agentPickerWindowWillClose:)
+                                                 name:NSWindowWillCloseNotification
+                                               object:window];
+
+    self.agentPickerWindow = window;
+    [window center];
+    [window makeKeyAndOrderFront:nil];
+  });
+}
+
+RCT_EXPORT_METHOD(openApplicationActionDialogWindow : (NSDictionary *)params)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSLog(@"[DesktopWindowManager] openApplicationActionDialogWindow existing=%p", self.applicationActionDialogWindow);
+    if (self.applicationActionDialogWindow != nil) {
+      [self.applicationActionDialogWindow makeKeyAndOrderFront:nil];
+      return;
+    }
+
+    NSDictionary *initialProps = @{ @"presentation" : @"window" };
+    NSView *rootView = nil;
+    id appDelegate = NSApp.delegate;
+    id rootViewFactory = nil;
+    @try {
+      rootViewFactory = [appDelegate valueForKey:@"rootViewFactory"];
+    } @catch (__unused NSException *exception) {
+      rootViewFactory = nil;
+    }
+    if (rootViewFactory != nil) {
+      SEL selector = NSSelectorFromString(@"viewWithModuleName:initialProperties:");
+      if ([rootViewFactory respondsToSelector:selector]) {
+        using MsgSendType = NSView *(*)(id, SEL, NSString *, NSDictionary *);
+        rootView = ((MsgSendType)objc_msgSend)(
+            rootViewFactory,
+            selector,
+            @"ApplicationActionDialogWindow",
+            initialProps);
+      }
+    }
+
+    if (rootView == nil) {
+      rootView =
+          [[RCTRootView alloc] initWithBridge:self.bridge moduleName:@"ApplicationActionDialogWindow" initialProperties:initialProps];
+    }
+
+    NSRect frame = NSMakeRect(0, 0, 540, 520);
+    NSWindow *window = [[NSWindow alloc] initWithContentRect:frame
+                                                   styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
+                                                     backing:NSBackingStoreBuffered
+                                                       defer:NO];
+    NSString *title = nil;
+    if ([params[@"title"] isKindOfClass:[NSString class]]) {
+      title = params[@"title"];
+    }
+    window.title = title ?: @"Action";
+    rootView.frame = frame;
+    rootView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    window.contentView = rootView;
+    window.releasedWhenClosed = NO;
+
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(applicationActionDialogWindowWillClose:)
+                                                 name:NSWindowWillCloseNotification
+                                               object:window];
+
+    self.applicationActionDialogWindow = window;
+    [window center];
+    [window makeKeyAndOrderFront:nil];
+  });
+}
+
+RCT_EXPORT_METHOD(openSessionSettingsWindow : (NSDictionary *)params)
+{
+  [self openReactWindow:@{
+    @"windowKey": @"sessionSettings",
+    @"moduleName": @"SessionSettingsWindow",
+    @"title": [params[@"title"] isKindOfClass:[NSString class]] ? params[@"title"] : @"Session settings",
+    @"width": @560,
+    @"height": @640,
+    @"initialProps": @{},
+  }];
+}
+
+RCT_EXPORT_METHOD(closeSessionSettingsWindow)
+{
+  [self closeReactWindow:@{ @"windowKey": @"sessionSettings" }];
+}
+
+RCT_EXPORT_METHOD(openReactWindow : (NSDictionary *)params)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (![params[@"windowKey"] isKindOfClass:[NSString class]] || ![params[@"moduleName"] isKindOfClass:[NSString class]]) {
+      return;
+    }
+
+    NSString *windowKey = (NSString *)params[@"windowKey"];
+    NSString *moduleName = (NSString *)params[@"moduleName"];
+
+    NSWindow *existing = self.reactWindowsByKey[windowKey];
+    if (existing != nil) {
+      [existing makeKeyAndOrderFront:nil];
+      return;
+    }
+
+    NSDictionary *initialProps = @{};
+    if ([params[@"initialProps"] isKindOfClass:[NSDictionary class]]) {
+      initialProps = (NSDictionary *)params[@"initialProps"];
+    }
+
+    NSView *rootView = nil;
+    id appDelegate = NSApp.delegate;
+    id rootViewFactory = nil;
+    @try {
+      rootViewFactory = [appDelegate valueForKey:@"rootViewFactory"];
+    } @catch (__unused NSException *exception) {
+      rootViewFactory = nil;
+    }
+    if (rootViewFactory != nil) {
+      SEL selector = NSSelectorFromString(@"viewWithModuleName:initialProperties:");
+      if ([rootViewFactory respondsToSelector:selector]) {
+        using MsgSendType = NSView *(*)(id, SEL, NSString *, NSDictionary *);
+        rootView = ((MsgSendType)objc_msgSend)(rootViewFactory, selector, moduleName, initialProps);
+      }
+    }
+    if (rootView == nil) {
+      rootView = [[RCTRootView alloc] initWithBridge:self.bridge moduleName:moduleName initialProperties:initialProps];
+    }
+
+    CGFloat width = 560;
+    CGFloat height = 640;
+    if ([params[@"width"] respondsToSelector:@selector(doubleValue)]) {
+      width = (CGFloat)[params[@"width"] doubleValue];
+    }
+    if ([params[@"height"] respondsToSelector:@selector(doubleValue)]) {
+      height = (CGFloat)[params[@"height"] doubleValue];
+    }
+    NSRect frame = NSMakeRect(0, 0, width, height);
+    NSWindow *window = [[NSWindow alloc] initWithContentRect:frame
+                                                   styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
+                                                     backing:NSBackingStoreBuffered
+                                                       defer:NO];
+
+    NSString *title = nil;
+    if ([params[@"title"] isKindOfClass:[NSString class]]) {
+      title = (NSString *)params[@"title"];
+    }
+    window.title = title ?: moduleName;
+    rootView.frame = frame;
+    rootView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    window.contentView = rootView;
+    window.releasedWhenClosed = NO;
+
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(reactWindowWillClose:)
+                                                 name:NSWindowWillCloseNotification
+                                               object:window];
+
+    self.reactWindowsByKey[windowKey] = window;
+    [self.reactWindowKeysByWindow setObject:windowKey forKey:window];
+
+    [window center];
+    [window makeKeyAndOrderFront:nil];
+  });
+}
+
+RCT_EXPORT_METHOD(closeReactWindow : (NSDictionary *)params)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (![params[@"windowKey"] isKindOfClass:[NSString class]]) {
+      return;
+    }
+    NSString *windowKey = (NSString *)params[@"windowKey"];
+    NSWindow *window = self.reactWindowsByKey[windowKey];
+    if (window == nil) {
+      return;
+    }
+    [window close];
+  });
+}
+
+RCT_EXPORT_METHOD(openApplicationActionDialogPopover : (NSDictionary *)params)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSLog(@"[DesktopWindowManager] openApplicationActionDialogPopover existing=%p shown=%d", self.applicationActionDialogPopover, self.applicationActionDialogPopover != nil ? self.applicationActionDialogPopover.isShown : 0);
+    if (self.applicationActionDialogPopover != nil && self.applicationActionDialogPopover.isShown) {
+      self.suppressApplicationActionDialogPopoverCancel = YES;
+      self.closingApplicationActionDialogPopover = self.applicationActionDialogPopover;
+      [self.applicationActionDialogPopover performClose:nil];
+      self.applicationActionDialogPopover = nil;
+    }
+
+    NSNumber *anchorTag = params[@"anchorTag"];
+    NSView *sourceView = nil;
+    if ([anchorTag isKindOfClass:[NSNumber class]]) {
+      sourceView = [self.viewRegistry_DEPRECATED viewForReactTag:anchorTag];
+    }
+    if (sourceView == nil) {
+      sourceView = NSApp.keyWindow.contentView;
+    }
+    if (sourceView == nil) {
+      return;
+    }
+
+    CGFloat width = 460;
+    CGFloat height = 420;
+    if ([params[@"width"] respondsToSelector:@selector(doubleValue)]) {
+      width = (CGFloat)[params[@"width"] doubleValue];
+    }
+    if ([params[@"height"] respondsToSelector:@selector(doubleValue)]) {
+      height = (CGFloat)[params[@"height"] doubleValue];
+    }
+
+    NSDictionary *initialProps = @{ @"presentation" : @"popover" };
+    NSView *rootView = nil;
+    id appDelegate = NSApp.delegate;
+    id rootViewFactory = nil;
+    @try {
+      rootViewFactory = [appDelegate valueForKey:@"rootViewFactory"];
+    } @catch (__unused NSException *exception) {
+      rootViewFactory = nil;
+    }
+    if (rootViewFactory != nil) {
+      SEL selector = NSSelectorFromString(@"viewWithModuleName:initialProperties:");
+      if ([rootViewFactory respondsToSelector:selector]) {
+        using MsgSendType = NSView *(*)(id, SEL, NSString *, NSDictionary *);
+        rootView = ((MsgSendType)objc_msgSend)(
+            rootViewFactory,
+            selector,
+            @"ApplicationActionDialogWindow",
+            initialProps);
+      }
+    }
+    if (rootView == nil) {
+      rootView =
+          [[RCTRootView alloc] initWithBridge:self.bridge moduleName:@"ApplicationActionDialogWindow" initialProperties:initialProps];
+    }
+
+    rootView.frame = NSMakeRect(0, 0, width, height);
+    rootView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+
+    NSViewController *controller = [[NSViewController alloc] init];
+    controller.view = rootView;
+
+    NSPopover *popover = [[NSPopover alloc] init];
+    popover.behavior = NSPopoverBehaviorTransient;
+    popover.contentViewController = controller;
+    popover.contentSize = NSMakeSize(width, height);
+    popover.delegate = (id<NSPopoverDelegate>)self;
+
+    self.applicationActionDialogPopover = popover;
+
+    NSRect anchorRect = sourceView.bounds;
+    if (![anchorTag isKindOfClass:[NSNumber class]]) {
+      anchorRect = NSMakeRect(NSMidX(anchorRect), NSMidY(anchorRect), 1, 1);
+    }
+
+    [popover showRelativeToRect:anchorRect ofView:sourceView preferredEdge:NSRectEdgeMaxY];
+  });
+}
+
+RCT_EXPORT_METHOD(closeApplicationActionDialogPopover)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSLog(@"[DesktopWindowManager] closeApplicationActionDialogPopover existing=%p", self.applicationActionDialogPopover);
+    if (self.applicationActionDialogPopover == nil) {
+      return;
+    }
+
+    self.suppressApplicationActionDialogPopoverCancel = YES;
+    self.closingApplicationActionDialogPopover = self.applicationActionDialogPopover;
+    self.applicationActionDialogPopover = nil;
+    [self.closingApplicationActionDialogPopover performClose:nil];
+  });
+}
+
+RCT_EXPORT_METHOD(closeApplicationActionDialogWindow)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSLog(@"[DesktopWindowManager] closeApplicationActionDialogWindow existing=%p", self.applicationActionDialogWindow);
+    if (self.applicationActionDialogWindow == nil) {
+      return;
+    }
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                    name:NSWindowWillCloseNotification
+                                                  object:self.applicationActionDialogWindow];
+    [self.applicationActionDialogWindow close];
+    self.applicationActionDialogWindow = nil;
+  });
+}
+
+RCT_EXPORT_METHOD(toggleActionsPopover : (NSDictionary *)params)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (self.actionsPopover != nil && self.actionsPopover.isShown) {
+      [self.actionsPopover performClose:nil];
+      self.actionsPopover = nil;
+      return;
+    }
+
+    NSNumber *anchorTag = params[@"anchorTag"];
+    NSView *sourceView = nil;
+    if ([anchorTag isKindOfClass:[NSNumber class]]) {
+      sourceView = [self.viewRegistry_DEPRECATED viewForReactTag:anchorTag];
+    }
+    if (sourceView == nil) {
+      sourceView = NSApp.keyWindow.contentView;
+    }
+    if (sourceView == nil) {
+      return;
+    }
+
+    CGFloat width = 320;
+    CGFloat height = 320;
+    if ([params[@"width"] respondsToSelector:@selector(doubleValue)]) {
+      width = (CGFloat)[params[@"width"] doubleValue];
+    }
+    if ([params[@"height"] respondsToSelector:@selector(doubleValue)]) {
+      height = (CGFloat)[params[@"height"] doubleValue];
+    }
+
+    NSDictionary *initialProps = @{};
+    NSView *rootView = nil;
+    id appDelegate = NSApp.delegate;
+    id rootViewFactory = nil;
+    @try {
+      rootViewFactory = [appDelegate valueForKey:@"rootViewFactory"];
+    } @catch (__unused NSException *exception) {
+      rootViewFactory = nil;
+    }
+    if (rootViewFactory != nil) {
+      SEL selector = NSSelectorFromString(@"viewWithModuleName:initialProperties:");
+      if ([rootViewFactory respondsToSelector:selector]) {
+        using MsgSendType = NSView *(*)(id, SEL, NSString *, NSDictionary *);
+        rootView = ((MsgSendType)objc_msgSend)(
+            rootViewFactory,
+            selector,
+            @"ActionsPopoverView",
+            initialProps);
+      }
+    }
+    if (rootView == nil) {
+      rootView = [[RCTRootView alloc] initWithBridge:self.bridge moduleName:@"ActionsPopoverView" initialProperties:initialProps];
+    }
+
+    rootView.frame = NSMakeRect(0, 0, width, height);
+    rootView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+
+    NSViewController *controller = [[NSViewController alloc] init];
+    controller.view = rootView;
+
+    NSPopover *popover = [[NSPopover alloc] init];
+    popover.behavior = NSPopoverBehaviorTransient;
+    popover.contentViewController = controller;
+    popover.contentSize = NSMakeSize(width, height);
+
+    self.actionsPopover = popover;
+
+    [popover showRelativeToRect:sourceView.bounds ofView:sourceView preferredEdge:NSRectEdgeMaxY];
+  });
+}
+
+RCT_EXPORT_METHOD(closeActionsPopover)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (self.actionsPopover == nil) {
+      return;
+    }
+    [self.actionsPopover performClose:nil];
+    self.actionsPopover = nil;
+  });
+}
+
+RCT_EXPORT_METHOD(openMessageLimitPopover : (NSDictionary *)params)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (self.messageLimitPopover != nil && self.messageLimitPopover.isShown) {
+      [self.messageLimitPopover performClose:nil];
+      self.messageLimitPopover = nil;
+    }
+
+    NSNumber *anchorTag = params[@"anchorTag"];
+    NSView *sourceView = nil;
+    if ([anchorTag isKindOfClass:[NSNumber class]]) {
+      sourceView = [self.viewRegistry_DEPRECATED viewForReactTag:anchorTag];
+    }
+    if (sourceView == nil) {
+      sourceView = NSApp.keyWindow.contentView;
+    }
+    if (sourceView == nil) {
+      return;
+    }
+
+    CGFloat width = 380;
+    CGFloat height = 260;
+    if ([params[@"width"] respondsToSelector:@selector(doubleValue)]) {
+      width = (CGFloat)[params[@"width"] doubleValue];
+    }
+    if ([params[@"height"] respondsToSelector:@selector(doubleValue)]) {
+      height = (CGFloat)[params[@"height"] doubleValue];
+    }
+
+    NSDictionary *initialProps = @{};
+    NSView *rootView = nil;
+    id appDelegate = NSApp.delegate;
+    id rootViewFactory = nil;
+    @try {
+      rootViewFactory = [appDelegate valueForKey:@"rootViewFactory"];
+    } @catch (__unused NSException *exception) {
+      rootViewFactory = nil;
+    }
+    if (rootViewFactory != nil) {
+      SEL selector = NSSelectorFromString(@"viewWithModuleName:initialProperties:");
+      if ([rootViewFactory respondsToSelector:selector]) {
+        using MsgSendType = NSView *(*)(id, SEL, NSString *, NSDictionary *);
+        rootView = ((MsgSendType)objc_msgSend)(
+            rootViewFactory,
+            selector,
+            @"MessageLimitPopoverView",
+            initialProps);
+      }
+    }
+    if (rootView == nil) {
+      rootView = [[RCTRootView alloc] initWithBridge:self.bridge moduleName:@"MessageLimitPopoverView" initialProperties:initialProps];
+    }
+
+    rootView.frame = NSMakeRect(0, 0, width, height);
+    rootView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+
+    NSViewController *controller = [[NSViewController alloc] init];
+    controller.view = rootView;
+
+    NSPopover *popover = [[NSPopover alloc] init];
+    popover.behavior = NSPopoverBehaviorTransient;
+    popover.contentViewController = controller;
+    popover.contentSize = NSMakeSize(width, height);
+
+    self.messageLimitPopover = popover;
+
+    NSRect anchorRect = sourceView.bounds;
+    if (![anchorTag isKindOfClass:[NSNumber class]]) {
+      anchorRect = NSMakeRect(NSMidX(anchorRect), NSMidY(anchorRect), 1, 1);
+    }
+    [popover showRelativeToRect:anchorRect ofView:sourceView preferredEdge:NSRectEdgeMaxY];
+  });
+}
+
+RCT_EXPORT_METHOD(closeMessageLimitPopover)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (self.messageLimitPopover == nil) {
+      return;
+    }
+    [self.messageLimitPopover performClose:nil];
+    self.messageLimitPopover = nil;
   });
 }
 
@@ -95,6 +858,22 @@ RCT_EXPORT_METHOD(cancelConnectionEditor)
   dispatch_async(dispatch_get_main_queue(), ^{
     [self sendEventWithName:@"connectionEditorCancelled" body:@{}];
     [self closeConnectionEditorWindow];
+  });
+}
+
+RCT_EXPORT_METHOD(submitAgentPicker : (NSDictionary *)payload)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [self sendEventWithName:@"agentPickerSelected" body:payload ?: @{}];
+    [self closeAgentPickerWindow];
+  });
+}
+
+RCT_EXPORT_METHOD(cancelAgentPicker)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [self sendEventWithName:@"agentPickerCancelled" body:@{}];
+    [self closeAgentPickerWindow];
   });
 }
 
@@ -118,6 +897,79 @@ RCT_EXPORT_METHOD(cancelConnectionEditor)
                                                     name:NSWindowWillCloseNotification
                                                   object:self.connectionEditorWindow];
     self.connectionEditorWindow = nil;
+  }
+}
+
+- (void)closeAgentPickerWindow
+{
+  if (self.agentPickerWindow == nil) {
+    return;
+  }
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:NSWindowWillCloseNotification
+                                                object:self.agentPickerWindow];
+  [self.agentPickerWindow close];
+  self.agentPickerWindow = nil;
+}
+
+- (void)agentPickerWindowWillClose:(NSNotification *)notification
+{
+  if (notification.object == self.agentPickerWindow) {
+    [self sendEventWithName:@"agentPickerCancelled" body:@{}];
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                    name:NSWindowWillCloseNotification
+                                                  object:self.agentPickerWindow];
+    self.agentPickerWindow = nil;
+  }
+}
+
+- (void)applicationActionDialogWindowWillClose:(NSNotification *)notification
+{
+  if (notification.object == self.applicationActionDialogWindow) {
+    [self sendEventWithName:@"applicationActionDialogCancelled" body:@{}];
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                    name:NSWindowWillCloseNotification
+                                                  object:self.applicationActionDialogWindow];
+    self.applicationActionDialogWindow = nil;
+  }
+}
+
+- (void)reactWindowWillClose:(NSNotification *)notification
+{
+  NSWindow *window = (NSWindow *)notification.object;
+  if (window == nil) {
+    return;
+  }
+
+  NSString *windowKey = [self.reactWindowKeysByWindow objectForKey:window];
+  if (![windowKey isKindOfClass:[NSString class]] || windowKey.length == 0) {
+    return;
+  }
+
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:NSWindowWillCloseNotification
+                                                object:window];
+
+  [self.reactWindowKeysByWindow removeObjectForKey:window];
+  [self.reactWindowsByKey removeObjectForKey:windowKey];
+
+  [self sendEventWithName:@"reactWindowCancelled" body:@{ @"windowKey" : windowKey }];
+}
+
+- (void)popoverDidClose:(NSNotification *)notification
+{
+  NSPopover *popover = (NSPopover *)notification.object;
+  NSLog(@"[DesktopWindowManager] popoverDidClose popover=%p appAction=%p closing=%p suppress=%d", popover, self.applicationActionDialogPopover, self.closingApplicationActionDialogPopover, self.suppressApplicationActionDialogPopoverCancel);
+  if (popover == self.closingApplicationActionDialogPopover) {
+    self.closingApplicationActionDialogPopover = nil;
+    self.suppressApplicationActionDialogPopoverCancel = NO;
+    return;
+  }
+
+  if (popover == self.applicationActionDialogPopover) {
+    self.applicationActionDialogPopover = nil;
+    [self sendEventWithName:@"applicationActionDialogCancelled" body:@{}];
+    return;
   }
 }
 

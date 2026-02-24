@@ -12,6 +12,16 @@ defmodule Bridge.PairingManager do
     GenServer.start_link(__MODULE__, [], name: __MODULE__)
   end
 
+  defp safe_send(pid, message) do
+    try do
+      send(pid, message)
+      :ok
+    rescue
+      ArgumentError ->
+        :error
+    end
+  end
+
   def create_pairing_request(server_id, client_id) do
     GenServer.call(__MODULE__, {:create_pairing, server_id, client_id})
   end
@@ -33,38 +43,49 @@ defmodule Bridge.PairingManager do
 
   @impl true
   def handle_call({:create_pairing, server_id, client_id}, _from, state) do
-    code = generate_code()
-    ttl = Application.get_env(:bridge, :pairing_code_ttl, 300)
-    expires_at = DateTime.utc_now() |> DateTime.add(ttl, :second)
+    case Bridge.ServerRegistry.get_server(server_id) do
+      {:ok, server_info} ->
+        code = generate_code()
+        ttl = Application.get_env(:bridge, :pairing_code_ttl, 300)
+        expires_at = DateTime.utc_now() |> DateTime.add(ttl, :second)
 
-    request = %PairingRequest{
-      code: code,
-      server_id: server_id,
-      client_id: client_id,
-      expires_at: expires_at,
-      attempts: 0
-    }
+        request = %PairingRequest{
+          code: code,
+          server_id: server_id,
+          client_id: client_id,
+          expires_at: expires_at,
+          attempts: 0
+        }
 
-    key = {server_id, client_id}
-    :ets.insert(@table_name, {key, request})
+        key = {server_id, client_id}
+        :ets.insert(@table_name, {key, request})
 
-    Phoenix.PubSub.broadcast(
-      Bridge.PubSub,
-      "pairing:#{server_id}",
-      {:pairing_requested, client_id, code, expires_at}
-    )
+        case safe_send(server_info.channel_pid, {:pairing_requested, client_id, code, expires_at}) do
+          :ok ->
+            Logger.info(
+              "🔑 Pairing code generated: #{code} for server #{server_id}, client #{client_id}"
+            )
 
-    Logger.info("🔑 Pairing code generated: #{code} for server #{server_id}, client #{client_id}")
-    {:reply, {:ok, code, expires_at}, state}
+            {:reply, {:ok, code, expires_at}, state}
+
+          :error ->
+            :ets.delete(@table_name, key)
+            {:reply, {:error, :server_not_found}, state}
+        end
+
+      {:error, :not_found} ->
+        {:reply, {:error, :server_not_found}, state}
+    end
   end
 
   @impl true
   def handle_call({:validate_code, server_id, client_id, code}, _from, state) do
     key = {server_id, client_id}
-    
+
     case :ets.lookup(@table_name, key) do
       [{^key, request}] ->
         validate_request(request, code, key, state)
+
       [] ->
         {:reply, {:error, :not_found}, state}
     end
@@ -80,7 +101,7 @@ defmodule Bridge.PairingManager do
   @impl true
   def handle_info(:cleanup_expired, state) do
     now = DateTime.utc_now()
-    
+
     @table_name
     |> :ets.tab2list()
     |> Enum.each(fn {key, request} ->

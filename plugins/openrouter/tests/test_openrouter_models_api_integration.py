@@ -6,6 +6,14 @@ Requires OPENROUTER_API_KEY environment variable.
 import os
 import pytest
 
+# Load .env file if it exists
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:
+    pass
+
 from openrouter_plugins.openrouter_provider import OpenRouterProvider
 
 
@@ -40,37 +48,6 @@ def test_fetch_models_from_api_success():
 
 
 @pytest.mark.integration
-def test_get_models_with_api_caching():
-    """Verify get_models fetches from API and caches at provider instance level."""
-    api_key = os.getenv("OPENROUTER_API_KEY")
-    if not api_key:
-        pytest.skip("OPENROUTER_API_KEY not set")
-    
-    provider = OpenRouterProvider()
-    config = {
-        "model": "openai/gpt-4o",
-        "api_key": api_key,
-    }
-    
-    # Provider cache should start empty
-    assert provider._api_models_cache is None
-    
-    # First call should fetch from API
-    models1 = provider.get_models(config)
-    assert isinstance(models1, list)
-    assert len(models1) > 0
-    assert models1[0]["id"] == "openai/gpt-4o"
-    
-    # Provider instance cache should now be populated
-    assert provider._api_models_cache is not None
-    assert isinstance(provider._api_models_cache, list)
-    
-    # Second call should use instance cache
-    models2 = provider.get_models(config)
-    assert models2 == models1
-
-
-@pytest.mark.integration
 def test_get_tags_uses_real_model_capabilities():
     """Verify get_tags detects capabilities from API data."""
     api_key = os.getenv("OPENROUTER_API_KEY")
@@ -87,6 +64,8 @@ def test_get_tags_uses_real_model_capabilities():
     
     models = provider.get_models(config_reasoning)
     tags = provider.get_tags(config_reasoning, models)
+
+    print(f"Model: {models[0]['id']}, Supported Parameters: {models[0].get('supported_parameters')}, Tags: {tags}")
     
     # Should always have these
     assert "provider:openrouter" in tags

@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
+  Alert,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -8,13 +10,85 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
+import Clipboard from '@react-native-clipboard/clipboard';
 import type { ApiMessage, UiSchemaElement } from '../api';
 import MessageActionsBar from './MessageActionsBar';
 import type { MessageActionKey, MessageActionDefinition } from '../messageActions';
 import { selectDisplayContent, selectSingleLineContent } from '../messageUtils';
 import MarkdownMessageContent from './MarkdownMessageContent';
+import { AttachmentThumbnailStrip, type AttachmentLike } from './AttachmentThumbnailStrip';
 import { useTheme, type Theme } from '../theme';
-import { extractByPath, renderTemplate } from '../uiSchemaUtils';
+import { extractByPath, renderTemplate, formatValueForElement } from '../uiSchemaUtils';
+
+type MultipartPart = {
+  type?: string;
+  content?: any;
+  metadata?: any;
+};
+
+function selectMultipartParts(message: ApiMessage): MultipartPart[] {
+  const parts = (message as any)?.multipartContent;
+  return Array.isArray(parts) ? (parts as MultipartPart[]) : [];
+}
+
+function selectAttachmentUrl(content: any): string | null {
+  if (!content || typeof content !== 'object') return null;
+  if (typeof content.url === 'string' && content.url) return content.url;
+  if (typeof content.data_base64 === 'string' && content.data_base64) {
+    const mimeType =
+      typeof content.mime_type === 'string' && content.mime_type
+        ? content.mime_type
+        : 'application/octet-stream';
+    return `data:${mimeType};base64,${content.data_base64}`;
+  }
+  return null;
+}
+
+const MessageAttachments: React.FC<{ message: ApiMessage; onBlue?: boolean }> = ({
+  message,
+  onBlue,
+}) => {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const parts = selectMultipartParts(message);
+
+  if (parts.length === 0) return null;
+
+  const attachments: AttachmentLike[] = parts.map((part, idx) => {
+    const type = typeof part?.type === 'string' ? part.type : 'attachment';
+    return {
+      id: `${idx}`,
+      type,
+      content: part?.content,
+      metadata: part?.metadata,
+    };
+  });
+
+  return (
+    <View style={[styles.attachmentsWrapper, onBlue && styles.attachmentsWrapperOnBlue]}>
+      <AttachmentThumbnailStrip
+        attachments={attachments}
+        onPress={async (attachment) => {
+          const url = selectAttachmentUrl(attachment.content);
+          const isPdf = attachment.type === 'pdf' && url;
+          if (typeof url !== 'string' || !url) {
+            return;
+          }
+          if (isPdf && (url.startsWith('http://') || url.startsWith('https://'))) {
+            try {
+              await Linking.openURL(url);
+              return;
+            } catch (err) {
+              console.log('Failed to open attachment url', err);
+            }
+          }
+          Clipboard.setString(url);
+          Alert.alert('Copied', 'Attachment URL copied to clipboard.');
+        }}
+      />
+    </View>
+  );
+};
 
 export interface MessageBubbleProps {
   index: number;
@@ -60,9 +134,10 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
     const parts: string[] = [];
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
-      const value = extractByPath(message, el.data);
-      if (value === null || value === undefined || value === '') return;
-      const text = renderTemplate(el.template ?? '{{data}}', value);
+      const rawValue = extractByPath(message, el.data);
+      const valueForTemplate = formatValueForElement(el, rawValue);
+      if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
+      const text = renderTemplate(el.template ?? '{{data}}', valueForTemplate);
       if (text) parts.push(text);
     });
     return parts;
@@ -102,6 +177,10 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
     <View style={styles.row}>
       <View style={[styles.bubble, styles.userBubble]}>
         <Text style={styles.headerText}>{`[${index}] User`}</Text>
+        <MessageAttachments
+          message={message}
+          onBlue
+        />
         {content ? (
           <Text
             style={[styles.contentText, styles.userContentText]}
@@ -156,9 +235,10 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
     const parts: string[] = [];
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
-      const value = extractByPath(message, el.data);
-      if (value === null || value === undefined || value === '') return;
-      const text = renderTemplate(el.template ?? '{{data}}', value);
+      const rawValue = extractByPath(message, el.data);
+      const valueForTemplate = formatValueForElement(el, rawValue);
+      if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
+      const text = renderTemplate(el.template ?? '{{data}}', valueForTemplate);
       if (text) parts.push(text);
     });
     return parts;
@@ -198,6 +278,7 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
     <View style={styles.row}>
       <View style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}>
         <Text style={styles.headerText}>{`[${index}] System`}</Text>
+        <MessageAttachments message={message} />
         {content ? (
           <Text
             style={styles.systemText}
@@ -254,9 +335,10 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
     const parts: string[] = [];
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
-      const value = extractByPath(message, el.data);
-      if (value === null || value === undefined || value === '') return;
-      const text = renderTemplate(el.template ?? '{{data}}', value);
+      const rawValue = extractByPath(message, el.data);
+      const valueForTemplate = formatValueForElement(el, rawValue);
+      if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
+      const text = renderTemplate(el.template ?? '{{data}}', valueForTemplate);
       if (text) parts.push(text);
     });
     return parts;
@@ -283,6 +365,8 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
             </TouchableOpacity>
           )}
         </View>
+
+        <MessageAttachments message={message} />
 
         {hasContent && expanded && (
           <View style={styles.collapsibleContainerTool}>
@@ -390,9 +474,10 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
     const parts: string[] = [];
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
-      const value = extractByPath(message, el.data);
-      if (value === null || value === undefined || value === '') return;
-      const text = renderTemplate(el.template ?? '{{data}}', value);
+      const rawValue = extractByPath(message, el.data);
+      const valueForTemplate = formatValueForElement(el, rawValue);
+      if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
+      const text = renderTemplate(el.template ?? '{{data}}', valueForTemplate);
       if (text) parts.push(text);
     });
     return parts;
@@ -462,6 +547,8 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
             )}
           </View>
         </View>
+
+        <MessageAttachments message={message} />
 
         {reasoning && reasoningExpanded && (
           <View style={styles.collapsibleContainerReasoning}>
@@ -603,6 +690,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   footerElements,
   pluginActionDefs,
 }) => {
+  console.log("Rendering MessageBubble", { index, role: message.role });
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -867,6 +955,13 @@ const createStyles = (theme: Theme) =>
       color: theme.text,
       fontSize: 14,
       fontWeight: '600',
+    },
+    attachmentsWrapper: {
+      marginTop: 6,
+      marginBottom: 2,
+    },
+    attachmentsWrapperOnBlue: {
+      marginTop: 8,
     },
     rawReadonlyInput: {
       marginTop: 2,

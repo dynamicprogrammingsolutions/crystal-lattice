@@ -1,6 +1,6 @@
 import type { ApiMessage, IndexedMessage } from '../types/messages';
 import type { UiSchemaElement } from '../types/uiSchema';
-import { extractByPath, renderTemplate } from '../utils/uiSchema';
+import { extractByPath, renderTemplate, formatValueForElement } from '../utils/uiSchema';
 import type { StreamingRow } from './chatController';
 
 export function selectLastAssistantMessage(options: {
@@ -8,14 +8,6 @@ export function selectLastAssistantMessage(options: {
   streamingRow: StreamingRow | null;
 }): ApiMessage | null {
   const { messages, streamingRow } = options;
-
-  if (streamingRow && (streamingRow.content || streamingRow.reasoning)) {
-    return {
-      role: 'assistant',
-      content: streamingRow.content,
-      metadata: streamingRow.metadata || {},
-    };
-  }
 
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const message = messages[i].message;
@@ -56,9 +48,10 @@ export function deriveChatStatusBarParts(options: {
 
   statusBarElements.forEach((el) => {
     if (!el || el.ui_type !== 'status_bar') return;
-    const value = extractByPath(lastAssistantMessage, el.data);
-    if (value === undefined || value === null || value === '') return;
-    const text = renderTemplate(el.template ?? '{{data}}', value);
+    const rawValue = extractByPath(lastAssistantMessage, el.data);
+    const valueForTemplate = formatValueForElement(el, rawValue);
+    if (valueForTemplate === undefined || valueForTemplate === null || valueForTemplate === '') return;
+    const text = renderTemplate(el.template ?? '{{data}}', valueForTemplate);
     if (text) parts.push(text);
   });
 

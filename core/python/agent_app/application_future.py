@@ -34,7 +34,7 @@ class _ToolLoopConfig:
     implementations can be compared side-by-side with a diff.
     """
 
-    max_loops: int = 50
+    max_loops: int = 100
 
 
 class AgentApplication:

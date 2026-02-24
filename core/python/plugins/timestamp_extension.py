@@ -1,7 +1,18 @@
 """Timestamp feature.
 
-Adds a `timestamp` field to message metadata and exposes it as a
-message_footer UI element that terminal renderers can display.
+Adds a ``timestamp`` field to message metadata and exposes it as a
+``message_footer`` UI element that terminal renderers can display.
+
+This feature only *allocates* new timestamps in two places:
+
+- When a new core message is appended and converted to provider-native
+  form (``to_native_messages`` for the single appended message).
+- When an assistant message is received from the provider
+  (``finalize`` for provider-native final assistant messages).
+
+The feature does not allocate timestamps during native→core conversion;
+it only surfaces timestamps already present in provider-native
+``_metadata``.
 """
 
 from __future__ import annotations
@@ -13,17 +24,7 @@ from agent_core.types import FeaturePlugin
 
 
 class TimestampExtension(FeaturePlugin):
-    """Feature plugin that annotates messages with a timestamp.
-
-    Timestamps are attached to provider-native messages via an internal
-    ``_metadata.timestamp`` field and surfaced to core messages via
-    ``metadata.timestamp`` in :meth:`from_native_messages`. This allows
-    timestamps to be preserved across native-history rebuilds and makes
-    them available to UIs via :meth:`get_ui_elements`, which contributes
-    a single ``"message_footer"`` element referencing
-    ``metadata.timestamp`` so terminal UIs can render the timestamp
-    beneath each message.
-    """
+    """Feature plugin that annotates messages with a timestamp."""
 
     name: str = "timestamp_extension"
     version: str = "0.1.0"
@@ -37,6 +38,7 @@ class TimestampExtension(FeaturePlugin):
                 "ui_type": "message_footer",
                 "data": "metadata.timestamp",
                 "template": "{{data}}",
+                "metadata": {"format": "datetime"},
             }
         ]
 
@@ -45,58 +47,43 @@ class TimestampExtension(FeaturePlugin):
         messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        """Attach or propagate timestamps in provider-native messages.
+        """Attach a timestamp to a single newly-appended message.
 
-        This runs on all core→native conversions, including when a new
-        user or tool message is appended via :meth:`AgentCore.add_message`
-        and when existing sessions are prepared for a request. For each
-        message/native pair, the logic is:
-
-        - If the core message already has ``metadata.timestamp``, reuse it.
-        - Else, if the native message has ``_metadata.timestamp``, reuse it.
-        - Else, assign a new timestamp for this call.
-
-        The resolved timestamp is stored on the native message under
-        ``_metadata.timestamp`` so that it can later be surfaced back to
-        the core via :meth:`from_native_messages`.
+        The core calls this hook both for full-history conversions and
+        for single-message conversions (when appending via
+        :meth:`AgentCore.add_message`). This feature only annotates the
+        *single* appended message and otherwise leaves history unchanged
+        to avoid index-misalignment bugs when provider-native history
+        contains synthetic messages.
         """
 
-        if not messages or not native_messages:
+        if len(messages) != 1 or not native_messages:
             return native_messages
 
-        # Single timestamp per batch when we need to allocate a new one.
-        now_ts = datetime.now(timezone.utc).isoformat()
+        core_md = messages[0].get("metadata") or {}
+        if not isinstance(core_md, dict):
+            core_md = {}
+
+        # Messages already in a session with native history carry
+        # native_indices; do not allocate timestamps during request
+        # preparation.
+        if "native_indices" in core_md:
+            return native_messages
+
+        ts = core_md.get("timestamp")
+        if not isinstance(ts, str) or not ts:
+            ts = datetime.now(timezone.utc).isoformat()
+
         out: List[Dict[str, Any]] = []
+        for native in native_messages:
+            meta = native.get("_metadata") or {}
+            if not isinstance(meta, dict):
+                meta = {}
 
-        for idx, native in enumerate(native_messages):
-            if idx < len(messages) and isinstance(messages[idx], dict):
-                core_msg = messages[idx]
-            else:
-                core_msg = {}
+            if not isinstance(meta.get("timestamp"), str) or not meta.get("timestamp"):
+                meta = {**meta, "timestamp": ts}
 
-            if not isinstance(native, dict):
-                out.append(native)
-                continue
-
-            # Existing core metadata (if any).
-            core_md = core_msg.get("metadata") or {}
-            if not isinstance(core_md, dict):
-                core_md = {}
-
-            # Existing native-side _metadata (if any).
-            raw_meta = native.get("_metadata") or {}
-            meta = raw_meta if isinstance(raw_meta, dict) else {}
-
-            ts_val = core_md.get("timestamp") or meta.get("timestamp")
-            if not isinstance(ts_val, str) or not ts_val:
-                ts_val = now_ts
-
-            new_meta = {**meta, "timestamp": ts_val}
-            out.append({**native, "_metadata": new_meta})
-
-        # Preserve any trailing native messages beyond the core messages.
-        if len(native_messages) > len(out):
-            out.extend(native_messages[len(out) :])
+            out.append({**native, "_metadata": meta})
 
         return out
 
@@ -105,48 +92,33 @@ class TimestampExtension(FeaturePlugin):
         native_messages: List[Dict[str, Any]],
         messages: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        """Surface provider-native timestamps onto core messages.
+        """Surface existing provider-native timestamps onto core messages.
 
-        For each core message, prefer an existing ``metadata.timestamp``
-        value when present; otherwise, attempt to read
-        ``_metadata.timestamp`` from the corresponding native message.
-        As a last resort, a new timestamp is allocated.
+        This hook never allocates timestamps; it only copies
+        ``_metadata.timestamp`` from provider-native messages when
+        available.
         """
 
-        if not messages:
+        if len(messages) != len(native_messages):
             return messages
 
         out: List[Dict[str, Any]] = []
-        now_ts = datetime.now(timezone.utc).isoformat()
-
-        for idx, msg in enumerate(messages):
-            if not isinstance(msg, dict):
-                out.append(msg)
-                continue
-
+        for msg, native in zip(messages, native_messages):
             md = msg.get("metadata") or {}
             if not isinstance(md, dict):
                 md = {}
+            if isinstance(md.get("timestamp"), str) and md.get("timestamp"):
+                out.append(msg)
+                continue
 
-            # Existing core timestamp, if any.
-            ts_val = md.get("timestamp")
-
-            # Prefer timestamp from native _metadata when core metadata
-            # does not already include one.
-            if (not isinstance(ts_val, str) or not ts_val) and idx < len(native_messages):
-                native = native_messages[idx]
-                if isinstance(native, dict):
-                    raw_meta = native.get("_metadata") or {}
-                    if isinstance(raw_meta, dict):
-                        native_ts = raw_meta.get("timestamp")
-                        if isinstance(native_ts, str) and native_ts:
-                            ts_val = native_ts
-
-            if not isinstance(ts_val, str) or not ts_val:
-                ts_val = now_ts
-
-            new_md = {**md, "timestamp": ts_val}
-            out.append({**msg, "metadata": new_md})
+            meta = native.get("_metadata") or {}
+            if not isinstance(meta, dict):
+                meta = {}
+            ts = meta.get("timestamp")
+            if isinstance(ts, str) and ts:
+                out.append({**msg, "metadata": {**md, "timestamp": ts}})
+            else:
+                out.append(msg)
 
         return out
 
@@ -161,26 +133,40 @@ class TimestampExtension(FeaturePlugin):
         For assistant messages produced by the provider, ensure that
         ``_metadata.timestamp`` is present so that subsequent
         :meth:`from_native_messages` calls can surface it onto core
-        message metadata.
+        message metadata. This also updates the full provider-native
+        history returned by the provider so timestamps are preserved
+        across native-history rebuilds.
         """
 
         if not final_messages:
             return final_messages, native_messages, state
 
         ts = datetime.now(timezone.utc).isoformat()
-        out_finals: List[Dict[str, Any]] = []
 
-        for msg in final_messages:
-            if not isinstance(msg, Dict):
-                out_finals.append(msg)
+        def _stamp_assistant(native_msg: Dict[str, Any]) -> Dict[str, Any]:
+            if native_msg.get("role") != "assistant":
+                return native_msg
+            meta = native_msg.get("_metadata") or {}
+            if not isinstance(meta, dict):
+                meta = {}
+            if isinstance(meta.get("timestamp"), str) and meta.get("timestamp"):
+                return native_msg
+            return {**native_msg, "_metadata": {**meta, "timestamp": ts}}
+
+        stamped_finals = [_stamp_assistant(m) for m in final_messages]
+
+        if not native_messages or len(stamped_finals) > len(native_messages):
+            return stamped_finals, native_messages, state
+
+        start = len(native_messages) - len(stamped_finals)
+        stamped_history = list(native_messages)
+        for offset, final_msg in enumerate(stamped_finals):
+            if final_msg.get("role") != "assistant":
                 continue
+            hist_idx = start + offset
+            hist_msg = stamped_history[hist_idx]
+            if hist_msg.get("role") != "assistant":
+                continue
+            stamped_history[hist_idx] = _stamp_assistant(hist_msg)
 
-            raw_meta = msg.get("_metadata") or {}
-            meta = raw_meta if isinstance(raw_meta, dict) else {}
-
-            if not isinstance(meta.get("timestamp"), str) or not meta.get("timestamp"):
-                meta = {**meta, "timestamp": ts}
-
-            out_finals.append({**msg, "_metadata": meta})
-
-        return out_finals, native_messages, state
+        return stamped_finals, stamped_history, state

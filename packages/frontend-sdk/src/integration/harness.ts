@@ -1,4 +1,4 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -77,12 +77,14 @@ export interface StartedServer {
   baseUrl: string;
   configPath: string;
   sessionsRoot: string;
+  stdout: string[];
   stop: () => Promise<void>;
 }
 
 export async function startBackendServer(options: {
   config: Record<string, any>;
   enableTestControl?: boolean;
+  env?: Record<string, string>;
 }): Promise<StartedServer> {
   const repoRoot = findRepoRoot(process.cwd());
   const runnerPath = path.join(repoRoot, 'scripts', 'run_backend_server_for_ts_integration_tests.py');
@@ -105,12 +107,18 @@ export async function startBackendServer(options: {
     args.push('--enable-test-control');
   }
 
-  const child: ChildProcessWithoutNullStreams = spawn(python, args, {
+  const child = spawn(python, args, {
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env,
+      ...(options.env || {}),
       PYTHONUNBUFFERED: '1',
     },
+  });
+
+  const stdout: string[] = [];
+  child.stdout.on('data', (buf) => {
+    stdout.push(String(buf));
   });
 
   // If the backend fails to start, surface stderr to make debugging easier.
@@ -157,8 +165,103 @@ export async function startBackendServer(options: {
     baseUrl,
     configPath,
     sessionsRoot,
+    stdout,
     stop,
   };
+}
+
+export interface StartedBridge {
+  bridgeUrl: string;
+  stop: () => Promise<void>;
+}
+
+async function commandExists(cmd: string, args: string[]): Promise<boolean> {
+  return await new Promise<boolean>((resolve) => {
+    const child = spawn(cmd, args, { stdio: ['ignore', 'ignore', 'ignore'] });
+    child.on('error', () => resolve(false));
+    child.on('exit', (code) => resolve(code === 0));
+  });
+}
+
+async function runCommand(options: { cmd: string; args: string[]; cwd: string }): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(options.cmd, options.args, {
+      cwd: options.cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let out = '';
+    child.stdout.on('data', (buf) => {
+      out += String(buf);
+    });
+    child.stderr.on('data', (buf) => {
+      out += String(buf);
+    });
+    child.on('error', reject);
+    child.on('exit', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`Command failed (${options.cmd} ${options.args.join(' ')}):\n${out}`));
+      }
+    });
+  });
+}
+
+export async function startBridgeDocker(): Promise<StartedBridge> {
+  const repoRoot = findRepoRoot(process.cwd());
+  const cwd = path.join(repoRoot, 'bridge-elixir');
+  const composeFile = 'docker-compose.single-node.yml';
+
+  const hasDockerCompose = await commandExists('docker', ['compose', 'version']);
+  const composeCmd = hasDockerCompose ? 'docker' : 'docker-compose';
+  const baseArgs = hasDockerCompose ? ['compose'] : [];
+
+  await runCommand({
+    cmd: composeCmd,
+    args: [...baseArgs, '-f', composeFile, 'up', '-d'],
+    cwd,
+  });
+
+  const healthUrl = 'http://127.0.0.1:4000/health';
+  await waitForAsync(async () => {
+    try {
+      const resp = await fetch(healthUrl);
+      return resp.ok;
+    } catch {
+      return false;
+    }
+  }, { timeoutMs: 60_000, intervalMs: 250 });
+
+  async function stop(): Promise<void> {
+    await runCommand({
+      cmd: composeCmd,
+      args: [...baseArgs, '-f', composeFile, 'down', '--remove-orphans', '-v'],
+      cwd,
+    });
+  }
+
+  return {
+    bridgeUrl: 'ws://127.0.0.1:4000/ws/websocket',
+    stop,
+  };
+}
+
+export async function waitForStdoutMatch(options: {
+  stdout: string[];
+  pattern: RegExp;
+  timeoutMs?: number;
+}): Promise<RegExpMatchArray> {
+  const timeoutMs = options.timeoutMs ?? 30_000;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const text = options.stdout.join('');
+    const match = text.match(options.pattern);
+    if (match) {
+      return match;
+    }
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error(`waitForStdoutMatch: pattern not found: ${options.pattern}`);
 }
 
 export class TrackingTransport implements Transport {
