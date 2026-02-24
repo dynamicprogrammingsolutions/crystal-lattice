@@ -39,11 +39,6 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
-def _esbuild_command(repo_root: Path) -> str:
-    esbuild = repo_root / "node_modules" / ".bin" / "esbuild"
-    return f"{esbuild} src/index.ts --bundle --platform=node --format=esm --outdir=dist"
-
-
 def _which(cmd: str) -> Optional[str]:
     return shutil.which(cmd)
 
@@ -79,8 +74,6 @@ def _make_app_config(tmp_path: Path) -> Path:
         "plugin_cache_dir": str(tmp_path / "plugin_cache"),
         "plugin_policy": {
             "base_dir": str(repo_root),
-            "node_build": True,
-            "node_build_command": _esbuild_command(repo_root),
         },
         "providers": {
             "ollama_tools": {

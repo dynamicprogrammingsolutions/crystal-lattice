@@ -36,13 +36,16 @@ Note: the string shortcut cannot carry an explicit `id`; in that form the plugin
 
 ### TypeScript build
 
-The application plugin manager can compile `.ts` files into a cached `dist/index.js` automatically:
+The application plugin manager compiles `.ts` files by generating a tiny cached package (with `esbuild` in `devDependencies`), then running install + build in that cache.
+
+For safety/hardening, you can disable Node installs/builds globally via `plugin_policy` (applies to all Node tools):
 
 ```json
 {
   "plugin_policy": {
-    "node_build": true,
-    "node_build_command": "${env:REPO_ROOT}/node_modules/.bin/esbuild src/index.ts --bundle --platform=node --format=esm --outdir=dist"
+    "node_install_deps": false,
+    "node_build": false,
+    "node_allow_install_scripts": false
   }
 }
 ```
