@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional
 
 from agent_app.plugin_sources import (
+    BashToolSource,
     DottedClassSource,
     GitRepoSource,
     LocalPathRepoSource,
@@ -37,6 +38,7 @@ class PluginManager:
             self.sources: List[PluginSource] = [
                 DottedClassSource(),
                 NodeToolSource(),
+                BashToolSource(),
                 LocalPathRepoSource(installer=installer),
                 GitRepoSource(installer=installer),
             ]

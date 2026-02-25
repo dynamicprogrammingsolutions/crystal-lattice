@@ -33,9 +33,18 @@ Each plugin reference is a “spec” that can take one of the following forms:
   - Git repo: `{ "node_tool": { "git": "https://github.com/acme/my-js-tool.git", "ref": "v0.1.0" } }`
   - Single file: `{ "node_tool": { "file": "./my_tool.js", "id": "my_tool", "entry": "my_tool.js" } }`
 
+- Bash tool plugins (single-file or manifest-driven)
+  - Single file: `{ "bash_tool": { "file": "./tools/my_tool.bash" } }`
+  - Local directory: `{ "bash_tool": { "path": "./plugins/bash-tools" } }` (requires `agent_plugin.json` with `bash_tools`)
+  - Git repo: `{ "bash_tool": { "git": "https://github.com/acme/bash-tools.git", "ref": "v0.1.0", "subdirectory": "optional/subdir" } }` (requires `agent_plugin.json` with `bash_tools`)
+
 String shortcuts:
 - Local directory or single file: `"node:/abs/or/rel"`
 - Git repo: `"node+git:<url-or-local>[#<ref>]"`
+
+Bash string shortcuts:
+- Local directory or single file: `"bash:/abs/or/rel"`
+- Git repo: `"bash+git:<url-or-local>[#<ref>]"`
 
 For repos, `subdirectory` selects a subfolder within the repo to install (useful for monorepos).
 
@@ -78,6 +87,88 @@ Example:
 
 When `export` is present, the Node tool host selects `module[export]`; otherwise it uses the default export.
 
+### Descriptor (bash tool repos via agent_plugin.json)
+
+For `bash_tool` directory/git specs, the loader reads `agent_plugin.json` and requires a `bash_tools` list.
+
+Example:
+
+```
+{
+  "bash_tools": [
+    {"file": "tools/sed_lines.bash"},
+    {"file": "tools/grep_context.bash"}
+  ]
+}
+```
+
+The `kinds` field is intentionally omitted for bash tool repos (bash repos are always tools).
+
+## Bash Tool File Contract
+
+Each bash tool file is executed as:
+
+```
+bash /abs/path/to/tool.bash <subcommand> [args...]
+```
+
+Subcommands:
+- `schema`: prints JSON schema to stdout.
+- `preview`: prints a single-line preview string.
+- `run`: executes the tool and writes output to stdout (streamed).
+- `error` (optional): formats the final tool message text on failure.
+
+### Schema JSON
+
+`schema` must return a JSON object containing at least:
+
+```
+{
+  "id": "my_tool",
+  "version": "0.1.0",
+  "args_mode": "flags",
+  "tools": [ ... OpenAI tool schemas ... ]
+}
+```
+
+v1 constraints:
+- Exactly one tool schema per file.
+- `schema.id` must match `tools[0].function.name`.
+
+### Argument Passing (`args_mode`)
+
+- `flags`:
+  - Scalars: `--name <value>`
+  - Booleans: `true` → `--name`, `false` → `--no-name`
+- `positional`:
+  - `schema.positional` defines the ordered argv mapping.
+- `json`:
+  - Python calls: `run --args-json` (and `preview --args-json` / `error <code> --args-json`).
+  - The JSON `arguments` object is written to stdin.
+  - Tools are expected to parse it with `jq`.
+
+### Error Formatting Hook (`error`)
+
+When `run` fails (non-zero exit code) or times out, the host may call:
+
+```
+bash tool.bash error <exit_code> [args...]
+```
+
+If `error` exits 0 and prints non-empty stdout, that text is used as the final
+tool message `content` (what the LLM sees). Otherwise, the host falls back to a
+default formatting including exit code + stderr/stdout.
+
+On timeout, the host sets:
+- `AGENT_TOOL_TIMED_OUT=1`
+- `AGENT_TOOL_TIMEOUT_SECONDS=<n>`
+
+### Streaming
+
+Tool stdout is streamed as tool partial events. When enabled by policy,
+stderr is also streamed. The final tool message is sent after the process
+exits.
+
 ## Config Forms
 
 - Flat list (auto-kind via duck-typing):
@@ -116,6 +207,12 @@ Node.js tool policy keys:
   - If omitted: inferred from `package.json#packageManager` (preferred) or lockfiles (`pnpm-lock.yaml`, `yarn.lock`), falling back to `npm`.
 - `node_allow_install_scripts` (default true): allow install-time scripts.
 - `node_build_command`: optional global override for the build command (otherwise uses `<pm> run build`).
+
+Bash tool policy keys:
+- `allow_bash_tools` (default false): enable `bash_tool` plugin loading.
+- `bash_timeout_seconds` (default 60): timeout for `schema`/`preview`/`run`.
+- `bash_error_timeout_seconds` (default 5): timeout for the optional `error` hook.
+- `bash_stream_stderr` (default false): stream stderr as tool partials.
 
 Security guidance:
 - Git installs run arbitrary code via pip; prefer pinned refs (tags/commits), and use `allowed_git_hosts` where possible.
