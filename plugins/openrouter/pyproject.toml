@@ -15,6 +15,12 @@ dependencies = [
 ]
 
 
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.0.0",
+]
+
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 
@@ -29,6 +35,8 @@ include = ["openrouter_plugins*"]
 
 
 [tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
 markers = [
   "integration: integration tests that call real services",
   "openrouter: tests requiring OpenRouter",
