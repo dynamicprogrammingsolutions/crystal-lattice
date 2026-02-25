@@ -246,6 +246,12 @@ class BashToolPlugin:
                 return [], "invalid positional mapping"
             key = name.strip()
 
+            required_val = entry.get("required")
+            if isinstance(required_val, bool):
+                required = required_val
+            else:
+                required = "default" not in entry
+
             if key in arguments and arguments[key] is not None:
                 val = arguments[key]
                 if not isinstance(val, _SCALAR_TYPES):
@@ -254,11 +260,21 @@ class BashToolPlugin:
                 present.append(True)
                 continue
 
-            default = entry.get("default")
-            if default is None:
-                values.append("")
-            else:
-                values.append(str(default))
+            if "default" in entry:
+                default = entry.get("default")
+                if default is None:
+                    values.append("")
+                elif isinstance(default, _SCALAR_TYPES):
+                    values.append(_to_cli_scalar(default))
+                else:
+                    return [], f"unsupported default type for {key}: {type(default).__name__}"
+                present.append(False)
+                continue
+
+            if required:
+                return [], f"missing required argument: {key}"
+
+            values.append("")
             present.append(False)
 
         # Omit trailing defaulted args.

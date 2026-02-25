@@ -10,13 +10,13 @@ from agent_app.plugin_manager import PluginManager
 from agent_core import AgentCore
 
 
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[3]
+def _core_python_dir() -> Path:
+    return Path(__file__).resolve().parents[1]
 
 
-def _bash_tool_policy(repo_root: Path) -> dict:
+def _bash_tool_policy(base_dir: Path) -> dict:
     return {
-        "base_dir": str(repo_root),
+        "base_dir": str(base_dir),
         "allow_bash_tools": True,
         "bash_timeout_seconds": 30,
         "bash_error_timeout_seconds": 5,
@@ -26,49 +26,49 @@ def _bash_tool_policy(repo_root: Path) -> dict:
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash executable not available")
 def test_plugin_manager_resolves_bash_tool_file(tmp_path: Path) -> None:
     cache_dir = tmp_path / "cache"
-    repo_root = _repo_root()
-    mgr = PluginManager(cache_dir=cache_dir, policy=_bash_tool_policy(repo_root))
+    base_dir = _core_python_dir()
+    mgr = PluginManager(cache_dir=cache_dir, policy=_bash_tool_policy(base_dir))
 
     res = mgr.resolve_all(
         [
-            {"bash_tool": {"file": "plugins/bash-sed-lines/sed_lines.bash"}},
+            {"bash_tool": {"file": "tests/fixtures/bash_tools/read_line_range.bash"}},
         ]
     )
     assert res.errors == []
     assert len(res.classes) == 1
-    assert getattr(res.classes[0], "name", None) == "sed_lines"
+    assert getattr(res.classes[0], "name", None) == "read_line_range"
 
     core = AgentCore()
     core.register_tool(res.classes[0])
     schemas = core.get_tool_schemas({})
-    assert any((s.get("function") or {}).get("name") == "sed_lines" for s in schemas)
+    assert any((s.get("function") or {}).get("name") == "read_line_range" for s in schemas)
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash executable not available")
 def test_plugin_manager_resolves_bash_shorthand_path(tmp_path: Path) -> None:
     cache_dir = tmp_path / "cache"
-    repo_root = _repo_root()
-    mgr = PluginManager(cache_dir=cache_dir, policy=_bash_tool_policy(repo_root))
+    base_dir = _core_python_dir()
+    mgr = PluginManager(cache_dir=cache_dir, policy=_bash_tool_policy(base_dir))
 
     res = mgr.resolve_all(
         [
-            "bash:plugins/bash-sed-lines/sed_lines.bash",
+            "bash:tests/fixtures/bash_tools/read_line_range.bash",
         ]
     )
     assert res.errors == []
     assert len(res.classes) == 1
-    assert getattr(res.classes[0], "name", None) == "sed_lines"
+    assert getattr(res.classes[0], "name", None) == "read_line_range"
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash executable not available")
 def test_bash_tool_preview_and_streaming_execution(tmp_path: Path) -> None:
     cache_dir = tmp_path / "cache"
-    repo_root = _repo_root()
-    mgr = PluginManager(cache_dir=cache_dir, policy=_bash_tool_policy(repo_root))
+    base_dir = _core_python_dir()
+    mgr = PluginManager(cache_dir=cache_dir, policy=_bash_tool_policy(base_dir))
 
     res = mgr.resolve_all(
         [
-            {"bash_tool": {"file": "plugins/bash-sed-lines/sed_lines.bash"}},
+            {"bash_tool": {"file": "tests/fixtures/bash_tools/read_line_range.bash"}},
         ]
     )
     assert res.errors == []
@@ -80,11 +80,16 @@ def test_bash_tool_preview_and_streaming_execution(tmp_path: Path) -> None:
     tool = tool_cls()
     state = tool.init({})
     preview = tool.format_tool_call_preview(
-        "sed_lines",
-        {"path": str(test_file), "start": 2, "end": 3, "number": False},
+        "read_line_range",
+        {
+            "path": str(test_file),
+            "start_line": 2,
+            "end_line": 3,
+            "show_line_numbers": False,
+        },
         state,
     )
-    assert preview.startswith("sed_lines")
+    assert preview.startswith("read_line_range")
 
     core = AgentCore()
     core.register_tool(tool_cls)
@@ -94,8 +99,13 @@ def test_bash_tool_preview_and_streaming_execution(tmp_path: Path) -> None:
             "id": "call_1",
             "type": "function",
             "function": {
-                "name": "sed_lines",
-                "arguments": {"path": str(test_file), "start": 2, "end": 3, "number": False},
+                "name": "read_line_range",
+                "arguments": {
+                    "path": str(test_file),
+                    "start_line": 2,
+                    "end_line": 3,
+                    "show_line_numbers": False,
+                },
             },
         }
     ]
@@ -163,8 +173,7 @@ esac
     )
 
     cache_dir = tmp_path / "cache"
-    repo_root = _repo_root()
-    policy = _bash_tool_policy(repo_root)
+    policy = _bash_tool_policy(_core_python_dir())
     policy["base_dir"] = str(tmp_path)
     mgr = PluginManager(cache_dir=cache_dir, policy=policy)
 
@@ -226,8 +235,7 @@ esac
     )
 
     cache_dir = tmp_path / "cache"
-    repo_root = _repo_root()
-    policy = _bash_tool_policy(repo_root)
+    policy = _bash_tool_policy(_core_python_dir())
     policy["base_dir"] = str(tmp_path)
     mgr = PluginManager(cache_dir=cache_dir, policy=policy)
 
@@ -297,8 +305,7 @@ esac
     )
 
     cache_dir = tmp_path / "cache"
-    repo_root = _repo_root()
-    mgr = PluginManager(cache_dir=cache_dir, policy=_bash_tool_policy(repo_root))
+    mgr = PluginManager(cache_dir=cache_dir, policy=_bash_tool_policy(_core_python_dir()))
 
     res = mgr.resolve_all(
         [
@@ -314,12 +321,12 @@ esac
 @pytest.mark.skipif(shutil.which("jq") is None, reason="jq executable not available")
 def test_bash_tool_json_args_mode_executes(tmp_path: Path) -> None:
     cache_dir = tmp_path / "cache"
-    repo_root = _repo_root()
-    mgr = PluginManager(cache_dir=cache_dir, policy=_bash_tool_policy(repo_root))
+    base_dir = _core_python_dir()
+    mgr = PluginManager(cache_dir=cache_dir, policy=_bash_tool_policy(base_dir))
 
     res = mgr.resolve_all(
         [
-            {"bash_tool": {"file": "plugins/bash-complex-example/complex_example.bash"}},
+            {"bash_tool": {"file": "tests/fixtures/bash_tools/json_example.bash"}},
         ]
     )
     assert res.errors == []
@@ -333,7 +340,7 @@ def test_bash_tool_json_args_mode_executes(tmp_path: Path) -> None:
             "id": "call_1",
             "type": "function",
             "function": {
-                "name": "complex_example",
+                "name": "json_example",
                 "arguments": {"items": ["a", "b"], "uppercase": True},
             },
         }

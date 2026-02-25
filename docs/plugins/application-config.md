@@ -96,7 +96,7 @@ Example:
 ```
 {
   "bash_tools": [
-    {"file": "tools/sed_lines.bash"},
+    {"file": "read_line_range.bash"},
     {"file": "tools/grep_context.bash"}
   ]
 }
@@ -141,7 +141,10 @@ v1 constraints:
   - Scalars: `--name <value>`
   - Booleans: `true` → `--name`, `false` → `--no-name`
 - `positional`:
-  - `schema.positional` defines the ordered argv mapping.
+  - `schema.positional` defines the ordered argv mapping:
+    - Each entry is `{ "name": "...", "required": true|false, "default": <scalar> }`.
+    - Values are passed in order as plain argv strings.
+    - Trailing non-provided arguments with defaults may be omitted.
 - `json`:
   - Python calls: `run --args-json` (and `preview --args-json` / `error <code> --args-json`).
   - The JSON `arguments` object is written to stdin.

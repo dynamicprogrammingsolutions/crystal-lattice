@@ -5,14 +5,14 @@ set -euo pipefail
 schema() {
   cat <<'JSON'
 {
-  "id": "complex_example",
+  "id": "json_example",
   "version": "0.1.0",
   "args_mode": "json",
   "tools": [
     {
       "type": "function",
       "function": {
-        "name": "complex_example",
+        "name": "json_example",
         "description": "Demonstrate args_mode=json with jq parsing.",
         "parameters": {
           "type": "object",
@@ -38,43 +38,24 @@ require_args_json_flag() {
 }
 
 
-read_args_json() {
-  cat
-}
-
-
 preview() {
   require_args_json_flag "${1-}"
-  args_json="$(read_args_json)"
+  args_json="$(cat)"
   count="$(jq -r '.items | length' <<<"$args_json")"
   uppercase="$(jq -r '.uppercase // false' <<<"$args_json")"
-  echo "complex_example items=$count uppercase=$uppercase"
+  echo "json_example items=$count uppercase=$uppercase"
 }
 
 
 run() {
   require_args_json_flag "${1-}"
-  args_json="$(read_args_json)"
-
+  args_json="$(cat)"
   uppercase="$(jq -r '.uppercase // false' <<<"$args_json")"
   if [[ "$uppercase" == "true" ]]; then
     jq -r '.items[] | ascii_upcase' <<<"$args_json"
   else
     jq -r '.items[]' <<<"$args_json"
   fi
-}
-
-
-error() {
-  exit_code="${1-1}"
-  shift || true
-
-  if [[ "${AGENT_TOOL_TIMED_OUT:-}" == "1" ]]; then
-    echo "complex_example timed out after ${AGENT_TOOL_TIMEOUT_SECONDS:-?}s (exit_code=${exit_code})"
-    exit 0
-  fi
-
-  echo "complex_example failed (exit_code=${exit_code})"
 }
 
 
@@ -88,8 +69,6 @@ case "$sub" in
     preview "$@" ;;
   run)
     run "$@" ;;
-  error)
-    error "$@" ;;
   *)
     echo "unknown subcommand: $sub" >&2
     exit 2 ;;
