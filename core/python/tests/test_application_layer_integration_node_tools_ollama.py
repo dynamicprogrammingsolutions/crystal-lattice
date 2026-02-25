@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Optional, Set
 import pytest
 
 from agent_app.application_future import AgentApplication
+
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OPENAI_BASE_URL = f"{OLLAMA_HOST}/v1"
 MODEL_TOOLS = os.getenv("OLLAMA_MODEL_TOOLS", "qwen3:0.6b")
@@ -89,7 +90,7 @@ def _make_app_config(tmp_path: Path) -> Path:
             "plugins.openai_provider.OpenAICompatibleProvider",
             "plugins.openai_tools_extension.OpenAIToolsExtension",
             "plugins.ollama_thinking_extension.OllamaThinkingExtension",
-            {"node_tool": {"path": "plugins/js-fs-tools"}},
+            {"node_tool": {"path": "core/python/tests/fixtures/node_tools/js-fs-tools"}},
         ],
         "agents": {
             "default": {"provider": "ollama_tools"},
@@ -335,8 +336,7 @@ def test_application_layer_ollama_js_fs_tools_streaming_disabled_has_no_stream_p
     # Even when tools don't stream, the application tool loop emits one
     # tool_partial(end) event per tool call in streaming mode.
     assert not any(
-        ev.get("type") == "tool_partial" and ev.get("phase") in {"start", "stream"}
-        for ev in events
+        ev.get("type") == "tool_partial" and ev.get("phase") in {"start", "stream"} for ev in events
     )
 
     tool_names = _extract_tool_names_from_results(events)

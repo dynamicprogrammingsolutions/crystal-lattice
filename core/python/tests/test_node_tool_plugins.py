@@ -22,6 +22,10 @@ def _node_tool_policy(repo_root: Path) -> dict:
     }
 
 
+def _fixture_path(rel: str) -> str:
+    return f"core/python/tests/fixtures/node_tools/{rel}"
+
+
 def _make_git_js_tool_repo(tmp_path: Path) -> Path:
     repo = tmp_path / "js_tool_repo"
     (repo / "src").mkdir(parents=True)
@@ -86,9 +90,11 @@ def test_plugin_manager_resolves_js_echo_tool(tmp_path: Path) -> None:
     repo_root = _repo_root()
     mgr = PluginManager(cache_dir=cache_dir, policy=_node_tool_policy(repo_root))
 
-    res = mgr.resolve_all([
-        {"node_tool": {"path": "plugins/js-echo-tool"}},
-    ])
+    res = mgr.resolve_all(
+        [
+            {"node_tool": {"path": _fixture_path("js-echo-tool")}},
+        ]
+    )
     assert res.errors == []
     assert len(res.classes) == 1
     cls = res.classes[0]
@@ -107,9 +113,11 @@ def test_plugin_manager_resolves_node_shorthand_path(tmp_path: Path) -> None:
     repo_root = _repo_root()
     mgr = PluginManager(cache_dir=cache_dir, policy=_node_tool_policy(repo_root))
 
-    res = mgr.resolve_all([
-        "node:plugins/js-echo-tool",
-    ])
+    res = mgr.resolve_all(
+        [
+            f"node:{_fixture_path('js-echo-tool')}",
+        ]
+    )
     assert res.errors == []
     assert len(res.classes) == 1
     assert getattr(res.classes[0], "name", None) == "js_echo_tool"
@@ -121,9 +129,11 @@ def test_plugin_manager_resolves_node_shorthand_file(tmp_path: Path) -> None:
     repo_root = _repo_root()
     mgr = PluginManager(cache_dir=cache_dir, policy=_node_tool_policy(repo_root))
 
-    res = mgr.resolve_all([
-        "node:plugins/js-single-file-tool/UpperTool.ts",
-    ])
+    res = mgr.resolve_all(
+        [
+            f"node:{_fixture_path('js-single-file-tool/UpperTool.ts')}",
+        ]
+    )
     assert res.errors == []
     assert len(res.classes) == 1
 
@@ -153,9 +163,11 @@ def test_node_tool_git_local_repo_resolves_and_executes(tmp_path: Path) -> None:
     policy["base_dir"] = str(tmp_path)
     mgr = PluginManager(cache_dir=cache_dir, policy=policy)
 
-    res = mgr.resolve_all([
-        {"node_tool": {"git": str(repo)}},
-    ])
+    res = mgr.resolve_all(
+        [
+            {"node_tool": {"git": str(repo)}},
+        ]
+    )
     assert res.errors == []
     assert len(res.classes) == 1
 
@@ -188,9 +200,11 @@ def test_plugin_manager_resolves_node_git_shorthand(tmp_path: Path) -> None:
     policy["base_dir"] = str(tmp_path)
     mgr = PluginManager(cache_dir=cache_dir, policy=policy)
 
-    res = mgr.resolve_all([
-        f"node+git:{repo}",
-    ])
+    res = mgr.resolve_all(
+        [
+            f"node+git:{repo}",
+        ]
+    )
     assert res.errors == []
     assert len(res.classes) == 1
 
@@ -200,9 +214,11 @@ def test_node_tool_executes_and_streams_with_state_round_trip(tmp_path: Path) ->
     cache_dir = tmp_path / "cache"
     repo_root = _repo_root()
     mgr = PluginManager(cache_dir=cache_dir, policy=_node_tool_policy(repo_root))
-    res = mgr.resolve_all([
-        {"node_tool": {"path": "plugins/js-echo-tool"}},
-    ])
+    res = mgr.resolve_all(
+        [
+            {"node_tool": {"path": _fixture_path("js-echo-tool")}},
+        ]
+    )
     assert res.errors == []
     tool_cls = res.classes[0]
 
@@ -246,9 +262,11 @@ def test_node_tool_multiple_exports_resolve_and_execute(tmp_path: Path) -> None:
     cache_dir = tmp_path / "cache"
     repo_root = _repo_root()
     mgr = PluginManager(cache_dir=cache_dir, policy=_node_tool_policy(repo_root))
-    res = mgr.resolve_all([
-        {"node_tool": {"path": "plugins/js-multi-tools"}},
-    ])
+    res = mgr.resolve_all(
+        [
+            {"node_tool": {"path": _fixture_path("js-multi-tools")}},
+        ]
+    )
     assert res.errors == []
     assert {getattr(c, "name", "") for c in res.classes} == {"js_echo", "js_reverse"}
 
@@ -281,9 +299,11 @@ def test_node_tool_class_export_instantiated_by_host(tmp_path: Path) -> None:
     repo_root = _repo_root()
     mgr = PluginManager(cache_dir=cache_dir, policy=_node_tool_policy(repo_root))
 
-    res = mgr.resolve_all([
-        {"node_tool": {"path": "plugins/js-class-tool"}},
-    ])
+    res = mgr.resolve_all(
+        [
+            {"node_tool": {"path": _fixture_path("js-class-tool")}},
+        ]
+    )
     assert res.errors == []
     assert len(res.classes) == 1
 
@@ -312,14 +332,16 @@ def test_node_tool_single_file_spec_executes(tmp_path: Path) -> None:
     cache_dir = tmp_path / "cache"
     repo_root = _repo_root()
     mgr = PluginManager(cache_dir=cache_dir, policy=_node_tool_policy(repo_root))
-    res = mgr.resolve_all([
-        {
-            "node_tool": {
-                "file": "plugins/js-single-file-tool/UpperTool.ts",
-                "id": "js_single_file_tool",
-            }
-        },
-    ])
+    res = mgr.resolve_all(
+        [
+            {
+                "node_tool": {
+                    "file": _fixture_path("js-single-file-tool/UpperTool.ts"),
+                    "id": "js_single_file_tool",
+                }
+            },
+        ]
+    )
     assert res.errors == []
     assert len(res.classes) == 1
 
@@ -350,7 +372,7 @@ def test_agent_application_lists_node_tool_plugin(tmp_path: Path) -> None:
         "providers": {"dummy": {"provider": "dummy_provider", "model": "test"}},
         "plugins": [
             "tests.dummy_provider.DummyProvider",
-            {"node_tool": {"path": "plugins/js-echo-tool"}},
+            {"node_tool": {"path": _fixture_path("js-echo-tool")}},
         ],
         "agents": {"default": {"provider": "dummy"}},
     }
