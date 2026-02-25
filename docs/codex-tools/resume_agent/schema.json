@@ -1,0 +1,12 @@
+{
+  "type": "function",
+  "name": "resume_agent",
+  "description": "Resume a previously closed agent by id so it can receive send_input and wait calls.",
+  "strict": false,
+  "parameters": {
+    "type": "object",
+    "properties": { "id": { "type": "string", "description": "Agent id to resume." } },
+    "required": ["id"],
+    "additionalProperties": false
+  }
+}

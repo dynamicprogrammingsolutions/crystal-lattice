@@ -1,0 +1,39 @@
+{
+  "type": "function",
+  "name": "shell",
+  "description": "Runs a shell command and returns its output.\n- The arguments to `shell` will be passed to execvp(). Most terminal commands should be prefixed with [\"bash\", \"-lc\"].\n- Always set the `workdir` param when using the shell function. Do not use `cd` unless absolutely necessary.",
+  "strict": false,
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "command": {
+        "type": "array",
+        "description": "The command to execute",
+        "items": { "type": "string" }
+      },
+      "workdir": {
+        "type": "string",
+        "description": "The working directory to execute the command in"
+      },
+      "timeout_ms": {
+        "type": "number",
+        "description": "The timeout for the command in milliseconds"
+      },
+      "sandbox_permissions": {
+        "type": "string",
+        "description": "Sandbox permissions for the command. Set to \"require_escalated\" to request running without sandbox restrictions; defaults to \"use_default\"."
+      },
+      "justification": {
+        "type": "string",
+        "description": "Only set if sandbox_permissions is \"require_escalated\".\nRequest approval from the user to run this command outside the sandbox.\nPhrased as a simple question that summarizes the purpose of the\ncommand as it relates to the task at hand - e.g. 'Do you want to\nfetch and pull the latest version of this git branch?'"
+      },
+      "prefix_rule": {
+        "type": "array",
+        "description": "Only specify when sandbox_permissions is `require_escalated`.\nSuggest a prefix command pattern that will allow you to fulfill similar requests from the user in the future.\nShould be a short but reasonable prefix, e.g. [\"git\", \"pull\"] or [\"uv\", \"run\"] or [\"pytest\"].",
+        "items": { "type": "string" }
+      }
+    },
+    "required": ["command"],
+    "additionalProperties": false
+  }
+}

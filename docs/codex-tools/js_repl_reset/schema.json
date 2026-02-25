@@ -1,0 +1,11 @@
+{
+  "type": "function",
+  "name": "js_repl_reset",
+  "description": "Restarts the js_repl kernel for this run and clears persisted top-level bindings.",
+  "strict": false,
+  "parameters": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+  }
+}
