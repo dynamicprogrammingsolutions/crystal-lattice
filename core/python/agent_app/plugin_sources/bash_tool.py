@@ -668,7 +668,7 @@ class BashToolSource:
                     "path": str(tool_path),
                 }
             props = self._tool_schema_properties(schema0)
-            for idx, entry in enumerate(positional):
+            for entry in positional:
                 if not isinstance(entry, dict):
                     return None, {
                         "type": "plugin_descriptor_invalid",
@@ -688,10 +688,18 @@ class BashToolSource:
                         "detail": f"positional name {entry_name!r} not present in tool schema properties",
                         "path": str(tool_path),
                     }
-                if "default" not in entry and idx != len(positional) - 1:
+                required_val = entry.get("required")
+                if required_val is not None and not isinstance(required_val, bool):
                     return None, {
                         "type": "plugin_descriptor_invalid",
-                        "detail": "positional entries must include default (except last)",
+                        "detail": "positional.required must be a boolean when present",
+                        "path": str(tool_path),
+                    }
+                default_val = entry.get("default") if "default" in entry else None
+                if default_val is not None and not isinstance(default_val, (str, int, float, bool)):
+                    return None, {
+                        "type": "plugin_descriptor_invalid",
+                        "detail": "positional.default must be a scalar when present",
                         "path": str(tool_path),
                     }
                 pos_entries.append(dict(entry))

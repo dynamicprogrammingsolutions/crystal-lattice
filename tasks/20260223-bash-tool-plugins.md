@@ -46,7 +46,7 @@ Implication: Bash tools must be supported via a new `PluginSource` that returns 
 ### Non-goals (v1)
 
 - Sandboxing beyond policy gating + timeouts.
-- Advanced formatting hooks beyond preview.
+- Advanced formatting hooks beyond `preview` (and the optional `error` hook).
 - Complex tool state round-tripping.
 - Multiple tools defined in one bash file (supported later if needed; v1 is 1 file → 1 tool plugin id).
 
@@ -60,7 +60,7 @@ This task uses **Option 1**: bash plugins are only loaded via explicit bash spec
 
 Supported spec formats:
 
-- Single file (object): `{ "bash_tool": { "file": "./tools/sed_lines.bash" } }`
+- Single file (object): `{ "bash_tool": { "file": "./plugins/bash-read-line-range/read_line_range.bash" } }`
 - Local repo/directory (object): `{ "bash_tool": { "path": "./plugins/bash-tools" } }`
 - Git repo (object): `{ "bash_tool": { "git": "https://...", "ref": "vX.Y.Z", "subdirectory": "optional/subdir" } }`
 
@@ -94,6 +94,10 @@ Subcommands (first positional argument):
   - Writes tool output to stdout (streamed).
   - May write diagnostics to stderr (optionally streamed).
   - Exit code determines success/failure.
+- `error` (optional)
+  - Called when `run` fails (non-zero exit code) or times out.
+  - Invoked as: `bash tool.bash error <exit_code> [args...]`.
+  - When it exits 0 and prints non-empty stdout, stdout becomes the final tool message content (what the LLM sees).
 
 Notes:
 
@@ -113,7 +117,7 @@ Example `agent_plugin.json` (bash tools):
 ```json
 {
   "bash_tools": [
-    {"file": "tools/sed_lines.bash"},
+    {"file": "read_line_range.bash"},
     {"file": "tools/grep_context.bash"}
   ]
 }
@@ -143,24 +147,30 @@ The `schema` subcommand returns a JSON object with at least:
 
 ```json
 {
-  "id": "sed_lines",
+  "id": "read_line_range",
   "version": "0.1.0",
-  "args_mode": "flags",
+  "args_mode": "positional",
+  "positional": [
+    {"name": "path", "required": true},
+    {"name": "start_line", "required": true},
+    {"name": "end_line", "required": true},
+    {"name": "show_line_numbers", "required": false, "default": false}
+  ],
   "tools": [
     {
       "type": "function",
       "function": {
-        "name": "sed_lines",
-        "description": "Print [start,end] lines (optionally numbered).",
+        "name": "read_line_range",
+        "description": "Read lines [start_line,end_line] from a file (optionally with line numbers).",
         "parameters": {
           "type": "object",
           "properties": {
             "path": {"type": "string"},
-            "start": {"type": "integer"},
-            "end": {"type": "integer"},
-            "number": {"type": "boolean", "default": true}
+            "start_line": {"type": "integer"},
+            "end_line": {"type": "integer"},
+            "show_line_numbers": {"type": "boolean", "default": false}
           },
-          "required": ["path", "start", "end"]
+          "required": ["path", "start_line", "end_line"]
         }
       }
     }
@@ -256,10 +266,10 @@ Example schema fields:
 {
   "args_mode": "positional",
   "positional": [
-    {"name": "path", "required": true, "default": ""},
-    {"name": "start", "required": true, "default": "1"},
-    {"name": "end", "required": true, "default": ""},
-    {"name": "number", "required": false, "default": "true"}
+    {"name": "path", "required": true},
+    {"name": "start_line", "required": true},
+    {"name": "end_line", "required": true},
+    {"name": "show_line_numbers", "required": false, "default": false}
   ]
 }
 ```
@@ -267,8 +277,10 @@ Example schema fields:
 Rules:
 
 - `positional[i].name` must match a property name in the OpenAI `parameters.properties`.
-- All positional entries must include an explicit `default` string (used when the argument is missing), except the **last** positional entry where `default` may be omitted because it can be safely omitted from argv.
-- For required params, `default` is still required (same exception for the last positional entry).
+- Each entry may include:
+  - `required` (boolean)
+  - `default` (scalar)
+- Python may omit trailing non-provided arguments (especially when the last entries have defaults).
 
 Invocation shape:
 
@@ -301,8 +313,8 @@ path="$(jq -r '.path' <<<"$args_json")"
 
 - Spawn the bash subprocess.
 - Stream output as tool partials:
-  - For stdout chunks: yield `{ "part": { "stream": "stdout", "text": <chunk> } }`
-  - For stderr chunks (optional): yield `{ "part": { "stream": "stderr", "text": <chunk> } }`
+  - For stdout chunks: yield `{ "part": { "type": "text", "content": <chunk>, "stream": "stdout" } }`
+  - For stderr chunks (optional): yield `{ "part": { "type": "text", "content": <chunk>, "stream": "stderr" } }`
 - When the process exits, yield a final result dict:
 
 ```json
@@ -378,23 +390,23 @@ Update plugin manager default sources order so `BashToolSource` is considered be
 
 ### Phase 3 — Example plugins
 
-Add example single-file tools under `plugins/`:
+Add a simple production-ready example tool under repo-root `plugins/`:
 
-1) `plugins/bash-sed-lines/sed_lines.bash`
-   - `args_mode=flags`
+1) `plugins/bash-read-line-range/read_line_range.bash`
+   - `args_mode=positional`
    - Implements `sed -n <start>,<end>p` and optional `nl -ba` numbering.
-   - `preview` prints one line like: `sed_lines path=... start=... end=... number=true`.
+   - `preview` prints one line like:
+     `read_line_range path=... start_line=... end_line=... show_line_numbers=false`.
 
-2) `plugins/bash-complex-example/complex_example.bash`
-   - `args_mode=json`
-   - Parses JSON arguments with `jq`.
+Test-only examples used by the core test suite should live under `core/python/tests`
+(prefer `core/python/tests/fixtures`).
 
 ### Phase 4 — Tests
 
 Add tests under `core/python/tests`:
 
 1) Plugin resolution test
-   - Loads `{ "bash_tool": { "file": ... } }`.
+   - Loads `{ "bash_tool": { "file": ... } }` (use a fixture under `core/python/tests/fixtures`).
    - Asserts plugin is classified as a tool.
 
 2) Schema test
