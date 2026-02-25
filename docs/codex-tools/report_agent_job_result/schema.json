@@ -1,0 +1,20 @@
+{
+  "type": "function",
+  "name": "report_agent_job_result",
+  "description": "Worker-only tool to report a result for an agent job item. Main agents should not call this.",
+  "strict": false,
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "job_id": { "type": "string", "description": "Identifier of the job." },
+      "item_id": { "type": "string", "description": "Identifier of the job item." },
+      "result": { "type": "object", "properties": {} },
+      "stop": {
+        "type": "boolean",
+        "description": "Optional. When true, cancels the remaining job items after this result is recorded."
+      }
+    },
+    "required": ["job_id", "item_id", "result"],
+    "additionalProperties": false
+  }
+}
