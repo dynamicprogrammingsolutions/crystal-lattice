@@ -1,7 +1,7 @@
 """Timestamp feature.
 
 Adds a ``timestamp`` field to message metadata and exposes it as a
-``message_footer`` UI element that terminal renderers can display.
+``message_footer`` UI element.
 
 This feature only *allocates* new timestamps in two places:
 
@@ -175,3 +175,6 @@ class TimestampExtension(FeaturePlugin):
             stamped_history[hist_idx] = _stamp_assistant(hist_msg)
 
         return stamped_finals, stamped_history, state
+
+
+__all__ = ["TimestampExtension"]

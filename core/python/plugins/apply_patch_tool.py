@@ -672,24 +672,25 @@ class ApplyPatchTool(ToolPlugin):
         # what was applied, even when the formatted summary is truncated
         # by the UI's line/character limits.
         content = f"{header}\n\nPatch:\n{patch_text}"
-        
-        # Build single_line from the list of changed files
+
         changes = result.get("changes") or {}
         single_line_parts: List[str] = []
         if isinstance(changes, dict) and changes:
-            for path, info in changes.items():
+            for path in sorted(changes):
+                info = changes.get(path) or {}
+                if not isinstance(info, dict):
+                    continue
                 change_type = info.get("type", "?")
                 move_to = info.get("move_path")
                 if move_to:
                     single_line_parts.append(f"{change_type}: {path} -> {move_to}")
                 else:
                     single_line_parts.append(f"{change_type}: {path}")
-        
+
         display: Dict[str, Any] = {"type": "text", "content": content}
         if single_line_parts:
-            # Join with newlines so it can be multi-line if needed
             display["single_line"] = "\n".join(single_line_parts)
-        
+
         return display
 
     def _process_patch_sandboxed(

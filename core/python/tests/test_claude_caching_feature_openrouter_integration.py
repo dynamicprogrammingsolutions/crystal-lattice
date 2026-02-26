@@ -45,7 +45,6 @@ MODEL_CLAUDE = "anthropic/claude-haiku-4.5"
 @pytest.fixture(scope="module")
 def ensure_api_key():
     """Skip tests if OpenRouter API key is not configured."""
-
     if not OPENROUTER_API_KEY:
         pytest.skip("OPENROUTER_API_KEY not set; skipping Claude caching tests")
 
