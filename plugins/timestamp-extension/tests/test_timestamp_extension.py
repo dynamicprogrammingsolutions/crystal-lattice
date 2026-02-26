@@ -5,15 +5,63 @@ from typing import Any, Dict, List
 from agent_core import AgentCore
 
 from plugins.echo_openai_like_provider import EchoOpenAILikeProvider
-from plugins.system_message_feature import SystemMessageFeature
 from timestamp_extension.timestamp_extension import TimestampExtension
+
+
+class SyntheticSystemMessageFeature:
+    """Minimal stand-in for SystemMessageFeature.
+
+    TimestampExtension tests need a feature that injects a synthetic system
+    message into provider-native history during request initialization.
+    """
+
+    name: str = "synthetic_system_message_feature"
+    version: str = "0.0.0"
+
+    def get_config_schema(self) -> Dict[str, Any]:  # pragma: no cover - not needed in tests
+        return {}
+
+    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        return {**state, "config": {**state.get("config", {}), **config}}
+
+    def to_native_messages(
+        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        return list(native_messages)
+
+    def from_native_messages(
+        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        return list(messages)
+
+    def initialize_request(
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        cfg = state.get("config") or {}
+        system_message = cfg.get("system_message")
+        if not isinstance(system_message, str) or not system_message:
+            return list(native_messages), state
+
+        if native_messages and isinstance(native_messages[0], dict) and native_messages[0].get("role") == "system":
+            return list(native_messages), state
+
+        injected = {"role": "system", "content": system_message, "_metadata": {}}
+        return [injected, *list(native_messages)], state
+
+    def finalize(
+        self,
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        return final_messages, native_messages, state
 
 
 def _make_core(*, with_system_message: bool) -> AgentCore:
     core = AgentCore()
     core.register_provider(EchoOpenAILikeProvider)
     if with_system_message:
-        core.register_feature(SystemMessageFeature)
+        core.register_feature(SyntheticSystemMessageFeature)
     core.register_feature(TimestampExtension)
     return core
 

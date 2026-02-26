@@ -111,7 +111,13 @@ def _assert_events_within_single_message_budget(
         session_id = ev.get("session_id")
         if not isinstance(session_id, str):
             continue
-        budget = max_message_sizes[session_id] + overhead_bytes
+
+        # Events like tool_results may legitimately include multiple tool
+        # messages (e.g. read_file + write_file + read_file), so allow a
+        # small multiplier while still guarding against embedding full
+        # sessions in a single published event.
+        multiplier = 3 if ev.get("type") == "tool_results" else 1
+        budget = (max_message_sizes[session_id] * multiplier) + overhead_bytes
         size = _json_size_bytes(ev)
         if size > budget:
             failures.append(
@@ -222,7 +228,7 @@ def _make_terminal_app_config(tmp_path: Path) -> Path:
             "plugins.openai_provider.OpenAICompatibleProvider",
             "plugins.openai_tools_extension.OpenAIToolsExtension",
             "plugins.ollama_thinking_extension.OllamaThinkingExtension",
-            "plugins.timestamp_extension.TimestampExtension",
+            "agent_terminal_app.test_plugins.timestamp_extension.TimestampExtension",
             "plugins.file_reader_tool.FileReaderTool",
             "plugins.file_writer_tool.FileWriterTool",
         ],

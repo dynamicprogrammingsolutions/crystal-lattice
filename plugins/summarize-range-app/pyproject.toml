@@ -11,7 +11,6 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "agent-core>=0.3.0",
-  "session-actions-app>=0.1.0"
 ]
 
 

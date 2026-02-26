@@ -5,7 +5,6 @@ Unit test for AgentCore.execute_tool_calls using DummyCalculator tool.
 from agent_core import AgentCore
 from .dummy_tool import DummyCalculator
 from plugins.file_reader_tool import FileReaderTool
-from plugins.shell_tool import ShellTool
 
 
 def test_execute_tool_calls_with_dummy_tool():
@@ -73,9 +72,9 @@ def test_iter_tool_messages_non_streaming_file_reader(tmp_path):
     assert "File contents:" in str(msg.get("content", ""))
 
 
-def test_iter_tool_messages_streaming_shell_tool(tmp_path):
+def test_iter_tool_messages_streaming_dummy_tool(tmp_path):
     core = AgentCore()
-    core.register_tool(ShellTool)
+    core.register_tool(DummyCalculator)
 
     config = {
         "working_directory": str(tmp_path),
@@ -88,8 +87,8 @@ def test_iter_tool_messages_streaming_shell_tool(tmp_path):
             "id": "call_1",
             "type": "function",
             "function": {
-                "name": "shell",
-                "arguments": {"command": "printf 'x\\n'", "workdir": str(tmp_path)},
+                "name": "add",
+                "arguments": {"a": 2, "b": 3},
             },
         }
     ]
@@ -104,15 +103,11 @@ def test_iter_tool_messages_streaming_shell_tool(tmp_path):
     assert msg.get("role") == "tool"
     md = msg.get("metadata", {})
     assert md.get("tool_call_id") == "call_1"
-    assert md.get("tool_name") == "shell"
-    assert md.get("tool_plugin") == "shell"
+    assert md.get("tool_name") == "add"
+    assert md.get("tool_plugin") == "dummy_calculator"
     display = md.get("display") or {}
     assert isinstance(display, dict)
     assert display.get("type") == "text"
-    # Shell tool prefixes the formatted *display* content with the
-    # executed command so UIs can show it alongside streamed/listed
-    # output without changing the underlying message content.
     text = str(display.get("content", ""))
-    assert "Command executed:" in text
-    assert "Output:" in text
-    assert "x" in text
+    assert "Result: 5" in text
+    assert "Result: 5" in str(msg.get("content", ""))
