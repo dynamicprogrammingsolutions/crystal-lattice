@@ -1,0 +1,47 @@
+{
+  "type": "function",
+  "name": "spawn_agent",
+  "description": "Spawn a sub-agent for a well-scoped task. Returns the agent id (and user-facing nickname when available) to use to communicate with this agent.",
+  "strict": false,
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "message": {
+        "type": "string",
+        "description": "Initial plain-text task for the new agent. Use either message or items."
+      },
+      "items": {
+        "type": "array",
+        "description": "Structured input items. Use this to pass explicit mentions (for example app:// connector paths).",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "Input item type: text, image, local_image, skill, or mention."
+            },
+            "text": { "type": "string", "description": "Text content when type is text." },
+            "image_url": {
+              "type": "string",
+              "description": "Image URL when type is image."
+            },
+            "path": {
+              "type": "string",
+              "description": "Path when type is local_image/skill, or mention target such as app://<connector-id> when type is mention."
+            },
+            "name": {
+              "type": "string",
+              "description": "Display name when type is skill or mention."
+            }
+          }
+        }
+      },
+      "agent_type": {
+        "type": "string",
+        "description": "Agent role/type selector. (In Codex, this is generated from configured agent roles.)"
+      }
+    },
+    "additionalProperties": false
+  }
+}

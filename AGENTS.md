@@ -193,6 +193,12 @@ See `bridge-elixir/AGENTS.md` for directory-specific guidelines and deployment n
 - Assert on data structures (sessions, messages, events), not logs.
 - For history-modifying features (`slice_session`, `modify_message`, `/delete`, `/modify`), cover both core and app/terminal behavior.
 
+**Plugin + test fixture placement**
+- Do not add new `core/python/tests` that depend on repo-root `plugins/` (use `core/python/tests/fixtures` instead).
+- Test-only plugins/fixtures live under `core/python/tests` (prefer `core/python/tests/fixtures`).
+- Simple/manual plugins that ship with the core package live under `core/python/plugins`.
+- Production plugins live under repo-root `plugins/`, and their tests live alongside them.
+
 **When to update docs**
 - Changing core APIs, plugin protocols, or application behavior:
   - Update: `TYPES_AND_PROTOCOLS.md`, `docs/api/core-sdk.md`, relevant `docs/reference/agent_core/*`, `DEVELOPMENT.md`, `application/python/README.md` as appropriate.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import re
 from typing import Any, Dict, List
 
 from .types import PluginContext, PluginResolution
@@ -9,13 +10,15 @@ from .types import PluginContext, PluginResolution
 class DottedClassSource:
     """Resolve a dotted class path like ``pkg.module.Class``."""
 
+    _dotted_re = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+$")
+
     def supports(self, spec: Any) -> bool:
         if not isinstance(spec, str):
             return False
         s = spec.strip()
-        if not s or s.startswith("path:") or s.startswith("git+"):
+        if not s:
             return False
-        return "." in s
+        return self._dotted_re.fullmatch(s) is not None
 
     def resolve(self, spec: Any, ctx: PluginContext) -> PluginResolution:
         if not isinstance(spec, str):

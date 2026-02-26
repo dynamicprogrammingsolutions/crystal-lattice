@@ -27,5 +27,6 @@ include = ["agent_terminal_app*"]
 
 [tool.pytest.ini_options]
 markers = [
+    "ollama: Ollama integration tests",
     "openrouter: OpenRouter integration tests",
 ]
