@@ -18,7 +18,7 @@ it only surfaces timestamps already present in provider-native
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from agent_core.types import FeaturePlugin
 
@@ -32,7 +32,12 @@ class TimestampExtension(FeaturePlugin):
     def get_config_schema(self) -> Dict[str, Any]:
         return {}
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         return [
             {
                 "ui_type": "message_footer",

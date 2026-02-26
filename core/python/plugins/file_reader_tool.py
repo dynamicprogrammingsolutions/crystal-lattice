@@ -5,7 +5,7 @@ FileReaderTool plugin: simple file reading tool with allowlist and size limit.
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from agent_core.types import ToolPlugin
 
@@ -34,7 +34,12 @@ class FileReaderTool(ToolPlugin):
             },
         }
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         return []
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:

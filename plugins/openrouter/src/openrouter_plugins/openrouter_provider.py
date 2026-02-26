@@ -7,7 +7,7 @@ Compatible with OpenAI Chat Completions API format.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterator, List, Tuple
+from typing import Any, Dict, Iterator, List, Tuple, Optional
 import json
 
 import requests
@@ -43,13 +43,24 @@ class OpenRouterProvider(ProviderPlugin):
             },
         }
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(self,config: Optional[Dict[str, Any]] = None, tags: Optional[List[str]] = None, models: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+        print("models:", models)
+        print("config:", config)
+        print("tags:", tags)
         return [
             {
                 "ui_type": "config",
                 "type": "string",
                 "key": "model",
                 "label": "Openrouter Model ID",
+            },
+            {
+                "ui_type": "composer_attachment",
+                "key": "model",
+                "attachment_type": "select",
+                "display_placement": "left",
+                "options": [{"label": model.get("name"), "value": model.get("id")} for model in models],
+                "label": "model",
             },
             {
                 "ui_type": "composer_attachment",
@@ -110,17 +121,9 @@ class OpenRouterProvider(ProviderPlugin):
         Core framework caches results per config.
         """
         all_models = self._fetch_models_from_api(config)
-        model_id = config.get("model")
-        if not isinstance(model_id, str) or not model_id:
+        if not all_models:
             return []
-        
-        if all_models:
-            matching_models = [m for m in all_models if m.get("id") == model_id]
-            if matching_models:
-                return matching_models
-        
-        # Fallback: return minimal model descriptor
-        return [{"id": model_id}]
+        return all_models
 
     def get_tags(
         self,
@@ -140,23 +143,22 @@ class OpenRouterProvider(ProviderPlugin):
         tags: List[str] = ["provider:openrouter", "openrouter"]
         tags.append("supports_streaming")  # All OpenRouter models support streaming
         
-        # Check if we have model capability data
-        if models and isinstance(models, list) and len(models) > 0:
-            model = models[0]
-            supported_params = model.get("supported_parameters", [])
-            
-            if isinstance(supported_params, list) and len(supported_params) > 0:
-                # Map supported_parameters to capability tags
-                if "tools" in supported_params or "tool" in supported_params:
-                    tags.append("supports_tools")
-                if "reasoning" in supported_params:
-                    tags.append("supports_reasoning")
-                if "verbosity" in supported_params:
-                    tags.append("supports_verbosity")
-                if "reasoning_effort" in supported_params:
-                    tags.append("supports_reasoning_effort")
-                
-                return tags
+        selected_id = config.get("model")
+        if isinstance(selected_id, str) and selected_id and models and isinstance(models, list):
+            for m in models:
+                if isinstance(m, dict) and m.get("id") == selected_id:
+                    supported_params = m.get("supported_parameters", [])
+                    if isinstance(supported_params, list) and len(supported_params) > 0:
+                        # Map supported_parameters to capability tags
+                        if "tools" in supported_params or "tool" in supported_params:
+                            tags.append("supports_tools")
+                        if "reasoning" in supported_params:
+                            tags.append("supports_reasoning")
+                        if "verbosity" in supported_params:
+                            tags.append("supports_verbosity")
+                        if "reasoning_effort" in supported_params:
+                            tags.append("supports_reasoning_effort")
+                        return tags
         
         # Fallback: assume common capabilities (backward compatibility)
         tags.append("supports_tools")

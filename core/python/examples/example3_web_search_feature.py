@@ -3,7 +3,7 @@ WebSearchFeature example (class-based feature plugin) derived from PLUGIN_EXAMPL
 This feature marks finals with metadata when web_search_enabled is True and prints a notice.
 """
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from agent_core.types import FeaturePlugin
 
 class WebSearchFeature:
@@ -16,7 +16,12 @@ class WebSearchFeature:
             "max_results": {"type": "integer", "default": 5},
         }
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         return [
             {
                 "type": "checkbox",

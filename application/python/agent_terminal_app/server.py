@@ -13,6 +13,8 @@ import time
 import uuid
 from datetime import datetime
 
+from agent_core.utils import get_logger
+
 try:  # Optional convenience in local usage
     from dotenv import load_dotenv  # type: ignore[import-not-found]
 except Exception:  # pragma: no cover - optional dependency
@@ -29,6 +31,8 @@ from agent_terminal_app import bridge_client as bridge_mod
 
 _DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "config_openrouter_app_layer.json"
 _DEFAULT_SESSION_ROOT = Path(__file__).resolve().parent / "sessions"
+
+_log = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -1036,7 +1040,8 @@ def get_session_ui_schema(
 
         try:
             ui_schema = core.get_ui_schema(config=effective_config)
-        except Exception:  # pragma: no cover - defensive
+        except Exception as exc:  # pragma: no cover - defensive
+            _log.exception("error getting ui_schema: %s", exc)
             ui_schema = []
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

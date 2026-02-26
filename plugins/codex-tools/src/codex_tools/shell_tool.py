@@ -14,7 +14,7 @@ import queue
 import subprocess
 import threading
 import time
-from typing import Any, Dict, List, Iterator
+from typing import Any, Dict, Iterator, List, Optional
 
 from agent_core.types import ToolPlugin
 
@@ -55,7 +55,12 @@ class ShellTool(ToolPlugin):
             },
         }
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         return []
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:

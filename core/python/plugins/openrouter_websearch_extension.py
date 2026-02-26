@@ -82,7 +82,12 @@ class OpenRouterWebSearchExtension(ProviderExtensionPlugin):
             },
         }
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         return [
             {
                 "type": "checkbox",

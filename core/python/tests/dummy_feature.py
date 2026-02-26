@@ -5,7 +5,7 @@ This plugin adds a prefix to all assistant responses.
 Follows the state-based plugin protocol with explicit state dicts.
 """
 
-from typing import Dict, Any, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from agent_core.types import FeaturePlugin
 
@@ -22,7 +22,12 @@ class DummyFeature(FeaturePlugin):
     def get_config_schema(self) -> Dict[str, Any]:
         return {"prefix": {"type": "string", "default": "[TEST]"}}
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         return [{"type": "text", "key": "prefix", "label": "Response Prefix"}]
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:

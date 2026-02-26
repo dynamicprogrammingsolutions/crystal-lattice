@@ -3,7 +3,7 @@ EchoProvider example (class-based provider plugin) derived from PLUGIN_EXAMPLES.
 Streams characters of "Echo: <last user message>" as native chunks, and finalizes the full message.
 """
 
-from typing import Any, Dict, List, Iterator, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 from agent_core.types import ProviderPlugin
 
 
@@ -14,7 +14,12 @@ class EchoProvider(ProviderPlugin):
     def get_config_schema(self) -> Dict[str, Any]:
         return {"model": {"type": "string", "default": "echo-1"}}
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         return [{"type": "text", "key": "model", "label": "Model"}]
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:

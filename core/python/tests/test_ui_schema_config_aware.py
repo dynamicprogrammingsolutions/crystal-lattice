@@ -2,7 +2,7 @@
 Tests for config-aware UI schema (get_ui_schema(config=...) and get_ui_elements_for_config).
 """
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from agent_core import AgentCore
 from agent_core.types import FeaturePlugin
@@ -19,7 +19,12 @@ class ConfigAwareFeature(FeaturePlugin):
     def get_config_schema(self) -> Dict[str, Any]:
         return {}
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         return [{"key": "always", "label": "Always visible", "ui_type": "config"}]
 
     def get_ui_elements_for_config(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:

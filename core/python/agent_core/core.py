@@ -1308,7 +1308,6 @@ class AgentCore:
             models = ext.get_models(config, models)
         for feature in self._features:
             models = feature.get_models(config, models)
-
         # Validate and normalize
         validated: List[Dict[str, Any]] = []
         for model in models:
@@ -1577,7 +1576,7 @@ class AgentCore:
             tools,
             config,
         )
- 
+
         # Initialize request chains using the adjusted native history.
         native_messages, state = provider.initialize_request(native_messages, state)
         for feature in features:
@@ -1719,7 +1718,7 @@ class AgentCore:
         provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
             config
         )
- 
+
         logger.info(
             "plugins_resolved_for_config",
             provider=provider.name,
@@ -1728,7 +1727,7 @@ class AgentCore:
             tools=[tool.name for tool in tools],
             tags=_tags,
         )
- 
+
         provider.set_active_extensions(enabled_extensions)
         messages, native_messages, state = self._pre_request(
             session,
@@ -1826,7 +1825,7 @@ class AgentCore:
         provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
             config
         )
- 
+
         logger.info(
             "plugins_resolved_for_config",
             provider=provider.name,
@@ -1835,7 +1834,7 @@ class AgentCore:
             tools=[tool.name for tool in tools],
             tags=_tags,
         )
- 
+
         provider.set_active_extensions(enabled_extensions)
         messages, native_messages, state = self._pre_request(
             session,
@@ -1934,7 +1933,7 @@ class AgentCore:
         provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
             config
         )
- 
+
         logger.info(
             "plugins_resolved_for_config",
             provider=provider.name,
@@ -1943,7 +1942,7 @@ class AgentCore:
             tools=[tool.name for tool in tools],
             tags=_tags,
         )
- 
+
         provider.set_active_extensions(enabled_extensions)
         messages, native_messages, state = self._pre_request(
             session,
@@ -2051,7 +2050,7 @@ class AgentCore:
             _extend(tool.get_config_schema(), tool.name)
         return entries
 
-    def get_ui_schema(self, config: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def get_ui_schema(self, config: Dict[str, Any] ) -> List[Dict[str, Any]]:
         """Get flattened UI schema from all registered plugins.
 
         When ``config`` is provided, plugins that implement
@@ -2157,7 +2156,8 @@ class AgentCore:
                 When provided, plugins may return config-dependent elements
                 via ``get_ui_elements_for_config(config)``.
         """
-
+        provider, _exts, _features, _tools, tags = self._resolve_plugins_for_config(config)
+        models = self._get_models_for_config(provider, config)
         # We treat configuration-oriented elements (ui_type == "config")
         # as keyed by their "key" field, mirroring the flattened
         # behaviour of ``get_config_schema`` where later plugins override
@@ -2189,26 +2189,14 @@ class AgentCore:
 
                 elements.append(entry)
 
-        use_config = config is not None
         for provider in self._providers:
-            if use_config:
-                _extend(provider.get_ui_elements_for_config(config), provider.name)
-                for name, ext_ui in provider.get_extension_ui_elements_for_config(config).items():
-                    _extend(ext_ui, name)
-            else:
-                _extend(provider.get_ui_elements(), provider.name)
-                for name, ext_ui in provider.get_extension_ui_elements().items():
+                _extend(provider.get_ui_elements(config, tags, models), provider.name)
+                for name, ext_ui in provider.get_extension_ui_elements(config, tags, models).items():
                     _extend(ext_ui, name)
         for feature in self._features:
-            if use_config:
-                _extend(feature.get_ui_elements_for_config(config), feature.name)
-            else:
-                _extend(feature.get_ui_elements(), feature.name)
+                _extend(feature.get_ui_elements(config, tags, models), feature.name)
         for tool in self._tools:
-            if use_config:
-                _extend(tool.get_ui_elements_for_config(config), tool.name)
-            else:
-                _extend(tool.get_ui_elements(), tool.name)
+            _extend(tool.get_ui_elements(config, tags, models), tool.name)
 
         # Append deduplicated config elements after non-config ones.
         elements.extend(config_by_key.values())

@@ -18,7 +18,7 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from agent_core.types import FeaturePlugin
 from agent_core.utils import get_logger
@@ -75,7 +75,12 @@ class FileContextFeature(FeaturePlugin):
             },
         }
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         # No dedicated UI widgets; configuration is JSON-only for now.
         return []
 

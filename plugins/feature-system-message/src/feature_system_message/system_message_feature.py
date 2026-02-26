@@ -64,7 +64,7 @@ from __future__ import annotations
 
 import os
 import runpy
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from agent_core.types import FeaturePlugin
 
@@ -162,7 +162,12 @@ class SystemMessageFeature(FeaturePlugin):
             },
         }
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         # UI wiring is application-specific; keep this feature config-only.
         return []
 
