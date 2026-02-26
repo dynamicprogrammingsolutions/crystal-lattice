@@ -38,3 +38,4 @@ nav:
     - Types & Protocols: reference/agent_core/types.md
     - Provider Wrapper: reference/agent_core/plugin/provider.md
     - OpenAI-Compatible Provider: reference/providers/openai_provider.md
+    - Tool Host Protocol: reference/tool-host-protocol.md

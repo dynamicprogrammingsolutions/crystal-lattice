@@ -11,9 +11,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional
 
 from agent_app.plugin_sources import (
+    BashToolSource,
     DottedClassSource,
     GitRepoSource,
     LocalPathRepoSource,
+    NodeToolSource,
     PluginContext,
     PluginResolution,
     PluginSource,
@@ -35,6 +37,8 @@ class PluginManager:
             installer = PipTargetInstallStrategy()
             self.sources: List[PluginSource] = [
                 DottedClassSource(),
+                NodeToolSource(),
+                BashToolSource(),
                 LocalPathRepoSource(installer=installer),
                 GitRepoSource(installer=installer),
             ]

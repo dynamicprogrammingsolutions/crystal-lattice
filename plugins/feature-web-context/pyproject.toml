@@ -15,6 +15,12 @@ dependencies = [
 ]
 
 
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.0.0",
+]
+
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 
@@ -26,3 +32,8 @@ include = ["feature_web_context*"]
 
 [tool.setuptools.data-files]
 "" = ["agent_plugin.json"]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

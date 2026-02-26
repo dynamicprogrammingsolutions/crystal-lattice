@@ -1,0 +1,40 @@
+{
+  "type": "function",
+  "name": "send_input",
+  "description": "Send a message to an existing agent. Use interrupt=true to redirect work immediately.",
+  "strict": false,
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Agent id to message (from spawn_agent)."
+      },
+      "message": {
+        "type": "string",
+        "description": "Legacy plain-text message to send to the agent. Use either message or items."
+      },
+      "items": {
+        "type": "array",
+        "description": "Structured input items. Use this to pass explicit mentions (for example app:// connector paths).",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": { "type": "string", "description": "Input item type: text, image, local_image, skill, or mention." },
+            "text": { "type": "string", "description": "Text content when type is text." },
+            "image_url": { "type": "string", "description": "Image URL when type is image." },
+            "path": { "type": "string", "description": "Path when type is local_image/skill, or mention target such as app://<connector-id> when type is mention." },
+            "name": { "type": "string", "description": "Display name when type is skill or mention." }
+          }
+        }
+      },
+      "interrupt": {
+        "type": "boolean",
+        "description": "When true, stop the agent's current task and handle this immediately. When false (default), queue this message."
+      }
+    },
+    "required": ["id"],
+    "additionalProperties": false
+  }
+}
