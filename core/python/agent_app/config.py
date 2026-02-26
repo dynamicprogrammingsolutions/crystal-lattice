@@ -218,7 +218,7 @@ def load_application_plugins(
 
     Args:
         plugin_paths: Iterable of dotted class paths
-            (e.g. ``"plugins.session_actions_app.SessionActionsAppPlugin"``).
+            (e.g. ``"session_actions_app.SessionActionsAppPlugin"``).
 
     Returns:
         Tuple of ``(classes, errors)`` where ``classes`` is a flat list of
