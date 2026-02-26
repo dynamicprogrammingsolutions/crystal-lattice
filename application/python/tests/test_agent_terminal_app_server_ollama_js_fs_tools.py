@@ -28,6 +28,11 @@ from agent_terminal_app import server as server_mod
 from agent_terminal_app.terminal_app import TerminalApplication
 
 
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
+FIXTURE_CONFIG_PATH = FIXTURES_DIR / "configs" / "config_ollama_js_fs_tools.json"
+FIXTURE_JS_FS_TOOLS_DIR = FIXTURES_DIR / "node_tools" / "js-fs-tools"
+
+
 def _which(cmd: str) -> Optional[str]:
     return shutil.which(cmd)
 
@@ -53,10 +58,7 @@ def ensure_node_ollama_and_model() -> None:
     except Exception:
         pytest.skip("ollama command unavailable or not responding; skipping")
 
-    config_path = (
-        Path(server_mod.__file__).resolve().parent / "config_ollama_js_fs_tools.json"
-    )
-    cfg = json.loads(config_path.read_text(encoding="utf-8"))
+    cfg = json.loads(FIXTURE_CONFIG_PATH.read_text(encoding="utf-8"))
     model = ((cfg.get("providers") or {}).get("ollama_tools") or {}).get("model")
     model_name = model if isinstance(model, str) and model.strip() else "qwen3:0.6b"
 
@@ -85,8 +87,15 @@ def test_server_and_terminal_list_js_fs_tools_and_can_execute(
     tmp_path: Path,
     ensure_node_ollama_and_model: None,
 ) -> None:
-    base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_ollama_js_fs_tools.json"
+    cfg = json.loads(FIXTURE_CONFIG_PATH.read_text(encoding="utf-8"))
+    cfg["plugin_cache_dir"] = str(tmp_path / ".plugin_cache" / "plugins")
+    plugins = list(cfg.get("plugins") or [])
+    cfg["plugins"] = [
+        p for p in plugins if not (isinstance(p, str) and p.strip().startswith("node:"))
+    ] + [f"node:{FIXTURE_JS_FS_TOOLS_DIR}"]
+
+    config_path = tmp_path / "config_ollama_js_fs_tools.json"
+    config_path.write_text(json.dumps(cfg), encoding="utf-8")
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
