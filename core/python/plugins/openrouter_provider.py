@@ -53,12 +53,14 @@ class OpenRouterProvider(ProviderPlugin):
             },
             {
                 "ui_type": "composer_attachment",
+                "key": "openrouter:attachment:image",
                 "attachment_type": "image",
                 "supports_url": True,
                 "supported_file_types": ["png", "jpg", "jpeg", "webp", "gif"],
                 "display_placement": "below",
                 "label": "Image",
-            },
+                "icon": "image"
+            }
         ]
 
     # ---------- Models / capabilities ----------
@@ -162,9 +164,10 @@ class OpenRouterProvider(ProviderPlugin):
                 part_type = part.get("type")
                 part_content = part.get("content")
                 if part_type != "image":
-                    raise ValueError(
-                        f"[openrouter_provider] unsupported multipartContent part type: {part_type!r}"
-                    )
+                    # UI may advertise additional attachment types for
+                    # testing, but OpenRouter only supports images in the
+                    # request format used here. Silently ignore others.
+                    continue
                 if not isinstance(part_content, dict):
                     raise ValueError(
                         "[openrouter_provider] image multipartContent part requires dict content"
@@ -186,7 +189,7 @@ class OpenRouterProvider(ProviderPlugin):
                         "[openrouter_provider] image multipartContent part requires content.url or content.data_base64"
                     )
 
-                parts.append({"type": "image_url", "imageUrl": {"url": url}})
+                parts.append({"type": "image_url", "image_url": {"url": url}})
 
             native.append({"role": role, "content": parts})
 
@@ -277,16 +280,9 @@ class OpenRouterProvider(ProviderPlugin):
             override = request.get("messages")
             messages = override if isinstance(override, list) else native_messages
             payload = {**request["payload"], "messages": messages, "stream": False}
-            try:
-                payload_preview = json.dumps(payload, ensure_ascii=False)
-            except Exception:  # pragma: no cover - defensive
-                payload_preview = str(payload)
-            if len(payload_preview) > 2000:
-                payload_preview = payload_preview[:2000] + "...<truncated>"
-
             get_logger("openrouter_provider").info(
                 "sending request",
-                payload=payload_preview,
+                payload=str(payload),
             )
             r = requests.post(
                 request["url"],
@@ -361,13 +357,7 @@ class OpenRouterProvider(ProviderPlugin):
             override = request.get("messages")
             messages = override if isinstance(override, list) else native_messages
             payload = {**request["payload"], "messages": messages, "stream": True}
-            try:
-                payload_preview = json.dumps(payload, ensure_ascii=False)
-            except Exception:  # pragma: no cover - defensive
-                payload_preview = str(payload)
-            if len(payload_preview) > 2000:
-                payload_preview = payload_preview[:2000] + "...<truncated>"
-            get_logger("openrouter_provider").info("sending request", payload=payload_preview)
+            get_logger('openrouter_provider').info("sending request", payload=str(payload))
             with requests.post(
                 request["url"],
                 json=payload,

@@ -43,7 +43,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.openrouter]
 MODELS = {
     "gpt5_mini": "openai/gpt-5-mini",
     "claude_haiku": "anthropic/claude-haiku-4.5",
-    "gemini_2.5_flash": "google/gemini-2.5-flash-preview-09-2025",
+    "gemini_3_flash": "google/gemini-3-flash-preview",
     "grok_4_fast": "x-ai/grok-4-fast",
 }
 

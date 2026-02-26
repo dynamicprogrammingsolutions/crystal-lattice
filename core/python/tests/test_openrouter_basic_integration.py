@@ -30,7 +30,7 @@ MODEL_GEMINI_FLASH_LITE = "google/gemini-2.5-flash-lite"
 
 @pytest.fixture(scope="module")
 def ensure_api_key():
-    """Skip tests if OpenRouter API key is not configured."""
+    """Skip tests unless OPENROUTER_API_KEY is set."""
     if not OPENROUTER_API_KEY:
         pytest.skip("OPENROUTER_API_KEY not set; skipping OpenRouter integration tests")
 

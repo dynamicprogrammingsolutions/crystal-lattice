@@ -41,7 +41,6 @@ MODEL_GPT5 = "openai/gpt-5.1"
 @pytest.fixture(scope="module")
 def ensure_api_key() -> None:
     """Skip tests if OpenRouter API key is not configured."""
-
     if not OPENROUTER_API_KEY:
         pytest.skip("OPENROUTER_API_KEY not set; skipping OpenRouter web search tests")
 
