@@ -10,7 +10,14 @@ description = "Application plugin providing summarize-range session actions"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "agent-core>=0.3.0"
+  "agent-core>=0.3.0",
+  "session-actions-app>=0.1.0"
+]
+
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.0.0",
 ]
 
 

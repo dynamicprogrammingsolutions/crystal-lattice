@@ -7,9 +7,6 @@ OpenRouter exposes an OpenAI-compatible ``/chat/completions`` endpoint and
 passes through many OpenAI request fields to the underlying model provider.
 For GPT-5 models, setting ``verbosity`` allows callers to request shorter or
 more detailed responses.
-
-This extension only injects request configuration; it does not process
-streaming chunks.
 """
 
 from __future__ import annotations
@@ -26,7 +23,6 @@ def _is_gpt5_model(model_id: Any) -> bool:
     if not isinstance(model_id, str):
         return False
     lowered = model_id.lower()
-    # OpenRouter model ids are typically like "openai/gpt-5" or "openai/gpt-5-mini".
     return "gpt-5" in lowered
 
 
@@ -36,11 +32,7 @@ class OpenRouterVerbosityExtension(ProviderExtensionPlugin):
     name: str = "openrouter_verbosity"
     version: str = "0.1.0"
 
-    def get_tags(
-        self,
-        config: Dict[str, Any],
-        models: List[Dict[str, Any]],
-    ) -> List[str]:
+    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
         return ["ext:openrouter_verbosity"]
 
     def required_tags(self) -> List[str]:
@@ -78,9 +70,7 @@ class OpenRouterVerbosityExtension(ProviderExtensionPlugin):
             },
         }
 
-    def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
         cfg = state.get("openrouter_verbosity") or {}
         verbosity = cfg.get("verbosity")
         if not isinstance(verbosity, str) or verbosity not in _VERBOSITY_LEVELS:
@@ -93,7 +83,6 @@ class OpenRouterVerbosityExtension(ProviderExtensionPlugin):
             return state
 
         payload["verbosity"] = verbosity
-
         return {
             **state,
             "request": {
