@@ -32,12 +32,15 @@ export type SdkEvent =
   | { type: 'session.plugins.changed'; scopeKey: string; sessionId: string }
   | { type: 'session.overrides.changed'; scopeKey: string; sessionId: string }
   | { type: 'session.agent.changed'; scopeKey: string; sessionId: string }
+  // Observational notification: indicates SessionSummariesStore has already applied an update.
+  // Consumers should read the data from the store.
   | { type: 'session.summary.upserted'; scopeKey: string; sessionId: string };
 ```
 
 Notes:
 - `*.changed` events are "write succeeded" mutation notifications.
 - `session.summary.upserted` is optional but useful for observers; it must **not** be used to trigger reload of summary itself.
+  See Subtask 030 for the required documentation pattern and the payload-carrying alternative.
 
 ### Bus
 

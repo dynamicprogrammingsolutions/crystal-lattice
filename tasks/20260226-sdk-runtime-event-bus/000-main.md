@@ -51,6 +51,10 @@ by moving the core behavior into the SDK (so mobile + desktop + future frontends
 
 - Frontends integrate at **one connection boundary** (create `SdkRuntime`, use `runtime.backend`).
 - Resources/controllers may subscribe to the bus and define explicit rules; no global "fan-out" dependency graph.
+
+- Documentation clearly explains the optional "data upsert notification" pattern:
+  - store holds data; bus event is notification-only by default
+  - optional payload-carrying event variant is allowed for targeted single updates only
 - UI schema for a session refetches automatically after:
   - plugins change (`PUT/DELETE /sessions/{id}/plugins`)
   - overrides change (`PATCH/DELETE /sessions/{id}/overrides`)
