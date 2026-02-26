@@ -59,17 +59,10 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
         }
 
     def get_ui_elements(self, config: Optional[Dict[str, Any]] = None, tags: Optional[List[str]] = None, models: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
-        print("models:", models)
-        print("config:", config)
         print("tags:", tags)
-        if(config is not None and config.get("enable_reasoning") is False):
-            return [
-                {
-                    "type": "checkbox",
-                    "key": "enable_reasoning",
-                    "label": "Enable Reasoning",
-                },
-            ]
+        print("config:", config)
+        if tags is not None and "supports_reasoning" not in tags:
+            return []
         return [
             {
                 "type": "checkbox",

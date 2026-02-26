@@ -88,6 +88,8 @@ class OpenRouterWebSearchExtension(ProviderExtensionPlugin):
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
+        if tags is not None and "ext:openrouter_websearch" not in tags:
+            return []
         return [
             {
                 "type": "checkbox",

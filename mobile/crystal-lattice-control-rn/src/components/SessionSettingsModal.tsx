@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -10,6 +10,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
@@ -32,8 +33,11 @@ export interface SessionSettingsModalProps {
   sessionId: string;
   visible: boolean;
   onRequestClose: () => void;
-  /** Called after overrides are successfully updated so the chat can refetch UI schema. */
-  onOverridesSaved?: () => void;
+  /** Called after overrides are successfully updated. If data is passed, parent can update without refetching. */
+  onOverridesSaved?: (data?: {
+    uiSchemaElements?: unknown[];
+    overrides?: Record<string, unknown>;
+  }) => void;
 }
 
 const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
@@ -54,6 +58,42 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   const [schemaByKey, setSchemaByKey] = useState<ConfigSchemaByKey>({});
   const [pendingTextByKey, setPendingTextByKey] = useState<Record<string, string>>({});
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [dropdownState, setDropdownState] = useState<{
+    key: string;
+    label: string;
+    options: { value: string; label: string }[];
+    selected: string;
+  } | null>(null);
+  const [dropdownSearch, setDropdownSearch] = useState('');
+
+  const refetchSessionData = useCallback(
+    async (): Promise<{
+      uiSchemaElements: unknown[];
+      overrides: Record<string, unknown>;
+    } | null> => {
+      if (!backend || !sessionId) return null;
+      try {
+        const [els, ovs, schema, baseCfg] = await Promise.all([
+          backend.getSessionUiSchema(sessionId),
+          backend.getSessionOverrides(sessionId),
+          backend.getSessionConfigSchema(sessionId),
+          backend.getSessionBaseConfig(sessionId),
+        ]);
+        const uiSchemaElements = Array.isArray(els) ? els : [];
+        const overridesObj = ovs && typeof ovs === 'object' ? ovs : {};
+        setElements(filterConfigUiSchemaElements(uiSchemaElements));
+        setOverrides(overridesObj as Record<string, any>);
+        setSchemaByKey(buildConfigSchemaByKey(schema || []));
+        setBaseConfig(baseCfg || {});
+        setPendingTextByKey({});
+        return { uiSchemaElements, overrides: overridesObj };
+      } catch (err: any) {
+        console.log('Failed to refetch session settings', err);
+        return null;
+      }
+    },
+    [backend, sessionId],
+  );
 
   useEffect(() => {
     if (!visible) {
@@ -109,7 +149,8 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     setOverrides((prev) => ({ ...prev, [key]: next }));
     try {
       await backend.patchSessionOverrides(sessionId, { [key]: next });
-      onOverridesSaved?.();
+      const data = await refetchSessionData();
+      onOverridesSaved?.(data ?? undefined);
     } catch (err: any) {
       console.log('Failed to update checkbox setting', err);
       const msg = err?.message || 'Failed to update setting.';
@@ -126,7 +167,8 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     setOverrides((prev) => ({ ...prev, [key]: value }));
     try {
       await backend.patchSessionOverrides(sessionId, { [key]: value });
-      onOverridesSaved?.();
+      const data = await refetchSessionData();
+      onOverridesSaved?.(data ?? undefined);
     } catch (err: any) {
       console.log('Failed to update select setting', err);
       const msg = err?.message || 'Failed to update setting.';
@@ -144,7 +186,8 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     try {
       await backend.patchSessionOverrides(sessionId, { [key]: value });
       setOverrides((prev) => ({ ...prev, [key]: value }));
-      onOverridesSaved?.();
+      const data = await refetchSessionData();
+      onOverridesSaved?.(data ?? undefined);
     } catch (err: any) {
       console.log('Failed to update text setting', err);
       const msg = err?.message || 'Failed to update setting.';
@@ -174,7 +217,8 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     });
     try {
       await backend.deleteSessionOverride(sessionId, key);
-      onOverridesSaved?.();
+      const data = await refetchSessionData();
+      onOverridesSaved?.(data ?? undefined);
     } catch (err: any) {
       console.log('Failed to revert setting override', err);
       const msg = err?.message || 'Failed to revert setting.';
@@ -420,6 +464,80 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
         </View>
       );
     },
+    dropdown: (ctx: SessionSettingRenderCtx) => {
+      const { item } = ctx;
+      const options = normalizeOptions((item.element as any).options);
+      if (!options.length) {
+        return null;
+      }
+      const selected =
+        typeof item.effectiveValue === 'string'
+          ? item.effectiveValue
+          : String(item.effectiveValue ?? '');
+      const selectedLabel =
+        options.find((o) => o.value === selected)?.label ?? selected;
+      return (
+        <View style={styles.itemRow}>
+          <View style={styles.itemTextColumn}>
+            <View style={styles.itemLabelRow}>
+              <View style={styles.itemLabelChipColumn}>
+                <Text style={styles.itemLabel}>{item.label}</Text>
+                {item.tagLabel && (
+                  <View
+                    style={
+                      item.tagLabel === 'config'
+                        ? styles.tagConfig
+                        : styles.tagDefault
+                    }
+                  >
+                    <Text
+                      style={
+                        item.tagLabel === 'config'
+                          ? styles.tagTextConfig
+                          : styles.tagTextDefault
+                      }
+                    >
+                      {item.tagLabel}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              {item.hasOverride && (
+                <TouchableOpacity
+                  style={styles.trashRightOfLabel}
+                  onPress={() => ctx.actions.revertToDefault(item.key)}
+                >
+                  <Icon name="trash-2" size={14} color={theme.danger} />
+                </TouchableOpacity>
+              )}
+            </View>
+            {item.description ? (
+              <Text style={styles.itemDescription}>{item.description}</Text>
+            ) : null}
+            <TouchableOpacity
+              style={styles.dropdownButton}
+              onPress={() => {
+                setDropdownState({
+                  key: item.key,
+                  label: item.label,
+                  options,
+                  selected,
+                });
+                setDropdownSearch('');
+              }}
+            >
+              <Text style={styles.dropdownButtonLabel} numberOfLines={1}>
+                {item.label}:
+              </Text>
+              <Text style={styles.dropdownButtonValue} numberOfLines={1}>
+                {selectedLabel}
+              </Text>
+              <Icon name="chevron-down" size={14} color={theme.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    },
     text: renderTextLike,
     multiline: renderTextLike,
   };
@@ -469,6 +587,76 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
           </View>
         </View>
       </View>
+      {dropdownState && (
+        <Modal
+          visible
+          transparent
+          animationType="fade"
+          onRequestClose={() => {
+            setDropdownState(null);
+            setDropdownSearch('');
+          }}
+        >
+          <TouchableWithoutFeedback
+            onPress={() => {
+              setDropdownState(null);
+              setDropdownSearch('');
+            }}
+          >
+            <View style={styles.dropdownModalOverlay}>
+              <TouchableWithoutFeedback onPress={() => {}}>
+                <View style={styles.dropdownModalContent}>
+                  <TextInput
+                    style={styles.dropdownModalSearch}
+                    placeholder="Search..."
+                    placeholderTextColor={theme.textSecondary}
+                    value={dropdownSearch}
+                    onChangeText={setDropdownSearch}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <ScrollView style={styles.dropdownModalList}>
+                    {dropdownState.options
+                      .filter((opt) => {
+                        const q = dropdownSearch.trim().toLowerCase();
+                        if (!q) return true;
+                        const text = `${opt.label ?? ''} ${opt.value ?? ''}`.toLowerCase();
+                        return text.includes(q);
+                      })
+                      .map((opt) => (
+                        <TouchableOpacity
+                          key={opt.value}
+                          style={styles.dropdownModalItem}
+                          onPress={() => {
+                            handleSelectOption(dropdownState.key, opt.value);
+                            setDropdownState(null);
+                            setDropdownSearch('');
+                          }}
+                        >
+                          <Text
+                            style={styles.dropdownModalItemText}
+                            numberOfLines={2}
+                          >
+                            {opt.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                  </ScrollView>
+                  <TouchableOpacity
+                    style={[styles.button, styles.secondaryButton, styles.dropdownModalButton]}
+                    onPress={() => {
+                      setDropdownState(null);
+                      setDropdownSearch('');
+                    }}
+                  >
+                    <Text style={styles.buttonTextSecondary}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
+      )}
     </Modal>
   );
 };
@@ -677,6 +865,82 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.surfaceAlt,
     },
     closeButtonText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.text,
+    },
+    dropdownButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      backgroundColor: theme.surface,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 8,
+      gap: 6,
+      marginTop: 6,
+    },
+    dropdownButtonLabel: {
+      fontSize: 14,
+      color: theme.textSecondary,
+    },
+    dropdownButtonValue: {
+      flex: 1,
+      fontSize: 14,
+      color: theme.text,
+    },
+    dropdownModalOverlay: {
+      flex: 1,
+      backgroundColor: theme.modalBackdrop,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    dropdownModalContent: {
+      width: '85%',
+      maxHeight: '70%',
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      padding: 16,
+    },
+    dropdownModalSearch: {
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      fontSize: 14,
+      color: theme.text,
+      backgroundColor: theme.surface,
+      marginBottom: 8,
+    },
+    dropdownModalList: {
+      maxHeight: 320,
+      marginVertical: 8,
+    },
+    dropdownModalItem: {
+      paddingVertical: 12,
+      paddingHorizontal: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    dropdownModalItemText: {
+      fontSize: 14,
+      color: theme.text,
+    },
+    dropdownModalButton: {
+      marginTop: 8,
+      alignSelf: 'flex-end',
+    },
+    button: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 8,
+    },
+    secondaryButton: {
+      backgroundColor: theme.surfaceAlt,
+    },
+    buttonTextSecondary: {
       fontSize: 14,
       fontWeight: '600',
       color: theme.text,

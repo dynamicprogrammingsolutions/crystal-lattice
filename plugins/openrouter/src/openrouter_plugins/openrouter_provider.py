@@ -43,23 +43,35 @@ class OpenRouterProvider(ProviderPlugin):
             },
         }
 
-    def get_ui_elements(self,config: Optional[Dict[str, Any]] = None, tags: Optional[List[str]] = None, models: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
-        print("models:", models)
-        print("config:", config)
-        print("tags:", tags)
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
+        model_options = []
+        if models:
+            for m in models:
+                if m and isinstance(m, dict):
+                    mid = m.get("id")
+                    name = m.get("name")
+                    if mid is not None:
+                        model_options.append({"label": name if name is not None else str(mid), "value": str(mid)})
+        use_dropdown = len(model_options) > 0
         return [
             {
                 "ui_type": "config",
-                "type": "string",
+                "type": "dropdown" if use_dropdown else "text",
                 "key": "model",
-                "label": "Openrouter Model ID",
+                "label": "Openrouter Model",
+                **({"options": model_options} if use_dropdown else {}),
             },
             {
                 "ui_type": "composer_attachment",
                 "key": "model",
-                "attachment_type": "select",
+                "attachment_type": "dropdown",
                 "display_placement": "left",
-                "options": [{"label": model.get("name"), "value": model.get("id")} for model in models],
+                "options": model_options,
                 "label": "model",
             },
             {

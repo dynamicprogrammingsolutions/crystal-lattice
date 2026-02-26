@@ -49,6 +49,8 @@ class OpenRouterVerbosityExtension(ProviderExtensionPlugin):
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
+        if tags is not None and "ext:openrouter_verbosity" not in tags:
+            return []
         return [
             {
                 "type": "select",

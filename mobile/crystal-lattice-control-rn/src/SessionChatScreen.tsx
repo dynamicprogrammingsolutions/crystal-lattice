@@ -455,30 +455,41 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }) as ComposerAttachmentUiElement[];
   }, [uiSchemaElements]);
 
-  const composerAttachmentElementsLeft: ComposerAttachmentUiElement[] = useMemo(() => {
+  /** All composer attachments (above, below, left) for actions menu and key map. */
+  const composerAttachmentElementsAll: ComposerAttachmentUiElement[] = useMemo(() => {
     return (uiSchemaElements || []).filter((el) => {
       if (!el || el.ui_type !== 'composer_attachment') return false;
       const typed = el as any;
       if (typeof typed.attachment_type !== 'string' || !typed.attachment_type.trim()) return false;
-      return typed.display_placement === 'left';
+      return (
+        typed.display_placement === 'above' ||
+        typed.display_placement === 'below' ||
+        typed.display_placement === 'left'
+      );
     }) as ComposerAttachmentUiElement[];
   }, [uiSchemaElements]);
 
+  const composerAttachmentElementsLeft: ComposerAttachmentUiElement[] = useMemo(() => {
+    return composerAttachmentElementsAll.filter((el) => el.display_placement === 'left');
+  }, [composerAttachmentElementsAll]);
+
+  const getComposerAttachmentActionKey = useCallback((el: ComposerAttachmentUiElement) => {
+    const pluginName =
+      typeof (el as any).plugin === 'string' && (el as any).plugin
+        ? String((el as any).plugin)
+        : 'unknown';
+    return typeof el.key === 'string' && el.key.trim()
+      ? el.key.trim()
+      : `composer_attachment:${pluginName}:${el.attachment_type}:${el.display_placement}`;
+  }, []);
+
   const composerAttachmentElementByActionKey = useMemo(() => {
     const map: Record<string, ComposerAttachmentUiElement> = {};
-    for (const el of composerAttachmentElements) {
-      const pluginName =
-        typeof (el as any).plugin === 'string' && (el as any).plugin
-          ? String((el as any).plugin)
-          : 'unknown';
-      const actionKey =
-        typeof el.key === 'string' && el.key.trim()
-          ? el.key.trim()
-          : `composer_attachment:${pluginName}:${el.attachment_type}:${el.display_placement}`;
-      map[actionKey] = el;
+    for (const el of composerAttachmentElementsAll) {
+      map[getComposerAttachmentActionKey(el)] = el;
     }
     return map;
-  }, [composerAttachmentElements]);
+  }, [composerAttachmentElementsAll, getComposerAttachmentActionKey]);
 
   const composerActions: ActionDefinition[] = useMemo(() => {
     const builtins: ActionDefinition[] = [
@@ -486,15 +497,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       { key: 'cancel', label: 'Cancel', iconName: 'x-circle' },
     ];
 
-    const attachmentActions: ActionDefinition[] = composerAttachmentElements.map((el) => {
-      const pluginName =
-        typeof (el as any).plugin === 'string' && (el as any).plugin
-          ? String((el as any).plugin)
-          : 'unknown';
-      const key =
-        typeof el.key === 'string' && el.key.trim()
-          ? el.key.trim()
-          : `composer_attachment:${pluginName}:${el.attachment_type}:${el.display_placement}`;
+    const attachmentActions: ActionDefinition[] = composerAttachmentElementsAll.map((el) => {
+      const key = getComposerAttachmentActionKey(el);
       const label =
         (typeof (el as any).title === 'string' && String((el as any).title).trim()) ||
         (typeof el.label === 'string' && el.label.trim()) ||
@@ -506,7 +510,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
             ? 'image'
             : el.attachment_type === 'pdf'
               ? 'file-text'
-              : 'paperclip';
+              : el.attachment_type === 'dropdown' || el.attachment_type === 'select'
+                ? 'sliders'
+                : 'paperclip';
       return {
         key,
         label,
@@ -515,7 +521,23 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     });
 
     return [...attachmentActions, ...builtins];
-  }, [composerAttachmentElements]);
+  }, [composerAttachmentElementsAll, getComposerAttachmentActionKey]);
+
+  /** Left attachments (e.g. model selector) that are pinned, so they show in the inline row. */
+  const composerAttachmentElementsLeftPinned = useMemo(() => {
+    return composerAttachmentElementsLeft.filter((el) => {
+      const actionKey = getComposerAttachmentActionKey(el);
+      return pinnedComposerActions.includes(actionKey);
+    });
+  }, [composerAttachmentElementsLeft, getComposerAttachmentActionKey, pinnedComposerActions]);
+
+  /** Pinned keys that are left placement are shown in the inline row only, not as icons in the action bar. */
+  const pinnedComposerActionsForBar = useMemo(() => {
+    const leftKeys = new Set(
+      composerAttachmentElementsLeft.map((el) => getComposerAttachmentActionKey(el)),
+    );
+    return pinnedComposerActions.filter((key) => !leftKeys.has(key));
+  }, [composerAttachmentElementsLeft, getComposerAttachmentActionKey, pinnedComposerActions]);
 
   useEffect(() => {
     if (!backend || !sessionId || composerAttachmentElementsLeft.length === 0) return;
@@ -1310,6 +1332,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
       const element = composerAttachmentElementByActionKey[key];
       if (element) {
+        if (element.display_placement === 'left') {
+          setComposerLeftSelectModalElement(element);
+          return;
+        }
         handlePickAttachment(element).catch(() => {});
       }
     },
@@ -1908,7 +1934,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         <View style={styles.composerMainColumn}>
           <View style={styles.composerTopRow}>
             <View style={styles.composerInlineSelectRow}>
-              {composerAttachmentElementsLeft.map((el) => {
+              {composerAttachmentElementsLeftPinned.map((el) => {
                 const key = typeof el.key === 'string' && el.key.trim() ? el.key : '';
                 if (!key) return null;
                 const options = normalizeSelectOptions(el.options);
@@ -1919,7 +1945,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 const label =
                   (typeof el.label === 'string' && el.label.trim() ? el.label : key);
                 const isSelect =
-                  el.attachment_type === 'select' || el.attachment_type === 'options';
+                  el.attachment_type === 'select' ||
+                  el.attachment_type === 'options' ||
+                  el.attachment_type === 'dropdown';
                 if (!isSelect) return null;
                 return (
                   <TouchableOpacity
@@ -1953,6 +1981,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 }
                 baseActions={composerActions as any}
                 pinned={pinnedComposerActions}
+                pinnedKeysForBar={pinnedComposerActionsForBar}
                 onChangePinned={setPinnedComposerActions}
                 onAction={handleComposerAction}
                 isActionDisabled={isComposerActionDisabled}
@@ -2333,11 +2362,18 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        sessionId={sessionId}
 	        visible={settingsVisible}
 	        onRequestClose={() => setSettingsVisible(false)}
-	        onOverridesSaved={() => {
-	          sessionUiSchemaController?.invalidate();
-	          sessionUiSchemaController?.load();
-	          if (backend && sessionId) {
-	            backend.getSessionOverrides(sessionId).then((o) => setSessionOverrides(o ?? {}));
+	        onOverridesSaved={(data) => {
+	          if (data?.uiSchemaElements) {
+	            (sessionUiSchemaController as { setElements(elements: unknown[]): void } | null)?.setElements(data.uiSchemaElements);
+	            if (data.overrides != null) {
+	              setSessionOverrides(data.overrides as Record<string, unknown>);
+	            }
+	          } else {
+	            sessionUiSchemaController?.invalidate();
+	            sessionUiSchemaController?.load();
+	            if (backend && sessionId) {
+	              backend.getSessionOverrides(sessionId).then((o) => setSessionOverrides(o ?? {}));
+	            }
 	          }
 	        }}
 	      />

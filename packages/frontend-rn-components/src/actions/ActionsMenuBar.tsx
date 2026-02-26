@@ -35,6 +35,8 @@ export interface ActionsMenuBarProps<TDef extends ActionDefinition = ActionDefin
   extraActions?: readonly TDef[];
   availableActions?: readonly ActionKey[];
   pinned: readonly ActionKey[];
+  /** When set, only these pinned keys show as bar icons; modal still uses full pinned for star state. */
+  pinnedKeysForBar?: readonly ActionKey[];
   onChangePinned: (nextPinned: ActionKey[]) => void;
   onAction: (key: ActionKey) => void;
   isActionDisabled?: (key: ActionKey) => boolean;
@@ -96,7 +98,11 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
       typeof (action as any).iconName === 'string' ? (action as any).iconName : null);
 
   const pinnedButtons = useMemo(() => {
-    return model.visiblePinned
+    const barPinned =
+      props.pinnedKeysForBar != null
+        ? model.visiblePinned.filter((action) => props.pinnedKeysForBar!.includes(action.key))
+        : model.visiblePinned;
+    return barPinned
       .map((action) => {
         const iconName = getIconName(action);
         const disabled = props.isActionDisabled ? props.isActionDisabled(action.key) : false;
@@ -130,6 +136,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
       .filter((el): el is React.JSX.Element => Boolean(el));
   }, [
     model.visiblePinned,
+    props.pinnedKeysForBar,
     getIconName,
     props.isActionDisabled,
     props.renderIcon,
