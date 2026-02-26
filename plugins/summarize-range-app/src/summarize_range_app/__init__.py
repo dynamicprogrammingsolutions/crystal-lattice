@@ -34,6 +34,42 @@ if TYPE_CHECKING:  # pragma: no cover - import cycle guard
     from agent_app.application_future import AgentApplication
 
 
+def _normalize_slice_bounds(
+    message_count: int,
+    start: int | None,
+    end: int | None,
+) -> tuple[int, int]:
+    """Return concrete ``(start_idx, end_idx)`` for slice-like bounds.
+
+    Semantics match the helper used by the server actions plugins:
+
+    - ``start`` and ``end`` follow Python slice rules, including support
+      for ``None`` and negative indices.
+    - Indices are clamped to ``[0, message_count]``.
+    - ``ValueError`` is raised when the range selects no messages.
+    """
+
+    def _bound(value: int | None, default: int) -> int:
+        if value is None:
+            return default
+        idx = value
+        if idx < 0:
+            idx = message_count + idx
+        if idx < 0:
+            return 0
+        if idx > message_count:
+            return message_count
+        return idx
+
+    start_idx = _bound(start, 0)
+    end_idx = _bound(end, message_count)
+
+    if start_idx >= end_idx:
+        raise ValueError("range selects no messages")
+
+    return start_idx, end_idx
+
+
 _DEFAULT_PROMPT = (
     "Summarize the selected part of this conversation in a concise paragraph."
 )
@@ -309,13 +345,6 @@ class SummarizeRangeAppPlugin:
             raise KeyError(f"Session {session_id!r} not found")
 
         core_orig, base_config_orig, session_orig = ctx
-
-        # Normalize bounds using the same helper as SessionActionsAppPlugin so
-        # that range semantics match delete/slice operations exposed via HTTP.
-        try:
-            from session_actions_app import _normalize_slice_bounds
-        except ImportError:  # pragma: no cover
-            from plugins.session_actions_app import _normalize_slice_bounds
 
         message_count = len(session_orig.messages)
         start_idx, end_idx = _normalize_slice_bounds(message_count, start_int, end_int)

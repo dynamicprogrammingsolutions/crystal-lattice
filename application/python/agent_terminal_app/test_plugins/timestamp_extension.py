@@ -1,21 +1,10 @@
-"""Timestamp feature.
-
-Adds a ``timestamp`` field to message metadata and exposes it as a
-``message_footer`` UI element.
-
-This feature only *allocates* new timestamps in two places:
-
-- When a new core message is appended and converted to provider-native
-  form (``to_native_messages`` for the single appended message).
-- When an assistant message is received from the provider
-  (``finalize`` for provider-native final assistant messages).
-
-The feature does not allocate timestamps during native→core conversion;
-it only surfaces timestamps already present in provider-native
-``_metadata``.
-"""
-
 from __future__ import annotations
+
+"""Test-only timestamp feature.
+
+This lives in the application package so that application-layer tests can
+exercise footer rendering without depending on repo-root plugins.
+"""
 
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple
@@ -24,10 +13,8 @@ from agent_core.types import FeaturePlugin
 
 
 class TimestampExtension(FeaturePlugin):
-    """Feature plugin that annotates messages with a timestamp."""
-
     name: str = "timestamp_extension"
-    version: str = "0.1.0"
+    version: str = "0.0.0"
 
     def get_config_schema(self) -> Dict[str, Any]:
         return {}
@@ -47,30 +34,14 @@ class TimestampExtension(FeaturePlugin):
         messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        """Attach a timestamp to a single newly-appended message.
-
-        The core calls this hook both for full-history conversions and
-        for single-message conversions (when appending via
-        :meth:`AgentCore.add_message`). This feature only annotates the
-        *single* appended message and otherwise leaves history unchanged
-        to avoid index-misalignment bugs when provider-native history
-        contains synthetic messages.
-        """
-
         if len(messages) != 1 or not native_messages:
             return native_messages
 
-        core_md = messages[0].get("metadata") or {}
-        if not isinstance(core_md, dict):
-            core_md = {}
-
-        # Messages already in a session with native history carry
-        # native_indices; do not allocate timestamps during request
-        # preparation.
-        if "native_indices" in core_md:
+        md = messages[0].get("metadata") or {}
+        if not isinstance(md, dict) or "native_indices" in md:
             return native_messages
 
-        ts = core_md.get("timestamp")
+        ts = md.get("timestamp")
         if not isinstance(ts, str) or not ts:
             ts = datetime.now(timezone.utc).isoformat()
 
@@ -79,12 +50,9 @@ class TimestampExtension(FeaturePlugin):
             meta = native.get("_metadata") or {}
             if not isinstance(meta, dict):
                 meta = {}
-
             if not isinstance(meta.get("timestamp"), str) or not meta.get("timestamp"):
                 meta = {**meta, "timestamp": ts}
-
             out.append({**native, "_metadata": meta})
-
         return out
 
     def from_native_messages(
@@ -92,13 +60,6 @@ class TimestampExtension(FeaturePlugin):
         native_messages: List[Dict[str, Any]],
         messages: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        """Surface existing provider-native timestamps onto core messages.
-
-        This hook never allocates timestamps; it only copies
-        ``_metadata.timestamp`` from provider-native messages when
-        available.
-        """
-
         if len(messages) != len(native_messages):
             return messages
 
@@ -110,7 +71,6 @@ class TimestampExtension(FeaturePlugin):
             if isinstance(md.get("timestamp"), str) and md.get("timestamp"):
                 out.append(msg)
                 continue
-
             meta = native.get("_metadata") or {}
             if not isinstance(meta, dict):
                 meta = {}
@@ -119,7 +79,6 @@ class TimestampExtension(FeaturePlugin):
                 out.append({**msg, "metadata": {**md, "timestamp": ts}})
             else:
                 out.append(msg)
-
         return out
 
     def finalize(
@@ -128,16 +87,6 @@ class TimestampExtension(FeaturePlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        """Attach timestamps to provider-native final messages.
-
-        For assistant messages produced by the provider, ensure that
-        ``_metadata.timestamp`` is present so that subsequent
-        :meth:`from_native_messages` calls can surface it onto core
-        message metadata. This also updates the full provider-native
-        history returned by the provider so timestamps are preserved
-        across native-history rebuilds.
-        """
-
         if not final_messages:
             return final_messages, native_messages, state
 
