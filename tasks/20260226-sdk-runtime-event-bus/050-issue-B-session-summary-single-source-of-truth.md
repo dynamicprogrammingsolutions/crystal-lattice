@@ -108,6 +108,11 @@ Methods:
 
 Store should optionally emit a bus event `session.summary.upserted` (non-mutation) for observers. Do not have any resources auto-refetch based on this event.
 
+Required semantics (see Subtask 030 for README requirements):
+
+- Default: emit notification-only event `{ type: 'session.summary.upserted', scopeKey, sessionId }` and keep the data only in the store.
+- Optional alternative (targeted only): allow emitting a payload-carrying variant for single-session updates (e.g. chat reload), but avoid payload emission for bulk list loads.
+
 ### 5) Wire store updates from both sources
 
 #### Sessions list path

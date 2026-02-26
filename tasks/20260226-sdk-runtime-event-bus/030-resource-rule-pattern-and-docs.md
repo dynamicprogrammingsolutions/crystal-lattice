@@ -83,6 +83,52 @@ Create a new README describing:
 - Evented backend wrapper (which methods emit)
 - Resource rule pattern (how to subscribe + invalidate)
 
+### Required: Document the "data upsert notification" pattern
+
+We want to optionally notify observers when a resource/store has already been updated with fresh data, without introducing fetch loops.
+
+Document this pattern explicitly:
+
+#### Notification-only upsert events (recommended default)
+
+- The **resource/store is the source of truth** (e.g. `SessionSummariesStore`).
+- When the store successfully applies an upsert, it may emit an *observational* bus event such as:
+
+  ```ts
+  { type: 'session.summary.upserted', scopeKey, sessionId }
+  ```
+
+- This event does **not** carry the updated data. Consumers who care must read it from the store:
+
+  - subscribe to the store (preferred)
+  - or use `store.get(sessionId)` / `store.getSnapshot()` and react
+
+Rationale:
+
+- avoids duplicating data across bus + store
+- avoids large event payloads (especially during bulk upserts)
+- avoids circular patterns where event causes fetch which triggers more events
+
+#### Alternative: Payload-carrying upsert events (allowed, targeted only)
+
+If (and only if) a consumer cannot easily access the store, allow an alternative event form that includes a payload:
+
+```ts
+{ type: 'session.summary.upserted', scopeKey, sessionId, summary: SessionSummary }
+```
+
+Constraints / performance guidance:
+
+- Only use payload events for **targeted single-session updates** (e.g. from chat reload or a single-session refresh).
+- Avoid emitting payload events for bulk list loads (`GET /sessions`) if the list can be large.
+- If bulk observers are needed, prefer subscribing to the store or emitting a lightweight batch notification (no payload) such as:
+
+  ```ts
+  { type: 'session.summary.batchUpserted', scopeKey, sessionIds: string[] }
+  ```
+
+This keeps bus overhead bounded.
+
 Also add a short section: "How to add a new dependency":
 
 - Identify mutation source backend method
