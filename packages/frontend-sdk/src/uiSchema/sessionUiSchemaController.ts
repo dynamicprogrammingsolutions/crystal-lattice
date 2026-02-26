@@ -45,6 +45,13 @@ export class SessionUiSchemaController extends SimpleSubscribable<SessionUiSchem
     CACHE.delete(this.buildCacheKey());
   }
 
+  /** Update state and cache from a fresh fetch without calling the backend. */
+  setElements(elements: UiSchemaElement[]): void {
+    const list = Array.isArray(elements) ? elements : [];
+    CACHE.set(this.buildCacheKey(), list);
+    this.setSnapshot({ loading: false, error: null, elements: list });
+  }
+
   async load(): Promise<void> {
     if (!this.backend) {
       this.setSnapshot(EMPTY_STATE);
