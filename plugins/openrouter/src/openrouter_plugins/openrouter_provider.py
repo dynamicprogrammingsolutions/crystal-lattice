@@ -171,10 +171,7 @@ class OpenRouterProvider(ProviderPlugin):
                         if "reasoning_effort" in supported_params:
                             tags.append("supports_reasoning_effort")
                         return tags
-        
-        # Fallback: assume common capabilities (backward compatibility)
-        tags.append("supports_tools")
-        tags.append("supports_reasoning")
+
         return tags
 
     # ---------- State lifecycle ----------

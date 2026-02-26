@@ -58,18 +58,24 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
             }
         }
 
-    def get_ui_elements(self, config: Optional[Dict[str, Any]] = None, tags: Optional[List[str]] = None, models: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
-        print("tags:", tags)
-        print("config:", config)
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
+        # Remove prints for clean output
         if tags is not None and "supports_reasoning" not in tags:
             return []
-        return [
+        ui_elements: List[Dict[str, Any]] = [
             {
                 "type": "checkbox",
                 "key": "enable_reasoning",
                 "label": "Enable Reasoning",
-            },
-            {
+            }
+        ]
+        if tags is not None and "supports_reasoning_effort" in tags:
+            ui_elements.append({
                 "type": "select",
                 "key": "reasoning_effort",
                 "label": "Reasoning Effort",
@@ -79,9 +85,8 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
                     {"value": "high", "label": "high"},
                     {"value": "xhigh", "label": "xhigh"},
                 ],
-            },
-        ]
-
+            })
+        return ui_elements
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         # Check if any reasoning-related config is present
