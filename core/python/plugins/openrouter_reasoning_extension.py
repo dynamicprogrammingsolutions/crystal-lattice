@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 from agent_core.types import ProviderExtensionPlugin
-from agent_core.constants import UIConfigKeys
 
 
 class OpenRouterReasoningExtension(ProviderExtensionPlugin):
@@ -91,9 +90,9 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
     def get_ui_elements_for_config(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return reasoning UI; hide effort dropdown when reasoning is disabled."""
         elements = self.get_ui_elements()
-        if config.get(UIConfigKeys.ENABLE_REASONING) is False:
+        if config.get("enable_reasoning") is False:
             # Only show the enable checkbox so user can turn reasoning on.
-            return [el for el in elements if isinstance(el, dict) and el.get("key") == UIConfigKeys.ENABLE_REASONING]
+            return [el for el in elements if isinstance(el, dict) and el.get("key") == "enable_reasoning"]
         return elements
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:

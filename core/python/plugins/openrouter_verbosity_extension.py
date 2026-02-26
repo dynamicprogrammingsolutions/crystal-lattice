@@ -17,7 +17,6 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 from agent_core.types import ProviderExtensionPlugin
-from agent_core.constants import UIConfigKeys
 
 
 _VERBOSITY_LEVELS = ("low", "medium", "high", "max")
@@ -66,7 +65,7 @@ class OpenRouterVerbosityExtension(ProviderExtensionPlugin):
 
     def get_ui_elements_for_config(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return verbosity UI only when not hidden by config (e.g. show_verbosity_ui)."""
-        if config.get(UIConfigKeys.SHOW_VERBOSITY_UI) is False:
+        if config.get("show_verbosity_ui") is False:
             return []
         return self.get_ui_elements()
 

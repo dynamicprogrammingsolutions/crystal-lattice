@@ -7,6 +7,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -120,11 +121,12 @@ type ComposerAttachmentUiElement = UiSchemaElement & {
   key?: string;
   attachment_type: string;
   supported_file_types?: string[];
-  display_placement: 'above' | 'below';
+  display_placement: 'above' | 'below' | 'left';
   label?: string;
   title?: string;
   icon?: string;
   metadata_ui?: AttachmentMetadataUi;
+  options?: Array<{ value: string; label: string } | string>;
 };
 
 type MultipartPartDraft = {
@@ -247,6 +249,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [debugEvents, setDebugEvents] = useState<Event[]>([]);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [pluginsVisible, setPluginsVisible] = useState(false);
+  const [sessionOverrides, setSessionOverrides] = useState<Record<string, any>>({});
+  const [sessionBaseConfig, setSessionBaseConfig] = useState<Record<string, any>>({});
+  const [composerLeftSelectModalElement, setComposerLeftSelectModalElement] =
+    useState<ComposerAttachmentUiElement | null>(null);
+  const [composerLeftSelectModalSearch, setComposerLeftSelectModalSearch] = useState('');
   const [pluginActionInProgress, setPluginActionInProgress] = useState(false);
   const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
   const {
@@ -448,6 +455,15 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }) as ComposerAttachmentUiElement[];
   }, [uiSchemaElements]);
 
+  const composerAttachmentElementsLeft: ComposerAttachmentUiElement[] = useMemo(() => {
+    return (uiSchemaElements || []).filter((el) => {
+      if (!el || el.ui_type !== 'composer_attachment') return false;
+      const typed = el as any;
+      if (typeof typed.attachment_type !== 'string' || !typed.attachment_type.trim()) return false;
+      return typed.display_placement === 'left';
+    }) as ComposerAttachmentUiElement[];
+  }, [uiSchemaElements]);
+
   const composerAttachmentElementByActionKey = useMemo(() => {
     const map: Record<string, ComposerAttachmentUiElement> = {};
     for (const el of composerAttachmentElements) {
@@ -500,6 +516,56 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
     return [...attachmentActions, ...builtins];
   }, [composerAttachmentElements]);
+
+  useEffect(() => {
+    if (!backend || !sessionId || composerAttachmentElementsLeft.length === 0) return;
+    let cancelled = false;
+    Promise.all([backend.getSessionOverrides(sessionId), backend.getSessionBaseConfig(sessionId)])
+      .then(([overrides, baseConfig]) => {
+        if (!cancelled) {
+          setSessionOverrides(overrides ?? {});
+          setSessionBaseConfig(baseConfig ?? {});
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [backend, sessionId, composerAttachmentElementsLeft.length]);
+
+  const normalizeSelectOptions = useCallback(
+    (raw: ComposerAttachmentUiElement['options']): Array<{ value: string; label: string }> => {
+      if (!Array.isArray(raw)) return [];
+      return raw
+        .map((opt) => {
+          if (typeof opt === 'string') return { value: opt, label: opt };
+          if (opt && typeof opt === 'object' && typeof (opt as any).value === 'string') {
+            const value = (opt as any).value;
+            const label = typeof (opt as any).label === 'string' ? (opt as any).label : value;
+            return { value, label };
+          }
+          return null;
+        })
+        .filter((v): v is { value: string; label: string } => v !== null);
+    },
+    [],
+  );
+
+  const handleComposerLeftSelectOption = useCallback(
+    async (key: string, value: string) => {
+      if (!backend || !sessionId) return;
+      setComposerLeftSelectModalElement(null);
+      try {
+        await backend.patchSessionOverrides(sessionId, { [key]: value });
+        setSessionOverrides((prev) => ({ ...prev, [key]: value }));
+        sessionUiSchemaController?.invalidate();
+        sessionUiSchemaController?.load();
+      } catch {
+        // leave modal closed
+      }
+    },
+    [backend, sessionId, sessionUiSchemaController],
+  );
 
   const hasDraftMessage =
     composeText.trim().length > 0 || attachmentsAbove.length > 0 || attachmentsBelow.length > 0;
@@ -1839,104 +1905,138 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       )}
 
       <View style={styles.composer}>
-        <View style={styles.composerTopRow}>
-          <ActionsMenuBar<ActionDefinition>
-            title="Composer actions"
-            variant="modal"
-            renderIcon={({ name, size, color }) => (
-              <Icon name={name} size={size} color={color} />
-            )}
-            renderPinIcon={({ pinned: isPinned, size, color }) => (
-              <Icon name={isPinned ? 'star' : 'star'} size={size} color={color} />
-            )}
-            renderCloseIcon={({ size, color, renderIcon }) =>
-              renderIcon ? renderIcon({ name: 'x', size, color }) : null
-            }
-            baseActions={composerActions as any}
-            pinned={pinnedComposerActions}
-            onChangePinned={setPinnedComposerActions}
-            onAction={handleComposerAction}
-            isActionDisabled={isComposerActionDisabled}
-            isActive={isActive}
-          />
-        </View>
-
-        <AttachmentThumbnailStrip
-          attachments={attachmentsAboveStrip}
-          onPressManageAll={() => {
-            setAttachmentsManageSide('above');
-            setAttachmentsManageVisible(true);
-          }}
-          disabled={sendInProgress || !!activeRequestId}
-        />
-
-        <TextInput
-          style={styles.composerInput}
-          placeholder="Type your message..."
-          placeholderTextColor={theme.textSecondary}
-          value={composeText}
-          onChangeText={(text) => {
-            setComposeText(text);
-          }}
-          onBlur={() => {
-            onSaveComposeText(composeTextRef.current);
-          }}
-          multiline
-        />
-
-        {/** Compute per-button enablement so we can style text when disabled. */}
-        {(() => {
-          const canAppend =
-            !!backend && !sendInProgress && !activeRequestId && hasDraftMessage;
-          const canSend =
-            !!backend && !sendInProgress && !activeRequestId && hasDraftMessage;
-
-          return (
-            <View style={styles.composerButtonsRow}>
-              <TouchableOpacity
-                style={[styles.button, styles.secondaryButton, styles.composerButton]}
-                onPress={openAppendAsModal}
-                disabled={!canAppend}
-              >
-                <Text
-                  style={[
-                    styles.buttonTextSecondary,
-                    !canAppend && styles.buttonTextDisabled,
-                  ]}
-                >
-                  Append
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.button, styles.primaryButton, styles.composerButton]}
-                onPress={handleSend}
-                disabled={!canSend}
-              >
-                {sendInProgress || activeRequestId ? (
-                  <ActivityIndicator size="small" color={theme.textOnPrimary} />
-                ) : (
-                  <Text
-                    style={[
-                      styles.buttonText,
-                      !canSend && styles.buttonTextDisabled,
-                    ]}
+        <View style={styles.composerMainColumn}>
+          <View style={styles.composerTopRow}>
+            <View style={styles.composerInlineSelectRow}>
+              {composerAttachmentElementsLeft.map((el) => {
+                const key = typeof el.key === 'string' && el.key.trim() ? el.key : '';
+                if (!key) return null;
+                const options = normalizeSelectOptions(el.options);
+                const effectiveValue =
+                  sessionOverrides[key] ?? sessionBaseConfig[key] ?? options[0]?.value ?? '';
+                const selectedLabel =
+                  options.find((o) => o.value === effectiveValue)?.label ?? String(effectiveValue);
+                const label =
+                  (typeof el.label === 'string' && el.label.trim() ? el.label : key);
+                const isSelect =
+                  el.attachment_type === 'select' || el.attachment_type === 'options';
+                if (!isSelect) return null;
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    style={styles.composerInlineSelectButton}
+                    onPress={() => setComposerLeftSelectModalElement(el)}
+                    disabled={sendInProgress || !!activeRequestId || options.length === 0}
                   >
-                    Send
-                  </Text>
-                )}
-              </TouchableOpacity>
+                    <Text style={styles.composerInlineSelectLabel} numberOfLines={1}>
+                      {label}:
+                    </Text>
+                    <Text style={styles.composerInlineSelectValue} numberOfLines={1}>
+                      {selectedLabel}
+                    </Text>
+                    <Icon name="chevron-down" size={10} color={theme.textSecondary} />
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-          );
-        })()}
+            <ActionsMenuBar<ActionDefinition>
+                title="Composer actions"
+                variant="modal"
+                renderIcon={({ name, size, color }) => (
+                  <Icon name={name} size={size} color={color} />
+                )}
+                renderPinIcon={({ pinned: isPinned, size, color }) => (
+                  <Icon name={isPinned ? 'star' : 'star'} size={size} color={color} />
+                )}
+                renderCloseIcon={({ size, color, renderIcon }) =>
+                  renderIcon ? renderIcon({ name: 'x', size, color }) : null
+                }
+                baseActions={composerActions as any}
+                pinned={pinnedComposerActions}
+                onChangePinned={setPinnedComposerActions}
+                onAction={handleComposerAction}
+                isActionDisabled={isComposerActionDisabled}
+                isActive={isActive}
+              />
+          </View>
 
-        <AttachmentThumbnailStrip
-          attachments={attachmentsBelowStrip}
-          onPressManageAll={() => {
-            setAttachmentsManageSide('below');
-            setAttachmentsManageVisible(true);
-          }}
-          disabled={sendInProgress || !!activeRequestId}
-        />
+            <AttachmentThumbnailStrip
+              attachments={attachmentsAboveStrip}
+              onPressManageAll={() => {
+                setAttachmentsManageSide('above');
+                setAttachmentsManageVisible(true);
+              }}
+              disabled={sendInProgress || !!activeRequestId}
+            />
+
+            <TextInput
+              style={styles.composerInput}
+              placeholder="Type your message..."
+              placeholderTextColor={theme.textSecondary}
+              value={composeText}
+              onChangeText={(text) => {
+                setComposeText(text);
+              }}
+              onBlur={() => {
+                onSaveComposeText(composeTextRef.current);
+              }}
+              multiline
+            />
+
+            {/** Compute per-button enablement so we can style text when disabled. */}
+            {(() => {
+              const canAppend =
+                !!backend && !sendInProgress && !activeRequestId && hasDraftMessage;
+              const canSend =
+                !!backend && !sendInProgress && !activeRequestId && hasDraftMessage;
+
+              return (
+                <View style={styles.composerButtonsRow}>
+                  <TouchableOpacity
+                    style={[styles.button, styles.secondaryButton, styles.composerButton]}
+                    onPress={openAppendAsModal}
+                    disabled={!canAppend}
+                  >
+                    <Text
+                      style={[
+                        styles.buttonTextSecondary,
+                        !canAppend && styles.buttonTextDisabled,
+                      ]}
+                    >
+                      Append
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.button, styles.primaryButton, styles.composerButton]}
+                    onPress={handleSend}
+                    disabled={!canSend}
+                  >
+                    {sendInProgress || activeRequestId ? (
+                      <ActivityIndicator size="small" color={theme.textOnPrimary} />
+                    ) : (
+                      <Text
+                        style={[
+                          styles.buttonText,
+                          !canSend && styles.buttonTextDisabled,
+                        ]}
+                      >
+                        Send
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
+
+            <AttachmentThumbnailStrip
+              attachments={attachmentsBelowStrip}
+              onPressManageAll={() => {
+                setAttachmentsManageSide('below');
+                setAttachmentsManageVisible(true);
+              }}
+              disabled={sendInProgress || !!activeRequestId}
+            />
+          </View>
       </View>
 
       <ComposerAttachmentsManageModal
@@ -2236,8 +2336,81 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        onOverridesSaved={() => {
 	          sessionUiSchemaController?.invalidate();
 	          sessionUiSchemaController?.load();
+	          if (backend && sessionId) {
+	            backend.getSessionOverrides(sessionId).then((o) => setSessionOverrides(o ?? {}));
+	          }
 	        }}
 	      />
+	      {composerLeftSelectModalElement && (
+	        <Modal
+	          visible
+	          transparent
+	          animationType="fade"
+	          onRequestClose={() => {
+	            setComposerLeftSelectModalElement(null);
+	            setComposerLeftSelectModalSearch('');
+	          }}
+	        >
+	          <TouchableWithoutFeedback
+	            onPress={() => {
+	              setComposerLeftSelectModalElement(null);
+	              setComposerLeftSelectModalSearch('');
+	            }}
+	          >
+	            <View style={styles.modalOverlay}>
+	              <TouchableWithoutFeedback onPress={() => {}}>
+	                <View style={styles.modalContent}>
+	                  <TextInput
+	                    style={styles.composerLeftSelectModalSearch}
+	                    placeholder="Search..."
+	                    placeholderTextColor={theme.textSecondary}
+	                    value={composerLeftSelectModalSearch}
+	                    onChangeText={setComposerLeftSelectModalSearch}
+	                    autoCapitalize="none"
+	                    autoCorrect={false}
+	                  />
+	                  <ScrollView style={styles.composerLeftSelectModalList}>
+	                    {normalizeSelectOptions(composerLeftSelectModalElement.options)
+	                      .filter((opt) => {
+	                        const q = composerLeftSelectModalSearch.trim().toLowerCase();
+	                        if (!q) return true;
+	                        const text = `${opt.label ?? ''} ${opt.value ?? ''}`.toLowerCase();
+	                        return text.includes(q);
+	                      })
+	                      .map((opt) => (
+	                        <TouchableOpacity
+	                          key={opt.value}
+	                          style={styles.composerLeftSelectModalItem}
+	                          onPress={() => {
+	                            handleComposerLeftSelectOption(
+	                              (composerLeftSelectModalElement.key as string) ?? '',
+	                              opt.value,
+	                            );
+	                            setComposerLeftSelectModalElement(null);
+	                            setComposerLeftSelectModalSearch('');
+	                          }}
+	                        >
+	                          <Text style={styles.composerLeftSelectModalItemText} numberOfLines={2}>
+	                            {opt.label}
+	                          </Text>
+	                        </TouchableOpacity>
+	                      ))}
+	                  </ScrollView>
+	                  <TouchableOpacity
+	                    style={[styles.button, styles.secondaryButton, styles.modalButton]}
+	                    onPress={() => {
+	                      setComposerLeftSelectModalElement(null);
+	                      setComposerLeftSelectModalSearch('');
+	                    }}
+	                  >
+	                    <Text style={styles.buttonTextSecondary}>Cancel</Text>
+	                  </TouchableOpacity>
+	                </View>
+	              </TouchableWithoutFeedback>
+	            </View>
+	          </TouchableWithoutFeedback>
+	        </Modal>
+	      )}
 	      <SessionPluginsModal
 	        backend={backend}
 	        sessionId={sessionId}
@@ -2401,9 +2574,65 @@ const createStyles = (theme: Theme) =>
       borderTopColor: theme.border,
       paddingTop: 8,
     },
+    composerInlineSelectRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginRight: 8,
+    },
+    composerInlineSelectButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 3,
+      paddingHorizontal: 5,
+      backgroundColor: theme.surface,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 5,
+      gap: 3,
+      maxWidth: '100%',
+    },
+    composerInlineSelectLabel: {
+      fontSize: 10,
+      color: theme.textSecondary,
+    },
+    composerInlineSelectValue: {
+      fontSize: 10,
+      color: theme.text,
+      maxWidth: 100,
+    },
+    composerMainColumn: {
+      minWidth: 0,
+    },
+    composerLeftSelectModalSearch: {
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      fontSize: 14,
+      color: theme.text,
+      backgroundColor: theme.surface,
+      marginBottom: 8,
+    },
+    composerLeftSelectModalList: {
+      maxHeight: 320,
+      marginVertical: 12,
+    },
+    composerLeftSelectModalItem: {
+      paddingVertical: 12,
+      paddingHorizontal: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    composerLeftSelectModalItemText: {
+      fontSize: 14,
+      color: theme.text,
+    },
     composerTopRow: {
       flexDirection: 'row',
-      justifyContent: 'flex-end',
+      alignItems: 'center',
+      justifyContent: 'space-between',
       paddingHorizontal: 10,
       marginBottom: 4,
     },

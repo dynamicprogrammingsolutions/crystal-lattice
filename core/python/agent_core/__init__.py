@@ -13,7 +13,6 @@ Functional Architecture:
 """
 
 from .core import AgentCore
-from .constants import UIConfigKeys
 from .types import (
     Message,
     Session,
@@ -35,8 +34,6 @@ __version__ = "0.3.0"
 __all__ = [
     # Core
     "AgentCore",
-    # UI config contract (for plugins and frontends)
-    "UIConfigKeys",
     # Data types
     "Session",
     "Message",
