@@ -111,23 +111,13 @@ class ProviderWrapper(ProviderPlugin):
         """
         return self.plugin.get_config_schema()
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(self,config: Optional[Dict[str, Any]] = None, tags: Optional[List[str]] = None, models: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
         """Get provider UI elements.
 
         Returns:
             List of UI definitions, or empty list.
         """
-        return self.plugin.get_ui_elements()
-
-    def get_ui_elements_for_config(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Get provider UI elements for the given config."""
-        return self.plugin.get_ui_elements_for_config(config)
-
-    def get_extension_ui_elements_for_config(
-        self, config: Dict[str, Any]
-    ) -> Dict[str, List[Dict[str, Any]]]:
-        """Get UI elements from all extensions for the given config."""
-        return {ext.name: ext.get_ui_elements_for_config(config) for ext in self._extensions}
+        return self.plugin.get_ui_elements(config, tags, models)
 
     def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Delegate model discovery to the underlying provider via adapter."""
@@ -468,13 +458,13 @@ class ProviderWrapper(ProviderPlugin):
         """
         return {ext.name: ext.get_config_schema() for ext in self._extensions}
 
-    def get_extension_ui_elements(self) -> Dict[str, List[Dict[str, Any]]]:
+    def get_extension_ui_elements(self, config: Optional[Dict[str, Any]] = None, tags: Optional[List[str]] = None, models: Optional[List[Dict[str, Any]]] = None) -> Dict[str, List[Dict[str, Any]]]:
         """Get UI schemas for all extensions.
 
         Returns:
             Mapping from extension name to its UI element list.
         """
-        return {ext.name: ext.get_ui_elements() for ext in self._extensions}
+        return {ext.name: ext.get_ui_elements(config, tags, models) for ext in self._extensions}
 
     def reset_state(self) -> None:
         """Discard internal shared state after request."""

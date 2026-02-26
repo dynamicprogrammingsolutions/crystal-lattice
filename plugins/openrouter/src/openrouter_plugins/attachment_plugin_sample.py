@@ -7,7 +7,7 @@ Compatible with OpenAI Chat Completions API format.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from agent_core import FeaturePlugin
 
@@ -15,7 +15,12 @@ class OpenRouterAttachmentPluginSample(FeaturePlugin):
     name: str = "openrouter_attachment_plugin_sample"
     version: str = "0.1.0"
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         return [
             {
                 "ui_type": "composer_attachment",

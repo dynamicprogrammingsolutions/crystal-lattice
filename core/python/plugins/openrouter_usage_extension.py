@@ -57,7 +57,12 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
         # No user-configurable options for now.
         return {}
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         # Expose formatted usage information in the message footer,
         # similar to ClaudeCachingExtension's cached_tokens footer.
         return [

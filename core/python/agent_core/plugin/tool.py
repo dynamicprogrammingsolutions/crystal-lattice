@@ -41,13 +41,9 @@ class ToolWrapper(ToolPlugin):
         """Get tool configuration schema."""
         return self.plugin.get_config_schema()
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(self, config: Optional[Dict[str, Any]] = None, tags: Optional[List[str]] = None, models: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
         """Get tool UI elements."""
-        return self.plugin.get_ui_elements()
-
-    def get_ui_elements_for_config(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Get tool UI elements for the given config."""
-        return self.plugin.get_ui_elements_for_config(config)
+        return self.plugin.get_ui_elements(config, tags, models)
 
     def get_tags(
         self,

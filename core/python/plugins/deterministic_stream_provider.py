@@ -17,7 +17,7 @@ Key behaviors:
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, Iterator, List, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from agent_core.types import ProviderPlugin
 
@@ -44,7 +44,12 @@ class DeterministicStreamProvider(ProviderPlugin):
             },
         }
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:  # pragma: no cover - not used
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:  # pragma: no cover - not used
         return []
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:

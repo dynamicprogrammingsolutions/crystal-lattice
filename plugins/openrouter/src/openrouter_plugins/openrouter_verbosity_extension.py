@@ -11,7 +11,7 @@ more detailed responses.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from agent_core.types import ProviderExtensionPlugin
 
@@ -43,7 +43,12 @@ class OpenRouterVerbosityExtension(ProviderExtensionPlugin):
             }
         }
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         return [
             {
                 "type": "select",

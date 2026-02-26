@@ -67,10 +67,10 @@ class _BasePluginDefaults:
             return self._safe_dict(fn())
         return {}
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:  # type: ignore[override]
+    def get_ui_elements(self ,config: Optional[Dict[str, Any]] = None, tags: Optional[List[str]] = None, models: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:  # type: ignore[override]
         fn = getattr(self.impl, "get_ui_elements", None)
         if callable(fn):
-            raw = fn()
+            raw = fn(config, tags, models)
             items = self._safe_list(raw)
             return [i for i in items if isinstance(i, dict)]
         return []

@@ -5,7 +5,7 @@ This plugin simulates a basic LLM provider without making actual API calls.
 Follows the state-based plugin protocol with explicit state dicts.
 """
 
-from typing import Dict, Any, List, Iterator, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 from dataclasses import dataclass
 from agent_core.types import ProviderPlugin
 import time
@@ -28,7 +28,12 @@ class DummyProvider(ProviderPlugin):
             "api_key": {"type": "string", "required": False},
         }
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         """Return UI elements."""
         return [{"type": "text", "key": "model", "label": "Model Name"}]
 
@@ -181,7 +186,12 @@ class FailingOnceDummyProvider(ProviderPlugin):
     def get_config_schema(self) -> Dict[str, Any]:
         return {"model": {"type": "string", "required": True}}
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         return []
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
