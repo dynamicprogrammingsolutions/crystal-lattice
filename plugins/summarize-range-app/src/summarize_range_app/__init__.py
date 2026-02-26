@@ -312,7 +312,10 @@ class SummarizeRangeAppPlugin:
 
         # Normalize bounds using the same helper as SessionActionsAppPlugin so
         # that range semantics match delete/slice operations exposed via HTTP.
-        from session_actions_app import _normalize_slice_bounds
+        try:
+            from session_actions_app import _normalize_slice_bounds
+        except ImportError:  # pragma: no cover
+            from plugins.session_actions_app import _normalize_slice_bounds
 
         message_count = len(session_orig.messages)
         start_idx, end_idx = _normalize_slice_bounds(message_count, start_int, end_int)

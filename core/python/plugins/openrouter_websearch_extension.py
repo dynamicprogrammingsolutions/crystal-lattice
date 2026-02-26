@@ -129,7 +129,32 @@ class OpenRouterWebSearchExtension(ProviderExtensionPlugin):
                 "engine": str(engine),
             },
         }
-    # TODO: Add citations to the metadata in a similar fashon than openrouter_reasoning_extension.py
+
+    # ---- Stateless transforms ----
+    def from_native_messages(
+        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Surface URL citations from provider-native messages.
+
+        If a provider-native message has OpenRouter web-search annotations of type
+        ``url_citation``, this extracts them into ``metadata.url_citations``.
+        """
+
+        if len(messages) != len(native_messages):
+            return messages
+
+        enhanced: List[Dict[str, Any]] = []
+        for msg, native in zip(messages, native_messages):
+            metadata = dict(msg.get("metadata") or {})
+            citations = self._extract_citations_from_native(native)
+            if citations:
+                metadata["url_citations"] = citations
+            if metadata:
+                enhanced.append({**msg, "metadata": metadata})
+            else:
+                enhanced.append(msg)
+
+        return enhanced
 
 
     # # ---- Stateless transforms ----
@@ -225,6 +250,99 @@ class OpenRouterWebSearchExtension(ProviderExtensionPlugin):
             **state,
             "request": {**request, "payload": payload},
         }
+
+    # ---- Streaming helpers ----
+    def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:
+        if "choices" in native_chunk and native_chunk["choices"]:
+            return native_chunk["choices"][0]
+        return {}
+
+    def process_delta(
+        self,
+        delta: Dict[str, Any],
+        current_partial: Optional[Dict[str, Any]] = None,
+        accumulated: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
+        """Accumulate URL citations across streaming deltas.
+
+        Citations are stored under ``accumulated["url_citations"]``.
+        """
+
+        acc = accumulated or {}
+        base_list: List[Dict[str, Any]] = []
+        existing = acc.get("url_citations")
+        if isinstance(existing, list):
+            base_list = [e for e in existing if isinstance(e, dict)]
+
+        d = delta.get("message") or delta.get("delta") or {}
+        new_items = self._extract_citations_from_native(d)
+        if new_items:
+            combined = self._merge_citation_lists(base_list, new_items)
+            acc = {**acc, "url_citations": combined}
+
+        return current_partial, acc
+
+    # ---- Internal helpers ----
+    def _extract_citations_from_native(self, native: Any) -> List[Dict[str, Any]]:
+        if not isinstance(native, dict):
+            return []
+
+        annotations = native.get("annotations")
+        if not isinstance(annotations, list) or not annotations:
+            return []
+
+        citations: List[Dict[str, Any]] = []
+        for ann in annotations:
+            if not isinstance(ann, dict) or ann.get("type") != "url_citation":
+                continue
+            payload = ann.get("url_citation")
+            if not isinstance(payload, dict):
+                continue
+
+            item: Dict[str, Any] = {}
+            url = payload.get("url")
+            if isinstance(url, str) and url:
+                item["url"] = url
+            title = payload.get("title")
+            if isinstance(title, str) and title:
+                item["title"] = title
+            content = payload.get("content")
+            if isinstance(content, str) and content:
+                item["content"] = content
+            start_index = payload.get("start_index")
+            if isinstance(start_index, int):
+                item["start_index"] = start_index
+            end_index = payload.get("end_index")
+            if isinstance(end_index, int):
+                item["end_index"] = end_index
+
+            if item:
+                citations.append(item)
+
+        return citations
+
+    def _merge_citation_lists(
+        self,
+        existing: List[Dict[str, Any]],
+        new_items: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        out: List[Dict[str, Any]] = list(existing)
+
+        for item in new_items:
+            url = item.get("url")
+            start = item.get("start_index")
+            end = item.get("end_index")
+            if any(
+                url
+                and url == e.get("url")
+                and start == e.get("start_index")
+                and end == e.get("end_index")
+                for e in out
+            ):
+                continue
+            out.append(item)
+
+        return out
     #
     # # ---- Streaming helpers ----
     # def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:
