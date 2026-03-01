@@ -1,0 +1,14 @@
+{
+  "items": [
+    {"id": 0, "payload": {"label": "Cat"}},
+    {"id": 1, "payload": {"label": "Dog"}},
+    {"id": 2, "payload": {"label": "Horse"}},
+    {"id": 3, "payload": {"label": "Tiger"}},
+    {"id": 4, "payload": {"label": "Lion"}},
+    {"id": 5, "payload": {"label": "Wolf"}},
+    {"id": 6, "payload": {"label": "Bear"}},
+    {"id": 7, "payload": {"label": "Fox"}},
+    {"id": 8, "payload": {"label": "Eagle"}},
+    {"id": 9, "payload": {"label": "Shark"}}
+  ]
+}

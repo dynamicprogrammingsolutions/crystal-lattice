@@ -1,0 +1,22 @@
+{
+  "name": "js-fs-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outdir=dist"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  },
+  "agent": {
+    "kinds": ["tools"],
+    "tools": [
+      {
+        "id": "js_fs_tools",
+        "entry": "dist/index.js"
+      }
+    ]
+  }
+}

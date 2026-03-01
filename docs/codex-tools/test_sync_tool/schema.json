@@ -1,0 +1,39 @@
+{
+  "type": "function",
+  "name": "test_sync_tool",
+  "description": "Internal synchronization helper used by Codex integration tests.",
+  "strict": false,
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "sleep_before_ms": {
+        "type": "number",
+        "description": "Optional delay in milliseconds before any other action"
+      },
+      "sleep_after_ms": {
+        "type": "number",
+        "description": "Optional delay in milliseconds after completing the barrier"
+      },
+      "barrier": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "participants"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier shared by concurrent calls that should rendezvous"
+          },
+          "participants": {
+            "type": "number",
+            "description": "Number of tool calls that must arrive before the barrier opens"
+          },
+          "timeout_ms": {
+            "type": "number",
+            "description": "Maximum time in milliseconds to wait at the barrier"
+          }
+        }
+      }
+    },
+    "additionalProperties": false
+  }
+}

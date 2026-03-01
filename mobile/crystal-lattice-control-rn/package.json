@@ -9,7 +9,8 @@
     "ios-device": "react-native run-ios --device --port 8082",
     "lint": "eslint .",
     "start": "react-native start --port 8082",
-    "test": "jest"
+    "test": "jest",
+    "tsc": "tsc --noEmit"
   },
   "dependencies": {
     "@crystal-lattice/frontend-sdk": "file:../../packages/frontend-sdk",
