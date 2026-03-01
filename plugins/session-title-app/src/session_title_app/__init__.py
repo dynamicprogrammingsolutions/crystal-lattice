@@ -12,7 +12,7 @@ session-list UIs can render ``metadata.title`` (or a configurable metadata
 key) as the preferred title line when present.
 """
 
-from typing import Any, Dict, List, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from agent_core import Session
 
@@ -60,7 +60,13 @@ class SessionTitleAppPlugin:
             }
         }
 
-    def get_ui_elements(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        state: Dict[str, Any],
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         """Return UI schema elements contributed by this plugin.
 
         Elements are generic and do not carry any behaviour beyond wiring

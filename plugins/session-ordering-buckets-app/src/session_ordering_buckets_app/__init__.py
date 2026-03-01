@@ -21,7 +21,7 @@ Ordering is expressed via numeric fields:
   ascending.
 """
 
-from typing import Any, Dict, List, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 import time
 
@@ -57,7 +57,13 @@ class SessionOrderingBucketsAppPlugin:
             },
         }
 
-    def get_ui_elements(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        state: Dict[str, Any],
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         # This plugin is ordering-only and does not contribute UI elements.
         return []
 

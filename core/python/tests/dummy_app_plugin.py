@@ -6,7 +6,7 @@ introspection, and action execution of ApplicationPlugin instances.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 class DummyAppPlugin:
@@ -27,7 +27,13 @@ class DummyAppPlugin:
     def get_config_schema(self) -> Dict[str, Any]:
         return {"enabled": {"type": "boolean", "default": True}}
 
-    def get_ui_elements(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        state: Dict[str, Any],
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         # Deliberately omit the "plugin" field; the application layer should
         # attach it when flattening the global UI schema.
         return [
