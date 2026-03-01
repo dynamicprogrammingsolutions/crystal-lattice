@@ -1,0 +1,22 @@
+{
+  "type": "function",
+  "name": "wait",
+  "description": "Wait for agents to reach a final status. Completed statuses may include the agent's final message. Returns empty status when timed out. Once the agent reaches his final status, a notification message will be received containing the same completed status.",
+  "strict": false,
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "ids": {
+        "type": "array",
+        "description": "Agent ids to wait on. Pass multiple ids to wait for whichever finishes first.",
+        "items": { "type": "string" }
+      },
+      "timeout_ms": {
+        "type": "number",
+        "description": "Optional timeout in milliseconds. Prefer longer waits (minutes) to avoid busy polling."
+      }
+    },
+    "required": ["ids"],
+    "additionalProperties": false
+  }
+}

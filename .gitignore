@@ -21,6 +21,9 @@ parts/
 sdist/
 var/
 wheels/
+
+# AgentApplication plugin cache (default when plugin_cache_dir is missing)
+.plugin_cache/
 share/python-wheels/
 *.egg-info/
 .installed.cfg

@@ -10,13 +10,17 @@ thin and only orchestrates across sources.
 
 from .types import PluginContext, PluginResolution, PluginSource
 from .dotted import DottedClassSource
+from .bash_tool import BashToolSource
+from .node_tool import NodeToolSource
 from .local_path import LocalPathRepoSource
 from .git_repo import GitRepoSource
 
 __all__ = [
+    "BashToolSource",
     "DottedClassSource",
     "GitRepoSource",
     "LocalPathRepoSource",
+    "NodeToolSource",
     "PluginContext",
     "PluginResolution",
     "PluginSource",

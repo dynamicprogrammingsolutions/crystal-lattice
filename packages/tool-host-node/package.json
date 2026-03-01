@@ -1,0 +1,10 @@
+{
+  "name": "@agent-platform/tool-host-node",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./sdk.mjs",
+  "bin": {
+    "agent-tool-host-node": "./host.mjs"
+  }
+}

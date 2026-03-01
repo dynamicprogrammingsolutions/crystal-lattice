@@ -1,0 +1,6 @@
+{
+  "module": "template_python_tools",
+  "subdirectory": ".",
+  "entries": ["template_python_tools.echo_tool.TemplateEchoTool"],
+  "kinds": {"template_python_tools.echo_tool.TemplateEchoTool": "tools"}
+}

@@ -1,0 +1,12 @@
+{
+  "type": "function",
+  "name": "close_agent",
+  "description": "Close an agent when it is no longer needed and return its last known status.",
+  "strict": false,
+  "parameters": {
+    "type": "object",
+    "properties": { "id": { "type": "string", "description": "Agent id to close (from spawn_agent)." } },
+    "required": ["id"],
+    "additionalProperties": false
+  }
+}

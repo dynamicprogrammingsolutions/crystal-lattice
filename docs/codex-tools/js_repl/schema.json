@@ -1,0 +1,10 @@
+{
+  "type": "custom",
+  "name": "js_repl",
+  "description": "Runs JavaScript in a persistent Node kernel with top-level await. This is a freeform tool: send raw JavaScript source text, optionally with a first-line pragma like `// codex-js-repl: timeout_ms=15000`; do not send JSON/quotes/markdown fences.",
+  "format": {
+    "type": "grammar",
+    "syntax": "lark",
+    "definition": "(see format.lark)"
+  }
+}

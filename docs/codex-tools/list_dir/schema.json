@@ -1,0 +1,23 @@
+{
+  "type": "function",
+  "name": "list_dir",
+  "description": "Lists entries in a local directory with 1-indexed entry numbers and simple type labels.",
+  "strict": false,
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "dir_path": { "type": "string", "description": "Absolute path to the directory to list." },
+      "offset": {
+        "type": "number",
+        "description": "The entry number to start listing from. Must be 1 or greater."
+      },
+      "limit": { "type": "number", "description": "The maximum number of entries to return." },
+      "depth": {
+        "type": "number",
+        "description": "The maximum directory depth to traverse. Must be 1 or greater."
+      }
+    },
+    "required": ["dir_path"],
+    "additionalProperties": false
+  }
+}
