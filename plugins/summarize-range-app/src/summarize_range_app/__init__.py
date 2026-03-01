@@ -120,7 +120,13 @@ class SummarizeRangeAppPlugin:
             },
         }
 
-    def get_ui_elements(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        state: Dict[str, Any],
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         """Return UI schema elements for the summarization action.
 
         The effective prompt (default or configuration-provided) is surfaced

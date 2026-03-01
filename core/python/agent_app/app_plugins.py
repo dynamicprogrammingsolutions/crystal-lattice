@@ -12,7 +12,7 @@ server, terminal, mobile) can use to build flows such as copy/fork/delete or
 session summarization.
 """
 
-from typing import Any, Dict, List, Protocol, TYPE_CHECKING, runtime_checkable
+from typing import Any, Dict, List, Optional, Protocol, TYPE_CHECKING, cast, runtime_checkable
 
 if TYPE_CHECKING:  # pragma: no cover - imported only for type checking
     from .application_future import AgentApplication
@@ -44,7 +44,13 @@ class ApplicationPlugin(Protocol):
         dict when they do not require configuration.
         """
 
-    def get_ui_elements(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        state: Dict[str, Any],
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) :
         """Return UI element definitions contributed by this plugin.
 
         Elements describe configuration controls and display elements as well
@@ -53,7 +59,8 @@ class ApplicationPlugin(Protocol):
         such as the ``"plugin"`` identifier.
 
         The ``state`` argument is the plugin state dictionary returned from
-        :meth:`init`.
+        :meth:`init`. Optional ``config``, ``tags``, and ``models`` allow
+        config-aware UI (e.g. when called with effective session config).
         """
 
     # Lifecycle -----------------------------------------------------------------
@@ -149,10 +156,10 @@ class ApplicationPluginWrapper:
             return []
         return [a for a in actions if isinstance(a, dict)]
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(self, config: Optional[Dict[str, Any]] = None, tags: Optional[List[str]] = None, models: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
         """Return sanitized UI element definitions from the plugin."""
 
-        elements = self.plugin.get_ui_elements(self._state)
+        elements = self.plugin.get_ui_elements(self._state, config, tags, models)
         if not isinstance(elements, list):
             return []
         return [e for e in elements if isinstance(e, dict)]

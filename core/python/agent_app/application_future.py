@@ -742,18 +742,24 @@ class AgentApplication:
                     actions.append(action)
         return actions
 
-    def get_application_ui_schema(self) -> List[Dict[str, Any]]:
+    def get_application_ui_schema(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         """Return flattened UI schema elements from application plugins.
 
         Each element is normalized to include a ``"plugin"`` field naming
-        the contributing plugin.
+        the contributing plugin. Optional config/tags/models are passed
+        through so plugins can return config-aware UI.
         """
 
         elements: List[Dict[str, Any]] = []
         for plugin_id, wrapper in self._app_plugins.items():
-            for raw_element in wrapper.get_ui_elements():
+            for raw_element in wrapper.get_ui_elements(config=config, tags=tags, models=models):
                 if not isinstance(raw_element, dict):
-                    continue
+                    continue    
                 if "plugin" in raw_element and isinstance(raw_element["plugin"], str):
                     elements.append(raw_element)
                 else:

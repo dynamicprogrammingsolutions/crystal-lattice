@@ -9,7 +9,7 @@ building the sessions list to compute that count. The action is marked with
 serving ``/sessions`` without frontends needing to know about it.
 """
 
-from typing import Any, Dict, List, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from agent_core import Session
 
@@ -29,7 +29,13 @@ class SessionMessageCountMetaAppPlugin:
     def get_config_schema(self) -> Dict[str, Any]:
         return {}
 
-    def get_ui_elements(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        state: Dict[str, Any],
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         return [
             {
                 "ui_type": "session_list_field",
