@@ -96,3 +96,53 @@ Also update existing REST backend tests if needed:
 
 - Evented backend wrapper exists and is used by `SdkRuntime`.
 - Tests cover emission semantics.
+
+## Execution Plan (added during completion on 2026-02-28)
+
+1. Add `packages/frontend-sdk/src/runtime/eventedBackend.ts` exporting `createEventedBackend({ backend, scopeKey, bus })`.
+2. Implement wrapper semantics so mutation methods emit only after successful completion:
+   - `setSessionPlugins` / `clearSessionPlugins` -> `session.plugins.changed`
+   - `patchSessionOverrides` / `deleteSessionOverride` -> `session.overrides.changed`
+   - `switchSessionAgent` -> `session.agent.changed`
+3. Ensure non-mutation methods delegate without emissions and thrown errors do not emit events.
+4. Update `SdkRuntime` to accept an optional raw backend and expose `runtime.backend` as the wrapped backend.
+5. Add tests in `packages/frontend-sdk/src/runtime/__tests__/eventedBackend.test.ts` validating:
+   - single emission on successful mutation
+   - zero emission on failed mutation
+   - no emission for non-mutation calls.
+
+## Completion Notes (added during completion on 2026-02-28)
+
+- Implemented evented backend wrapper:
+  - `packages/frontend-sdk/src/runtime/eventedBackend.ts`
+- Mutation event emission mapping implemented exactly as specified and emitted only after successful await.
+- Refactored wrapper to middleware/interceptor architecture:
+  - added generic `BackendMiddleware` contract with `context` + `next`
+  - supports full lifecycle control (`before`, `after success`, `after error`, `finally`) via async middleware
+  - default mutation emissions are now composed from separate per-method middleware entries
+  - removed event-rule API and method-specific branching from wrapper internals
+- `SdkRuntime` now accepts a raw backend and exposes:
+  - `runtime.rawBackend`
+  - `runtime.backend` (evented wrapper)
+- `SdkRuntime` supports extension through one path:
+  - `backendMiddlewares` (appended after SDK default mutation-event middleware)
+- Added tests:
+  - `packages/frontend-sdk/src/runtime/__tests__/eventedBackend.test.ts`
+  - Covers default success emission semantics, no emission on failed default mutations, and custom middleware lifecycle handling (success/error/finally).
+- Verification:
+  - `npm test` (from `packages/frontend-sdk`) passes with the new wrapper tests.
+
+## Completion Notes Addendum (added during completion on 2026-02-28)
+
+- Enforced separation of concerns for runtime vs domain logic:
+  - `packages/frontend-sdk/src/runtime/eventedBackend.ts` now contains generic middleware pipeline and generic method-success middleware helper only.
+  - session-specific middleware logic moved to:
+    - `packages/frontend-sdk/src/sessionMutations/createSessionScopedSuccessEventMiddleware.ts`
+    - `packages/frontend-sdk/src/sessionMutations/sessionMutationMiddlewares.ts`
+- `SdkRuntime` no longer injects default middlewares.
+- Added default composition factory layer:
+  - `packages/frontend-sdk/src/runtimeFactory/createDefaultBackendMiddlewares.ts`
+  - `packages/frontend-sdk/src/runtimeFactory/createDefaultSdkRuntime.ts`
+- Frontends can now choose:
+  - `createDefaultSdkRuntime(...)` for package defaults
+  - `new SdkRuntime(...)` with fully custom middleware lists

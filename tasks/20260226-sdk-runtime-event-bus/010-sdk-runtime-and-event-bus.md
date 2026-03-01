@@ -99,3 +99,39 @@ Add a section to the new SDK README (created in Subtask 030, but this subtask sh
 - `SdkEventBus` implemented and tested.
 - `SdkRuntime` implemented (bus + scopeKey).
 - Types exported from SDK entrypoint.
+
+## Execution Plan (added during completion on 2026-02-28)
+
+1. Add `packages/frontend-sdk/src/runtime/sdkEvents.ts` with a typed `SdkEvent` union for mutation notifications and observational summary upsert notifications.
+2. Add `packages/frontend-sdk/src/runtime/sdkEventBus.ts` implementing:
+   - `SdkEventBusSnapshot` (`seq`, `lastEvent`)
+   - `SdkEventBus` extending `SimpleSubscribable`
+   - `emit()` semantics that increment `seq` and publish `lastEvent`.
+3. Add `packages/frontend-sdk/src/runtime/sdkRuntime.ts` with connection-scoped runtime shape (`scopeKey`, `bus`) and constructor wiring that remains compatible with later backend wrapping.
+4. Export new runtime types/classes from `packages/frontend-sdk/src/index.ts`.
+5. Add unit tests in `packages/frontend-sdk/src/runtime/__tests__/sdkEventBus.test.ts` covering:
+   - sequence increments
+   - one notification per emit
+   - unsubscribe behavior.
+
+## Completion Notes (added during completion on 2026-02-28)
+
+- Added runtime event model and bus primitives:
+  - `packages/frontend-sdk/src/runtime/sdkEvents.ts`
+  - `packages/frontend-sdk/src/runtime/sdkEventBus.ts`
+  - `packages/frontend-sdk/src/runtime/sdkRuntime.ts`
+- `SdkEvent` now supports known typed events plus extensible generic event objects so new event types can be introduced without changing bus/framework internals.
+- `SdkRuntime` is now connection-scoped with `scopeKey` + `bus`, and prepared for backend integration.
+- Exported runtime types/classes from `packages/frontend-sdk/src/index.ts`.
+- Added tests:
+  - `packages/frontend-sdk/src/runtime/__tests__/sdkEventBus.test.ts`
+- Verification:
+  - `npm test` (from `packages/frontend-sdk`) passes, including the new runtime tests.
+
+## Completion Notes Addendum (added during completion on 2026-02-28)
+
+- Runtime event typing was split to enforce separation of concerns:
+  - removed `packages/frontend-sdk/src/runtime/sdkEvents.ts`
+  - added generic `packages/frontend-sdk/src/runtime/sdkEvent.ts` (`SdkEvent` only)
+- `SdkEventBus` remains in runtime and now uses the generic runtime event type.
+- `SdkRuntime` remains connection-scoped, but no longer auto-composes domain middlewares internally; composition moved to runtime factory modules.
