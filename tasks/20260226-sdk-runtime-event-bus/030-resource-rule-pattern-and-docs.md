@@ -147,3 +147,50 @@ Add tests for helper(s) or base class if introduced.
 - Resource rule pattern codified (helper/base class optional but recommended).
 - `packages/frontend-sdk/README.md` created and linked from repo root docs if appropriate.
 - Tests for framework utilities.
+
+## Execution Plan (added during completion on 2026-02-28)
+
+1. Add `packages/frontend-sdk/src/runtime/resourceRules.ts` to codify the rule pattern with:
+   - `isEventForSession(ev, scopeKey, sessionId)` helper
+   - `BusAwareController<T>` base class for bus subscription lifecycle + disposal.
+2. Implement lightweight dedupe support in `BusAwareController` (`lastHandledBusSeq`) so resource handlers can ignore already-processed bus snapshots.
+3. Add tests in `packages/frontend-sdk/src/runtime/__tests__/resourceRules.test.ts` for:
+   - scope/session matching helper behavior
+   - `dispose()` unsubscribes bus listeners
+   - dedupe behavior by bus sequence.
+4. Create `packages/frontend-sdk/README.md` documenting:
+   - runtime-per-connection model
+   - push-only event bus semantics
+   - evented backend mutation mapping
+   - resource invalidation/reload rule pattern
+   - required "data upsert notification" guidance including notification-only and payload-carrying variants.
+5. Export new resource-rule utilities from `packages/frontend-sdk/src/index.ts`.
+
+## Completion Notes (added during completion on 2026-02-28)
+
+- Added resource-rule utilities:
+  - `packages/frontend-sdk/src/runtime/resourceRules.ts`
+  - `isEventForSession(ev, scopeKey, sessionId)`
+  - `BusAwareController<T>` with bus lifecycle management, sequence-based dedupe guard, and `dispose()` unsubscribe.
+- Exported utilities from `packages/frontend-sdk/src/index.ts`.
+- Added tests:
+  - `packages/frontend-sdk/src/runtime/__tests__/resourceRules.test.ts`
+  - Covers scope/session filtering, no replay of old events after subscribe, and bus unsubscribe on dispose.
+- Created SDK docs file:
+  - `packages/frontend-sdk/README.md`
+  - Includes runtime-per-connection, push-only bus semantics, backend emission mapping, middleware-based extension model, resource-rule guidance, and required data-upsert notification pattern.
+- Verification:
+  - `npm test` (from `packages/frontend-sdk`) passes with new resource-rule tests.
+
+## Completion Notes Addendum (added during completion on 2026-02-28)
+
+- Runtime resource utility was split to keep runtime generic:
+  - removed `packages/frontend-sdk/src/runtime/resourceRules.ts`
+  - added generic `packages/frontend-sdk/src/runtime/busAwareController.ts`
+- Session-scoped rule helper moved into domain module:
+  - `packages/frontend-sdk/src/sessionMutations/sessionMutationRules.ts` (`isEventForSession`)
+- Tests were reorganized by concern:
+  - added `packages/frontend-sdk/src/runtime/__tests__/busAwareController.test.ts`
+  - added `packages/frontend-sdk/src/sessionMutations/__tests__/sessionMutationRules.test.ts`
+  - removed `packages/frontend-sdk/src/runtime/__tests__/resourceRules.test.ts`
+- SDK README updated to document runtime/domain/factory separation and default-vs-custom runtime composition.

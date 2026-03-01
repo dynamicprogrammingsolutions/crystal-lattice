@@ -71,6 +71,48 @@ export type { BridgeServer, WebSocketLike, WebSocketFactory } from './transport/
 export type { Subscribable, Unsubscribe } from './util/subscribable';
 export { SimpleSubscribable } from './util/subscribable';
 
+export type { SdkEvent } from './runtime/sdkEvent';
+export type { SdkEventBusSnapshot } from './runtime/sdkEventBus';
+export { SdkEventBus } from './runtime/sdkEventBus';
+export type { SdkRuntimeOptions } from './runtime/sdkRuntime';
+export { SdkRuntime } from './runtime/sdkRuntime';
+export type {
+  BackendCallContext,
+  BackendCallNext,
+  BackendMiddleware,
+  MethodSuccessEventMiddlewareOptions,
+} from './runtime/eventedBackend';
+export {
+  createEventedBackend,
+  createMethodSuccessEventMiddleware,
+} from './runtime/eventedBackend';
+export { BusAwareController } from './runtime/busAwareController';
+
+export {
+  SESSION_MUTATION_EVENT_TYPES,
+  type SessionMutationEventType,
+  type SessionScopedSdkEvent,
+  type SessionPluginsChangedEvent,
+  type SessionOverridesChangedEvent,
+  type SessionAgentChangedEvent,
+  type SessionSummaryUpsertedEvent,
+  type SessionMutationEvent,
+} from './sessionMutations/sessionMutationEventTypes';
+export {
+  createSessionScopedSuccessEventMiddleware,
+  type SessionScopedSuccessEventMiddlewareOptions,
+} from './sessionMutations/createSessionScopedSuccessEventMiddleware';
+export {
+  DEFAULT_SESSION_MUTATION_MIDDLEWARES,
+  createDefaultSessionMutationMiddlewares,
+} from './sessionMutations/sessionMutationMiddlewares';
+export { isEventForSession } from './sessionMutations/sessionMutationRules';
+
+export type { CreateDefaultBackendMiddlewaresOptions } from './runtimeFactory/createDefaultBackendMiddlewares';
+export { createDefaultBackendMiddlewares } from './runtimeFactory/createDefaultBackendMiddlewares';
+export type { CreateDefaultSdkRuntimeOptions } from './runtimeFactory/createDefaultSdkRuntime';
+export { createDefaultSdkRuntime } from './runtimeFactory/createDefaultSdkRuntime';
+
 export type { AgentsControllerState } from './agents/agentsController';
 export { AgentsController, pickDefaultAgentId } from './agents/agentsController';
 
