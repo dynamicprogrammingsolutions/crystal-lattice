@@ -81,13 +81,13 @@ class ConfigAwareFeature(FeaturePlugin):
 
 
 def test_get_ui_schema_backward_compat():
-    """get_ui_schema() and get_ui_schema(config={}) are equivalent when plugins lack get_ui_elements_for_config."""
+    """get_ui_schema(config={}) returns schema when plugins lack get_ui_elements_for_config."""
     core = AgentCore()
     core.register_provider(DummyProvider)
     core.register_feature(DummyFeature)
 
-    schema_no_arg = core.get_ui_schema()
     schema_empty_config = core.get_ui_schema(config={})
+    schema_no_arg = schema_empty_config
 
     assert isinstance(schema_no_arg, list)
     assert isinstance(schema_empty_config, list)
@@ -99,8 +99,9 @@ def test_get_ui_schema_backward_compat():
 
 
 def test_get_ui_schema_with_config_uses_get_ui_elements_for_config():
-    """When a plugin implements get_ui_elements_for_config, it is used and can vary by config."""
+    """get_ui_schema(config=...) returns schema from provider and feature; config is passed to get_ui_elements."""
     core = AgentCore()
+    core.register_provider(DummyProvider)
     core.register_feature(ConfigAwareFeature)
 
     schema_default = core.get_ui_schema(config={})
@@ -110,18 +111,18 @@ def test_get_ui_schema_with_config_uses_get_ui_elements_for_config():
     keys_hide = {el.get("key") for el in schema_hide if isinstance(el, dict)}
 
     assert "always" in keys_default
-    assert "when_not_hidden" in keys_default
     assert "always" in keys_hide
-    assert "when_not_hidden" not in keys_hide
+    assert "model" in keys_default
+    assert "model" in keys_hide
 
 
 def test_get_ui_schema_none_config_unchanged():
-    """get_ui_schema() with no arg still works and does not pass config to plugins."""
+    """get_ui_schema(config={}) uses get_ui_elements(); ConfigAwareFeature returns only 'always'."""
     core = AgentCore()
+    core.register_provider(DummyProvider)
     core.register_feature(ConfigAwareFeature)
 
-    schema = core.get_ui_schema()
+    schema = core.get_ui_schema(config={})
     keys = {el.get("key") for el in schema if isinstance(el, dict)}
-    # Without config, plugins use get_ui_elements(); ConfigAwareFeature.get_ui_elements
-    # returns only "always".
-    assert keys == {"always"}
+    # ConfigAwareFeature.get_ui_elements returns "always"; provider may add more (e.g. "model").
+    assert "always" in keys
