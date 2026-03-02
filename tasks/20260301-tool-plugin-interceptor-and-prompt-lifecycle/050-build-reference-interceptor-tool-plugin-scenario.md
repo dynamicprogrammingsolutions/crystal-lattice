@@ -20,18 +20,19 @@ Depends On: tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/020-impl
 
 ## Proposed Steps
 
-1. Create test fixture plugin combining interception and tool execution logic.
+1. Create test fixture plugin combining interception hooks with existing tool execution hooks.
 2. Implement pre-tool decision handling paths:
    - `allow once` -> execute current call.
    - `always allow bash` -> persist plugin-local policy and continue.
-   - `deny` -> emit tool error and continue loop.
-   - `deny and stop` -> emit tool error and stop loop.
+   - `deny` -> return synthetic error `tool_result` and continue loop.
+   - `deny and stop` -> return synthetic error `tool_result` and stop loop.
    - `decide later` -> suspend and keep call pending.
 3. Implement post-tool output threshold handling:
    - auto-truncate path.
    - prompt-for-truncation path with optional byte input.
+   - ensure formatter/display path is covered using existing tool formatting hooks.
 4. Add tests for suspend/resume, deny/stop, and truncation behaviors.
-5. Verify all semantics are plugin-owned and core remains generic.
+5. Verify all semantics are plugin-owned, core remains generic, and plugin does not emit explicit message objects.
 
 ## Deliverables
 
@@ -44,6 +45,7 @@ Depends On: tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/020-impl
 1. Example scenario runs fully through the new interception flow.
 2. All listed decision paths are validated by automated tests.
 3. Core remains free of workflow-specific decision enums.
+4. Error outcomes are represented as `tool_result` payloads and materialized by core/application.
 
 ## Context References
 
