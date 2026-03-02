@@ -13,7 +13,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
-import type { AgentBackend, SessionSettingsRefreshResult } from '@crystal-lattice/frontend-sdk';
+import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import {
   buildConfigSchemaByKey,
   buildSessionSettingItems,
@@ -33,8 +33,6 @@ export interface SessionSettingsModalProps {
   sessionId: string;
   visible: boolean;
   onRequestClose: () => void;
-  /** Called after overrides are successfully updated with refreshed session data (from SDK). Parent can apply it to controller/state without refetching. */
-  onOverridesSaved?: (data: SessionSettingsRefreshResult) => void;
 }
 
 const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
@@ -42,7 +40,6 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   sessionId,
   visible,
   onRequestClose,
-  onOverridesSaved,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -62,14 +59,6 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     selected: string;
   } | null>(null);
   const [dropdownSearch, setDropdownSearch] = useState('');
-
-  const applyRefreshResult = useCallback((result: SessionSettingsRefreshResult) => {
-    setElements(filterConfigUiSchemaElements(result.uiSchemaElements));
-    setOverrides(result.overrides as Record<string, any>);
-    setSchemaByKey(buildConfigSchemaByKey(result.configSchema));
-    setBaseConfig(result.baseConfig || {});
-    setPendingTextByKey({});
-  }, []);
 
   useEffect(() => {
     if (!visible) {
@@ -124,9 +113,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     }
     setOverrides((prev) => ({ ...prev, [key]: next }));
     try {
-      const result = await backend.patchSessionOverridesAndRefresh(sessionId, { [key]: next });
-      applyRefreshResult(result);
-      onOverridesSaved?.(result);
+      const result = await backend.patchSessionOverrides(sessionId, { [key]: next });
     } catch (err: any) {
       console.log('Failed to update checkbox setting', err);
       const msg = err?.message || 'Failed to update setting.';
@@ -142,9 +129,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     }
     setOverrides((prev) => ({ ...prev, [key]: value }));
     try {
-      const result = await backend.patchSessionOverridesAndRefresh(sessionId, { [key]: value });
-      applyRefreshResult(result);
-      onOverridesSaved?.(result);
+      const result = await backend.patchSessionOverrides(sessionId, { [key]: value });
     } catch (err: any) {
       console.log('Failed to update select setting', err);
       const msg = err?.message || 'Failed to update setting.';
@@ -160,9 +145,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     const value = pendingTextByKey[key] ?? String(overrides[key] ?? '');
     setSavingKey(key);
     try {
-      const result = await backend.patchSessionOverridesAndRefresh(sessionId, { [key]: value });
-      applyRefreshResult(result);
-      onOverridesSaved?.(result);
+      const result = await backend.patchSessionOverrides(sessionId, { [key]: value });
     } catch (err: any) {
       console.log('Failed to update text setting', err);
       const msg = err?.message || 'Failed to update setting.';
@@ -190,9 +173,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
       return next;
     });
     try {
-      const result = await backend.deleteSessionOverrideAndRefresh(sessionId, key);
-      applyRefreshResult(result);
-      onOverridesSaved?.(result);
+      const result = await backend.deleteSessionOverride(sessionId, key);
     } catch (err: any) {
       console.log('Failed to revert setting override', err);
       const msg = err?.message || 'Failed to revert setting.';
