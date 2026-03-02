@@ -8,9 +8,9 @@ Depends On: none
 ## Status
 
 - Completed.
-- Final design outcomes for this subtask are documented in:
+- This subtask produced two design artifacts:
   - `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/955-tool-interceptor-interface-proposal-metadata-array.md`
-  - `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/956-tool-handler-and-formatter-resolution-spec.md` (follow-up extension)
+  - `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/956-tool-handler-and-formatter-resolution-spec.md`
 
 ## Scope
 
