@@ -11,6 +11,7 @@ Depends On: tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/010-desi
 - Define how pending prompts are surfaced in chat/session views.
 - Define response submission behavior and user feedback for success/failure.
 - Define suspended-request state UX (for `decide later` style behavior).
+- Define rendering rules driven by `interception_current.pending_prompt` and `interception_phases` event entries (`prompt_response`, `plugin_response`).
 - Define compatibility with existing action dialog patterns.
 
 ## Out Of Scope
@@ -22,9 +23,9 @@ Depends On: tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/010-desi
 
 1. Review current mobile action dialog and chat surfaces.
 2. Map generic prompt schema fields to reusable RN components.
-3. Define button rendering/ordering/primary-emphasis rules for arbitrary submit sets.
+3. Define button rendering/ordering/primary-emphasis rules where any button submits and one button is marked default.
 4. Define input validation and payload serialization strategy from schema.
-5. Define prompt lifecycle presentation in message timeline (pending/resolved/suspended).
+5. Define prompt lifecycle presentation in message timeline using event entries and current snapshot (pending prompt, answered prompt history, plugin responses).
 6. Define interaction behavior when request resumes from another client.
 7. Produce a mobile design spec with component-level state transitions.
 
@@ -32,13 +33,14 @@ Depends On: tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/010-desi
 
 - Mobile prompt rendering specification.
 - Interaction/state diagram for pending and resolved prompts.
-- API contract expectations from frontend perspective.
+- Metadata contract expectations from frontend perspective (`interception_current`, `interception_phases`).
 
 ## Success Criteria
 
 1. Mobile design supports arbitrary prompt forms/buttons without hardcoded decision semantics.
 2. UX clearly communicates pending prompts and suspended runs.
-3. Design is implementable using existing component architecture with minimal churn.
+3. Design correctly reflects event-based prompt history and current pending prompt semantics.
+4. Design is implementable using existing component architecture with minimal churn.
 
 ## Context References
 
