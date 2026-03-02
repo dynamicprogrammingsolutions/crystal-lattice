@@ -416,7 +416,7 @@ class OpenRouterProvider(ProviderPlugin):
         Reduce a delta dict into a new partial accumulator, and optionally a final.
         Returns (partial_message_or_none, final_message_or_none, new_accumulated).
         """
-        content = delta.get("message") or delta.get("delta") or None
+        content = delta.get("message") or delta.get("delta") or {}
         return content, self._merge_delta_content(
             accumulated or {}, content, override=["role"], accumulate=["content"]
         )
