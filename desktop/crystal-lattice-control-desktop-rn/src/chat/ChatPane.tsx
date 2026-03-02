@@ -40,6 +40,7 @@ import {
   useHydrateControllerFromCache,
   usePersistentPinnedActions,
   usePluginActionDialog,
+  useRuntime,
   useSessionUiSchemaController,
 } from '@crystal-lattice/frontend-sdk-react';
 
@@ -229,6 +230,7 @@ export const ChatPane = React.memo(function ChatPane({
   const lastPersistKeyRef = useRef<string | null>(null);
 
   const [composerHeight, setComposerHeight] = useState(34);
+  const runtime = useRuntime();
   const handleComposerHeightChange = useCallback((height: number) => {
     const next = Math.round(height);
     setComposerHeight((prev) => {
@@ -242,7 +244,6 @@ export const ChatPane = React.memo(function ChatPane({
   // Debug logging removed; composer uses native MacTextView on macOS.
 
   const { controller: chatController, state: chatState } = useChatController({
-    backend,
     sessionId,
     initialMessages: cachedEntry?.messages ?? [],
     initialEventsCursorId: cachedEntry?.cursorEventId ?? null,
@@ -325,8 +326,6 @@ export const ChatPane = React.memo(function ChatPane({
   }, [pinnedMessageActionsByRole, pinnedMessageActionsStorageKey]);
 
   const { state: sessionUiSchemaState } = useSessionUiSchemaController({
-    backend,
-    cacheKey: connectionId,
     sessionId,
 	  enabled: !!(backend && isActive),
   });
@@ -1585,6 +1584,7 @@ export const ChatPane = React.memo(function ChatPane({
             connectionId,
             connectionName,
             sessionId,
+            runtime,
             backend,
           },
         });

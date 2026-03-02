@@ -4,14 +4,18 @@ import { RestAgentBackend } from './restBackend';
 import type { Transport } from '../transport/transport';
 import * as idempotency from '../utils/idempotency';
 
+function createMockTransport(responseData: unknown, status = 200): Transport {
+  return {
+    request: vi.fn(async <T = any>(_req: Parameters<Transport['request']>[0]) => ({
+      status,
+      data: responseData as T,
+    })),
+  };
+}
+
 describe('RestAgentBackend idempotency headers', () => {
   it('sendMessage calls /send_message and generates an idempotency key by default', async () => {
-    const transport: Transport = {
-      request: vi.fn(async () => ({
-        status: 200,
-        data: { status: 'started', request_id: 'r1', session_id: 's1' },
-      })),
-    };
+    const transport = createMockTransport({ status: 'started', request_id: 'r1', session_id: 's1' });
 
     const spy = vi
       .spyOn(idempotency, 'generateIdempotencyKey')
@@ -35,9 +39,7 @@ describe('RestAgentBackend idempotency headers', () => {
   });
 
   it('uses a caller-provided idempotency key for sendMessage', async () => {
-    const transport: Transport = {
-      request: vi.fn(async () => ({ status: 200, data: { status: 'started', request_id: 'r1' } })),
-    };
+    const transport = createMockTransport({ status: 'started', request_id: 'r1' });
 
     const spy = vi.spyOn(idempotency, 'generateIdempotencyKey');
 
@@ -58,9 +60,7 @@ describe('RestAgentBackend idempotency headers', () => {
   });
 
   it('adds idempotency keys to legacy send/appendMessage/executeAction requests', async () => {
-    const transport: Transport = {
-      request: vi.fn(async () => ({ status: 200, data: {} })),
-    };
+    const transport = createMockTransport({});
 
     vi.spyOn(idempotency, 'generateIdempotencyKey').mockReturnValue('generated-key');
 

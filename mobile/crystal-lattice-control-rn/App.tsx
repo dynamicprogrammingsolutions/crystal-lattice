@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Zeroconf from 'react-native-zeroconf';
 import {
   BridgeTransport,
+  createDefaultSdkRuntime,
   FetchTransport,
   type KeyValueStore,
   loadConnections,
@@ -28,6 +29,7 @@ import {
   type ConnectionRecord,
   type DiscoveryConnectionRecord,
   type ManualConnectionRecord,
+  type SdkRuntime,
   type Transport,
 } from '@crystal-lattice/frontend-sdk';
 import ConnectedRoot from './src/ConnectedRoot';
@@ -95,6 +97,7 @@ function App(): React.JSX.Element {
   const [showConnectionWizard, setShowConnectionWizard] = useState(false);
   const [transport, setTransport] = useState<Transport | null>(null);
   const [backend, setBackend] = useState<AgentBackend | null>(null);
+  const [runtime, setRuntime] = useState<SdkRuntime | null>(null);
   const [connections, setConnections] = useState<ConnectionRecord[]>([]);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [connectionsLoading, setConnectionsLoading] = useState(false);
@@ -117,6 +120,21 @@ function App(): React.JSX.Element {
   const [isLoading, setIsLoading] = useState(false);
 
   const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const createRuntimeBackendForConnection = (
+    connectionId: string,
+    rawBackend: AgentBackend,
+  ): { runtime: SdkRuntime; backend: AgentBackend } => {
+    const nextRuntime = createDefaultSdkRuntime({
+      scopeKey: connectionId,
+      backend: rawBackend,
+    });
+    const nextBackend = nextRuntime.backend;
+    if (!nextBackend) {
+      throw new Error('Failed to initialize runtime backend');
+    }
+    return { runtime: nextRuntime, backend: nextBackend };
+  };
 
   useEffect(() => {
     const loadSavedConnections = async () => {
@@ -448,13 +466,18 @@ function App(): React.JSX.Element {
 
     setIsLoading(true);
     try {
+      const id = generateId();
       const port = parseInt(manualPort, 10);
       const baseUrl = `http://${manualHost}:${port}`;
       const nextTransport = new FetchTransport({ baseUrl });
       await nextTransport.request({ method: 'GET', path: '/api/data' });
+      const rawBackend = new RestAgentBackend({ transport: nextTransport });
+      const runtimeWiring = createRuntimeBackendForConnection(id, rawBackend);
+
       setTransport(nextTransport);
-      setBackend(new RestAgentBackend({ transport: nextTransport }));
-      const id = generateId();
+      setRuntime(runtimeWiring.runtime);
+      setBackend(runtimeWiring.backend);
+
       const record: ManualConnectionRecord = {
         id,
         kind: 'manual',
@@ -477,13 +500,18 @@ function App(): React.JSX.Element {
   const connectToService = async (service: Service) => {
     setIsLoading(true);
     try {
+      const id = generateId();
       const baseUrl = `http://${service.host}:${service.port}`;
       const nextTransport = new FetchTransport({ baseUrl });
       await nextTransport.request({ method: 'GET', path: '/api/data' });
+      const rawBackend = new RestAgentBackend({ transport: nextTransport });
+      const runtimeWiring = createRuntimeBackendForConnection(id, rawBackend);
+
       setTransport(nextTransport);
-      setBackend(new RestAgentBackend({ transport: nextTransport }));
+      setRuntime(runtimeWiring.runtime);
+      setBackend(runtimeWiring.backend);
+
       stopDiscovery();
-      const id = generateId();
       const record: DiscoveryConnectionRecord = {
         id,
         kind: 'discovery',
@@ -582,8 +610,13 @@ function App(): React.JSX.Element {
       );
 
       setTransport(connectingBridgeTransport);
-      setBackend(new RestAgentBackend({ transport: connectingBridgeTransport }));
       const id = generateId();
+      const rawBackend = new RestAgentBackend({ transport: connectingBridgeTransport });
+      const runtimeWiring = createRuntimeBackendForConnection(id, rawBackend);
+
+      setRuntime(runtimeWiring.runtime);
+      setBackend(runtimeWiring.backend);
+
       const record: BridgeConnectionRecord = {
         id,
         kind: 'bridge',
@@ -619,6 +652,7 @@ function App(): React.JSX.Element {
       (connectingBridgeTransport as any).disconnect();
     }
     setTransport(null);
+    setRuntime(null);
     setBackend(null);
     setConnectingBridgeTransport(null);
     cancelConnectionWizard();
@@ -650,6 +684,7 @@ function App(): React.JSX.Element {
         (transport as any).disconnect();
       }
       setTransport(null);
+      setRuntime(null);
       setBackend(null);
       setSelectedConnectionId(null);
     }
@@ -950,8 +985,12 @@ function App(): React.JSX.Element {
       }
 
       if (nextTransport) {
+        const rawBackend = new RestAgentBackend({ transport: nextTransport });
+        const runtimeWiring = createRuntimeBackendForConnection(record.id, rawBackend);
+
         setTransport(nextTransport);
-        setBackend(new RestAgentBackend({ transport: nextTransport }));
+        setRuntime(runtimeWiring.runtime);
+        setBackend(runtimeWiring.backend);
         setSelectedConnectionId(record.id);
         upsertConnection({ ...record, lastUsedAt: Date.now() });
       }
@@ -983,6 +1022,7 @@ function App(): React.JSX.Element {
           return (
             <ConnectedRoot
               backend={backend}
+              runtime={runtime}
               transport={transport}
               onDisconnect={handleDisconnect}
               connections={connections}

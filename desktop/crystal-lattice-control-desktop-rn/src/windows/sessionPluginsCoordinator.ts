@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 
-import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
+import type { AgentBackend, SdkRuntime } from '@crystal-lattice/frontend-sdk';
 
 export interface SessionPluginsWindowState {
   id: string;
   connectionId: string;
   connectionName?: string;
   sessionId: string;
+  runtime: SdkRuntime | null;
   backend: AgentBackend;
 }
 
