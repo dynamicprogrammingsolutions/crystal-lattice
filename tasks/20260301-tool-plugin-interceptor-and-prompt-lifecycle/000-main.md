@@ -5,12 +5,15 @@ Short description: Extend the `ToolPlugin` contract so a single tool plugin can 
 ## Subtasks
 
 1. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/010-design-toolplugin-interceptor-contract-and-prompt-schema.md`
-2. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/020-implement-toolplugin-interception-tool-loop-and-prompt-lifecycle-tests.md`
-3. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/030-design-mobile-rendering-for-interceptor-prompts.md`
-4. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/040-design-desktop-rendering-for-interceptor-prompts.md`
-5. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/050-build-reference-interceptor-tool-plugin-scenario.md`
+2. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/015-design-tool-call-handler-and-formatter-resolution-spec.md`
+3. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/020-implement-toolplugin-interception-tool-loop-and-prompt-lifecycle-tests.md`
+4. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/030-design-mobile-rendering-for-interceptor-prompts.md`
+5. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/040-design-desktop-rendering-for-interceptor-prompts.md`
+6. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/050-build-reference-interceptor-tool-plugin-scenario.md`
+7. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/060-implement-tool-handler-and-formatter-upgrade-from-956.md`
 
-Suggested execution order: `010` -> `020` -> (`030` and `040` in parallel) -> `050`.
+Suggested execution order: `010` -> `020` -> (`030` and `040` in parallel) -> `050` -> `060`.
+Note: `015` is a design prerequisite for `060` and can be completed any time before `060`.
 
 ## General Description (Ticket Description)
 
@@ -33,7 +36,9 @@ Prompt requirements:
 
 - Prompt schema must be generic and plugin-defined.
 - A prompt can contain any number of inputs and buttons.
-- At least one submit button is required.
+- At least one button is required.
+- Any button press submits.
+- Exactly one button should be marked as default submit (desktop Enter behavior).
 - Core must not encode workflow-specific options (for example, no hardcoded `allow once`, `always allow`, `deny` enums in core types).
 
 Prompt response handling:
