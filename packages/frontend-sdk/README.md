@@ -45,6 +45,31 @@ Runtime fields:
 
 React bindings are in `@crystal-lattice/frontend-sdk-react` via `useSyncExternalStore`.
 
+## React Runtime Context
+
+`@crystal-lattice/frontend-sdk-react` uses runtime context for controller hooks.
+
+Wrap each connection subtree:
+
+```tsx
+import {
+  ApplicationPluginsProvider,
+  SdkRuntimeProvider,
+} from '@crystal-lattice/frontend-sdk-react';
+
+<SdkRuntimeProvider runtime={runtime}>
+  <ApplicationPluginsProvider>
+    {/* screens/components using frontend-sdk-react hooks */}
+  </ApplicationPluginsProvider>
+</SdkRuntimeProvider>
+```
+
+Notes:
+
+- In single-connection apps, one provider near app root is enough.
+- In multi-connection apps (desktop tabs/windows), use one provider per connection subtree.
+- Hooks such as `useChatController`, `useSessionsController`, `useAgentsController`, `useSessionUiSchemaController`, and `useSessionPluginsController` read backend/scopeKey from this context.
+
 ## Event Bus Semantics
 
 `SdkEventBus` stores a minimal snapshot:
@@ -139,6 +164,42 @@ Session-specific helpers are in `sessionMutations`:
 - `createDefaultSessionMutationMiddlewares()`
 - `isEventForSession(...)`
 
+### Session UI Schema Auto-Refresh
+
+`SessionUiSchemaController` can listen to runtime bus events and auto-refresh when session-level mutation calls succeed.
+
+Invalidation events:
+
+- `session.plugins.changed`
+- `session.overrides.changed`
+- `session.agent.changed`
+
+Recommended wiring is through runtime:
+
+```ts
+import { SessionUiSchemaController } from '@crystal-lattice/frontend-sdk';
+
+const controller = new SessionUiSchemaController({
+  backend: runtime.backend,
+  cacheKey: runtime.scopeKey,
+  scopeKey: runtime.scopeKey,
+  sessionId,
+  bus: runtime.bus,
+  enabled: true,
+});
+```
+
+In `@crystal-lattice/frontend-sdk-react`, use `useSessionUiSchemaController(...)` inside `SdkRuntimeProvider`.
+
+With runtime context, the hook call is minimal:
+
+```ts
+const { state } = useSessionUiSchemaController({
+  sessionId,
+  enabled: true,
+});
+```
+
 ## Resource Rule Pattern
 
 Recommended pattern for SDK resources/controllers:
@@ -153,6 +214,59 @@ Utilities:
 
 - `isEventForSession(ev, scopeKey, sessionId)` from `sessionMutations/sessionMutationRules`
 - `BusAwareController<T>` base class with bus lifecycle/dispose support
+
+### Building Bus-Aware Controllers
+
+For most controllers, bus listening should be a small amount of code by extending `BusAwareController<T>`.
+
+```ts
+import { BusAwareController, type SdkEvent, type SdkEventBus } from '@crystal-lattice/frontend-sdk';
+
+interface ExampleState {
+  loading: boolean;
+  value: string | null;
+}
+
+class ExampleController extends BusAwareController<ExampleState> {
+  constructor(options: { scopeKey: string; bus?: SdkEventBus | null }) {
+    super({
+      initialSnapshot: { loading: false, value: null },
+      scopeKey: options.scopeKey,
+      bus: options.bus,
+    });
+
+    this.subscribeToBus((event) => {
+      if (!this.shouldHandleEvent(event)) {
+        return;
+      }
+      void this.reload();
+    });
+  }
+
+  private shouldHandleEvent(event: SdkEvent): boolean {
+    return event.scopeKey === this.scopeKey && event.type === 'example.changed';
+  }
+
+  async reload(): Promise<void> {
+    // fetch/update snapshot
+  }
+}
+```
+
+Recommended controller checklist:
+
+- Keep event filtering explicit (`scopeKey`, entity id, and event type).
+- Keep backend writes and bus emission in backend middleware, not in controller reload code.
+- Add a small coalescing guard (`inFlight` + `needsReload`) only if reload can overlap.
+- Expose/retain `dispose()` so React hooks can unsubscribe on unmount.
+
+In React hooks, always clean up:
+
+```ts
+useEffect(() => {
+  return () => controller?.dispose();
+}, [controller]);
+```
 
 Loop-avoidance rules:
 

@@ -40,7 +40,12 @@ function createFakeBackend(overrides: Partial<AgentBackend> = {}): AgentBackend 
     getSessionBaseConfig: vi.fn(async () => ({})),
     listApplicationActions: vi.fn(async () => []),
     listApplicationUiSchema: vi.fn(async () => []),
-    executeAction: vi.fn(async () => ({ status: 'ok', plugin: 'p', action_id: 'a', result: {} })),
+    executeAction: vi.fn(async () => ({
+      status: 'ok' as const,
+      plugin: 'p',
+      action_id: 'a',
+      result: {},
+    })),
   } satisfies AgentBackend;
 
   return {

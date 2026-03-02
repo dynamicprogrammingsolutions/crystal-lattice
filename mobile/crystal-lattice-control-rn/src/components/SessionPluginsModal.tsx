@@ -43,7 +43,6 @@ const SessionPluginsModal: React.FC<SessionPluginsModalProps> = ({
 
   const controllerSessionId = visible ? sessionId : null;
   const { state, setEnabled, resetToDefaults } = useSessionPluginsController({
-    backend,
     sessionId: controllerSessionId,
     enabled: visible,
   });

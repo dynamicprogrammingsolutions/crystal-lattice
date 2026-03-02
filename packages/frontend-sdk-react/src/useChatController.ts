@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import type {
-  AgentBackend,
   ChatControllerState,
   Event,
   IndexedMessage,
 } from '@crystal-lattice/frontend-sdk';
 import { ChatController } from '@crystal-lattice/frontend-sdk';
 
+import { useBackend } from './sdkRuntimeContext';
+
 export interface UseChatControllerOptions {
-  backend: AgentBackend | null;
   sessionId: string | null;
   initialMessages?: IndexedMessage[];
   initialEventsCursorId?: string | null;
@@ -25,7 +25,6 @@ export interface UseChatControllerResult {
 
 export function useChatController(options: UseChatControllerOptions): UseChatControllerResult {
   const {
-    backend,
     sessionId,
     initialMessages,
     initialEventsCursorId,
@@ -34,6 +33,7 @@ export function useChatController(options: UseChatControllerOptions): UseChatCon
     eventsEnabled = false,
     initialSinceId,
   } = options;
+  const backend = useBackend();
 
   const controller = useMemo(() => {
     if (!backend || !sessionId) {
@@ -46,7 +46,7 @@ export function useChatController(options: UseChatControllerOptions): UseChatCon
       initialEventsCursorId,
       initialActiveRequestId,
     });
-  }, [backend, sessionId]);
+  }, [backend, initialActiveRequestId, initialEventsCursorId, initialMessages, sessionId]);
 
   useEffect(() => {
     return () => {
