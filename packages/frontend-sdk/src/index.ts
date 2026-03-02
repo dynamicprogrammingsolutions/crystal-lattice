@@ -110,7 +110,6 @@ export type {
   BackendCapabilities,
   ListMessagesResult,
   FeatureCompletion,
-  SessionSettingsRefreshResult,
 } from './backend/backend';
 
 export { RestAgentBackend } from './backend/restBackend';

@@ -2,14 +2,6 @@ import type { Event } from '../types/events';
 import type { IndexedMessage } from '../types/messages';
 import type { SessionSummary } from '../types/sessions';
 import type { ConfigSchemaEntry, UiSchemaElement } from '../types/uiSchema';
-
-/** Result of patch/delete overrides + refresh; use this to update modal and parent state without duplicate GETs. */
-export interface SessionSettingsRefreshResult {
-  uiSchemaElements: UiSchemaElement[];
-  overrides: Record<string, any>;
-  configSchema: ConfigSchemaEntry[];
-  baseConfig: Record<string, any>;
-}
 import type {
   ApplicationActionDefinition,
   ApplicationUiElement,
@@ -156,18 +148,6 @@ export interface AgentBackend {
     key: string,
     options?: { idempotencyKey?: string },
   ): Promise<void>;
-  /** Patch overrides then refetch session settings in one round-trip. Returns refreshed data so all frontends can update state without duplicate GETs. */
-  patchSessionOverridesAndRefresh(
-    sessionId: string,
-    values: Record<string, any>,
-    options?: { idempotencyKey?: string },
-  ): Promise<SessionSettingsRefreshResult>;
-  /** Delete one override then refetch session settings in one round-trip. Returns refreshed data so all frontends can update state without duplicate GETs. */
-  deleteSessionOverrideAndRefresh(
-    sessionId: string,
-    key: string,
-    options?: { idempotencyKey?: string },
-  ): Promise<SessionSettingsRefreshResult>;
   getSessionConfigSchema(sessionId: string): Promise<ConfigSchemaEntry[]>;
   getSessionBaseConfig(sessionId: string): Promise<Record<string, any>>;
 

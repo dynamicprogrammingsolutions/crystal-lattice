@@ -13,7 +13,6 @@ import type {
   AgentBackend,
   BackendCapabilities,
   ListMessagesResult,
-  SessionSettingsRefreshResult,
 } from './backend';
 import { generateIdempotencyKey } from '../utils/idempotency';
 
@@ -399,46 +398,6 @@ export class RestAgentBackend implements AgentBackend {
       path,
       headers: this.buildIdempotencyHeaders(options.idempotencyKey),
     });
-  }
-
-  async patchSessionOverridesAndRefresh(
-    sessionId: string,
-    values: Record<string, any>,
-    options: { idempotencyKey?: string } = {},
-  ): Promise<SessionSettingsRefreshResult> {
-    await this.patchSessionOverrides(sessionId, values, options);
-    const [uiSchemaElements, overrides, configSchema, baseConfig] = await Promise.all([
-      this.getSessionUiSchema(sessionId),
-      this.getSessionOverrides(sessionId),
-      this.getSessionConfigSchema(sessionId),
-      this.getSessionBaseConfig(sessionId),
-    ]);
-    return {
-      uiSchemaElements: Array.isArray(uiSchemaElements) ? uiSchemaElements : [],
-      overrides: overrides && typeof overrides === 'object' ? overrides : {},
-      configSchema: Array.isArray(configSchema) ? configSchema : [],
-      baseConfig: baseConfig && typeof baseConfig === 'object' ? baseConfig : {},
-    };
-  }
-
-  async deleteSessionOverrideAndRefresh(
-    sessionId: string,
-    key: string,
-    options: { idempotencyKey?: string } = {},
-  ): Promise<SessionSettingsRefreshResult> {
-    await this.deleteSessionOverride(sessionId, key, options);
-    const [uiSchemaElements, overrides, configSchema, baseConfig] = await Promise.all([
-      this.getSessionUiSchema(sessionId),
-      this.getSessionOverrides(sessionId),
-      this.getSessionConfigSchema(sessionId),
-      this.getSessionBaseConfig(sessionId),
-    ]);
-    return {
-      uiSchemaElements: Array.isArray(uiSchemaElements) ? uiSchemaElements : [],
-      overrides: overrides && typeof overrides === 'object' ? overrides : {},
-      configSchema: Array.isArray(configSchema) ? configSchema : [],
-      baseConfig: baseConfig && typeof baseConfig === 'object' ? baseConfig : {},
-    };
   }
 
   async getSessionConfigSchema(sessionId: string): Promise<ConfigSchemaEntry[]> {

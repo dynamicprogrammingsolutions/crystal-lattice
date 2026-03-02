@@ -2362,10 +2362,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        sessionId={sessionId}
 	        visible={settingsVisible}
 	        onRequestClose={() => setSettingsVisible(false)}
-	        onOverridesSaved={(data) => {
-	          (sessionUiSchemaController as { setElements(elements: unknown[]): void } | null)?.setElements(data.uiSchemaElements);
-	          setSessionOverrides(data.overrides as Record<string, unknown>);
-	        }}
 	      />
 	      {composerLeftSelectModalElement && (
 	        <Modal
