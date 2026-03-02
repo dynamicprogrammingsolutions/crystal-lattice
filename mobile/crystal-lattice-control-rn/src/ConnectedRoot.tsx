@@ -6,7 +6,12 @@ import type {
   SessionsCache,
   MessagesCache,
 } from '../App';
-import type { AgentBackend, ConnectionRecord, Transport } from '@crystal-lattice/frontend-sdk';
+import type {
+  AgentBackend,
+  ConnectionRecord,
+  SdkRuntime,
+  Transport,
+} from '@crystal-lattice/frontend-sdk';
 import ConnectionScreen from './ConnectionScreen';
 import ConnectionsScreen from './ConnectionsScreen';
 import SessionsScreen from './SessionsScreen';
@@ -15,9 +20,11 @@ import SessionChatScreen from './SessionChatScreen';
 import type { ChatScrollAnchor } from './chatScroll';
 import { useTheme, type Theme } from './theme';
 import { ApplicationPluginsProvider } from './ApplicationPluginsContext';
+import { SdkRuntimeProvider } from '@crystal-lattice/frontend-sdk-react';
 
 interface ConnectedRootProps {
   backend: AgentBackend | null;
+  runtime: SdkRuntime | null;
   transport: Transport | null;
   onDisconnect: () => void;
   connections: ConnectionRecord[];
@@ -53,6 +60,7 @@ interface ConnectedRootProps {
 
 const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   backend,
+  runtime,
   transport,
   onDisconnect,
   connections,
@@ -117,7 +125,8 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
 
   return (
     <View style={styles.container}>
-      <ApplicationPluginsProvider backend={backend} connectionId={activeConnectionId}>
+      <SdkRuntimeProvider runtime={runtime}>
+      <ApplicationPluginsProvider>
         <View style={styles.contentArea}>
         {/* Connection tab content (kept mounted, visibility toggled) */}
         <View
@@ -305,6 +314,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
         </View>
         </View>
       </ApplicationPluginsProvider>
+      </SdkRuntimeProvider>
 
       <View style={styles.navBar}>
         <TouchableOpacity

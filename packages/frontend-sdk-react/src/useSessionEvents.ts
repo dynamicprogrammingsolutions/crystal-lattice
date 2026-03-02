@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import type { AgentBackend, Event, PollingStatus } from '@crystal-lattice/frontend-sdk';
+import type { Event, PollingStatus } from '@crystal-lattice/frontend-sdk';
 import { PollingEventSource } from '@crystal-lattice/frontend-sdk';
 
+import { useBackend } from './sdkRuntimeContext';
+
 export interface UseSessionEventsOptions {
-  backend: AgentBackend | null;
   sessionId: string | null;
   enabled: boolean;
   initialSinceId: string | null;
@@ -19,7 +20,8 @@ export function useSessionEvents(
   options: UseSessionEventsOptions,
   onEvents: (events: Event[]) => void,
 ): UseSessionEventsResult {
-  const { backend, sessionId, enabled, initialSinceId } = options;
+  const { sessionId, enabled, initialSinceId } = options;
+  const backend = useBackend();
   const [lastEventId, setLastEventId] = useState<string | null>(initialSinceId);
   const [status, setStatus] = useState<PollingStatus>('idle');
   const [error, setError] = useState<Error | null>(null);

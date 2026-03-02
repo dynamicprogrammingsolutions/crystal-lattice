@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
-import type { AgentBackend, PluginsRegistryState } from '@crystal-lattice/frontend-sdk';
+import type { PluginsRegistryState } from '@crystal-lattice/frontend-sdk';
 import { PluginsRegistry } from '@crystal-lattice/frontend-sdk';
+
+import { useBackend, useConnectionScopeKey } from './sdkRuntimeContext';
 import { useSubscribableSnapshot } from './useSubscribable';
 
 export type UseApplicationPluginsResult = Omit<PluginsRegistryState, 'loading' | 'error'>;
@@ -21,17 +23,15 @@ const defaultContext: ApplicationPluginsContextValue = {
 const ApplicationPluginsContext = createContext<ApplicationPluginsContextValue>(defaultContext);
 
 export interface ApplicationPluginsProviderProps {
-  backend: AgentBackend | null;
-  connectionId: string | null;
   children: ReactNode;
 }
 
 export const ApplicationPluginsProvider: React.FC<ApplicationPluginsProviderProps> = ({
-  backend,
-  connectionId,
   children,
 }) => {
-  const cacheKey = useMemo(() => connectionId || 'default', [connectionId]);
+  const backend = useBackend();
+  const scopeKey = useConnectionScopeKey();
+  const cacheKey = useMemo(() => scopeKey || 'default', [scopeKey]);
 
   const registry = useMemo(
     () => new PluginsRegistry({ backend, cacheKey }),
