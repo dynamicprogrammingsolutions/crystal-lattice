@@ -2,6 +2,16 @@
 
 Short description: Extend the `ToolPlugin` contract so a single tool plugin can both execute tools and intercept tool-call/tool-result phases with generic, plugin-defined user prompts, including suspend/resume behavior. Keep core semantics generic and avoid hardcoding decision labels.
 
+## Subtasks
+
+1. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/010-design-toolplugin-interceptor-contract-and-prompt-schema.md`
+2. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/020-implement-toolplugin-interception-tool-loop-and-prompt-lifecycle-tests.md`
+3. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/030-design-mobile-rendering-for-interceptor-prompts.md`
+4. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/040-design-desktop-rendering-for-interceptor-prompts.md`
+5. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/050-build-reference-interceptor-tool-plugin-scenario.md`
+
+Suggested execution order: `010` -> `020` -> (`030` and `040` in parallel) -> `050`.
+
 ## General Description (Ticket Description)
 
 We need to enhance tool execution so **tool plugins can act as interceptors**, not just executors.
