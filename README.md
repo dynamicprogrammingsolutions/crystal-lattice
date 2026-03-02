@@ -8,6 +8,7 @@ A functional, plugin‑based agent framework for building conversational applica
 - **Mobile app (`mobile/crystal-lattice-control-rn`)** – React Native client (Crystal Lattice Control) that connects to the terminal/HTTP app directly or via the bridge and provides a sessions/messages UI on phones and simulators.
 - **Plugin system (`core/python/plugins`)** – providers, reasoning/thinking extensions, features, and tools.
 - **Bridge service (`bridge-elixir`)** – Elixir/Phoenix WebSocket bridge that lets mobile/desktop apps talk to local HTTP servers across networks using pairing + proxied HTTP requests.
+- **Frontend SDK docs (`packages/frontend-sdk/README.md`)** – runtime/event-bus patterns and TypeScript frontend primitives.
 
 This README is for first‑time users and contributors who want to either *try the platform quickly* or *start extending it*.
 

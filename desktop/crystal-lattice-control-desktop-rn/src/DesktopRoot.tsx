@@ -112,6 +112,7 @@ export function DesktopRoot({
     closeConnection,
     closeAllConnections,
     getBackend,
+    getRuntime,
   } = useOpenConnections();
 
   // Cache hooks are introduced in task 060 so tabs can remain viewable offline.
@@ -753,6 +754,7 @@ export function DesktopRoot({
                 focusedConnectionId ? connectionNameById[focusedConnectionId] : null
               }
               connectionId={focusedConnectionId}
+              runtime={focusedConnectionId ? getRuntime(focusedConnectionId) : null}
               backend={focusedConnectionId ? getBackend(focusedConnectionId) : null}
               isOnline={
                 focusedConnectionId
@@ -810,6 +812,7 @@ export function DesktopRoot({
 	                  styleVariant={tabStripStyle}
 	                  connectionNameById={connectionNameById}
 	                  getBackend={getBackend}
+	                  getRuntime={getRuntime}
 	                  sessionsCache={sessionsCache}
 	                  messagesCache={messagesCache}
 	                  onUpdateCache={updateMessagesCache}

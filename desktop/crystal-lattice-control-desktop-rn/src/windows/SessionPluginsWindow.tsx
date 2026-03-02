@@ -10,7 +10,7 @@ import {
 
 import { ThemeProvider, useTheme } from '@crystal-lattice/frontend-rn-components';
 import type { SessionPluginEntry } from '@crystal-lattice/frontend-sdk';
-import { useSessionPluginsController } from '@crystal-lattice/frontend-sdk-react';
+import { SdkRuntimeProvider, useSessionPluginsController } from '@crystal-lattice/frontend-sdk-react';
 
 import { useDesktopTheme } from '../theme/useDesktopTheme';
 import { MacCheckbox } from '../native/MacCheckbox';
@@ -62,9 +62,12 @@ function computeDuplicateKeySet(plugins: SessionPluginEntry[]): Set<string> {
 
 export function SessionPluginsWindow(): React.JSX.Element {
   const systemTheme = useDesktopTheme();
+  const active = useActiveSessionPluginsWindow();
   return (
     <ThemeProvider theme={systemTheme}>
-      <SessionPluginsWindowInner />
+      <SdkRuntimeProvider runtime={active?.state.runtime ?? null}>
+        <SessionPluginsWindowInner />
+      </SdkRuntimeProvider>
     </ThemeProvider>
   );
 }
@@ -79,11 +82,9 @@ function SessionPluginsWindowInner(): React.JSX.Element {
   const [mutationCount, setMutationCount] = useState(0);
   const clearSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const backend = active?.state.backend ?? null;
   const sessionId = active?.state.sessionId ?? null;
 
   const { state, setEnabled, resetToDefaults } = useSessionPluginsController({
-    backend,
     sessionId,
     enabled: Boolean(active),
   });
