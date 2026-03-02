@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 from typing import Any, Dict, Iterator, List
+import traceback  # Add this import at the beginning of your file
+
 
 from agent_core import AgentCore, MessageRole, Session
 
@@ -556,8 +558,9 @@ class ToolLoopRunner:
                         current_session = stop.value
                         break
                     yield ev
-
         except Exception as exc:
+            print(f"Error in ToolLoopRunner: {exc}")
+            traceback.print_exc()  # Print the stack trace
             yield {
                 "type": "error",
                 "session_id": current_session.session_id,
