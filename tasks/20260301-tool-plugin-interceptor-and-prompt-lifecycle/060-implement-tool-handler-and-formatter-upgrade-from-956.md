@@ -3,7 +3,7 @@
 Short description: Implement the post-955 runtime upgrade from spec `956`, introducing `can_handle_tool_call`/`handle_tool_call`, formatter ownership resolution, formatted-output interception, and deprecated compatibility fallback behavior.
 
 Parent Task: tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/000-main.md
-Depends On: tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/015-design-tool-call-handler-and-formatter-resolution-spec.md, tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/020-implement-toolplugin-interception-tool-loop-and-prompt-lifecycle-tests.md, tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/050-build-reference-interceptor-tool-plugin-scenario.md
+Depends On: tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/010-design-toolplugin-interceptor-contract-and-prompt-schema.md, tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/020-implement-toolplugin-interception-tool-loop-and-prompt-lifecycle-tests.md, tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/050-build-reference-interceptor-tool-plugin-scenario.md
 
 ## Scope
 
