@@ -46,7 +46,7 @@ class _TestProviderWithRetention(TemplateProvider):
         )
         suffix = " [preserved]" if preserved else ""
         final = {"role": "assistant", "content": f"Echo: {last_user}{suffix}"}
-        return [final], [], [*native_messages, final], state
+        return [], [final], [*native_messages, final], state
 
     # minimal streaming impl not required for this retention test
     def stream_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]:  # pragma: no cover

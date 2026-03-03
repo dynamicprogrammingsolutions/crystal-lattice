@@ -46,7 +46,7 @@ native, state = ext1.initialize_request(native, state)
 native, state = feat1.initialize_request(native, state)
 
 # I/O
-finals_1, partials, native, state = provider.call_api(native, state)
+partials, finals_1, native, state = provider.call_api(native, state)
 
 # finalize chain (provider then extensions then features)
 finals_2, native, state = provider.finalize(native, state)
