@@ -128,7 +128,7 @@ class DummyProvider(ProviderPlugin):
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Make a non-streaming API call (simulated).
 
-        Returns ``(final_messages, partial_messages, native_messages, state)``
+        Returns ``(partial_messages, final_messages, native_messages, state)``
         where ``native_messages`` contains the full history including the new
         assistant reply so that callers can retain provider-native history
         across turns.
@@ -141,7 +141,7 @@ class DummyProvider(ProviderPlugin):
             "metadata": {},
         }
         full_native = list(native_messages) + [final]
-        return [final], [], full_native, state
+        return [], [final], full_native, state
 
     def stream_api(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
@@ -224,7 +224,7 @@ class FailingOnceDummyProvider(ProviderPlugin):
             "content": f"Echo: {user_content}",
             "metadata": {},
         }
-        return [final], [], [], state
+        return [], [final], [*native_messages, final], state
 
     def stream_api(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]

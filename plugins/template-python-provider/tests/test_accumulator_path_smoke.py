@@ -22,7 +22,7 @@ class _AccumulatorEchoProvider(TemplateProvider):
             "",
         )
         final = {"role": "assistant", "content": f"Echo: {last_user}"}
-        return [final], [], [*native_messages, final], state
+        return [], [final], [*native_messages, final], state
 
     def stream_api(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]

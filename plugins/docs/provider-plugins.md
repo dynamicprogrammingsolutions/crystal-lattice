@@ -165,7 +165,8 @@ def call_api(self, native_messages, state):
 
     # TODO: extract provider-native assistant message
     msg = raw["choices"][0]["message"]
-    return [msg], [], [*native_messages, msg], state
+    # Return (partial_messages, final_messages, native_messages, new_state)
+    return [], [msg], [*native_messages, msg], state
 ```
 
 First smoke test (pytest) should call `send_request`:
@@ -391,7 +392,8 @@ def call_api(self, native_messages, state):
     # TODO: send HTTP request and parse JSON
     raw = {"choices": [{"message": {"role": "assistant", "content": "hi"}}]}
     msg = raw["choices"][0]["message"]
-    return [msg], [], [*native_messages, msg], state
+    # Return (partial_messages, final_messages, native_messages, new_state)
+    return [], [msg], [*native_messages, msg], state
 ```
 
 ### 5) Streaming I/O

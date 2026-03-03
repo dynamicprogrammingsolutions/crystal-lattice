@@ -174,8 +174,8 @@ class ProviderPlugin(BasePlugin, Protocol):
             def call_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
                 content = f"Echo: {next((m['content'] for m in reversed(native_messages) if m.get('role')=='user'), '')}"
                 msg = {"role": "assistant", "content": content}
-                # Return (final_messages, partial_messages, native_messages, new_state)
-                return ([msg], [], [*native_messages, msg], state)
+                # Return (partial_messages, final_messages, native_messages, new_state)
+                return ([], [msg], [*native_messages, msg], state)
             def stream_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
                 yield from []
         ```
@@ -390,12 +390,7 @@ class ProviderPlugin(BasePlugin, Protocol):
             state: Current shared provider state.
 
         Returns:
-            Tuple of (final_messages, partial_messages, native_messages, new_state).
-
-        Note:
-            Internally, the provider wrapper normalizes these outputs into the
-            (partial_messages, final_messages, native_messages, new_state)
-            ordering used throughout the rest of the runtime.
+            Tuple of (partial_messages, final_messages, native_messages, new_state).
         """
         return [], [], native_messages, state
 
