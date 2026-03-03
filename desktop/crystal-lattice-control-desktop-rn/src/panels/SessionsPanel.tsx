@@ -537,7 +537,10 @@ function SessionsPanelInner({
               presentation.subtitle ?? session.preview ?? '',
               80,
             );
-            const meta = presentation.meta;
+            const meta =
+              presentation.meta != null
+                ? truncateByChars(presentation.meta, 160)
+                : null;
 
             return (
               <Pressable
@@ -560,7 +563,9 @@ function SessionsPanelInner({
               >
                 <View style={styles.rowMain}>
                   <View style={styles.rowTitleRow}>
-                    <Text style={styles.rowTitle}>{title}</Text>
+                    <Text style={styles.rowTitle} numberOfLines={2}>
+                      {title}
+                    </Text>
                     {pinnedToggleElement ? (
                       <Pressable
                         style={(state) => {
@@ -593,9 +598,11 @@ function SessionsPanelInner({
                   <Text style={styles.rowId} numberOfLines={1}>
                     {session.session_id}
                   </Text>
-                  <Text style={styles.rowSubtitle}>{subtitle}</Text>
+                  <Text style={styles.rowSubtitle} numberOfLines={2}>
+                    {subtitle}
+                  </Text>
                   {meta ? (
-                    <Text style={styles.rowMeta}>
+                    <Text style={styles.rowMeta} numberOfLines={3}>
                       {meta}
                     </Text>
                   ) : null}

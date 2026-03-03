@@ -169,6 +169,16 @@ export function useSessionsPanelTabAutoSelect(params: {
         if (!Number.isFinite(y) || !Number.isFinite(height)) {
           return;
         }
+
+        const existing = rowLayoutsRef.current[sessionId];
+        const changed =
+          !existing ||
+          Math.abs(existing.y - y) > 0.5 ||
+          Math.abs(existing.height - height) > 0.5;
+        if (!changed) {
+          return;
+        }
+
         rowLayoutsRef.current[sessionId] = { y, height };
         setLayoutVersion((prev) => prev + 1);
       };
