@@ -12,9 +12,6 @@ from _helpers import build_core, import_symbol, run_non_streaming, run_streaming
 pytestmark = [pytest.mark.integration]
 
 
-INTEGRATION_ENABLED = bool(getattr(cfg, "INTEGRATION_ENABLED", False))
-
-
 def _load_provider_class() -> type:
     if not cfg.PROVIDER_CLASS_PATH:
         pytest.skip("PROVIDER_CLASS_PATH is not set in provider_test_config.py")
@@ -34,14 +31,15 @@ def _base_config() -> Dict[str, Any]:
     if not cfg.MODEL:
         pytest.skip("MODEL is not set in provider_test_config.py")
 
-    out: Dict[str, Any] = {"model": cfg.MODEL}
-
     api_key_env = cfg.API_KEY_ENV_VAR
-    if api_key_env:
-        api_key = os.getenv(api_key_env)
-        if not api_key:
-            pytest.skip(f"{api_key_env} is not set")
-        out["api_key"] = api_key
+    if not api_key_env:
+        pytest.skip("API_KEY_ENV_VAR is not set in provider_test_config.py")
+
+    api_key = os.getenv(api_key_env)
+    if not api_key:
+        pytest.skip(f"{api_key_env} is not set")
+
+    out: Dict[str, Any] = {"model": cfg.MODEL, "api_key": api_key}
 
     if cfg.BASE_URL:
         out["base_url"] = cfg.BASE_URL
@@ -58,9 +56,8 @@ def _base_config() -> Dict[str, Any]:
 
 
 @pytest.mark.xfail(
-    not INTEGRATION_ENABLED,
-    reason="Integration scaffolds are disabled; set INTEGRATION_ENABLED=True in provider_test_config.py",
-    run=False,
+    reason="Integration scaffold: remove xfail once your provider passes this test",
+    strict=True,
 )
 def test_basic_non_streaming() -> None:
     provider_cls = _load_provider_class()
@@ -77,9 +74,8 @@ def test_basic_non_streaming() -> None:
 
 
 @pytest.mark.xfail(
-    not INTEGRATION_ENABLED,
-    reason="Integration scaffolds are disabled; set INTEGRATION_ENABLED=True in provider_test_config.py",
-    run=False,
+    reason="Integration scaffold: remove xfail once your provider passes this test",
+    strict=True,
 )
 def test_basic_streaming() -> None:
     provider_cls = _load_provider_class()

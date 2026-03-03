@@ -25,9 +25,11 @@ Included:
 - `TemplateProviderExtension` (no-op skeleton)
 - `TemplateFeature` (no-op skeleton)
 
-The `tests/` directory defines test-only provider subclasses that implement
-the missing pieces deterministically. This keeps the template runnable while
-still requiring authors to fill in real logic.
+The `tests/` directory includes:
+
+- offline unit tests for the skeleton and common extension patterns
+- integration scaffolds (marked `integration` and `xfail(strict=True)`) that you can
+  enable by filling in `tests/provider_test_config.py` and running with `-m integration`
 
 ## Development
 
@@ -37,6 +39,12 @@ From the repo root:
 python -m pip install -e core/python
 python -m pip install -e "plugins/template-python-provider[dev]"
 pytest plugins/template-python-provider/tests -q
+```
+
+Run integration scaffolds (requires a configured API key env var; will still `xfail` until you remove the mark):
+
+```bash
+pytest plugins/template-python-provider/tests -q -m integration
 ```
 
 ## Using this template
