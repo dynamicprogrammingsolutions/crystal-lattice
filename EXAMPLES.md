@@ -1,36 +1,72 @@
 # Examples
 
-Note: Plugins use instance methods but should remain stateless (pure) and operate on explicit state objects. Plugin instances are short5lived and scoped to a single request, just like the shared provider state managed by the provider wrapper.
-Note: pytest is configured with -m 'not integration' by default, so remote OpenRouter integration tests are skipped unless you explicitly run them with -m openrouter or -m integration. The example tests listed below all run with a plain pytest invocation.
+Note: Plugins use instance methods but should remain stateless (pure) and operate on explicit state objects. Plugin instances are short-lived and scoped to a single request, just like the shared provider state managed by the provider wrapper.
+Note: Some examples/tests require external services (for example, OpenRouter) and will be skipped unless the required environment variables are configured (for example, OPENROUTER_API_KEY).
 
-## PROJECT_PLAN Example 10: Minimal FastAPI/JSON App (Echo Provider)
+## PROJECT_PLAN Example 10: FastAPI App + Console Client (Ollama)
 
-PROJECT_PLAN Example 10: Minimal FastAPI/JSON App (Echo Provider)
+PROJECT_PLAN Example 10: FastAPI App + Console Client (Ollama)
 
 This example shows how to wrap ``agent_core.AgentCore`` in a small
-HTTP JSON application. It mirrors the responsibilities of the
-``agent_app.AgentApplication`` class in a simplified way, but stays
-entirely on the core API level:
+HTTP JSON application and pair it with a tiny console client.
+
+The responsibilities mirror ``agent_app.AgentApplication`` in a
+simplified way but stay on the core API level:
 
 - the application owns a single AgentCore instance
 - the application owns provider configuration
 - the application owns session storage (in memory here)
-- HTTP handlers translate HTTP JSON  core ``Session`` / messages
+- HTTP handlers translate HTTP JSON into core ``Session`` / messages
+- a console client runs in-process and calls the same helpers as the HTTP routes
 
-The app uses ``plugins.echo_openai_like_provider.EchoOpenAILikeProvider``
-so it does not make any network calls or require API keys.
+Out of the box the app is configured to use
+``plugins.openai_provider.OpenAICompatibleProvider`` against a local
+Ollama /v1 endpoint.
+
+Environment variables (optional):
+- OLLAMA_HOST (default: http://localhost:11434)
+- OLLAMA_MODEL (default: llama3.2:1b)
+- EXAMPLE10_PROVIDER (default: "openai_compatible"; can be set to
+  "echo_openai_like" for offline/testing use)
+
+Usage (API server):
+- Run directly with the example script:
+
+    $ python core/python/examples/example10_project_plan_app.py
+
+  This will start a FastAPI app on http://127.0.0.1:8000.
+
+- Or run with uvicorn explicitly:
+
+    $ uvicorn examples.example10_project_plan_app:app --reload
+
+Usage (console client):
+- Run in a terminal:
+
+    $ python core/python/examples/example10_project_plan_app.py --console
+
+  This mode does not require the HTTP server; it calls the same
+  helper functions that the FastAPI routes use.
+
+Provider selection:
+- By default the app uses the OpenAI-compatible provider with Ollama.
+- For offline/testing use you can either:
+
+  * set ``EXAMPLE10_PROVIDER=echo_openai_like`` in the environment, or
+  * pass ``{"config_overrides": {"provider": "echo_openai_like"}}``
+    in the JSON body of ``POST /sessions/{session_id}/send``.
 
 Usage (run_example)
 
 ```python
+"""Return the FastAPI app instance.
 
-def run_example() -> FastAPI:  # pragma: no cover
-    """Return the FastAPI app instance.
+Intended usage:
 
-    Intended usage:
+    uvicorn examples.example10_project_plan_app:app --reload
+"""
 
-        uvicorn examples.example10_project_plan_app:app --reload
-    """
+return app
 ```
 
 - Code: `core/python/examples/example10_project_plan_app.py`
@@ -69,7 +105,7 @@ base_url = f"{ollama_host}/v1"
 model = os.getenv("OLLAMA_MODEL_TOOLS", "qwen3:0.6b")
 
 # Prepare a small temp file
-with tempfile.NamedTemporaryFile("w+", delete=False, dir=".") as tf:
+with tempfile.NamedTemporaryFile("w+", delete=False, dir=REPO_TMP_DIR) as tf:
     tf.write("hello from tools")
     tf.flush()
     file_path = tf.name
@@ -136,6 +172,153 @@ finally:
 - Code: `core/python/examples/example11_openai_tools_file_reader.py`
 - Test: `core/python/examples/tests/test_example11_openai_tools_file_reader.py`
 - Run: `pytest -q core/python/examples/tests/test_example11_openai_tools_file_reader.py`
+
+## PROJECT_PLAN Example 12: OpenRouter + tools application layer.
+
+PROJECT_PLAN Example 12: OpenRouter + tools application layer.
+
+This example shows how to build a small application around
+``agent_core.AgentCore`` using the OpenRouter provider with tools and
+reasoning enabled.
+
+The responsibilities mirror Example 10 but add a simple non-streaming
+tool loop on the application side:
+
+- the application owns a single AgentCore instance
+- the application owns provider and tool configuration
+- the application owns session storage (in memory here)
+- HTTP handlers translate HTTP JSON into core ``Session`` / messages
+- the /send route runs a tool loop around ``AgentCore.send_request``
+- a console client reuses the same helpers in-process
+
+Out of the box the app is configured to use
+``openrouter_plugins.openrouter_provider.OpenRouterProvider`` with
+``openai/gpt-5-mini`` on OpenRouter. Tools are provided by
+``FileReaderTool`` (read_file) and ``FileWriterTool`` (write_file).
+
+This example requires the OpenRouter plugin bundle to be installed:
+
+    $ python -m pip install -e plugins/openrouter
+
+Environment variables (optional, but OPENROUTER_API_KEY is required for real calls):
+- OPENROUTER_API_KEY (no default)
+- OPENROUTER_MODEL (default: openai/gpt-5-mini)
+- OPENROUTER_BASE_URL (default: https://openrouter.ai/api/v1)
+
+Usage (API server):
+
+    $ python core/python/examples/example12_openrouter_tools_app.py
+
+This starts a FastAPI app on http://127.0.0.1:8000.
+
+Usage (console client):
+
+    $ python core/python/examples/example12_openrouter_tools_app.py --console
+
+The console client talks to the same in-process helpers and runs the
+same non-streaming tool loop as the HTTP API.
+
+Tool loop behaviour (/sessions/{session_id}/send):
+
+- merges application config with optional ``config_overrides``
+- calls ``AgentCore.send_request`` once per loop
+- inspects the last assistant message for ``metadata.tool_calls``
+- executes tool calls via ``AgentCore.execute_tool_calls``
+- appends tool results as ``role="tool"`` messages
+- repeats until there are no more tool calls or ``max_loops`` is hit
+
+The Example 12 test configures ``allowed_paths`` and
+``working_directory`` per request so tools can safely read and write
+Python files in a temporary directory when solving a coding puzzle.
+
+Usage (run_example)
+
+```python
+"""Return the FastAPI app instance.
+
+Intended usage::
+
+    uvicorn examples.example12_openrouter_tools_app:app --reload
+"""
+
+return app
+```
+
+- Code: `core/python/examples/example12_openrouter_tools_app.py`
+- Test: `core/python/examples/tests/test_example12_openrouter_tools_app.py`
+- Run: `pytest -q core/python/examples/tests/test_example12_openrouter_tools_app.py`
+
+## PROJECT_PLAN Example 13: Application-layer OpenRouter + tools app.
+
+PROJECT_PLAN Example 13: Application-layer OpenRouter + tools app.
+
+This example mirrors Example 12 (OpenRouter + tools coding puzzle) but
+is built on top of the higher-level :class:`agent_app.AgentApplication`
+API instead of calling :class:`agent_core.AgentCore` directly.
+
+Key points compared to Example 12:
+
+- Uses a JSON config file to declare providers, plugins, and agents
+- Uses filesystem-backed sessions via ``FilesystemSessionStore``
+- Uses the application-layer non-streaming tool loop
+- Exposes a thin FastAPI wrapper with the same basic routes:
+  - ``POST /sessions`` – create session for an agent
+  - ``POST /sessions/{session_id}/messages`` – append message
+  - ``POST /sessions/{session_id}/send`` – send request (non-streaming by default)
+- Supports per-request ``config_overrides`` and an optional ``max_loops``
+  parameter that limits tool loop depth by temporarily overriding the
+  application tool-loop configuration.
+
+Configuration is loaded from the JSON file next to this module:
+
+- ``example13_openrouter_tools_app_layer_config.json``
+
+That config declares:
+
+- Provider ``openrouter_tools`` with:
+  - provider: ``"openrouter"`` (OpenRouterProvider)
+  - model: ``"openai/gpt-5-mini"`` (can be changed in the file)
+  - api_key: ``${env:OPENROUTER_API_KEY}`` (loaded via python-dotenv)
+  - base_url: ``"https://openrouter.ai/api/v1"``
+  - tools config: ``allowed_paths``, ``max_file_size``, ``working_directory``
+  - reasoning config: ``enable_reasoning=True``, ``reasoning_effort="low"``
+- Plugins:
+  - ``path:../../../plugins/openrouter`` (loads ``openrouter_plugins.*``)
+  - ``plugins.file_reader_tool.FileReaderTool``
+  - ``plugins.file_writer_tool.FileWriterTool``
+- Agent ``default`` bound to provider ``openrouter_tools``
+
+Environment variables (via .env at repo root):
+- OPENROUTER_API_KEY (required for real calls)
+- OPENROUTER_MODEL / OPENROUTER_BASE_URL: can be set by editing the
+  config file or by using per-request ``config_overrides``.
+
+Usage (API server):
+
+    $ python core/python/examples/example13_openrouter_tools_app_layer.py
+
+Usage (console client):
+
+    $ python core/python/examples/example13_openrouter_tools_app_layer.py --console
+
+Console mode uses the same application-layer tool loop as the HTTP API.
+
+Usage (run_example)
+
+```python
+"""Return the FastAPI app instance for uvicorn usage.
+
+Intended usage::
+
+    uvicorn examples.example13_openrouter_tools_app_layer:app --reload
+"""
+
+return app
+```
+
+- Code: `core/python/examples/example13_openrouter_tools_app_layer.py`
+- Test: `core/python/examples/tests/test_example13_openrouter_tools_app_layer.py`
+- Run: `pytest -q core/python/examples/tests/test_example13_openrouter_tools_app_layer.py`
 
 ## EchoProvider example (class-based provider plugin) derived from PLUGIN_EXAMPLES.md.
 
