@@ -34,6 +34,16 @@ The goal is to keep documentation:
   - copy/paste-able,
   - and representative of real usage.
 
+### Code example cleanliness (Python)
+
+- Use modern Python 3.10+ syntax and typing in docs when possible:
+  - `dict[str, Any]`, `list[dict[str, Any]]`, `str | None`, etc.
+- Keep examples “drop-in reusable”:
+  - isolate provider-specific parsing behind small hooks (e.g. `extract_delta`)
+  - keep helpers pure and unit-testable
+  - avoid large class hierarchies or framework scaffolding
+- Prefer clear, linear code over cleverness (e.g. avoid `match`/complex pattern matching unless it materially improves clarity).
+
 ### Example completeness
 
 - Avoid examples that end in `...` when the missing part is essential to understanding.
@@ -75,6 +85,27 @@ When documenting provider streaming:
 
 Avoid claiming unrealistic “wire formats” as common.
 
+### Extensions: mirror the provider accumulator pattern
+
+When writing provider extension docs (tools/reasoning/usage/etc.):
+
+- Prefer the same structure as the provider “accumulator” streaming path:
+  - generic `process_chunk` implementation
+  - provider-specific `extract_delta(...)` and `process_delta(...)`
+  - a small generic merge helper (e.g. `_merge_delta_content`) that preserves unknown accumulator keys
+- Always document the interop surface explicitly:
+  - which core `metadata[...]` keys are produced/consumed (tools + UIs)
+  - what tool-call shape is expected by the tool loop and `AgentCore.execute_tool_calls`
+- Call out the core interop pitfall explicitly:
+  - providers must merge into `state["partial"]` without dropping unknown keys written by extensions
+
+### Prefer OpenAI-compatible shapes for generic docs
+
+- For cross-provider docs, prefer OpenAI-compatible chunk/tool-call shapes as the reference vocabulary:
+  - streaming deltas: `chunk["choices"][0]["delta"]`
+  - tool calls: OpenAI-style `[{"id", "type", "function": {"name", "arguments"}}]`
+- Avoid provider-specific formats in generic pages unless the page is explicitly provider-specific.
+
 ## 7) Include trial-and-error guidance without encouraging unsafe logging
 
 - Real providers often require shape discovery.
@@ -111,6 +142,8 @@ When adding a new shared doc, update `plugins/docs/index.md`.
 When documentation references templates:
 
 - Prefer templates that are simple and minimize “delete this example” work.
+- When docs introduce a reusable pattern, prefer adding the same helper/pattern to the template package
+  (so authors can copy from real code and tests can cover it).
 - If integration tests are included as templates:
   - allow them to be `xfail` by default,
   - keep setup/assertions close to real reference tests,
