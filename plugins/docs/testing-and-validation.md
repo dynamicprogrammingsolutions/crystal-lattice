@@ -25,11 +25,11 @@ From repo root:
 - Core tests: `pytest core/python/tests -q`
 - Example tests: `pytest core/python/examples/tests -qs`
 
-Markers used in core tests:
+Markers used across repo tests:
 
-- `-m openrouter` (requires `OPENROUTER_API_KEY`)
-- `-m integration`
-- `-m ollama`
+- `-m openrouter` (requires `OPENROUTER_API_KEY`) – used by OpenRouter plugin + OpenRouter-marked examples.
+- `-m integration` – integration tests that may hit real services.
+- `-m ollama` – tests that hit a local Ollama instance.
 
 ## Lint/format/typecheck
 
