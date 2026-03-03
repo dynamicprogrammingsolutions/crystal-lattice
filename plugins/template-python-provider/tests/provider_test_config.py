@@ -2,23 +2,19 @@
 
 These tests are meant to be copied into a real provider repo.
 
-Defaults keep the suite fully offline:
+Defaults keep the suite offline:
 
-- Integration tests are collected but not executed.
-- To enable them, set ``INTEGRATION_ENABLED = True`` and fill in the settings.
+- Integration tests are marked with ``@pytest.mark.integration`` and are
+  excluded by default via this repo's pytest configuration.
+- To run them, pass ``-m integration`` and fill in the settings below.
+
+All integration tests also skip unless the configured API key environment
+variable is present.
 """
 
 from __future__ import annotations
 
 from typing import Any, Dict, List
-
-
-# ---------------------------------------------------------------------------
-# Global gate
-# ---------------------------------------------------------------------------
-
-# When False, integration tests are xfailed with ``run=False`` (not executed).
-INTEGRATION_ENABLED: bool = False
 
 
 # ---------------------------------------------------------------------------
