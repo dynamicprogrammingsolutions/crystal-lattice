@@ -140,6 +140,52 @@ def test_from_native_messages_extracts_reasoning():
     assert enhanced[0]["metadata"]["reasoning"] == "Thought process"
 
 
+def test_from_native_messages_synthesizes_reasoning_from_summary_when_reasoning_none():
+    """When reasoning=None, synthesize reasoning from reasoning.summary details."""
+    ext = OpenRouterReasoningExtension()
+    native_messages = [
+        {
+            "role": "assistant",
+            "content": "",
+            "reasoning": None,
+            "reasoning_details": [
+                {
+                    "type": "reasoning.summary",
+                    "summary": " to",
+                    "format": "openai-responses-v1",
+                    "index": 0,
+                }
+            ],
+        }
+    ]
+    messages = [{"role": "assistant", "content": "", "metadata": {}}]
+
+    enhanced = ext.from_native_messages(native_messages, messages)
+
+    assert enhanced[0]["metadata"]["reasoning"] == " to"
+    assert enhanced[0]["metadata"]["reasoning_details"][0]["summary"] == " to"
+
+
+def test_from_native_messages_does_not_override_explicit_reasoning_with_summary():
+    """Explicit reasoning wins over any reasoning.summary details."""
+    ext = OpenRouterReasoningExtension()
+    native_messages = [
+        {
+            "role": "assistant",
+            "content": "Answer",
+            "reasoning": "Explicit",
+            "reasoning_details": [
+                {"type": "reasoning.summary", "summary": "Ignored", "index": 0}
+            ],
+        }
+    ]
+    messages = [{"role": "assistant", "content": "Answer", "metadata": {}}]
+
+    enhanced = ext.from_native_messages(native_messages, messages)
+
+    assert enhanced[0]["metadata"]["reasoning"] == "Explicit"
+
+
 def test_extract_delta():
     """Extract delta from streaming chunk."""
     ext = OpenRouterReasoningExtension()
