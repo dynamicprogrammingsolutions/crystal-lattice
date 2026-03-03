@@ -2,7 +2,7 @@
 
 Create a complete, up-to-date provider plugin development guide and a provider plugin template repo.
 
-This work has three subtasks:
+This work has seven subtasks:
 
 1. Create a new **provider plugin template repo** (modeled after `plugins/template-python-tools`) that includes:
    - a provider skeleton (`ProviderPlugin`)
@@ -19,6 +19,14 @@ This work has three subtasks:
 
 3. Update other docs to point to the new canonical provider plugin doc and fix any outdated/misleading provider-plugin guidance.
    - This will be executed by a different agent.
+
+4. Improve the provider template tests to include integration-ready scaffolding (while keeping the template itself deterministic/offline).
+
+5. Add a dedicated provider extension guide documenting tools + reasoning patterns.
+
+6. Create a **reference provider implementation** that follows the new docs exactly (provider + extensions) and validates the workflow end-to-end against a real OpenAI-compatible endpoint (Ollama).
+
+7. Update existing provider implementations (OpenRouter plugin bundle + Ollama/OpenAI-compatible core plugins) to match the finalized patterns from the docs and reference implementation.
 
 ## Goals
 
@@ -46,6 +54,9 @@ This work has three subtasks:
 - Doc page: `tasks/20260303-provider-plugin-docs/020-provider-plugins-doc.md`
 - Other doc changes: `tasks/20260303-provider-plugin-docs/030-other-doc-updates.md`
 - Template tests improvements: `tasks/20260303-provider-plugin-docs/040-template-provider-tests.md`
+- Provider extension docs: `tasks/20260303-provider-plugin-docs/050-provider-extensions-doc.md`
+- Reference implementation (Ollama/OpenAI-compatible): `tasks/20260303-provider-plugin-docs/060-openai-compatible-reference-implementation.md`
+- Update existing providers (OpenRouter + core Ollama/OpenAI-compatible): `tasks/20260303-provider-plugin-docs/070-update-existing-provider-implementations.md`
 
 ---
 
@@ -55,10 +66,17 @@ Completed:
 
 - Subtask 1 (template): implemented `plugins/template-python-provider` with minimal skeleton code + passing offline tests.
 - Subtask 2 (docs): implemented `plugins/docs/provider-plugins.md` and created additional shared docs under `plugins/docs/`.
+- Subtask 4 (template tests): implemented integration-ready test scaffolding in `plugins/template-python-provider/tests/`.
+- Subtask 5 (extension docs): implemented `plugins/docs/provider-extensions.md` and linked it from the provider guide and docs index.
 
 Not started (assigned to another agent):
 
 - Subtask 3 (other doc changes): update repo-wide docs to link to the new canonical provider docs and fix stale statements.
+
+Not started:
+
+- Subtask 6 (reference implementation): implement an OpenAI-compatible provider + extensions and run integration tests against Ollama.
+- Subtask 7 (update existing providers): align OpenRouter + core Ollama/OpenAI-compatible implementations with the reference patterns.
 
 ### What was added/changed
 

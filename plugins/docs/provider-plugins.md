@@ -30,6 +30,7 @@ Runtime code references (source of truth):
 
 See also:
 
+- [Provider extensions (tools + reasoning)](provider-extensions.md)
 - [Packaging & loading plugins](plugin-packaging-and-loading.md)
 - [Execution order (providers, extensions, features, tools)](plugin-execution-order.md)
 - [UI elements (`get_ui_elements`)](ui-elements.md)
@@ -601,6 +602,8 @@ Reference extensions:
 - `core/python/plugins/openai_tools_extension.py`
 - `core/python/plugins/ollama_thinking_extension.py`
 
+See also: [Provider extensions (tools + reasoning)](provider-extensions.md) for step-by-step recipes, accumulator interop rules, and copyable code skeletons.
+
 ---
 
 ## Deep dive: debugging streaming chunks
@@ -634,6 +637,12 @@ def test_capture_first_chunks(caplog):
 ## Deep dive: interop (extensions/features/tools)
 
 ### Provider extensions
+
+Provider extensions are the preferred place to implement streaming accumulation and metadata mapping for tools and reasoning.
+
+For a dedicated guide with recipes and reusable code patterns, see:
+
+- [Provider extensions (tools + reasoning)](provider-extensions.md)
 
 Extensions can:
 
@@ -694,11 +703,20 @@ def test_streaming_smoke():
     assert final is not None
 ```
 
-Template tests to copy patterns from:
+Tests to copy patterns from:
 
-- `plugins/template-python-provider/tests/test_accumulator_path_smoke.py`
-- `plugins/template-python-provider/tests/test_custom_streaming_path_smoke.py`
-- `plugins/template-python-provider/tests/test_native_history_retention_pattern.py`
+- Offline unit tests (always run):
+  - `plugins/template-python-provider/tests/test_provider_skeleton_unit.py`
+  - `plugins/template-python-provider/tests/test_extension_patterns_unit.py`
+- Integration scaffolds (run with `pytest -m integration`; `xfail` by default until implemented):
+  - `plugins/template-python-provider/tests/test_provider_integration_basic.py`
+  - `plugins/template-python-provider/tests/test_provider_integration_reasoning.py`
+  - `plugins/template-python-provider/tests/test_provider_integration_tools.py`
+  - `plugins/template-python-provider/tests/test_provider_integration_tools_reasoning.py`
+  - `plugins/template-python-provider/tests/test_provider_integration_usage.py`
+  - `plugins/template-python-provider/tests/test_agent_application_integration_tools_e2e.py`
+- Native retention regression coverage:
+  - `core/python/tests/test_native_retention_across_core_instances.py`
 
 ---
 
