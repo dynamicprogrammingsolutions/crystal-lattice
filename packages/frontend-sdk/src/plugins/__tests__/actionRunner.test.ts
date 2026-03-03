@@ -143,3 +143,80 @@ describe('runApplicationAction effect derivation', () => {
     expect(res.effects).toEqual([{ type: 'reloadSessionsList' }]);
   });
 });
+
+describe('runApplicationAction input building', () => {
+  it('includes empty dialog fields when submit_empty is true', async () => {
+    let capturedInputs: Record<string, any> | null = null;
+
+    const backend: AgentBackend = {
+      kind: 'test',
+      getCapabilities: () => ({
+        featureCompletions: false,
+        sessionUiSchema: false,
+        sessionConfigOverrides: false,
+        sessionPlugins: false,
+        applicationActions: true,
+        applicationConfig: false,
+      }),
+      executeAction: async ({ inputs }) => {
+        capturedInputs = inputs;
+        return {
+          status: 'ok',
+          plugin: 'session_title',
+          action_id: 'set_session_title',
+          result: { mutations: { created_session_ids: [], updated_session_ids: [], deleted_session_ids: [] }, ui_effects: {} },
+        } as any;
+      },
+    } as any;
+
+    const element: ActionUiElement = {
+      ui_type: 'session_action',
+      plugin: 'session_title',
+      id: 'edit_title_from_view',
+      label: 'Edit title',
+      action_id: 'set_session_title',
+      fixed_params: { source: 'session_view' } as any,
+      param_map: {
+        session_id: '$session.session_id',
+        title: '$dialog.title',
+        subtitle: '$dialog.subtitle',
+      } as any,
+      dialog: {
+        kind: 'form',
+        inputs: [
+          { name: 'title', type: 'string', required: false, submit_empty: true },
+          { name: 'subtitle', type: 'string', required: false, submit_empty: true },
+        ],
+      } as any,
+    } as any;
+
+    await runApplicationAction({
+      backend,
+      element,
+      actionsById: {
+        set_session_title: {
+          plugin: 'session_title',
+          id: 'set_session_title',
+          label: 'Set session title',
+          inputs: {
+            session_id: { type: 'string', required: true },
+            title: { type: 'string', required: false },
+            subtitle: { type: 'string', required: false },
+            source: { type: 'string', required: false },
+          },
+        } as any,
+      },
+      context: {
+        sessionId: 's1',
+        dialogValues: { subtitle: 'hello' },
+      },
+    });
+
+    expect(capturedInputs).toEqual({
+      source: 'session_view',
+      session_id: 's1',
+      title: '',
+      subtitle: 'hello',
+    });
+  });
+});
