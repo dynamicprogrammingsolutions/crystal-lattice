@@ -31,6 +31,7 @@ Runtime code references (source of truth):
 See also:
 
 - [Provider extensions (tools + reasoning)](provider-extensions.md)
+- [Configuration schema (`get_config_schema`)](config-schema.md)
 - [Packaging & loading plugins](plugin-packaging-and-loading.md)
 - [Execution order (providers, extensions, features, tools)](plugin-execution-order.md)
 - [UI elements (`get_ui_elements`)](ui-elements.md)
@@ -155,13 +156,13 @@ Minimum provider methods to start:
 - `call_api(native_messages, state)`
 - (optionally) `to_native_messages` / `from_native_messages` if you need custom conversion
 
-Example `call_api` skeleton (HTTP omitted):
+Example `call_api` skeleton (transport omitted):
 
 ```python
 def call_api(self, native_messages, state):
     request = state.get("request") or {}
-    # TODO: send HTTP request
-    # raw = requests.post(...).json()
+    # TODO: send the request using your transport (SDK, HTTP client, etc.)
+    # raw = requests.post(...).json()  # one possible implementation
     raw = {"choices": [{"message": {"role": "assistant", "content": "hi"}}]}
 
     # TODO: extract provider-native assistant message
@@ -405,7 +406,7 @@ def call_api(self, native_messages, state):
     # strip it before sending to the provider.
     messages_to_send = [{k: v for k, v in m.items() if k != "_metadata"} for m in base_history]
 
-    # TODO: send HTTP request and parse JSON
+    # TODO: send the request using your transport (SDK, HTTP client, etc.) and parse the response
     raw = {"choices": [{"message": {"role": "assistant", "content": "hi"}}]}
     msg = raw["choices"][0]["message"]
     # Return (partial_messages, final_messages, native_messages, new_state)
@@ -418,11 +419,10 @@ Accumulator path (recommended): implement `stream_api`, `extract_delta`, `proces
 
 Custom path: implement `process_chunk` and `finalize` yourself.
 
-Example `stream_api` skeleton (OpenAI-style SSE), including message override and `_metadata` stripping:
+Example `stream_api` skeleton (OpenAI-compatible streaming chunks), including message override and `_metadata` stripping:
 
 ```python
 import json
-import requests
 
 
 def stream_api(self, native_messages, state):
@@ -441,29 +441,38 @@ def stream_api(self, native_messages, state):
         if isinstance(m, dict)
     ]
 
-    with requests.post(
-        request["url"],
-        json={**request["payload"], "messages": messages_to_send, "stream": True},
-        headers=request["headers"],
-        timeout=request["timeout"],
-        stream=True,
-    ) as r:
-        r.encoding = "utf-8"
-        r.raise_for_status()
-        for line in r.iter_lines(decode_unicode=True):
-            if not line:
-                continue
-            data = line.strip()
-            if data.startswith("data:"):
-                data = data[len("data:") :].strip()
-            if data == "[DONE]":
-                break
-            if not data:
-                continue
-            try:
-                yield json.loads(data)
-            except json.JSONDecodeError:
-                continue
+    # TODO: start a streaming request using your transport (SDK, HTTP client, etc.)
+    # and iterate over the returned stream.
+    #
+    # For OpenAI-compatible APIs, the request payload conventionally includes:
+    #   {**request["payload"], "messages": messages_to_send, "stream": True}
+    #
+    # Common OpenAI-compatible stream patterns:
+    # - stream yields dict chunks (already-decoded JSON)
+    # - stream yields line/SSE-like strings containing JSON objects
+    stream = []  # replace with your streaming iterator
+
+    for item in stream:
+        if not item:
+            continue
+
+        # SDK-style: already a dict chunk.
+        if isinstance(item, dict):
+            yield item
+            continue
+
+        # Line/SSE-style: decode a line into JSON.
+        data = str(item).strip()
+        if data.startswith("data:"):
+            data = data[len("data:") :].strip()
+        if data == "[DONE]":
+            break
+        if not data:
+            continue
+        try:
+            yield json.loads(data)
+        except json.JSONDecodeError:
+            continue
 ```
 
 ### 6) Native history retention (don’t break it)
