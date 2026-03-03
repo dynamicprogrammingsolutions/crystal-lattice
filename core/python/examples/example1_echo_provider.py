@@ -26,8 +26,8 @@ class EchoProvider(ProviderPlugin):
     def initialize_request(
         self,
         native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        return {**state, "accumulated": ""}
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        return list(native_messages), {**state, "accumulated": ""}
 
     def from_native_messages(
         self,
@@ -68,7 +68,8 @@ class EchoProvider(ProviderPlugin):
             if native_chunk.get("content")
             else []
         )
-        return partial, [], [], new_state
+        # Keep provider-native history unchanged during streaming.
+        return partial, [], list(native_messages), new_state
 
     def finalize(
         self,
@@ -77,9 +78,9 @@ class EchoProvider(ProviderPlugin):
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         content = state.get("accumulated", "")
         if not content:
-            return [], [], state
-        final = [{"role": "assistant", "content": content, "metadata": {}}]
-        return final, [], state
+            return [], list(native_messages), state
+        final = {"role": "assistant", "content": content, "metadata": {}}
+        return [final], [*native_messages, final], {**state, "accumulated": ""}
 
     def call_api(
         self,
@@ -93,9 +94,5 @@ class EchoProvider(ProviderPlugin):
             {"content": ""},
         )
         content = f"Echo: {last_user.get('content', '')}"
-        return (
-            [{"role": "assistant", "content": content, "metadata": {}}],
-            [],
-            [],
-            state,
-        )
+        final = {"role": "assistant", "content": content, "metadata": {}}
+        return [], [final], [*native_messages, final], state
