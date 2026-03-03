@@ -76,3 +76,46 @@ Directory: `plugins/template-python-provider/`
 
 - Template provider must avoid network I/O.
 - Tests should run quickly and deterministically.
+
+---
+
+## Completion notes (added 2026-03-03)
+
+Implemented the template repo at `plugins/template-python-provider`.
+
+### Final template shape
+
+- `plugins/template-python-provider/pyproject.toml`
+- `plugins/template-python-provider/agent_plugin.json`
+- `plugins/template-python-provider/src/template_python_provider/`
+  - `provider.py`
+    - `AccumulatorStreamingMixin`: shared `process_chunk` + `finalize` for accumulator-based streaming
+    - `TemplateProvider`: skeleton provider (author must implement `call_api`, `stream_api`, `extract_delta`, `process_delta`)
+      - Note: inherits as `(AccumulatorStreamingMixin, ProviderPlugin)` so Python MRO uses the mixin implementation.
+    - `TemplateCustomStreamingProvider`: skeleton for custom `process_chunk` / `finalize` implementations
+  - `extension.py`: `TemplateProviderExtension` (no-op skeleton)
+  - `feature.py`: `TemplateFeature` (no-op skeleton)
+- `plugins/template-python-provider/tests/`
+  - `test_accumulator_path_smoke.py` (defines a test-only subclass implementing required methods)
+  - `test_custom_streaming_path_smoke.py`
+  - `test_native_history_retention_pattern.py` (native-only marker retention across 2 AgentCore instances)
+
+### Why tests define test-only providers
+
+The template is intentionally “add-only”: it should not ship a full example provider
+that authors must delete. To keep the repo runnable, tests create small deterministic
+providers inside the test files.
+
+### Verification
+
+All tests pass offline:
+
+```bash
+PYTHONPATH=plugins/template-python-provider/src:core/python \
+  pytest plugins/template-python-provider/tests -q
+```
+
+### Notes for follow-on work
+
+- The template includes a `debug_stream` config flag and logging hooks in the accumulator mixin.
+- Ensure other docs do not claim this template is a full provider integration; it is a skeleton.
