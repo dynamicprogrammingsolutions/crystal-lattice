@@ -198,9 +198,9 @@ class MyProvider:
         List[Dict[str, Any]],
         Dict[str, Any],
     ]:
-        # Return (final_messages, partial_messages, native_messages, new_state)
+        # Return (partial_messages, final_messages, native_messages, new_state)
         msg = {"role": "assistant", "content": "Response"}
-        return ([msg], [], [*native_messages, msg], state)
+        return ([], [msg], [*native_messages, msg], state)
 ```
 
 In the Python SDK, adapter classes (for example `ProviderDefaultsAdapter`) supply default implementations for hooks like `to_native_messages`, `from_native_messages`, `initialize_request`, `finalize`, and `stream_api` when they are omitted, so most providers only need to implement configuration, `init`, and one of the I/O entry points (`call_api` or `stream_api`).

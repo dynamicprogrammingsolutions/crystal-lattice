@@ -195,7 +195,7 @@ ProviderPlugin:
   
   # I/O Functions
   call_api(native_messages: list, state: dict)
-    → (final_messages: list, partial_messages: list, native_messages: list, new_state: dict)
+    → (partial_messages: list, final_messages: list, native_messages: list, new_state: dict)
     # Make non-streaming API call; may also return partials
   
   stream_api(native_messages: list, state: dict) → Iterator[dict]
@@ -501,7 +501,7 @@ Important principles:
        - Provider plugin runs first, then each enabled Provider Extension runs (in order).
      - For each Feature (optional):
        - (native_messages, state) = feat.initialize_request(native_messages, state)
-   - Provider.call_api(native_messages, state) → (final_messages, partial_messages, native_messages, state)
+   - Provider.call_api(native_messages, state) → (partial_messages, final_messages, native_messages, state)
     - Provider.finalize(native_messages, state) → (final_messages, native_messages, state)
     - Provider Extensions.finalize(final_messages, native_messages, state) in order
       → (final_messages, native_messages, state)
