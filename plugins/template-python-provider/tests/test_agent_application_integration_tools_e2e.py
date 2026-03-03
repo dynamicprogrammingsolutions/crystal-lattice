@@ -15,13 +15,13 @@ from agent_app.events import InMemoryEventStore
 pytestmark = [pytest.mark.integration]
 
 
-INTEGRATION_ENABLED = bool(getattr(cfg, "INTEGRATION_ENABLED", False))
-
-
-def _require_env(name: str) -> str:
-    value = os.getenv(name)
+def _require_api_key() -> str:
+    api_key_env = cfg.API_KEY_ENV_VAR
+    if not api_key_env:
+        pytest.skip("API_KEY_ENV_VAR is not set in provider_test_config.py")
+    value = os.getenv(api_key_env)
     if not value:
-        pytest.skip(f"{name} is not set")
+        pytest.skip(f"{api_key_env} is not set")
     return value
 
 
@@ -43,8 +43,7 @@ def _make_app_config(tmp_path: Path, *, working_directory: Path) -> Path:
         "max_file_size": 1024 * 1024,
     }
 
-    if cfg.API_KEY_ENV_VAR:
-        provider_cfg["api_key"] = _require_env(cfg.API_KEY_ENV_VAR)
+    provider_cfg["api_key"] = _require_api_key()
     if cfg.BASE_URL:
         provider_cfg["base_url"] = cfg.BASE_URL
 
@@ -80,9 +79,8 @@ def _make_app_config(tmp_path: Path, *, working_directory: Path) -> Path:
 
 
 @pytest.mark.xfail(
-    not INTEGRATION_ENABLED,
-    reason="Integration scaffolds are disabled; set INTEGRATION_ENABLED=True in provider_test_config.py",
-    run=False,
+    reason="Integration scaffold: remove xfail once your provider passes this test",
+    strict=True,
 )
 def test_agent_application_tool_loop_puzzle(tmp_path: Path) -> None:
     # Write a tiny puzzle the model can fix using read_file + write_file.
