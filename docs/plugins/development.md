@@ -21,7 +21,7 @@ Providers adapt LLM APIs and convert between core and provider-native messages. 
 
 Key methods (subset):
 - `init(config) -> state` (required)
-- `call_api(native_messages, state) -> (finals, partials, natives, state)` (required, or `stream_api` for streaming providers)
+- `call_api(native_messages, state) -> (partials, finals, natives, state)` (required, or `stream_api` for streaming providers)
 - `process_chunk(native_chunk, native_messages, state) -> (partials, finals, natives, state)` (required)
 - `finalize(native_messages, state) -> (final, native, state)` (required)
 - `to_native_messages(messages, state) -> list` (optional in Python; adapter defaults to identity mapping of `role` and `content`)
@@ -72,8 +72,8 @@ class EchoProvider(ProviderPlugin):
         )
         content = f"Echo: {last_user.get('content', '')}"
         final = {"role": "assistant", "content": content}
-        # Return (final_messages, partial_messages, native_messages, new_state)
-        return [final], [], [*native_messages, final], state
+        # Return (partial_messages, final_messages, native_messages, new_state)
+        return [], [final], [*native_messages, final], state
 ```
 
 In the Python SDK, adapter defaults handle `to_native_messages`, `from_native_messages`, `initialize_request`, `finalize`, and `stream_api` when they are omitted, so many providers only implement configuration, `init`, and one of the I/O entry points (`call_api` or `stream_api`).

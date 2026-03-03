@@ -119,7 +119,7 @@ Key changes:
   - `core/python/examples/example13_openrouter_tools_app_layer.py` docstring updated to match.
 
 - Fixed outdated/misleading provider-plugin method guidance:
-  - `docs/plugins/development.md` provider example now returns `(final_messages, partial_messages, native_messages, state)` for `call_api` and appends the assistant message to native history.
+  - `docs/plugins/development.md` provider example now returns `(partial_messages, final_messages, native_messages, state)` for `call_api` and appends the assistant message to native history.
   - `core/python/agent_core/types.py` docstrings updated for `call_api` return order and the provider extension `process_chunk` example signature.
   - `core/python/agent_core/plugin/provider.py` docstring corrected for wrapper `call_api` return ordering.
   - `TYPES_AND_PROTOCOLS.md` updated to match `call_api` return ordering.
