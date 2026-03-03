@@ -25,6 +25,7 @@ interface DialogInputField {
   required?: boolean;
   description?: string;
   prefill_from?: string;
+  submit_empty?: boolean;
 }
 
 const EMPTY_INPUTS: DialogInputField[] = [];
@@ -205,6 +206,12 @@ export function ApplicationActionDialogLayout({
           const label = field.label || name;
           setError(`Field "${label}" is required.`);
           return;
+        }
+
+        const fieldType = typeof field.type === 'string' ? field.type : 'string';
+        const canSubmitEmpty = field.submit_empty === true;
+        if (canSubmitEmpty && (fieldType === 'string' || fieldType === 'multiline')) {
+          result[name] = '';
         }
         continue;
       }
