@@ -1,0 +1,13 @@
+{
+  "entries": [
+    "template_python_provider.provider.TemplateProvider",
+    "template_python_provider.extension.TemplateProviderExtension",
+    "template_python_provider.feature.TemplateFeature"
+  ],
+  "subdirectory": ".",
+  "kinds": {
+    "template_python_provider.provider.TemplateProvider": "providers",
+    "template_python_provider.extension.TemplateProviderExtension": "extensions",
+    "template_python_provider.feature.TemplateFeature": "features"
+  }
+}
