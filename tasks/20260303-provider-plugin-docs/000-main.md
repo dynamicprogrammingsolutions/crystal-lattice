@@ -45,3 +45,56 @@ This work has three subtasks:
 - Template: `tasks/20260303-provider-plugin-docs/010-template-python-provider.md`
 - Doc page: `tasks/20260303-provider-plugin-docs/020-provider-plugins-doc.md`
 - Other doc changes: `tasks/20260303-provider-plugin-docs/030-other-doc-updates.md`
+- Template tests improvements: `tasks/20260303-provider-plugin-docs/040-template-provider-tests.md`
+
+---
+
+## Implementation status (added 2026-03-03)
+
+Completed:
+
+- Subtask 1 (template): implemented `plugins/template-python-provider` with minimal skeleton code + passing offline tests.
+- Subtask 2 (docs): implemented `plugins/docs/provider-plugins.md` and created additional shared docs under `plugins/docs/`.
+
+Not started (assigned to another agent):
+
+- Subtask 3 (other doc changes): update repo-wide docs to link to the new canonical provider docs and fix stale statements.
+
+### What was added/changed
+
+New provider template repo:
+
+- `plugins/template-python-provider/`
+  - `pyproject.toml`, `agent_plugin.json`, `README.md`
+  - `src/template_python_provider/`:
+    - `provider.py`: skeleton provider + shared accumulator mixin + custom-streaming skeleton
+    - `extension.py`: no-op extension skeleton
+    - `feature.py`: no-op feature skeleton
+  - `tests/`: test-only provider subclasses that implement deterministic behavior so the template tests pass out-of-the-box.
+
+New docs directory:
+
+- `plugins/docs/index.md`
+- `plugins/docs/provider-plugins.md`
+- Shared docs extracted from/overlapping with `docs/plugins/development.md`:
+  - `plugins/docs/plugin-packaging-and-loading.md`
+  - `plugins/docs/plugin-execution-order.md`
+  - `plugins/docs/ui-elements.md`
+  - `plugins/docs/testing-and-validation.md`
+
+### How to verify locally
+
+Template tests (offline):
+
+```bash
+PYTHONPATH=plugins/template-python-provider/src:core/python \
+  pytest plugins/template-python-provider/tests -q
+```
+
+Or via editable installs:
+
+```bash
+python -m pip install -e core/python
+python -m pip install -e "plugins/template-python-provider[dev]"
+pytest plugins/template-python-provider/tests -q
+```
