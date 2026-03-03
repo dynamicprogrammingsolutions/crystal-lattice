@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import importlib
-import json
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from agent_core import AgentCore, Session
 
@@ -131,27 +130,3 @@ def run_tool_loop(
             )
 
     return session, finals
-
-
-def load_json_args(raw: Any) -> Dict[str, Any]:
-    """Parse OpenAI-style JSON string tool args into a dict."""
-
-    if isinstance(raw, dict):
-        return raw
-    if not isinstance(raw, str) or not raw:
-        return {}
-    try:
-        value = json.loads(raw)
-    except Exception:
-        return {}
-    return value if isinstance(value, dict) else {}
-
-
-def first_nonempty_env(vars: Iterable[str]) -> Optional[str]:
-    for name in vars:
-        if not isinstance(name, str) or not name:
-            continue
-        value = __import__("os").getenv(name)
-        if isinstance(value, str) and value:
-            return value
-    return None
