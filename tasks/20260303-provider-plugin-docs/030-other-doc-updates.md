@@ -75,3 +75,60 @@ Recommended edits for this subtask:
 rg -n "docs/plugins/development\.md" -S
 rg -n "provider plugins" -S README.md docs
 ```
+
+---
+
+## Execution plan (added during completion 2026-03-03)
+
+1) Audit stale provider-plugin references and OpenRouter locations across repo docs/examples.
+2) Update `README.md` to:
+   - link to the canonical provider authoring guide: `plugins/docs/provider-plugins.md`
+   - fix OpenRouter provider location/imports (now under `plugins/openrouter` / `openrouter_plugins`)
+   - correct OpenRouter test-running guidance (plugin tests live under `plugins/openrouter/tests`)
+3) Update `docs/plugins/development.md` (keep as general overview) to:
+   - point provider authors at `plugins/docs/provider-plugins.md`
+   - fix provider method return-order guidance/examples to match runtime
+4) Fix protocol/example drift in key reference docs (targeted):
+   - `core/python/agent_core/types.py`
+   - `core/python/agent_core/plugin/provider.py` (docstring accuracy)
+   - `core/python/README.md`
+5) Update OpenRouter examples/config to match the new plugin location:
+   - `core/python/examples/example12_openrouter_tools_app.py`
+   - `core/python/examples/example13_openrouter_tools_app_layer.py`
+   - `core/python/examples/example13_openrouter_tools_app_layer_config.json`
+6) Run lightweight validation: import/compile checks + example test imports.
+
+---
+
+## Completion notes (added during completion 2026-03-03)
+
+Updated repo docs/examples to use `plugins/docs/provider-plugins.md` as the canonical provider authoring guide and fixed drift around OpenRouter plugin location and provider return-order guidance.
+
+Key changes:
+
+- Canonical provider doc is now referenced from:
+  - `README.md`
+  - `docs/plugins/development.md`
+  - `AGENTS.md`
+  - `plugins/AGENTS.md`
+
+- Fixed OpenRouter provider location/import drift:
+  - `README.md` now uses `openrouter_plugins.openrouter_provider.OpenRouterProvider` and includes `python -m pip install -e plugins/openrouter`.
+  - `core/python/examples/example12_openrouter_tools_app.py` imports `openrouter_plugins.*` and its docstring includes the install command.
+  - `core/python/examples/example13_openrouter_tools_app_layer_config.json` now loads the OpenRouter bundle via `path:../../../plugins/openrouter`.
+  - `core/python/examples/example13_openrouter_tools_app_layer.py` docstring updated to match.
+
+- Fixed outdated/misleading provider-plugin method guidance:
+  - `docs/plugins/development.md` provider example now returns `(final_messages, partial_messages, native_messages, state)` for `call_api` and appends the assistant message to native history.
+  - `core/python/agent_core/types.py` docstrings updated for `call_api` return order and the provider extension `process_chunk` example signature.
+  - `core/python/agent_core/plugin/provider.py` docstring corrected for wrapper `call_api` return ordering.
+  - `TYPES_AND_PROTOCOLS.md` updated to match `call_api` return ordering.
+
+- Updated example catalogue generation:
+  - `scripts/generate_examples_md.py` note strings fixed/updated and `EXAMPLES.md` regenerated.
+
+Validation:
+
+- `python -m compileall -q core/python plugins scripts`
+- `pytest core/python/tests -q`
+- `pytest core/python/examples/tests -q`
