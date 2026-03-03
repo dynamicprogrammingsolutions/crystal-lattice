@@ -1,559 +1,508 @@
 # Provider plugins
 
-This page documents how to build **provider plugins** for the platform.
-
 Provider plugins integrate LLM APIs and convert between:
 
-- **Core messages** (AgentCore’s stable, provider-agnostic format)
-- **Provider-native messages** (the wire-format you send to / receive from a provider)
+- **Core messages**: AgentCore’s stable, provider-agnostic message format
+- **Provider-native messages**: the wire-format your provider uses
 
-This guide is written to be **runtime-accurate**. When something is ambiguous, treat the runtime code as the source of truth:
+This guide is **provider-specific** and intended to be more complete than the general plugin overview in `docs/plugins/development.md`.
+
+Runtime code references (source of truth):
 
 - Protocols/docstrings: `core/python/agent_core/types.py`
-- Defaulting + normalization: `core/python/agent_core/plugin/adapters.py`
 - Provider wrapper orchestration: `core/python/agent_core/plugin/provider.py`
+- Defaulting/normalization: `core/python/agent_core/plugin/adapters.py`
 - Core request flow: `core/python/agent_core/core.py`
 
 ## Contents
 
-- [Audience & prerequisites](#audience--prerequisites)
 - [Concepts & vocabulary](#concepts--vocabulary)
-- [Quickstart A: non-streaming provider (package + tests)](#quickstart-a-non-streaming-provider-package--tests)
-- [Quickstart B: streaming provider (package + tests)](#quickstart-b-streaming-provider-package--tests)
-- [Complete guide: build a full provider](#complete-guide-build-a-full-provider)
-- [How requests flow (runtime order)](#how-requests-flow-runtime-order)
-- [ProviderPlugin API reference (method-by-method)](#providerplugin-api-reference-method-by-method)
+- [Quickstart / development workflow](#quickstart--development-workflow)
+- [Complete guide: build a full provider](#complete-guide-build-a-full-provider-step-by-step)
 - Deep dives:
-  - [State design patterns](#deep-dive-state-design-patterns)
+  - [Provider state shape](#deep-dive-provider-state-shape)
   - [Native history retention](#deep-dive-native-history-retention)
   - [Streaming patterns & recipes](#deep-dive-streaming-patterns--recipes)
-  - [Interop: extensions, features, tools](#deep-dive-interop-extensions-features-tools)
+  - [Debugging streaming chunks](#deep-dive-debugging-streaming-chunks)
+  - [Interop (extensions/features/tools)](#deep-dive-interop-extensionsfeatures-tools)
   - [Testing provider plugins](#deep-dive-testing-provider-plugins)
-  - [Packaging & loading](#deep-dive-packaging--loading)
-- [Troubleshooting / FAQ](#troubleshooting--faq)
-- [Reference implementations (copy patterns from these)](#reference-implementations-copy-patterns-from-these)
+- [Reference implementations](#reference-implementations)
 
----
+See also:
 
-## Audience & prerequisites
-
-This doc is for plugin authors implementing:
-
-- a **provider** (`ProviderPlugin`)
-- optionally a **provider extension** (`ProviderExtensionPlugin`) to handle hot-path enrichments (tool calls, reasoning extraction, citations, caching metadata)
-- optionally a **feature** (`FeaturePlugin`) that affects provider behavior on the cold path (request shaping, system prompt strategies, finalize transformations)
-
-Prereqs:
-
-- You can run Python 3.10+.
-- You can run `pytest`.
-- You’ve skimmed the AgentCore basics (sessions/messages and `send_request` / `send_request_stream`).
+- [Packaging & loading plugins](plugin-packaging-and-loading.md)
+- [Execution order (providers, extensions, features, tools)](plugin-execution-order.md)
+- [UI elements (`get_ui_elements`)](ui-elements.md)
+- [Testing & validation](testing-and-validation.md)
 
 ---
 
 ## Concepts & vocabulary
 
-### Core messages
+### Core message shape
 
-Core messages are plain dicts with (at minimum):
+Core messages are dicts like:
 
 ```python
-{"role": "user"|"assistant"|"system"|"tool", "content": "...", "metadata": {...}}
+{
+  "role": "user" | "assistant" | "system" | "tool",
+  "content": "...",
+  "metadata": {"any": "json"},
+  # optionally:
+  "multipartContent": [
+    {"type": "image", "content": {"url": "..."}, "metadata": {}}
+  ]
+}
 ```
 
-They are stored in `Session.messages` as immutable `Message` objects.
+### Provider-native message shape
 
-### Provider-native messages
-
-Provider-native messages are plain dicts in the shape your provider expects.
-
-Commonly they are OpenAI-like:
+Provider-native messages are whatever your provider needs. Common OpenAI-like shape:
 
 ```python
 {"role": "user", "content": "Hello"}
 ```
 
-But they can include provider-specific fields:
+Provider-native messages may include provider-specific keys (tool calls, reasoning, cache metadata, etc.):
 
 ```python
-{"role": "assistant", "content": "...", "tool_calls": [...], "reasoning": "..."}
+{
+  "role": "assistant",
+  "content": "...",
+  "tool_calls": [{"id": "...", "type": "function", "function": {"name": "x", "arguments": "{}"}}],
+  "reasoning": "...",
+  "_metadata": {"cached_tokens": 123}
+}
 ```
 
 ### Partials vs finals
 
-- **Partial** messages: incremental updates during streaming (shown to the UI as the model “types”).
-- **Final** messages: the completed assistant message(s) for the turn.
+- **partials**: incremental updates during streaming
+- **finals**: completed assistant messages for the turn
+
+Partial example (during streaming):
+
+```python
+{"role": "assistant", "content": "Hel"}
+```
+
+Final example (after finalize):
+
+```python
+{"role": "assistant", "content": "Hello world"}
+```
 
 ### Shared provider state (`state: dict`)
 
-Providers, provider extensions, and features share a single per-request state dict (owned by the provider wrapper).
+Providers, provider extensions, and features share a single state dict (owned by the provider wrapper).
 
-Recommended conventions:
+Recommended state shape:
 
-- `state["config"]`: resolved config for this request (flat dict)
-- `state["request"]`: provider request info (url/payload/headers/timeout)
-- `state["partial"]`: streaming accumulator
-
-### Native history retention (`session.metadata["native_messages"]`)
-
-AgentCore can retain provider-native history across turns and even across `AgentCore` instances.
-
-This is crucial when the core → native conversion is lossy (e.g., provider-specific fields that should persist).
-
-See [Native history retention deep dive](#deep-dive-native-history-retention).
-
-### Preserving metadata: `_metadata`
-
-Core message metadata is not automatically preserved when rebuilding core messages from native history.
-If you want metadata to survive rebuild-from-native, write it into provider-native messages under `_metadata` and reconstruct it in `from_native_messages`.
-
-See [Native history retention deep dive](#deep-dive-native-history-retention).
+```python
+state = {
+  "config": config,
+  "request": {"url": "...", "payload": {...}, "headers": {...}, "timeout": 60},
+  "partial": None,
+}
+```
 
 ---
 
-## Quickstart A: non-streaming provider (package + tests)
+## Quickstart / development workflow
 
-This quickstart creates a provider that works with `AgentCore.send_request`.
+This workflow matches how provider integrations are typically built in practice:
 
-It intentionally starts with **packaging + tests first**, because provider plugins are typically loaded as installable repos.
+1) package scaffold → 2) non-streaming first (learn shapes) → 3) streaming → 4) try in a real app
 
-### Step 0 — Create a plugin package (recommended)
+### Step 0 — Create a provider plugin package (recommended)
 
-Start from the provider template repo:
+Start from the template:
 
-- Template directory: `plugins/template-python-provider`
+- `plugins/template-python-provider`
 
 Copy it (or fork it) and rename:
 
-- project name in `pyproject.toml`
-- Python package under `src/`
-- class names and their `name`/`version`
-- entries in `agent_plugin.json`
+```text
+template-python-provider/  ->  my-provider/
+src/template_python_provider/ -> src/my_provider/
+```
 
-The template includes:
+Update the descriptor `agent_plugin.json` entries to your package/module/class names.
 
-- a deterministic provider
-- a provider extension
-- a feature
-- a small pytest suite inside the package
+Example `agent_plugin.json`:
 
-Packaging details (descriptor-driven plugin repos, `agent_plugin.json`) are covered in:
+```json
+{
+  "entries": [
+    "my_provider.provider.MyProvider",
+    "my_provider.extension.MyProviderExtension",
+    "my_provider.feature.MyFeature"
+  ],
+  "subdirectory": "."
+}
+```
 
-- [Packaging & loading deep dive](#deep-dive-packaging--loading)
+More details: [Packaging & loading plugins](plugin-packaging-and-loading.md).
 
-### Step 1 — Implement the provider (minimal)
+### Step 1 — Implement non-streaming first (`call_api`) + write the first tests
 
-In your provider class, implement:
+Non-streaming is the fastest way to learn provider request/response shapes without chunk parsing.
+
+Minimum provider methods to start:
 
 - `init(config) -> state`
-- **non-streaming** `call_api(native_messages, state)`
-- `finalize(native_messages, state)`
+- `call_api(native_messages, state)`
+- (optionally) `to_native_messages` / `from_native_messages` if you need custom conversion
 
-Best practice for non-streaming providers in this framework:
-
-- Keep `call_api` focused on I/O and store any “final message to emit” in state
-- Emit the final assistant message from `finalize`
-
-This ensures provider extensions get a chance to modify the final assistant message in their own `finalize` hook.
-
-See:
-
-- [call_api](#call_api)
-- [finalize](#finalize)
-- [Streaming patterns & recipes](#deep-dive-streaming-patterns--recipes) (the accumulator approach generalizes cleanly)
-
-### Step 2 — Wire into AgentCore
-
-Minimal usage:
+Example `call_api` skeleton (HTTP omitted):
 
 ```python
-from agent_core import AgentCore
-from my_provider_pkg.provider import MyProvider
+def call_api(self, native_messages, state):
+    request = state.get("request") or {}
+    # TODO: send HTTP request
+    # raw = requests.post(...).json()
+    raw = {"choices": [{"message": {"role": "assistant", "content": "hi"}}]}
 
-core = AgentCore()
-core.register_provider(MyProvider)
-
-session = core.create_session()
-session = core.add_message(session, "user", "Hello")
-session, finals = core.send_request(session, {"model": "..."})
+    # TODO: extract provider-native assistant message
+    msg = raw["choices"][0]["message"]
+    return [msg], [], [*native_messages, msg], state
 ```
 
-### Step 3 — Run tests (in your package)
+First smoke test (pytest) should call `send_request`:
 
-From repo root:
+```python
+def test_call_api_smoke():
+    core = AgentCore()
+    core.register_provider(MyProvider)
+    session = core.create_session()
+    session = core.add_message(session, "user", "Hello")
+    _new_session, finals = core.send_request(session, {"model": "m"})
+    assert finals and finals[-1]["role"] == "assistant"
+```
+
+### Step 2 — Add debug logging for shape discovery (trial-and-error)
+
+When you don’t know the response shape yet, add *temporary* debug logging.
+
+Recommended pattern: log truncated payloads and never log secrets.
+
+```python
+from agent_core.utils import get_logger
+log = get_logger("my_provider")
+
+log.info("provider_response", response=str(raw)[:2000])
+```
+
+Recommended test to drive this:
+
+```python
+def test_debug_dump_response_shape(caplog):
+    # Run one request; inspect caplog output while developing.
+    with caplog.at_level("INFO"):
+        _session2, finals = core.send_request(session, {"model": "m"})
+    assert finals
+    # Inspect caplog.text while iterating.
+```
+
+### Step 3 — Implement streaming (choose a path)
+
+There are **two supported paths**.
+
+#### Path A (recommended): accumulator pattern
+
+You keep shared `process_chunk`/`finalize` and implement:
+
+- `stream_api`
+- `extract_delta`
+- `process_delta`
+
+Example delta extractor (OpenAI-like):
+
+```python
+def extract_delta(self, chunk: dict) -> dict:
+    return (chunk.get("choices") or [{}])[0]
+```
+
+Example delta reducer:
+
+```python
+def process_delta(self, delta: dict, accumulated: dict | None):
+    base = accumulated or {}
+    d = delta.get("delta") or {}
+    frag = {"role": d.get("role", "assistant"), "content": d.get("content", "")}
+    new_acc = {
+        "role": base.get("role", frag["role"]),
+        "content": base.get("content", "") + (frag.get("content") or ""),
+    }
+    return frag, new_acc
+```
+
+In the template, the shared implementation lives in `AccumulatorStreamingMixin`.
+
+Note: if you use a mixin/base-class that provides `process_chunk`/`finalize`, put it **before** `ProviderPlugin` in your class bases so Python’s method resolution order uses the mixin implementation.
+
+#### Path B: custom streaming
+
+Implement `process_chunk` and `finalize` yourself.
+
+```python
+def process_chunk(self, native_chunk, native_messages, state):
+    # TODO: parse chunk
+    partial = {"role": "assistant", "content": native_chunk.get("content", "")}
+    # IMPORTANT: do not append raw chunk to native history
+    return [partial], [], list(native_messages), state
+
+def finalize(self, native_messages, state):
+    final = {"role": "assistant", "content": state.get("acc", "")}
+    return [final], [*native_messages, final], state
+```
+
+### Step 4 — Streaming tests (recommended)
+
+First streaming test should:
+
+- assert partial events exist
+- assert final exists
+- assert final content == concatenation of partials (for simple text providers)
+
+```python
+def test_streaming_smoke():
+    partial = ""
+    final = None
+    for e in core.send_request_stream(session, cfg):
+        if e["type"] == "partial":
+            partial += e["message"].get("content", "")
+        if e["type"] == "final":
+            final = e
+    assert final is not None
+    assert final["messages"][-1]["content"]
+```
+
+### Step 5 — Try it in a real app config (terminal/desktop/mobile)
+
+Automated tests provide the fastest feedback loop, but you’ll eventually want to try the provider in a real app.
+
+Example terminal app config pattern (adapt from `application/python/agent_terminal_app/config_echo_app.json`):
+
+```json
+{
+  "plugin_cache_dir": "~/.crystal/cache/plugins",
+  "plugins": [
+    "path:/abs/or/rel/to/my-provider-repo"
+  ],
+  "providers": {
+    "my_provider_default": {
+      "provider": "my_provider_id",
+      "model": "my-model",
+      "api_key": "${env:MY_API_KEY}",
+      "base_url": "https://example.com/v1"
+    }
+  },
+  "agents": {
+    "default": {"provider": "my_provider_default"}
+  }
+}
+```
+
+Then run the terminal app with that config (see `application/python/agent_terminal_app`):
 
 ```bash
-python -m pip install -e core/python
-python -m pip install -e "plugins/<your-provider-repo>[dev]"
-pytest plugins/<your-provider-repo>/tests -q
+cd application/python
+python -m agent_terminal_app --console --config /path/to/your_config.json
 ```
 
-For what to test beyond the minimal suite, see:
+For more config formats, see:
 
-- [Testing provider plugins deep dive](#deep-dive-testing-provider-plugins)
+- [Packaging & loading plugins](plugin-packaging-and-loading.md)
+- `docs/plugins/application-config.md`
 
 ---
 
-## Quickstart B: streaming provider (package + tests)
+## Complete guide: build a full provider (step-by-step)
 
-This quickstart implements streaming so you can use `AgentCore.send_request_stream`.
+This section expands each step with best practices and links to deep dives.
 
-### Step 0 — Create a plugin package (recommended)
-
-Use `plugins/template-python-provider` as the starting point (it already includes streaming skeletons and streaming tests).
-
-### Step 1 — Implement streaming (accumulator pattern)
-
-In your provider implement:
-
-- `stream_api(native_messages, state) -> Iterator[chunk]`
-- `process_chunk(native_chunk, native_messages, state) -> (partials, finals, full_history, state)`
-- `finalize(native_messages, state) -> (finals, full_history, state)`
-
-Recommended pattern:
-
-- `stream_api` yields raw provider-native chunks
-- `process_chunk` extracts a delta and updates `state["partial"]`
-- `finalize` emits a single final assistant message (and appends it to native history)
-
-See:
-
-- [Streaming patterns & recipes deep dive](#deep-dive-streaming-patterns--recipes)
-
-### Step 2 — Run a streaming request
+### 1) Define identity, config schema, and UI
 
 ```python
-for event in core.send_request_stream(session, config):
-    if event["type"] == "partial":
-        print(event["message"]["content"], end="", flush=True)
-    elif event["type"] == "final":
-        session = event["session"]
-        print("\nDone")
+class MyProvider(AccumulatorStreamingMixin, ProviderPlugin):
+    name = "my_provider_id"
+    version = "0.1.0"
+
+    def get_config_schema(self):
+        return {
+            "model": {"type": "string", "required": True},
+            "api_key": {"type": "string", "required": False},
+        }
+
+    def get_ui_elements(self):
+        return [{"type": "text", "key": "model", "label": "Model"}]
 ```
 
-### Step 3 — Run tests (in your package)
+UI deep dive: [UI elements](ui-elements.md).
 
-Your package test suite should include:
+### 2) Implement `init` and `initialize_request`
 
-- partial events are produced
-- final message is produced and matches the accumulated content
-- native history is coherent (no per-chunk artifacts persisted)
+```python
+def init(self, config):
+    return {"config": config, "request": {}, "partial": None}
 
-See:
+def initialize_request(self, native_messages, state):
+    cfg = state.get("config") or {}
+    request = {
+        "url": (cfg.get("base_url") or "https://api.example.com/v1").rstrip("/") + "/chat/completions",
+        "payload": {"model": cfg.get("model")},
+        "headers": {"Authorization": f"Bearer {cfg.get('api_key','')}"},
+        "timeout": float(cfg.get("timeout", 60)),
+    }
+    return list(native_messages), {**state, "request": request, "partial": None}
+```
 
-- [Testing deep dive](#deep-dive-testing-provider-plugins)
-- [Native history retention deep dive](#deep-dive-native-history-retention)
+### 3) Implement conversion hooks (only when needed)
 
----
+If you need to preserve metadata across rebuild-from-native, use `_metadata`.
 
-## Complete guide: build a full provider
+```python
+def to_native_messages(self, messages, state):
+    out = []
+    for m in messages:
+        md = dict(m.get("metadata") or {})
+        md.pop("native_indices", None)
+        nm = {"role": m.get("role"), "content": m.get("content", "")}
+        if md:
+            nm["_metadata"] = md
+        out.append(nm)
+    return out
 
-This section is a step-by-step guide for building a production-quality provider.
-Each step links to deep dives for details.
+def from_native_messages(self, native_messages, state):
+    out = []
+    for nm in native_messages:
+        md = dict(nm.get("_metadata") or {}) if isinstance(nm.get("_metadata"), dict) else {}
+        md.pop("native_indices", None)
+        out.append({"role": nm.get("role"), "content": nm.get("content", ""), "metadata": md})
+    return out
+```
 
-### Step 0 — Create a provider plugin repo (template)
+### 4) Non-streaming I/O (`call_api`) first
 
-Start from `plugins/template-python-provider`.
+```python
+def call_api(self, native_messages, state):
+    request = state["request"]
+    # TODO: send HTTP request and parse JSON
+    raw = {"choices": [{"message": {"role": "assistant", "content": "hi"}}]}
+    msg = raw["choices"][0]["message"]
+    return [msg], [], [*native_messages, msg], state
+```
 
-The template includes skeletons for:
+### 5) Streaming I/O
 
-- provider (`ProviderPlugin`)
-- provider extension (`ProviderExtensionPlugin`)
-- feature (`FeaturePlugin`)
-- tests (pytest) inside the plugin package
+Accumulator path (recommended): implement `stream_api`, `extract_delta`, `process_delta`.
 
-See: [Packaging & loading deep dive](#deep-dive-packaging--loading).
+Custom path: implement `process_chunk` and `finalize` yourself.
 
-### Step 1 — Identity + configuration schema
-
-Set:
-
-- `name`: stable identifier used in config, UI, and plugin selection
-- `version`: semantic version string
-- `get_config_schema()`: JSON-schema-like dict used for config UI and validation in apps
-- `get_ui_elements()`: optional UI hints for applications
-
-See: [Identity/config UI methods](#identity-config--ui).
-
-### Step 2 — Design state
-
-Recommended state conventions:
-
-- `state["config"]`: the request config dict
-- `state["request"]`: url/payload/headers/timeout
-- `state["partial"]`: streaming accumulator
-
-See: [State design patterns deep dive](#deep-dive-state-design-patterns).
-
-### Step 3 — Implement conversions (core ↔ native)
-
-Implement (or rely on defaults when appropriate):
-
-- `to_native_messages(messages, state)`
-- `from_native_messages(native_messages, state)`
-
-If you want metadata to survive rebuild-from-native, use `_metadata` on native messages.
-
-See:
-
-- [to_native_messages](#to_native_messages)
-- [from_native_messages](#from_native_messages)
-- [Native history retention deep dive](#deep-dive-native-history-retention)
-
-### Step 4 — Implement `initialize_request`
-
-Use `initialize_request` to build:
-
-- request URL
-- headers (be careful with secrets)
-- base payload (model, params)
-- reset per-turn accumulators
-
-See: [initialize_request](#initialize_request).
-
-### Step 5 — Implement I/O
-
-Choose:
-
-- non-streaming only: `call_api` + `finalize`
-- streaming: `stream_api` + `process_chunk` + `finalize`
-
-Even if you support non-streaming, consider emitting the final from `finalize` so extensions can reliably modify finals.
-
-See:
-
-- [call_api](#call_api)
-- [stream_api](#stream_api)
-- [process_chunk](#process_chunk)
-- [finalize](#finalize)
-
-### Step 6 — Make native history retention correct
-
-At the end of a turn, native history is persisted into the session.
+### 6) Native history retention (don’t break it)
 
 Provider rules of thumb:
 
-- Treat `native_messages` as full history (not a delta)
-- Append final assistant messages to the returned native history
-- Do **not** append raw per-chunk objects into native history
-
-See: [Native history retention deep dive](#deep-dive-native-history-retention).
-
-### Step 7 — Models, tags, and dependency enablement
-
-Implement:
-
-- `get_models(config)` (optional)
-- `get_tags(config, models)`
-
-These tags are used to decide which extensions/features/tools are enabled via their `required_tags()`.
-
-See: [Deep dive: interop and dependency gating](#deep-dive-interop-extensions-features-tools).
-
-### Step 8 — Tools, reasoning, multipart (decide responsibilities)
-
-Best practice:
-
-- provider: transport + base message conversion + chunk parsing
-- extension: tool-call accumulation, reasoning extraction, citations, caching metadata
-- feature: cold-path request shaping and finalize transforms
-
-See: [Interop deep dive](#deep-dive-interop-extensions-features-tools).
-
-### Step 9 — Build the test suite (inside the package)
-
-Minimum recommended tests:
-
-- non-streaming: `send_request` produces expected final core message
-- streaming: `send_request_stream` yields partials and a final
-- native retention: second turn sees a marker that only exists in native history
-- extension/feature hooks: verify at least one observable transformation
-
-See: [Testing deep dive](#deep-dive-testing-provider-plugins).
-
----
-
-## How requests flow (runtime order)
-
-This section is a short “call order” reference.
-
-### Non-streaming: `AgentCore.send_request`
-
-High-level order:
-
-1. Provider+features+tools init chain (tools first; tool schemas injected into provider config)
-2. Core → native conversion
-3. `initialize_request` chain (provider, then extensions, then features)
-4. `provider.call_api(...)`
-5. `provider.finalize(...)` (provider then extensions)
-6. Feature `finalize(...)`
-7. Native → core conversion (provider then extensions then features)
-
-See runtime code:
-
-- `core/python/agent_core/core.py` (`send_request`, `_pre_request`)
-
-### Streaming: `AgentCore.send_request_stream`
-
-High-level order:
-
-1–3. Same setup as non-streaming
-4. `provider.stream_api(...)` yields chunks
-5. Per chunk: provider `process_chunk` then extension `process_chunk`
-6. After stream: `provider.finalize(...)` (provider then extensions)
-7. Feature `finalize(...)`
-8. Native → core conversion once finalization completes
-
-See runtime code:
-
-- `core/python/agent_core/core.py` (`send_request_stream`)
-- `core/python/agent_core/plugin/provider.py` (`ProviderWrapper.stream_messages`, `process_chunk`, `finalize`)
-
----
-
-## ProviderPlugin API reference (method-by-method)
-
-Protocol and docstrings live in: `core/python/agent_core/types.py` (`ProviderPlugin`).
-
-### Identity, config & UI
-
-#### `name` / `version`
-
-Class attributes identifying your plugin.
-
-#### `get_config_schema() -> dict`
-
-Return a JSON-schema-like dict mapping config keys to schema objects.
-
-Used by applications to build UI and validate config.
-
-#### `get_ui_elements() -> list[dict]`
-
-Optional UI elements. The core treats these dicts as opaque.
-
-### Lifecycle & state
-
-#### `init(config: dict) -> state: dict`
-
-Initialize provider state from config. Called once per request.
-
-Best practice: store `config` under `state["config"]`.
-
-#### `initialize_request(native_messages, state) -> (native_messages, state)`
-
-Prepare for a new turn.
-
-Use this to:
-
-- build `state["request"]` (url/payload/headers/timeout)
-- reset per-turn accumulators (e.g. `state["partial"]`)
-
-### Conversion
-
-#### `to_native_messages(messages, state) -> list[dict]`
-
-Convert core messages into provider-native messages.
-
-Important: core may call this with a **single message** (e.g. when appending to native history efficiently), so handle both full-history lists and single-element lists.
-
-#### `from_native_messages(native_messages, state) -> list[dict]`
-
-Convert provider-native messages into core message dicts.
-
-Best practice: use this conversion to build stable core messages and put provider-specific extras into `metadata` (or allow extensions to do so).
-
-#### `to_display_format(message, state) -> dict` (optional)
-
-Used by some applications to render messages. Most providers can return the message unchanged.
-
-### Capabilities
-
-#### `get_models(config) -> list[ModelDescriptor]` (optional)
-
-Return available models. If not implemented, some adapters default to `[{'id': config['model']}]` when present.
-
-#### `get_tags(config, models) -> list[str]`
-
-Return capability/environment tags.
-
-These tags are used to enable/disable extensions/features/tools via their `required_tags()`.
-
-### I/O
-
-#### `call_api(native_messages, state)`
-
-Make a non-streaming API call.
-
-Best practice in this codebase: for non-streaming, consider returning no finals from `call_api` and emitting finals from `finalize` (so provider extensions can reliably modify the final message in their own `finalize` hook).
-
-See reference patterns:
-
-- `core/python/plugins/deterministic_stream_provider.py` (non-streaming computed in `call_api`, emitted in `finalize`)
-
-#### `stream_api(native_messages, state) -> Iterator[chunk]`
-
-Make a streaming API call and yield provider-native chunk objects.
-
-#### `process_chunk(native_chunk, native_messages, state)`
-
-Process one chunk on the hot path.
-
-Recommended pattern:
-
-- extract a delta from `native_chunk`
-- reduce into a partial fragment and `state["partial"]` accumulator
-- emit partial fragments (for UI) but do not append raw chunk objects to native history
-
-#### `finalize(native_messages, state)`
-
-Called once after streaming completes (and also used in non-streaming flows).
-
-Provider finalize runs first, then provider extension finalize hooks run, then feature finalize hooks run.
-
-Finalize should:
-
-- emit final assistant message(s)
-- append those finals to the returned provider-native history
-
----
-
-## Deep dive: state design patterns
-
-Recommended state keys:
-
-- `config`: the merged request config dict
-- `request`: request info (`url`, `payload`, `headers`, `timeout`)
-- `partial`: streaming accumulator dict (shared with extensions)
+- append *final* assistant messages to native history
+- do **not** append raw stream chunks to native history
+
+Example finalize (custom):
+
+```python
+def finalize(self, native_messages, state):
+    final = state.get("partial")
+    if final:
+        return [final], [*native_messages, final], state
+    return [], list(native_messages), state
+```
+
+### 7) Add extension and feature hooks (optional)
+
+Provider extensions are recommended for reasoning/tool-call accumulation.
+
+Example extension stub:
+
+```python
+class MyToolsExtension(ProviderExtensionPlugin):
+    name = "my_tools"
+    version = "0.1.0"
+    def required_tags(self):
+        return ["supports_tools"]
+```
+
+## Deep dive: provider state shape
+
+The provider wrapper owns a shared state dict for one request. Providers, provider extensions, and features can read/write it.
+
+Recommended keys:
+
+```python
+state = {
+  "config": config,               # resolved request config
+  "request": {
+    "url": "...",
+    "payload": {...},
+    "headers": {...},
+    "timeout": 60,
+  },
+  "partial": None,               # streaming accumulator (dict)
+  "debug_stream": False,         # optional
+}
+```
 
 Guidelines:
 
-- Treat state as immutable-by-convention: return new dicts rather than mutating in place.
-  (Some providers mutate for convenience; keep it minimal and predictable.)
-- Never log secrets (API keys, auth headers).
+- Keep `state` JSON-serializable when you can (debugging is easier).
+- Avoid storing raw chunks in native history; if you need them for debugging, store them under a state key that is not persisted.
+
+Runtime reference:
+
+- `core/python/agent_core/plugin/provider.py` (wrapper stores/discards state)
 
 ---
 
 ## Deep dive: native history retention
 
-AgentCore may persist provider-native history to:
+AgentCore can retain provider-native history in `session.metadata["native_messages"]`.
 
-- keep exact provider semantics across turns
-- preserve fields that are lossy across core ↔ native conversion
+Why it matters:
 
-Key ideas:
+- Core↔native conversion can be lossy.
+- Some provider-native fields (tool call IDs, cache metadata, special roles) must survive across turns.
 
-- After a request completes, the core stores provider-native history under `session.metadata["native_messages"]`.
-- The core verifies integrity between core messages and retained native history using `native_messages_integrity`.
-- When native history is present and valid, subsequent requests reuse it instead of reconverting full history.
+Provider rules of thumb:
 
-Provider/plugin author requirements:
+1. Always return a coherent **full** native history list.
+2. Append final assistant messages to native history.
+3. Do not append raw stream chunks to native history.
+4. Use `_metadata` on native messages if you need metadata to survive rebuild-from-native.
 
-1. Return coherent native history from `call_api` / `process_chunk` / `finalize`.
-2. Append final assistant message(s) into native history.
-3. Do not append raw per-chunk objects to native history.
-4. If you need metadata to survive rebuild-from-native, persist it into native messages under `_metadata`.
+Example: preserving metadata through rebuild-from-native:
 
-Reference tests showing why this matters:
+```python
+# in to_native_messages
+nm = {"role": role, "content": content, "_metadata": {"cached_tokens": 123}}
+
+# in from_native_messages
+md = dict(native.get("_metadata") or {})
+core_msg = {"role": native.get("role"), "content": native.get("content"), "metadata": md}
+```
+
+Recommended retention test pattern (native-only marker):
+
+```python
+class MarkerExt(ProviderExtensionPlugin):
+    def finalize(self, finals, native, state):
+        return finals, [{**m, "_native_only": True} for m in native], state
+
+class MyProvider(...):
+    def call_api(self, native_messages, state):
+        preserved = any(m.get("_native_only") for m in native_messages)
+        ...
+```
+
+See also:
 
 - `core/python/tests/test_native_retention_across_core_instances.py`
 
@@ -561,128 +510,208 @@ Reference tests showing why this matters:
 
 ## Deep dive: streaming patterns & recipes
 
-### Accumulator-based pattern
+### Recipe 1: OpenAI-style SSE JSON chunks
 
-This is the recommended streaming pattern:
+Many providers stream line-delimited JSON where each line contains something like:
 
-- `stream_api` yields raw chunks
-- `process_chunk` extracts a delta and merges into `state["partial"]`
-- `finalize` emits `state["partial"]` as the final assistant message
+```python
+{"choices": [{"delta": {"role": "assistant", "content": "H"}}]}
+```
 
-Reference implementation:
+Typical accumulator-based implementation:
 
-- `core/python/plugins/openai_provider.py` (OpenAI-compatible)
+```python
+def extract_delta(self, chunk: dict) -> dict:
+    return (chunk.get("choices") or [{}])[0]
 
-### Keep native history clean
+def process_delta(self, delta: dict, accumulated: dict | None):
+    base = accumulated or {}
+    d = delta.get("delta") or {}
+    frag = {"role": d.get("role", "assistant"), "content": d.get("content", "")}
+    new_acc = {"role": base.get("role", frag["role"]), "content": base.get("content", "") + frag["content"]}
+    return frag, new_acc
+```
 
-Provider-native history should represent chat turns (system/user/assistant/tool messages), not raw stream chunks.
+### Recipe 2: Custom `process_chunk` / `finalize` (when the accumulator pattern isn’t a fit)
 
-If you want to keep raw chunks for debugging, store them in state under a non-persisted key (do not append to native history).
+The accumulator pattern works well when your provider emits clean text/tool/reasoning deltas that can be reduced into a single “final assistant message”.
 
----
+Implementing `process_chunk`/`finalize` directly is appropriate when:
 
-## Deep dive: interop (extensions, features, tools)
+- The stream has multiple event types that don’t map cleanly to a single accumulator (e.g. separate “content blocks”, “thinking blocks”, “tool blocks”).
+- You need special-case handling of deltas (restarts, rewinds, out-of-order indices, partial JSON, etc.).
+- You want to emit more than one final message for a turn (for example, a primary answer plus an additional assistant note/message).
+- Using `extract_delta`/`process_delta` would be more complicated than handling the protocol explicitly.
 
-### Provider extensions
+In these cases, treat `native_chunk` as an opaque provider event and write an explicit reducer.
 
-Provider extensions run:
+Example (illustrative event-type switch):
 
-- on the hot path (`process_chunk`) after the provider processes each chunk
-- on the cold path (`finalize`) after the provider’s finalize
+```python
+def process_chunk(self, native_chunk, native_messages, state):
+    event_type = native_chunk.get("type")
 
-Best practice: put provider-specific enrichments here:
+    # Example: text delta
+    if event_type == "content_delta":
+        text = (native_chunk.get("delta") or {}).get("text", "")
+        acc = (state.get("acc") or "") + (text or "")
+        partials = [{"role": "assistant", "content": text}] if text else []
+        # IMPORTANT: keep native history unchanged while streaming.
+        return partials, [], list(native_messages), {**state, "acc": acc}
 
-- reasoning extraction
-- tool-call delta accumulation
-- citations
-- caching metadata
+    # Example: tool-call delta or other structured data
+    if event_type == "tool_delta":
+        tool_state = {**(state.get("tool") or {}), **(native_chunk.get("delta") or {})}
+        return [], [], list(native_messages), {**state, "tool": tool_state}
+
+    # Ignore unknown/non-message events
+    return [], [], list(native_messages), state
+
+
+def finalize(self, native_messages, state):
+    # Build one or more final provider-native assistant messages.
+    finals = []
+    if state.get("acc"):
+        finals.append({"role": "assistant", "content": state["acc"]})
+    if state.get("tool"):
+        # Example: attach tool summary as a second assistant message
+        finals.append({"role": "assistant", "content": f"Tool summary: {state['tool']}"})
+
+    full_history = [*native_messages, *finals]
+    return finals, full_history, state
+```
+
+Even with fully custom streaming, keep these invariants:
+
+- Do not append raw stream chunks/events into native history.
+- Append only final provider-native chat messages (assistant/tool/etc.) to native history.
+- Return `native_messages` as a coherent full-history list.
+
+### Tool calls and reasoning
+
+Best practice in this repo:
+
+- Provider: transport + base accumulation
+- Extension: tool_call and reasoning delta accumulation (shared `state["partial"]`)
 
 Reference extensions:
 
 - `core/python/plugins/openai_tools_extension.py`
 - `core/python/plugins/ollama_thinking_extension.py`
 
-### Tools
+---
 
-Tools run before provider init; their schemas are injected into provider config under `config["tools"]`.
+## Deep dive: debugging streaming chunks
 
-Providers that support tool calling should add these tool schemas to their request payload (often via an extension).
+When you don’t know the chunk shape, log the first N chunks/deltas.
 
-### Features
+Example (with truncation):
 
-Features run on the cold path. They can:
+```python
+from agent_core.utils import get_logger
+log = get_logger("my_provider")
 
-- adjust provider-native messages before I/O (`to_native_messages` / `initialize_request`)
-- transform provider-native finals in `finalize`
+if state.get("debug_stream"):
+    log.info("chunk", chunk=str(native_chunk)[:2000])
+```
+
+Recommended test during development:
+
+```python
+def test_capture_first_chunks(caplog):
+    # Enable debug_stream in config and run one streaming request.
+    with caplog.at_level("INFO"):
+        for _ in core.send_request_stream(session, {"debug_stream": True, "model": "m"}):
+            pass
+    # Inspect caplog.text while iterating.
+    assert "chunk" in caplog.text
+```
+
+---
+
+## Deep dive: interop (extensions/features/tools)
+
+### Provider extensions
+
+Extensions can:
+
+- read and update `state["partial"]` during streaming
+- attach provider-native fields to the final message during finalize
+- surface provider-native fields into core `metadata` via `from_native_messages`
+
+Example required-tags gating:
+
+```python
+class MyToolsExtension(ProviderExtensionPlugin):
+    def required_tags(self):
+        return ["supports_tools"]
+```
+
+### Tools (schema injection)
+
+Tools run before the provider initializes; tool schemas are injected into provider config under `config["tools"]`.
+
+Provider-side payload merge example:
+
+```python
+tools = state.get("config", {}).get("tools")
+if tools:
+    payload = {**payload, "tools": tools, "tool_choice": "auto"}
+```
+
+See ordering details: [Execution order](plugin-execution-order.md).
 
 ---
 
 ## Deep dive: testing provider plugins
 
-Recommended: keep tests **inside your plugin package**, and ensure they are offline/deterministic.
+A good development loop is:
 
-Minimum suite:
+- implement one method
+- run a focused test
+- iterate
 
-- non-streaming request: `send_request`
-- streaming request: `send_request_stream`
-- native retention across turns (preferably across two AgentCore instances)
-- extension/feature hooks produce observable transformations
+Minimum recommended provider test suite:
 
-Use the template as a reference:
+1) non-streaming `send_request` smoke test
+2) streaming `send_request_stream` smoke test
+3) native retention across two turns (preferably across two AgentCore instances)
+4) extension/feature hook produces observable change
 
-- `plugins/template-python-provider/tests/*`
+Example streaming smoke skeleton:
 
----
+```python
+def test_streaming_smoke():
+    partial = ""
+    final = None
+    for e in core.send_request_stream(session, cfg):
+        if e["type"] == "partial":
+            partial += e["message"].get("content", "")
+        elif e["type"] == "final":
+            final = e
+    assert final is not None
+```
 
-## Deep dive: packaging & loading
+Template tests to copy patterns from:
 
-Provider plugins are typically loaded as pip-installable repos.
-
-Recommended structure:
-
-- `pyproject.toml` (installable)
-- `agent_plugin.json` installed as a top-level data file
-- `src/<your_package>/...`
-- `tests/`
-
-The application layer supports loading:
-
-- dotted class paths (no install)
-- local path repos (`path:...`) using `agent_plugin.json`
-- git repos (`git+...`) using `agent_plugin.json`
-
-See runtime code:
-
-- `core/python/agent_app/plugin_sources/*`
+- `plugins/template-python-provider/tests/test_accumulator_path_smoke.py`
+- `plugins/template-python-provider/tests/test_custom_streaming_path_smoke.py`
+- `plugins/template-python-provider/tests/test_native_history_retention_pattern.py`
 
 ---
 
-## Troubleshooting / FAQ
-
-### “My metadata disappears after a turn”
-
-Persist it into native history under `_metadata` and reconstruct it in `from_native_messages`.
-
-### “My extension doesn’t enable”
-
-Check `get_tags` (provider) and `required_tags` (extension/feature/tool).
-
-### “Native integrity error”
-
-Your provider/native history may not match the core messages. Ensure you return full coherent native history and append finals correctly.
-
----
-
-## Reference implementations (copy patterns from these)
+## Reference implementations
 
 Providers:
 
-- `core/python/plugins/openai_provider.py` (OpenAI-compatible; streaming accumulator)
-- `plugins/openrouter/src/openrouter_plugins/openrouter_provider.py` (OpenRouter; OpenAI-like)
-- `core/python/plugins/deterministic_stream_provider.py` (deterministic provider used in integration tests)
-- `core/python/tests/dummy_provider.py` (dummy provider with clear comments)
+- `core/python/plugins/openai_provider.py`
+- `plugins/openrouter/src/openrouter_plugins/openrouter_provider.py`
 
 Provider extensions:
 
-- `core/python/plugins/openai_tools_extension.py` (tool-call accumulation)
-- `core/python/plugins/ollama_thinking_extension.py` (reasoning/thinking enrichment)
+- `core/python/plugins/openai_tools_extension.py`
+- `core/python/plugins/ollama_thinking_extension.py`
+
+Native retention tests:
+
+- `core/python/tests/test_native_retention_across_core_instances.py`
