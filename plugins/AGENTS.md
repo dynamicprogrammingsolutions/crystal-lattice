@@ -11,7 +11,8 @@ What you'll find here:
 
 For plugin authoring guidance, see:
 
-- `docs/plugins/development.md`
+- `docs/plugins/development.md` (general overview)
+- `plugins/docs/provider-plugins.md` (canonical provider authoring guide)
 
 ## Testing Pattern
 
