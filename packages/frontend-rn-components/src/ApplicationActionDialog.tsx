@@ -72,6 +72,8 @@ export function ApplicationActionDialogLayout({
   const [valuesByName, setValuesByName] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
+  const initialValuesByNameRef = useRef<Record<string, string>>({});
+
   const firstInputRef = useRef<TextInput | null>(null);
   const submitCaptureRef = useRef<TextInput | null>(null);
 
@@ -93,6 +95,7 @@ export function ApplicationActionDialogLayout({
 
     if (kind !== 'form') {
       setValuesByName({});
+      initialValuesByNameRef.current = {};
       setError(null);
       return;
     }
@@ -138,6 +141,7 @@ export function ApplicationActionDialogLayout({
     });
 
     setValuesByName(initial);
+    initialValuesByNameRef.current = initial;
     setError(null);
   }, [dialog, inputs, kind, prefillContext]);
 
@@ -210,7 +214,12 @@ export function ApplicationActionDialogLayout({
 
         const fieldType = typeof field.type === 'string' ? field.type : 'string';
         const canSubmitEmpty = field.submit_empty === true;
-        if (canSubmitEmpty && (fieldType === 'string' || fieldType === 'multiline')) {
+        const initialTrimmed = (initialValuesByNameRef.current?.[name] ?? '').trim();
+        const shouldSendEmptyToClear = !!initialTrimmed;
+        if (
+          (canSubmitEmpty || shouldSendEmptyToClear) &&
+          (fieldType === 'string' || fieldType === 'multiline')
+        ) {
           result[name] = '';
         }
         continue;
