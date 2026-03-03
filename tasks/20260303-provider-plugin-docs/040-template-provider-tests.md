@@ -278,3 +278,45 @@ This would allow the same test suite to validate multiple providers without copy
 - Reasoning may be absent or encrypted; tests should be tolerant unless strict mode is enabled.
 - Usage metadata is provider-specific; treat it as optional but recommended.
 - For some providers/models, you may need request options/features to force provider routing; keep the test harness flexible.
+
+---
+
+## Plan (added during completion)
+
+1) Add `plugins/template-python-provider/tests/provider_test_config.py` for provider-under-test settings and an `INTEGRATION_ENABLED` gate.
+2) Add `plugins/template-python-provider/tests/_helpers.py` with small reusable helpers (dynamic import, core builder, streaming/non-streaming runners, and a simple tool-loop helper).
+3) Refactor the existing offline smoke tests to use the helpers and keep them minimal/copy-friendly.
+4) Add a small always-on unit test module for provider skeleton basics (schema, tags, conversions) that stays fully offline.
+5) Add integration scaffolds (basic/reasoning/tools/tools+reasoning/usage) that are marked `integration` and are `xfail(run=False)` unless `INTEGRATION_ENABLED` is set.
+6) Add an AgentApplication end-to-end tool-loop scaffold (puzzle-style) that is also gated behind `INTEGRATION_ENABLED`.
+7) Update `plugins/template-python-provider/pyproject.toml` to register the `integration` marker.
+
+---
+
+## Completion notes (added during completion)
+
+- Added reusable test plumbing:
+  - `plugins/template-python-provider/tests/provider_test_config.py` (single `INTEGRATION_ENABLED` gate + provider-under-test settings)
+  - `plugins/template-python-provider/tests/_helpers.py` (dynamic import, core builder, streaming/non-streaming runners, tool-loop helper)
+- Cleaned up existing offline tests to use helpers and keep them minimal:
+  - `plugins/template-python-provider/tests/test_accumulator_path_smoke.py`
+  - `plugins/template-python-provider/tests/test_custom_streaming_path_smoke.py`
+  - `plugins/template-python-provider/tests/test_native_history_retention_pattern.py`
+- Added always-on offline unit tests/examples:
+  - `plugins/template-python-provider/tests/test_provider_skeleton_unit.py`
+  - `plugins/template-python-provider/tests/test_extension_patterns_unit.py`
+- Added integration scaffolds (all `xfail(run=False)` unless enabled via `provider_test_config.py`):
+  - `plugins/template-python-provider/tests/test_provider_integration_basic.py`
+  - `plugins/template-python-provider/tests/test_provider_integration_reasoning.py`
+  - `plugins/template-python-provider/tests/test_provider_integration_tools.py`
+  - `plugins/template-python-provider/tests/test_provider_integration_tools_reasoning.py`
+  - `plugins/template-python-provider/tests/test_provider_integration_usage.py`
+  - `plugins/template-python-provider/tests/test_agent_application_integration_tools_e2e.py`
+- Updated `plugins/template-python-provider/pyproject.toml` to register the `integration` marker.
+
+### Verification
+
+Offline run stays green; integration scaffolds are collected but not executed by default:
+
+`pytest plugins/template-python-provider/tests -q`  
+Result: `13 passed, 8 xfailed`
