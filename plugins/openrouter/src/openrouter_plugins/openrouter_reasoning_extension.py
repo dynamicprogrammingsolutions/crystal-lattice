@@ -129,13 +129,39 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
         if len(messages) != len(native_messages):
             return messages
 
+        def _reasoning_summary_from_details(details: Any) -> str:
+            if not isinstance(details, list):
+                return ""
+            parts: List[str] = []
+            for item in details:
+                if not isinstance(item, dict):
+                    continue
+                # OpenRouter (OpenAI-compatible) summary chunks look like:
+                # {"type": "reasoning.summary", "summary": "...", ...}
+                if item.get("type") != "reasoning.summary":
+                    continue
+                summary = item.get("summary")
+                if isinstance(summary, str) and summary:
+                    parts.append(summary)
+            return "".join(parts)
+
         enhanced_messages = []
         for message, native_msg in zip(messages, native_messages):
             metadata = dict(message.get("metadata", {}))
 
-            # Extract reasoning text if present
-            if "reasoning" in native_msg:
-                metadata["reasoning"] = native_msg["reasoning"]
+            native_reasoning = native_msg.get("reasoning")
+            native_details = native_msg.get("reasoning_details")
+
+            # Prefer explicit reasoning when present and non-empty.
+            # If OpenRouter sends reasoning=None (newer OpenAI-compatible
+            # behavior) but includes a reasoning.summary in reasoning_details,
+            # synthesize reasoning text from the summary so UIs can stream it.
+            if isinstance(native_reasoning, str) and native_reasoning:
+                metadata["reasoning"] = native_reasoning
+            else:
+                summary = _reasoning_summary_from_details(native_details)
+                if summary:
+                    metadata["reasoning"] = summary
 
             # Preserve reasoning_details unchanged if present
             if "reasoning_details" in native_msg:
@@ -287,18 +313,40 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
         """
 
         match delta, accumulated:
-            case ({"delta": {"reasoning": reasoning, "reasoning_details": list(reasoning_details)}}, dict(acc)) | ({"message": {"reasoning": reasoning, "reasoning_details": list(reasoning_details)}}, dict(acc)):
+            case (
+                {"delta": {"reasoning": reasoning, "reasoning_details": list(reasoning_details)}},
+                dict(acc),
+            ) | (
+                {"message": {"reasoning": reasoning, "reasoning_details": list(reasoning_details)}},
+                dict(acc),
+            ):
                 return current_partial, {
                     **acc,
                     "reasoning": acc.get("reasoning", "") + (reasoning or ""),
                     "reasoning_details": self._accumulate_reasoning_details(
                         acc.get("reasoning_details", []), reasoning_details
-                    )
+                    ),
                 }
-            case ({"delta": {"reasoning": reasoning}}, dict(acc)) | ({"message": {"reasoning": reasoning}}, dict(acc)):
+            case (
+                {"delta": {"reasoning_details": list(reasoning_details)}},
+                dict(acc),
+            ) | (
+                {"message": {"reasoning_details": list(reasoning_details)}},
+                dict(acc),
+            ):
                 return current_partial, {
                     **acc,
-                    "reasoning": acc.get("reasoning", "") + (reasoning or "")
+                    "reasoning_details": self._accumulate_reasoning_details(
+                        acc.get("reasoning_details", []), reasoning_details
+                    ),
+                }
+            case ({"delta": {"reasoning": reasoning}}, dict(acc)) | (
+                {"message": {"reasoning": reasoning}},
+                dict(acc),
+            ):
+                return current_partial, {
+                    **acc,
+                    "reasoning": acc.get("reasoning", "") + (reasoning or ""),
                 }
             case _:
                 return current_partial, accumulated
