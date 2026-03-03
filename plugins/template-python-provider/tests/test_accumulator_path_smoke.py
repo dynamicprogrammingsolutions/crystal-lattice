@@ -2,12 +2,11 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterator, List, Tuple
 
-from agent_core import AgentCore
-
+from _helpers import build_core, run_non_streaming, run_streaming
 from template_python_provider.provider import TemplateProvider
 
 
-class _TestAccumulatorProvider(TemplateProvider):
+class _AccumulatorEchoProvider(TemplateProvider):
     """Test-only provider that fills in the skeleton with deterministic behavior."""
 
     name = "_test_accumulator_provider"
@@ -56,31 +55,21 @@ class _TestAccumulatorProvider(TemplateProvider):
 
 
 def test_non_streaming_smoke() -> None:
-    core = AgentCore()
-    core.register_provider(_TestAccumulatorProvider)
+    core = build_core(_AccumulatorEchoProvider)
 
     session = core.create_session()
     session = core.add_message(session, "user", "Hello")
-    _session2, finals = core.send_request(session, {"model": "m"})
+    _session2, finals = run_non_streaming(core, session, {"model": "m"})
 
     assert finals[-1]["content"] == "Echo: Hello"
 
 
 def test_streaming_smoke() -> None:
-    core = AgentCore()
-    core.register_provider(_TestAccumulatorProvider)
+    core = build_core(_AccumulatorEchoProvider)
 
     session = core.create_session()
     session = core.add_message(session, "user", "Hello")
-
-    partial_text = ""
-    final_event = None
-    for event in core.send_request_stream(session, {"model": "m"}):
-        if event["type"] == "partial":
-            partial_text += event["message"].get("content", "")
-        elif event["type"] == "final":
-            final_event = event
+    _session2, finals, partial_text = run_streaming(core, session, {"model": "m"})
 
     assert partial_text == "Echo: Hello"
-    assert final_event is not None
-    assert final_event["messages"][-1]["content"] == "Echo: Hello"
+    assert finals and finals[-1]["content"] == "Echo: Hello"
