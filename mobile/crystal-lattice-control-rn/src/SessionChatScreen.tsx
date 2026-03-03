@@ -52,6 +52,7 @@ import {
 import MessageBubble from './components/MessageBubble';
 import { DependencyFlatList } from './components/DependencyFlatList';
 import DebugEventsView from './components/DebugEventsView';
+import OptionsPickerModal from './components/OptionsPickerModal';
 import SessionSettingsModal from './components/SessionSettingsModal';
 import SessionPluginsModal from './components/SessionPluginsModal';
 import AgentSwitchModal from './components/AgentSwitchModal';
@@ -253,7 +254,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [sessionBaseConfig, setSessionBaseConfig] = useState<Record<string, any>>({});
   const [composerLeftSelectModalElement, setComposerLeftSelectModalElement] =
     useState<ComposerAttachmentUiElement | null>(null);
-  const [composerLeftSelectModalSearch, setComposerLeftSelectModalSearch] = useState('');
   const [pluginActionInProgress, setPluginActionInProgress] = useState(false);
   const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
   const {
@@ -445,20 +445,20 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     });
   const uiSchemaElements = sessionUiSchemaState?.elements ?? [];
 
-  const composerAttachmentElements: ComposerAttachmentUiElement[] = useMemo(() => {
-    return (uiSchemaElements || []).filter((el) => {
-      if (!el || el.ui_type !== 'composer_attachment') return false;
-      const typed = el as any;
-      if (typeof typed.attachment_type !== 'string' || !typed.attachment_type.trim()) return false;
-      if (typed.display_placement !== 'above' && typed.display_placement !== 'below') return false;
-      return true;
-    }) as ComposerAttachmentUiElement[];
-  }, [uiSchemaElements]);
+  // const composerAttachmentElements: ComposerAttachmentUiElement[] = useMemo(() => {
+  //   return (uiSchemaElements || []).filter((el) => {
+  //     if (!el || el.ui_type !== 'composer_attachment') return false;
+  //     const typed = el as any;
+  //     if (typeof typed.attachment_type !== 'string' || !typed.attachment_type.trim()) return false;
+  //     if (typed.display_placement !== 'above' && typed.display_placement !== 'below') return false;
+  //     return true;
+  //   }) as ComposerAttachmentUiElement[];
+  // }, [uiSchemaElements]);
 
-  /** All composer attachments (above, below, left) for actions menu and key map. */
+  /** All composer attachments (above, below, left) for actions menu and key map. Includes model_picker. */
   const composerAttachmentElementsAll: ComposerAttachmentUiElement[] = useMemo(() => {
     return (uiSchemaElements || []).filter((el) => {
-      if (!el || el.ui_type !== 'composer_attachment') return false;
+      if (!el || (el.ui_type !== 'composer_attachment' && el.ui_type !== 'model_picker')) return false;
       const typed = el as any;
       if (typeof typed.attachment_type !== 'string' || !typed.attachment_type.trim()) return false;
       return (
@@ -2363,76 +2363,24 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        visible={settingsVisible}
 	        onRequestClose={() => setSettingsVisible(false)}
 	      />
-	      {composerLeftSelectModalElement && (
-	        <Modal
-	          visible
-	          transparent
-	          animationType="fade"
-	          onRequestClose={() => {
-	            setComposerLeftSelectModalElement(null);
-	            setComposerLeftSelectModalSearch('');
-	          }}
-	        >
-	          <TouchableWithoutFeedback
-	            onPress={() => {
-	              setComposerLeftSelectModalElement(null);
-	              setComposerLeftSelectModalSearch('');
-	            }}
-	          >
-	            <View style={styles.modalOverlay}>
-	              <TouchableWithoutFeedback onPress={() => {}}>
-	                <View style={styles.modalContent}>
-	                  <TextInput
-	                    style={styles.composerLeftSelectModalSearch}
-	                    placeholder="Search..."
-	                    placeholderTextColor={theme.textSecondary}
-	                    value={composerLeftSelectModalSearch}
-	                    onChangeText={setComposerLeftSelectModalSearch}
-	                    autoCapitalize="none"
-	                    autoCorrect={false}
-	                  />
-	                  <ScrollView style={styles.composerLeftSelectModalList}>
-	                    {normalizeSelectOptions(composerLeftSelectModalElement.options)
-	                      .filter((opt) => {
-	                        const q = composerLeftSelectModalSearch.trim().toLowerCase();
-	                        if (!q) return true;
-	                        const text = `${opt.label ?? ''} ${opt.value ?? ''}`.toLowerCase();
-	                        return text.includes(q);
-	                      })
-	                      .map((opt) => (
-	                        <TouchableOpacity
-	                          key={opt.value}
-	                          style={styles.composerLeftSelectModalItem}
-	                          onPress={() => {
-	                            handleComposerLeftSelectOption(
-	                              (composerLeftSelectModalElement.key as string) ?? '',
-	                              opt.value,
-	                            );
-	                            setComposerLeftSelectModalElement(null);
-	                            setComposerLeftSelectModalSearch('');
-	                          }}
-	                        >
-	                          <Text style={styles.composerLeftSelectModalItemText} numberOfLines={2}>
-	                            {opt.label}
-	                          </Text>
-	                        </TouchableOpacity>
-	                      ))}
-	                  </ScrollView>
-	                  <TouchableOpacity
-	                    style={[styles.button, styles.secondaryButton, styles.modalButton]}
-	                    onPress={() => {
-	                      setComposerLeftSelectModalElement(null);
-	                      setComposerLeftSelectModalSearch('');
-	                    }}
-	                  >
-	                    <Text style={styles.buttonTextSecondary}>Cancel</Text>
-	                  </TouchableOpacity>
-	                </View>
-	              </TouchableWithoutFeedback>
-	            </View>
-	          </TouchableWithoutFeedback>
-	        </Modal>
-	      )}
+	      <OptionsPickerModal
+	        visible={!!composerLeftSelectModalElement}
+	        options={
+	          composerLeftSelectModalElement
+	            ? normalizeSelectOptions(composerLeftSelectModalElement.options)
+	            : []
+	        }
+	        onSelect={(value) => {
+	          if (composerLeftSelectModalElement?.key != null) {
+	            handleComposerLeftSelectOption(
+	              String(composerLeftSelectModalElement.key),
+	              value,
+	            );
+	          }
+	          setComposerLeftSelectModalElement(null);
+	        }}
+	        onRequestClose={() => setComposerLeftSelectModalElement(null)}
+	      />
 	      <SessionPluginsModal
 	        backend={backend}
 	        sessionId={sessionId}
@@ -2625,31 +2573,6 @@ const createStyles = (theme: Theme) =>
     },
     composerMainColumn: {
       minWidth: 0,
-    },
-    composerLeftSelectModalSearch: {
-      borderWidth: 1,
-      borderColor: theme.border,
-      borderRadius: 8,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      fontSize: 14,
-      color: theme.text,
-      backgroundColor: theme.surface,
-      marginBottom: 8,
-    },
-    composerLeftSelectModalList: {
-      maxHeight: 320,
-      marginVertical: 12,
-    },
-    composerLeftSelectModalItem: {
-      paddingVertical: 12,
-      paddingHorizontal: 8,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
-    },
-    composerLeftSelectModalItemText: {
-      fontSize: 14,
-      color: theme.text,
     },
     composerTopRow: {
       flexDirection: 'row',

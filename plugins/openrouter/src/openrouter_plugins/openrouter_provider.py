@@ -67,7 +67,7 @@ class OpenRouterProvider(ProviderPlugin):
                 **({"options": model_options} if use_dropdown else {}),
             },
             {
-                "ui_type": "composer_attachment",
+                "ui_type": "model_picker",
                 "key": "model",
                 "attachment_type": "dropdown",
                 "display_placement": "left",

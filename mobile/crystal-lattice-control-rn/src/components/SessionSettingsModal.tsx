@@ -10,7 +10,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
@@ -26,6 +25,7 @@ import {
 import Icon from 'react-native-vector-icons/Feather';
 
 import type { UiSchemaElement } from '../api';
+import OptionsPickerModal from './OptionsPickerModal';
 import { useTheme, type Theme } from '../theme';
 
 export interface SessionSettingsModalProps {
@@ -58,7 +58,6 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     options: { value: string; label: string }[];
     selected: string;
   } | null>(null);
-  const [dropdownSearch, setDropdownSearch] = useState('');
 
   useEffect(() => {
     if (!visible) {
@@ -477,7 +476,6 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
                   options,
                   selected,
                 });
-                setDropdownSearch('');
               }}
             >
               <Text style={styles.dropdownButtonLabel} numberOfLines={1}>
@@ -541,76 +539,17 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
           </View>
         </View>
       </View>
-      {dropdownState && (
-        <Modal
-          visible
-          transparent
-          animationType="fade"
-          onRequestClose={() => {
+      <OptionsPickerModal
+        visible={!!dropdownState}
+        options={dropdownState?.options ?? []}
+        onSelect={(value) => {
+          if (dropdownState) {
+            handleSelectOption(dropdownState.key, value);
             setDropdownState(null);
-            setDropdownSearch('');
-          }}
-        >
-          <TouchableWithoutFeedback
-            onPress={() => {
-              setDropdownState(null);
-              setDropdownSearch('');
-            }}
-          >
-            <View style={styles.dropdownModalOverlay}>
-              <TouchableWithoutFeedback onPress={() => {}}>
-                <View style={styles.dropdownModalContent}>
-                  <TextInput
-                    style={styles.dropdownModalSearch}
-                    placeholder="Search..."
-                    placeholderTextColor={theme.textSecondary}
-                    value={dropdownSearch}
-                    onChangeText={setDropdownSearch}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                  <ScrollView style={styles.dropdownModalList}>
-                    {dropdownState.options
-                      .filter((opt) => {
-                        const q = dropdownSearch.trim().toLowerCase();
-                        if (!q) return true;
-                        const text = `${opt.label ?? ''} ${opt.value ?? ''}`.toLowerCase();
-                        return text.includes(q);
-                      })
-                      .map((opt) => (
-                        <TouchableOpacity
-                          key={opt.value}
-                          style={styles.dropdownModalItem}
-                          onPress={() => {
-                            handleSelectOption(dropdownState.key, opt.value);
-                            setDropdownState(null);
-                            setDropdownSearch('');
-                          }}
-                        >
-                          <Text
-                            style={styles.dropdownModalItemText}
-                            numberOfLines={2}
-                          >
-                            {opt.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                  </ScrollView>
-                  <TouchableOpacity
-                    style={[styles.button, styles.secondaryButton, styles.dropdownModalButton]}
-                    onPress={() => {
-                      setDropdownState(null);
-                      setDropdownSearch('');
-                    }}
-                  >
-                    <Text style={styles.buttonTextSecondary}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-              </TouchableWithoutFeedback>
-            </View>
-          </TouchableWithoutFeedback>
-        </Modal>
-      )}
+          }
+        }}
+        onRequestClose={() => setDropdownState(null)}
+      />
     </Modal>
   );
 };
@@ -842,61 +781,6 @@ const createStyles = (theme: Theme) =>
     dropdownButtonValue: {
       flex: 1,
       fontSize: 14,
-      color: theme.text,
-    },
-    dropdownModalOverlay: {
-      flex: 1,
-      backgroundColor: theme.modalBackdrop,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    dropdownModalContent: {
-      width: '85%',
-      maxHeight: '70%',
-      backgroundColor: theme.surface,
-      borderRadius: 12,
-      padding: 16,
-    },
-    dropdownModalSearch: {
-      borderWidth: 1,
-      borderColor: theme.border,
-      borderRadius: 8,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      fontSize: 14,
-      color: theme.text,
-      backgroundColor: theme.surface,
-      marginBottom: 8,
-    },
-    dropdownModalList: {
-      maxHeight: 320,
-      marginVertical: 8,
-    },
-    dropdownModalItem: {
-      paddingVertical: 12,
-      paddingHorizontal: 8,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
-    },
-    dropdownModalItemText: {
-      fontSize: 14,
-      color: theme.text,
-    },
-    dropdownModalButton: {
-      marginTop: 8,
-      alignSelf: 'flex-end',
-    },
-    button: {
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 8,
-    },
-    secondaryButton: {
-      backgroundColor: theme.surfaceAlt,
-    },
-    buttonTextSecondary: {
-      fontSize: 14,
-      fontWeight: '600',
       color: theme.text,
     },
   });
