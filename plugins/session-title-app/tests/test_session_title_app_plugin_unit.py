@@ -125,6 +125,35 @@ def test_set_session_title_clears_title_when_empty(tmp_path: Path) -> None:
     assert "title" not in md2
 
 
+def test_set_session_title_clears_title_without_touching_subtitle(tmp_path: Path) -> None:
+    app = _build_app(tmp_path)
+
+    session_id = _create_session(app)
+
+    _ = app.execute_application_action(
+        plugin_id="session_title",
+        action_id="set_session_title",
+        params={
+            "session_id": session_id,
+            "title": "Initial title",
+            "subtitle": "Initial subtitle",
+        },
+    )
+
+    _ = app.execute_application_action(
+        plugin_id="session_title",
+        action_id="set_session_title",
+        params={"session_id": session_id, "title": "   "},
+    )
+
+    ctx = app.load_session(session_id)
+    assert ctx is not None
+    _core, _base, session = ctx
+    md = session.metadata if isinstance(session.metadata, dict) else {}
+    assert "title" not in md
+    assert md.get("subtitle") == "Initial subtitle"
+
+
 def test_set_session_title_publishes_metadata_updated_event(tmp_path: Path) -> None:
     config_path = _make_config_with_session_title(tmp_path)
     session_root = tmp_path / "sessions"
@@ -178,6 +207,38 @@ def test_set_session_title_can_set_subtitle(tmp_path: Path) -> None:
     assert metadata.get("subtitle") == "Daily standup notes"
 
 
+def test_set_session_title_can_set_subtitle_without_title(tmp_path: Path) -> None:
+    app = _build_app(tmp_path)
+
+    session_id = _create_session(app)
+
+    _ = app.execute_application_action(
+        plugin_id="session_title",
+        action_id="set_session_title",
+        params={"session_id": session_id, "title": "Initial title"},
+    )
+
+    result = app.execute_application_action(
+        plugin_id="session_title",
+        action_id="set_session_title",
+        params={
+            "session_id": session_id,
+            "subtitle": "Daily standup notes",
+        },
+    )
+
+    updated = _get_mutations(result).get("updated_session_ids") or []
+    assert updated == [session_id]
+
+    ctx = app.load_session(session_id)
+    assert ctx is not None
+    _core, _base, session = ctx
+
+    metadata = session.metadata if isinstance(session.metadata, dict) else {}
+    assert metadata.get("title") == "Initial title"
+    assert metadata.get("subtitle") == "Daily standup notes"
+
+
 def test_set_session_title_clears_subtitle_when_empty(tmp_path: Path) -> None:
     app = _build_app(tmp_path)
 
@@ -217,6 +278,35 @@ def test_set_session_title_clears_subtitle_when_empty(tmp_path: Path) -> None:
     _core2, _base2, session2 = ctx2
     md2 = session2.metadata if isinstance(session2.metadata, dict) else {}
     assert "subtitle" not in md2
+
+
+def test_set_session_title_clears_subtitle_without_touching_title(tmp_path: Path) -> None:
+    app = _build_app(tmp_path)
+
+    session_id = _create_session(app)
+
+    _ = app.execute_application_action(
+        plugin_id="session_title",
+        action_id="set_session_title",
+        params={
+            "session_id": session_id,
+            "title": "Initial title",
+            "subtitle": "Initial subtitle",
+        },
+    )
+
+    _ = app.execute_application_action(
+        plugin_id="session_title",
+        action_id="set_session_title",
+        params={"session_id": session_id, "subtitle": "   "},
+    )
+
+    ctx = app.load_session(session_id)
+    assert ctx is not None
+    _core, _base, session = ctx
+    md = session.metadata if isinstance(session.metadata, dict) else {}
+    assert md.get("title") == "Initial title"
+    assert "subtitle" not in md
 
 
 def test_session_title_ui_schema_includes_subtitle_field(tmp_path: Path) -> None:

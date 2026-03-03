@@ -101,6 +101,7 @@ class SessionTitleAppPlugin:
                             "type": "string",
                             "label": "Title",
                             "required": False,
+                            "submit_empty": True,
                             "placeholder": "e.g. Daily standup notes",
                             # Hint for UIs to prefill from the current
                             # session metadata title field.
@@ -111,6 +112,7 @@ class SessionTitleAppPlugin:
                             "type": "string",
                             "label": "Subtitle",
                             "required": False,
+                            "submit_empty": True,
                             "placeholder": "Optional subtitle or description",
                             "prefill_from": f"$session.metadata.{subtitle_metadata_key}",
                         },
@@ -140,6 +142,7 @@ class SessionTitleAppPlugin:
                             "type": "string",
                             "label": "Title",
                             "required": False,
+                            "submit_empty": True,
                             "placeholder": "e.g. Daily standup notes",
                             "prefill_from": f"$session.metadata.{metadata_key}",
                         },
@@ -148,6 +151,7 @@ class SessionTitleAppPlugin:
                             "type": "string",
                             "label": "Subtitle",
                             "required": False,
+                            "submit_empty": True,
                             "placeholder": "Optional subtitle or description",
                             "prefill_from": f"$session.metadata.{subtitle_metadata_key}",
                         },
@@ -204,10 +208,10 @@ class SessionTitleAppPlugin:
             {
                 "id": "set_session_title",
                 "label": "Set session title",
-                "description": "Set or clear the session's title metadata.",
+                "description": "Set or clear the session's title/subtitle metadata.",
                 "inputs": {
                     "session_id": {"type": "string", "required": True},
-                    "title": {"type": "string", "required": True},
+                    "title": {"type": "string", "required": False},
                     "subtitle": {"type": "string", "required": False},
                     "source": {"type": "string", "required": False},
                 },
@@ -240,19 +244,22 @@ class SessionTitleAppPlugin:
         if not isinstance(session_id, str) or not session_id:
             raise ValueError("session_id must be a non-empty string")
 
-        # Inputs have already been validated for primitive types by
-        # AgentApplication._validate_action_inputs, so "title" is known to
-        # be a string here.
-        title_val = params.get("title")
-        if not isinstance(title_val, str):  # defensive
-            raise ValueError("title must be a string")
+        title_supplied = "title" in params
+        subtitle_supplied = "subtitle" in params
+        if not title_supplied and not subtitle_supplied:
+            raise ValueError("At least one of 'title' or 'subtitle' must be provided")
 
-        new_title = title_val.strip()
         metadata_key = state.get("metadata_key") or "title"
         subtitle_metadata_key = state.get("subtitle_metadata_key") or "subtitle"
 
-        subtitle_supplied = "subtitle" in params
+        title_val = params.get("title")
+        if title_supplied and not isinstance(title_val, str):  # defensive
+            raise ValueError("title must be a string")
+        new_title = title_val.strip() if isinstance(title_val, str) else ""
+
         subtitle_val = params.get("subtitle")
+        if subtitle_supplied and not isinstance(subtitle_val, str):  # defensive
+            raise ValueError("subtitle must be a string")
         new_subtitle = subtitle_val.strip() if isinstance(subtitle_val, str) else ""
 
         with app.acquire_session_lock(session_id):
@@ -263,11 +270,12 @@ class SessionTitleAppPlugin:
             _core, _base_config, session = ctx
             metadata = session.metadata if isinstance(session.metadata, dict) else {}
 
-            if new_title:
-                new_metadata = {**metadata, metadata_key: new_title}
-            else:
-                new_metadata = dict(metadata)
-                new_metadata.pop(metadata_key, None)
+            new_metadata = dict(metadata)
+            if title_supplied:
+                if new_title:
+                    new_metadata[metadata_key] = new_title
+                else:
+                    new_metadata.pop(metadata_key, None)
 
             if subtitle_supplied:
                 if new_subtitle:
@@ -282,8 +290,10 @@ class SessionTitleAppPlugin:
             )
             app.save_session(new_session)
 
-            fields = [metadata_key]
-            if subtitle_supplied:
+            fields: List[str] = []
+            if title_supplied:
+                fields.append(metadata_key)
+            if subtitle_supplied and subtitle_metadata_key not in fields:
                 fields.append(subtitle_metadata_key)
 
             stored = app.publish_event(
