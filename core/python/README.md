@@ -199,12 +199,8 @@ class MyProvider:
         Dict[str, Any],
     ]:
         # Return (final_messages, partial_messages, native_messages, new_state)
-        return (
-            [{"role": "assistant", "content": "Response", "metadata": {}}],
-            [],
-            native_messages,
-            state,
-        )
+        msg = {"role": "assistant", "content": "Response"}
+        return ([msg], [], [*native_messages, msg], state)
 ```
 
 In the Python SDK, adapter classes (for example `ProviderDefaultsAdapter`) supply default implementations for hooks like `to_native_messages`, `from_native_messages`, `initialize_request`, `finalize`, and `stream_api` when they are omitted, so most providers only need to implement configuration, `init`, and one of the I/O entry points (`call_api` or `stream_api`).
@@ -216,11 +212,12 @@ cd core/python
 pytest
 ```
 
-By default pytest is configured with `-m 'not integration'`, so remote integration tests (OpenRouter, etc.) are skipped unless explicitly selected. Useful commands:
+By default pytest is configured with `-m 'not integration'`, so tests marked as integration are skipped unless explicitly selected. Useful commands:
 
-- `pytest tests -m openrouter -q` – run OpenRouter integration tests
 - `pytest tests -m integration -q` – run all integration tests
 - `pytest tests -m ollama -q` – run only Ollama tests
+
+OpenRouter integration tests live under `plugins/openrouter/tests` (repo root) and are marked with `openrouter`.
 
 ### Run with Coverage
 

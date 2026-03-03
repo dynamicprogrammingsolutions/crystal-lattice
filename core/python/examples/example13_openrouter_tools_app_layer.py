@@ -32,9 +32,7 @@ That config declares:
   - tools config: ``allowed_paths``, ``max_file_size``, ``working_directory``
   - reasoning config: ``enable_reasoning=True``, ``reasoning_effort="low"``
 - Plugins:
-  - ``plugins.openrouter_provider.OpenRouterProvider``
-  - ``plugins.openrouter_reasoning_extension.OpenRouterReasoningExtension``
-  - ``plugins.openrouter_tools_extension.OpenRouterToolsExtension``
+  - ``path:../../../plugins/openrouter`` (loads ``openrouter_plugins.*``)
   - ``plugins.file_reader_tool.FileReaderTool``
   - ``plugins.file_writer_tool.FileWriterTool``
 - Agent ``default`` bound to provider ``openrouter_tools``

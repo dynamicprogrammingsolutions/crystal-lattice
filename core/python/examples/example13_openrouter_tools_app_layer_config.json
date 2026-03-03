@@ -15,9 +15,7 @@
     }
   },
   "plugins": [
-    "plugins.openrouter_provider.OpenRouterProvider",
-    "plugins.openrouter_reasoning_extension.OpenRouterReasoningExtension",
-    "plugins.openrouter_tools_extension.OpenRouterToolsExtension",
+    "path:../../../plugins/openrouter",
     "plugins.file_reader_tool.FileReaderTool",
     "plugins.file_writer_tool.FileWriterTool"
   ],
