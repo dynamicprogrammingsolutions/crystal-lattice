@@ -173,7 +173,9 @@ class ProviderPlugin(BasePlugin, Protocol):
                 return list(native_messages)
             def call_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
                 content = f"Echo: {next((m['content'] for m in reversed(native_messages) if m.get('role')=='user'), '')}"
-                return ([{"role": "assistant", "content": content}], [], [], state)
+                msg = {"role": "assistant", "content": content}
+                # Return (final_messages, partial_messages, native_messages, new_state)
+                return ([msg], [], [*native_messages, msg], state)
             def stream_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
                 yield from []
         ```
@@ -388,7 +390,12 @@ class ProviderPlugin(BasePlugin, Protocol):
             state: Current shared provider state.
 
         Returns:
-            Tuple of (partial_messages, final_messages, native_messages, new_state).
+            Tuple of (final_messages, partial_messages, native_messages, new_state).
+
+        Note:
+            Internally, the provider wrapper normalizes these outputs into the
+            (partial_messages, final_messages, native_messages, new_state)
+            ordering used throughout the rest of the runtime.
         """
         return [], [], native_messages, state
 
@@ -429,7 +436,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
                 return {"prefix": {"type": "string", "default": "[EXT]"}}
             def init(self, config, state):
                 return state
-            def process_chunk(self, native_chunk, state, partial_messages, final_messages, native_messages):
+            def process_chunk(self, native_chunk, partial_messages, final_messages, native_messages, state):
                 pfx = state.get("config", {}).get("prefix", "[EXT]")
                 finals = [{**m, "content": f"{pfx} {m['content']}"} for m in final_messages]
                 return partial_messages, finals, native_messages, state
