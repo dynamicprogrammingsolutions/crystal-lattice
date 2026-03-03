@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
-from agent_core import AgentCore
 from agent_core.types import ProviderExtensionPlugin
 
+from _helpers import build_core, run_non_streaming
 from template_python_provider.provider import TemplateProvider
 
 
@@ -64,18 +64,16 @@ class _TestProviderWithRetention(TemplateProvider):
 def test_native_history_retention_across_core_instances() -> None:
     cfg: Dict[str, Any] = {"model": "m"}
 
-    core1 = AgentCore()
-    core1.register_provider(_TestProviderWithRetention, extensions=[_RetentionMarkerExtension])
+    core1 = build_core(_TestProviderWithRetention, extensions=[_RetentionMarkerExtension])
 
     session = core1.create_session()
     session = core1.add_message(session, "user", "First")
-    session1, _finals1 = core1.send_request(session, cfg)
+    session1, _finals1 = run_non_streaming(core1, session, cfg)
 
     # New core instance should reuse retained native history.
-    core2 = AgentCore()
-    core2.register_provider(_TestProviderWithRetention, extensions=[_RetentionMarkerExtension])
+    core2 = build_core(_TestProviderWithRetention, extensions=[_RetentionMarkerExtension])
 
     session2 = core2.add_message(session1, "user", "Second")
-    _session3, finals2 = core2.send_request(session2, cfg)
+    _session3, finals2 = run_non_streaming(core2, session2, cfg)
 
     assert finals2[-1]["content"] == "Echo: Second [preserved]"
