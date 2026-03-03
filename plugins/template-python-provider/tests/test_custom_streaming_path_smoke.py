@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterator, List, Tuple
 
-from agent_core import AgentCore
 from agent_core.types import ProviderPlugin
+
+from _helpers import build_core, run_streaming
 
 
 class _CustomStreamingProvider(ProviderPlugin):
@@ -65,20 +66,11 @@ class _CustomStreamingProvider(ProviderPlugin):
 
 
 def test_custom_streaming_provider_works() -> None:
-    core = AgentCore()
-    core.register_provider(_CustomStreamingProvider)
+    core = build_core(_CustomStreamingProvider)
 
     session = core.create_session()
     session = core.add_message(session, "user", "Hello")
-
-    partial_text = ""
-    final_event = None
-    for event in core.send_request_stream(session, {}):
-        if event["type"] == "partial":
-            partial_text += event["message"].get("content", "")
-        elif event["type"] == "final":
-            final_event = event
+    _session2, finals, partial_text = run_streaming(core, session, {})
 
     assert partial_text == "Echo: Hello"
-    assert final_event is not None
-    assert final_event["messages"][-1]["content"] == "Echo: Hello"
+    assert finals and finals[-1]["content"] == "Echo: Hello"
