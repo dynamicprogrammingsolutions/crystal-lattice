@@ -49,6 +49,7 @@ import { PanelHeader } from '../ui/PanelHeader';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
 import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationActionDialog';
 import { useSessionsPanelTabAutoSelect } from './useSessionsPanelTabAutoSelect';
+import { truncateByChars } from '../utils/text';
 
 const PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_session_list_actions_v1';
 const SESSION_DOUBLE_CLICK_MS = 300;
@@ -527,8 +528,15 @@ function SessionsPanelInner({
             const showRowControls = hovered;
 
             const presentation = deriveSessionListPresentationFromGroups(session, fieldGroups);
-            const title = presentation.title || session.preview || session.session_id;
-            const subtitle = presentation.subtitle;
+            const title = truncateByChars(
+              presentation.title || session.preview || session.session_id,
+              80,
+            );
+
+            const subtitle = truncateByChars(
+              presentation.subtitle ?? session.preview ?? '',
+              80,
+            );
             const meta = presentation.meta;
 
             return (
@@ -551,10 +559,8 @@ function SessionsPanelInner({
                 }
               >
                 <View style={styles.rowMain}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={styles.rowTitle} numberOfLines={1}>
-                      {title}
-                    </Text>
+                  <View style={styles.rowTitleRow}>
+                    <Text style={styles.rowTitle}>{title}</Text>
                     {pinnedToggleElement ? (
                       <Pressable
                         style={(state) => {
@@ -587,13 +593,9 @@ function SessionsPanelInner({
                   <Text style={styles.rowId} numberOfLines={1}>
                     {session.session_id}
                   </Text>
-                  {subtitle ? (
-                    <Text style={styles.rowSubtitle} numberOfLines={1}>
-                      {subtitle}
-                    </Text>
-                  ) : null}
+                  <Text style={styles.rowSubtitle}>{subtitle}</Text>
                   {meta ? (
-                    <Text style={styles.rowMeta} numberOfLines={1}>
+                    <Text style={styles.rowMeta}>
                       {meta}
                     </Text>
                   ) : null}
@@ -769,10 +771,17 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       flex: 1,
       gap: 2,
     },
+    rowTitleRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: 8,
+    },
     rowTitle: {
       fontSize: 13,
       fontWeight: '700',
       color: theme.text,
+      flexGrow: 1,
       flexShrink: 1,
     },
     rowId: {
