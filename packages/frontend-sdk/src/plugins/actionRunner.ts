@@ -46,6 +46,16 @@ function getFromPath(root: any, path: string): any {
   return current;
 }
 
+function getDialogFieldSubmitEmpty(element: ActionUiElement, fieldName: string): boolean {
+  const dialog: any = (element as any).dialog || null;
+  if (!dialog || typeof dialog !== 'object') return false;
+  if (dialog.kind !== 'form') return false;
+  const inputs: any = dialog.inputs;
+  if (!Array.isArray(inputs)) return false;
+  const field = inputs.find((f: any) => f && typeof f === 'object' && f.name === fieldName);
+  return field?.submit_empty === true;
+}
+
 function buildActionInputs(options: {
   element: ActionUiElement;
   actionDefsById: Record<string, ApplicationActionDefinition>;
@@ -80,6 +90,9 @@ function buildActionInputs(options: {
       } else if (source.startsWith('$dialog.')) {
         const path = source.slice('$dialog.'.length);
         value = getFromPath(context.dialogValues || {}, path);
+        if (value === undefined && context.dialogValues && getDialogFieldSubmitEmpty(element, path)) {
+          value = '';
+        }
       }
 
       if (value !== undefined) {
@@ -167,7 +180,23 @@ function deriveActionEffectsFromResult(options: {
 export function getRunActionErrorMessage(response: ExecuteActionResponse): string {
   if (!response) return 'Failed to execute action';
   if (response.status !== 'ok') {
-    return (response as any).message || 'Failed to execute action';
+    const msg = (response as any).message || 'Failed to execute action';
+    const details: any = (response as any).details;
+    if (details && typeof details === 'object') {
+      const missing = Array.isArray(details.missing_params) ? details.missing_params : [];
+      const extra = Array.isArray(details.extra_params) ? details.extra_params : [];
+      const invalid = details.invalid_types && typeof details.invalid_types === 'object'
+        ? Object.keys(details.invalid_types)
+        : [];
+
+      const parts: string[] = [];
+      if (missing.length) parts.push(`missing: ${missing.join(', ')}`);
+      if (invalid.length) parts.push(`invalid: ${invalid.join(', ')}`);
+      if (extra.length) parts.push(`extra: ${extra.join(', ')}`);
+      if (parts.length) return `${msg} (${parts.join('; ')})`;
+    }
+
+    return msg;
   }
 
   const okResp = response as ExecuteActionResponseOk;
