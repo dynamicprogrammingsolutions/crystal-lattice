@@ -194,7 +194,7 @@ admin tools.
 
 - [NEW] `GET /sessions/{session_id}/ui-schema`
     - Purpose: expose the full flattened UI schema for this session's
-      agent and plugin set, as returned by `AgentCore.get_ui_schema()`.
+      agent and plugin set, as returned by `AgentCore.get_ui_schema(config)`.
     - Usage:
         - Filter `ui_type == "config"` (or omitted) for configuration
           inputs.

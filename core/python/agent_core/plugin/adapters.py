@@ -13,6 +13,7 @@ instead of performing their own hasattr checks or defaulting logic.
 
 from __future__ import annotations
 
+import inspect
 from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Tuple, cast
 
 from ..types import FeaturePlugin, ProviderExtensionPlugin, ProviderPlugin, ToolPlugin
@@ -67,22 +68,44 @@ class _BasePluginDefaults:
             return self._safe_dict(fn())
         return {}
 
-    def get_ui_elements(self ,config: Optional[Dict[str, Any]] = None, tags: Optional[List[str]] = None, models: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:  # type: ignore[override]
-        fn = getattr(self.impl, "get_ui_elements", None)
-        if callable(fn):
-            raw = fn(config, tags, models)
-            items = self._safe_list(raw)
-            return [i for i in items if isinstance(i, dict)]
-        return []
+    @staticmethod
+    def _ui_elements_accepts_context(fn: Any) -> bool:
+        """Return True when `fn` appears to accept (config, tags, models).
 
-    def get_ui_elements_for_config(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Return UI elements for the given config; fall back to get_ui_elements if not implemented."""
-        fn = getattr(self.impl, "get_ui_elements_for_config", None)
-        if callable(fn):
-            raw = fn(config)
-            items = self._safe_list(raw)
-            return [i for i in items if isinstance(i, dict)]
-        return self.get_ui_elements()
+        This provides backward compatibility for legacy plugin
+        implementations that define `get_ui_elements(self)` with no args.
+        """
+
+        try:
+            sig = inspect.signature(fn)
+        except (TypeError, ValueError):
+            return True
+
+        params = list(sig.parameters.values())
+        if any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in params):
+            return True
+
+        positional = [
+            p
+            for p in params
+            if p.kind
+            in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        ]
+        return len(positional) >= 3
+
+    def get_ui_elements(  # type: ignore[override]
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        fn = getattr(self.impl, "get_ui_elements", None)
+        if not callable(fn):
+            return []
+
+        raw = fn(config, tags, models) if self._ui_elements_accepts_context(fn) else fn()
+        items = self._safe_list(raw)
+        return [i for i in items if isinstance(i, dict)]
 
 
 class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):

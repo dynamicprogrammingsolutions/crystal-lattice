@@ -21,7 +21,7 @@ for streaming responses.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 from agent_core.types import ProviderExtensionPlugin
 
@@ -57,10 +57,15 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
         # No user-configurable options for now.
         return {}
 
-    def get_ui_elements(self, config: Optional[Dict[str, Any]] = None, tags: Optional[List[str]] = None, models: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
         # Expose formatted usage information in the message footer,
         # similar to ClaudeCachingExtension's cached_tokens footer.
-        if(tags is not None and "ext:openrouter_usage" in tags):
+        if config.get("show_usage") is False:
             return []
         return [
             {
@@ -99,12 +104,6 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                 "template": "Total: {{data}}",
             },
         ]
-
-    def get_ui_elements_for_config(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Return usage UI elements only when show_usage is not disabled in config."""
-        if config.get("show_usage") is False:
-            return []
-        return self.get_ui_elements()
 
     def get_tags(
         self,
