@@ -16,9 +16,13 @@ tool loop on the application side:
 - a console client reuses the same helpers in-process
 
 Out of the box the app is configured to use
-``plugins.openrouter_provider.OpenRouterProvider`` with
+``openrouter_plugins.openrouter_provider.OpenRouterProvider`` with
 ``openai/gpt-5-mini`` on OpenRouter. Tools are provided by
 ``FileReaderTool`` (read_file) and ``FileWriterTool`` (write_file).
+
+This example requires the OpenRouter plugin bundle to be installed:
+
+    $ python -m pip install -e plugins/openrouter
 
 Environment variables (optional, but OPENROUTER_API_KEY is required for real calls):
 - OPENROUTER_API_KEY (no default)
@@ -69,9 +73,9 @@ except Exception:  # pragma: no cover - optional dependency
 from fastapi import FastAPI, HTTPException  # type: ignore[reportMissingImports]
 
 from agent_core import AgentCore, Session
-from plugins.openrouter_provider import OpenRouterProvider
-from plugins.openrouter_reasoning_extension import OpenRouterReasoningExtension
-from plugins.openrouter_tools_extension import OpenRouterToolsExtension
+from openrouter_plugins.openrouter_provider import OpenRouterProvider
+from openrouter_plugins.openrouter_reasoning_extension import OpenRouterReasoningExtension
+from openrouter_plugins.openrouter_tools_extension import OpenRouterToolsExtension
 from plugins.file_reader_tool import FileReaderTool
 from plugins.file_writer_tool import FileWriterTool
 

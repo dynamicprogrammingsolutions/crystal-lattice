@@ -70,15 +70,18 @@ See `mobile/crystal-lattice-control-rn/AGENTS.md` for React Native–specific gu
 
 See `bridge-elixir/AGENTS.md` for directory-specific guidelines and deployment notes.
 
-**Plugins – `core/python/plugins`**
-- Providers: e.g. `openai_provider.py`, `openrouter_provider.py`.
-- Extensions/features: e.g. reasoning, request-options, system-message.
-- Tools: e.g. shell, file reader/writer, math, apply-patch.
+**Plugins**
+- Built-in plugins: `core/python/plugins` (Python package `plugins.*`)
+  - Providers: e.g. `openai_provider.py`, `echo_openai_like_provider.py`.
+  - Extensions/features/tools: reasoning, request-options, system-message, shell, file reader/writer, math, apply-patch.
+- Optional plugin repos: `plugins/` (each is separately installable and/or loadable via `path:`)
+  - OpenRouter provider bundle: `plugins/openrouter` (Python package `openrouter_plugins.*`).
 
 **Docs & scripts**
 - Root: `ARCHITECTURE.md`, `PROJECT_PLAN.md`, `TYPES_AND_PROTOCOLS.md`, `DEVELOPMENT.md`, `EXAMPLES.md`.
 - API docs: `docs/api/core-sdk.md`, `docs/reference/agent_core/*`.
 - Plugin guide: `docs/plugins/development.md`.
+- Provider plugin guide (canonical): `plugins/docs/provider-plugins.md`.
 - Examples generator: `scripts/generate_examples_md.py`.
 
 ---
@@ -103,7 +106,7 @@ See `bridge-elixir/AGENTS.md` for directory-specific guidelines and deployment n
   pytest core/python/tests -q
   ```
 - Marked suites:
-  - OpenRouter: `pytest core/python/tests -m openrouter -q`
+  - OpenRouter (plugin bundle): `pytest plugins/openrouter/tests -m openrouter -q`
   - All integration: `pytest core/python/tests -m integration -q`
   - Ollama-only: `pytest core/python/tests -m ollama -q`
 - Examples: `pytest core/python/examples/tests -qs`
@@ -135,6 +138,7 @@ See `bridge-elixir/AGENTS.md` for directory-specific guidelines and deployment n
 **Plugins (`core/python/plugins`)**
 - Add/modify providers, extensions, features, tools here.
 - Use `docs/plugins/development.md` and `core/python/agent_core/types.py` as protocol references.
+- Provider-specific authoring guide: `plugins/docs/provider-plugins.md`.
 - Tests: plugin-focused tests under `core/python/tests` and, if relevant, example tests.
 
 **Application layer (`agent_app`)**

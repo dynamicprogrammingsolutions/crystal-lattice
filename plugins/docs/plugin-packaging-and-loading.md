@@ -1,0 +1,134 @@
+# Packaging & loading plugins
+
+This page documents the recommended way to package plugin repos (providers, extensions, features, tools) and how applications load them.
+
+It is shared across plugin kinds.
+
+## Recommended repo layout (Python)
+
+Minimal layout:
+
+```text
+my-provider/
+  pyproject.toml
+  agent_plugin.json
+  src/
+    my_provider/
+      __init__.py
+      provider.py
+  tests/
+    test_provider_smoke.py
+  README.md
+```
+
+Use `src/` layout and make your project pip-installable.
+
+## `agent_plugin.json` (descriptor)
+
+When loading a plugin repo via `path:...` or `git+...`, the application layer reads `agent_plugin.json` from the installed plugin directory.
+
+Minimal schema:
+
+```json
+{
+  "entries": [
+    "my_provider.provider.MyProvider",
+    "my_provider.extension.MyExtension",
+    "my_provider.feature.MyFeature"
+  ],
+  "subdirectory": "."
+}
+```
+
+Notes:
+
+- `entries` is required.
+- `subdirectory` is optional (useful for monorepos).
+- A `kinds` map is optional; the application can also classify plugins by duck-typing.
+
+Runtime reference: `core/python/agent_app/plugin_sources/descriptor.py`.
+
+## Installing `agent_plugin.json` as a data file
+
+If using setuptools via `pyproject.toml`:
+
+```toml
+[tool.setuptools.data-files]
+"" = ["agent_plugin.json"]
+```
+
+Or with `setup.py`:
+
+```python
+from setuptools import setup
+
+setup(
+    name="my-provider",
+    packages=["my_provider"],
+    data_files=[("", ["agent_plugin.json"])],
+)
+```
+
+## Application config: plugin spec forms
+
+Applications support multiple ways to reference plugins:
+
+### 1) Dotted class path (no install)
+
+```json
+{
+  "plugins": ["plugins.openai_provider.OpenAICompatibleProvider"]
+}
+```
+
+### 2) Local repo (descriptor-driven; recommended)
+
+```json
+{
+  "plugin_cache_dir": "~/.crystal/cache/plugins",
+  "plugins": ["path:/abs/or/rel/to/my-provider-repo"]
+}
+```
+
+### 3) Git repo (descriptor-driven; recommended)
+
+```json
+{
+  "plugin_cache_dir": "~/.crystal/cache/plugins",
+  "plugin_policy": {"allow_remote": true},
+  "plugins": ["git+https://github.com/acme/my-provider.git#v1.0.0"]
+}
+```
+
+### 4) Verbose object spec (single explicit entry)
+
+```json
+{
+  "plugin_cache_dir": "~/.crystal/cache/plugins",
+  "plugins": [
+    {
+      "path": "/abs/or/rel/to/repo",
+      "entry": "my_provider.provider.MyProvider",
+      "subdirectory": "."
+    }
+  ]
+}
+```
+
+## Placeholders
+
+- `${env:VAR}` can be embedded anywhere within strings.
+- `${file:...}` is supported as a whole-string placeholder only.
+
+## Policy & security notes
+
+- Git installs run arbitrary code via `pip install`.
+- Prefer pinned refs (tag/commit) and host allowlists.
+- Remote git URLs are typically disabled by default; enable explicitly with `plugin_policy.allow_remote`.
+
+## Reference configs
+
+See application examples:
+
+- `application/python/agent_terminal_app/config_echo_app.json`
+- `application/python/agent_terminal_app/config_openrouter_app_layer.json`

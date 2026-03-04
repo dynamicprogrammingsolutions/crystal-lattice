@@ -6,7 +6,7 @@ A functional, plugin‑based agent framework for building conversational applica
 - **Application layer (`agent_app`)** – config loading, sessions, events, tool loop, cancellation.
 - **Terminal + HTTP + mobile integration app (`agent_terminal_app`)** – FastAPI JSON API, prompt_toolkit terminal client, and glue so mobile apps can connect via direct HTTP, Bonjour/mDNS discovery, or a bridge service.
 - **Mobile app (`mobile/crystal-lattice-control-rn`)** – React Native client (Crystal Lattice Control) that connects to the terminal/HTTP app directly or via the bridge and provides a sessions/messages UI on phones and simulators.
-- **Plugin system (`core/python/plugins`)** – providers, reasoning/thinking extensions, features, and tools.
+- **Plugin system** – built-in plugins in `core/python/plugins` plus optional plugin repos under `plugins/` (providers, extensions, features, tools).
 - **Bridge service (`bridge-elixir`)** – Elixir/Phoenix WebSocket bridge that lets mobile/desktop apps talk to local HTTP servers across networks using pairing + proxied HTTP requests.
 
 This README is for first‑time users and contributors who want to either *try the platform quickly* or *start extending it*.
@@ -158,9 +158,15 @@ print(finals[-1]["content"])
 
 ### OpenRouter provider
 
+Install the OpenRouter plugin bundle (from the repo root):
+
+```bash
+python -m pip install -e plugins/openrouter
+```
+
 ```python
 from agent_core import AgentCore
-from plugins.openrouter_provider import OpenRouterProvider
+from openrouter_plugins.openrouter_provider import OpenRouterProvider
 
 core = AgentCore()
 core.register_provider(OpenRouterProvider)
@@ -263,24 +269,11 @@ The platform is organized into three layers plus plugins:
    - **Bonjour/mDNS** – `bonjour.py` advertises the HTTP server on the local network so compatible clients can discover it automatically.
    - **Bridge service** – `bridge_client.py` connects to the Elixir bridge (`bridge-elixir`) so mobile apps can pair with and talk to this server across networks via `http_request` messages.
 
-4. **Plugins – `core/python/plugins`**
-   - Providers:
-     - `openai_provider.OpenAICompatibleProvider` – OpenAI / OpenAI‑compatible / Ollama endpoints.
-     - `openrouter_provider.OpenRouterProvider` – OpenRouter API.
-     - `echo_openai_like_provider.EchoOpenAILikeProvider` – local echo provider for tests and examples.
-   - Provider extensions:
-     - `openrouter_reasoning_extension.OpenRouterReasoningExtension` – reasoning support on OpenRouter.
-     - `openrouter_tools_extension.OpenRouterToolsExtension` – OpenRouter tool‑calling support.
-     - `ollama_thinking_extension.OllamaThinkingExtension` – Ollama thinking blocks.
-     - Additional extensions for caching, failure simulation, etc.
-   - Features:
-     - `system_message_feature.SystemMessageFeature` – templated system message insertion without mutating core history.
-     - `request_options_feature.RequestOptionsFeature` – merge arbitrary `request_options` into provider payload.
-   - Tools:
-     - `file_reader_tool.FileReaderTool` – safe file reading with allowlist + size limit.
-     - `shell_tool.ShellTool` – sandboxed shell execution with streaming output.
-     - `math_tools.MathTools` – basic calculator tools (add, multiply, square).
-     - `apply_patch_tool.ApplyPatchTool` – Codex‑style `*** Begin Patch` / `*** End Patch` file editing.
+4. **Plugins**
+   - Built-in plugins (installed with `agent-core`):
+     - `core/python/plugins` (Python package `plugins.*`)
+   - Optional plugin bundles (installed separately or loaded via `path:` in app config):
+     - `plugins/openrouter` (Python package `openrouter_plugins.*`) – OpenRouter provider + extensions (tools, reasoning, web search, usage, verbosity).
 
 For a deeper architectural description and diagrams, see `ARCHITECTURE.md`.
 
@@ -515,11 +508,15 @@ pytest core/python/examples/tests -qs
 
 # Terminal app
 pytest application/python/tests -q
+
+# Optional: OpenRouter plugin bundle tests
+python -m pip install -e "plugins/openrouter[dev]"
+pytest plugins/openrouter/tests -q
 ```
 
-Markers (core tests):
+Markers:
 
-- `-m openrouter` – OpenRouter integration tests (require `OPENROUTER_API_KEY`)
+- `-m openrouter` – tests that require OpenRouter (require `OPENROUTER_API_KEY`)
 - `-m integration` – all integration tests
 - `-m ollama` – tests that hit a local Ollama instance
 
@@ -547,6 +544,7 @@ Plugins are plain Python classes implementing the protocols in `agent_core.types
 Useful entry points:
 
 - `docs/plugins/development.md` – plugin development guide.
+- `plugins/docs/provider-plugins.md` – canonical provider plugin authoring guide.
 - `docs/reference/agent_core/types.md` – plugin protocol reference.
 - Example plugins under `core/python/examples`.
 
