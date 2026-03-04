@@ -10,10 +10,10 @@ This task is related to sandboxing’s session-aware app plugin UI work, but it 
 
 ## Problem
 
-- Core plugins (providers/extensions/features/tools) expose UI elements via `get_ui_elements()` which has **no config input**.
+- Core plugins (providers/extensions/features/tools) originally exposed UI elements via `get_ui_elements()` with **no config input**.
   - Protocol: `core/python/agent_core/types.py` (see `BasePlugin.get_ui_elements`)
-- Core UI schema aggregation (`AgentCore.get_ui_schema`) is also **configless**.
-  - `core/python/agent_core/core.py:1998`
+- Core UI schema aggregation (`AgentCore.get_ui_schema`) was also **configless**.
+  - `core/python/agent_core/core.py`
 - Per-session overrides exist (`session.metadata["overrides"]`) and are merged into effective config for requests.
   - Merge helper: `core/python/agent_app/config.py:131`
 
@@ -29,14 +29,14 @@ Result: even if a user toggles a config override, the UI schema returned by the 
 
 ### A) Core plugins: config-aware UI elements
 
-Add an OPTIONAL method for core plugin types:
+Adopt a context-aware UI hook for core plugin types:
 
-- `get_ui_elements_for_config(self, config: Dict[str, Any]) -> List[Dict[str, Any]]`
+- `get_ui_elements(self, config: Dict[str, Any], tags: List[str], models: List[Dict[str, Any]]) -> List[Dict[str, Any]]`
 
 Notes:
 
-- Keep existing `get_ui_elements(self) -> List[Dict[str, Any]]` as the fallback.
-- Implement via duck-typing in wrappers so older plugins keep working.
+- The core computes `tags` and `models` from the effective config and passes them to plugins.
+- For backward compatibility, adapters may fall back to calling a legacy `get_ui_elements()` implementation with no arguments.
 
 Where this hooks in:
 
@@ -49,36 +49,33 @@ Where this hooks in:
 
 Add a config-aware UI schema collector, e.g. one of:
 
-Option 1 (new method):
+Expose UI schema aggregation as:
 
-- `AgentCore.get_ui_schema_for_config(config: Dict[str, Any]) -> List[Dict[str, Any]]`
-
-Option 2 (compatible signature):
-
-- `AgentCore.get_ui_schema(config: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]`
-  - When `config is None`, preserve current behavior.
+- `AgentCore.get_ui_schema(config: Dict[str, Any]) -> List[Dict[str, Any]]`
 
 Implementation idea:
 
-- When config is provided, each plugin wrapper uses `get_ui_elements_for_config(config)` if present; otherwise falls back to `get_ui_elements()`.
+- The core resolves enabled plugins for `config`, computes `tags` and `models`, then gathers UI elements via `get_ui_elements(config, tags, models)`.
 
 ### C) Server/UI schema endpoints must use effective per-session config
 
 Update the session UI schema endpoint to compute effective config:
 
 - Endpoint: `application/python/agent_terminal_app/server.py:617` (`GET /sessions/{session_id}/ui-schema`)
-- It currently calls `core.get_ui_schema()` with no config.
+- Callers should pass an effective config to `core.get_ui_schema(effective_config)`.
 
 Desired:
 
 - Load session.
 - Extract `session.metadata["overrides"]`.
 - Compute `effective_config = resolve_request_config(base_config, overrides)`.
-- Return `core.get_ui_schema_for_config(effective_config)`.
+- Return `core.get_ui_schema(effective_config)`.
 
 Also consider TerminalApplication local UI calls (terminal-only UI schema access):
 
-- `application/python/agent_terminal_app/terminal_app.py:857` uses `core.get_ui_schema()`.
+- `application/python/agent_terminal_app/terminal_app.py` should call `core.get_ui_schema(effective_config)`.
+
+(With the updated API, callers should pass the effective config.)
 
 ### D) Application plugins
 
@@ -90,9 +87,7 @@ This task is primarily about core plugin UI schema (needed for OpenRouter usage 
 
 If you want config-aware app-plugin UI too, introduce an OPTIONAL method:
 
-- `get_ui_elements_for_config(self, state: Dict[str, Any], config: Dict[str, Any]) -> List[Dict[str, Any]]`
-
-But note: sandboxing’s “Enter/Exit sandbox” needs session metadata as well, so it likely still needs the session-aware method from the sandboxing task.
+But note: sandboxing’s “Enter/Exit sandbox” needs session metadata as well, so app-plugin UI likely still needs a session-aware method from the sandboxing task rather than a config-only hook.
 
 ## Lightweight `condition` spec (for message_footer/status_bar)
 

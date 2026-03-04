@@ -1,8 +1,17 @@
 # UI elements (`get_ui_elements`) and `ui_type`
 
-Plugins can optionally expose UI metadata via `get_ui_elements() -> list[dict]`.
+Plugins can optionally expose UI metadata via `get_ui_elements(config, tags, models) -> list[dict]`.
 
-The core treats UI element dictionaries as **opaque** and flattens them via `AgentCore.get_ui_schema()`.
+The core treats UI element dictionaries as **opaque** and flattens them via `AgentCore.get_ui_schema(config)`.
+
+The core passes additional context:
+
+- `config`: effective configuration for the current agent/request
+- `tags`: capability tags computed for this config (provider + enabled plugins)
+- `models`: model descriptors computed for this config
+
+For backward compatibility, plugin adapters will also accept a legacy `get_ui_elements()` implementation
+with no arguments, but new plugins should prefer the context-aware signature.
 
 Runtime reference: `core/python/agent_core/types.py` (`BasePlugin.get_ui_elements`).
 
@@ -13,7 +22,7 @@ If `ui_type` is missing or falsy, the element is treated as a config element.
 Example:
 
 ```python
-def get_ui_elements(self):
+def get_ui_elements(self, config, tags, models):
     return [
         {"type": "text", "key": "model", "label": "Model"},
         {"type": "checkbox", "key": "debug_stream", "label": "Debug stream"},
@@ -31,7 +40,7 @@ def get_ui_elements(self):
 Used by some apps to render a compact footer under each message.
 
 ```python
-def get_ui_elements(self):
+def get_ui_elements(self, config, tags, models):
     return [
         {
             "ui_type": "message_footer",
@@ -46,7 +55,7 @@ def get_ui_elements(self):
 Similar to message footers, but persistent.
 
 ```python
-def get_ui_elements(self):
+def get_ui_elements(self, config, tags, models):
     return [
         {
             "ui_type": "status_bar",
@@ -63,7 +72,7 @@ Applications may support additional `ui_type` values.
 Example (attachment UI hint; application-specific):
 
 ```python
-def get_ui_elements(self):
+def get_ui_elements(self, config, tags, models):
     return [
         {
             "ui_type": "composer_attachment",
