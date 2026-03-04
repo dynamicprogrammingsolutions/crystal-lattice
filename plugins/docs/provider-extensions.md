@@ -330,6 +330,13 @@ class OpenAICompatibleToolsExtension(AccumulatorExtensionMixin, ProviderExtensio
 
 OpenAI-compatible chunks may carry a `delta.reasoning` string fragment.
 
+Note on request options:
+
+- Some OpenAI-compatible servers only emit reasoning/thinking deltas when a provider-specific request option is enabled.
+- Because the request schema is not fully standardized across OpenAI-compatible implementations, prefer a conservative pattern:
+  - accept an explicit provider-specific config knob (for example Ollama uses `config["think"]: bool`) and
+  - only add the corresponding request payload field when that knob is enabled.
+
 Skeleton:
 
 ```python
@@ -346,6 +353,19 @@ class OpenAICompatibleReasoningExtension(AccumulatorExtensionMixin, ProviderExte
 
     def required_tags(self) -> list[str]:
         return ["provider:openai_compatible", "supports_thinking"]
+
+    def get_config_schema(self) -> dict[str, Any]:
+        # Keep the knob provider-specific. For Ollama's OpenAI-compatible
+        # endpoint, this is commonly `think: true`.
+        return {"think": {"type": "boolean", "required": False, "default": False}}
+
+    def initialize_request(self, native_messages: list[dict[str, Any]], state: dict[str, Any]):
+        if not state.get("config", {}).get("think"):
+            return native_messages, state
+        req = state.get("request") or {}
+        payload = dict(req.get("payload") or {})
+        payload["think"] = True
+        return native_messages, {**state, "request": {**req, "payload": payload}}
 
     def extract_delta(self, native_chunk: dict[str, Any]) -> dict[str, Any]:
         choice = (native_chunk.get("choices") or [{}])[0]
