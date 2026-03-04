@@ -98,9 +98,5 @@ class EchoProvider(ProviderPlugin):
             {"content": ""},
         )
         content = f"Echo: {last_user.get('content', '')}"
-        return (
-            [{"role": "assistant", "content": content, "metadata": {}}],
-            [],
-            [],
-            state,
-        )
+        msg = {"role": "assistant", "content": content, "metadata": {}}
+        return ([], [msg], [*native_messages, msg], state)

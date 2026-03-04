@@ -97,9 +97,9 @@ class EchoProvider(ProviderPlugin):
             {"content": ""},
         )
         content = f"Echo: {last_user.get('content', '')}"
-        final = [{"role": "assistant", "content": content, "metadata": {}}]
-        # Return (final_messages, partial_messages, native_messages, new_state)
-        return final, [], native_messages, state
+        msg = {"role": "assistant", "content": content, "metadata": {}}
+        # Return (partial_messages, final_messages, native_messages, new_state)
+        return [], [msg], [*native_messages, msg], state
 ```
 
 In the Python SDK, adapter defaults handle `to_native_messages`, `from_native_messages`, `initialize_request`, `finalize`, and `stream_api` when they are omitted, so many providers only implement configuration, `init`, and one of the I/O entry points (`call_api` or `stream_api`).
