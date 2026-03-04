@@ -444,9 +444,18 @@ Applications such as the terminal UI typically:
 ### UI elements and `ui_type`
 
 All plugin kinds (providers, extensions, features, and tools) can
-optionally expose UI metadata via `get_ui_elements() -> list[dict]`.
-These dictionaries are flattened by `AgentCore.get_ui_schema()` and
+optionally expose UI metadata via `get_ui_elements(config, tags, models) -> list[dict]`.
+These dictionaries are flattened by `AgentCore.get_ui_schema(config)` and
 left to applications (for example, the terminal client) to render.
+
+The core passes additional context to `get_ui_elements`:
+
+- `config`: effective configuration for the current agent/request
+- `tags`: capability tags computed for this config (provider + enabled plugins)
+- `models`: model descriptors computed for this config
+
+For backward compatibility, plugin adapters also accept legacy
+implementations that define `get_ui_elements()` with no arguments.
 
 Common patterns:
 
@@ -526,7 +535,7 @@ class Calculator(ToolPlugin):
     def get_config_schema(self) -> Dict[str, Any]:
         return {}
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(self, config: Dict[str, Any], tags: List[str], models: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return []
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
