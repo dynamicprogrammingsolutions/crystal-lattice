@@ -61,13 +61,29 @@ class BasePlugin(Protocol):
         """
         return {}
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
         """Return UI element definitions contributed by this plugin.
 
         The returned list describes configuration and display-oriented
         elements that applications can use to build UIs. Each element is a
         plain dictionary; the core treats these dictionaries as opaque and
         flattens them via :meth:`AgentCore.get_ui_schema`.
+
+        Args:
+            config: Effective configuration for the current agent/request.
+            tags: Capability tags computed for this config.
+            models: Model descriptors computed for this config.
+
+        Note:
+            The core calls this hook with `(config, tags, models)`. For backward
+            compatibility, adapters will also accept legacy plugin
+            implementations that define `get_ui_elements(self)` with no
+            arguments.
 
         Recommended element shapes:
 
@@ -155,7 +171,7 @@ class ProviderPlugin(BasePlugin, Protocol):
             version = "1.0.0"
             def get_config_schema(self) -> Dict[str, Any]:
                 return {"model": {"type": "string", "default": "echo-1"}}
-            def get_ui_elements(self) -> List[Dict[str, Any]]:  # optional
+            def get_ui_elements(self, config: Dict[str, Any], tags: List[str], models: List[Dict[str, Any]]) -> List[Dict[str, Any]]:  # optional
                 return []
             def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
                 # Provider state is an opaque dict; this minimal example

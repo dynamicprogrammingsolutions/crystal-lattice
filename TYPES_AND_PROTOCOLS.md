@@ -121,11 +121,17 @@ All plugin methods follow these patterns:
 
 These protocol definitions describe the full logical surface area for each plugin type. Language implementations may provide their own default behaviors for some methods. In the Python SDK, adapters in `agent_core.plugin.adapters` implement identity/default behaviors for many conversion and lifecycle hooks when plugin classes omit them, so plugin authors can often implement only the small subset of methods they actually need.
 
-All plugin types also share a common UI hook, `get_ui_elements() → list[dict]`,
+All plugin types also share a common UI hook, `get_ui_elements(config, tags, models) → list[dict]`,
 which allows them to contribute configuration and display-oriented UI
 elements. Each element is a plain dictionary; the core flattens these
-via `AgentCore.get_ui_schema()` and annotates them with a `plugin`
+via `AgentCore.get_ui_schema(config)` and annotates them with a `plugin`
 field. Plugins may include a `ui_type` field to classify entries:
+
+The core passes additional context:
+
+- `config`: effective configuration for the current agent/request
+- `tags`: capability/environment tags computed for this config
+- `models`: model descriptors computed for this config
 
 - `"config"` (default) – configuration inputs such as text fields,
   checkboxes, and selects (typically including keys like `type`, `key`,
@@ -156,7 +162,7 @@ ProviderPlugin:
   
   # Configuration
   get_config_schema() → dict
-  get_ui_elements() → list[dict]
+  get_ui_elements(config, tags, models) → list[dict]
   
   # Lifecycle
   init(config: dict) → state: dict
@@ -407,7 +413,7 @@ AgentCore:
   register_feature(plugin_class: type) → None
   register_tool(plugin_class: type) → None
 
-  get_ui_schema() → dict
+  get_ui_schema(config: dict) → list[dict]
 
   # Pure Transformations
   add_message(session: Session, role: string, content: string, metadata?: dict) → Session

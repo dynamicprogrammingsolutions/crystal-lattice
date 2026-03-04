@@ -1022,10 +1022,17 @@ def get_session_ui_schema(
         if ctx is None:
             raise KeyError(f"Session {session_id!r} not found")
 
-        core, _base_config, _session = ctx
+        core, base_config, session = ctx
+
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides_val = metadata.get("overrides")
+        overrides: Dict[str, Any] = (
+            overrides_val if isinstance(overrides_val, dict) else {}
+        )
+        config = resolve_request_config(base_config, overrides)
 
         try:
-            ui_schema = core.get_ui_schema()
+            ui_schema = core.get_ui_schema(config)
         except Exception:  # pragma: no cover - defensive
             ui_schema = []
     except KeyError as exc:
