@@ -207,7 +207,7 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
         List[Dict[str, Any]],
         Dict[str, Any],
     ]:
-        finals, partials, natives, new_state = self.impl.call_api(  # type: ignore[attr-defined]
+        partials, finals, natives, new_state = self.impl.call_api(  # type: ignore[attr-defined]
             native_messages, state
         )
         return (
