@@ -20,7 +20,12 @@ class OpenAICompatibleReasoningExtension(AccumulatorExtensionMixin, ProviderExte
     def get_config_schema(self) -> dict[str, Any]:
         return {"think": {"type": "boolean", "required": False, "default": False}}
 
-    def get_ui_elements(self) -> list[dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: dict[str, Any],
+        tags: list[str],
+        models: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         return [{"type": "checkbox", "key": "think", "label": "Enable thinking"}]
 
     def init(self, config: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:

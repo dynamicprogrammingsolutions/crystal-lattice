@@ -340,10 +340,13 @@ schema = core.get_config_schema()
 #### get_ui_schema
 
 ```python
-get_ui_schema() -> List[Dict[str, Any]]
+get_ui_schema(config: Dict[str, Any]) -> List[Dict[str, Any]]
 ```
 
-Get combined (flattened) UI schema from all registered plugins.
+Get combined (flattened) UI schema for the effective config.
+
+The core computes capability `tags` and available `models` for the given
+config and passes them to plugins via `get_ui_elements(config, tags, models)`.
 
 Each element in the returned list is a dictionary that describes a UI
 element contributed by a provider, extension, feature, or tool. The
@@ -380,7 +383,7 @@ non-`"config"` elements.
 
 **Example:**
 ```python
-schema = core.get_ui_schema()
+schema = core.get_ui_schema(config)
 # [
 #   {"key": "model", "type": "text", "label": "Model"},
 #   {"key": "reasoning_effort", "type": "select", "options": [...]},

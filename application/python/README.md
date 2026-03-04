@@ -282,7 +282,7 @@ Changes are stored on the session (in `session.metadata["plugins"]`), so
 subsequent requests and reloads use the updated plugin set.
 
 Many plugins also expose configuration and display metadata via
-`get_ui_elements()`:
+`get_ui_elements(config, tags, models)`:
 
 - Elements with `ui_type == "config"` (or with no `ui_type`, which
   defaults to `"config"`) describe editable settings. The `/set`

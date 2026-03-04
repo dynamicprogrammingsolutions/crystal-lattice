@@ -59,8 +59,13 @@ class ProviderWrapper(ProviderPlugin):
         return self._extensions
 
     def _iter_extensions(self) -> List[ExtensionWrapper]:
-        """Return the list of extensions active for the current request."""
-        return self._active_extensions if self._active_extensions is not None else self._extensions
+        """Return the list of extensions active for the current request.
+
+        Extensions are sorted by `priority` (lower numbers run first).
+        """
+
+        exts = self._active_extensions if self._active_extensions is not None else self._extensions
+        return sorted(exts, key=lambda ext: getattr(ext, "priority", 100))
 
     def set_active_extensions(self, extensions: List[ExtensionWrapper]) -> None:
         """Restrict active extensions for the current request."""
@@ -111,13 +116,14 @@ class ProviderWrapper(ProviderPlugin):
         """
         return self.plugin.get_config_schema()
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
-        """Get provider UI elements.
-
-        Returns:
-            List of UI definitions, or empty list.
-        """
-        return self.plugin.get_ui_elements()
+    def get_ui_elements(
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Get provider UI elements."""
+        return self.plugin.get_ui_elements(config, tags, models)
 
     def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Delegate model discovery to the underlying provider via adapter."""
@@ -453,13 +459,18 @@ class ProviderWrapper(ProviderPlugin):
         """
         return {ext.name: ext.get_config_schema() for ext in self._extensions}
 
-    def get_extension_ui_elements(self) -> Dict[str, List[Dict[str, Any]]]:
-        """Get UI schemas for all extensions.
+    def get_extension_ui_elements(
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """Get UI schemas for registered extensions.
 
-        Returns:
-            Mapping from extension name to its UI element list.
+        Uses the same priority-sorted extension order as the request pipeline.
         """
-        return {ext.name: ext.get_ui_elements() for ext in self._extensions}
+
+        return {ext.name: ext.get_ui_elements(config, tags, models) for ext in self._iter_extensions()}
 
     def reset_state(self) -> None:
         """Discard internal shared state after request."""
