@@ -177,7 +177,8 @@ class ProviderPlugin(BasePlugin, Protocol):
                 return list(native_messages)
             def call_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
                 content = f"Echo: {next((m['content'] for m in reversed(native_messages) if m.get('role')=='user'), '')}"
-                return ([{"role": "assistant", "content": content}], [], [], state)
+                msg = {"role": "assistant", "content": content}
+                return ([], [msg], [*native_messages, msg], state)
             def stream_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
                 yield from []
         ```
