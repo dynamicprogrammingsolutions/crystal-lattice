@@ -206,7 +206,7 @@ class OpenAICompatibleProvider(ProviderPlugin):
             raise RuntimeError(f"OpenAI-compatible call failed: {e}") from e
 
         message = obj.get("choices", [{}])[0].get("message", {})
-        return [message], [], [*native_messages, message], state
+        return [], [message], [*native_messages, message], state
 
     def stream_api(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
