@@ -145,7 +145,7 @@ class EchoOpenAILikeProvider(ProviderPlugin):
         # native_messages plus the assistant reply. This mirrors the
         # convention that per-request rendering should not affect
         # persisted history.
-        return [final], [], [*native_messages, final], state
+        return [], [final], [*native_messages, final], state
 
     def stream_api(
         self,
@@ -153,7 +153,7 @@ class EchoOpenAILikeProvider(ProviderPlugin):
         state: Dict[str, Any],
     ) -> Iterator[Dict[str, Any]]:  # pragma: no cover - not used in tests
         # Minimal streaming wrapper that yields a single chunk equivalent to call_api.
-        finals, _partials, _natives, _new_state = self.call_api(native_messages, state)
+        _partials, finals, _natives, _new_state = self.call_api(native_messages, state)
         for msg in finals:
             yield msg
 

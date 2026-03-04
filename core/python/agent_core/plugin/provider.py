@@ -280,7 +280,7 @@ class ProviderWrapper(ProviderPlugin):
             state: Shared provider state (optional; wrapper state used if empty).
 
         Returns:
-            Tuple of (final_messages, partial_messages, full_native_history, new_state).
+            Tuple of (partial_messages, final_messages, full_native_history, new_state).
         """
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")

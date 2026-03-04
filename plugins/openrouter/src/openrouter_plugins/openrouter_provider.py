@@ -344,7 +344,7 @@ class OpenRouterProvider(ProviderPlugin):
         #     # Never allow usage-metadata extraction to break the provider.
         #     pass
 
-        return [message], [], [*native_messages, message], state
+        return [], [message], [*native_messages, message], state
 
 
     def stream_api(
