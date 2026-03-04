@@ -14,7 +14,13 @@ Create a **real reference implementation** of an OpenAI-compatible provider usin
 - `plugins/docs/provider-plugins.md`
 - `plugins/docs/provider-extensions.md`
 
-This is intentionally a reimplementation even though an OpenAI-compatible provider already exists at `core/python/plugins/openai_provider.py`.
+This is intentionally a reimplementation even though an OpenAI-compatible provider already exists in the core plugins.
+
+Important constraint for this subtask:
+
+- Implement the reference provider and extensions **from the documentation only**.
+- Avoid reading/copying existing Ollama/OpenAI-compatible providers and their Ollama-specific tests during the initial implementation.
+- Only consult existing implementations/tests **if you are blocked** by an ambiguity that the docs do not resolve.
 
 The reference provider must:
 
@@ -123,16 +129,13 @@ Docs (patterns to follow):
 - `plugins/docs/provider-plugins.md`
 - `plugins/docs/provider-extensions.md`
 
-Existing runtime + tests to copy patterns from:
+Only if blocked (do not start here):
 
-- `core/python/plugins/openai_provider.py` (OpenAI-compatible transport patterns)
-- `core/python/plugins/openai_tools_extension.py` (tools extension)
-- `core/python/plugins/ollama_thinking_extension.py` (thinking enablement)
-- `core/python/tests/test_openai_compat_ollama.py`
-- `core/python/tests/test_ollama_thinking_qwen3.py`
-- `core/python/tests/test_openai_tools_with_ollama.py`
-- `core/python/tests/test_openai_tools_with_ollama_stream.py`
-- `core/python/agent_app/tool_loop.py` (tool loop contract)
+- Consult the runtime protocol docstrings and wrapper behavior to resolve contract ambiguities:
+  - `core/python/agent_core/types.py`
+  - `core/python/agent_core/plugin/provider.py`
+  - `core/python/agent_core/plugin/extension.py`
+  - `core/python/agent_app/tool_loop.py`
 
 ## Detailed plan
 
