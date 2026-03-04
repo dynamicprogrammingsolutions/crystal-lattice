@@ -112,7 +112,7 @@ def test_get_config_schema_with_plugins():
 def test_get_ui_schema_empty():
     """Test UI schema with no plugins."""
     core = AgentCore()
-    schema = core.get_ui_schema()
+    schema = core.get_ui_schema({})
 
     assert isinstance(schema, list)
     assert len(schema) == 0
@@ -124,7 +124,7 @@ def test_get_ui_schema_with_plugins():
     core.register_provider(DummyProvider)
     core.register_feature(DummyFeature)
  
-    schema = core.get_ui_schema()
+    schema = core.get_ui_schema({})
  
     assert isinstance(schema, list)
     keys = {el.get("key") for el in schema if isinstance(el, dict)}

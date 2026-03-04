@@ -30,6 +30,7 @@ class ToolWrapper(ToolPlugin):
         self.state: Optional[Dict[str, Any]] = None
         self.name = getattr(plugin_class, "name", plugin_class.__name__)
         self.version = getattr(plugin_class, "version", "unknown")
+        self.priority = getattr(plugin_class, "priority", 100)
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize tool state and return it."""
@@ -41,9 +42,14 @@ class ToolWrapper(ToolPlugin):
         """Get tool configuration schema."""
         return self.plugin.get_config_schema()
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
         """Get tool UI elements."""
-        return self.plugin.get_ui_elements()
+        return self.plugin.get_ui_elements(config, tags, models)
 
     def get_tags(
         self,

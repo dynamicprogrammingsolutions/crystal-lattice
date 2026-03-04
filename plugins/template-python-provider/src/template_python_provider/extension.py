@@ -142,7 +142,12 @@ class TemplateProviderExtension(ProviderExtensionPlugin):
     def get_config_schema(self) -> Dict[str, Any]:
         return {}
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
         return []
 
     def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:

@@ -379,7 +379,7 @@ two purposes:
 2. **Session-list field elements** – how to render extra fields in the
    session list.
 
-These are separate from the core’s `AgentCore.get_ui_schema()`; they
+These are separate from the core’s `AgentCore.get_ui_schema(config)`; they
 live at the application level.
 
 

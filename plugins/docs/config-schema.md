@@ -101,7 +101,7 @@ def get_config_schema(self) -> dict[str, Any]:
 
 `get_config_schema()` describes what keys exist and their defaults.
 
-Interactive configuration in the terminal (via `/set`) is driven by `get_ui_elements()` (see `plugins/docs/ui-elements.md`). It’s common to keep `get_config_schema()` and `get_ui_elements()` aligned (same keys, same defaults), but they are independent.
+Interactive configuration in the terminal (via `/set`) is driven by `get_ui_elements(config, tags, models)` (see `plugins/docs/ui-elements.md`). It’s common to keep `get_config_schema()` and `get_ui_elements()` aligned (same keys, same defaults), but they are independent.
 
 ## Application-level schema (terminal app)
 

@@ -339,7 +339,7 @@ class MyProvider(AccumulatorStreamingMixin, ProviderPlugin):
             "api_key": {"type": "string", "required": False},
         }
 
-    def get_ui_elements(self):
+    def get_ui_elements(self, config, tags, models):
         return [{"type": "text", "key": "model", "label": "Model"}]
 
     def get_tags(self, config, models):
