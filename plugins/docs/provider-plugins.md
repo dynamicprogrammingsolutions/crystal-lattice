@@ -233,6 +233,7 @@ def process_delta(self, delta: dict, accumulated: dict | None):
     d = delta.get("delta") or {}
     frag = {"role": d.get("role", "assistant"), "content": d.get("content", "")}
     new_acc = {
+        **base,  # IMPORTANT: preserve keys written by extensions
         "role": base.get("role", frag["role"]),
         "content": base.get("content", "") + (frag.get("content") or ""),
     }
@@ -339,6 +340,12 @@ class MyProvider(AccumulatorStreamingMixin, ProviderPlugin):
 
     def get_ui_elements(self):
         return [{"type": "text", "key": "model", "label": "Model"}]
+
+    def get_tags(self, config, models):
+        # Tags are used for request-time dependency resolution.
+        # Provider extensions can declare required_tags() and will only
+        # be enabled when those tags are present.
+        return ["provider:my_provider"]
 ```
 
 UI deep dive: [UI elements](ui-elements.md).
@@ -390,6 +397,14 @@ def from_native_messages(self, native_messages, state):
 ```python
 def call_api(self, native_messages, state):
     request = state["request"]
+    # Optional: features may override the exact message history for a request
+    # by placing a rendered list under state["request"]["messages"].
+    override = request.get("messages")
+    base_history = override if isinstance(override, list) else native_messages
+    # If you use provider-native `_metadata` for native-history retention,
+    # strip it before sending to the provider.
+    messages_to_send = [{k: v for k, v in m.items() if k != "_metadata"} for m in base_history]
+
     # TODO: send HTTP request and parse JSON
     raw = {"choices": [{"message": {"role": "assistant", "content": "hi"}}]}
     msg = raw["choices"][0]["message"]
@@ -402,6 +417,54 @@ def call_api(self, native_messages, state):
 Accumulator path (recommended): implement `stream_api`, `extract_delta`, `process_delta`.
 
 Custom path: implement `process_chunk` and `finalize` yourself.
+
+Example `stream_api` skeleton (OpenAI-style SSE), including message override and `_metadata` stripping:
+
+```python
+import json
+import requests
+
+
+def stream_api(self, native_messages, state):
+    request = state["request"]
+
+    # Optional: features may override the exact message history for a request
+    # by placing a rendered list under state["request"]["messages"].
+    override = request.get("messages")
+    base_history = override if isinstance(override, list) else native_messages
+
+    # If you use provider-native `_metadata` for native-history retention,
+    # strip it before sending to the provider.
+    messages_to_send = [
+        {k: v for k, v in m.items() if k != "_metadata"}
+        for m in base_history
+        if isinstance(m, dict)
+    ]
+
+    with requests.post(
+        request["url"],
+        json={**request["payload"], "messages": messages_to_send, "stream": True},
+        headers=request["headers"],
+        timeout=request["timeout"],
+        stream=True,
+    ) as r:
+        r.encoding = "utf-8"
+        r.raise_for_status()
+        for line in r.iter_lines(decode_unicode=True):
+            if not line:
+                continue
+            data = line.strip()
+            if data.startswith("data:"):
+                data = data[len("data:") :].strip()
+            if data == "[DONE]":
+                break
+            if not data:
+                continue
+            try:
+                yield json.loads(data)
+            except json.JSONDecodeError:
+                continue
+```
 
 ### 6) Native history retention (don’t break it)
 
@@ -531,7 +594,11 @@ def process_delta(self, delta: dict, accumulated: dict | None):
     base = accumulated or {}
     d = delta.get("delta") or {}
     frag = {"role": d.get("role", "assistant"), "content": d.get("content", "")}
-    new_acc = {"role": base.get("role", frag["role"]), "content": base.get("content", "") + frag["content"]}
+    new_acc = {
+        **base,  # IMPORTANT: preserve keys written by extensions
+        "role": base.get("role", frag["role"]),
+        "content": base.get("content", "") + frag["content"],
+    }
     return frag, new_acc
 ```
 
