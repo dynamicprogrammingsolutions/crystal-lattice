@@ -2050,119 +2050,51 @@ class AgentCore:
             _extend(tool.get_config_schema(), tool.name)
         return entries
 
-    def get_ui_schema(self, config: Dict[str, Any] ) -> List[Dict[str, Any]]:
-        """Get flattened UI schema from all registered plugins.
+    def get_ui_schema(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Get flattened UI schema for the effective config.
 
-        When ``config`` is provided, plugins that implement
-        ``get_ui_elements_for_config(config)`` are asked for config-dependent
-        elements; others fall back to ``get_ui_elements()``. When ``config`` is
-        None, all plugins are asked for elements via ``get_ui_elements()``
-        (current behaviour).
+        Plugins receive additional context computed from ``config``:
+
+        - ``tags``: capability/environment tags produced by the provider and
+          enabled plugins.
+        - ``models``: model descriptors returned by ``get_models`` hooks.
 
         Each element is a dictionary describing a UI element contributed by a
         provider, extension, feature, or tool. The core treats the dictionaries
         as opaque and simply annotates and flattens them; applications decide
         how to render or interpret each entry.
-
-        Plugins MAY include a ``"ui_type"`` field to classify elements:
-
-        - ``"config"`` (default):
-          Configuration inputs such as text fields, checkboxes, or selects.
-          Elements in this category typically include keys like ``"type"``,
-          ``"key"``, ``"label"``, ``"description"``, and optionally
-          ``"options"`` (for selects) or other plugin-specific metadata.
-          When ``"ui_type"`` is missing or falsy the core normalizes the
-          element to ``"config"``.
-
-        - ``"message_footer"``:
-          Per-message footer fields derived from individual messages.
-          Elements commonly include:
-
-          * ``"data"`` – dotted JSON path into the core message dictionary
-            (for example, ``"metadata.timestamp"``).
-          * ``"template"`` – optional template string where ``"{{data}}"`` is
-            replaced with the resolved value (applications are free to use a
-            different convention).
-
-          Applications like the terminal client use these entries to render a
-          compact footer line under each message.
-
-        - ``"status_bar"``:
-          Persistent status bar fields derived from messages, typically from
-          the last assistant message in a session. Elements have the same
-          general shape as ``"message_footer"`` entries (for example,
-          ``{"ui_type": "status_bar", "data": "metadata.cost", "template": "Total: {{data}}"}``).
-
-        - ``"action"`` (reserved):
-          Intended for future, actionable UI elements. The core does not
-          assign any special semantics to this value and no built-in
-          applications currently interpret it.
-
-	        Example schemas::
-
-	            # Configuration-only schema (two config elements)
-	            [
-	                {
-	                    "ui_type": "config",
-	                    "type": "text",
-	                    "key": "model",
-	                    "label": "OpenRouter Model ID",
-	                    "plugin": "openrouter_provider",
-	                },
-	                {
-	                    "type": "checkbox",  # ui_type defaults to "config"
-	                    "key": "enable_reasoning",
-	                    "label": "Enable Reasoning",
-	                    "plugin": "openrouter_reasoning",
-	                },
-	            ]
-
-	            # Message footer schema (single footer field)
-	            [
-	                {
-	                    "ui_type": "message_footer",
-	                    "data": "metadata.timestamp",
-	                    "template": "{{data}}",
-	                    "plugin": "timestamp_extension",
-	                },
-	            ]
-
-	            # Status bar schema (single status bar field)
-	            [
-	                {
-	                    "ui_type": "status_bar",
-	                    "data": "metadata.usage_total_cost_cumulative_formatted",
-	                    "template": "Total: {{data}}",
-	                    "plugin": "openrouter_usage",
-	                },
-	            ]
-
-        For all elements, the core will:
-
-        * Attach a ``"plugin"`` field (when absent) naming the contributing
-          plugin.
-        * Treat configuration-oriented elements
-          (``element.get("ui_type", "config") == "config"``) as keyed by
-          their ``"key"`` field so that later plugins override earlier ones
-          for the same key.
-        * Preserve the relative order of all non-config elements
-          (for example, ``"message_footer"`` or ``"status_bar"`` entries).
-
-        Callers that are only interested in configuration inputs should filter
-        for elements with ``element.get("ui_type", "config") == "config"``.
-
-        Args:
-            config: Optional effective config (e.g. base + session overrides).
-                When provided, plugins may return config-dependent elements
-                via ``get_ui_elements_for_config(config)``.
         """
-        provider, _exts, _features, _tools, tags = self._resolve_plugins_for_config(config)
-        models = self._get_models_for_config(provider, config)
-        # We treat configuration-oriented elements (ui_type == "config")
-        # as keyed by their "key" field, mirroring the flattened
-        # behaviour of ``get_config_schema`` where later plugins override
-        # earlier ones for the same key. Non-config elements (such as
-        # message footers or actions) are preserved in order.
+
+        if not isinstance(config, dict):
+            raise TypeError("config must be a dict")
+
+        if not self._providers and not self._features and not self._tools:
+            return []
+
+        provider: Optional[ProviderWrapper] = None
+        enabled_extensions: List[ExtensionWrapper] = []
+        enabled_features: List[FeatureWrapper] = list(self._features)
+        enabled_tools: List[ToolWrapper] = list(self._tools)
+        tags: List[str] = []
+        models: List[Dict[str, Any]] = []
+
+        if self._providers:
+            (
+                provider,
+                enabled_extensions,
+                enabled_features,
+                enabled_tools,
+                tags,
+            ) = self._resolve_plugins_for_config(config)
+            provider.set_active_extensions(enabled_extensions)
+            models = self._get_models_for_config(provider, config)
+
+        enabled_features = sorted(
+            enabled_features, key=lambda feat: getattr(feat, "priority", 100)
+        )
+        enabled_tools = sorted(
+            enabled_tools, key=lambda tool: getattr(tool, "priority", 100)
+        )
 
         elements: List[Dict[str, Any]] = []
         config_by_key: Dict[str, Dict[str, Any]] = {}
@@ -2182,23 +2114,22 @@ class AgentCore:
                 if ui_type == "config":
                     key = entry.get("key")
                     if isinstance(key, str) and key:
-                        # Later plugins override earlier ones for the
-                        # same key, matching get_config_schema.
                         config_by_key[key] = entry
                         continue
 
                 elements.append(entry)
 
-        for provider in self._providers:
-                _extend(provider.get_ui_elements(config, tags, models), provider.name)
-                for name, ext_ui in provider.get_extension_ui_elements(config, tags, models).items():
-                    _extend(ext_ui, name)
-        for feature in self._features:
-                _extend(feature.get_ui_elements(config, tags, models), feature.name)
-        for tool in self._tools:
+        if provider is not None:
+            _extend(provider.get_ui_elements(config, tags, models), provider.name)
+            for name, ext_ui in provider.get_extension_ui_elements(
+                config, tags, models
+            ).items():
+                _extend(ext_ui, name)
+        for feature in enabled_features:
+            _extend(feature.get_ui_elements(config, tags, models), feature.name)
+        for tool in enabled_tools:
             _extend(tool.get_ui_elements(config, tags, models), tool.name)
 
-        # Append deduplicated config elements after non-config ones.
         elements.extend(config_by_key.values())
         return elements
 

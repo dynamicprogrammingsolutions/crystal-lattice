@@ -542,8 +542,8 @@ Applications such as the terminal UI typically:
 ### UI elements and `ui_type`
 
 All plugin kinds (providers, extensions, features, and tools) can
-optionally expose UI metadata via `get_ui_elements() -> list[dict]`.
-These dictionaries are flattened by `AgentCore.get_ui_schema()` and
+optionally expose UI metadata via `get_ui_elements(config, tags, models) -> list[dict]`.
+These dictionaries are flattened by `AgentCore.get_ui_schema(config)` and
 left to applications (for example, the terminal client) to render.
 
 Common patterns:

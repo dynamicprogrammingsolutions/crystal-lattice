@@ -746,8 +746,8 @@ def test_get_session_ui_schema_includes_ui_types(tmp_path: Path) -> None:
 def test_get_session_ui_schema_respects_session_overrides(tmp_path: Path) -> None:
     """GET /sessions/{id}/ui-schema returns different elements when overrides change.
 
-    Uses default config with openrouter_usage extension, which implements
-    get_ui_elements_for_config and returns no elements when show_usage is false.
+    Uses default config with openrouter_usage extension, which returns no
+    elements when show_usage is false.
     """
     from agent_terminal_app import server as server_mod
 

@@ -1,13 +1,10 @@
-"""
-Tests for config-aware UI schema (get_ui_schema(config=...) and get_ui_elements_for_config).
-"""
+"""Tests for config-aware UI schema (get_ui_schema(config=...))."""
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 from agent_core import AgentCore
 from agent_core.types import FeaturePlugin
 from tests.dummy_provider import DummyProvider
-from tests.dummy_feature import DummyFeature
 
 
 class ConfigAwareFeature(FeaturePlugin):
@@ -21,16 +18,14 @@ class ConfigAwareFeature(FeaturePlugin):
 
     def get_ui_elements(
         self,
-        config: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None,
-        models: Optional[List[Dict[str, Any]]] = None,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        return [{"key": "always", "label": "Always visible", "ui_type": "config"}]
-
-    def get_ui_elements_for_config(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        base = [{"key": "always", "label": "Always visible", "ui_type": "config"}]
         if config.get("hide_extra"):
-            return self.get_ui_elements()
-        return self.get_ui_elements() + [
+            return base
+        return base + [
             {"key": "when_not_hidden", "label": "Extra when not hidden", "ui_type": "config"},
         ]
 
@@ -81,10 +76,21 @@ class ConfigAwareFeature(FeaturePlugin):
 
 
 def test_get_ui_schema_backward_compat():
-    """get_ui_schema(config={}) returns schema when plugins lack get_ui_elements_for_config."""
+    """get_ui_schema(config={}) works when plugins implement legacy get_ui_elements()."""
+
+    class LegacyUiFeature(FeaturePlugin):
+        name = "legacy_ui_feature"
+        version = "0.0.1"
+
+        def get_ui_elements(self) -> List[Dict[str, Any]]:  # type: ignore[override]
+            return [{"key": "legacy", "label": "Legacy", "ui_type": "config"}]
+
+        def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+            return state or {}
+
     core = AgentCore()
     core.register_provider(DummyProvider)
-    core.register_feature(DummyFeature)
+    core.register_feature(LegacyUiFeature)
 
     schema_empty_config = core.get_ui_schema(config={})
     schema_no_arg = schema_empty_config
@@ -95,11 +101,11 @@ def test_get_ui_schema_backward_compat():
     keys_empty = {el.get("key") for el in schema_empty_config if isinstance(el, dict)}
     assert keys_no == keys_empty
     assert "model" in keys_no
-    assert "prefix" in keys_empty
+    assert "legacy" in keys_empty
 
 
-def test_get_ui_schema_with_config_uses_get_ui_elements_for_config():
-    """get_ui_schema(config=...) returns schema from provider and feature; config is passed to get_ui_elements."""
+def test_get_ui_schema_with_config_passes_config_to_get_ui_elements():
+    """get_ui_schema(config=...) passes config into get_ui_elements."""
     core = AgentCore()
     core.register_provider(DummyProvider)
     core.register_feature(ConfigAwareFeature)
@@ -112,12 +118,14 @@ def test_get_ui_schema_with_config_uses_get_ui_elements_for_config():
 
     assert "always" in keys_default
     assert "always" in keys_hide
+    assert "when_not_hidden" in keys_default
+    assert "when_not_hidden" not in keys_hide
     assert "model" in keys_default
     assert "model" in keys_hide
 
 
-def test_get_ui_schema_none_config_unchanged():
-    """get_ui_schema(config={}) uses get_ui_elements(); ConfigAwareFeature returns only 'always'."""
+def test_get_ui_schema_includes_config_aware_elements():
+    """ConfigAwareFeature returns config-dependent elements."""
     core = AgentCore()
     core.register_provider(DummyProvider)
     core.register_feature(ConfigAwareFeature)

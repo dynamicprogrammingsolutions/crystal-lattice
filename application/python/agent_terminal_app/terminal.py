@@ -347,7 +347,11 @@ async def _cmd_ui_schema(
     # that any missing-session issues are surfaced consistently.
 
     core, base_config, session = app.require_session()
-    schema = core.get_ui_schema()
+    metadata = session.metadata if isinstance(session.metadata, dict) else {}
+    overrides_val = metadata.get("overrides")
+    overrides = overrides_val if isinstance(overrides_val, dict) else {}
+    config = resolve_request_config(base_config, overrides)
+    schema = core.get_ui_schema(config=config)
 
     # Print directly so that the raw schema is visible for debugging.
     print(schema)

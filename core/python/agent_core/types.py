@@ -61,7 +61,12 @@ class BasePlugin(Protocol):
         """
         return {}
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
         """Return UI element definitions contributed by this plugin.
 
         The returned list describes configuration and display-oriented
@@ -126,14 +131,21 @@ class BasePlugin(Protocol):
         include additional keys beyond those shown above; callers should treat
         the returned element dictionaries as immutable.
 
+        Args:
+            config: Effective configuration for the current agent/request.
+            tags: Capability/environment tags computed for this config.
+            models: Model descriptors computed for this config.
+
+        Note:
+            The core calls this hook with `(config, tags, models)`. For backward
+            compatibility, adapters may also accept legacy plugin
+            implementations that define `get_ui_elements(self)` with no
+            arguments.
+
         Returns:
             List of UI element dictionaries.
         """
         return []
-
-    # Optional: plugins may implement get_ui_elements_for_config(config) to
-    # return config-dependent UI elements. When absent, the core uses
-    # get_ui_elements() (see AgentCore.get_ui_schema).
 
     # Common lifecycle across provider/extension/feature
     # No dedicated update_state lifecycle step is required; plugins are free
@@ -159,7 +171,7 @@ class ProviderPlugin(BasePlugin, Protocol):
             version = "1.0.0"
             def get_config_schema(self) -> Dict[str, Any]:
                 return {"model": {"type": "string", "default": "echo-1"}}
-            def get_ui_elements(self) -> List[Dict[str, Any]]:  # optional
+	            def get_ui_elements(self, config: Dict[str, Any], tags: List[str], models: List[Dict[str, Any]]) -> List[Dict[str, Any]]:  # optional
                 return []
             def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
                 # Provider state is an opaque dict; this minimal example
