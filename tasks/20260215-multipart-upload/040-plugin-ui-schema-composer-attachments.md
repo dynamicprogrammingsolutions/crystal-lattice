@@ -78,12 +78,12 @@ return [
 
 3) Ensure UI schema endpoint returns these
 
-- The server already exposes `GET /sessions/{session_id}/ui-schema` via `core.get_ui_schema()`.
+- The server already exposes `GET /sessions/{session_id}/ui-schema` via `core.get_ui_schema(config)`.
 - Confirm element appears there for sessions using the provider.
 
 ## Tests (Optional but recommended)
 
-- Unit test that `AgentCore.get_ui_schema()` includes these elements when provider is registered.
+- Unit test that `AgentCore.get_ui_schema(config)` includes these elements when provider is registered.
 
 ## Definition of Done
 

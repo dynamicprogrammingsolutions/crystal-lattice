@@ -25,6 +25,7 @@ class ExtensionWrapper(ProviderExtensionPlugin):
         self.plugin = ProviderExtensionDefaultsAdapter(plugin_class())
         self.name = getattr(plugin_class, "name", plugin_class.__name__)
         self.version = getattr(plugin_class, "version", "unknown")
+        self.priority = getattr(plugin_class, "priority", 100)
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize with config and shared state; return updated shared state."""
@@ -33,8 +34,13 @@ class ExtensionWrapper(ProviderExtensionPlugin):
     def get_config_schema(self) -> Dict[str, Any]:
         return self.plugin.get_config_schema()
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
-        return self.plugin.get_ui_elements()
+    def get_ui_elements(
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        return self.plugin.get_ui_elements(config, tags, models)
 
     def get_models(
         self,

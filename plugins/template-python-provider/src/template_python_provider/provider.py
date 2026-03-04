@@ -145,7 +145,12 @@ class TemplateProvider(AccumulatorStreamingMixin, ProviderPlugin):
             },
         }
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
         return [
             {"type": "text", "key": "model", "label": "Model"},
             {"type": "text", "key": "base_url", "label": "Base URL"},
