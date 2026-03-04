@@ -11,7 +11,7 @@ more detailed responses.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from agent_core.types import ProviderExtensionPlugin
 
@@ -45,11 +45,13 @@ class OpenRouterVerbosityExtension(ProviderExtensionPlugin):
 
     def get_ui_elements(
         self,
-        config: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None,
-        models: Optional[List[Dict[str, Any]]] = None,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        if tags is not None and "ext:openrouter_verbosity" not in tags:
+        if "ext:openrouter_verbosity" not in tags:
+            return []
+        if config.get("show_verbosity_ui") is False:
             return []
         return [
             {
@@ -59,12 +61,6 @@ class OpenRouterVerbosityExtension(ProviderExtensionPlugin):
                 "options": [{"value": v, "label": v} for v in _VERBOSITY_LEVELS],
             }
         ]
-
-    def get_ui_elements_for_config(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Return verbosity UI only when not hidden by config (e.g. show_verbosity_ui)."""
-        if config.get("show_verbosity_ui") is False:
-            return []
-        return self.get_ui_elements()
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         verbosity = config.get("verbosity")

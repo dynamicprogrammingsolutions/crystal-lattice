@@ -95,7 +95,7 @@ Key design choices that enable this:
 
 - **Domain-oriented methods** (`createSession`, `send`, `listEvents`, etc.) instead of “HTTP get/post”.
 - **Feature completions** are part of the backend contract (optional initially), which matches `AgentCore.get_completions` and `apply_feature_completion`.
-- **UI schema** is treated as data (plugin-driven), so a TS `AgentCore.get_ui_schema()` port can feed the same UI logic.
+- **UI schema** is treated as data (plugin-driven), so a TS `AgentCore.get_ui_schema(config)` port can feed the same UI logic.
 
 Recommended future packaging split:
 
