@@ -7,6 +7,56 @@ It is shared across plugin kinds and matches the implementation in:
 - `core/python/agent_core/core.py` (`_pre_request`, `send_request`, `send_request_stream`)
 - `core/python/agent_core/plugin/provider.py` (`ProviderWrapper`)
 
+## Dependency resolution (models + tags)
+
+Before running a request, the core resolves which provider extensions, features, and tools are enabled for the **effective config**.
+
+This same resolution is also used when computing UI schema (`AgentCore.get_ui_schema`) and tool schemas (`AgentCore.get_tool_schemas`).
+
+High-level flow:
+
+1) Select provider for `config`.
+2) Compute `models` for the config.
+3) Compute `tags` from the provider and enabled plugins.
+4) Filter extensions/features/tools by `required_tags()`.
+5) Repeat steps (3–4) until the enabled set stops changing.
+
+Pseudocode (simplified):
+
+```python
+provider = select_provider(config)
+
+models = provider.get_models(config)
+for ext in provider.extensions:
+    models = ext.get_models(config, models)
+for feat in features:
+    models = feat.get_models(config, models)
+
+enabled_exts = list(provider.extensions)
+enabled_feats = list(features)
+enabled_tools = list(tools)
+
+while True:
+    tags = set()
+    tags |= set(provider.get_tags(config, models))
+    tags |= set().union(*(ext.get_tags(config, models) for ext in enabled_exts))
+    tags |= set().union(*(feat.get_tags(config, models) for feat in enabled_feats))
+    tags |= set().union(*(tool.get_tags(config, models) for tool in enabled_tools))
+
+    next_exts = [ext for ext in enabled_exts if set(ext.required_tags()).issubset(tags)]
+    next_feats = [feat for feat in enabled_feats if set(feat.required_tags()).issubset(tags)]
+    next_tools = [tool for tool in enabled_tools if set(tool.required_tags()).issubset(tags)]
+
+    if next_exts == enabled_exts and next_feats == enabled_feats and next_tools == enabled_tools:
+        break
+    enabled_exts, enabled_feats, enabled_tools = next_exts, next_feats, next_tools
+```
+
+Runtime references:
+
+- model caching + validation: `core/python/agent_core/core.py` (`_get_models_for_config`)
+- tag-based dependency loop: `core/python/agent_core/core.py` (`_resolve_plugins_for_config`)
+
 ## Request-time ordering (high level)
 
 For a request, the core runs:

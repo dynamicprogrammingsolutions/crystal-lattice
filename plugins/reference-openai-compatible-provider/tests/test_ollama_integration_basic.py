@@ -77,3 +77,21 @@ def test_basic_streaming_ollama_openai_compat():
     assert final_event is not None
     assert final_event["messages"][-1]["role"] == "assistant"
     assert final_event["messages"][-1].get("content")
+
+
+@pytest.mark.integration
+@pytest.mark.ollama
+def test_models_ui_schema_lists_available_models():
+    cfg = _ollama_cfg()
+    if not _ollama_available(cfg["base_url"]):
+        pytest.skip("Ollama OpenAI-compatible endpoint not reachable")
+
+    core = AgentCore()
+    core.register_provider(OpenAICompatibleProvider)
+
+    schema = core.get_ui_schema(cfg)
+    model_el = next((el for el in schema if isinstance(el, dict) and el.get("key") == "model"), None)
+    assert model_el is not None
+    options = model_el.get("options")
+    if model_el.get("type") != "select" or not isinstance(options, list) or not options:
+        pytest.skip("No model options returned by /models")

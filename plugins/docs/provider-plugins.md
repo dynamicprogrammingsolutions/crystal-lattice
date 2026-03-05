@@ -351,6 +351,95 @@ class MyProvider(AccumulatorStreamingMixin, ProviderPlugin):
 
 UI deep dive: [UI elements](ui-elements.md).
 
+#### Optional: models and capability tags
+
+Providers can optionally implement two hooks that let the core and UIs adapt to the selected model:
+
+- `get_models(config) -> list[dict[str, Any]]`
+- `get_tags(config, models) -> list[str]`
+
+The core uses these hooks for request-time dependency resolution:
+
+- model descriptors are computed for the effective config
+- tags are computed from the provider and enabled plugins
+- extensions/features/tools can declare `required_tags()` and will only be enabled when those tags are present
+
+Runtime references:
+
+- model caching + validation: `core/python/agent_core/core.py` (`_get_models_for_config`)
+- tag-based dependency loop: `core/python/agent_core/core.py` (`_resolve_plugins_for_config`)
+
+Model descriptor requirements:
+
+- each returned model must include `{"id": "..."}` (a non-empty string)
+- any additional keys are provider-defined (for example `"name"`, `"capabilities"`, or pricing metadata)
+
+Keep these hooks conservative:
+
+- `get_models` should be fast and resilient; return `[]` on failure rather than raising.
+- avoid returning huge, unstable lists when you can filter to what the UI needs.
+
+Example (hypothetical OpenAI-compatible provider):
+
+```python
+from __future__ import annotations
+
+from typing import Any
+
+from agent_core.types import ProviderPlugin
+
+
+class MyOpenAICompatibleProvider(ProviderPlugin):
+    name = "my_openai_compatible"
+    version = "0.1.0"
+
+    def get_models(self, config: dict[str, Any]) -> list[dict[str, Any]]:
+        # TODO: fetch models from your provider (if supported) using config.
+        # Return [] on errors/timeouts.
+        return [
+            {"id": "gpt-4.1-mini", "name": "GPT-4.1 mini", "capabilities": {"tools": True}},
+            {"id": "gpt-4.1", "name": "GPT-4.1", "capabilities": {"tools": True, "reasoning": True}},
+        ]
+
+    def get_tags(self, config: dict[str, Any], models: list[dict[str, Any]]) -> list[str]:
+        tags = ["provider:openai_compatible", "supports_streaming"]
+
+        selected = config.get("model")
+        selected_info = (
+            next((m for m in models if m.get("id") == selected), None)
+            if isinstance(selected, str) and selected
+            else None
+        )
+        caps = selected_info.get("capabilities") if isinstance(selected_info, dict) else None
+        if isinstance(caps, dict) and caps.get("tools"):
+            tags.append("supports_tools")
+        if isinstance(caps, dict) and caps.get("reasoning"):
+            tags.append("supports_reasoning")
+
+        return tags
+
+    def get_ui_elements(
+        self,
+        config: dict[str, Any],
+        tags: list[str],
+        models: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        options = [
+            {"value": m["id"], "label": (m.get("name") or m["id"])}
+            for m in models
+            if isinstance(m.get("id"), str) and m.get("id")
+        ]
+        if options:
+            return [{"type": "select", "key": "model", "label": "Model", "options": options}]
+        return [{"type": "text", "key": "model", "label": "Model id"}]
+```
+
+Notes:
+
+- The `"capabilities"` field above is a provider-defined convention used only by this provider.
+  The core does not interpret it; only the tags matter outside the provider.
+- Prefer stable tag names like `provider:...` and `supports_...` so that extensions can depend on them.
+
 ### 2) Implement `init` and `initialize_request`
 
 ```python

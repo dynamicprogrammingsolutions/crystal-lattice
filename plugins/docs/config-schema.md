@@ -103,6 +103,11 @@ def get_config_schema(self) -> dict[str, Any]:
 
 Interactive configuration in the terminal (via `/set`) is driven by `get_ui_elements(config, tags, models)` (see `plugins/docs/ui-elements.md`). It’s common to keep `get_config_schema()` and `get_ui_elements()` aligned (same keys, same defaults), but they are independent.
 
+Because `get_ui_elements` receives `tags` and `models`, the set of UI-exposed keys may vary by provider capabilities and the selected model. This is useful for hiding knobs that do not apply, but it also means:
+
+- `/help config` may list keys that do not appear in `/set` for a given session, and
+- keys may appear/disappear when you change the session’s effective config.
+
 ## Application-level schema (terminal app)
 
 The terminal app also exposes and renders a separate schema for keys under `config["application"]` (settings consumed by the terminal app itself, not by plugins). See `application/python/agent_terminal_app/terminal_app.py` (`TerminalApplication.get_application_config_schema`).
