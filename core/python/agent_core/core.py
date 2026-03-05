@@ -2139,9 +2139,6 @@ class AgentCore:
             for name, ext_ui in provider.get_extension_ui_elements(
                 config, tags, models
             ).items():
-            for name, ext_ui in provider.get_extension_ui_elements(
-                config, tags, models
-            ).items():
                 _extend(ext_ui, name)
         for feature in enabled_features:
             _extend(feature.get_ui_elements(config, tags, models), feature.name)
