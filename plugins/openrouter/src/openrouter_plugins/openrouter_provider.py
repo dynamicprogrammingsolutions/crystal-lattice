@@ -166,10 +166,10 @@ class OpenRouterProvider(ProviderPlugin):
                             tags.append("supports_tools")
                         if "reasoning" in supported_params:
                             tags.append("supports_reasoning")
+                            tags.append("supports_reasoning_effort")
                         if "verbosity" in supported_params:
                             tags.append("supports_verbosity")
-                        if "reasoning_effort" in supported_params:
-                            tags.append("supports_reasoning_effort")
+
                         return tags
 
         return tags
