@@ -31,6 +31,52 @@ Typical responsibilities:
 
 ---
 
+## Enabling extensions with tags
+
+Extensions can declare dependencies using `required_tags()`.
+
+Those tags are computed per-request from:
+
+- the provider’s `get_tags(config, models)`, and
+- tags contributed by enabled extensions/features/tools.
+
+If `required_tags()` is not satisfied, the extension is not enabled and its hooks will not run.
+
+Runtime reference: `core/python/agent_core/core.py` (`_resolve_plugins_for_config`).
+
+Example (hypothetical OpenAI-compatible reasoning extension):
+
+```python
+from __future__ import annotations
+
+from typing import Any
+
+from agent_core.types import ProviderExtensionPlugin
+
+
+class MyReasoningExtension(ProviderExtensionPlugin):
+    name = "my_reasoning"
+    version = "0.1.0"
+
+    def required_tags(self) -> list[str]:
+        return ["provider:openai_compatible", "supports_reasoning"]
+
+    def get_ui_elements(
+        self,
+        config: dict[str, Any],
+        tags: list[str],
+        models: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        # This check is optional: if the tag is missing, the extension
+        # should not have been enabled.
+        if "supports_reasoning" not in tags:
+            return []
+
+        return [{"type": "checkbox", "key": "enable_reasoning", "label": "Enable reasoning"}]
+```
+
+---
+
 ## Runtime interop contracts
 
 ### Canonical core metadata keys

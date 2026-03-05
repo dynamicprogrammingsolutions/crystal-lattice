@@ -10,6 +10,9 @@ from agent_core.utils import get_logger
 
 log = get_logger("reference_openai_compatible_provider")
 
+_DEFAULT_BASE_URL = "https://api.openai.com/v1"
+_MODELS_TIMEOUT_CAP_SECONDS = 10.0
+
 
 class AccumulatorStreamingMixin:
     """Generic streaming hot path using extract_delta + process_delta.
@@ -77,10 +80,92 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
         return {"config": config}
 
     def get_models(self, config: dict[str, Any]) -> list[dict[str, Any]]:
-        model = config.get("model")
-        if isinstance(model, str) and model:
-            return [{"id": model}]
-        return []
+        base_url = str(config.get("base_url") or _DEFAULT_BASE_URL).rstrip("/")
+
+        url = f"{base_url}/models"
+
+        headers: dict[str, str] = {}
+        api_key = config.get("api_key")
+        if isinstance(api_key, str) and api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        timeout = min(float(config.get("timeout", 60)), _MODELS_TIMEOUT_CAP_SECONDS)
+
+        try:
+            resp = requests.get(url, headers=headers, timeout=timeout)
+        except Exception as exc:
+            log.warning("models_request_failed", url=url, error=str(exc))
+            return []
+
+        if not resp.ok:
+            log.warning(
+                "models_request_not_ok",
+                url=url,
+                status_code=resp.status_code,
+                body=str(resp.text)[:2000],
+            )
+            return []
+
+        try:
+            payload = resp.json()
+        except Exception as exc:
+            log.warning("models_parse_failed", url=url, error=str(exc))
+            return []
+
+        items = payload.get("data") if isinstance(payload, dict) else None
+        if not isinstance(items, list):
+            return []
+
+        out: list[dict[str, Any]] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            model_id = item.get("id")
+            if not isinstance(model_id, str) or not model_id:
+                continue
+            entry: dict[str, Any] = {"id": model_id}
+            name = item.get("name")
+            if isinstance(name, str) and name:
+                entry["name"] = name
+            out.append(entry)
+        return out
+
+    def get_ui_elements(
+        self,
+        config: dict[str, Any],
+        tags: list[str],
+        models: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        options: list[dict[str, str]] = []
+        for m in models:
+            model_id = m.get("id")
+            if not isinstance(model_id, str) or not model_id:
+                continue
+            label = m.get("name")
+            label = label if isinstance(label, str) and label else model_id
+            options.append({"value": model_id, "label": label})
+
+        model_el: dict[str, Any] = {
+            "ui_type": "config",
+            "type": "select" if options else "text",
+            "key": "model",
+            "label": "Model",
+        }
+        if options:
+            model_el["options"] = options
+
+        return [
+            {"ui_type": "config", "type": "text", "key": "base_url", "label": "Base URL"},
+            model_el,
+            {"ui_type": "config", "type": "text", "key": "api_key", "label": "API key"},
+            {"ui_type": "config", "type": "text", "key": "timeout", "label": "Timeout (seconds)"},
+            {
+                "ui_type": "config",
+                "type": "checkbox",
+                "key": "debug_stream",
+                "label": "Debug streaming chunks",
+            },
+        ]
 
     def get_tags(self, config: dict[str, Any], models: list[dict[str, Any]]):
         return [
@@ -92,7 +177,7 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
 
     def initialize_request(self, native_messages: list[dict[str, Any]], state: dict[str, Any]):
         cfg = state.get("config") or {}
-        base_url = str(cfg.get("base_url") or "").rstrip("/")
+        base_url = str(cfg.get("base_url") or _DEFAULT_BASE_URL).rstrip("/")
         url = f"{base_url}/chat/completions"
 
         headers: dict[str, str] = {"Content-Type": "application/json"}
