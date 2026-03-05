@@ -125,8 +125,8 @@ def main() -> None:
     sections: List[str] = [
         "# Examples",
         "",
-        "Note: Plugins use instance methods but should remain stateless (pure) and operate on explicit state objects. Plugin instances are short5lived and scoped to a single request, just like the shared provider state managed by the provider wrapper.",
-        "Note: pytest is configured with -m 'not integration' by default, so remote OpenRouter integration tests are skipped unless you explicitly run them with -m openrouter or -m integration. The example tests listed below all run with a plain pytest invocation.",
+        "Note: Plugins use instance methods but should remain stateless (pure) and operate on explicit state objects. Plugin instances are short-lived and scoped to a single request, just like the shared provider state managed by the provider wrapper.",
+        "Note: Some examples/tests require external services (for example, OpenRouter) and will be skipped unless the required environment variables are configured (for example, OPENROUTER_API_KEY).",
         "",
     ]
     for path in files:

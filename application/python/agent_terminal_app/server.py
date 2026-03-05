@@ -13,8 +13,6 @@ import time
 import uuid
 from datetime import datetime
 
-from agent_core.utils import get_logger
-
 try:  # Optional convenience in local usage
     from dotenv import load_dotenv  # type: ignore[import-not-found]
 except Exception:  # pragma: no cover - optional dependency
@@ -32,7 +30,7 @@ from agent_terminal_app import bridge_client as bridge_mod
 _DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "config_openrouter_app_layer.json"
 _DEFAULT_SESSION_ROOT = Path(__file__).resolve().parent / "sessions"
 
-_log = get_logger(__name__)
+_log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -51,8 +49,6 @@ app = FastAPI(title="Agent Terminal App - Echo provider (AgentApplication)")
 _bonjour_handle: Optional[bonjour_mod.BonjourServiceHandle] = None
 _bridge_client: Optional[bridge_mod.BridgeClient] = None
 _bridge_task: Optional[asyncio.Task[None]] = None
-
-_log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------

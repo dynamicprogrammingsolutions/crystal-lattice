@@ -863,12 +863,14 @@ class TerminalApplication:
     def session_ui_elements(self) -> list[dict[str, object]]:
         core, base_config, session = self.require_session()
         metadata = session.metadata if isinstance(session.metadata, dict) else {}
-        raw = metadata.get("overrides")
-        overrides = raw if isinstance(raw, dict) else {}
-        effective_config = resolve_request_config(base_config, overrides)
+        overrides_val = metadata.get("overrides")
+        overrides: Dict[str, Any] = (
+            overrides_val if isinstance(overrides_val, dict) else {}
+        )
+        config = resolve_request_config(base_config, overrides)
 
         try:
-            ui_schema = core.get_ui_schema(config=effective_config)
+            ui_schema = core.get_ui_schema(config)
         except Exception:
             return []
 
@@ -893,12 +895,14 @@ class TerminalApplication:
 
         core, base_config, session = self.require_session()
         metadata = session.metadata if isinstance(session.metadata, dict) else {}
-        raw = metadata.get("overrides")
-        overrides = raw if isinstance(raw, dict) else {}
-        effective_config = resolve_request_config(base_config, overrides)
+        overrides_val = metadata.get("overrides")
+        overrides: Dict[str, Any] = (
+            overrides_val if isinstance(overrides_val, dict) else {}
+        )
+        config = resolve_request_config(base_config, overrides)
 
         try:
-            ui_schema = core.get_ui_schema(config=effective_config)
+            ui_schema = core.get_ui_schema(config)
         except Exception:
             return []
 
@@ -920,12 +924,14 @@ class TerminalApplication:
         """
         core, base_config, session = self.require_session()
         metadata = session.metadata if isinstance(session.metadata, dict) else {}
-        raw = metadata.get("overrides")
-        overrides = raw if isinstance(raw, dict) else {}
-        effective_config = resolve_request_config(base_config, overrides)
+        overrides_val = metadata.get("overrides")
+        overrides: Dict[str, Any] = (
+            overrides_val if isinstance(overrides_val, dict) else {}
+        )
+        config = resolve_request_config(base_config, overrides)
 
         try:
-            ui_schema = core.get_ui_schema(config=effective_config)
+            ui_schema = core.get_ui_schema(config)
         except Exception:
             return []
 

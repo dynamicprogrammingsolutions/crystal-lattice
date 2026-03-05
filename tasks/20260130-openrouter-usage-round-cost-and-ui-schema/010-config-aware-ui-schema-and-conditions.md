@@ -10,10 +10,10 @@ This task is related to sandboxing’s session-aware app plugin UI work, but it 
 
 ## Problem
 
-- Core plugins (providers/extensions/features/tools) expose UI elements via `get_ui_elements()` which has **no config input**.
+- Core plugins (providers/extensions/features/tools) originally exposed UI elements via `get_ui_elements()` with **no config input**.
   - Protocol: `core/python/agent_core/types.py` (see `BasePlugin.get_ui_elements`)
-- Core UI schema aggregation (`AgentCore.get_ui_schema`) is also **configless**.
-  - `core/python/agent_core/core.py:1998`
+- Core UI schema aggregation (`AgentCore.get_ui_schema`) was also **configless**.
+  - `core/python/agent_core/core.py`
 - Per-session overrides exist (`session.metadata["overrides"]`) and are merged into effective config for requests.
   - Merge helper: `core/python/agent_app/config.py:131`
 
@@ -48,7 +48,6 @@ Where this hooks in:
 ### B) Core: config-aware schema aggregation
 
 Expose UI schema aggregation as:
-
 - `AgentCore.get_ui_schema(config: Dict[str, Any]) -> List[Dict[str, Any]]`
 
 Implementation idea:
@@ -70,9 +69,9 @@ Desired:
 - Return `core.get_ui_schema(effective_config)`.
 
 Also consider TerminalApplication local UI calls (terminal-only UI schema access):
-
-
 - `application/python/agent_terminal_app/terminal_app.py` should call `core.get_ui_schema(effective_config)`.
+
+(With the updated API, callers should pass the effective config.)
 
 ### D) Application plugins
 
@@ -81,7 +80,6 @@ This task is primarily about core plugin UI schema (needed for OpenRouter usage 
 - Application plugins currently have `get_ui_elements(state)` and no session/config inputs.
   - Protocol: `core/python/agent_app/app_plugins.py:47`
 - Existing sandboxing task proposes a session-aware method.
-
 But note: sandboxing’s “Enter/Exit sandbox” needs session metadata as well, so app-plugin UI likely still needs a session-aware method from the sandboxing task rather than a config-only hook.
 
 ## Lightweight `condition` spec (for message_footer/status_bar)
