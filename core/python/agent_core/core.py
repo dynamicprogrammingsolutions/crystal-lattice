@@ -1515,7 +1515,8 @@ class AgentCore:
         provider_config = {**base_config, **({"tools": tool_schemas} if tool_schemas else {})}
 
         state = provider.init(provider_config)
-        for feature in features:
+        sorted_features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
+        for feature in sorted_features:
             state = feature.init(provider_config, state)
             provider.set_state(state)
         return provider_config, state
@@ -1530,6 +1531,7 @@ class AgentCore:
         provider, _enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
             config
         )
+        features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
         _provider_config, state = self._init_provider_and_features_for_config(
             provider,
             features,
@@ -1569,6 +1571,8 @@ class AgentCore:
             tools,
             _tags,
         ) = self._resolve_plugins_for_config(config)
+
+        features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
 
         _provider_config, state = self._init_provider_and_features_for_config(
             provider,
@@ -1636,6 +1640,7 @@ class AgentCore:
             tools,
             config,
         )
+        features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
         # Build messages (core shape)
         messages = [msg.to_dict() for msg in session.messages]
 
@@ -1719,6 +1724,7 @@ class AgentCore:
             config
         )
 
+        features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
         logger.info(
             "plugins_resolved_for_config",
             provider=provider.name,
@@ -1826,6 +1832,7 @@ class AgentCore:
             config
         )
 
+        features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
         logger.info(
             "plugins_resolved_for_config",
             provider=provider.name,
@@ -1934,6 +1941,7 @@ class AgentCore:
             config
         )
 
+        features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
         logger.info(
             "plugins_resolved_for_config",
             provider=provider.name,
@@ -2068,6 +2076,7 @@ class AgentCore:
         if not isinstance(config, dict):
             raise TypeError("config must be a dict")
 
+        # If no plugins are registered, return an empty schema.
         if not self._providers and not self._features and not self._tools:
             return []
 
@@ -2096,6 +2105,12 @@ class AgentCore:
             enabled_tools, key=lambda tool: getattr(tool, "priority", 100)
         )
 
+        # We treat configuration-oriented elements (ui_type == "config")
+        # as keyed by their "key" field, mirroring the flattened
+        # behaviour of ``get_config_schema`` where later plugins override
+        # earlier ones for the same key. Non-config elements (such as
+        # message footers or actions) are preserved in order.
+
         elements: List[Dict[str, Any]] = []
         config_by_key: Dict[str, Dict[str, Any]] = {}
 
@@ -2121,6 +2136,9 @@ class AgentCore:
 
         if provider is not None:
             _extend(provider.get_ui_elements(config, tags, models), provider.name)
+            for name, ext_ui in provider.get_extension_ui_elements(
+                config, tags, models
+            ).items():
             for name, ext_ui in provider.get_extension_ui_elements(
                 config, tags, models
             ).items():

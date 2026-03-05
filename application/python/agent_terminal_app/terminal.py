@@ -351,7 +351,7 @@ async def _cmd_ui_schema(
     overrides_val = metadata.get("overrides")
     overrides = overrides_val if isinstance(overrides_val, dict) else {}
     config = resolve_request_config(base_config, overrides)
-    schema = core.get_ui_schema(config=config)
+    schema = core.get_ui_schema(config)
 
     # Print directly so that the raw schema is visible for debugging.
     print(schema)

@@ -162,7 +162,7 @@ ProviderPlugin:
   
   # Configuration
   get_config_schema() → dict
-  get_ui_elements() → list[dict]
+  get_ui_elements(config, tags, models) → list[dict]
   
   # Lifecycle
   init(config: dict) → state: dict
@@ -507,7 +507,7 @@ Important principles:
        - Provider plugin runs first, then each enabled Provider Extension runs (in order).
      - For each Feature (optional):
        - (native_messages, state) = feat.initialize_request(native_messages, state)
-   - Provider.call_api(native_messages, state) → (partial, final, native, state)
+   - Provider.call_api(native_messages, state) → (partial_messages, final_messages, native_messages, state)
     - Provider.finalize(native_messages, state) → (final_messages, native_messages, state)
     - Provider Extensions.finalize(final_messages, native_messages, state) in order
       → (final_messages, native_messages, state)

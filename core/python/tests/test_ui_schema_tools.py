@@ -11,8 +11,7 @@ def test_ui_schema_includes_tools():
     core = AgentCore()
     core.register_provider(DummyProvider)
     core.register_tool(DummyCalculator)
-
-    ui = core.get_ui_schema(config={})
+    ui = core.get_ui_schema({})
 
     assert isinstance(ui, list)
     keys = {el.get("key") for el in ui if isinstance(el, dict)}

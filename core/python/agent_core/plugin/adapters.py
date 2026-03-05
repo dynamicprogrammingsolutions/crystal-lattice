@@ -72,19 +72,20 @@ class _BasePluginDefaults:
     def _ui_elements_accepts_context(fn: Any) -> bool:
         """Return True when `fn` appears to accept (config, tags, models).
 
-        This provides backward compatibility for legacy plugin
+        This is used to provide backward compatibility for legacy plugin
         implementations that define `get_ui_elements(self)` with no args.
         """
 
         try:
             sig = inspect.signature(fn)
         except (TypeError, ValueError):
+            # If we cannot inspect the signature, assume it accepts context
+            # and let any resulting TypeError propagate.
             return True
 
         params = list(sig.parameters.values())
         if any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in params):
             return True
-
         positional = [
             p
             for p in params
