@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest';
-import WS, { type RawData } from 'ws';
+import WS from 'ws';
 
 import { BridgeTransport } from '../../transport/bridgeTransport';
 import type { WebSocketLike } from '../../transport/bridgeTransport';
@@ -19,11 +19,9 @@ class NodeWebSocketWrapper implements WebSocketLike {
   constructor(url: string) {
     this.sock = new WS(url);
     this.sock.on('open', () => this.onopen?.());
-    this.sock.on('message', (data: RawData) => this.onmessage?.({ data: String(data) }));
-    this.sock.on('error', (err: Error) => this.onerror?.(err));
-    this.sock.on('close', (code: number, reason: Buffer) =>
-      this.onclose?.({ code, reason: String(reason) }),
-    );
+    this.sock.on('message', (data) => this.onmessage?.({ data: String(data) }));
+    this.sock.on('error', (err) => this.onerror?.(err));
+    this.sock.on('close', (code, reason) => this.onclose?.({ code, reason: String(reason) }));
   }
 
   get readyState(): number {

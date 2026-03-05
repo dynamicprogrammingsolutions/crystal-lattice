@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentBackend, SessionPluginEntry } from '@crystal-lattice/frontend-sdk';
 
 import { computeNextEnabledIds } from './sessionPlugins/logic';
-import { useBackend } from './sdkRuntimeContext';
 
 export interface SessionPluginsState {
   loading: boolean;
@@ -12,6 +11,7 @@ export interface SessionPluginsState {
 }
 
 export interface UseSessionPluginsControllerOptions {
+  backend: AgentBackend | null;
   sessionId: string | null;
   enabled?: boolean;
 }
@@ -53,8 +53,7 @@ const EMPTY_PLUGINS: SessionPluginEntry[] = [];
 export function useSessionPluginsController(
   options: UseSessionPluginsControllerOptions,
 ): UseSessionPluginsControllerResult {
-  const { sessionId, enabled = true } = options;
-  const backend = useBackend();
+  const { backend, sessionId, enabled = true } = options;
 
   const [state, setState] = useState<SessionPluginsState>(() => ({
     loading: false,

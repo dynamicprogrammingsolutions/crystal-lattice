@@ -1,18 +1,6 @@
 export { useSubscribableSnapshot } from './useSubscribable';
 
 export type {
-  SdkRuntimeContextValue,
-  SdkRuntimeProviderProps,
-} from './sdkRuntimeContext';
-export {
-  SdkRuntimeProvider,
-  useSdkRuntimeContext,
-  useRuntime,
-  useBackend,
-  useConnectionScopeKey,
-} from './sdkRuntimeContext';
-
-export type {
   UseSessionEventsOptions,
   UseSessionEventsResult,
 } from './useSessionEvents';

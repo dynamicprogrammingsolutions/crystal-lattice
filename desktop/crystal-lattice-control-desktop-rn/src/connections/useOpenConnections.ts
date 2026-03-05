@@ -1,12 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 
 import {
-  createDefaultSdkRuntime,
   FetchTransport,
   RestAgentBackend,
-  type AgentBackend,
   type ConnectionRecord,
-  type SdkRuntime,
 } from '@crystal-lattice/frontend-sdk';
 
 export type OpenConnectionStatus = 'closed' | 'connecting' | 'open' | 'error';
@@ -15,8 +12,7 @@ export interface OpenConnectionState {
   status: OpenConnectionStatus;
   baseUrl: string;
   transport?: FetchTransport;
-  backend?: AgentBackend;
-  runtime?: SdkRuntime;
+  backend?: RestAgentBackend;
   errorMessage?: string;
   lastOpenedAt?: number;
 }
@@ -39,12 +35,11 @@ export interface UseOpenConnectionsResult {
   openConnectionsById: OpenConnectionsById;
   openConnectionIds: string[];
   isConnectionOpen: (connectionId: string) => boolean;
-  openConnection: (record: ConnectionRecord) => Promise<AgentBackend | null>;
+  openConnection: (record: ConnectionRecord) => Promise<RestAgentBackend | null>;
   closeConnection: (connectionId: string) => void;
   closeAllConnections: () => void;
   toggleConnection: (record: ConnectionRecord) => Promise<void>;
-  getBackend: (connectionId: string) => AgentBackend | null;
-  getRuntime: (connectionId: string) => SdkRuntime | null;
+  getBackend: (connectionId: string) => RestAgentBackend | null;
 }
 
 export function useOpenConnections(): UseOpenConnectionsResult {
@@ -57,7 +52,7 @@ export function useOpenConnections(): UseOpenConnectionsResult {
     [openConnectionsById],
   );
 
-  const openConnection = useCallback(async (record: ConnectionRecord): Promise<AgentBackend | null> => {
+  const openConnection = useCallback(async (record: ConnectionRecord): Promise<RestAgentBackend | null> => {
     const baseUrl = getBaseUrl(record);
     if (!baseUrl) {
       setOpenConnectionsById((prev) => ({
@@ -77,15 +72,7 @@ export function useOpenConnections(): UseOpenConnectionsResult {
     }));
 
     const transport = new FetchTransport({ baseUrl });
-    const rawBackend = new RestAgentBackend({ transport });
-    const runtime = createDefaultSdkRuntime({
-      scopeKey: record.id,
-      backend: rawBackend,
-    });
-    const backend = runtime.backend;
-    if (!backend) {
-      throw new Error('Failed to initialize runtime backend');
-    }
+    const backend = new RestAgentBackend({ transport });
 
     try {
       await backend.listAgents();
@@ -96,7 +83,6 @@ export function useOpenConnections(): UseOpenConnectionsResult {
           baseUrl,
           transport,
           backend,
-          runtime,
           lastOpenedAt: Date.now(),
         },
       }));
@@ -146,11 +132,6 @@ export function useOpenConnections(): UseOpenConnectionsResult {
     [openConnectionsById],
   );
 
-  const getRuntime = useCallback(
-    (connectionId: string) => openConnectionsById[connectionId]?.runtime ?? null,
-    [openConnectionsById],
-  );
-
   return {
     openConnectionsById,
     openConnectionIds,
@@ -160,6 +141,5 @@ export function useOpenConnections(): UseOpenConnectionsResult {
     closeAllConnections,
     toggleConnection,
     getBackend,
-    getRuntime,
   };
 }

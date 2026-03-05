@@ -49,6 +49,8 @@ export function useSessionStatusBarParts(
 
   const agentsEnabled = !!(backend && isActive);
   const { controller: agentsController, state: agentsState } = useAgentsController({
+    backend,
+    cacheKey: connectionId,
     enabled: agentsEnabled,
   });
   const availableAgents = agentsState?.agents ?? [];

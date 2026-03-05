@@ -229,6 +229,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       { migrateFromKeys: [STORAGE_KEY_COMPOSER_ACTIONS] },
     );
   const { controller: agentsController, state: agentsState } = useAgentsController({
+    backend,
+    cacheKey: connectionId ?? 'default',
     enabled: !!(backend && isActive),
   });
   const availableAgents = agentsState?.agents ?? [];
@@ -329,6 +331,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const eventsEnabled = !!(backend && sessionId && isActive && isAppActive);
 
   const { controller: chatController, state: chatState } = useChatController({
+    backend,
     sessionId,
     initialMessages: cachedMessages ?? [],
     initialEventsCursorId: cachedEventsCursorId ?? null,

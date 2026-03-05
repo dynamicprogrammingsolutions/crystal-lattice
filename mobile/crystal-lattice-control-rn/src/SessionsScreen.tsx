@@ -71,6 +71,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const { controller: sessionsController, state: sessionsState } = useSessionsController({
+    backend,
     initialSessions: cachedSessions ?? [],
   });
   const sessions = sessionsState?.sessions ?? cachedSessions ?? [];
@@ -98,6 +99,8 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const error = sessionsState?.error ?? (!backend ? 'No active connection' : null);
   const [agentPickerVisible, setAgentPickerVisible] = useState(false);
   const { controller: agentsController, state: agentsState } = useAgentsController({
+    backend,
+    cacheKey: connectionId ?? 'default',
     enabled: !!(backend && isActive),
   });
   const availableAgents = agentsState?.agents ?? [];

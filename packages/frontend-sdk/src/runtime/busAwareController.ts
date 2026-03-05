@@ -4,30 +4,25 @@ import type { SdkEventBus } from './sdkEventBus';
 
 export abstract class BusAwareController<T> extends SimpleSubscribable<T> {
   protected readonly scopeKey: string;
-  protected readonly bus: SdkEventBus | null;
+  protected readonly bus: SdkEventBus;
   protected disposeBusSub?: Unsubscribe;
   protected lastHandledBusSeq: number;
 
   constructor(options: {
     initialSnapshot: T;
     scopeKey: string;
-    bus?: SdkEventBus | null;
+    bus: SdkEventBus;
   }) {
     super(options.initialSnapshot);
     this.scopeKey = options.scopeKey;
-    this.bus = options.bus ?? null;
-    this.lastHandledBusSeq = this.bus?.getSnapshot().seq ?? 0;
+    this.bus = options.bus;
+    this.lastHandledBusSeq = this.bus.getSnapshot().seq;
   }
 
   protected subscribeToBus(handler: (event: SdkEvent, seq: number) => void): void {
-    const bus = this.bus;
-    if (!bus) {
-      return;
-    }
-
     this.disposeBusSub?.();
-    this.disposeBusSub = bus.subscribe(() => {
-      const snapshot = bus.getSnapshot();
+    this.disposeBusSub = this.bus.subscribe(() => {
+      const snapshot = this.bus.getSnapshot();
       if (!snapshot.lastEvent || snapshot.seq <= this.lastHandledBusSeq) {
         return;
       }

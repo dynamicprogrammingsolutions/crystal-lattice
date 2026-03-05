@@ -3,9 +3,8 @@ import {StyleSheet, Text, View} from 'react-native';
 
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import type { SessionSummary } from '@crystal-lattice/frontend-sdk';
-import type { SdkRuntime } from '@crystal-lattice/frontend-sdk';
 
-import { ApplicationPluginsProvider, SdkRuntimeProvider } from '@crystal-lattice/frontend-sdk-react';
+import { ApplicationPluginsProvider } from '@crystal-lattice/frontend-sdk-react';
 
 import type { MessagesCache, MessagesCacheEntry, SessionsCache } from '../cache/types';
 import { ChatPane, type ChatPaneProps } from '../chat/ChatPane';
@@ -29,7 +28,6 @@ export interface ChatPaneTabStackProps {
   styleVariant: TabStripStyle;
   connectionNameById: Record<string, string>;
   getBackend: (connectionId: string) => AgentBackend | null;
-  getRuntime: (connectionId: string) => SdkRuntime | null;
   sessionsCache: SessionsCache;
   messagesCache: MessagesCache;
   onUpdateCache: ChatPaneProps['onUpdateCache'];
@@ -52,7 +50,6 @@ type TabFrameProps = {
   subtitle?: string;
   styleVariant: TabStripStyle;
   backend: AgentBackend | null;
-  runtime: SdkRuntime | null;
   sessionSummary: SessionSummary | null;
   cachedEntry: MessagesCacheEntry | null;
   onUpdateCache: ChatPaneTabStackProps['onUpdateCache'];
@@ -71,7 +68,6 @@ const TabFrame = React.memo(function TabFrame(props: TabFrameProps): React.JSX.E
     subtitle,
     styleVariant,
     backend,
-    runtime,
     cachedEntry,
     onUpdateCache,
     onOpenSessionTab,
@@ -82,8 +78,7 @@ const TabFrame = React.memo(function TabFrame(props: TabFrameProps): React.JSX.E
       style={[styles.frame, isVisible ? styles.visible : styles.hidden, isActive ? styles.active : styles.inactive]}
       pointerEvents={isVisible ? 'auto' : 'none'}
     >
-      <SdkRuntimeProvider runtime={runtime}>
-      <ApplicationPluginsProvider>
+      <ApplicationPluginsProvider backend={backend} connectionId={connectionId}>
         <ChatPane
           isActive={isActive}
           connectionId={connectionId}
@@ -99,7 +94,6 @@ const TabFrame = React.memo(function TabFrame(props: TabFrameProps): React.JSX.E
           onOpenSessionTab={onOpenSessionTab}
         />
       </ApplicationPluginsProvider>
-      </SdkRuntimeProvider>
     </View>
   );
 });
@@ -116,7 +110,6 @@ export function ChatPaneTabStack(props: ChatPaneTabStackProps): React.JSX.Elemen
     styleVariant,
     connectionNameById,
     getBackend,
-    getRuntime,
     sessionsCache,
     messagesCache,
     onUpdateCache,
@@ -154,7 +147,6 @@ export function ChatPaneTabStack(props: ChatPaneTabStackProps): React.JSX.Elemen
       {tabs.map((tab) => {
         const connectionName = connectionNameById[tab.connectionId] ?? tab.connectionId;
         const backend = getBackend(tab.connectionId);
-	      const runtime = getRuntime(tab.connectionId);
 	        const sessionSummary =
 	          (sessionsCache[tab.connectionId]?.sessions ?? []).find(
 	            (session) => session.session_id === tab.sessionId,
@@ -177,7 +169,6 @@ export function ChatPaneTabStack(props: ChatPaneTabStackProps): React.JSX.Elemen
             subtitle={tab.subtitle ?? undefined}
             styleVariant={styleVariant}
             backend={backend}
-	          runtime={runtime}
             cachedEntry={cachedEntry}
             onUpdateCache={onUpdateCache}
             onOpenSessionTab={onOpenSessionTab}
