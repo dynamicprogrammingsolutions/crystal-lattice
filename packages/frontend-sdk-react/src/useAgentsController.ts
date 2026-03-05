@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
-import type { AgentsControllerState } from '@crystal-lattice/frontend-sdk';
+import type { AgentBackend, AgentsControllerState } from '@crystal-lattice/frontend-sdk';
 import { AgentsController } from '@crystal-lattice/frontend-sdk';
 
-import { useBackend, useConnectionScopeKey } from './sdkRuntimeContext';
-
 export interface UseAgentsControllerOptions {
+  backend: AgentBackend | null;
+  cacheKey: string;
   enabled?: boolean;
 }
 
@@ -14,10 +14,7 @@ export interface UseAgentsControllerResult {
 }
 
 export function useAgentsController(options: UseAgentsControllerOptions): UseAgentsControllerResult {
-  const { enabled = true } = options;
-  const backend = useBackend();
-  const scopeKey = useConnectionScopeKey();
-  const cacheKey = scopeKey ?? 'default';
+  const { backend, cacheKey, enabled = true } = options;
 
   const controller = useMemo(() => {
     return new AgentsController({ backend, cacheKey });

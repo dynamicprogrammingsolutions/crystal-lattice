@@ -23,7 +23,6 @@ import {
 import type {
   ActionUiElement,
   AgentBackend,
-  SdkRuntime,
   SessionSummary,
 } from '@crystal-lattice/frontend-sdk';
 import {
@@ -34,7 +33,6 @@ import {
 
 import {
   ApplicationPluginsProvider,
-  SdkRuntimeProvider,
   useAgentsController,
   useApplicationPlugins,
   useHydrateControllerFromCache,
@@ -59,7 +57,6 @@ export interface SessionsPanelProps {
   focusedConnectionId: string | null;
   focusedConnectionName: string | null;
   connectionId: string | null;
-  runtime: SdkRuntime | null;
   backend: AgentBackend | null;
   cachedSessions: SessionSummary[];
   cachedLastLoadedAt: number | null;
@@ -84,11 +81,9 @@ export interface SessionsPanelProps {
 
 export function SessionsPanel(props: SessionsPanelProps): React.JSX.Element {
   return (
-    <SdkRuntimeProvider runtime={props.runtime}>
-    <ApplicationPluginsProvider>
+    <ApplicationPluginsProvider backend={props.backend} connectionId={props.connectionId}>
       <SessionsPanelInner {...props} />
     </ApplicationPluginsProvider>
-    </SdkRuntimeProvider>
   );
 }
 
@@ -115,6 +110,7 @@ function SessionsPanelInner({
     controller: sessionsController,
     state: sessionsState,
   } = useSessionsController({
+    backend,
     initialSessions: cachedSessions,
     limit: 50,
   });
@@ -322,6 +318,8 @@ function SessionsPanelInner({
   });
 
   const { controller: agentsController, state: agentsState } = useAgentsController({
+    backend,
+    cacheKey: connectionId ?? 'default',
     enabled: false,
   });
 
