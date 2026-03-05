@@ -167,7 +167,7 @@ class OpenRouterProvider(ProviderPlugin):
                         if "reasoning" in supported_params:
                             tags.append("supports_reasoning")
                             tags.append("supports_reasoning_effort")
-                        if "verbosity" in supported_params:
+                        if "gpt-5" in selected_id:
                             tags.append("supports_verbosity")
 
                         return tags
