@@ -31,8 +31,18 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
             config: Dict[str, Any],
             models: List[Dict[str, Any]],
     ) -> List[str]:
-        """Identify this extension for dependency resolution."""
-        return ["ext:openrouter_reasoning"]
+        """Identify this extension and add supports_reasoning when the selected model supports it."""
+        out: List[str] = ["ext:openrouter_reasoning"]
+        selected_id = config.get("model") if isinstance(config, dict) else None
+        if isinstance(selected_id, str) and selected_id and isinstance(models, list):
+            for m in models:
+                if isinstance(m, dict) and m.get("id") == selected_id:
+                    supported_params = m.get("supported_parameters") or []
+                    if isinstance(supported_params, list) and "reasoning" in supported_params:
+                        out.append("supports_reasoning")
+                        out.append("supports_reasoning_effort")
+                    break
+        return out
 
     def required_tags(self) -> List[str]:
         """Require OpenRouter provider and reasoning support."""
@@ -158,6 +168,8 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
     def initialize_request(
             self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
+        if "supports_reasoning" not in state.get("available_tags", []):
+            return state
         reasoning_config = state.get("openrouter_reasoning")
         if not reasoning_config:
             return state

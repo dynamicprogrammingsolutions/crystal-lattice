@@ -164,9 +164,8 @@ class OpenRouterProvider(ProviderPlugin):
         """Return capability tags based on model's supported_parameters.
         
         Checks the model's supported_parameters array from the OpenRouter API:
-        - 'reasoning' → 'supports_reasoning'
-        - 'verbosity' → 'supports_verbosity'
-        - 'tools' → 'supports_tools'
+        - 'tools' / 'tool' → 'supports_tools'
+        (Reasoning and verbosity tags are added by openrouter_reasoning and openrouter_verbosity extensions.)
         
         Always includes: provider:openrouter, openrouter, supports_streaming
         Falls back to hardcoded tags if model data unavailable.
@@ -180,15 +179,9 @@ class OpenRouterProvider(ProviderPlugin):
                 if isinstance(m, dict) and m.get("id") == selected_id:
                     supported_params = m.get("supported_parameters", [])
                     if isinstance(supported_params, list) and len(supported_params) > 0:
-                        # Map supported_parameters to capability tags
+                        # Map supported_parameters to capability tags (reasoning/verbosity in extensions)
                         if "tools" in supported_params or "tool" in supported_params:
                             tags.append("supports_tools")
-                        if "reasoning" in supported_params:
-                            tags.append("supports_reasoning")
-                            tags.append("supports_reasoning_effort")
-                        if "gpt-5" in selected_id:
-                            tags.append("supports_verbosity")
-
                         return tags
 
         return tags

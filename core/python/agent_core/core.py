@@ -1627,6 +1627,7 @@ class AgentCore:
             provider: Provider wrapper selected for this request.
             features: Enabled feature wrappers for this request.
             tools: Enabled tool wrappers for this request.
+            tags: Optional resolved capability tags for this request; stored in state for extensions.
 
         Returns:
             A tuple of (messages, native_messages, state, native_history_changed):
@@ -1642,6 +1643,8 @@ class AgentCore:
             tools,
             config,
         )
+        if tags is not None:
+            state["available_tags"] = list(tags)
         features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
         # Build messages (core shape)
         messages = [msg.to_dict() for msg in session.messages]
@@ -1734,7 +1737,7 @@ class AgentCore:
         if not self._providers:
             raise RuntimeError("No provider registered")
 
-        provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
+        provider, enabled_extensions, features, tools, tags = self._resolve_plugins_for_config(
             config
         )
 
@@ -1746,7 +1749,7 @@ class AgentCore:
             extensions=[ext.name for ext in enabled_extensions],
             features=[feat.name for feat in features],
             tools=[tool.name for tool in tools],
-            tags=_tags,
+            tags=tags,
         )
 
         provider.set_active_extensions(enabled_extensions)
@@ -1756,6 +1759,7 @@ class AgentCore:
             provider,
             features,
             tools,
+            tags=tags,
         )
         baseline_native_len = len(native_messages)
 
@@ -1845,7 +1849,7 @@ class AgentCore:
         if not self._providers:
             raise RuntimeError("No provider registered")
 
-        provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
+        provider, enabled_extensions, features, tools, tags = self._resolve_plugins_for_config(
             config
         )
 
@@ -1857,7 +1861,7 @@ class AgentCore:
             extensions=[ext.name for ext in enabled_extensions],
             features=[feat.name for feat in features],
             tools=[tool.name for tool in tools],
-            tags=_tags,
+            tags=tags,
         )
 
         provider.set_active_extensions(enabled_extensions)
@@ -1867,6 +1871,7 @@ class AgentCore:
             provider,
             features,
             tools,
+            tags=tags,
         )
         baseline_native_len = len(native_messages)
 
@@ -1958,7 +1963,7 @@ class AgentCore:
         """
         if not self._providers:
             raise RuntimeError("No provider registered")
-        provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
+        provider, enabled_extensions, features, tools, tags = self._resolve_plugins_for_config(
             config
         )
 
@@ -1970,7 +1975,7 @@ class AgentCore:
             extensions=[ext.name for ext in enabled_extensions],
             features=[feat.name for feat in features],
             tools=[tool.name for tool in tools],
-            tags=_tags,
+            tags=tags,
         )
 
         provider.set_active_extensions(enabled_extensions)
@@ -1980,6 +1985,7 @@ class AgentCore:
             provider,
             features,
             tools,
+            tags=tags,
         )
         baseline_native_len = len(native_messages)
 
