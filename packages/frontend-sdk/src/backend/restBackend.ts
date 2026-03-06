@@ -15,6 +15,7 @@ import type {
   ListMessagesResult,
 } from './backend';
 import { generateIdempotencyKey } from '../utils/idempotency';
+import { emitSessionUiSchemaInvalidated } from '../uiSchema/sessionUiSchemaInvalidation';
 
 function buildQuery(params: Record<string, string | number | undefined>): string {
   const parts: string[] = [];
@@ -76,6 +77,8 @@ export class RestAgentBackend implements AgentBackend {
       headers: this.buildIdempotencyHeaders(options.idempotencyKey),
       body: { enabled },
     });
+
+    emitSessionUiSchemaInvalidated(this, sessionId, { reason: 'session_plugins_updated' });
   }
 
   async clearSessionPlugins(
@@ -88,6 +91,8 @@ export class RestAgentBackend implements AgentBackend {
       path,
       headers: this.buildIdempotencyHeaders(options.idempotencyKey),
     });
+
+    emitSessionUiSchemaInvalidated(this, sessionId, { reason: 'session_plugins_updated' });
   }
 
   async listAgents(): Promise<string[]> {
@@ -385,6 +390,8 @@ export class RestAgentBackend implements AgentBackend {
       headers: this.buildIdempotencyHeaders(options.idempotencyKey),
       body: { values },
     });
+
+    emitSessionUiSchemaInvalidated(this, sessionId, { reason: 'session_overrides_updated' });
   }
 
   async deleteSessionOverride(
@@ -398,6 +405,8 @@ export class RestAgentBackend implements AgentBackend {
       path,
       headers: this.buildIdempotencyHeaders(options.idempotencyKey),
     });
+
+    emitSessionUiSchemaInvalidated(this, sessionId, { reason: 'session_overrides_updated' });
   }
 
   async getSessionConfigSchema(sessionId: string): Promise<ConfigSchemaEntry[]> {

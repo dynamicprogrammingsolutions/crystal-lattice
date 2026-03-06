@@ -3,7 +3,10 @@ import type {
   AgentBackend,
   SessionUiSchemaControllerState,
 } from '@crystal-lattice/frontend-sdk';
-import { SessionUiSchemaController } from '@crystal-lattice/frontend-sdk';
+import {
+  SessionUiSchemaController,
+  subscribeSessionUiSchemaInvalidated,
+} from '@crystal-lattice/frontend-sdk';
 
 export interface UseSessionUiSchemaControllerOptions {
   backend: AgentBackend | null;
@@ -34,6 +37,17 @@ export function useSessionUiSchemaController(
     if (!enabled) return;
     controller.load();
   }, [controller, enabled]);
+
+  useEffect(() => {
+    if (!controller) return;
+    if (!enabled) return;
+    if (!backend || !sessionId) return;
+
+    return subscribeSessionUiSchemaInvalidated(backend, sessionId, () => {
+      controller.invalidate();
+      controller.load();
+    });
+  }, [backend, controller, enabled, sessionId]);
 
   const state = useSyncExternalStore(
     (onStoreChange) => (controller ? controller.subscribe(onStoreChange) : () => {}),
