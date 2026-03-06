@@ -36,7 +36,7 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
 
     def required_tags(self) -> List[str]:
         """Require OpenRouter provider and reasoning support."""
-        return ["openrouter", "supports_reasoning"]
+        return ["openrouter", "supports_reasoning", "feature:request_options"]
 
     def get_config_schema(self) -> Dict[str, Any]:
         return {
@@ -164,7 +164,10 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
 
         config = state.get("config", {})
         request_options = dict(config.get("request_options", {}))
-        request_options["reasoning"] = reasoning_config["reasoning"]
+        request_options["reasoning"] = {
+            **request_options.get("reasoning", {}),
+            **reasoning_config["reasoning"]
+        }
 
         return {
             **state,
