@@ -74,6 +74,17 @@ class BasePlugin(Protocol):
         plain dictionary; the core treats these dictionaries as opaque and
         flattens them via :meth:`AgentCore.get_ui_schema`.
 
+        Args:
+            config: Effective configuration for the current agent/request.
+            tags: Capability tags computed for this config.
+            models: Model descriptors computed for this config.
+
+        Note:
+            The core calls this hook with `(config, tags, models)`. For backward
+            compatibility, adapters will also accept legacy plugin
+            implementations that define `get_ui_elements(self)` with no
+            arguments.
+
         Recommended element shapes:
 
         * **Configuration elements** (default ``ui_type == "config"``):
@@ -190,6 +201,7 @@ class ProviderPlugin(BasePlugin, Protocol):
             def call_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
                 content = f"Echo: {next((m['content'] for m in reversed(native_messages) if m.get('role')=='user'), '')}"
                 msg = {"role": "assistant", "content": content}
+                # Return (partial_messages, final_messages, native_messages, new_state)
                 return ([], [msg], [*native_messages, msg], state)
             def stream_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
                 yield from []
@@ -451,7 +463,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
                 return {"prefix": {"type": "string", "default": "[EXT]"}}
             def init(self, config, state):
                 return state
-            def process_chunk(self, native_chunk, state, partial_messages, final_messages, native_messages):
+            def process_chunk(self, native_chunk, partial_messages, final_messages, native_messages, state):
                 pfx = state.get("config", {}).get("prefix", "[EXT]")
                 finals = [{**m, "content": f"{pfx} {m['content']}"} for m in final_messages]
                 return partial_messages, finals, native_messages, state
@@ -1014,6 +1026,30 @@ class ToolPlugin(BasePlugin, Protocol):
         operations.
         """
         return iter(())
+
+    def format_tool_call_preview(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> str:
+        """Generate a pre-execution one-line preview for a tool call.
+
+        This method is called when an assistant message containing tool calls
+        is finalized, before the tools are executed. It should return a brief
+        one-line summary of what the tool call will do, suitable for display
+        in collapsed/expanded tool call views.
+
+        Args:
+            tool_name: Name of the tool/function being called.
+            arguments: Structured arguments for the tool call.
+            state: Current tool state.
+
+        Returns:
+            A brief one-line string preview (e.g., "ls -la", "modify poem.txt; create readme.md").
+            If the tool doesn't provide a preview, return an empty string.
+        """
+        return ""
 
     def to_display_format(
         self,

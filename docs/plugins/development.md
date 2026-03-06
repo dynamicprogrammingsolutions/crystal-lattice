@@ -13,6 +13,8 @@ See also
 - Reference → [AgentCore](../reference/agent_core/core.md)
 - Reference → [OpenAI-Compatible Provider](../reference/providers/openai_provider.md)
 
+Provider plugins (canonical guide): `plugins/docs/provider-plugins.md`.
+
 ## Provider Plugin
 
 Providers adapt LLM APIs and convert between core and provider-native messages. They can stream (hot path) and finalize (cold path).
@@ -26,34 +28,6 @@ Key methods (subset):
 - `from_native_messages(native_messages, state) -> list` (optional in Python; adapter maps to core messages with empty `metadata`)
 - `initialize_request(native_messages, state) -> (native_messages, state)` (optional in Python; adapter returns inputs unchanged)
 - `stream_api(native_messages, state) -> Iterator[chunk]` (optional but recommended for streaming providers)
-
-## Plugin Spec Forms (Application Layer)
-
-When wiring plugins in the application configuration, you can reference implementations using several convenient forms:
-
-- Single class (dotted path)
-  - Example: `"plugins.openai_tools_extension.OpenAIToolsExtension"`
-  - Imported directly with no installation.
-
-- Local repo (descriptor-driven; recommended)
-  - Example: `"path:/abs/or/rel"`
-  - The repo is installed into `plugin_cache_dir` via `pip install --target ...`; then plugin classes are loaded from `agent_plugin.json`.
-
-- Git repo (descriptor-driven; recommended)
-  - Example: `"git+https://github.com/acme/dev-plugins.git#v1.0.0"`
-  - The repo is cloned and installed into `plugin_cache_dir`.
-
-- Verbose object spec (explicit single class)
-  - Local: `{ "path": "/abs/or/rel", "subdirectory": "optional/subdir", "entry": "pkg.module.Class" }`
-  - Git: `{ "git": "<url-or-local>", "ref": "tag-or-commit", "subdirectory": "optional/subdir", "entry": "pkg.module.Class" }`
-
-Notes
-- Embedded environment variables in strings are supported: `path:${env:DEV_PLUGINS_DESC_DIR}`.
-- `${file:...}` placeholders remain whole-string only.
-- Installs default to `--no-deps`; set `plugin_policy.install_deps: true` to install dependencies.
-
-Security
-- Git installs execute arbitrary code via `pip install`; by default, `allow_remote` is disabled. To enable remote URLs, set `plugin_policy.allow_remote: true` and prefer pinned tags/commits. Consider an allowlist for repository hosts.
 
 Default execution order (per request):
 - Tool schemas: each tool runs `init`, then `get_tool_schemas`; schemas are injected into provider config under `tools`.
@@ -97,9 +71,9 @@ class EchoProvider(ProviderPlugin):
             {"content": ""},
         )
         content = f"Echo: {last_user.get('content', '')}"
-        msg = {"role": "assistant", "content": content, "metadata": {}}
+        final = {"role": "assistant", "content": content}
         # Return (partial_messages, final_messages, native_messages, new_state)
-        return [], [msg], [*native_messages, msg], state
+        return [], [final], [*native_messages, final], state
 ```
 
 In the Python SDK, adapter defaults handle `to_native_messages`, `from_native_messages`, `initialize_request`, `finalize`, and `stream_api` when they are omitted, so many providers only implement configuration, `init`, and one of the I/O entry points (`call_api` or `stream_api`).
@@ -183,78 +157,6 @@ class MyProvider(ProviderPlugin):
 This pattern keeps all accumulation in `state["partial"]` and makes it easy for
 extensions to collaborate by reading and updating the same accumulator.
 
-## Packaging & Layout
-
-- Minimal package layout for a tools package:
-  - `dev_plugins/__init__.py`
-  - `dev_plugins/file_reader_tool.py` (class `FileReaderTool`)
-  - `dev_plugins/file_writer_tool.py` (class `FileWriterTool`)
-  - `agent_plugin.json` at the repo root (installed as a top-level data file)
-
-- Packaging options
-  - `pyproject.toml` (PEP 517/518) with setuptools, or minimal `setup.py` for local development.
-  - The application installs Git-based plugins using `pip install --target <cache_dir>`; ensure your package is installable.
-
-- Example `setup.py` (minimal, with root descriptor):
-```
-from setuptools import setup
-
-setup(
-    name="dev_plugins",
-    version="0.0.1",
-    packages=["dev_plugins"],
-    data_files=[("", ["agent_plugin.json"])],
-)
-```
-
-## Descriptor (agent_plugin.json)
-
-When loading a plugin repo via `path:...` or `git+...`, the application reads an
-optional descriptor to declare explicit entries. Install `agent_plugin.json` as
-a top-level data file in the plugin install directory (for example via
-setuptools `data_files`).
-
-- Schema:
-```
-{
-  "entries": ["dev_plugins.file_reader_tool.FileReaderTool", "dev_plugins.file_writer_tool.FileWriterTool"],
-  "subdirectory": "."
-}
-```
-
-If `entries` are provided, the loader does not auto-discover additional classes; only listed entries are loaded.
-
-## Wiring Each Plugin Kind
-
-You can wire plugins via dotted paths, local paths, or Git installers. See also `docs/plugins/application-config.md` for the full configuration reference.
-
-- Providers (examples):
-  - Dotted class: `"plugins.openai_provider.OpenAICompatibleProvider"`
-  - Local repo (descriptor-driven): `"path:/abs/or/rel"`
-  - Git repo (descriptor-driven): `"git+https://github.com/acme/ai-providers.git#v1.0.0"`
-  - Explicit single class (verbose): `{ "git": "https://github.com/acme/ai-providers.git", "ref": "v1.0.0", "entry": "acme.provider.MyProvider" }`
-
-- Extensions:
-  - Dotted class: `"plugins.openai_tools_extension.OpenAIToolsExtension"`
-  - Config ordering is preserved; extensions run in list order.
-
-- Features:
-  - Dotted class or local path; typically optional enrichments.
-
-- Tools:
-  - Repo shorthand (descriptor-driven): `"path:/abs/or/rel"`
-  - Single class (verbose): `{ "path": "/abs/or/rel", "entry": "dev_plugins.file_reader_tool.FileReaderTool" }`
-
-- Application plugins:
-  - Dotted class or repo spec; plugin type is inferred by duck-typing.
-
-## Best Practices
-- Keep implementations side-effect-light; use adapter defaults where possible.
-- Treat shared state (provider/extensions/features) as immutable per-turn.
-- For Git distribution:
-  - Prefer pinned refs; remote installs are disabled by default and must be explicitly allowed.
-  - Consider host allowlists and internal repositories.
-
 ## Provider Extension Plugin
 
 Provider extensions run beside the provider on the hot path and the cold path. They do not own separate state; they receive and update the shared provider state.
@@ -285,10 +187,10 @@ class PrefixExtension(ProviderExtensionPlugin):
     def process_chunk(
         self,
         native_chunk: Optional[Dict[str, Any]],
-        state: Dict[str, Any],
         partial_messages: List[Dict[str, Any]],
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
     ) -> Tuple[
         List[Dict[str, Any]],
         List[Dict[str, Any]],
@@ -546,6 +448,15 @@ optionally expose UI metadata via `get_ui_elements(config, tags, models) -> list
 These dictionaries are flattened by `AgentCore.get_ui_schema(config)` and
 left to applications (for example, the terminal client) to render.
 
+The core passes additional context to `get_ui_elements`:
+
+- `config`: effective configuration for the current agent/request
+- `tags`: capability tags computed for this config (provider + enabled plugins)
+- `models`: model descriptors computed for this config
+
+For backward compatibility, plugin adapters also accept legacy
+implementations that define `get_ui_elements()` with no arguments.
+
 Common patterns:
 
 - **Configuration elements** (default `ui_type == "config"`):
@@ -624,7 +535,7 @@ class Calculator(ToolPlugin):
     def get_config_schema(self) -> Dict[str, Any]:
         return {}
 
-    def get_ui_elements(self) -> List[Dict[str, Any]]:
+    def get_ui_elements(self, config: Dict[str, Any], tags: List[str], models: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return []
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
@@ -733,6 +644,79 @@ export default {
 
 See `docs/reference/tool-host-protocol.md` for the full NDJSON RPC surface.
 
+## Packaging & Layout
+
+- Minimal package layout for a tools package:
+  - `dev_plugins/__init__.py`
+  - `dev_plugins/file_reader_tool.py` (class `FileReaderTool`)
+  - `dev_plugins/file_writer_tool.py` (class `FileWriterTool`)
+  - `agent_plugin.json` at the repo root (installed as a top-level data file)
+
+- Packaging options
+  - `pyproject.toml` (PEP 517/518) with setuptools, or minimal `setup.py` for local development.
+  - The application installs Git-based plugins using `pip install --target <cache_dir>`; ensure your package is installable.
+
+- Example `setup.py` (minimal, with root descriptor):
+```
+from setuptools import setup
+
+setup(
+    name="dev_plugins",
+    version="0.0.1",
+    packages=["dev_plugins"],
+    data_files=[("", ["agent_plugin.json"])],
+)
+```
+
+## Descriptor (agent_plugin.json)
+
+When loading a plugin repo via `path:...` or `git+...`, the application reads an
+optional descriptor to declare explicit entries. Install `agent_plugin.json` as
+a top-level data file in the plugin install directory (for example via
+setuptools `data_files`).
+
+- Schema:
+```
+{
+  "entries": ["dev_plugins.file_reader_tool.FileReaderTool", "dev_plugins.file_writer_tool.FileWriterTool"],
+  "subdirectory": "."
+}
+```
+
+If `entries` are provided, the loader does not auto-discover additional classes; only listed entries are loaded.
+
+## Wiring Each Plugin Kind
+
+You can wire plugins via dotted paths, local paths, or Git installers. See also `docs/plugins/application-config.md` for the full configuration reference.
+
+- Providers (examples):
+  - Dotted class: `"plugins.openai_provider.OpenAICompatibleProvider"`
+  - Local repo (descriptor-driven): `"path:/abs/or/rel"`
+  - Git repo (descriptor-driven): `"git+https://github.com/acme/ai-providers.git#v1.0.0"`
+  - Explicit single class (verbose): `{ "git": "https://github.com/acme/ai-providers.git", "ref": "v1.0.0", "entry": "acme.provider.MyProvider" }`
+
+- Extensions:
+  - Dotted class: `"plugins.openai_tools_extension.OpenAIToolsExtension"`
+  - Config ordering is preserved; extensions run in list order.
+
+- Features:
+  - Dotted class or local path; typically optional enrichments.
+
+- Tools:
+  - Repo shorthand (descriptor-driven): `"path:/abs/or/rel"`
+  - Single class (verbose): `{ "path": "/abs/or/rel", "entry": "dev_plugins.file_reader_tool.FileReaderTool" }`
+
+- Application plugins:
+  - Dotted class or repo spec; plugin type is inferred by duck-typing.
+
+## Best Practices
+- Keep implementations side-effect-light; use adapter defaults where possible.
+- Treat shared state (provider/extensions/features) as immutable per-turn.
+- For Git distribution:
+  - Prefer pinned refs; remote installs are disabled by default and must be explicitly allowed.
+  - Consider host allowlists and internal repositories.
+
+
 ## Registering Plugins
 
 ```python
@@ -758,7 +742,7 @@ session, finals = core.send_request(session, config)
 ## Testing & Validation
 
 - Run unit tests (unit + ollama; integration skipped by default): `pytest core/python/tests -q`
-- Run OpenRouter integration tests: `pytest core/python/tests -m openrouter -q`
+- Run OpenRouter integration tests (plugin bundle): `pytest plugins/openrouter/tests -m openrouter -q`
 - Run all integration tests: `pytest core/python/tests -m integration -q`
 - Run example tests: `pytest core/python/examples/tests -qs`
 - Lint/format/typecheck: `ruff`, `black`, `pyright` per AGENTS.md

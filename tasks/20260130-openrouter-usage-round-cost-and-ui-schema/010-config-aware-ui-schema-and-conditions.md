@@ -10,10 +10,10 @@ This task is related to sandboxing’s session-aware app plugin UI work, but it 
 
 ## Problem
 
-- Core plugins (providers/extensions/features/tools) expose UI elements via `get_ui_elements()` which has **no config input**.
+- Core plugins (providers/extensions/features/tools) originally exposed UI elements via `get_ui_elements()` with **no config input**.
   - Protocol: `core/python/agent_core/types.py` (see `BasePlugin.get_ui_elements`)
-- Core UI schema aggregation (`AgentCore.get_ui_schema`) is also **configless**.
-  - `core/python/agent_core/core.py:1998`
+- Core UI schema aggregation (`AgentCore.get_ui_schema`) was also **configless**.
+  - `core/python/agent_core/core.py`
 - Per-session overrides exist (`session.metadata["overrides"]`) and are merged into effective config for requests.
   - Merge helper: `core/python/agent_app/config.py:131`
 
@@ -46,6 +46,8 @@ Where this hooks in:
 - Tool wrapper: `core/python/agent_core/plugin/tool.py`
 
 ### B) Core: config-aware schema aggregation
+
+Add a config-aware UI schema collector, e.g. one of:
 
 Expose UI schema aggregation as:
 
