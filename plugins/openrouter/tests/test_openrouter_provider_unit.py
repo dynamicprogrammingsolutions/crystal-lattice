@@ -41,31 +41,51 @@ def test_get_tags():
     """Provider returns correct capability tags."""
     provider = OpenRouterProvider()
     config = {"model": "test-model", "api_key": "test-key"}
-    models = [{"id": "test-model"}]
+    models = [{"id": "test-model", "supported_parameters": ["tools", "reasoning"]}]
 
     tags = provider.get_tags(config, models)
 
     assert "provider:openrouter" in tags
+    assert "openrouter" in tags
     assert "supports_streaming" in tags
     assert "supports_tools" in tags
     assert "supports_reasoning" in tags
+    assert "supports_reasoning_effort" in tags
 
 
-def test_get_models():
-    """Provider returns model descriptor from config."""
+def test_get_tags_without_capability_data_returns_base_tags():
+    """Provider returns only base tags when model capability data is unavailable."""
+    provider = OpenRouterProvider()
+    config = {"model": "test-model", "api_key": "test-key"}
+    models = [{"id": "test-model"}]
+
+    tags = provider.get_tags(config, models)
+
+    assert tags == ["provider:openrouter", "openrouter", "supports_streaming"]
+
+
+def test_get_models(monkeypatch):
+    """Provider returns model descriptors from the API helper."""
     provider = OpenRouterProvider()
     config = {"model": "google/gemini-2.5-flash-lite", "api_key": "test-key"}
+    expected = [
+        {"id": "google/gemini-2.5-flash-lite"},
+        {"id": "openai/gpt-5-mini"},
+    ]
+
+    monkeypatch.setattr(provider, "_fetch_models_from_api", lambda cfg: expected)
 
     models = provider.get_models(config)
 
-    assert len(models) == 1
-    assert models[0]["id"] == "google/gemini-2.5-flash-lite"
+    assert models == expected
 
 
-def test_get_models_empty_when_no_model():
-    """Provider returns empty list when no model configured."""
+def test_get_models_empty_when_api_returns_no_models(monkeypatch):
+    """Provider returns an empty list when the API helper returns no models."""
     provider = OpenRouterProvider()
     config = {"api_key": "test-key"}
+
+    monkeypatch.setattr(provider, "_fetch_models_from_api", lambda cfg: [])
 
     models = provider.get_models(config)
 

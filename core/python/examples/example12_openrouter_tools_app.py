@@ -78,6 +78,7 @@ from openrouter_plugins.openrouter_reasoning_extension import OpenRouterReasonin
 from openrouter_plugins.openrouter_tools_extension import OpenRouterToolsExtension
 from plugins.file_reader_tool import FileReaderTool
 from plugins.file_writer_tool import FileWriterTool
+from plugins.request_options_feature import RequestOptionsFeature
 
 
 # ---------------------------------------------------------------------------
@@ -96,6 +97,7 @@ _core.register_provider(
     OpenRouterProvider,
     extensions=[OpenRouterReasoningExtension, OpenRouterToolsExtension],
 )
+_core.register_feature(RequestOptionsFeature)
 _core.register_tool(FileReaderTool)
 _core.register_tool(FileWriterTool)
 

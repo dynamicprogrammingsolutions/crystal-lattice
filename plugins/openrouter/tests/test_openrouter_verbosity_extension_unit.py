@@ -51,10 +51,10 @@ def test_initialize_request_injects_verbosity_for_gpt5():
     }
     state = ext.init(config, state)
     new_state = ext.initialize_request([], state)
-    assert new_state["request"]["payload"]["verbosity"] == "low"
+    assert new_state["config"]["request_options"]["verbosity"] == "low"
 
 
-def test_initialize_request_does_not_inject_for_non_gpt5_models():
+def test_initialize_request_stages_verbosity_in_request_options():
     ext = OpenRouterVerbosityExtension()
     config = {"verbosity": "medium"}
     state = {
@@ -63,4 +63,4 @@ def test_initialize_request_does_not_inject_for_non_gpt5_models():
     }
     state = ext.init(config, state)
     new_state = ext.initialize_request([], state)
-    assert "verbosity" not in new_state["request"]["payload"]
+    assert "verbosity" in new_state["config"]["request_options"]

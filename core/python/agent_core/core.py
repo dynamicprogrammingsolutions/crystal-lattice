@@ -1689,11 +1689,11 @@ class AgentCore:
         except Exception:  # pragma: no cover - defensive
             native_preview = "<unprintable>"
 
-        logger.info(
-            "request init complete",
-            request=state.get("request"),
-            native_messages=native_preview,
-        )
+        # logger.info(
+        #     "request init complete",
+        #     request=state.get("request"),
+        #     native_messages=native_preview,
+        # )
  
         return messages, native_messages, state
 
@@ -1726,7 +1726,7 @@ class AgentCore:
 
         features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
 
-        logger.info(
+        logger.debug(
             "plugins_resolved_for_config",
             provider=provider.name,
             extensions=[ext.name for ext in enabled_extensions],
@@ -1746,7 +1746,7 @@ class AgentCore:
         baseline_native_len = len(native_messages)
 
 
-        logger.info(
+        logger.debug(
             "sending request",
             native_messages=str(native_messages)[:1000],
             request=str(state.get("request"))[:1000],
@@ -1835,7 +1835,7 @@ class AgentCore:
 
         features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
 
-        logger.info(
+        logger.debug(
             "plugins_resolved_for_config",
             provider=provider.name,
             extensions=[ext.name for ext in enabled_extensions],
@@ -1918,7 +1918,7 @@ class AgentCore:
         )
         new_session = Session(session.session_id, all_messages_after, new_metadata)
 
-        logger.info("streaming request complete", final_message=final_core)
+        logger.debug("streaming request complete", final_message=final_core)
 
         yield {"type": "final", "session": new_session, "messages": final_core}
 
@@ -1945,7 +1945,7 @@ class AgentCore:
 
         features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
 
-        logger.info(
+        logger.debug(
             "plugins_resolved_for_config",
             provider=provider.name,
             extensions=[ext.name for ext in enabled_extensions],

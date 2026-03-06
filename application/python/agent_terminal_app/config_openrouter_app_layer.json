@@ -45,6 +45,7 @@
   },
   "plugins": [
     "path:../../../plugins/openrouter",
+    "path:../../../plugins/feature-request-options",
     "path:../../../plugins/codex-tools",
     "path:../../../plugins/feature-system-message",
     "path:../../../plugins/feature-file-context",

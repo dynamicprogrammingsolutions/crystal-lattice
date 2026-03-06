@@ -28,9 +28,11 @@ def test_openrouter_provider_tags_exclude_ollama_extension():
     ollama_thinking = OllamaThinkingExtension()
 
     config = {"model": "test", "api_key": "test"}
+    models = [{"id": "test", "supported_parameters": ["reasoning", "tools"]}]
 
     # Get OpenRouter provider tags
-    provider_tags = openrouter_provider.get_tags(config, [])
+    provider_tags = openrouter_provider.get_tags(config, models)
+    combined_tags = [*provider_tags, "feature:request_options"]
 
     print(f"\nOpenRouter provider tags: {provider_tags}")
 
@@ -41,7 +43,7 @@ def test_openrouter_provider_tags_exclude_ollama_extension():
 
     # OpenRouter reasoning extension should be compatible
     reasoning_required = openrouter_reasoning.required_tags()
-    reasoning_compatible = all(tag in provider_tags for tag in reasoning_required)
+    reasoning_compatible = all(tag in combined_tags for tag in reasoning_required)
     assert reasoning_compatible, "OpenRouter reasoning must be compatible"
 
     print(f"✅ OpenRouter reasoning: COMPATIBLE (requires {reasoning_required})")
@@ -98,9 +100,11 @@ def test_tag_based_extension_filtering():
     ollama_thinking = OllamaThinkingExtension()
 
     config = {"model": "test", "api_key": "test"}
+    models = [{"id": "test", "supported_parameters": ["reasoning", "tools"]}]
 
     # Get provider tags
-    provider_tags = openrouter_provider.get_tags(config, [])
+    provider_tags = openrouter_provider.get_tags(config, models)
+    combined_tags = [*provider_tags, "feature:request_options"]
 
     print(f"OpenRouter provider tags: {provider_tags}")
     print(f"OpenRouter reasoning required: {openrouter_reasoning.required_tags()}")
@@ -108,7 +112,7 @@ def test_tag_based_extension_filtering():
 
     # Check OpenRouter reasoning extension compatibility
     reasoning_required = openrouter_reasoning.required_tags()
-    reasoning_compatible = all(tag in provider_tags for tag in reasoning_required)
+    reasoning_compatible = all(tag in combined_tags for tag in reasoning_required)
     assert (
         reasoning_compatible
     ), "OpenRouter reasoning should be compatible with OpenRouter provider"
@@ -144,9 +148,12 @@ def test_openrouter_specific_tag_requirement():
     assert (
         "supports_reasoning" in required_tags
     ), "OpenRouter reasoning must require 'supports_reasoning' tag"
+    assert (
+        "feature:request_options" in required_tags
+    ), "OpenRouter reasoning must require 'feature:request_options' tag"
 
-    # Should have exactly these two requirements
-    assert len(required_tags) == 2, "Should require exactly 2 tags"
+    # Should have exactly these three requirements
+    assert len(required_tags) == 3, "Should require exactly 3 tags"
 
     print("✅ OpenRouter reasoning extension properly requires 'openrouter' tag")
     print(f"   Required tags: {required_tags}")

@@ -5,6 +5,7 @@ from __future__ import annotations
 from agent_core import AgentCore, Session, Message
 from openrouter_plugins.openrouter_provider import OpenRouterProvider
 from openrouter_plugins.openrouter_reasoning_extension import OpenRouterReasoningExtension
+from plugins.request_options_feature import RequestOptionsFeature
 
 
 
@@ -34,6 +35,7 @@ def test_required_tags():
 
     assert "openrouter" in required
     assert "supports_reasoning" in required
+    assert "feature:request_options" in required
 
 
 def test_init_when_disabled():
@@ -74,7 +76,7 @@ def test_initialize_request_when_disabled():
 
 
 def test_initialize_request_adds_reasoning_parameters():
-    """Initialize request adds reasoning parameters to payload."""
+    """Initialize request adds reasoning parameters to request_options."""
     ext = OpenRouterReasoningExtension()
 
     config = {
@@ -87,9 +89,9 @@ def test_initialize_request_adds_reasoning_parameters():
 
     state = ext.initialize_request([], state)
 
-    payload = state["request"]["payload"]
-    assert payload["reasoning"]["effort"] == "high"
-    assert payload["reasoning"]["enabled"] is True
+    request_options = state["config"]["request_options"]
+    assert request_options["reasoning"]["effort"] == "high"
+    assert request_options["reasoning"]["enabled"] is True
 
 
 def test_initialize_request_without_effort():
@@ -104,9 +106,9 @@ def test_initialize_request_without_effort():
 
     state = ext.initialize_request([], state)
 
-    payload = state["request"]["payload"]
-    assert "effort" not in payload["reasoning"]
-    assert payload["reasoning"]["enabled"] is True
+    request_options = state["config"]["request_options"]
+    assert "effort" not in request_options["reasoning"]
+    assert request_options["reasoning"]["enabled"] is True
 
 
 def test_to_native_messages_is_identity():
@@ -574,6 +576,7 @@ def test_reasoning_details_round_trip_non_streaming(monkeypatch):
 
     core = AgentCore()
     core.register_provider(OpenRouterProvider, extensions=[OpenRouterReasoningExtension])
+    core.register_feature(RequestOptionsFeature)
     config = {
         "model": "openai/gpt-5-mini",
         "api_key": "sk-test",

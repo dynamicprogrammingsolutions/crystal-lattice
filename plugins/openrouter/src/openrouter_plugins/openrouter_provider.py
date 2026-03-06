@@ -359,14 +359,16 @@ class OpenRouterProvider(ProviderPlugin):
         request = state["request"]
         payload: Dict[str, Any] = {}
         try:
+            logger = get_logger("openrouter_provider")
             self._validate_message_list(native_messages)
             override = request.get("messages")
             messages = override if isinstance(override, list) else native_messages
             payload = {**request["payload"], "messages": messages, "stream": False}
-            get_logger("openrouter_provider").info(
+            logger.info(
                 "sending request",
-                payload=str(payload),
+                payload=str({**payload, "messages": "stripped", "tools": "stripped"}),
             )
+            logger.debug("full payload for non-streaming request", payload=payload)
             r = requests.post(
                 request["url"],
                 json=payload,
@@ -436,11 +438,13 @@ class OpenRouterProvider(ProviderPlugin):
         request = state["request"]
         payload: Dict[str, Any] = {}
         try:
+            logger = get_logger("openrouter_provider")
             self._validate_message_list(native_messages)
             override = request.get("messages")
             messages = override if isinstance(override, list) else native_messages
             payload = {**request["payload"], "messages": messages, "stream": True}
-            get_logger('openrouter_provider').info("sending request", payload=str(payload))
+            logger.info("sending request", payload=str({**payload, "messages": "stripped", "tools": "stripped"}))
+            logger.debug("full payload for streaming request", payload=payload)
             with requests.post(
                 request["url"],
                 json=payload,

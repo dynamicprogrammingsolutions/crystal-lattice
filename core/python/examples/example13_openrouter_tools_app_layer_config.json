@@ -16,6 +16,7 @@
   },
   "plugins": [
     "path:../../../plugins/openrouter",
+    "path:../../../plugins/feature-request-options",
     "plugins.file_reader_tool.FileReaderTool",
     "plugins.file_writer_tool.FileWriterTool"
   ],
