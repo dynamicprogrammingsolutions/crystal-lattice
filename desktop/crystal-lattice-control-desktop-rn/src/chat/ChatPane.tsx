@@ -40,6 +40,7 @@ import {
   useHydrateControllerFromCache,
   usePersistentPinnedActions,
   usePluginActionDialog,
+  useSessionSettingsController,
   useSessionUiSchemaController,
 } from '@crystal-lattice/frontend-sdk-react';
 
@@ -325,6 +326,12 @@ export const ChatPane = React.memo(function ChatPane({
   }, [pinnedMessageActionsByRole, pinnedMessageActionsStorageKey]);
 
   const { state: sessionUiSchemaState } = useSessionUiSchemaController({
+    backend,
+    cacheKey: connectionId,
+    sessionId,
+	  enabled: !!(backend && isActive),
+  });
+  useSessionSettingsController({
     backend,
     cacheKey: connectionId,
     sessionId,

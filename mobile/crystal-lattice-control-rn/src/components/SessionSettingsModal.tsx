@@ -16,20 +16,19 @@ import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import {
   buildConfigSchemaByKey,
   buildSessionSettingItems,
-  filterConfigUiSchemaElements,
   SessionSettingsHost,
-  type ConfigSchemaByKey,
+  useSessionSettingsController,
   type SessionSettingRenderCtx,
   type SessionSettingsRenderers,
 } from '@crystal-lattice/frontend-sdk-react';
 import Icon from 'react-native-vector-icons/Feather';
 
-import type { UiSchemaElement } from '../api';
 import OptionsPickerModal from './OptionsPickerModal';
 import { useTheme, type Theme } from '../theme';
 
 export interface SessionSettingsModalProps {
   backend: AgentBackend | null;
+  cacheKey?: string;
   sessionId: string;
   visible: boolean;
   onRequestClose: () => void;
@@ -37,6 +36,7 @@ export interface SessionSettingsModalProps {
 
 const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   backend,
+  cacheKey = 'default',
   sessionId,
   visible,
   onRequestClose,
@@ -44,14 +44,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [elements, setElements] = useState<UiSchemaElement[]>([]);
-  const [overrides, setOverrides] = useState<Record<string, any>>({});
-  const [baseConfig, setBaseConfig] = useState<Record<string, any>>({});
-  const [schemaByKey, setSchemaByKey] = useState<ConfigSchemaByKey>({});
   const [pendingTextByKey, setPendingTextByKey] = useState<Record<string, string>>({});
-  const [savingKey, setSavingKey] = useState<string | null>(null);
   const [dropdownState, setDropdownState] = useState<{
     key: string;
     label: string;
@@ -59,139 +52,132 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     selected: string;
   } | null>(null);
 
+  const controllerSessionId = visible ? sessionId : null;
+  const { controller, state: settingsState } = useSessionSettingsController({
+    backend,
+    cacheKey,
+    sessionId: controllerSessionId,
+    enabled: visible,
+  });
+  const elements = settingsState?.elements ?? [];
+  const schemaByKey = useMemo(
+    () => buildConfigSchemaByKey(settingsState?.configSchema || []),
+    [settingsState?.configSchema],
+  );
+  const savingKeys = settingsState?.savingKeys ?? [];
+  const savingKeySet = useMemo(() => new Set(savingKeys), [savingKeys]);
+
   useEffect(() => {
     if (!visible) {
+      setPendingTextByKey({});
+      setDropdownState(null);
       return;
     }
-    if (!backend) {
-      setError('No active connection');
-      setElements([]);
-      setOverrides({});
-      setBaseConfig({});
-      setSchemaByKey({});
-      return;
-    }
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [els, ovs, schema, baseCfg] = await Promise.all([
-          backend.getSessionUiSchema(sessionId),
-          backend.getSessionOverrides(sessionId),
-          backend.getSessionConfigSchema(sessionId),
-          backend.getSessionBaseConfig(sessionId),
-        ]);
-        if (cancelled) return;
-        setElements(filterConfigUiSchemaElements(els || []));
-        setOverrides(ovs || {});
-        setSchemaByKey(buildConfigSchemaByKey(schema || []));
-        setBaseConfig(baseCfg || {});
-        setPendingTextByKey({});
-      } catch (err: any) {
-        if (cancelled) return;
-        console.log('Failed to load session settings', err);
-        const msg = err?.message || 'Failed to load session settings.';
-        setError(msg);
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
+    setPendingTextByKey({});
+    setDropdownState(null);
+  }, [sessionId, visible]);
+
+  const items = useMemo(() => {
+    return buildSessionSettingItems({
+      elements,
+      overrides: settingsState?.overrides || {},
+      baseConfig: settingsState?.baseConfig || {},
+      schemaByKey,
+    });
+  }, [elements, schemaByKey, settingsState?.baseConfig, settingsState?.overrides]);
+
+  const itemByKey = useMemo(() => {
+    const byKey: Record<string, (typeof items)[number]> = {};
+    items.forEach((item) => {
+      byKey[item.key] = item;
+    });
+    return byKey;
+  }, [items]);
+
+  useEffect(() => {
+    const allowedKeys = new Set(items.map((item) => item.key));
+    setPendingTextByKey((prev) => {
+      const next: Record<string, string> = {};
+      let changed = false;
+      Object.entries(prev).forEach(([key, value]) => {
+        if (allowedKeys.has(key)) {
+          next[key] = value;
+          return;
         }
+        changed = true;
+      });
+      return changed ? next : prev;
+    });
+    setDropdownState((current) => {
+      if (!current || allowedKeys.has(current.key)) {
+        return current;
       }
-    };
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [backend, sessionId, visible]);
+      return null;
+    });
+  }, [items]);
 
   const handleToggleCheckbox = async (key: string, next: boolean) => {
-    if (!backend) {
+    if (!controller) {
       Alert.alert('No connection', 'Connect to a server to change settings.');
       return;
     }
-    setOverrides((prev) => ({ ...prev, [key]: next }));
     try {
-      const result = await backend.patchSessionOverrides(sessionId, { [key]: next });
-    } catch (err: any) {
-      console.log('Failed to update checkbox setting', err);
-      const msg = err?.message || 'Failed to update setting.';
-      Alert.alert('Error', msg);
-      setOverrides((prev) => ({ ...prev, [key]: !next }));
+      await controller.patchOverride(key, next);
+    } catch {
+      // Controller state captures errors.
     }
   };
 
   const handleSelectOption = async (key: string, value: string) => {
-    if (!backend) {
+    if (!controller) {
       Alert.alert('No connection', 'Connect to a server to change settings.');
       return;
     }
-    setOverrides((prev) => ({ ...prev, [key]: value }));
     try {
-      const result = await backend.patchSessionOverrides(sessionId, { [key]: value });
-    } catch (err: any) {
-      console.log('Failed to update select setting', err);
-      const msg = err?.message || 'Failed to update setting.';
-      Alert.alert('Error', msg);
+      await controller.patchOverride(key, value);
+    } catch {
+      // Controller state captures errors.
     }
   };
 
   const handleSaveText = async (key: string) => {
-    if (!backend) {
+    if (!controller) {
       Alert.alert('No connection', 'Connect to a server to change settings.');
       return;
     }
-    const value = pendingTextByKey[key] ?? String(overrides[key] ?? '');
-    setSavingKey(key);
+    const currentEffective = itemByKey[key]?.effectiveValue;
+    const value =
+      pendingTextByKey[key] ??
+      (currentEffective !== undefined && currentEffective !== null
+        ? String(currentEffective)
+        : '');
     try {
-      const result = await backend.patchSessionOverrides(sessionId, { [key]: value });
-    } catch (err: any) {
-      console.log('Failed to update text setting', err);
-      const msg = err?.message || 'Failed to update setting.';
-      Alert.alert('Error', msg);
-    } finally {
-      setSavingKey((current) => (current === key ? null : current));
+      await controller.patchOverride(key, value);
+    } catch {
+      // Controller state captures errors.
     }
   };
 
   const handleRevertToDefault = async (key: string) => {
-    if (!backend) {
+    if (!controller) {
       Alert.alert('No connection', 'Connect to a server to change settings.');
       return;
     }
-    const prevOverrides = overrides;
-    const prevPending = pendingTextByKey;
-    setOverrides((prev) => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
     setPendingTextByKey((prev) => {
       const next = { ...prev };
       delete next[key];
       return next;
     });
     try {
-      const result = await backend.deleteSessionOverride(sessionId, key);
-    } catch (err: any) {
-      console.log('Failed to revert setting override', err);
-      const msg = err?.message || 'Failed to revert setting.';
-      Alert.alert('Error', msg);
-      setOverrides(prevOverrides);
-      setPendingTextByKey(prevPending);
+      await controller.deleteOverride(key);
+    } catch {
+      // Controller state captures errors.
     }
   };
 
   if (!visible) {
     return null;
   }
-
-  const items = buildSessionSettingItems({
-    elements,
-    overrides,
-    baseConfig,
-    schemaByKey,
-  });
 
   const normalizeOptions = (raw: any): { value: string; label: string }[] => {
     if (!Array.isArray(raw)) return [];
@@ -276,9 +262,9 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
               <TouchableOpacity
                 style={styles.saveButton}
                 onPress={() => ctx.actions.saveText(key)}
-                disabled={savingKey === key}
+                  disabled={savingKeySet.has(key)}
               >
-                {savingKey === key ? (
+                {savingKeySet.has(key) ? (
                   <ActivityIndicator size="small" color={theme.textOnPrimary} />
                 ) : (
                   <Text style={styles.saveButtonText}>Save</Text>
@@ -494,6 +480,12 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     multiline: renderTextLike,
   };
 
+  const error = !backend ? 'No active connection' : settingsState?.error ?? null;
+  const statusText = error || settingsState?.statusMessage;
+  const statusTone = error ? 'error' : settingsState?.statusTone ?? 'idle';
+  const showSpinner = !error && statusTone === 'busy';
+  const hasLoaded = settingsState?.lastLoadedAt != null;
+
   return (
     <Modal
       visible={visible}
@@ -505,19 +497,30 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
         <Pressable style={StyleSheet.absoluteFill} onPress={onRequestClose} />
         <View style={styles.content}>
           <Text style={styles.title}>Session settings</Text>
-          {loading && (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator size="small" color={theme.primary} />
-              <Text style={styles.loadingText}>Loading settings...</Text>
-            </View>
-          )}
-          {!loading && error && <Text style={styles.errorText}>{error}</Text>}
-          {!loading && !error && items.length === 0 && (
+          <View style={styles.statusLine}>
+            {showSpinner ? <ActivityIndicator size="small" color={theme.primary} /> : null}
+            {statusText ? (
+              <Text
+                style={[
+                  styles.statusText,
+                  statusTone === 'error'
+                    ? styles.statusTextError
+                    : statusTone === 'success'
+                      ? styles.statusTextSuccess
+                      : null,
+                ]}
+                numberOfLines={1}
+              >
+                {statusText}
+              </Text>
+            ) : null}
+          </View>
+          {!error && hasLoaded && items.length === 0 && (
             <Text style={styles.helperText}>
               No configurable settings are available for this session.
             </Text>
           )}
-          {!loading && !error && items.length > 0 && (
+          {!error && items.length > 0 && (
             <View style={styles.body}>
               <SessionSettingsHost
                 items={items}
@@ -579,20 +582,22 @@ const createStyles = (theme: Theme) =>
       marginBottom: 8,
       textAlign: 'center',
     },
-    loadingRow: {
+    statusLine: {
       flexDirection: 'row',
       alignItems: 'center',
       marginBottom: 8,
+      minHeight: 20,
     },
-    loadingText: {
+    statusText: {
       marginLeft: 8,
       fontSize: 14,
       color: theme.textSecondary,
     },
-    errorText: {
-      fontSize: 14,
+    statusTextError: {
       color: theme.danger,
-      marginBottom: 8,
+    },
+    statusTextSuccess: {
+      color: theme.primary,
     },
     helperText: {
       fontSize: 14,

@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,13 +10,11 @@ import {
 } from 'react-native';
 
 import { ThemeProvider, useTheme } from '@crystal-lattice/frontend-rn-components';
-import type { UiSchemaElement } from '@crystal-lattice/frontend-sdk';
 import {
   buildConfigSchemaByKey,
   buildSessionSettingItems,
-  filterConfigUiSchemaElements,
   SessionSettingsHost,
-  type ConfigSchemaByKey,
+  useSessionSettingsController,
   type SessionSettingItem,
   type SessionSettingRenderCtx,
   type SessionSettingsRenderers,
@@ -45,23 +42,36 @@ function SessionSettingsWindowInner(): React.JSX.Element {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const active = useActiveSessionSettingsWindow();
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [elements, setElements] = useState<UiSchemaElement[]>([]);
-  const [overrides, setOverrides] = useState<Record<string, any>>({});
-  const [baseConfig, setBaseConfig] = useState<Record<string, any>>({});
-  const [schemaByKey, setSchemaByKey] = useState<ConfigSchemaByKey>({});
   const [pendingTextByKey, setPendingTextByKey] = useState<Record<string, string>>({});
-  const [savingKey, setSavingKey] = useState<string | null>(null);
+
+  const backend = active?.state.backend ?? null;
+  const sessionId = active?.state.sessionId ?? null;
+  const cacheKey = active?.state.connectionId ?? 'default';
+  const caps = backend?.getCapabilities?.();
+  const supported = !caps || (caps.sessionUiSchema && caps.sessionConfigOverrides);
+  const controllerSessionId = active && supported ? sessionId : null;
+  const { controller, state: settingsState } = useSessionSettingsController({
+    backend,
+    cacheKey,
+    sessionId: controllerSessionId,
+    enabled: !!active,
+  });
+  const elements = settingsState?.elements ?? [];
+  const schemaByKey = useMemo(
+    () => buildConfigSchemaByKey(settingsState?.configSchema || []),
+    [settingsState?.configSchema],
+  );
+  const savingKeys = settingsState?.savingKeys ?? [];
+  const savingKeySet = useMemo(() => new Set(savingKeys), [savingKeys]);
 
   const items = useMemo(() => {
     return buildSessionSettingItems({
       elements,
-      overrides,
-      baseConfig,
+      overrides: settingsState?.overrides || {},
+      baseConfig: settingsState?.baseConfig || {},
       schemaByKey,
     });
-  }, [baseConfig, elements, overrides, schemaByKey]);
+  }, [elements, schemaByKey, settingsState?.baseConfig, settingsState?.overrides]);
 
   const itemByKey = useMemo(() => {
     const byKey: Record<string, SessionSettingItem> = {};
@@ -80,71 +90,27 @@ function SessionSettingsWindowInner(): React.JSX.Element {
 
   useEffect(() => {
     if (!active) {
-      setLoading(false);
-      setError(null);
-      setElements([]);
-      setOverrides({});
-      setBaseConfig({});
-      setSchemaByKey({});
       setPendingTextByKey({});
-      setSavingKey(null);
       return;
     }
+    setPendingTextByKey({});
+  }, [active?.state.id]);
 
-    const backend = active.state.backend;
-    const sessionId = active.state.sessionId;
-
-    const caps = backend.getCapabilities?.();
-    if (caps && (!caps.sessionUiSchema || !caps.sessionConfigOverrides)) {
-      setLoading(false);
-      setError('This backend does not support session settings.');
-      setElements([]);
-      setOverrides({});
-      setBaseConfig({});
-      setSchemaByKey({});
-      return;
-    }
-
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [els, ovs, schema, baseCfg] = await Promise.all([
-          backend.getSessionUiSchema(sessionId),
-          backend.getSessionOverrides(sessionId),
-          backend.getSessionConfigSchema(sessionId),
-          backend.getSessionBaseConfig(sessionId),
-        ]);
-
-        if (cancelled) {
+  useEffect(() => {
+    const allowedKeys = new Set(items.map((item) => item.key));
+    setPendingTextByKey((prev) => {
+      const next: Record<string, string> = {};
+      let changed = false;
+      Object.entries(prev).forEach(([key, value]) => {
+        if (allowedKeys.has(key)) {
+          next[key] = value;
           return;
         }
-
-        const configElements = filterConfigUiSchemaElements(els || []);
-        setElements(configElements);
-        setOverrides(ovs || {});
-        setSchemaByKey(buildConfigSchemaByKey(schema || []));
-        setBaseConfig(baseCfg || {});
-        setPendingTextByKey({});
-      } catch (err: any) {
-        console.log('Failed to load session settings', err);
-        const message = err?.message || 'Failed to load session settings.';
-        if (!cancelled) {
-          setError(message);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [active]);
+        changed = true;
+      });
+      return changed ? next : prev;
+    });
+  }, [items]);
 
   const handleToggleCheckbox = useCallback(
     async (key: string, next: boolean) => {
@@ -152,20 +118,17 @@ function SessionSettingsWindowInner(): React.JSX.Element {
         return;
       }
 
-      const backend = active.state.backend;
-      const sessionId = active.state.sessionId;
+      if (!controller) {
+        return;
+      }
 
-      setOverrides((prev) => ({ ...prev, [key]: next }));
       try {
-        await backend.patchSessionOverrides(sessionId, { [key]: next });
-      } catch (err: any) {
-        console.log('Failed to update checkbox setting', err);
-        const message = err?.message || 'Failed to update setting.';
-        Alert.alert('Error', message);
-        setOverrides((prev) => ({ ...prev, [key]: !next }));
+        await controller.patchOverride(key, next);
+      } catch {
+        // Controller state captures errors.
       }
     },
-    [active],
+    [active, controller],
   );
 
   const handleSelectOption = useCallback(
@@ -174,19 +137,17 @@ function SessionSettingsWindowInner(): React.JSX.Element {
         return;
       }
 
-      const backend = active.state.backend;
-      const sessionId = active.state.sessionId;
+      if (!controller) {
+        return;
+      }
 
-      setOverrides((prev) => ({ ...prev, [key]: value }));
       try {
-        await backend.patchSessionOverrides(sessionId, { [key]: value });
-      } catch (err: any) {
-        console.log('Failed to update select setting', err);
-        const message = err?.message || 'Failed to update setting.';
-        Alert.alert('Error', message);
+        await controller.patchOverride(key, value);
+      } catch {
+        // Controller state captures errors.
       }
     },
-    [active],
+    [active, controller],
   );
 
   const handleSaveText = useCallback(
@@ -195,8 +156,10 @@ function SessionSettingsWindowInner(): React.JSX.Element {
         return;
       }
 
-      const backend = active.state.backend;
-      const sessionId = active.state.sessionId;
+      if (!controller) {
+        return;
+      }
+
       const hasPending = Object.prototype.hasOwnProperty.call(pendingTextByKey, key);
       const pending = hasPending ? pendingTextByKey[key] : undefined;
       const currentEffective = itemByKey[key]?.effectiveValue;
@@ -206,19 +169,13 @@ function SessionSettingsWindowInner(): React.JSX.Element {
           ? String(currentEffective)
           : '');
 
-      setSavingKey(key);
       try {
-        await backend.patchSessionOverrides(sessionId, { [key]: value });
-        setOverrides((prev) => ({ ...prev, [key]: value }));
-      } catch (err: any) {
-        console.log('Failed to update text setting', err);
-        const message = err?.message || 'Failed to update setting.';
-        Alert.alert('Error', message);
-      } finally {
-        setSavingKey((current) => (current === key ? null : current));
+        await controller.patchOverride(key, value);
+      } catch {
+        // Controller state captures errors.
       }
     },
-    [active, itemByKey, pendingTextByKey],
+    [active, controller, itemByKey, pendingTextByKey],
   );
 
   const handleRevertToDefault = useCallback(
@@ -227,16 +184,10 @@ function SessionSettingsWindowInner(): React.JSX.Element {
         return;
       }
 
-      const backend = active.state.backend;
-      const sessionId = active.state.sessionId;
+      if (!controller) {
+        return;
+      }
 
-      const prevOverrides = overrides;
-      const prevPending = pendingTextByKey;
-      setOverrides((prev) => {
-        const next = { ...prev };
-        delete next[key];
-        return next;
-      });
       setPendingTextByKey((prev) => {
         const next = { ...prev };
         delete next[key];
@@ -244,16 +195,12 @@ function SessionSettingsWindowInner(): React.JSX.Element {
       });
 
       try {
-        await backend.deleteSessionOverride(sessionId, key);
-      } catch (err: any) {
-        console.log('Failed to revert setting override', err);
-        const message = err?.message || 'Failed to revert setting.';
-        Alert.alert('Error', message);
-        setOverrides(prevOverrides);
-        setPendingTextByKey(prevPending);
+        await controller.deleteOverride(key);
+      } catch {
+        // Controller state captures errors.
       }
     },
-    [active, overrides, pendingTextByKey],
+    [active, controller],
   );
 
   const renderers: SessionSettingsRenderers = useMemo(() => {
@@ -325,12 +272,12 @@ function SessionSettingsWindowInner(): React.JSX.Element {
             <Pressable
               style={(state) => [
                 styles.saveButton,
-                (state.pressed || savingKey === key) && styles.saveButtonPressed,
+                (state.pressed || savingKeySet.has(key)) && styles.saveButtonPressed,
               ]}
               onPress={() => actions.saveText(key)}
-              disabled={savingKey === key}
+              disabled={savingKeySet.has(key)}
             >
-              {savingKey === key ? (
+              {savingKeySet.has(key) ? (
                 <ActivityIndicator size="small" color={theme.textOnPrimary} />
               ) : (
                 <Text style={styles.saveButtonText}>Save</Text>
@@ -447,11 +394,19 @@ function SessionSettingsWindowInner(): React.JSX.Element {
       text: renderTextLike,
       multiline: renderTextLike,
     } satisfies SessionSettingsRenderers;
-  }, [pendingTextByKey, savingKey, styles, theme.textOnPrimary, theme.textSecondary]);
+  }, [pendingTextByKey, savingKeySet, styles, theme.textOnPrimary, theme.textSecondary]);
 
   if (!active) {
     return <View style={styles.root} />;
   }
+
+  const error = !supported
+    ? 'This backend does not support session settings.'
+    : settingsState?.error ?? null;
+  const statusText = error || settingsState?.statusMessage;
+  const statusTone = error ? 'error' : settingsState?.statusTone ?? 'idle';
+  const showSpinner = !error && statusTone === 'busy';
+  const hasLoaded = settingsState?.lastLoadedAt != null;
 
   return (
     <View style={styles.root}>
@@ -477,20 +432,30 @@ function SessionSettingsWindowInner(): React.JSX.Element {
         </Pressable>
       </View>
 
-      {loading ? (
-        <View style={styles.loadingRow}>
-          <ActivityIndicator size="small" color={theme.primary} />
-          <Text style={styles.loadingText}>Loading settings…</Text>
-        </View>
-      ) : null}
+      <View style={styles.statusLine}>
+        {showSpinner ? <ActivityIndicator size="small" color={theme.primary} /> : null}
+        {statusText ? (
+          <Text
+            style={[
+              styles.statusText,
+              statusTone === 'error'
+                ? styles.statusTextError
+                : statusTone === 'success'
+                  ? styles.statusTextSuccess
+                  : null,
+            ]}
+            numberOfLines={1}
+          >
+            {statusText}
+          </Text>
+        ) : null}
+      </View>
 
-      {!loading && error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-      {!loading && !error && items.length === 0 ? (
+      {!error && hasLoaded && items.length === 0 ? (
         <Text style={styles.helperText}>No configurable settings are available.</Text>
       ) : null}
 
-      {!loading && !error && items.length > 0 ? (
+      {!error && items.length > 0 ? (
         <SessionSettingsHost
           items={items}
           actions={{
@@ -559,18 +524,21 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       fontSize: 12,
       color: theme.textSecondary,
     },
-    loadingRow: {
+    statusLine: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
+      minHeight: 18,
     },
-    loadingText: {
+    statusText: {
       fontSize: 12,
       color: theme.textSecondary,
     },
-    errorText: {
-      fontSize: 12,
+    statusTextError: {
       color: theme.danger,
+    },
+    statusTextSuccess: {
+      color: theme.primary,
     },
     helperText: {
       fontSize: 12,

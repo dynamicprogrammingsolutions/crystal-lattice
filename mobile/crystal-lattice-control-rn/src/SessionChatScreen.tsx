@@ -40,6 +40,7 @@ import {
 import { useChatController, useAgentsController } from '@crystal-lattice/frontend-sdk-react';
 import {
   useHydrateControllerFromCache,
+  useSessionSettingsController,
   useSessionUiSchemaController,
 } from '@crystal-lattice/frontend-sdk-react';
 import {
@@ -443,6 +444,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       sessionId,
       enabled: !!(backend && isActive),
     });
+  useSessionSettingsController({
+    backend,
+    cacheKey: connectionId ?? 'default',
+    sessionId,
+    enabled: !!(backend && isActive),
+  });
   const uiSchemaElements = sessionUiSchemaState?.elements ?? [];
 
   // const composerAttachmentElements: ComposerAttachmentUiElement[] = useMemo(() => {
@@ -2359,6 +2366,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
 	      <SessionSettingsModal
 	        backend={backend}
+	        cacheKey={connectionId ?? 'default'}
 	        sessionId={sessionId}
 	        visible={settingsVisible}
 	        onRequestClose={() => setSettingsVisible(false)}
