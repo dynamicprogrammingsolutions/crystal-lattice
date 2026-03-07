@@ -5,7 +5,7 @@ This folder contains the model instruction strings bundled with the **Codex CLI*
 Source:
 - Repository: `https://github.com/openai/codex`
 - File: `codex-rs/core/models.json`
-- Commit: `bccce0d75f836750c32ce4fc3dde6504fa2f591c`
+- Commit: `39869f74435cb199d56ca5d53cf198f7c5332eec`
 
 ## What each file means
 
