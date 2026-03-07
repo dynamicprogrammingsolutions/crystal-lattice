@@ -530,16 +530,14 @@ def stream_api(self, native_messages, state):
         if isinstance(m, dict)
     ]
 
-    # TODO: start a streaming request using your transport (SDK, HTTP client, etc.)
-    # and iterate over the returned stream.
-    #
-    # For OpenAI-compatible APIs, the request payload conventionally includes:
+    # TODO: start a streaming request using your transport (SDK, HTTP client, etc.).
+    # It must use a payload like:
     #   {**request["payload"], "messages": messages_to_send, "stream": True}
     #
-    # Common OpenAI-compatible stream patterns:
-    # - stream yields dict chunks (already-decoded JSON)
-    # - stream yields line/SSE-like strings containing JSON objects
-    stream = []  # replace with your streaming iterator
+    # The iterator may yield either:
+    # - dict chunks (already-decoded JSON)
+    # - line/SSE-like strings containing JSON objects
+    stream = []
 
     for item in stream:
         if not item:
@@ -559,9 +557,10 @@ def stream_api(self, native_messages, state):
         if not data:
             continue
         try:
-            yield json.loads(data)
+            chunk = json.loads(data)
         except json.JSONDecodeError:
             continue
+        yield chunk
 ```
 
 ### 6) Native history retention (don’t break it)

@@ -64,6 +64,11 @@ Common fields:
 - `default`: JSON-serializable default value
 - `description`: human-readable text used by `/help config`
 
+Notes:
+
+- The core and terminal treat `type` as **display metadata** (a string); it is not validated.
+- Some built-in schemas use informal values like `int` / `bool`. Prefer JSON-schema-like names for consistency, but clients should not rely on a closed set.
+
 Optional fields (passed through; may be consumed by other UIs):
 
 - `enum`: list of allowed values
