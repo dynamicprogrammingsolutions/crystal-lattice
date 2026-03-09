@@ -59,6 +59,12 @@ export type {
 export { useSessionUiSchemaController } from './useSessionUiSchemaController';
 
 export type {
+  UseSessionSettingsControllerOptions,
+  UseSessionSettingsControllerResult,
+} from './useSessionSettingsController';
+export { useSessionSettingsController } from './useSessionSettingsController';
+
+export type {
   SessionPluginsState,
   UseSessionPluginsControllerOptions,
   UseSessionPluginsControllerResult,

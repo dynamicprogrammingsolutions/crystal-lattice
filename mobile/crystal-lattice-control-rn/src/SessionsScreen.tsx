@@ -587,6 +587,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       {settingsSessionId && (
         <SessionSettingsModal
           backend={backend}
+          cacheKey={connectionId ?? 'default'}
           sessionId={settingsSessionId}
           visible={settingsVisible}
           onRequestClose={() => setSettingsVisible(false)}
