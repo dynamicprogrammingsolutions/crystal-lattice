@@ -1643,8 +1643,6 @@ class AgentCore:
             tools,
             config,
         )
-        if tags is not None:
-            state["available_tags"] = list(tags)
         features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
         # Build messages (core shape)
         messages = [msg.to_dict() for msg in session.messages]
