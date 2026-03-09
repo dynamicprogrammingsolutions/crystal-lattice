@@ -11,7 +11,7 @@ more detailed responses.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from agent_core.types import ProviderExtensionPlugin
 
@@ -28,23 +28,14 @@ class OpenRouterVerbosityExtension(ProviderExtensionPlugin):
 
     def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
         """Add supports_verbosity when the selected model supports it (e.g. gpt-5)."""
-       # out: List[str] = ["ext:openrouter_verbosity"]
         out: List[str] = []
         selected_id = config.get("model") if isinstance(config, dict) else None
-        if isinstance(selected_id, str) and selected_id:
-            if "gpt-5" in selected_id:
-                out.append("supports_verbosity")
-            elif isinstance(models, list):
-                for m in models:
-                    if isinstance(m, dict) and m.get("id") == selected_id:
-                        supported_params = m.get("supported_parameters") or []
-                        if isinstance(supported_params, list) and "verbosity" in supported_params:
-                            out.append("supports_verbosity")
-                        break
+        if isinstance(selected_id, str) and selected_id and "gpt-5" in selected_id:
+            out.append("supports_verbosity")
         return out
 
     def required_tags(self) -> List[str]:
-        """Require OpenRouter provider, verbosity support, and request_options feature."""
+        """Require OpenRouter provider, verbosity support."""
         return ["openrouter", "supports_verbosity"]
 
     def get_config_schema(self) -> Dict[str, Any]:
@@ -75,10 +66,13 @@ class OpenRouterVerbosityExtension(ProviderExtensionPlugin):
         ]
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        """Set verbosity in state only when the selected model supports it (e.g. gpt-5)."""
+        selected_id = config.get("model") if isinstance(config, dict) else None
+        if not isinstance(selected_id, str) or not selected_id or "gpt-5" not in selected_id:
+            return state
         verbosity = config.get("verbosity")
         if not isinstance(verbosity, str) or verbosity not in _VERBOSITY_LEVELS:
             return state
-
         return {
             **state,
             "openrouter_verbosity": {
@@ -86,23 +80,25 @@ class OpenRouterVerbosityExtension(ProviderExtensionPlugin):
             },
         }
 
-    def initialize_request(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:
-        if "supports_verbosity" not in state.get("available_tags", []):
-            return state
+    def initialize_request(
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        """Add verbosity to request_options when init already set it in state."""
         cfg = state.get("openrouter_verbosity") or {}
         verbosity = cfg.get("verbosity")
         if not isinstance(verbosity, str) or verbosity not in _VERBOSITY_LEVELS:
-            return state
+            return list(native_messages), state
 
         config = state.get("config", {})
         # RequestOptionsFeature (priority 200) will merge it into the payload
         request_options = dict(config.get("request_options", {}))
         request_options["verbosity"] = verbosity
 
-        return {
+        new_state = {
             **state,
             "config": {
                 **config,
                 "request_options": request_options,
             },
         }
+        return list(native_messages), new_state
