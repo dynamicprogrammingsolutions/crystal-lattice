@@ -94,6 +94,10 @@ class ToolLoopRunner:
     ) -> tuple[Any, Dict[str, Any]] | None:
         """Return the enabled tool wrapper + initialized state for a schema name."""
 
+        from agent_core.tool_interop import OpenAIChatToolSchemaAccessor
+
+        schema_accessor = OpenAIChatToolSchemaAccessor()
+
         core = self._core
 
         enabled_tools: List[Any]
@@ -119,11 +123,10 @@ class ToolLoopRunner:
             for schema in schemas or []:
                 if not isinstance(schema, dict):
                     continue
-                fn = schema.get("function") or {}
-                schema_name = fn.get("name") if isinstance(fn, dict) else None
-                if not isinstance(schema_name, str) or not schema_name:
-                    schema_name = schema.get("name")
-                if isinstance(schema_name, str) and schema_name == name:
+                if not schema_accessor.can_handle(schema):
+                    continue
+                schema_name = schema_accessor.get_tool_name(schema)
+                if schema_name == name:
                     return (tool, tool_state)
 
         return None
@@ -135,16 +138,20 @@ class ToolLoopRunner:
         if not tool_calls:
             return []
 
+        from agent_core.tool_interop import OpenAIChatToolCallAccessor, ToolInteropError
+
+        call_accessor = OpenAIChatToolCallAccessor()
+
         previews: List[Dict[str, Any]] = []
         for call in tool_calls:
-            call_id = call.get("id") or call.get("tool_call_id")
-            func = call.get("function") or {}
-            name = call.get("name") or (
-                func.get("name") if isinstance(func, dict) else None
-            )
-            args = call.get("arguments") or (
-                func.get("arguments") if isinstance(func, dict) else {}
-            )
+            try:
+                call_id = call_accessor.get_call_id(call)
+                name = call_accessor.get_tool_name(call)
+                args = call_accessor.get_arguments(call)
+            except ToolInteropError:
+                call_id = None
+                name = None
+                args = {}
             if isinstance(args, str):
                 try:
                     args = json.loads(args)
@@ -350,6 +357,10 @@ class ToolLoopRunner:
         rid = self._request_id
         start_index = len(session.messages)
 
+        from agent_core.tool_interop import OpenAIChatToolCallAccessor, ToolInteropError
+
+        call_accessor = OpenAIChatToolCallAccessor()
+
         current_session = session
 
         # Record the tool_calls event first
@@ -363,7 +374,10 @@ class ToolLoopRunner:
         tool_messages: List[Dict[str, Any]] = []
 
         for call in tool_calls:
-            call_id = call.get("id") or call.get("tool_call_id")
+            try:
+                call_id = call_accessor.get_call_id(call)
+            except ToolInteropError:
+                call_id = None
             last_final: Dict[str, Any] | None = None
 
             saw_partial = False
@@ -388,10 +402,10 @@ class ToolLoopRunner:
             if last_final is None:
                 # iter_tool_messages already synthesizes errors for missing tools,
                 # but guard defensively in case it yields nothing.
-                func = call.get("function") or {}
-                name = call.get("name") or (
-                    func.get("name") if isinstance(func, dict) else None
-                )
+                try:
+                    name = call_accessor.get_tool_name(call)
+                except ToolInteropError:
+                    name = None
                 metadata: Dict[str, Any] = {
                     "tool_call_id": call_id,
                     "tool_name": name,

@@ -12,7 +12,11 @@ def test_execute_tool_calls_with_dummy_tool():
     core.register_tool(DummyCalculator)
 
     tool_calls = [
-        {"id": "call_1", "name": "add", "arguments": {"a": 2, "b": 3}},
+        {
+            "id": "call_1",
+            "type": "function",
+            "function": {"name": "add", "arguments": {"a": 2, "b": 3}},
+        },
     ]
 
     results = core.execute_tool_calls(tool_calls, config={})

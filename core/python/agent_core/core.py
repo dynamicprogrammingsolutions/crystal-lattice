@@ -2254,6 +2254,11 @@ class AgentCore:
 
         # Resolve enabled tools for this config and build a mapping from
         # function name -> (tool_wrapper, state).
+        from .tool_interop import OpenAIChatToolCallAccessor, OpenAIChatToolSchemaAccessor, ToolInteropError
+
+        schema_accessor = OpenAIChatToolSchemaAccessor()
+        call_accessor = OpenAIChatToolCallAccessor()
+
         if not self._tools:
             enabled_tools: List[ToolWrapper] = []
         elif not self._providers:
@@ -2278,23 +2283,21 @@ class AgentCore:
             for schema in schemas or []:
                 if not isinstance(schema, dict):
                     continue
-                fn = schema.get("function") or {}
-                name = None
-                if isinstance(fn, dict):
-                    name = fn.get("name")
-                if not isinstance(name, str) or not name:
-                    # Fallback: allow top-level "name" on the schema.
-                    name = schema.get("name") if isinstance(schema, dict) else None
-                if isinstance(name, str) and name and name not in name_to_tool:
+                if not schema_accessor.can_handle(schema):
+                    continue
+                name = schema_accessor.get_tool_name(schema)
+                if name and name not in name_to_tool:
                     name_to_tool[name] = (tool, state)
 
         for call in tool_calls:
-            call_id = call.get("id") or call.get("tool_call_id")
-            func = call.get("function") or {}
-            name = call.get("name") or (func.get("name") if isinstance(func, dict) else None)
-            args = call.get("arguments") or (
-                func.get("arguments") if isinstance(func, dict) else {}
-            ) or {}
+            try:
+                call_id = call_accessor.get_call_id(call)
+                name = call_accessor.get_tool_name(call)
+                args = call_accessor.get_arguments(call)
+            except ToolInteropError:
+                call_id = None
+                name = None
+                args = {}
             # Accept OpenAI-style string arguments; parse JSON when needed.
             if isinstance(args, str):
                 try:
@@ -2427,11 +2430,15 @@ class AgentCore:
                 executed = True
 
             if last_final is None:
-                call_id = call.get("id") or call.get("tool_call_id")
-                func = call.get("function") or {}
-                name = call.get("name") or (
-                    func.get("name") if isinstance(func, dict) else None
-                )
+                from .tool_interop import OpenAIChatToolCallAccessor, ToolInteropError
+
+                call_accessor = OpenAIChatToolCallAccessor()
+                try:
+                    call_id = call_accessor.get_call_id(call)
+                    name = call_accessor.get_tool_name(call)
+                except ToolInteropError:
+                    call_id = None
+                    name = None
                 metadata: Dict[str, Any] = {
                     "tool_call_id": call_id,
                     "tool_name": name,
@@ -2471,12 +2478,14 @@ class AgentCore:
         # Initialize tool states for this call
         tool_states = [(tool, tool.init(config)) for tool in self._tools]
 
-        name = tool_call.get("name") or (tool_call.get("function") or {}).get("name")
-        args = (
-            tool_call.get("arguments")
-            or (tool_call.get("function") or {}).get("arguments")
-            or {}
-        )
+        from .tool_interop import OpenAIChatToolCallAccessor, ToolInteropError
+
+        call_accessor = OpenAIChatToolCallAccessor()
+        try:
+            name = call_accessor.get_tool_name(tool_call)
+            args = call_accessor.get_arguments(tool_call)
+        except ToolInteropError:
+            return
         if isinstance(args, str):
             try:
                 args = json.loads(args)
