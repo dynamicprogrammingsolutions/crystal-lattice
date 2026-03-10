@@ -25,3 +25,11 @@ Depends On: `tasks/20260310-openai-responses-provider/040-provider-streaming-eve
 - `plugins/openrouter_responses/src/openrouter_responses_plugins/openrouter_responses_usage_extension.py`
 - `plugins/openrouter_responses/tests/test_openrouter_usage_extension_unit.py`
 - `plugins/openrouter_responses/tests/test_openrouter_usage_extension_integration.py`
+
+## Review note (added after review of subtask 030)
+
+1. Usage extraction/attachment logic currently present in `openai_responses_provider` must be moved into this extension during 070 completion.
+2. 070 should include removing provider-owned usage shaping and re-homing behavior here:
+- extract usage from non-streaming response object and streaming completion payloads
+- attach raw usage and formatted usage metadata to final assistant message(s)
+- keep cumulative accounting semantics in extension-only code

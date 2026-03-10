@@ -81,3 +81,13 @@ Depends On: `tasks/20260310-openai-responses-provider/020-scaffold-openai-respon
 
 1. None blocking for subtask 030.
 2. Streaming normalization/finalization remains intentionally deferred to subtask 040.
+
+## Review notes (added after completion review)
+
+1. Correction required: native history ownership is incomplete when Responses output includes non-converted item types (for example `reasoning`). Current provider->core conversion assigns `native_indices` only to directly converted messages, so some native items can become unowned by any core message, which can break native-history-preserving slice/fork/reload behavior.
+2. Scope correction required: usage extraction/attachment currently implemented in provider core should be moved to `openai_responses_usage` extension per architecture boundaries. Provider core should not own usage domain logic.
+
+### Follow-up actions
+
+1. Update `from_native_messages` mapping so response segments retain coherent `native_indices` ownership across converted and non-converted native items.
+2. Remove provider-side usage shaping and implement usage metadata extraction/formatting/accounting in subtask `070`.
