@@ -284,22 +284,68 @@ class OpenAIResponsesProvider(ProviderPlugin):
         state: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         out: List[Dict[str, Any]] = []
+        owned_native_indices: set[int] = set()
+        response_segments: Dict[str, List[int]] = {}
+        response_order: List[str] = []
+        response_candidates: Dict[str, List[int]] = {}
+
+        def _record_response_index(response_id: Optional[str], native_index: int) -> None:
+            if not isinstance(response_id, str) or not response_id:
+                return
+            bucket = response_segments.get(response_id)
+            if bucket is None:
+                response_segments[response_id] = [native_index]
+                response_order.append(response_id)
+            else:
+                bucket.append(native_index)
+
+        def _append_core_message(
+            core_msg: Dict[str, Any],
+            *,
+            native_index: int,
+            response_id: Optional[str],
+        ) -> None:
+            out.append(core_msg)
+            owned_native_indices.add(native_index)
+            if isinstance(response_id, str) and response_id:
+                response_candidates.setdefault(response_id, []).append(len(out) - 1)
+
+        def _merge_native_indices(core_index: int, indices: List[int]) -> None:
+            raw_md = out[core_index].get("metadata") or {}
+            md = dict(raw_md) if isinstance(raw_md, dict) else {}
+            existing = md.get("native_indices")
+            existing_indices = (
+                [i for i in existing if isinstance(i, int)] if isinstance(existing, list) else []
+            )
+            merged = sorted(set(existing_indices + [i for i in indices if isinstance(i, int)]))
+            md["native_indices"] = merged
+            out[core_index] = {**out[core_index], "metadata": md}
+            owned_native_indices.update(merged)
 
         for native_index, item in enumerate(native_messages):
             if not isinstance(item, dict):
                 continue
 
+            internal_md = self._core_metadata_from_native_internal(item.get("_metadata"))
+            response_id = (
+                internal_md.get("response_id") if isinstance(internal_md.get("response_id"), str) else None
+            )
+            _record_response_index(response_id, native_index)
+
             # Streaming partial compatibility: allow chat-like shape.
             if "type" not in item and ("role" in item or "content" in item):
                 role = item.get("role") if isinstance(item.get("role"), str) else "assistant"
                 content = item.get("content") if isinstance(item.get("content"), str) else ""
-                md = self._core_metadata_from_native_internal(item.get("_metadata"))
+                md = dict(internal_md)
                 md["native_indices"] = [native_index]
-                out.append({"role": role, "content": content, "metadata": md})
+                _append_core_message(
+                    {"role": role, "content": content, "metadata": md},
+                    native_index=native_index,
+                    response_id=response_id,
+                )
                 continue
 
             item_type = item.get("type")
-            internal_md = self._core_metadata_from_native_internal(item.get("_metadata"))
 
             if item_type == "message":
                 role = item.get("role") if isinstance(item.get("role"), str) else "assistant"
@@ -319,7 +365,11 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 if images:
                     core_msg["multipartContent"] = images
 
-                out.append(core_msg)
+                _append_core_message(
+                    core_msg,
+                    native_index=native_index,
+                    response_id=response_id,
+                )
                 continue
 
             if item_type == "function_call_output":
@@ -338,14 +388,76 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 md.setdefault("tool_call_id", call_id)
                 md["native_indices"] = [native_index]
 
-                out.append(
+                _append_core_message(
                     {
                         "role": "tool",
                         "content": output,
                         "metadata": md,
-                    }
+                    },
+                    native_index=native_index,
+                    response_id=response_id,
                 )
 
+        for response_id in response_order:
+            segment_indices = sorted(set(response_segments.get(response_id) or []))
+            if not segment_indices:
+                continue
+
+            candidates = response_candidates.get(response_id) or []
+            if candidates:
+                owner_index: Optional[int] = None
+                for core_index in reversed(candidates):
+                    if out[core_index].get("role") == "assistant":
+                        owner_index = core_index
+                        break
+                if owner_index is None:
+                    owner_index = candidates[-1]
+
+                _merge_native_indices(owner_index, segment_indices)
+                continue
+
+            # Preserve native ownership when a segment has only non-converted
+            # item types (e.g. reasoning/function_call without tool output).
+            out.append(
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "metadata": {
+                        "response_id": response_id,
+                        "native_indices": segment_indices,
+                    },
+                }
+            )
+            owned_native_indices.update(segment_indices)
+
+        dict_native_indices = {
+            idx
+            for idx, item in enumerate(native_messages)
+            if isinstance(item, dict)
+        }
+        orphan_indices = sorted(dict_native_indices.difference(owned_native_indices))
+        if not orphan_indices:
+            return out
+
+        owner_index: Optional[int] = None
+        for core_index in range(len(out) - 1, -1, -1):
+            if out[core_index].get("role") == "assistant":
+                owner_index = core_index
+                break
+        if owner_index is None and out:
+            owner_index = len(out) - 1
+
+        if owner_index is None:
+            out.append(
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "metadata": {"native_indices": orphan_indices},
+                }
+            )
+            return out
+
+        _merge_native_indices(owner_index, orphan_indices)
         return out
 
     def _validate_native_item_list(self, items: List[Dict[str, Any]]) -> None:
@@ -390,39 +502,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
         if isinstance(response_id, str) and response_id:
             md["response_id"] = response_id
 
-        usage = response_obj.get("usage")
-        if isinstance(usage, dict) and usage:
-            md["usage"] = usage
-
         return md
-
-    def _select_primary_output_item_index(self, output_items: List[JsonObject]) -> Optional[int]:
-        if not output_items:
-            return None
-
-        for idx in range(len(output_items) - 1, -1, -1):
-            item = output_items[idx]
-            if not isinstance(item, dict):
-                continue
-            if item.get("type") != "message":
-                continue
-            role = item.get("role")
-            if role is not None and role != "assistant":
-                continue
-            if item.get("phase") == "final_answer":
-                return idx
-
-        for idx in range(len(output_items) - 1, -1, -1):
-            item = output_items[idx]
-            if not isinstance(item, dict):
-                continue
-            if item.get("type") != "message":
-                continue
-            role = item.get("role")
-            if role is None or role == "assistant":
-                return idx
-
-        return len(output_items) - 1
 
     def _attach_internal_metadata_to_output(
         self,
@@ -447,26 +527,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 annotated.append({**item, "_metadata": {**base_internal_dict, "response_id": response_id}})
             else:
                 annotated.append(item)
-
-        usage = response_md.get("usage")
-        if not isinstance(usage, dict) or not usage:
-            return annotated
-
-        primary_idx = self._select_primary_output_item_index(annotated)
-        if primary_idx is None:
-            return annotated
-
-        final: List[JsonObject] = []
-        for idx, item in enumerate(annotated):
-            if idx != primary_idx or not isinstance(item, dict):
-                final.append(item)
-                continue
-
-            base_internal = item.get("_metadata")
-            base_internal_dict = base_internal if isinstance(base_internal, dict) else {}
-            final.append({**item, "_metadata": {**base_internal_dict, "usage": usage}})
-
-        return final
+        return annotated
 
     def call_api(
         self,

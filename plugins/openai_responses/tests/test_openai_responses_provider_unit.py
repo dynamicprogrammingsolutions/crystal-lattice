@@ -245,6 +245,66 @@ def test_to_native_and_from_native_roundtrip_with_tool_output() -> None:
     assert rebuilt[2]["metadata"]["native_indices"] == [2]
 
 
+def test_from_native_messages_assigns_response_segment_indices_for_unconverted_items() -> None:
+    provider = OpenAIResponsesProvider()
+
+    native_messages = [
+        {
+            "type": "reasoning",
+            "summary": [{"type": "summary_text", "text": "thinking"}],
+            "_metadata": {"response_id": "resp_1"},
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "phase": "final_answer",
+            "content": [{"type": "output_text", "text": "done"}],
+            "_metadata": {"response_id": "resp_1"},
+        },
+    ]
+
+    rebuilt = provider.from_native_messages(native_messages, {})
+
+    assert rebuilt
+    owner = rebuilt[-1]
+    assert owner["role"] == "assistant"
+    assert owner["content"] == "done"
+    md = owner.get("metadata") or {}
+    assert md.get("response_id") == "resp_1"
+    assert md.get("native_indices") == [0, 1]
+
+
+def test_from_native_messages_assigns_tool_call_indices_without_tool_calls_metadata() -> None:
+    provider = OpenAIResponsesProvider()
+
+    native_messages = [
+        {
+            "type": "function_call",
+            "call_id": "call_1",
+            "name": "lookup",
+            "arguments": "{\"id\":1}",
+            "_metadata": {"response_id": "resp_2"},
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "Calling tool"}],
+            "_metadata": {"response_id": "resp_2"},
+        },
+    ]
+
+    rebuilt = provider.from_native_messages(native_messages, {})
+
+    assert rebuilt
+    owner = rebuilt[-1]
+    assert owner["role"] == "assistant"
+    assert owner["content"] == "Calling tool"
+    md = owner.get("metadata") or {}
+    assert md.get("response_id") == "resp_2"
+    assert md.get("native_indices") == [0, 1]
+    assert "tool_calls" not in md
+
+
 def test_to_native_tool_without_tool_call_id_raises() -> None:
     provider = OpenAIResponsesProvider()
 
@@ -302,6 +362,14 @@ def test_call_api_uses_fixture_payload_shape_and_normalizes_output() -> None:
         and item.get("type") == "message"
         and isinstance(item.get("_metadata"), dict)
         and isinstance(item["_metadata"].get("response_id"), str)
+        for item in finals
+    )
+    assert all(
+        not (
+            isinstance(item, dict)
+            and isinstance(item.get("_metadata"), dict)
+            and "usage" in item["_metadata"]
+        )
         for item in finals
     )
 

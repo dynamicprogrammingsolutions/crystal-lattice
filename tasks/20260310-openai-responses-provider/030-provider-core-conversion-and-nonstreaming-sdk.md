@@ -82,6 +82,30 @@ Depends On: `tasks/20260310-openai-responses-provider/020-scaffold-openai-respon
 1. None blocking for subtask 030.
 2. Streaming normalization/finalization remains intentionally deferred to subtask 040.
 
+## Post-review corrections (added after review notes)
+
+1. Fixed native-history ownership for non-converted output items (e.g. `reasoning`) in `from_native_messages`:
+- response-segment indices (by `response_id`) are now assigned to a canonical converted message
+- when a response segment contains only non-converted items, provider now emits a minimal assistant placeholder owning that segment's `native_indices`
+- any remaining orphan native indices are attached to nearest converted message (or a fallback placeholder if no converted messages exist)
+
+2. Removed provider-side usage shaping:
+- provider no longer extracts/attaches `usage` into native `_metadata`
+- provider now limits response-level internal metadata to transport/history-safe `response_id`
+- usage handling remains deferred to subtask `070` (`openai_responses_usage` extension)
+
+3. Added regression coverage in provider unit tests:
+- response segment ownership test for unconverted `reasoning` item + assistant final answer (`native_indices` must cover whole segment)
+- assertion that provider finals do not include provider-attached usage metadata
+
+### Post-review tests run
+
+1. `pytest plugins/openai_responses/tests/test_openai_responses_provider_unit.py -q`
+- result: `17 passed`
+
+2. `pytest plugins/openai_responses/tests -q`
+- result: `24 passed`
+
 ## Review notes (added after completion review)
 
 1. Correction required: native history ownership is incomplete when Responses output includes non-converted item types (for example `reasoning`). Current provider->core conversion assigns `native_indices` only to directly converted messages, so some native items can become unowned by any core message, which can break native-history-preserving slice/fork/reload behavior.
