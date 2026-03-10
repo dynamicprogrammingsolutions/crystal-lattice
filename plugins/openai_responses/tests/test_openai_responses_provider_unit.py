@@ -22,6 +22,12 @@ STREAM_FIXTURE_PATH = (
     / "openai_responses_gpt5mini_streaming_events.json"
 )
 
+STREAM_FAILED_FIXTURE_PATH = (
+    Path(__file__).resolve().parent
+    / "fixtures"
+    / "openai_responses_gpt5mini_streaming_failed_events.json"
+)
+
 
 class _FixtureResponse:
     def __init__(self, payload: Dict[str, Any]) -> None:
@@ -114,10 +120,25 @@ def _load_stream_fixture_events() -> list[Dict[str, Any]]:
     return [ev for ev in events if isinstance(ev, dict)]
 
 
+def _load_failed_stream_fixture_events() -> list[Dict[str, Any]]:
+    payload = json.loads(STREAM_FAILED_FIXTURE_PATH.read_text(encoding="utf-8"))
+    events = payload.get("events")
+    if not isinstance(events, list):
+        raise RuntimeError("streaming failure fixture missing events list")
+    return [ev for ev in events if isinstance(ev, dict)]
+
+
 class _StreamingFixtureProvider(OpenAIResponsesProvider):
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         state = super().init(config)
         state["client"] = _FixtureStreamingClient(_load_stream_fixture_events())
+        return state
+
+
+class _StreamingFailureFixtureProvider(OpenAIResponsesProvider):
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        state = super().init(config)
+        state["client"] = _FixtureStreamingClient(_load_failed_stream_fixture_events())
         return state
 
 
@@ -570,18 +591,63 @@ def test_process_chunk_raises_on_completed_event_without_output() -> None:
         )
 
 
+def test_process_chunk_raises_on_response_failed_terminal_event() -> None:
+    provider = OpenAIResponsesProvider()
+    events = _load_failed_stream_fixture_events()
+
+    native_messages: list[Dict[str, Any]] = []
+    state: Dict[str, Any] = {}
+
+    for event in events[:-1]:
+        _partials, _finals, native_messages, state = provider.process_chunk(event, native_messages, state)
+
+    with pytest.raises(RuntimeError, match="response.failed"):
+        provider.process_chunk(events[-1], native_messages, state)
+
+
+def test_process_chunk_raises_on_response_incomplete_terminal_event() -> None:
+    provider = OpenAIResponsesProvider()
+
+    with pytest.raises(RuntimeError, match="response.incomplete"):
+        provider.process_chunk(
+            {
+                "type": "response.incomplete",
+                "response": {
+                    "id": "resp_incomplete_1",
+                    "incomplete_details": {"reason": "max_output_tokens"},
+                },
+            },
+            [],
+            {},
+        )
+
+
 def test_finalize_is_noop_after_streaming_reduction() -> None:
     provider = OpenAIResponsesProvider()
     events = _load_stream_fixture_events()
 
     native_messages: list[Dict[str, Any]] = []
+    state: Dict[str, Any] = {}
     for event in events:
-        _partials, _finals, native_messages, _state = provider.process_chunk(event, native_messages, {})
+        _partials, _finals, native_messages, state = provider.process_chunk(event, native_messages, state)
 
-    final_messages, native_after_finalize, _state = provider.finalize(native_messages, {})
+    final_messages, native_after_finalize, _state = provider.finalize(native_messages, state)
 
     assert final_messages == []
     assert native_after_finalize == native_messages
+
+
+def test_finalize_raises_when_stream_ended_without_completed() -> None:
+    provider = OpenAIResponsesProvider()
+
+    _partials, _finals, _native_messages, state = provider.process_chunk(
+        {"type": "response.created", "response": {"id": "resp_pending"}},
+        [],
+        {},
+    )
+
+    with pytest.raises(RuntimeError, match="without response.completed"):
+        provider.finalize([], state)
 
 
 def test_send_request_stream_wrapper_compatibility_with_streaming_finals() -> None:
@@ -630,3 +696,21 @@ def test_send_request_stream_wrapper_compatibility_with_streaming_finals() -> No
         )
         for item in native_history
     )
+
+
+def test_send_request_stream_raises_on_failed_terminal_event() -> None:
+    core = AgentCore()
+    core.register_provider(_StreamingFailureFixtureProvider)
+
+    config = {
+        "model": "gpt-5-mini",
+        "api_key": "test_key",
+        "base_url": "https://api.openai.com/v1",
+        "timeout": 30,
+    }
+
+    session = core.create_session()
+    session = core.add_message(session, "user", "Reply with STREAM_OK")
+
+    with pytest.raises(RuntimeError, match="response.failed"):
+        list(core.send_request_stream(session, config))

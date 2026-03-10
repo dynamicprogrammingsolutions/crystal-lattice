@@ -495,6 +495,63 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 return dumped
         raise RuntimeError("[openai_responses_provider] invalid SDK stream event payload")
 
+    def _safe_dict_payload(self, payload: Any) -> Dict[str, Any]:
+        if isinstance(payload, dict):
+            return payload
+        if hasattr(payload, "model_dump"):
+            dumped = payload.model_dump(mode="python")
+            if isinstance(dumped, dict):
+                return dumped
+        return {}
+
+    def _terminal_stream_error_message(self, event: Dict[str, Any]) -> Optional[str]:
+        event_type = event.get("type")
+        if not isinstance(event_type, str):
+            return None
+
+        if event_type == "error":
+            message = event.get("message") if isinstance(event.get("message"), str) else "unknown error"
+            code = event.get("code") if isinstance(event.get("code"), str) else None
+            details = f" code={code}" if code else ""
+            return f"OpenAI Responses stream failed: terminal event error{details}: {message}"
+
+        if event_type == "response.failed":
+            response_obj = self._safe_dict_payload(event.get("response"))
+            response_id = response_obj.get("id") if isinstance(response_obj.get("id"), str) else None
+            error_obj = response_obj.get("error") if isinstance(response_obj.get("error"), dict) else {}
+            code = error_obj.get("code") if isinstance(error_obj.get("code"), str) else None
+            message = (
+                error_obj.get("message")
+                if isinstance(error_obj.get("message"), str)
+                else "response failed"
+            )
+            context: List[str] = []
+            if isinstance(response_id, str) and response_id:
+                context.append(f"response_id={response_id}")
+            if isinstance(code, str) and code:
+                context.append(f"code={code}")
+            suffix = f" ({', '.join(context)})" if context else ""
+            return f"OpenAI Responses stream failed: terminal event response.failed{suffix}: {message}"
+
+        if event_type == "response.incomplete":
+            response_obj = self._safe_dict_payload(event.get("response"))
+            response_id = response_obj.get("id") if isinstance(response_obj.get("id"), str) else None
+            details_obj = (
+                response_obj.get("incomplete_details")
+                if isinstance(response_obj.get("incomplete_details"), dict)
+                else {}
+            )
+            reason = details_obj.get("reason") if isinstance(details_obj.get("reason"), str) else None
+            context: List[str] = []
+            if isinstance(response_id, str) and response_id:
+                context.append(f"response_id={response_id}")
+            if isinstance(reason, str) and reason:
+                context.append(f"reason={reason}")
+            suffix = f" ({', '.join(context)})" if context else ""
+            return f"OpenAI Responses stream failed: terminal event response.incomplete{suffix}"
+
+        return None
+
     def _response_internal_metadata(self, response_obj: Dict[str, Any]) -> Dict[str, Any]:
         md: Dict[str, Any] = {}
 
@@ -647,6 +704,15 @@ class OpenAIResponsesProvider(ProviderPlugin):
         event = native_chunk if isinstance(native_chunk, dict) else {}
         event_type = event.get("type")
 
+        new_state: Dict[str, Any] = {
+            **state,
+            "_openai_responses_stream_started": True,
+        }
+
+        terminal_error_message = self._terminal_stream_error_message(event)
+        if terminal_error_message is not None:
+            raise RuntimeError(terminal_error_message)
+
         emitted_partials: List[Dict[str, Any]] = []
         emitted_finals: List[Dict[str, Any]] = []
 
@@ -669,14 +735,25 @@ class OpenAIResponsesProvider(ProviderPlugin):
             response_md = self._response_internal_metadata(response_obj)
             emitted_finals = self._attach_internal_metadata_to_output(output_items, response_md)
 
-            if emitted_finals:
-                return emitted_partials, emitted_finals, [*native_messages, *emitted_finals], state
+            new_state = {
+                **new_state,
+                "_openai_responses_stream_completed": True,
+            }
 
-        return emitted_partials, emitted_finals, list(native_messages), state
+            if emitted_finals:
+                return emitted_partials, emitted_finals, [*native_messages, *emitted_finals], new_state
+
+        return emitted_partials, emitted_finals, list(native_messages), new_state
 
     def finalize(
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        started = bool(state.get("_openai_responses_stream_started"))
+        completed = bool(state.get("_openai_responses_stream_completed"))
+        if started and not completed:
+            raise RuntimeError(
+                "OpenAI Responses stream failed: stream ended without response.completed terminal event"
+            )
         return [], list(native_messages), state

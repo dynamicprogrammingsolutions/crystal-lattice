@@ -1,0 +1,47 @@
+{
+  "model": "gpt-5-mini",
+  "prompt": "Reply with exactly STREAM_OK",
+  "event_count": 4,
+  "events": [
+    {
+      "type": "response.created",
+      "sequence_number": 0,
+      "response": {
+        "id": "resp_failed_fixture_1",
+        "status": "in_progress",
+        "output": []
+      }
+    },
+    {
+      "type": "response.in_progress",
+      "sequence_number": 1,
+      "response": {
+        "id": "resp_failed_fixture_1",
+        "status": "in_progress",
+        "output": []
+      }
+    },
+    {
+      "type": "response.output_text.delta",
+      "sequence_number": 2,
+      "delta": "partial",
+      "item_id": "msg_failed_fixture_1",
+      "output_index": 0,
+      "content_index": 0,
+      "logprobs": []
+    },
+    {
+      "type": "response.failed",
+      "sequence_number": 3,
+      "response": {
+        "id": "resp_failed_fixture_1",
+        "status": "failed",
+        "error": {
+          "code": "server_error",
+          "message": "simulated stream failure"
+        },
+        "output": []
+      }
+    }
+  ]
+}
