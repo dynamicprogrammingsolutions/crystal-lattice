@@ -8,8 +8,12 @@ Short description: Add a first-class OpenRouter provider that calls the `/respon
 2. `tasks/20260309-openrouter-responses-provider/020-implement-openrouter-responses-provider.md`
 3. `tasks/20260309-openrouter-responses-provider/030-fix-gpt54-phase-reasoning-streaming.md`
 4. `tasks/20260309-openrouter-responses-provider/040-refactor-native-history-to-responses-items.md`
+5. `tasks/20260309-openrouter-responses-provider/050-fix-native-indices-and-slicing-integration.md`
+6. `tasks/20260309-openrouter-responses-provider/060-dual-provider-coexistence-tags-and-agent-application-integration.md`
 
 Suggested execution order: `010` -> `020`.
+
+Follow-ups after `040`: `050` then `060`.
 
 ## Context / motivation
 
@@ -25,3 +29,9 @@ This task keeps OpenAI-ish tool schemas/calls as the *canonical internal represe
 - OpenAI Responses API reference: https://platform.openai.com/docs/api-reference/responses
 - OpenAI streaming guide (SSE): https://platform.openai.com/docs/guides/streaming
 - OpenRouter GPT-5.4 migration notes (phase/commentary preservation): https://openrouter.ai/docs/guides/guides/evaluate-and-optimize/model-migrations/gpt-5-4.md
+
+## Guardrail (added during review)
+
+- Keep `plugins/openrouter_responses/tests/test_openrouter_tools_reasoning_integration.py` strict on the reasoning oracle (`"Clock"`) from the `reasoning_test` fixture.
+- Do not replace the correctness assertion with weaker checks like "non-empty final answer" just to make all models pass.
+- If model/provider variance causes failures, treat that as a performance/regression signal and handle it at test-selection policy level, not by weakening assertions.

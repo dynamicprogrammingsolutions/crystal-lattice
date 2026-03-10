@@ -263,6 +263,87 @@ def test_from_native_messages_aggregates_function_calls_to_last_assistant_messag
     assert isinstance(tcs, list) and tcs
 
 
+def test_from_native_messages_assigns_segment_native_indices_to_final_answer_assistant() -> None:
+    provider = OpenRouterResponsesProvider()
+    native_messages = [
+        {
+            "type": "reasoning",
+            "summary": [{"type": "summary_text", "text": "r"}],
+            "_metadata": {"response_id": "resp_1"},
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "phase": "commentary",
+            "content": [{"type": "output_text", "text": "thinking"}],
+            "_metadata": {"response_id": "resp_1"},
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "phase": "final_answer",
+            "content": [{"type": "output_text", "text": "answer"}],
+            "_metadata": {"response_id": "resp_1"},
+        },
+    ]
+
+    out = provider.from_native_messages(native_messages, {})
+
+    final = next(
+        (
+            m
+            for m in out
+            if m.get("role") == "assistant"
+            and (m.get("metadata") or {}).get("phase") == "final_answer"
+        ),
+        None,
+    )
+    assert isinstance(final, dict)
+    md = final.get("metadata") or {}
+    assert md.get("native_indices") == [0, 1, 2]
+
+
+def test_from_native_messages_assigns_segment_native_indices_to_tool_call_assistant() -> None:
+    provider = OpenRouterResponsesProvider()
+    native_messages = [
+        {
+            "type": "reasoning",
+            "summary": [{"type": "summary_text", "text": "r"}],
+            "_metadata": {"response_id": "resp_1"},
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "phase": "commentary",
+            "content": [{"type": "output_text", "text": "thinking"}],
+            "_metadata": {"response_id": "resp_1"},
+        },
+        {
+            "type": "function_call",
+            "call_id": "call_1",
+            "name": "add",
+            "arguments": "{\"a\":1}",
+            "_metadata": {"response_id": "resp_1"},
+        },
+    ]
+
+    out = provider.from_native_messages(native_messages, {})
+
+    tool_call_assistant = next(
+        (
+            m
+            for m in out
+            if m.get("role") == "assistant"
+            and isinstance((m.get("metadata") or {}).get("tool_calls"), list)
+            and (m.get("metadata") or {}).get("tool_calls")
+        ),
+        None,
+    )
+    assert isinstance(tool_call_assistant, dict)
+    md = tool_call_assistant.get("metadata") or {}
+    assert md.get("native_indices") == [0, 1, 2]
+
+
 def test_validate_message_list_valid():
     """Validate message list accepts valid messages."""
     provider = OpenRouterResponsesProvider()

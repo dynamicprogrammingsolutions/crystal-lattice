@@ -1,5 +1,5 @@
 SEED (edit here; use exactly this text below):
-Fennel 983; Olive 193; Graphite 668.
+Fennel 983; Olive 193; Graphite 668. Cedar.
 
 Task
 - Compute values from the SEED BEFORE calling any tools: base index p ∈ [0..9], bank index f ∈ [0..2], and a secret s ∈ [0..9]. You MAY disclose these values in tool preambles or as part of tool calls (if supported) to aid verification, and again in the final reasoning.

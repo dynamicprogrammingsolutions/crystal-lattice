@@ -421,6 +421,7 @@ class OpenRouterResponsesProvider(ProviderPlugin):
         normalized: List[Dict[str, Any]] = []
 
         response_items: Dict[str, List[JsonObject]] = {}
+        response_item_indices: Dict[str, List[int]] = {}
 
         buffered_tool_calls: List[JsonObject] = []
         buffered_tool_md: Dict[str, Any] = {}
@@ -460,6 +461,7 @@ class OpenRouterResponsesProvider(ProviderPlugin):
             rid = internal_md.get("response_id") if isinstance(internal_md.get("response_id"), str) else None
             if rid is not None:
                 response_items.setdefault(rid, []).append(m)
+                response_item_indices.setdefault(rid, []).append(native_index)
 
             # If tool calls are buffered for a response, flush them when the
             # response segment ends (response_id changes or disappears).
@@ -542,9 +544,6 @@ class OpenRouterResponsesProvider(ProviderPlugin):
             except Exception:
                 reasoning_summary = ""
 
-            if not citations and not reasoning_summary:
-                continue
-
             candidate_indices = [
                 idx
                 for idx, msg in enumerate(normalized)
@@ -553,23 +552,20 @@ class OpenRouterResponsesProvider(ProviderPlugin):
             if not candidate_indices:
                 continue
 
-            chosen_index: Optional[int] = None
-            for idx in reversed(candidate_indices):
-                md = normalized[idx].get("metadata") or {}
-                if isinstance(md, dict) and md.get("phase") == "final_answer":
-                    chosen_index = idx
-                    break
-            if chosen_index is None:
-                for idx in reversed(candidate_indices):
-                    content = normalized[idx].get("content")
-                    if isinstance(content, str) and content.strip():
-                        chosen_index = idx
-                        break
-            if chosen_index is None:
-                chosen_index = candidate_indices[-1]
+            chosen_index = self._select_response_primary_assistant_message_index(
+                normalized,
+                candidate_indices,
+                items,
+            )
+
+            segment_native_indices = sorted(set(response_item_indices.get(rid, [])))
 
             base = dict(normalized[chosen_index])
             md = dict(base.get("metadata") or {})
+            if segment_native_indices:
+                # Ensure one canonical assistant message owns the full response
+                # segment so history slicing can remove whole turns safely.
+                md["native_indices"] = segment_native_indices
             if citations:
                 md["url_citations"] = citations
             if reasoning_summary:
@@ -577,6 +573,37 @@ class OpenRouterResponsesProvider(ProviderPlugin):
             normalized[chosen_index] = {**base, "metadata": md}
 
         return normalized
+
+    def _select_response_primary_assistant_message_index(
+        self,
+        normalized: List[JsonObject],
+        candidate_indices: List[int],
+        response_items: List[JsonObject],
+    ) -> int:
+        for idx in reversed(candidate_indices):
+            md = normalized[idx].get("metadata") or {}
+            if isinstance(md, dict) and md.get("phase") == "final_answer":
+                return idx
+
+        response_has_tool_calls = any(
+            isinstance(item, dict) and item.get("type") == "function_call"
+            for item in response_items
+        )
+        if response_has_tool_calls:
+            for idx in reversed(candidate_indices):
+                md = normalized[idx].get("metadata") or {}
+                if not isinstance(md, dict):
+                    continue
+                tool_calls = md.get("tool_calls")
+                if isinstance(tool_calls, list) and tool_calls:
+                    return idx
+
+        for idx in reversed(candidate_indices):
+            content = normalized[idx].get("content")
+            if isinstance(content, str) and content.strip():
+                return idx
+
+        return candidate_indices[-1]
 
     # ---------------------------------------------------------------------
     # HTTP helpers
@@ -717,7 +744,7 @@ class OpenRouterResponsesProvider(ProviderPlugin):
         logger = get_logger("openrouter_responses_provider")
 
         try:
-            payload = {**self._build_request_body(native_messages, state), "stream": False}
+            payload = {**self._build_request_body(native_messages, state), "include": ['reasoning.encrypted_content'], "stream": False}
             logger.info(
                 "sending request",
                 payload=str({**payload, "input": "stripped", "tools": "stripped"}),
@@ -759,10 +786,15 @@ class OpenRouterResponsesProvider(ProviderPlugin):
         if isinstance(debug_path, str) and debug_path:
             debug_file = Path(debug_path)
 
-        payload: Dict[str, Any] = {**self._build_request_body(native_messages, state), "stream": True}
+        payload: Dict[str, Any] = {**self._build_request_body(native_messages, state), "include": ['reasoning.encrypted_content'], "stream": True}
         logger.info(
             "sending streaming request",
             payload=str({**payload, "input": "stripped", "tools": "stripped"}),
+        )
+
+        logger.debug(
+            "sending streaming request (full payload)",
+            payload=str({**payload}),
         )
 
         try:
