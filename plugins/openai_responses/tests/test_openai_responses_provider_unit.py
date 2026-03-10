@@ -6,6 +6,7 @@ from typing import Any, Dict
 
 import pytest
 
+from agent_core import AgentCore
 from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider
 
 
@@ -13,6 +14,12 @@ FIXTURE_PATH = (
     Path(__file__).resolve().parent
     / "fixtures"
     / "openai_responses_gpt5mini_nonstreaming.json"
+)
+
+STREAM_FIXTURE_PATH = (
+    Path(__file__).resolve().parent
+    / "fixtures"
+    / "openai_responses_gpt5mini_streaming_events.json"
 )
 
 
@@ -40,6 +47,51 @@ class _FixtureClient:
         self.responses = _FixtureResponsesResource(payload)
 
 
+class _FixtureStreamEvent:
+    def __init__(self, payload: Dict[str, Any]) -> None:
+        self._payload = payload
+
+    def model_dump(self, mode: str = "python") -> Dict[str, Any]:
+        _ = mode
+        return self._payload
+
+
+class _FixtureStream:
+    def __init__(self, events: list[Dict[str, Any]]) -> None:
+        self._events = events
+
+    def __enter__(self) -> "_FixtureStream":
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        _ = (exc_type, exc, tb)
+
+    def __iter__(self):
+        for idx, event in enumerate(self._events):
+            # Mix object + dict event payloads to verify normalization.
+            if idx % 2 == 0:
+                yield _FixtureStreamEvent(event)
+            else:
+                yield event
+
+
+class _FixtureStreamingResponsesResource:
+    def __init__(self, events: list[Dict[str, Any]]) -> None:
+        self._events = events
+        self.calls: list[Dict[str, Any]] = []
+
+    def create(self, **kwargs: Any) -> _FixtureStream:
+        self.calls.append(kwargs)
+        if kwargs.get("stream") is not True:
+            raise AssertionError("expected stream=True")
+        return _FixtureStream(self._events)
+
+
+class _FixtureStreamingClient:
+    def __init__(self, events: list[Dict[str, Any]]) -> None:
+        self.responses = _FixtureStreamingResponsesResource(events)
+
+
 class _ErrorResponsesResource:
     def create(self, **kwargs: Any) -> Any:
         _ = kwargs
@@ -52,6 +104,21 @@ class _ErrorClient:
 
 def _load_fixture() -> Dict[str, Any]:
     return json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
+
+
+def _load_stream_fixture_events() -> list[Dict[str, Any]]:
+    payload = json.loads(STREAM_FIXTURE_PATH.read_text(encoding="utf-8"))
+    events = payload.get("events")
+    if not isinstance(events, list):
+        raise RuntimeError("streaming fixture missing events list")
+    return [ev for ev in events if isinstance(ev, dict)]
+
+
+class _StreamingFixtureProvider(OpenAIResponsesProvider):
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        state = super().init(config)
+        state["client"] = _FixtureStreamingClient(_load_stream_fixture_events())
+        return state
 
 
 def test_provider_metadata_schema_and_tags() -> None:
@@ -310,3 +377,188 @@ def test_call_api_raises_on_missing_output_in_response() -> None:
             [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
             state,
         )
+
+
+def test_stream_api_normalizes_events_and_strips_internal_metadata() -> None:
+    provider = OpenAIResponsesProvider()
+    stream_events = _load_stream_fixture_events()
+    fake_client = _FixtureStreamingClient(stream_events)
+
+    input_items = [
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": "stream hi"}],
+            "_metadata": {"trace": "internal-only"},
+        }
+    ]
+
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 30,
+        },
+        "client": fake_client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 30,
+        },
+    }
+
+    normalized = list(provider.stream_api(input_items, state))
+
+    assert normalized
+    assert all(isinstance(ev, dict) for ev in normalized)
+    assert any(ev.get("type") == "response.output_text.delta" for ev in normalized)
+    assert any(ev.get("type") == "response.completed" for ev in normalized)
+
+    call_kwargs = fake_client.responses.calls[0]
+    assert call_kwargs["stream"] is True
+    assert isinstance(call_kwargs["input"], list)
+    assert "_metadata" not in call_kwargs["input"][0]
+
+
+def test_stream_api_wraps_sdk_error() -> None:
+    provider = OpenAIResponsesProvider()
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 30,
+        },
+        "client": _ErrorClient(),
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 30,
+        },
+    }
+
+    with pytest.raises(RuntimeError, match="OpenAI Responses stream failed"):
+        list(
+            provider.stream_api(
+                [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+                state,
+            )
+        )
+
+
+def test_process_chunk_emits_partials_and_completed_finals_only() -> None:
+    provider = OpenAIResponsesProvider()
+    events = _load_stream_fixture_events()
+
+    native_messages: list[Dict[str, Any]] = []
+    partials_out: list[Dict[str, Any]] = []
+    finals_out: list[Dict[str, Any]] = []
+
+    for event in events:
+        partials, finals, native_messages, _state = provider.process_chunk(event, native_messages, {})
+        partials_out.extend(partials)
+        finals_out.extend(finals)
+
+        if event.get("type") != "response.completed":
+            assert finals == []
+
+    assert any(
+        isinstance(p, dict)
+        and p.get("role") == "assistant"
+        and isinstance(p.get("content"), str)
+        and p.get("content")
+        for p in partials_out
+    )
+
+    assert finals_out
+    assert native_messages[-len(finals_out) :] == finals_out
+
+    assert any(
+        isinstance(item, dict)
+        and isinstance(item.get("_metadata"), dict)
+        and isinstance(item["_metadata"].get("response_id"), str)
+        for item in finals_out
+    )
+
+    assert all(
+        not (
+            isinstance(item, dict)
+            and isinstance(item.get("type"), str)
+            and item["type"].startswith("response.")
+        )
+        for item in native_messages
+    )
+
+
+def test_process_chunk_raises_on_completed_event_without_output() -> None:
+    provider = OpenAIResponsesProvider()
+
+    with pytest.raises(RuntimeError, match="missing output list"):
+        provider.process_chunk(
+            {"type": "response.completed", "response": {"id": "resp_bad"}},
+            [],
+            {},
+        )
+
+
+def test_finalize_is_noop_after_streaming_reduction() -> None:
+    provider = OpenAIResponsesProvider()
+    events = _load_stream_fixture_events()
+
+    native_messages: list[Dict[str, Any]] = []
+    for event in events:
+        _partials, _finals, native_messages, _state = provider.process_chunk(event, native_messages, {})
+
+    final_messages, native_after_finalize, _state = provider.finalize(native_messages, {})
+
+    assert final_messages == []
+    assert native_after_finalize == native_messages
+
+
+def test_send_request_stream_wrapper_compatibility_with_streaming_finals() -> None:
+    core = AgentCore()
+    core.register_provider(_StreamingFixtureProvider)
+
+    config = {
+        "model": "gpt-5-mini",
+        "api_key": "test_key",
+        "base_url": "https://api.openai.com/v1",
+        "timeout": 30,
+    }
+
+    session = core.create_session()
+    session = core.add_message(session, "user", "Reply with STREAM_OK")
+
+    partial_fragments: list[str] = []
+    final_session = None
+    final_messages: list[Dict[str, Any]] = []
+
+    for chunk in core.send_request_stream(session, config):
+        if chunk["type"] == "partial":
+            text = chunk["message"].get("content")
+            if isinstance(text, str) and text:
+                partial_fragments.append(text)
+        elif chunk["type"] == "final":
+            final_session = chunk["session"]
+            final_messages = chunk["messages"]
+
+    assert partial_fragments
+    assert final_session is not None
+    assert final_messages
+
+    assistant_msg = final_messages[-1]
+    assert assistant_msg.get("role") == "assistant"
+    assert isinstance(assistant_msg.get("content"), str)
+    assert "STREAM_OK" in assistant_msg["content"]
+
+    native_history = (final_session.metadata or {}).get("native_messages")
+    assert isinstance(native_history, list)
+    assert all(
+        not (
+            isinstance(item, dict)
+            and isinstance(item.get("type"), str)
+            and item["type"].startswith("response.")
+        )
+        for item in native_history
+    )

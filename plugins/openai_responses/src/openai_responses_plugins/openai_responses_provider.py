@@ -374,6 +374,15 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 return dumped
         raise RuntimeError("[openai_responses_provider] invalid SDK response payload")
 
+    def _stream_event_to_dict(self, event: Any) -> Dict[str, Any]:
+        if isinstance(event, dict):
+            return event
+        if hasattr(event, "model_dump"):
+            dumped = event.model_dump(mode="python")
+            if isinstance(dumped, dict):
+                return dumped
+        raise RuntimeError("[openai_responses_provider] invalid SDK stream event payload")
+
     def _response_internal_metadata(self, response_obj: Dict[str, Any]) -> Dict[str, Any]:
         md: Dict[str, Any] = {}
 
@@ -519,7 +528,54 @@ class OpenAIResponsesProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Iterator[Dict[str, Any]]:
-        return iter(())
+        request = state.get("request")
+        if not isinstance(request, dict):
+            raise RuntimeError("[openai_responses_provider] missing request in state")
+
+        payload = dict(request.get("payload") or {})
+
+        override = request.get("messages")
+        base_history = override if isinstance(override, list) else native_messages
+        self._validate_native_item_list(base_history)
+
+        input_items = [
+            self._strip_internal_metadata(item)
+            for item in base_history
+            if isinstance(item, dict)
+        ]
+
+        timeout = self._coerce_timeout(request.get("timeout", _DEFAULT_TIMEOUT))
+        extra_headers = dict(request.get("headers") or {})
+
+        client = state.get("client")
+        if client is None:
+            cfg = state.get("config") or {}
+            client = OpenAI(
+                api_key=self._resolve_api_key(cfg),
+                base_url=self._resolve_base_url(cfg),
+                timeout=timeout,
+            )
+
+        try:
+            sdk_stream = client.responses.create(  # type: ignore[union-attr]
+                **{**payload, "input": input_items, "stream": True},
+                extra_headers=extra_headers,
+                timeout=timeout,
+            )
+        except Exception as exc:
+            raise RuntimeError(f"OpenAI Responses stream failed: {exc}") from exc
+
+        try:
+            if hasattr(sdk_stream, "__enter__") and hasattr(sdk_stream, "__exit__"):
+                with sdk_stream as stream:
+                    for event in stream:
+                        yield self._stream_event_to_dict(event)
+                return
+
+            for event in sdk_stream:
+                yield self._stream_event_to_dict(event)
+        except Exception as exc:
+            raise RuntimeError(f"OpenAI Responses stream failed: {exc}") from exc
 
     def process_chunk(
         self,
@@ -527,7 +583,35 @@ class OpenAIResponsesProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        return [], [], list(native_messages), state
+        event = native_chunk if isinstance(native_chunk, dict) else {}
+        event_type = event.get("type")
+
+        emitted_partials: List[Dict[str, Any]] = []
+        emitted_finals: List[Dict[str, Any]] = []
+
+        if event_type == "response.output_text.delta":
+            delta = event.get("delta")
+            if isinstance(delta, str) and delta:
+                emitted_partials.append({"role": "assistant", "content": delta})
+
+        if event_type == "response.completed":
+            response_payload = event.get("response")
+            response_obj = self._response_to_dict(response_payload)
+
+            output = response_obj.get("output")
+            if not isinstance(output, list):
+                raise RuntimeError(
+                    "OpenAI Responses stream failed: missing output list in response.completed event"
+                )
+
+            output_items = [item for item in output if isinstance(item, dict)]
+            response_md = self._response_internal_metadata(response_obj)
+            emitted_finals = self._attach_internal_metadata_to_output(output_items, response_md)
+
+            if emitted_finals:
+                return emitted_partials, emitted_finals, [*native_messages, *emitted_finals], state
+
+        return emitted_partials, emitted_finals, list(native_messages), state
 
     def finalize(
         self,
