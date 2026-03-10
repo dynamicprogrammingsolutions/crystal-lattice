@@ -1,0 +1,1 @@
+"""OpenRouter `/responses` provider bundle."""

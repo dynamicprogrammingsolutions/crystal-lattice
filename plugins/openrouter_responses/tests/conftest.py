@@ -1,0 +1,20 @@
+from __future__ import annotations
+
+import os
+import sys
+from pathlib import Path
+
+
+def pytest_configure() -> None:
+    # Ensure repo root is importable so application-layer modules and built-in
+    # tools can be loaded from config-file tests.
+    root = Path(__file__).resolve().parents[3]
+    root_str = str(root)
+    if root_str not in sys.path:
+        sys.path.insert(0, root_str)
+
+    # Ensure this plugin package's `src/` is importable.
+    src = Path(__file__).resolve().parents[1] / "src"
+    src_str = str(src)
+    if src_str not in sys.path:
+        sys.path.insert(0, src_str)

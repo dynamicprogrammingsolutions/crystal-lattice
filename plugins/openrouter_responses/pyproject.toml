@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "openrouter-responses-plugins"
+version = "0.1.0"
+description = "OpenRouter /responses provider + extensions for the AI Agent Platform"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "agent-core>=0.3.0",
+  "requests>=2.0.0",
+]
+
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.0.0",
+]
+
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["openrouter_responses_plugins*"]
+
+
+[tool.setuptools.data-files]
+"" = ["agent_plugin.json"]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+markers = [
+  "integration: integration tests that call real services",
+  "openrouter: tests requiring OpenRouter",
+  "expensive: long-running or higher-cost tests",
+]

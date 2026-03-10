@@ -1,5 +1,5 @@
 SEED (edit here; use exactly this text below):
-Fennel 983; Olive 193; Graphite 668; Mango.
+Fennel 983; Olive 193; Graphite 668.
 
 Task
 - Compute values from the SEED BEFORE calling any tools: base index p ∈ [0..9], bank index f ∈ [0..2], and a secret s ∈ [0..9]. You MAY disclose these values in tool preambles or as part of tool calls (if supported) to aid verification, and again in the final reasoning.
@@ -7,7 +7,7 @@ Task
 - After the final tool returns, output only the single matching label string in the first line, then the whole reasoning sequence on subsequent lines.
 
 Parameters
-- HOPS = 10  (Total tool calls = HOPS + 1; raise HOPS to add more steps.)
+- HOPS = 3  (Total tool calls = HOPS + 1; raise HOPS to add more steps.)
 
 Base Algorithm (deterministic, done BEFORE any tool call)
 1) From the SEED text, extract only alphabetic characters A–Z (ignore everything else), uppercase the result; call it A. Let L = len(A).

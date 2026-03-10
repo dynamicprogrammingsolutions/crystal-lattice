@@ -6,6 +6,8 @@ Short description: Add a first-class OpenRouter provider that calls the `/respon
 
 1. `tasks/20260309-openrouter-responses-provider/010-tool-schema-and-call-adapters-and-accessors.md`
 2. `tasks/20260309-openrouter-responses-provider/020-implement-openrouter-responses-provider.md`
+3. `tasks/20260309-openrouter-responses-provider/030-fix-gpt54-phase-reasoning-streaming.md`
+4. `tasks/20260309-openrouter-responses-provider/040-refactor-native-history-to-responses-items.md`
 
 Suggested execution order: `010` -> `020`.
 
@@ -16,3 +18,10 @@ Suggested execution order: `010` -> `020`.
 - The current tool ecosystem is explicitly “OpenAI-style” (`ToolPlugin.get_tool_schemas`) and the tool loop expects `assistant.metadata.tool_calls` in OpenAI-ish shapes.
 
 This task keeps OpenAI-ish tool schemas/calls as the *canonical internal representation for now*, and introduces small adapter classes (one direction each) plus accessor classes (read-only “views”) to reduce tight coupling to a single wire format.
+
+## References
+
+- OpenRouter Responses API: https://openrouter.ai/docs/api/api-reference/responses/create-responses.md
+- OpenAI Responses API reference: https://platform.openai.com/docs/api-reference/responses
+- OpenAI streaming guide (SSE): https://platform.openai.com/docs/guides/streaming
+- OpenRouter GPT-5.4 migration notes (phase/commentary preservation): https://openrouter.ai/docs/guides/guides/evaluate-and-optimize/model-migrations/gpt-5-4.md

@@ -1873,7 +1873,7 @@ class AgentCore:
                 yield {"type": "partial", "message": event["message"]}
             elif event["type"] == "final_messages":
                 # These are provider-native finals
-                log_chunk_processing.debug("final message received", final=event["message"])
+                log_chunk_processing.debug("final message received", final=event.get("messages"))
                 aggregated_native_finals.extend(event["messages"])
 
         # Finalize using the last accumulated native messages

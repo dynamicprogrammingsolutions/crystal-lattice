@@ -404,14 +404,38 @@ class SystemMessageFeature(FeaturePlugin):
 
         working_native = list(native_messages)
 
+        is_responses_items = False
+        for m in working_native:
+            if isinstance(m, dict):
+                is_responses_items = isinstance(m.get("type"), str) and bool(m.get("type"))
+                break
+        if not working_native:
+            req = state.get("request") if isinstance(state, dict) else None
+            url = req.get("url") if isinstance(req, dict) else None
+            if isinstance(url, str) and "/responses" in url:
+                is_responses_items = True
+
         # Structural step: ensure a permanent template-level system
         # message exists in the provider-native history when no user
         # system message is present and a template is configured.
-        has_system = any(m.get("role") == "system" for m in working_native)
+        if is_responses_items:
+            has_system = any(
+                isinstance(m, dict) and m.get("type") == "message" and m.get("role") == "system"
+                for m in working_native
+            )
+        else:
+            has_system = any(isinstance(m, dict) and m.get("role") == "system" for m in working_native)
         if not has_system:
             template = cfg.get("template", "") or ""
             if template:
-                synthetic = {"role": "system", "content": template}
+                if is_responses_items:
+                    synthetic = {
+                        "type": "message",
+                        "role": "system",
+                        "content": [{"type": "input_text", "text": template}],
+                    }
+                else:
+                    synthetic = {"role": "system", "content": template}
                 working_native = [synthetic, *working_native]
 
         if not working_native:
@@ -425,12 +449,35 @@ class SystemMessageFeature(FeaturePlugin):
         # messages take precedence over any earlier, config-derived one.
         system_index: int | None = None
         for idx in range(len(working_native) - 1, -1, -1):
-            if working_native[idx].get("role") == "system":
-                system_index = idx
-                break
+            msg = working_native[idx]
+            if not isinstance(msg, dict):
+                continue
+            if is_responses_items:
+                if msg.get("type") == "message" and msg.get("role") == "system":
+                    system_index = idx
+                    break
+            else:
+                if msg.get("role") == "system":
+                    system_index = idx
+                    break
 
         if system_index is not None:
-            base_template = str(working_native[system_index].get("content", "") or "")
+            sys_msg = working_native[system_index]
+            if is_responses_items:
+                content = sys_msg.get("content") if isinstance(sys_msg, dict) else None
+                text_parts: List[str] = []
+                if isinstance(content, list):
+                    for part in content:
+                        if not isinstance(part, dict):
+                            continue
+                        if part.get("type") != "input_text":
+                            continue
+                        text = part.get("text")
+                        if isinstance(text, str) and text:
+                            text_parts.append(text)
+                base_template = "\n".join(text_parts)
+            else:
+                base_template = str(sys_msg.get("content", "") or "")
         else:
             base_template = cfg.get("template", "") or ""
 
@@ -444,9 +491,40 @@ class SystemMessageFeature(FeaturePlugin):
         override_messages = list(working_native)
         if system_index is not None:
             original = dict(override_messages[system_index])
-            override_messages[system_index] = {**original, "content": rendered}
+            if is_responses_items:
+                content = original.get("content")
+                parts = list(content) if isinstance(content, list) else []
+
+                replaced = False
+                new_parts: List[Dict[str, Any]] = []
+                for part in parts:
+                    if not isinstance(part, dict) or replaced:
+                        new_parts.append(part)
+                        continue
+                    if part.get("type") != "input_text":
+                        new_parts.append(part)
+                        continue
+                    new_parts.append({**part, "text": rendered})
+                    replaced = True
+
+                if not replaced:
+                    new_parts = [{"type": "input_text", "text": rendered}, *new_parts]
+
+                override_messages[system_index] = {**original, "content": new_parts}
+            else:
+                override_messages[system_index] = {**original, "content": rendered}
         else:
-            override_messages = [{"role": "system", "content": rendered}, *override_messages]
+            if is_responses_items:
+                override_messages = [
+                    {
+                        "type": "message",
+                        "role": "system",
+                        "content": [{"type": "input_text", "text": rendered}],
+                    },
+                    *override_messages,
+                ]
+            else:
+                override_messages = [{"role": "system", "content": rendered}, *override_messages]
 
         request = state.get("request") or {}
         new_request = {**request, "messages": override_messages}

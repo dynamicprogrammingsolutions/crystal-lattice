@@ -4,7 +4,7 @@ Task
 - Output exactly the label string and nothing else.
 
 Parameters
-- HOPS = 2  (Total tool calls = HOPS + 1; raise HOPS to add more steps.)
+- HOPS = 3  (Total tool calls = HOPS + 1; raise HOPS to add more steps.)
 
 Base Algorithm (deterministic, done BEFORE any tool call)
 1) From the SEED text, extract only alphabetic characters A–Z (ignore everything else), uppercase the result; call it A. Let L = len(A).

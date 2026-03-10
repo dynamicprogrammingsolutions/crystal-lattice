@@ -1,0 +1,22 @@
+{
+  "module": "openrouter_responses_plugins",
+  "subdirectory": ".",
+  "entries": [
+    "openrouter_responses_plugins.openrouter_responses_provider.OpenRouterResponsesProvider",
+    "openrouter_responses_plugins.openrouter_responses_tools_extension.OpenRouterResponsesToolsExtension",
+    "openrouter_responses_plugins.openrouter_responses_usage_extension.OpenRouterResponsesUsageExtension",
+    "openrouter_responses_plugins.openrouter_responses_reasoning_extension.OpenRouterResponsesReasoningExtension",
+    "openrouter_responses_plugins.openrouter_responses_websearch_extension.OpenRouterResponsesWebSearchExtension",
+    "openrouter_responses_plugins.openrouter_responses_verbosity_extension.OpenRouterResponsesVerbosityExtension",
+    "openrouter_responses_plugins.openrouter_responses_claude_caching_extension.OpenRouterResponsesClaudeCachingExtension"
+  ],
+  "kinds": {
+    "openrouter_responses_plugins.openrouter_responses_provider.OpenRouterResponsesProvider": "providers",
+    "openrouter_responses_plugins.openrouter_responses_tools_extension.OpenRouterResponsesToolsExtension": "extensions",
+    "openrouter_responses_plugins.openrouter_responses_usage_extension.OpenRouterResponsesUsageExtension": "extensions",
+    "openrouter_responses_plugins.openrouter_responses_reasoning_extension.OpenRouterResponsesReasoningExtension": "extensions",
+    "openrouter_responses_plugins.openrouter_responses_websearch_extension.OpenRouterResponsesWebSearchExtension": "extensions",
+    "openrouter_responses_plugins.openrouter_responses_verbosity_extension.OpenRouterResponsesVerbosityExtension": "extensions",
+    "openrouter_responses_plugins.openrouter_responses_claude_caching_extension.OpenRouterResponsesClaudeCachingExtension": "extensions"
+  }
+}
