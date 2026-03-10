@@ -1,16 +1,29 @@
-"""OpenAI Responses provider scaffold.
+"""OpenAI Responses provider implementation.
 
-This file intentionally keeps implementation minimal for the package-scaffolding
-subtask. Full Responses API transport and conversion behavior is implemented in
-later subtasks.
+Provider scope for subtask 030:
+- provider identity/config/tags
+- request initialization for /responses
+- generic core <-> Responses-native conversion
+- non-streaming SDK call path
+
+Extension-owned business logic (tools/reasoning/usage/verbosity shaping and
+extraction) is intentionally out of scope here.
 """
 
 from __future__ import annotations
 
+import json
 import os
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
+from openai import OpenAI
+
 from agent_core.types import ProviderPlugin
+
+
+JsonObject = Dict[str, Any]
+_DEFAULT_BASE_URL = "https://api.openai.com/v1"
+_DEFAULT_TIMEOUT = 60.0
 
 
 class OpenAIResponsesProvider(ProviderPlugin):
@@ -28,9 +41,13 @@ class OpenAIResponsesProvider(ProviderPlugin):
             "base_url": {
                 "type": "string",
                 "required": False,
-                "default": "https://api.openai.com/v1",
+                "default": _DEFAULT_BASE_URL,
             },
-            "timeout": {"type": "number", "required": False, "default": 60},
+            "timeout": {
+                "type": "number",
+                "required": False,
+                "default": _DEFAULT_TIMEOUT,
+            },
         }
 
     def get_ui_elements(
@@ -43,8 +60,8 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
     def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         model = config.get("model")
-        if isinstance(model, str) and model:
-            return [{"id": model}]
+        if isinstance(model, str) and model.strip():
+            return [{"id": model.strip()}]
         return []
 
     def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
@@ -54,8 +71,54 @@ class OpenAIResponsesProvider(ProviderPlugin):
             "supports_streaming",
         ]
 
+    def _coerce_timeout(self, raw: Any) -> float:
+        try:
+            timeout = float(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("[openai_responses_provider] timeout must be numeric") from exc
+        if timeout <= 0:
+            raise ValueError("[openai_responses_provider] timeout must be > 0")
+        return timeout
+
+    def _resolve_api_key(self, config: Dict[str, Any]) -> str:
+        api_key = config.get("api_key") or os.getenv("OPENAI_API_KEY")
+        if not isinstance(api_key, str) or not api_key.strip():
+            raise ValueError(
+                "[openai_responses_provider] api_key is required (config.api_key or OPENAI_API_KEY)"
+            )
+        return api_key.strip()
+
+    def _resolve_model(self, config: Dict[str, Any]) -> str:
+        model = config.get("model")
+        if not isinstance(model, str) or not model.strip():
+            raise ValueError("[openai_responses_provider] model is required")
+        return model.strip()
+
+    def _resolve_base_url(self, config: Dict[str, Any]) -> str:
+        base_url = config.get("base_url") or _DEFAULT_BASE_URL
+        if not isinstance(base_url, str) or not base_url.strip():
+            raise ValueError("[openai_responses_provider] base_url must be a non-empty string")
+        return base_url.rstrip("/")
+
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        return {"config": config}
+        if not isinstance(config, dict):
+            raise TypeError("[openai_responses_provider] config must be a dict")
+
+        model = self._resolve_model(config)
+        api_key = self._resolve_api_key(config)
+        base_url = self._resolve_base_url(config)
+        timeout = self._coerce_timeout(config.get("timeout", _DEFAULT_TIMEOUT))
+
+        normalized_config = {
+            **config,
+            "model": model,
+            "api_key": api_key,
+            "base_url": base_url,
+            "timeout": timeout,
+        }
+
+        client = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
+        return {"config": normalized_config, "client": client}
 
     def initialize_request(
         self,
@@ -64,30 +127,156 @@ class OpenAIResponsesProvider(ProviderPlugin):
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         cfg = state.get("config") or {}
 
-        api_key = cfg.get("api_key") or os.getenv("OPENAI_API_KEY")
-        base_url = str(cfg.get("base_url") or "https://api.openai.com/v1").rstrip("/")
-        model = cfg.get("model")
-        timeout = float(cfg.get("timeout", 60))
-
-        headers: Dict[str, str] = {"Content-Type": "application/json"}
-        if isinstance(api_key, str) and api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
+        model = self._resolve_model(cfg)
+        api_key = self._resolve_api_key(cfg)
+        base_url = self._resolve_base_url(cfg)
+        timeout = self._coerce_timeout(cfg.get("timeout", _DEFAULT_TIMEOUT))
 
         request = {
             "url": f"{base_url}/responses",
             "payload": {"model": model},
-            "headers": headers,
+            "headers": {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}",
+            },
             "timeout": timeout,
         }
 
         return list(native_messages), {**state, "request": request}
+
+    def _native_internal_from_core_metadata(self, metadata: Any) -> Dict[str, Any]:
+        if not isinstance(metadata, dict):
+            return {}
+        out = dict(metadata)
+        out.pop("native_indices", None)
+        return out
+
+    def _core_metadata_from_native_internal(self, internal: Any) -> Dict[str, Any]:
+        if not isinstance(internal, dict):
+            return {}
+        out = dict(internal)
+        out.pop("native_indices", None)
+        return out
+
+    def _extract_text_and_images_from_content(
+        self,
+        content: Any,
+    ) -> Tuple[str, List[Dict[str, Any]]]:
+        text_parts: List[str] = []
+        images: List[Dict[str, Any]] = []
+
+        if not isinstance(content, list):
+            return "", images
+
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+
+            ptype = part.get("type")
+            if ptype in ("input_text", "output_text", "text"):
+                text = part.get("text")
+                if isinstance(text, str) and text:
+                    text_parts.append(text)
+                continue
+
+            if ptype in ("input_image", "image_url"):
+                image_url = part.get("image_url")
+                if isinstance(image_url, dict):
+                    image_url = image_url.get("url")
+                if isinstance(image_url, str) and image_url:
+                    images.append({"type": "image", "content": {"url": image_url}, "metadata": {}})
+
+        return "\n".join(text_parts).strip(), images
 
     def to_native_messages(
         self,
         messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
-        return [m for m in messages if isinstance(m, dict)]
+        native: List[Dict[str, Any]] = []
+
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+
+            # Allow explicit provider-native pass-through.
+            if isinstance(msg.get("type"), str):
+                native.append(msg)
+                continue
+
+            role = msg.get("role")
+            metadata = msg.get("metadata")
+            internal_md = self._native_internal_from_core_metadata(metadata)
+
+            if role in ("system", "user", "assistant", "developer"):
+                content = msg.get("content", "")
+                text = content if isinstance(content, str) else ""
+
+                parts: List[Dict[str, Any]] = []
+                if text:
+                    parts.append({"type": "input_text", "text": text})
+
+                multipart = msg.get("multipartContent")
+                if isinstance(multipart, list):
+                    for part in multipart:
+                        if not isinstance(part, dict) or part.get("type") != "image":
+                            continue
+                        pcontent = part.get("content")
+                        if not isinstance(pcontent, dict):
+                            continue
+                        url = pcontent.get("url")
+                        if isinstance(url, str) and url:
+                            parts.append({"type": "input_image", "image_url": url})
+
+                item: Dict[str, Any] = {
+                    "type": "message",
+                    "role": role,
+                    "content": parts,
+                }
+
+                if role == "assistant" and isinstance(metadata, dict):
+                    phase = metadata.get("phase")
+                    if isinstance(phase, str) and phase:
+                        item["phase"] = phase
+
+                if internal_md:
+                    item["_metadata"] = internal_md
+                native.append(item)
+                continue
+
+            if role == "tool":
+                tool_call_id = None
+                if isinstance(metadata, dict):
+                    tool_call_id = metadata.get("tool_call_id")
+                if not isinstance(tool_call_id, str) or not tool_call_id:
+                    raise ValueError(
+                        "[openai_responses_provider] tool message requires metadata.tool_call_id"
+                    )
+
+                output = msg.get("content", "")
+                if not isinstance(output, str):
+                    try:
+                        output = json.dumps(output, ensure_ascii=False)
+                    except Exception:
+                        output = ""
+
+                item = {
+                    "type": "function_call_output",
+                    "call_id": tool_call_id,
+                    "output": output,
+                }
+
+                internal_tool_md = dict(internal_md)
+                internal_tool_md.pop("tool_call_id", None)
+                if internal_tool_md:
+                    item["_metadata"] = internal_tool_md
+
+                native.append(item)
+                continue
+
+            raise ValueError(f"[openai_responses_provider] unsupported role: {role}")
+
+        return native
 
     def from_native_messages(
         self,
@@ -95,21 +284,235 @@ class OpenAIResponsesProvider(ProviderPlugin):
         state: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         out: List[Dict[str, Any]] = []
-        for msg in native_messages:
-            if not isinstance(msg, dict):
+
+        for native_index, item in enumerate(native_messages):
+            if not isinstance(item, dict):
                 continue
-            role = msg.get("role")
-            content = msg.get("content")
-            if isinstance(role, str) and isinstance(content, str):
-                out.append({"role": role, "content": content, "metadata": {}})
+
+            # Streaming partial compatibility: allow chat-like shape.
+            if "type" not in item and ("role" in item or "content" in item):
+                role = item.get("role") if isinstance(item.get("role"), str) else "assistant"
+                content = item.get("content") if isinstance(item.get("content"), str) else ""
+                md = self._core_metadata_from_native_internal(item.get("_metadata"))
+                md["native_indices"] = [native_index]
+                out.append({"role": role, "content": content, "metadata": md})
+                continue
+
+            item_type = item.get("type")
+            internal_md = self._core_metadata_from_native_internal(item.get("_metadata"))
+
+            if item_type == "message":
+                role = item.get("role") if isinstance(item.get("role"), str) else "assistant"
+                text, images = self._extract_text_and_images_from_content(item.get("content"))
+
+                md = dict(internal_md)
+                phase = item.get("phase")
+                if isinstance(phase, str) and phase:
+                    md.setdefault("phase", phase)
+                md["native_indices"] = [native_index]
+
+                core_msg: Dict[str, Any] = {
+                    "role": role,
+                    "content": text,
+                    "metadata": md,
+                }
+                if images:
+                    core_msg["multipartContent"] = images
+
+                out.append(core_msg)
+                continue
+
+            if item_type == "function_call_output":
+                call_id = item.get("call_id")
+                if not isinstance(call_id, str) or not call_id:
+                    continue
+
+                output = item.get("output")
+                if not isinstance(output, str):
+                    try:
+                        output = json.dumps(output, ensure_ascii=False)
+                    except Exception:
+                        output = ""
+
+                md = dict(internal_md)
+                md.setdefault("tool_call_id", call_id)
+                md["native_indices"] = [native_index]
+
+                out.append(
+                    {
+                        "role": "tool",
+                        "content": output,
+                        "metadata": md,
+                    }
+                )
+
         return out
+
+    def _validate_native_item_list(self, items: List[Dict[str, Any]]) -> None:
+        for idx, item in enumerate(items):
+            if not isinstance(item, dict):
+                raise RuntimeError(
+                    f"[openai_responses_provider] invalid input item at index {idx}: expected dict"
+                )
+            item_type = item.get("type")
+            if not isinstance(item_type, str) or not item_type:
+                raise RuntimeError(
+                    f"[openai_responses_provider] invalid input item at index {idx}: missing 'type'"
+                )
+
+    def _strip_internal_metadata(self, item: JsonObject) -> JsonObject:
+        if "_metadata" not in item:
+            return item
+        return {k: v for k, v in item.items() if k != "_metadata"}
+
+    def _response_to_dict(self, response: Any) -> Dict[str, Any]:
+        if isinstance(response, dict):
+            return response
+        if hasattr(response, "model_dump"):
+            dumped = response.model_dump(mode="python")
+            if isinstance(dumped, dict):
+                return dumped
+        raise RuntimeError("[openai_responses_provider] invalid SDK response payload")
+
+    def _response_internal_metadata(self, response_obj: Dict[str, Any]) -> Dict[str, Any]:
+        md: Dict[str, Any] = {}
+
+        response_id = response_obj.get("id")
+        if isinstance(response_id, str) and response_id:
+            md["response_id"] = response_id
+
+        usage = response_obj.get("usage")
+        if isinstance(usage, dict) and usage:
+            md["usage"] = usage
+
+        return md
+
+    def _select_primary_output_item_index(self, output_items: List[JsonObject]) -> Optional[int]:
+        if not output_items:
+            return None
+
+        for idx in range(len(output_items) - 1, -1, -1):
+            item = output_items[idx]
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") != "message":
+                continue
+            role = item.get("role")
+            if role is not None and role != "assistant":
+                continue
+            if item.get("phase") == "final_answer":
+                return idx
+
+        for idx in range(len(output_items) - 1, -1, -1):
+            item = output_items[idx]
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") != "message":
+                continue
+            role = item.get("role")
+            if role is None or role == "assistant":
+                return idx
+
+        return len(output_items) - 1
+
+    def _attach_internal_metadata_to_output(
+        self,
+        output_items: List[JsonObject],
+        response_md: Dict[str, Any],
+    ) -> List[JsonObject]:
+        if not output_items:
+            return list(output_items)
+
+        response_id = response_md.get("response_id")
+
+        annotated: List[JsonObject] = []
+        for item in output_items:
+            if not isinstance(item, dict):
+                annotated.append(item)
+                continue
+
+            base_internal = item.get("_metadata")
+            base_internal_dict = base_internal if isinstance(base_internal, dict) else {}
+
+            if isinstance(response_id, str) and response_id:
+                annotated.append({**item, "_metadata": {**base_internal_dict, "response_id": response_id}})
+            else:
+                annotated.append(item)
+
+        usage = response_md.get("usage")
+        if not isinstance(usage, dict) or not usage:
+            return annotated
+
+        primary_idx = self._select_primary_output_item_index(annotated)
+        if primary_idx is None:
+            return annotated
+
+        final: List[JsonObject] = []
+        for idx, item in enumerate(annotated):
+            if idx != primary_idx or not isinstance(item, dict):
+                final.append(item)
+                continue
+
+            base_internal = item.get("_metadata")
+            base_internal_dict = base_internal if isinstance(base_internal, dict) else {}
+            final.append({**item, "_metadata": {**base_internal_dict, "usage": usage}})
+
+        return final
 
     def call_api(
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        return [], [], list(native_messages), state
+        request = state.get("request")
+        if not isinstance(request, dict):
+            raise RuntimeError("[openai_responses_provider] missing request in state")
+
+        payload = dict(request.get("payload") or {})
+
+        override = request.get("messages")
+        base_history = override if isinstance(override, list) else native_messages
+        self._validate_native_item_list(base_history)
+
+        input_items = [
+            self._strip_internal_metadata(item)
+            for item in base_history
+            if isinstance(item, dict)
+        ]
+
+        timeout = self._coerce_timeout(request.get("timeout", _DEFAULT_TIMEOUT))
+        extra_headers = dict(request.get("headers") or {})
+
+        client = state.get("client")
+        if client is None:
+            cfg = state.get("config") or {}
+            client = OpenAI(
+                api_key=self._resolve_api_key(cfg),
+                base_url=self._resolve_base_url(cfg),
+                timeout=timeout,
+            )
+
+        try:
+            sdk_response = client.responses.create(  # type: ignore[union-attr]
+                **{**payload, "input": input_items, "stream": False},
+                extra_headers=extra_headers,
+                timeout=timeout,
+            )
+        except Exception as exc:
+            raise RuntimeError(f"OpenAI Responses call failed: {exc}") from exc
+
+        response_obj = self._response_to_dict(sdk_response)
+
+        output = response_obj.get("output")
+        if not isinstance(output, list):
+            raise RuntimeError("OpenAI Responses call failed: missing output list in response")
+
+        output_items = [item for item in output if isinstance(item, dict)]
+
+        response_md = self._response_internal_metadata(response_obj)
+        annotated_output = self._attach_internal_metadata_to_output(output_items, response_md)
+
+        return [], annotated_output, [*native_messages, *annotated_output], state
 
     def stream_api(
         self,
