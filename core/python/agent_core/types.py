@@ -472,7 +472,12 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         ```
     """
 
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
         """Initialize with application config and shared provider state.
 
         Note:
@@ -482,6 +487,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         Args:
             config: Application-supplied configuration.
             state: Current shared provider state.
+            models: Optional model descriptors for this config (injected by core).
  
         Returns:
             Updated shared provider state (or the same state).

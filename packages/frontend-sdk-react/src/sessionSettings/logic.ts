@@ -11,6 +11,19 @@ function hasOwn(obj: unknown, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(obj, key);
 }
 
+function looseEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return a === b;
+  if (typeof a === 'object' && typeof b === 'object') {
+    try {
+      return JSON.stringify(a) === JSON.stringify(b);
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 export function filterConfigUiSchemaElements(elements: UiSchemaElement[]): UiSchemaElement[] {
   return (Array.isArray(elements) ? elements : []).filter((element) => {
     if (!element || typeof element !== 'object') {
@@ -53,6 +66,7 @@ function resolveValue(params: {
   overrides: Record<string, unknown>;
   baseConfig: Record<string, unknown>;
   schemaByKey: ConfigSchemaByKey;
+  element?: UiSchemaElement | null;
 }): {
   hasOverride: boolean;
   overrideValue: unknown;
@@ -63,7 +77,7 @@ function resolveValue(params: {
   tagLabel: SessionSettingTagLabel;
   effectiveValue: unknown;
 } {
-  const { key, overrides, baseConfig, schemaByKey } = params;
+  const { key, overrides, baseConfig, schemaByKey, element } = params;
 
   const hasOverride = hasOwn(overrides, key);
   const overrideValue = hasOverride ? overrides[key] : undefined;
@@ -75,6 +89,10 @@ function resolveValue(params: {
   const schemaHasDefault =
     schemaEntry && hasOwn(schemaEntry, 'default') && (schemaEntry as any).default !== undefined;
   const schemaDefaultValue = schemaHasDefault ? (schemaEntry as any).default : undefined;
+
+  const elementHasDefault =
+    element && hasOwn(element, 'default') && (element as any).default !== undefined;
+  const elementDefaultValue = elementHasDefault ? (element as any).default : undefined;
 
   if (hasOverride) {
     return {
@@ -90,6 +108,14 @@ function resolveValue(params: {
   }
 
   if (baseHasValue) {
+    // When base config value equals schema or element default, show "default" for consistency.
+    const matchesSchemaDefault =
+      schemaHasDefault && looseEqual(baseValue, schemaDefaultValue);
+    const matchesElementDefault =
+      elementHasDefault && looseEqual(baseValue, elementDefaultValue);
+    const tagLabel: SessionSettingTagLabel =
+      matchesSchemaDefault || matchesElementDefault ? 'default' : 'config';
+
     return {
       hasOverride,
       overrideValue,
@@ -97,7 +123,7 @@ function resolveValue(params: {
       baseValue,
       schemaDefaultValue,
       source: 'config',
-      tagLabel: 'config',
+      tagLabel,
       effectiveValue: baseValue,
     };
   }
@@ -112,6 +138,19 @@ function resolveValue(params: {
       source: 'schema_default',
       tagLabel: 'default',
       effectiveValue: schemaDefaultValue,
+    };
+  }
+
+  if (elementHasDefault) {
+    return {
+      hasOverride,
+      overrideValue,
+      baseHasValue,
+      baseValue,
+      schemaDefaultValue,
+      source: 'schema_default',
+      tagLabel: 'default',
+      effectiveValue: elementDefaultValue,
     };
   }
 
@@ -158,7 +197,13 @@ export function buildSessionSettingItems(params: {
       const description =
         typeof (element as any).description === 'string' ? ((element as any).description as string) : '';
 
-      const resolved = resolveValue({ key, overrides, baseConfig, schemaByKey });
+      const resolved = resolveValue({
+        key,
+        overrides,
+        baseConfig,
+        schemaByKey,
+        element,
+      });
       return {
         key,
         type,

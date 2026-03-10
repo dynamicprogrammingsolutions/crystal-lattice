@@ -1506,15 +1506,14 @@ class AgentCore:
         """
         base_config: Dict[str, Any] = dict(config) if isinstance(config, dict) else {}
 
-        base_config: Dict[str, Any] = dict(config) if isinstance(config, dict) else {}
-
         tool_schemas: List[Dict[str, Any]] = []
         for tool in tools:
             tool_state = tool.init(base_config)
             tool_schemas.extend(tool.get_tool_schemas(tool_state))
         provider_config = {**base_config, **({"tools": tool_schemas} if tool_schemas else {})}
 
-        state = provider.init(provider_config)
+        models = self._get_models_for_config(provider, base_config)
+        state = provider.init(provider_config, models=models)
         sorted_features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
         for feature in sorted_features:
             state = feature.init(provider_config, state)

@@ -45,8 +45,12 @@ class OpenAIToolsExtension:
         return ["supports_tools", "provider:openai_compatible"]
 
     # ---- Init/State ----
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-
+    def init(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
         tools = config.get("tools")
         return {**state, "_openai_tools": tools if isinstance(tools, list) else []}
 
