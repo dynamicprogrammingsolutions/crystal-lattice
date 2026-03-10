@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from agent_core.types import ProviderExtensionPlugin
 
@@ -28,7 +28,12 @@ class OpenAICompatibleReasoningExtension(AccumulatorExtensionMixin, ProviderExte
     ) -> list[dict[str, Any]]:
         return [{"type": "checkbox", "key": "think", "label": "Enable thinking"}]
 
-    def init(self, config: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
+    def init(
+        self,
+        config: dict[str, Any],
+        state: dict[str, Any],
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> dict[str, Any]:
         enabled = bool(config.get("think"))
         return {**state, "_think_enabled": enabled}
 

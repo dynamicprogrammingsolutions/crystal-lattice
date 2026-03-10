@@ -27,9 +27,14 @@ class ExtensionWrapper(ProviderExtensionPlugin):
         self.version = getattr(plugin_class, "version", "unknown")
         self.priority = getattr(plugin_class, "priority", 100)
 
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
         """Initialize with config and shared state; return updated shared state."""
-        return self.plugin.init(config, state)
+        return self.plugin.init(config, state, models)
 
     def get_config_schema(self) -> Dict[str, Any]:
         return self.plugin.get_config_schema()

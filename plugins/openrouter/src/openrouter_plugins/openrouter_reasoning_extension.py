@@ -11,6 +11,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from agent_core.types import ProviderExtensionPlugin
 
+from .model_capabilities import (
+    REASONING_EFFORT_ALL_VALUES,
+    get_reasoning_effort_options_and_default,
+)
+
 class OpenRouterReasoningExtension(ProviderExtensionPlugin):
     """Provider extension to enable OpenRouter reasoning.
 
@@ -46,14 +51,14 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
 
     def required_tags(self) -> List[str]:
         """Require OpenRouter provider and reasoning support."""
-        return ["openrouter", "supports_reasoning", "feature:request_options"]
+        return ["openrouter", "supports_reasoning"]
 
     def get_config_schema(self) -> Dict[str, Any]:
         return {
             "reasoning_effort": {
                 "type": "string",
                 "required": False,
-                "enum": ["low", "medium", "high", "xhigh"],
+                "enum": list(REASONING_EFFORT_ALL_VALUES),
                 "description": "Control reasoning depth (model-specific)",
             },
             "enable_reasoning": {
@@ -75,48 +80,66 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         # Remove prints for clean output
-        if tags is not None and "supports_reasoning" not in tags:
+        selected_id = config.get("model") if isinstance(config, dict) else None
+        options, default = get_reasoning_effort_options_and_default(selected_id)
+        
+        if not options:
             return []
         ui_elements: List[Dict[str, Any]] = [
             {
+                "ui_type": "config",
                 "type": "checkbox",
                 "key": "enable_reasoning",
                 "label": "Enable Reasoning",
             }
         ]
-        if tags is not None and "supports_reasoning_effort" in tags:
+        # if enable_reasoning is set to False normally due to request options, skip the list of options for effort
+        if (config and config.get("enable_reasoning",False) == False):
+            return ui_elements;
+        if options:
             ui_elements.append({
                 "type": "select",
                 "key": "reasoning_effort",
                 "label": "Reasoning Effort",
-                "options": [
-                    {"value": "low", "label": "low"},
-                    {"value": "medium", "label": "medium"},
-                    {"value": "high", "label": "high"},
-                    {"value": "xhigh", "label": "xhigh"},
-                ],
+                "options": options,
+                "default": default,
             })
         return ui_elements
 
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        # Check if any reasoning-related config is present
-        has_reasoning_config = any([
-            config.get("enable_reasoning"),
-            config.get("reasoning_effort"),
-            config.get("reasoning_max_tokens")
-        ])
-
-        if not has_reasoning_config:
+    def init(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        if (config and config.get("enable_reasoning",False) == False):
             return state
+
+        current_model_id = config.get("model")
+        current_model = (
+            next((m for m in models if m.get("id") == current_model_id), None)
+            if models
+            else None
+        )
+        if not current_model:
+            return state
+
+        supported_params = current_model.get("supported_parameters") or []
+        if isinstance(supported_params, list) and "reasoning" not in supported_params:
+            return state
+
 
         reasoning_config = {
             "reasoning": {}
         }
 
+        selected_model = config.get("model")
+        _options, default = get_reasoning_effort_options_and_default(selected_model)
+
         if "enable_reasoning" in config:
             reasoning_config["reasoning"]["enabled"] = config["enable_reasoning"]
-        if "reasoning_effort" in config:
-            reasoning_config["reasoning"]["effort"] = config["reasoning_effort"]
+        if "reasoning_effort" in config or default:
+            reasoning_config["reasoning"]["effort"] = config.get("reasoning_effort", default)
         if "reasoning_max_tokens" in config:
             reasoning_config["reasoning"]["max_tokens"] = config["reasoning_max_tokens"]
     

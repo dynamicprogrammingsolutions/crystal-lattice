@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from agent_core.types import ProviderExtensionPlugin
 
@@ -54,7 +54,12 @@ class OpenAICompatibleToolsExtension(AccumulatorExtensionMixin, ProviderExtensio
     def required_tags(self) -> list[str]:
         return ["provider:openai_compatible", "supports_tools"]
 
-    def init(self, config: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
+    def init(
+        self,
+        config: dict[str, Any],
+        state: dict[str, Any],
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> dict[str, Any]:
         tools = config.get("tools")
         return {**state, "_tools": tools if isinstance(tools, list) else []}
 

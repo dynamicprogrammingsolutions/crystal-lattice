@@ -21,7 +21,7 @@ for streaming responses.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from agent_core.types import ProviderExtensionPlugin
 
@@ -265,7 +265,12 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
         return enhanced
 
     # ---- Lifecycle hooks ----
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
         # No additional state is required; just pass existing state through.
         return state
 

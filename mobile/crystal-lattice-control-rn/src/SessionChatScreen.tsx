@@ -2274,8 +2274,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 const key = typeof el.key === 'string' && el.key.trim() ? el.key : '';
                 if (!key) return null;
                 const options = normalizeSelectOptions(el.options);
+                const elementDefault =
+                  typeof (el as any).default === 'string' ? (el as any).default : undefined;
                 const effectiveValue =
-                  sessionOverrides[key] ?? sessionBaseConfig[key] ?? options[0]?.value ?? '';
+                  sessionOverrides[key] ??
+                  sessionBaseConfig[key] ??
+                  elementDefault ??
+                  options[0]?.value ??
+                  '';
                 const selectedLabel =
                   options.find((o) => o.value === effectiveValue)?.label ?? String(effectiveValue);
                 const label =

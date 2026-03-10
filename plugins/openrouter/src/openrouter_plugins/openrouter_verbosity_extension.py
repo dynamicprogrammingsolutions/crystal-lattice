@@ -11,7 +11,7 @@ more detailed responses.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from agent_core.types import ProviderExtensionPlugin
 
@@ -65,7 +65,12 @@ class OpenRouterVerbosityExtension(ProviderExtensionPlugin):
             }
         ]
 
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
         """Set verbosity in state only when the selected model supports it (e.g. gpt-5)."""
         selected_id = config.get("model") if isinstance(config, dict) else None
         if not isinstance(selected_id, str) or not selected_id or "gpt-5" not in selected_id:

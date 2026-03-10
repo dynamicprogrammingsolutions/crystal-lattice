@@ -342,10 +342,15 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
         self.name = getattr(impl, "name", impl.__class__.__name__)
         self.version = getattr(impl, "version", "unknown")
 
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore[override]
+    def init(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:  # type: ignore[override]
         fn = getattr(self.impl, "init", None)
         if callable(fn):
-            new_state = fn(config, state)
+            new_state = fn(config, state, models)
             return new_state if isinstance(new_state, dict) else state
         return state
 

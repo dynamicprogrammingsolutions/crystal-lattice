@@ -60,7 +60,12 @@ class RandomFailureExtension(ProviderExtensionPlugin):
             },
         ]
 
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
         """Configure global failure behaviour from application config.
 
         This does *not* store anything in the provider state; instead it
