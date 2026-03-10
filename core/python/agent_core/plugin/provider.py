@@ -80,19 +80,43 @@ class ProviderWrapper(ProviderPlugin):
         for ext_cls in extension_classes:
             self._extensions.append(ExtensionWrapper(ext_cls))
 
-    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def init(
+        self, config: Dict[str, Any], models: Optional[List[Dict[str, Any]]] = None
+    ) -> Dict[str, Any]:
         """Initialize provider and extensions using shared state owned by provider wrapper.
 
         Args:
-            config: Provider configuration
+            config: Provider configuration.
+            models: Optional models list.
 
         Returns:
             Shared provider state after extensions have updated it (if they do).
         """
         self.state = self.plugin.init(config)
-        # Let extensions update shared state during init
+        # Let extensions update shared state during init; pass models (from core)
+        exts = self._iter_extensions()
+        if not exts:
+            return self._get_state()
         pipe = pipeline(config)
-        self.state = pipe([ext.init for ext in self._iter_extensions()], self._get_state())
+
+        def _ext_init(ext: ExtensionWrapper):
+            """Wrap ext.init so the pipeline can pass (config, state, models) and carry (state, models)."""
+
+            def _run_init_then_carry_models(
+                config: Dict[str, Any],
+                provider_state: Dict[str, Any],
+                models_list: Optional[List[Dict[str, Any]]],
+            ) -> Tuple[Dict[str, Any], Optional[List[Dict[str, Any]]]]:
+                updated_state = ext.init(config, provider_state, models_list)
+                return (updated_state, models_list)
+
+            return _run_init_then_carry_models
+
+        self.state, _ = pipe(
+            [_ext_init(ext) for ext in exts],
+            self._get_state(),
+            models,
+        )
         return self._get_state()
 
     def _get_state(self) -> Dict[str, Any]:

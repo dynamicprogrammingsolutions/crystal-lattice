@@ -36,7 +36,7 @@ export function useSessionUiSchemaController(
   }, [controller, enabled]);
 
   const state = useSyncExternalStore(
-    (onStoreChange) => (controller ? controller.subscribe(onStoreChange) : () => {}),
+    (onStoreChange) => (controller ? controller.subscribe(onStoreChange) : () => { }),
     () => (controller ? controller.getSnapshot() : null),
     () => (controller ? controller.getSnapshot() : null),
   );

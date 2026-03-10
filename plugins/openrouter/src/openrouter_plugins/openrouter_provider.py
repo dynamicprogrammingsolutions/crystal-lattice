@@ -145,9 +145,8 @@ class OpenRouterProvider(ProviderPlugin):
         """Return capability tags based on model's supported_parameters.
         
         Checks the model's supported_parameters array from the OpenRouter API:
-        - 'reasoning' → 'supports_reasoning'
-        - 'verbosity' → 'supports_verbosity'
-        - 'tools' → 'supports_tools'
+        - 'tools' / 'tool' → 'supports_tools'
+        (Reasoning and verbosity tags are added by openrouter_reasoning and openrouter_verbosity extensions.)
         
         Always includes: provider:openrouter, openrouter, supports_streaming
         Falls back to hardcoded tags if model data unavailable.
@@ -161,15 +160,9 @@ class OpenRouterProvider(ProviderPlugin):
                 if isinstance(m, dict) and m.get("id") == selected_id:
                     supported_params = m.get("supported_parameters", [])
                     if isinstance(supported_params, list) and len(supported_params) > 0:
-                        # Map supported_parameters to capability tags
+                        # Map supported_parameters to capability tags (reasoning/verbosity in extensions)
                         if "tools" in supported_params or "tool" in supported_params:
                             tags.append("supports_tools")
-                        if "reasoning" in supported_params:
-                            tags.append("supports_reasoning")
-                            tags.append("supports_reasoning_effort")
-                        if "gpt-5" in selected_id:
-                            tags.append("supports_verbosity")
-
                         return tags
 
         return tags
@@ -436,11 +429,13 @@ class OpenRouterProvider(ProviderPlugin):
         request = state["request"]
         payload: Dict[str, Any] = {}
         try:
+            logger = get_logger("openrouter_provider")
             self._validate_message_list(native_messages)
             override = request.get("messages")
             messages = override if isinstance(override, list) else native_messages
             payload = {**request["payload"], "messages": messages, "stream": True}
-            get_logger('openrouter_provider').info("sending request", payload=str(payload))
+            logger.info("sending request", payload=str({**payload, "messages": "stripped", "tools": "stripped"}))
+            logger.debug("full payload for streaming request", payload=payload)
             with requests.post(
                 request["url"],
                 json=payload,

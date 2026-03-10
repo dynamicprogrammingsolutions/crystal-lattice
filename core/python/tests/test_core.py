@@ -110,9 +110,14 @@ def test_get_config_schema_with_plugins():
 
 
 def test_get_ui_schema_empty():
-    """Test UI schema with no plugins."""
+    """Test UI schema with a provider that returns no UI elements."""
+    class _EmptyUiProvider(DummyProvider):
+        def get_ui_elements(self, config=None, tags=None, models=None):
+            return []
+
     core = AgentCore()
-    schema = core.get_ui_schema({})
+    core.register_provider(_EmptyUiProvider)
+    schema = core.get_ui_schema(config={})
     assert isinstance(schema, list)
     assert len(schema) == 0
 
@@ -123,6 +128,16 @@ def test_get_ui_schema_with_plugins():
     core.register_provider(DummyProvider)
     core.register_feature(DummyFeature)
     schema = core.get_ui_schema({})
+    assert isinstance(schema, list)
+    keys = {el.get("key") for el in schema if isinstance(el, dict)}
+    # DummyProvider UI exposes the "model" field; DummyFeature exposes
+    # the "prefix" field.
+    assert "model" in keys
+    assert "prefix" in keys
+ 
+
+    schema = core.get_ui_schema(config={})
+
     assert isinstance(schema, list)
     keys = {el.get("key") for el in schema if isinstance(el, dict)}
     # DummyProvider UI exposes the "model" field; DummyFeature exposes

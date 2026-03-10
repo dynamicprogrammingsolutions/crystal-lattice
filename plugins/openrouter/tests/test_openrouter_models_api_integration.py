@@ -65,7 +65,13 @@ def test_get_tags_uses_real_model_capabilities():
     models = provider.get_models(config_reasoning)
     tags = provider.get_tags(config_reasoning, models)
 
-    print(f"Model: {models[0]['id']}, Supported Parameters: {models[0].get('supported_parameters')}, Tags: {tags}")
+    selected_model = next((model for model in models if model.get("id") == config_reasoning["model"]), None)
+
+    print(
+        f"Model: {config_reasoning['model']}, "
+        f"Supported Parameters: {selected_model.get('supported_parameters') if selected_model else None}, "
+        f"Tags: {tags}"
+    )
     
     # Should always have these
     assert "provider:openrouter" in tags
@@ -73,8 +79,8 @@ def test_get_tags_uses_real_model_capabilities():
     assert "supports_streaming" in tags
     
     # Check if model has supported_parameters
-    if models and "supported_parameters" in models[0]:
-        supported = models[0]["supported_parameters"]
+    if selected_model and "supported_parameters" in selected_model:
+        supported = selected_model["supported_parameters"]
         
         # If model supports reasoning, tag should reflect it
         if "reasoning" in supported:
@@ -82,8 +88,8 @@ def test_get_tags_uses_real_model_capabilities():
 
 
 @pytest.mark.integration
-def test_get_models_fallback_on_api_failure():
-    """Verify fallback to minimal model descriptor when API unavailable."""
+def test_get_models_returns_empty_on_api_failure():
+    """Verify get_models returns an empty list when the API is unavailable."""
     provider = OpenRouterProvider()
     
     # Use invalid base_url to simulate API failure
@@ -95,18 +101,12 @@ def test_get_models_fallback_on_api_failure():
     
     models = provider.get_models(config)
     
-    # Should still return minimal model descriptor
-    assert isinstance(models, list)
-    assert len(models) == 1
-    assert models[0]["id"] == "test-model"
-    
-    # Should NOT have supported_parameters (minimal fallback)
-    assert "supported_parameters" not in models[0] or models[0].get("supported_parameters") is None
+    assert models == []
 
 
 @pytest.mark.integration  
-def test_get_tags_fallback_when_no_model_data():
-    """Verify get_tags falls back to common capabilities when no model data."""
+def test_get_tags_returns_base_tags_when_no_model_data():
+    """Verify get_tags returns only base tags when no model data is available."""
     provider = OpenRouterProvider()
     config = {"model": "test-model", "api_key": "invalid"}
     
@@ -115,8 +115,4 @@ def test_get_tags_fallback_when_no_model_data():
     
     tags = provider.get_tags(config, models)
     
-    # Should include fallback tags
-    assert "provider:openrouter" in tags
-    assert "supports_streaming" in tags
-    assert "supports_tools" in tags  # Fallback assumption
-    assert "supports_reasoning" in tags  # Fallback assumption
+    assert tags == ["provider:openrouter", "openrouter", "supports_streaming"]

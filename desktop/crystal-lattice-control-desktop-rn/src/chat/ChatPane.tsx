@@ -40,6 +40,7 @@ import {
   useHydrateControllerFromCache,
   usePersistentPinnedActions,
   usePluginActionDialog,
+  useSessionSettingsController,
   useSessionUiSchemaController,
 } from '@crystal-lattice/frontend-sdk-react';
 
@@ -153,7 +154,7 @@ const DEFAULT_PINNED_SESSION_ACTION_KEYS: ActionKey[] = ['reload'];
 const DEFAULT_PINNED_COMPOSER_ACTION_KEYS: ActionKey[] = ['append', 'resend', 'cancel'];
 
 export interface ChatPaneProps {
-	isActive: boolean;
+  isActive: boolean;
   connectionId: string;
   connectionName: string;
   sessionId: string;
@@ -183,18 +184,18 @@ export interface ChatPaneProps {
 }
 
 export const ChatPane = React.memo(function ChatPane({
-	isActive,
-	connectionId,
-	connectionName,
-	sessionId,
-	sessionSummary,
-	title,
-	subtitle,
-	backend,
-	cachedEntry,
-	onOpenSessionTab,
-	onUpdateCache,
-	styleVariant = 'toolbarTabs',
+  isActive,
+  connectionId,
+  connectionName,
+  sessionId,
+  sessionSummary,
+  title,
+  subtitle,
+  backend,
+  cachedEntry,
+  onOpenSessionTab,
+  onUpdateCache,
+  styleVariant = 'toolbarTabs',
 }: ChatPaneProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme, styleVariant), [theme, styleVariant]);
@@ -214,7 +215,7 @@ export const ChatPane = React.memo(function ChatPane({
     cachedEntry?.rangeStartText ?? `-${DEFAULT_HISTORY_WINDOW}`,
   );
   const [rangeEndText, setRangeEndText] = useState(cachedEntry?.rangeEndText ?? '');
-	const didHydrateRangeFromCacheRef = useRef(false);
+  const didHydrateRangeFromCacheRef = useRef(false);
   const [lastReloadAt, setLastReloadAt] = useState<Date | null>(null);
   const [messageLimitVisible, setMessageLimitVisible] = useState(false);
   const [sendInFlight, setSendInFlight] = useState(false);
@@ -234,7 +235,7 @@ export const ChatPane = React.memo(function ChatPane({
     setComposerHeight((prev) => {
       if (Math.abs(prev - next) < 1) {
         return prev;
-	}
+      }
       return next;
     });
   }, []);
@@ -247,7 +248,7 @@ export const ChatPane = React.memo(function ChatPane({
     initialMessages: cachedEntry?.messages ?? [],
     initialEventsCursorId: cachedEntry?.cursorEventId ?? null,
     initialActiveRequestId: cachedEntry?.activeRequestId ?? null,
-	  eventsEnabled: isActive && backend != null,
+    eventsEnabled: isActive && backend != null,
   });
 
   const pinnedSessionActionsStorageKey = useMemo(() => {
@@ -307,7 +308,7 @@ export const ChatPane = React.memo(function ChatPane({
     };
 
     loadPinnedFromStorage();
-    }, [connectionId, pinnedMessageActionsStorageKey]);
+  }, [connectionId, pinnedMessageActionsStorageKey]);
 
   useEffect(() => {
     const saveMessagePinned = async () => {
@@ -328,7 +329,7 @@ export const ChatPane = React.memo(function ChatPane({
     backend,
     cacheKey: connectionId,
     sessionId,
-	  enabled: !!(backend && isActive),
+    enabled: !!(backend && isActive),
   });
 
   const uiSchemaElements = useMemo(
@@ -474,46 +475,46 @@ export const ChatPane = React.memo(function ChatPane({
     cache:
       cachedEntry != null
         ? {
-            messages: cachedEntry.messages,
-            eventsCursorId: cachedEntry.cursorEventId ?? null,
-            activeRequestId: cachedEntry.activeRequestId ?? null,
-            updatedAtMs: cachedEntry.lastLoadedAt ?? null,
-          }
+          messages: cachedEntry.messages,
+          eventsCursorId: cachedEntry.cursorEventId ?? null,
+          activeRequestId: cachedEntry.activeRequestId ?? null,
+          updatedAtMs: cachedEntry.lastLoadedAt ?? null,
+        }
         : null,
     hydrate: hydrateFromCache,
   });
 
-	useEffect(() => {
-		if (didHydrateRangeFromCacheRef.current) {
-			return;
-		}
+  useEffect(() => {
+    if (didHydrateRangeFromCacheRef.current) {
+      return;
+    }
 
-		const cachedStartText = cachedEntry?.rangeStartText ?? null;
-		const cachedEndText = cachedEntry?.rangeEndText ?? null;
-		if (cachedStartText == null && cachedEndText == null) {
-			return;
-		}
+    const cachedStartText = cachedEntry?.rangeStartText ?? null;
+    const cachedEndText = cachedEntry?.rangeEndText ?? null;
+    if (cachedStartText == null && cachedEndText == null) {
+      return;
+    }
 
-		const defaultStartText = `-${DEFAULT_HISTORY_WINDOW}`;
-		const defaultEndText = '';
-		const userChangedRange =
-			rangeStartText !== defaultStartText || rangeEndText !== defaultEndText;
-		if (userChangedRange) {
-			didHydrateRangeFromCacheRef.current = true;
-			return;
-		}
+    const defaultStartText = `-${DEFAULT_HISTORY_WINDOW}`;
+    const defaultEndText = '';
+    const userChangedRange =
+      rangeStartText !== defaultStartText || rangeEndText !== defaultEndText;
+    if (userChangedRange) {
+      didHydrateRangeFromCacheRef.current = true;
+      return;
+    }
 
-		const nextStartText = cachedStartText ?? defaultStartText;
-		const nextEndText = cachedEndText ?? defaultEndText;
-		if (rangeStartText === nextStartText && rangeEndText === nextEndText) {
-			didHydrateRangeFromCacheRef.current = true;
-			return;
-		}
+    const nextStartText = cachedStartText ?? defaultStartText;
+    const nextEndText = cachedEndText ?? defaultEndText;
+    if (rangeStartText === nextStartText && rangeEndText === nextEndText) {
+      didHydrateRangeFromCacheRef.current = true;
+      return;
+    }
 
-		setRangeStartText(nextStartText);
-		setRangeEndText(nextEndText);
-		didHydrateRangeFromCacheRef.current = true;
-	}, [cachedEntry?.rangeEndText, cachedEntry?.rangeStartText, rangeEndText, rangeStartText]);
+    setRangeStartText(nextStartText);
+    setRangeEndText(nextEndText);
+    didHydrateRangeFromCacheRef.current = true;
+  }, [cachedEntry?.rangeEndText, cachedEntry?.rangeStartText, rangeEndText, rangeStartText]);
 
   useEffect(() => {
     if (!chatController) {
@@ -631,7 +632,7 @@ export const ChatPane = React.memo(function ChatPane({
   }, [persistCacheSnapshot]);
 
   useEffect(() => {
-	  if (!isActive) {
+    if (!isActive) {
       return;
     }
     if (!chatController) {
@@ -656,7 +657,7 @@ export const ChatPane = React.memo(function ChatPane({
     loadInitialMessages().catch(() => {
       // errors are handled in `loadInitialMessages`
     });
-	}, [chatController, chatState?.eventsCursorId, chatState?.loading, chatState?.messages, isActive, loadInitialMessages]);
+  }, [chatController, chatState?.eventsCursorId, chatState?.loading, chatState?.messages, isActive, loadInitialMessages]);
 
   const messages: IndexedMessage[] = useMemo(() => {
     return chatState?.messages ?? cachedEntry?.messages ?? [];
@@ -726,7 +727,7 @@ export const ChatPane = React.memo(function ChatPane({
 
   const messagesCount = messages.length;
 
-	const canSend =
+  const canSend =
     backend != null &&
     chatController != null &&
     isActive &&
@@ -789,7 +790,7 @@ export const ChatPane = React.memo(function ChatPane({
         attachmentContent: params.draft.content,
         metadataUi,
         initialMetadata: params.draft.metadata ?? {},
-        onCancel: () => {},
+        onCancel: () => { },
         onSave: (metadata) => {
           updateDraftMetadata(params.draft.draftId, params.draft.placement, metadata);
         },
@@ -878,7 +879,7 @@ export const ChatPane = React.memo(function ChatPane({
           attachmentContent: params.content,
           metadataUi,
           initialMetadata: defaults,
-          onCancel: () => {},
+          onCancel: () => { },
           onSave: (metadata) => {
             addDraftAttachment({
               element: params.element,
@@ -1024,7 +1025,7 @@ export const ChatPane = React.memo(function ChatPane({
         <AppendAsPopoverContent
           popoverId={id}
           onSelectRole={(role) => {
-            appendMessageForRole(role).catch(() => {});
+            appendMessageForRole(role).catch(() => { });
           }}
         />
       ),
@@ -1200,7 +1201,7 @@ export const ChatPane = React.memo(function ChatPane({
     (key: ActionKey) => {
       const action = key as ChatComposerActionKey;
       if (action === 'append') {
-        handleAppend().catch(() => {});
+        handleAppend().catch(() => { });
         return;
       }
       if (action === 'appendAs') {
@@ -1208,11 +1209,11 @@ export const ChatPane = React.memo(function ChatPane({
         return;
       }
       if (action === 'resend') {
-        handleResend().catch(() => {});
+        handleResend().catch(() => { });
         return;
       }
       if (action === 'cancel') {
-        handleCancel().catch(() => {});
+        handleCancel().catch(() => { });
         return;
       }
     },
@@ -1302,7 +1303,7 @@ export const ChatPane = React.memo(function ChatPane({
     [attachmentsAbove, attachmentsBelow, findElementForDraft, openAttachmentMetadataEditorWindowForDraft],
   );
 
-	const canRunHeaderActions = backend != null && chatController != null && isActive;
+  const canRunHeaderActions = backend != null && chatController != null && isActive;
 
   const handleReload = useCallback(async () => {
     if (!canRunHeaderActions) {
@@ -1383,9 +1384,9 @@ export const ChatPane = React.memo(function ChatPane({
           startText={rangeStartText}
           endText={rangeEndText}
           lastReloadAtMs={lastReloadAt?.getTime() ?? null}
-          onCancel={() => {}}
+          onCancel={() => { }}
           onApply={(params) => {
-            applyMessageLimitAndReload(params).catch(() => {});
+            applyMessageLimitAndReload(params).catch(() => { });
           }}
         />
       ),
@@ -1402,7 +1403,7 @@ export const ChatPane = React.memo(function ChatPane({
 
     setOpeningAgentPicker(true);
     try {
-	  	const agents = await ensureAgentsLoaded();
+      const agents = await ensureAgentsLoaded();
 
       let initialAgentId: string | undefined;
       try {
@@ -1528,11 +1529,11 @@ export const ChatPane = React.memo(function ChatPane({
     (key: ActionKey) => {
       const action = key as ChatSessionActionKey;
       if (action === 'reload') {
-        handleReload().catch(() => {});
+        handleReload().catch(() => { });
         return;
       }
       if (action === 'agentSwitch') {
-        openAgentPickerForSwitch().catch(() => {});
+        openAgentPickerForSwitch().catch(() => { });
         return;
       }
       if (action === 'messageLimit') {
@@ -1622,32 +1623,32 @@ export const ChatPane = React.memo(function ChatPane({
     ],
   );
 
-	const getPinnedActionsForRole = useCallback(
-	  (role: string): MessageActionKey[] => {
-	    const existing = pinnedMessageActionsByRole[role];
-	    if (Array.isArray(existing)) {
-	      return existing;
-	    }
-	    return DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE[role] ?? [];
-	  },
-	  [pinnedMessageActionsByRole],
-	);
+  const getPinnedActionsForRole = useCallback(
+    (role: string): MessageActionKey[] => {
+      const existing = pinnedMessageActionsByRole[role];
+      if (Array.isArray(existing)) {
+        return existing;
+      }
+      return DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE[role] ?? [];
+    },
+    [pinnedMessageActionsByRole],
+  );
 
-	const setPinnedActionsForRole = useCallback(
-	  (role: string, pinned: MessageActionKey[]) => {
-	    setPinnedMessageActionsByRole((prev) => ({ ...prev, [role]: pinned }));
-	  },
-	  [],
-	);
+  const setPinnedActionsForRole = useCallback(
+    (role: string, pinned: MessageActionKey[]) => {
+      setPinnedMessageActionsByRole((prev) => ({ ...prev, [role]: pinned }));
+    },
+    [],
+  );
 
-	const pinnedMessageActionsContextValue = useMemo(
-	  () => ({
-		    isActive,
-	    getPinnedForRole: getPinnedActionsForRole,
-	    setPinnedForRole: setPinnedActionsForRole,
-	  }),
-		  [getPinnedActionsForRole, isActive, setPinnedActionsForRole],
-	);
+  const pinnedMessageActionsContextValue = useMemo(
+    () => ({
+      isActive,
+      getPinnedForRole: getPinnedActionsForRole,
+      setPinnedForRole: setPinnedActionsForRole,
+    }),
+    [getPinnedActionsForRole, isActive, setPinnedActionsForRole],
+  );
 
   const handleStartEditMessage = useCallback(
     (index: number, message: { role?: string; content?: unknown }) => {
@@ -1812,7 +1813,7 @@ export const ChatPane = React.memo(function ChatPane({
   );
 
   return (
-	  <View style={styles.root}>
+    <View style={styles.root}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.title} numberOfLines={1}>
@@ -1848,17 +1849,17 @@ export const ChatPane = React.memo(function ChatPane({
           <ActionsMenuBar<ActionDefinition>
             title="Session actions"
             variant="dropdown"
-	          isActive={isActive}
+            isActive={isActive}
             renderIcon={({ name, size, color }) => <Icon name={name} size={size} color={color} />}
             baseActions={BUILTIN_SESSION_ACTIONS}
-	            extraActions={pluginSessionActionDefs}
+            extraActions={pluginSessionActionDefs}
             pinned={pinnedSessionActionKeys}
             onChangePinned={(next) => setPinnedSessionActionKeys(next)}
             onAction={handleSessionAction}
             isActionDisabled={(key) => {
-	              if (pluginActionRunning) {
-	                return true;
-	              }
+              if (pluginActionRunning) {
+                return true;
+              }
               if (!canRunHeaderActions) {
                 return true;
               }
@@ -1866,7 +1867,7 @@ export const ChatPane = React.memo(function ChatPane({
                 return reloadInFlight || (chatState?.loading ?? false);
               }
               if (key === 'agentSwitch') {
-	              return openingAgentPicker || agentsLoading;
+                return openingAgentPicker || agentsLoading;
               }
               if (key === 'settings') {
                 const caps = backend.getCapabilities?.();
@@ -1923,105 +1924,105 @@ export const ChatPane = React.memo(function ChatPane({
         ) : null}
 
 
-	        <PinnedMessageActionsProvider value={pinnedMessageActionsContextValue}>
-	          {TRANSCRIPT_LIST_IMPLEMENTATION === 'flatList' ? (
-	            <DependencyFlatList
-	              listRef={transcriptScroll.listRef}
-	              style={styles.transcript}
-	              contentContainerStyle={styles.transcriptContent}
-	              data={messages}
-	              keyExtractor={(item) => String(item.index)}
-	              getItemDependencies={(item) => {
-	                const role = item.message.role || 'unknown';
-	                const defaultModeForRole: 'markdown' | 'raw' =
-	                  role === 'assistant' ? 'markdown' : 'raw';
-	                const renderMode =
-	                  messageViewModeByIndex[item.index] ?? defaultModeForRole;
-	                const isEditing = item.index === editingIndex;
-	                return [
-	                  renderMode,
-	                  footerElements,
-	                  isEditing,
-	                  isEditing ? editingInitialText : null,
-	                  isEditing ? editingText : null,
-	                ];
-	              }}
-	              scrollEventThrottle={16}
-	              onLayout={transcriptScroll.onLayout}
-	              onContentSizeChange={transcriptScroll.onContentSizeChange}
-	              onScroll={transcriptScroll.onScroll}
-	              renderItem={renderMessageItem}
-	              ListEmptyComponent={
-	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
-	              }
-	              ListFooterComponent={streamingFooter}
-	            />
-	          ) : TRANSCRIPT_LIST_IMPLEMENTATION === 'virtualizedScroll' ? (
-	            <DependencyVirtualizedScroll
-	              listRef={transcriptScroll.listRef}
-	              style={styles.transcript}
-	              contentContainerStyle={styles.transcriptContent}
-	              data={messages}
-	              keyExtractor={(item) => String(item.index)}
-	              getItemDependencies={(item) => {
-	                const role = item.message.role || 'unknown';
-	                const defaultModeForRole: 'markdown' | 'raw' =
-	                  role === 'assistant' ? 'markdown' : 'raw';
-	                const renderMode =
-	                  messageViewModeByIndex[item.index] ?? defaultModeForRole;
-	                const isEditing = item.index === editingIndex;
-	                return [
-	                  renderMode,
-	                  footerElements,
-	                  isEditing,
-	                  isEditing ? editingInitialText : null,
-	                  isEditing ? editingText : null,
-	                ];
-	              }}
-	              scrollEventThrottle={16}
-	              onLayout={transcriptScroll.onLayout}
-	              onContentSizeChange={transcriptScroll.onContentSizeChange}
-	              onScroll={transcriptScroll.onScroll}
-	              renderItem={renderMessageItem}
-	              ListEmptyComponent={
-	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
-	              }
-	              ListFooterComponent={streamingFooter}
-	            />
-	          ) : (
-	            <PlaceholderFlatList
-	              listRef={transcriptScroll.listRef}
-	              style={styles.transcript}
-	              contentContainerStyle={styles.transcriptContent}
-	              data={messages}
-	              keyExtractor={(item) => String(item.index)}
-	              showsVerticalScrollIndicator
-	              getItemDependencies={(item) => {
-	                const role = item.message.role || 'unknown';
-	                const defaultModeForRole: 'markdown' | 'raw' =
-	                  role === 'assistant' ? 'markdown' : 'raw';
-	                const renderMode =
-	                  messageViewModeByIndex[item.index] ?? defaultModeForRole;
-	                const isEditing = item.index === editingIndex;
-	                return [
-	                  renderMode,
-	                  footerElements,
-	                  isEditing,
-	                  isEditing ? editingInitialText : null,
-	                  isEditing ? editingText : null,
-	                ];
-	              }}
-	              scrollEventThrottle={16}
-	              onLayout={transcriptScroll.onLayout}
-	              onContentSizeChange={transcriptScroll.onContentSizeChange}
-	              renderItem={renderMessageItem}
-	              ListEmptyComponent={
-	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
-	              }
-	              ListFooterComponent={streamingFooter}
-	            />
-	          )}
-	        </PinnedMessageActionsProvider>
+        <PinnedMessageActionsProvider value={pinnedMessageActionsContextValue}>
+          {TRANSCRIPT_LIST_IMPLEMENTATION === 'flatList' ? (
+            <DependencyFlatList
+              listRef={transcriptScroll.listRef}
+              style={styles.transcript}
+              contentContainerStyle={styles.transcriptContent}
+              data={messages}
+              keyExtractor={(item) => String(item.index)}
+              getItemDependencies={(item) => {
+                const role = item.message.role || 'unknown';
+                const defaultModeForRole: 'markdown' | 'raw' =
+                  role === 'assistant' ? 'markdown' : 'raw';
+                const renderMode =
+                  messageViewModeByIndex[item.index] ?? defaultModeForRole;
+                const isEditing = item.index === editingIndex;
+                return [
+                  renderMode,
+                  footerElements,
+                  isEditing,
+                  isEditing ? editingInitialText : null,
+                  isEditing ? editingText : null,
+                ];
+              }}
+              scrollEventThrottle={16}
+              onLayout={transcriptScroll.onLayout}
+              onContentSizeChange={transcriptScroll.onContentSizeChange}
+              onScroll={transcriptScroll.onScroll}
+              renderItem={renderMessageItem}
+              ListEmptyComponent={
+                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
+              }
+              ListFooterComponent={streamingFooter}
+            />
+          ) : TRANSCRIPT_LIST_IMPLEMENTATION === 'virtualizedScroll' ? (
+            <DependencyVirtualizedScroll
+              listRef={transcriptScroll.listRef}
+              style={styles.transcript}
+              contentContainerStyle={styles.transcriptContent}
+              data={messages}
+              keyExtractor={(item) => String(item.index)}
+              getItemDependencies={(item) => {
+                const role = item.message.role || 'unknown';
+                const defaultModeForRole: 'markdown' | 'raw' =
+                  role === 'assistant' ? 'markdown' : 'raw';
+                const renderMode =
+                  messageViewModeByIndex[item.index] ?? defaultModeForRole;
+                const isEditing = item.index === editingIndex;
+                return [
+                  renderMode,
+                  footerElements,
+                  isEditing,
+                  isEditing ? editingInitialText : null,
+                  isEditing ? editingText : null,
+                ];
+              }}
+              scrollEventThrottle={16}
+              onLayout={transcriptScroll.onLayout}
+              onContentSizeChange={transcriptScroll.onContentSizeChange}
+              onScroll={transcriptScroll.onScroll}
+              renderItem={renderMessageItem}
+              ListEmptyComponent={
+                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
+              }
+              ListFooterComponent={streamingFooter}
+            />
+          ) : (
+            <PlaceholderFlatList
+              listRef={transcriptScroll.listRef}
+              style={styles.transcript}
+              contentContainerStyle={styles.transcriptContent}
+              data={messages}
+              keyExtractor={(item) => String(item.index)}
+              showsVerticalScrollIndicator
+              getItemDependencies={(item) => {
+                const role = item.message.role || 'unknown';
+                const defaultModeForRole: 'markdown' | 'raw' =
+                  role === 'assistant' ? 'markdown' : 'raw';
+                const renderMode =
+                  messageViewModeByIndex[item.index] ?? defaultModeForRole;
+                const isEditing = item.index === editingIndex;
+                return [
+                  renderMode,
+                  footerElements,
+                  isEditing,
+                  isEditing ? editingInitialText : null,
+                  isEditing ? editingText : null,
+                ];
+              }}
+              scrollEventThrottle={16}
+              onLayout={transcriptScroll.onLayout}
+              onContentSizeChange={transcriptScroll.onContentSizeChange}
+              renderItem={renderMessageItem}
+              ListEmptyComponent={
+                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
+              }
+              ListFooterComponent={streamingFooter}
+            />
+          )}
+        </PinnedMessageActionsProvider>
 
         <View style={styles.composerArea}>
           <View style={styles.composerHeaderRow}>
@@ -2265,7 +2266,7 @@ export const ChatPane = React.memo(function ChatPane({
                   onPress={() => {
                     setMessageLimitVisible(false);
                     applyMessageLimitAndReload({ startText: rangeStartText, endText: rangeEndText }).catch(
-                      () => {},
+                      () => { },
                     );
                   }}
                 >
@@ -2303,7 +2304,7 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
 
   return StyleSheet.create({
     root: {
-		  flex: 1,
+      flex: 1,
       borderWidth: codeLike ? 0 : separatorWidth,
       borderColor: codeLike ? 'transparent' : theme.border,
       borderRadius: codeLike ? 0 : radius,

@@ -104,7 +104,7 @@ export class RestAgentBackend implements AgentBackend {
     systemMessage?: string;
     idempotencyKey?: string;
   } = {}): Promise<{
-    session: { session_id: string; [key: string]: any };
+    session: { session_id: string;[key: string]: any };
   }> {
     const payload: any = {};
     if (typeof params.agentId === 'string' && params.agentId.trim()) {
@@ -294,7 +294,7 @@ export class RestAgentBackend implements AgentBackend {
   async forkSession(
     sessionId: string,
     params: { index?: number; idempotencyKey?: string } = {},
-  ): Promise<{ session: { session_id: string; [key: string]: any }; source_session_id: string }> {
+  ): Promise<{ session: { session_id: string;[key: string]: any }; source_session_id: string }> {
     const path = `/sessions/${encodeURIComponent(sessionId)}/fork`;
     const payload: any = {};
     if (typeof params.index === 'number') {

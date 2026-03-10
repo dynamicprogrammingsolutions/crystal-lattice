@@ -51,7 +51,12 @@ class DelayExtension(ProviderExtensionPlugin):
             },
         ]
 
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
         if not config.get("enable_delay_extension"):
             return state
 

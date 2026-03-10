@@ -110,3 +110,15 @@ def test_turn_duration_sums_assistant_durations_since_last_separator() -> None:
     assert native_1
     internal_md = native_1[-1].get("_metadata") or {}
     assert internal_md.get("turn_duration_ms") == seeded_duration_ms + current_duration_ms
+
+
+def test_ui_elements_hide_message_footers_when_disabled() -> None:
+    ext = DurationExtension()
+
+    default_elements = ext.get_ui_elements(config=None)
+    assert any(el.get("ui_type") == "config" for el in default_elements)
+    assert any(el.get("ui_type") == "message_footer" for el in default_elements)
+
+    disabled_elements = ext.get_ui_elements(config={"duration_extension_show_duration": False})
+    assert any(el.get("ui_type") == "config" for el in disabled_elements)
+    assert not any(el.get("ui_type") == "message_footer" for el in disabled_elements)

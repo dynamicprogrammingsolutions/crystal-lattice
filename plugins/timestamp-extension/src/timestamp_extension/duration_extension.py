@@ -101,10 +101,18 @@ class DurationExtension(FeaturePlugin):
     name: str = "duration_extension"
     version: str = "0.1.0"
 
+    _SHOW_DURATION_KEY = "duration_extension_show_duration"
+
     _STATE_KEY = "_duration_extension"
 
     def get_config_schema(self) -> Dict[str, Any]:
-        return {}
+        return {
+            self._SHOW_DURATION_KEY: {
+                "type": "boolean",
+                "default": True,
+                "description": "Show per-message duration footers.",
+            },
+        }
 
     def get_ui_elements(
         self,
@@ -112,18 +120,37 @@ class DurationExtension(FeaturePlugin):
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
-        return [
+        show_duration = True
+        if isinstance(config, dict) and self._SHOW_DURATION_KEY in config:
+            show_duration = bool(config.get(self._SHOW_DURATION_KEY))
+
+        elements: List[Dict[str, Any]] = [
             {
-                "ui_type": "message_footer",
-                "data": "metadata.duration_formatted",
-                "template": "duration: {{data}}",
-            },
-            {
-                "ui_type": "message_footer",
-                "data": "metadata.turn_duration_formatted",
-                "template": "turn duration: {{data}}",
-            },
+                "ui_type": "config",
+                "type": "checkbox",
+                "key": self._SHOW_DURATION_KEY,
+                "label": "Show duration",
+                "description": "Show per-message duration in message footers.",
+            }
         ]
+
+        if show_duration:
+            elements.extend(
+                [
+                    {
+                        "ui_type": "message_footer",
+                        "data": "metadata.duration_formatted",
+                        "template": "duration: {{data}}",
+                    },
+                    {
+                        "ui_type": "message_footer",
+                        "data": "metadata.turn_duration_formatted",
+                        "template": "turn duration: {{data}}",
+                    },
+                ]
+            )
+
+        return elements
 
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]

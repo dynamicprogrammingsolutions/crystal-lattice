@@ -477,39 +477,45 @@ function SessionSettingsWindowInner(): React.JSX.Element {
         </Pressable>
       </View>
 
-      {loading ? (
-        <View style={styles.loadingRow}>
-          <ActivityIndicator size="small" color={theme.primary} />
-          <Text style={styles.loadingText}>Loading settings…</Text>
-        </View>
-      ) : null}
+      {
+        loading ? (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator size="small" color={theme.primary} />
+            <Text style={styles.loadingText}>Loading settings…</Text>
+          </View>
+        ) : null
+      }
 
       {!loading && error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-      {!loading && !error && items.length === 0 ? (
-        <Text style={styles.helperText}>No configurable settings are available.</Text>
-      ) : null}
+      {
+        !loading && !error && items.length === 0 ? (
+          <Text style={styles.helperText}>No configurable settings are available.</Text>
+        ) : null
+      }
 
-      {!loading && !error && items.length > 0 ? (
-        <SessionSettingsHost
-          items={items}
-          actions={{
-            toggleCheckbox: handleToggleCheckbox,
-            selectOption: handleSelectOption,
-            saveText: handleSaveText,
-            revertToDefault: handleRevertToDefault,
-          }}
-          renderers={renderers}
-          renderFrame={({ children }) => (
-            <View style={styles.listContainer}>
-              <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-                {children}
-              </ScrollView>
-            </View>
-          )}
-        />
-      ) : null}
-    </View>
+      {
+        !loading && !error && items.length > 0 ? (
+          <SessionSettingsHost
+            items={items}
+            actions={{
+              toggleCheckbox: handleToggleCheckbox,
+              selectOption: handleSelectOption,
+              saveText: handleSaveText,
+              revertToDefault: handleRevertToDefault,
+            }}
+            renderers={renderers}
+            renderFrame={({ children }) => (
+              <View style={styles.listContainer}>
+                <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+                  {children}
+                </ScrollView>
+              </View>
+            )}
+          />
+        ) : null
+      }
+    </View >
   );
 }
 

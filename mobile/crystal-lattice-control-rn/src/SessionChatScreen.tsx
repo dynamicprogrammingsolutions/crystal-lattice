@@ -263,7 +263,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     sessionListFields,
   } = useApplicationPlugins();
 
-	  const listRef = useRef<FlatListType<any> | null>(null);
+  const listRef = useRef<FlatListType<any> | null>(null);
   const composeTextRef = useRef<string>(initialComposeText ?? '');
   const onSaveComposeTextRef = useRef(onSaveComposeText);
   const onSaveScrollAnchorRef = useRef(onSaveScrollAnchor);
@@ -367,11 +367,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     cache:
       cachedMessages != null
         ? {
-            messages: cachedMessages,
-            eventsCursorId: cachedEventsCursorId ?? null,
-            activeRequestId: cachedActiveRequestId ?? null,
-            updatedAtMs: lastLoadedAt ?? null,
-          }
+          messages: cachedMessages,
+          eventsCursorId: cachedEventsCursorId ?? null,
+          activeRequestId: cachedActiveRequestId ?? null,
+          updatedAtMs: lastLoadedAt ?? null,
+        }
         : null,
     hydrate: hydrateChatCache,
   });
@@ -549,7 +549,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           setSessionBaseConfig(baseConfig ?? {});
         }
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => {
       cancelled = true;
     };
@@ -667,17 +667,17 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       return;
     }
     try {
-	  await chatController.loadMessagesFromRangeText({
-	    startText: rangeStartText,
-	    endText: rangeEndText,
-	  });
-	  const snapshot = chatController.getCacheSnapshot();
-	  setLastReloadAt(new Date(snapshot.updatedAtMs ?? Date.now()));
-	  onUpdateCache(
-	    snapshot.messages,
-	    snapshot.eventsCursorId ?? null,
-	    snapshot.activeRequestId ?? null,
-	  );
+      await chatController.loadMessagesFromRangeText({
+        startText: rangeStartText,
+        endText: rangeEndText,
+      });
+      const snapshot = chatController.getCacheSnapshot();
+      setLastReloadAt(new Date(snapshot.updatedAtMs ?? Date.now()));
+      onUpdateCache(
+        snapshot.messages,
+        snapshot.eventsCursorId ?? null,
+        snapshot.activeRequestId ?? null,
+      );
     } catch (err: any) {
       console.log('Failed to load messages', err);
       const message = err?.message || 'Failed to load messages';
@@ -706,38 +706,38 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         setPluginActionInProgress(true);
         try {
           const isMessage = context.kind === 'message';
-	          const { ok, effects, errorMessage } = await runApplicationAction({
-	            backend,
-	            element,
-	            actionsById,
-	            context: {
-	              sessionId,
-	              messageContext: isMessage
-	                ? { index: (context as any).index, message: (context as any).message }
-	                : undefined,
-	              dialogValues,
-	            },
-	            effects: {
-	              currentSessionId: sessionId,
-	              navigateOnCreatedSession: true,
-	            },
-	          });
-	          if (!ok) {
-	            Alert.alert('Action error', errorMessage || 'Failed to execute action');
-	            return;
-	          }
+          const { ok, effects, errorMessage } = await runApplicationAction({
+            backend,
+            element,
+            actionsById,
+            context: {
+              sessionId,
+              messageContext: isMessage
+                ? { index: (context as any).index, message: (context as any).message }
+                : undefined,
+              dialogValues,
+            },
+            effects: {
+              currentSessionId: sessionId,
+              navigateOnCreatedSession: true,
+            },
+          });
+          if (!ok) {
+            Alert.alert('Action error', errorMessage || 'Failed to execute action');
+            return;
+          }
 
-	          for (const effect of effects) {
-	            if (effect.type === 'navigateToSession') {
-	              if (onNavigateToSession) {
-	                onNavigateToSession(effect.sessionId);
-	              }
-	              return;
-	            }
-	          }
-	          if (effects.some((effect) => effect.type === 'reloadSession')) {
-	            await loadMessages();
-	          }
+          for (const effect of effects) {
+            if (effect.type === 'navigateToSession') {
+              if (onNavigateToSession) {
+                onNavigateToSession(effect.sessionId);
+              }
+              return;
+            }
+          }
+          if (effects.some((effect) => effect.type === 'reloadSession')) {
+            await loadMessages();
+          }
         } finally {
           setPluginActionInProgress(false);
         }
@@ -1322,11 +1322,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const handleComposerAction = useCallback(
     (key: string) => {
       if (key === 'resend') {
-        handleResend().catch(() => {});
+        handleResend().catch(() => { });
         return;
       }
       if (key === 'cancel') {
-        handleCancel().catch(() => {});
+        handleCancel().catch(() => { });
         return;
       }
 
@@ -1336,7 +1336,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           setComposerLeftSelectModalElement(element);
           return;
         }
-        handlePickAttachment(element).catch(() => {});
+        handlePickAttachment(element).catch(() => { });
       }
     },
     [composerAttachmentElementByActionKey, handleCancel, handlePickAttachment, handleResend],
@@ -1369,56 +1369,56 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       sendInProgress,
     ],
   );
-	  const confirmDeleteRange = async () => {
-	    if (!chatController) {
+  const confirmDeleteRange = async () => {
+    if (!chatController) {
       Alert.alert('No connection', 'Connect to a server to delete messages.');
       return;
     }
     try {
-	      await chatController.deleteMessagesFromRangeText({
-	        startText: deleteRangeStartText,
-	        endText: deleteRangeEndText,
-	      });
+      await chatController.deleteMessagesFromRangeText({
+        startText: deleteRangeStartText,
+        endText: deleteRangeEndText,
+      });
       setDeleteRangeVisible(false);
     } catch (err: any) {
-	      const rawMessage = err?.message;
-	      if (typeof rawMessage === 'string' && rawMessage.includes('Provide at least')) {
-	        Alert.alert('Invalid range', rawMessage);
-	        return;
-	      }
-	      console.log('Failed to delete range', err);
-	      const message = rawMessage || 'Failed to delete messages';
-	      Alert.alert('Error', message);
+      const rawMessage = err?.message;
+      if (typeof rawMessage === 'string' && rawMessage.includes('Provide at least')) {
+        Alert.alert('Invalid range', rawMessage);
+        return;
+      }
+      console.log('Failed to delete range', err);
+      const message = rawMessage || 'Failed to delete messages';
+      Alert.alert('Error', message);
     }
   };
 
   const handleSwitchAgent = async (agentId: string) => {
-	    if (!backend) {
-	      Alert.alert('No connection', 'Connect to a server to switch agent.');
-	      return;
-	    }
-	    try {
-		      setAgentSwitchInProgress(true);
-	      await backend.switchSessionAgent(sessionId, agentId);
-	      setSessionAgentId(agentId && agentId.trim() ? agentId.trim() : null);
-	      setAgentModalVisible(false);
-	    } catch (err: any) {
-	      console.log('Failed to switch agent', err);
-	      const message = err?.message || 'Failed to switch agent';
-	      Alert.alert('Error', message);
-	    } finally {
-		      setAgentSwitchInProgress(false);
-	    }
-	  };
+    if (!backend) {
+      Alert.alert('No connection', 'Connect to a server to switch agent.');
+      return;
+    }
+    try {
+      setAgentSwitchInProgress(true);
+      await backend.switchSessionAgent(sessionId, agentId);
+      setSessionAgentId(agentId && agentId.trim() ? agentId.trim() : null);
+      setAgentModalVisible(false);
+    } catch (err: any) {
+      console.log('Failed to switch agent', err);
+      const message = err?.message || 'Failed to switch agent';
+      Alert.alert('Error', message);
+    } finally {
+      setAgentSwitchInProgress(false);
+    }
+  };
 
-	  const togglePinnedSessionAction = (action: SessionActionKey) => {
-	    setPinnedSessionActions((prev) => {
-	      if (prev.includes(action)) {
-	        return prev.filter((a) => a !== action);
-	      }
-	      return [...prev, action];
-	    });
-	  };
+  const togglePinnedSessionAction = (action: SessionActionKey) => {
+    setPinnedSessionActions((prev) => {
+      if (prev.includes(action)) {
+        return prev.filter((a) => a !== action);
+      }
+      return [...prev, action];
+    });
+  };
 
   const handleSessionAction = async (action: SessionActionKey) => {
     if (action === 'reload') {
@@ -1444,9 +1444,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }
       if (availableAgents.length === 0 || sessionAgentId === null) {
         try {
-		        await agentsController?.ensureLoaded();
-	        const current = await backend.getSessionAgent(sessionId);
-	          setSessionAgentId(current && current.trim() ? current.trim() : null);
+          await agentsController?.ensureLoaded();
+          const current = await backend.getSessionAgent(sessionId);
+          setSessionAgentId(current && current.trim() ? current.trim() : null);
         } catch (err: any) {
           console.log('Failed to load agents', err);
           const message = err?.message || 'Failed to load agents';
@@ -1584,158 +1584,158 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   };
 
 
-	  const sessionListFieldGroups = useMemo(
-	    () => groupSessionListFields(sessionListFields || []),
-	    [sessionListFields],
-	  );
+  const sessionListFieldGroups = useMemo(
+    () => groupSessionListFields(sessionListFields || []),
+    [sessionListFields],
+  );
 
-	  const sessionLabel = `Session ${sessionId.slice(0, 8)}`;
+  const sessionLabel = `Session ${sessionId.slice(0, 8)}`;
 
-	  const sessionHeaderTitle = useMemo(() => {
-	    if (!sessionSummary) {
-	      return sessionLabel;
-	    }
-	    return deriveSessionListPresentationFromGroups(sessionSummary, sessionListFieldGroups).title;
-	  }, [sessionSummary, sessionListFieldGroups, sessionLabel]);
+  const sessionHeaderTitle = useMemo(() => {
+    if (!sessionSummary) {
+      return sessionLabel;
+    }
+    return deriveSessionListPresentationFromGroups(sessionSummary, sessionListFieldGroups).title;
+  }, [sessionSummary, sessionListFieldGroups, sessionLabel]);
 
-	  const footerElements = useMemo(
-	    () => filterFooterElements(uiSchemaElements),
-	    [uiSchemaElements],
-	  );
+  const footerElements = useMemo(
+    () => filterFooterElements(uiSchemaElements),
+    [uiSchemaElements],
+  );
 
-	  const statusBarElements = useMemo(
-	    () => filterStatusBarElements(uiSchemaElements),
-	    [uiSchemaElements],
-	  );
+  const statusBarElements = useMemo(
+    () => filterStatusBarElements(uiSchemaElements),
+    [uiSchemaElements],
+  );
 
-	  const lastAssistantMessage = useMemo(
-	    () => selectLastAssistantMessage({ messages, streamingRow }),
-	    [messages, streamingRow],
-	  );
+  const lastAssistantMessage = useMemo(
+    () => selectLastAssistantMessage({ messages, streamingRow }),
+    [messages, streamingRow],
+  );
 
-	  const statusBarParts = useMemo(
-	    () =>
-	      deriveChatStatusBarParts({
-	        sessionId,
-	        sessionAgentId,
-	        availableAgents,
-	        lastAssistantMessage,
-	        statusBarElements,
-	      }),
-	    [
-	      sessionId,
-	      sessionAgentId,
-	      availableAgents,
-	      lastAssistantMessage,
-	      statusBarElements,
-	    ],
-	  );
+  const statusBarParts = useMemo(
+    () =>
+      deriveChatStatusBarParts({
+        sessionId,
+        sessionAgentId,
+        availableAgents,
+        lastAssistantMessage,
+        statusBarElements,
+      }),
+    [
+      sessionId,
+      sessionAgentId,
+      availableAgents,
+      lastAssistantMessage,
+      statusBarElements,
+    ],
+  );
 
-	  const transcriptRows = useMemo<TranscriptRow[]>(() => {
-	    const rows: TranscriptRow[] = [TRANSCRIPT_STATUS_ROW, TRANSCRIPT_STREAM_ROW];
-	    for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
-	      rows.push(messages[idx]);
-	    }
-	    return rows;
-	  }, [messages]);
+  const transcriptRows = useMemo<TranscriptRow[]>(() => {
+    const rows: TranscriptRow[] = [TRANSCRIPT_STATUS_ROW, TRANSCRIPT_STREAM_ROW];
+    for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
+      rows.push(messages[idx]);
+    }
+    return rows;
+  }, [messages]);
 
-	  const handleListScroll = useCallback((event: any) => {
-	    const offset = event?.nativeEvent?.contentOffset?.y;
-	    if (typeof offset !== 'number' || !Number.isFinite(offset)) {
-	      return;
-	    }
-	    bottomGapPxRef.current = Math.max(0, offset);
-	    pinnedToBottomRef.current =
-	      bottomGapPxRef.current <= PINNED_TO_BOTTOM_THRESHOLD_PX;
-	  }, []);
+  const handleListScroll = useCallback((event: any) => {
+    const offset = event?.nativeEvent?.contentOffset?.y;
+    if (typeof offset !== 'number' || !Number.isFinite(offset)) {
+      return;
+    }
+    bottomGapPxRef.current = Math.max(0, offset);
+    pinnedToBottomRef.current =
+      bottomGapPxRef.current <= PINNED_TO_BOTTOM_THRESHOLD_PX;
+  }, []);
 
-	  const maybeRestoreScroll = useCallback(() => {
-	    if (hasRestoredScrollRef.current) {
-	      return;
-	    }
-	    const list = listRef.current;
-	    if (!list) {
-	      return;
-	    }
-	
-	    const anchor = initialScrollAnchorRef.current;
-	    const offset = anchor && !anchor.pinnedToBottom ? anchor.bottomGapPx : 0;
-	    list.scrollToOffset({ offset, animated: false });
-	    bottomGapPxRef.current = offset;
-	    pinnedToBottomRef.current = offset <= PINNED_TO_BOTTOM_THRESHOLD_PX;
-	    hasRestoredScrollRef.current = true;
-	  }, []);
+  const maybeRestoreScroll = useCallback(() => {
+    if (hasRestoredScrollRef.current) {
+      return;
+    }
+    const list = listRef.current;
+    if (!list) {
+      return;
+    }
 
-    const openAttachmentMetadataForEdit = useCallback(
-      (side: 'above' | 'below', draftId: string) => {
-        const list = side === 'above' ? attachmentsAbove : attachmentsBelow;
-        const part = list.find((p) => p.draftId === draftId);
-        if (!part) {
-          return;
-        }
+    const anchor = initialScrollAnchorRef.current;
+    const offset = anchor && !anchor.pinnedToBottom ? anchor.bottomGapPx : 0;
+    list.scrollToOffset({ offset, animated: false });
+    bottomGapPxRef.current = offset;
+    pinnedToBottomRef.current = offset <= PINNED_TO_BOTTOM_THRESHOLD_PX;
+    hasRestoredScrollRef.current = true;
+  }, []);
 
-        setAttachmentsManageVisible(false);
-        setAttachmentMetadataTitle(`${part.title} metadata`);
-        setAttachmentMetadataUi(part.metadataUi);
-        setAttachmentMetadataInitial({
-          ...buildAttachmentMetadataDefaults(part.metadataUi),
-          ...(part.metadata ?? {}),
+  const openAttachmentMetadataForEdit = useCallback(
+    (side: 'above' | 'below', draftId: string) => {
+      const list = side === 'above' ? attachmentsAbove : attachmentsBelow;
+      const part = list.find((p) => p.draftId === draftId);
+      if (!part) {
+        return;
+      }
+
+      setAttachmentsManageVisible(false);
+      setAttachmentMetadataTitle(`${part.title} metadata`);
+      setAttachmentMetadataUi(part.metadataUi);
+      setAttachmentMetadataInitial({
+        ...buildAttachmentMetadataDefaults(part.metadataUi),
+        ...(part.metadata ?? {}),
+      });
+      setAttachmentMetadataContext({ kind: 'edit', side, draftId });
+      setAttachmentMetadataVisible(true);
+    },
+    [attachmentsAbove, attachmentsBelow],
+  );
+
+  const handleAttachmentMetadataCancel = useCallback(() => {
+    setAttachmentMetadataVisible(false);
+    setAttachmentMetadataContext(null);
+  }, []);
+
+  const handleAttachmentMetadataSave = useCallback(
+    (metadata: Record<string, any>) => {
+      const ctx = attachmentMetadataContext;
+      if (!ctx) {
+        setAttachmentMetadataVisible(false);
+        return;
+      }
+
+      if (ctx.kind === 'new') {
+        addAttachmentPart({
+          element: ctx.element,
+          content: ctx.content,
+          metadata,
         });
-        setAttachmentMetadataContext({ kind: 'edit', side, draftId });
-        setAttachmentMetadataVisible(true);
-      },
-      [attachmentsAbove, attachmentsBelow],
-    );
+      } else if (ctx.kind === 'edit') {
+        updateAttachmentMetadata(ctx.side, ctx.draftId, metadata);
+      }
 
-    const handleAttachmentMetadataCancel = useCallback(() => {
       setAttachmentMetadataVisible(false);
       setAttachmentMetadataContext(null);
-    }, []);
+    },
+    [addAttachmentPart, attachmentMetadataContext, updateAttachmentMetadata],
+  );
 
-    const handleAttachmentMetadataSave = useCallback(
-      (metadata: Record<string, any>) => {
-        const ctx = attachmentMetadataContext;
-        if (!ctx) {
-          setAttachmentMetadataVisible(false);
-          return;
-        }
-
-        if (ctx.kind === 'new') {
-          addAttachmentPart({
-            element: ctx.element,
-            content: ctx.content,
-            metadata,
-          });
-        } else if (ctx.kind === 'edit') {
-          updateAttachmentMetadata(ctx.side, ctx.draftId, metadata);
-        }
-
-        setAttachmentMetadataVisible(false);
-        setAttachmentMetadataContext(null);
-      },
-      [addAttachmentPart, attachmentMetadataContext, updateAttachmentMetadata],
-    );
-
-	  return (
-	    <KeyboardAvoidingView
-	      style={styles.keyboardAvoiding}
-	      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-	      keyboardVerticalOffset={64}
-	    >
-	      <View
-	        style={[
-	          styles.container,
-	          Platform.OS === 'android' &&
-	            androidKeyboardHeight > 0 && { paddingBottom: androidKeyboardHeight },
-	        ]}
-	      >
-	        <View style={styles.headerRow}>
-	          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-	            <Text style={styles.backButtonText}>← Sessions</Text>
-	          </TouchableOpacity>
-	          <Text style={styles.title} numberOfLines={1}>
-	            {sessionHeaderTitle}
-	          </Text>
+  return (
+    <KeyboardAvoidingView
+      style={styles.keyboardAvoiding}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={64}
+    >
+      <View
+        style={[
+          styles.container,
+          Platform.OS === 'android' &&
+          androidKeyboardHeight > 0 && { paddingBottom: androidKeyboardHeight },
+        ]}
+      >
+        <View style={styles.headerRow}>
+          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+            <Text style={styles.backButtonText}>← Sessions</Text>
+          </TouchableOpacity>
+          <Text style={styles.title} numberOfLines={1}>
+            {sessionHeaderTitle}
+          </Text>
           <View style={styles.headerButtons}>
             <SessionActionsBar
               renderIcon={({ name, size, color }) => (
@@ -1758,216 +1758,222 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
               isActive={isActive}
             />
           </View>
-	        </View>
-
-	      {sessionDirty && (
-	        <View style={styles.dirtyBanner}>
-	          <Text style={styles.dirtyBannerText} numberOfLines={1}>
-	            Out of sync — Reload to recover
-	          </Text>
-	          <TouchableOpacity
-	            style={[styles.button, styles.secondaryButton, styles.smallButton]}
-	            onPress={async () => {
-	              chatController?.clearRequestState();
-	              await loadMessages();
-	            }}
-	            disabled={!chatController || sendInProgress || loadingMessages}
-	          >
-	            <Text
-	              style={[
-	                styles.buttonTextSecondary,
-	                (!chatController || sendInProgress || loadingMessages) &&
-	                  styles.buttonTextDisabled,
-	              ]}
-	            >
-	              Reload
-	            </Text>
-	          </TouchableOpacity>
-	        </View>
-	      )}
-
-	      {(loadingMessages || pluginActionInProgress) && (
-	        <View style={styles.loadingContainer}>
-	          <ActivityIndicator size="small" color={theme.primary} />
-	          <Text style={styles.loadingText}>
-	            {loadingMessages ? 'Loading messages...' : 'Running action...'}
-	          </Text>
-	        </View>
-	      )}
-	
-	      <DependencyFlatList
-	        style={styles.messagesContainer}
-	        ref={listRef}
-	        data={transcriptRows}
-	        inverted
-	        onLayout={() => {
-	          maybeRestoreScroll();
-	        }}
-	        onContentSizeChange={() => {
-	          maybeRestoreScroll();
-	        }}
-	        onScroll={handleListScroll}
-	        scrollEventThrottle={16}
-	        maintainVisibleContentPosition={{
-	          minIndexForVisible: 0,
-	          autoscrollToTopThreshold: PINNED_TO_BOTTOM_THRESHOLD_PX,
-	        }}
-	        keyExtractor={(row) => {
-	          if ('kind' in row) {
-	            return row.kind === 'status' ? 'row-status' : 'row-stream';
-	          }
-	          return `msg-${row.index}`;
-	        }}
-	        getItemDependencies={(row) => {
-	          if ('kind' in row) {
-	            if (row.kind === 'status') {
-	              return [statusBarParts];
-	            }
-	            const lastMessageIndex = messages.length > 0 ? messages[messages.length - 1].index : null;
-	            return [
-	              streamingRow,
-	              lastMessageIndex,
-	              isActive,
-	              footerElements,
-	              pluginMessageActionDefs,
-	            ];
-	          }
-	
-	          const role = row.message.role || 'unknown';
-	          const defaultModeForRole: 'markdown' | 'raw' =
-	            role === 'assistant' ? 'markdown' : 'raw';
-	          const renderMode = messageViewModeByIndex[row.index] ?? defaultModeForRole;
-	          const isEditing = editingIndex === row.index;
-	          return [
-	            isActive,
-	            footerElements,
-	            pluginMessageActionDefs,
-	            sessionSummary,
-	            pinnedMessageActionsByRole[role],
-	            renderMode,
-	            isEditing,
-	            isEditing ? editingText : null,
-	          ];
-	        }}
-	        renderItem={({ item: row }) => {
-	          if ('kind' in row) {
-	            if (row.kind === 'status') {
-	              if (!statusBarParts || statusBarParts.length === 0) {
-	                return null;
-	              }
-	              return (
-	                <View style={styles.statusBarContainer}>
-	                  <Text style={styles.statusBarText}>{statusBarParts.join('   ')}</Text>
-	                </View>
-	              );
-	            }
-	
-	            if (!streamingRow || (!streamingRow.content && !streamingRow.reasoning)) {
-	              return null;
-	            }
-	            const streamingIndex =
-	              messages.length > 0 ? messages[messages.length - 1].index + 1 : 0;
-	            return (
-	              <MessageBubble
-	                index={streamingIndex}
-	                isActive={isActive}
-	                message={{
-	                  role: 'assistant',
-	                  content: streamingRow.content,
-	                  metadata: {
-	                    ...(streamingRow.metadata || {}),
-	                    reasoning: streamingRow.reasoning,
-	                  },
-	                }}
-	                pinnedActions={[]}
-	                allowedActions={[]}
-	                onAction={handleMessageAction}
-	                onChangePinnedForRole={handleChangePinnedForRole}
-	                isEditing={false}
-	                renderMode="markdown"
-	                footerElements={footerElements}
-	                pluginActionDefs={pluginMessageActionDefs}
-	              />
-	            );
-	          }
-
-	          const m = row;
-	          const role = m.message.role || 'unknown';
-	          const allowedActions = ALL_MESSAGE_ACTIONS
-	            .filter((def) => def.allowedRoles.includes(role))
-	            .map((def) => def.key as MessageActionKey);
-	          const pinnedForRole = getPinnedActionsForRole(role);
-	          const isEditing = editingIndex === m.index;
-	          const defaultModeForRole: 'markdown' | 'raw' =
-	            role === 'assistant' ? 'markdown' : 'raw';
-	          const renderMode = messageViewModeByIndex[m.index] ?? defaultModeForRole;
-	          return (
-	            <MessageBubble
-	              index={m.index}
-	              isActive={isActive}
-	              message={m.message}
-	              pinnedActions={pinnedForRole}
-	              allowedActions={allowedActions}
-	              onAction={handleMessageAction}
-	              onChangePinnedForRole={handleChangePinnedForRole}
-	              isEditing={isEditing}
-	              editingText={isEditing ? editingText : undefined}
-	              onChangeEditingText={isEditing ? setEditingText : undefined}
-	              onSubmitEdit={handleSubmitEditMessage}
-	              onCancelEdit={handleCancelEditMessage}
-	              renderMode={renderMode}
-	              footerElements={footerElements}
-	              pluginActionDefs={pluginMessageActionDefs}
-	            />
-	          );
-	        }}
-	      />
-
-      {activeError && (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorTitle}>Error</Text>
-          <Text style={styles.errorText}>{activeError.detail}</Text>
         </View>
-      )}
 
-      <View style={styles.composer}>
-        <View style={styles.composerMainColumn}>
-          <View style={styles.composerTopRow}>
-            <View style={styles.composerInlineSelectRow}>
-              {composerAttachmentElementsLeftPinned.map((el) => {
-                const key = typeof el.key === 'string' && el.key.trim() ? el.key : '';
-                if (!key) return null;
-                const options = normalizeSelectOptions(el.options);
-                const effectiveValue =
-                  sessionOverrides[key] ?? sessionBaseConfig[key] ?? options[0]?.value ?? '';
-                const selectedLabel =
-                  options.find((o) => o.value === effectiveValue)?.label ?? String(effectiveValue);
-                const label =
-                  (typeof el.label === 'string' && el.label.trim() ? el.label : key);
-                const isSelect =
-                  el.attachment_type === 'select' ||
-                  el.attachment_type === 'options' ||
-                  el.attachment_type === 'dropdown';
-                if (!isSelect) return null;
+        {sessionDirty && (
+          <View style={styles.dirtyBanner}>
+            <Text style={styles.dirtyBannerText} numberOfLines={1}>
+              Out of sync — Reload to recover
+            </Text>
+            <TouchableOpacity
+              style={[styles.button, styles.secondaryButton, styles.smallButton]}
+              onPress={async () => {
+                chatController?.clearRequestState();
+                await loadMessages();
+              }}
+              disabled={!chatController || sendInProgress || loadingMessages}
+            >
+              <Text
+                style={[
+                  styles.buttonTextSecondary,
+                  (!chatController || sendInProgress || loadingMessages) &&
+                  styles.buttonTextDisabled,
+                ]}
+              >
+                Reload
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {(loadingMessages || pluginActionInProgress) && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color={theme.primary} />
+            <Text style={styles.loadingText}>
+              {loadingMessages ? 'Loading messages...' : 'Running action...'}
+            </Text>
+          </View>
+        )}
+
+        <DependencyFlatList
+          style={styles.messagesContainer}
+          ref={listRef}
+          data={transcriptRows}
+          inverted
+          onLayout={() => {
+            maybeRestoreScroll();
+          }}
+          onContentSizeChange={() => {
+            maybeRestoreScroll();
+          }}
+          onScroll={handleListScroll}
+          scrollEventThrottle={16}
+          maintainVisibleContentPosition={{
+            minIndexForVisible: 0,
+            autoscrollToTopThreshold: PINNED_TO_BOTTOM_THRESHOLD_PX,
+          }}
+          keyExtractor={(row) => {
+            if ('kind' in row) {
+              return row.kind === 'status' ? 'row-status' : 'row-stream';
+            }
+            return `msg-${row.index}`;
+          }}
+          getItemDependencies={(row) => {
+            if ('kind' in row) {
+              if (row.kind === 'status') {
+                return [statusBarParts];
+              }
+              const lastMessageIndex = messages.length > 0 ? messages[messages.length - 1].index : null;
+              return [
+                streamingRow,
+                lastMessageIndex,
+                isActive,
+                footerElements,
+                pluginMessageActionDefs,
+              ];
+            }
+
+            const role = row.message.role || 'unknown';
+            const defaultModeForRole: 'markdown' | 'raw' =
+              role === 'assistant' ? 'markdown' : 'raw';
+            const renderMode = messageViewModeByIndex[row.index] ?? defaultModeForRole;
+            const isEditing = editingIndex === row.index;
+            return [
+              isActive,
+              footerElements,
+              pluginMessageActionDefs,
+              sessionSummary,
+              pinnedMessageActionsByRole[role],
+              renderMode,
+              isEditing,
+              isEditing ? editingText : null,
+            ];
+          }}
+          renderItem={({ item: row }) => {
+            if ('kind' in row) {
+              if (row.kind === 'status') {
+                if (!statusBarParts || statusBarParts.length === 0) {
+                  return null;
+                }
                 return (
-                  <TouchableOpacity
-                    key={key}
-                    style={styles.composerInlineSelectButton}
-                    onPress={() => setComposerLeftSelectModalElement(el)}
-                    disabled={sendInProgress || !!activeRequestId || options.length === 0}
-                  >
-                    <Text style={styles.composerInlineSelectLabel} numberOfLines={1}>
-                      {label}:
-                    </Text>
-                    <Text style={styles.composerInlineSelectValue} numberOfLines={1}>
-                      {selectedLabel}
-                    </Text>
-                    <Icon name="chevron-down" size={10} color={theme.textSecondary} />
-                  </TouchableOpacity>
+                  <View style={styles.statusBarContainer}>
+                    <Text style={styles.statusBarText}>{statusBarParts.join('   ')}</Text>
+                  </View>
                 );
-              })}
-            </View>
-            <ActionsMenuBar<ActionDefinition>
+              }
+
+              if (!streamingRow || (!streamingRow.content && !streamingRow.reasoning)) {
+                return null;
+              }
+              const streamingIndex =
+                messages.length > 0 ? messages[messages.length - 1].index + 1 : 0;
+              return (
+                <MessageBubble
+                  index={streamingIndex}
+                  isActive={isActive}
+                  message={{
+                    role: 'assistant',
+                    content: streamingRow.content,
+                    metadata: {
+                      ...(streamingRow.metadata || {}),
+                      reasoning: streamingRow.reasoning,
+                    },
+                  }}
+                  pinnedActions={[]}
+                  allowedActions={[]}
+                  onAction={handleMessageAction}
+                  onChangePinnedForRole={handleChangePinnedForRole}
+                  isEditing={false}
+                  renderMode="markdown"
+                  footerElements={footerElements}
+                  pluginActionDefs={pluginMessageActionDefs}
+                />
+              );
+            }
+
+            const m = row;
+            const role = m.message.role || 'unknown';
+            const allowedActions = ALL_MESSAGE_ACTIONS
+              .filter((def) => def.allowedRoles.includes(role))
+              .map((def) => def.key as MessageActionKey);
+            const pinnedForRole = getPinnedActionsForRole(role);
+            const isEditing = editingIndex === m.index;
+            const defaultModeForRole: 'markdown' | 'raw' =
+              role === 'assistant' ? 'markdown' : 'raw';
+            const renderMode = messageViewModeByIndex[m.index] ?? defaultModeForRole;
+            return (
+              <MessageBubble
+                index={m.index}
+                isActive={isActive}
+                message={m.message}
+                pinnedActions={pinnedForRole}
+                allowedActions={allowedActions}
+                onAction={handleMessageAction}
+                onChangePinnedForRole={handleChangePinnedForRole}
+                isEditing={isEditing}
+                editingText={isEditing ? editingText : undefined}
+                onChangeEditingText={isEditing ? setEditingText : undefined}
+                onSubmitEdit={handleSubmitEditMessage}
+                onCancelEdit={handleCancelEditMessage}
+                renderMode={renderMode}
+                footerElements={footerElements}
+                pluginActionDefs={pluginMessageActionDefs}
+              />
+            );
+          }}
+        />
+
+        {activeError && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorTitle}>Error</Text>
+            <Text style={styles.errorText}>{activeError.detail}</Text>
+          </View>
+        )}
+
+        <View style={styles.composer}>
+          <View style={styles.composerMainColumn}>
+            <View style={styles.composerTopRow}>
+              <View style={styles.composerInlineSelectRow}>
+                {composerAttachmentElementsLeftPinned.map((el) => {
+                  const key = typeof el.key === 'string' && el.key.trim() ? el.key : '';
+                  if (!key) return null;
+                  const options = normalizeSelectOptions(el.options);
+                  const elementDefault =
+                    typeof (el as any).default === 'string' ? (el as any).default : undefined;
+                  const effectiveValue =
+                    sessionOverrides[key] ??
+                    sessionBaseConfig[key] ??
+                    elementDefault ??
+                    options[0]?.value ??
+                    '';
+                  const selectedLabel =
+                    options.find((o) => o.value === effectiveValue)?.label ?? String(effectiveValue);
+                  const label =
+                    (typeof el.label === 'string' && el.label.trim() ? el.label : key);
+                  const isSelect =
+                    el.attachment_type === 'select' ||
+                    el.attachment_type === 'options' ||
+                    el.attachment_type === 'dropdown';
+                  if (!isSelect) return null;
+                  return (
+                    <TouchableOpacity
+                      key={key}
+                      style={styles.composerInlineSelectButton}
+                      onPress={() => setComposerLeftSelectModalElement(el)}
+                      disabled={sendInProgress || !!activeRequestId || options.length === 0}
+                    >
+                      <Text style={styles.composerInlineSelectLabel} numberOfLines={1}>
+                        {label}:
+                      </Text>
+                      <Text style={styles.composerInlineSelectValue} numberOfLines={1}>
+                        {selectedLabel}
+                      </Text>
+                      <Icon name="chevron-down" size={10} color={theme.textSecondary} />
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <ActionsMenuBar<ActionDefinition>
                 title="Composer actions"
                 variant="modal"
                 renderIcon={({ name, size, color }) => (
@@ -1987,7 +1993,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 isActionDisabled={isComposerActionDisabled}
                 isActive={isActive}
               />
-          </View>
+            </View>
 
             <AttachmentThumbnailStrip
               attachments={attachmentsAboveStrip}
@@ -2066,354 +2072,354 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
               disabled={sendInProgress || !!activeRequestId}
             />
           </View>
+        </View>
+
+        <ComposerAttachmentsManageModal
+          visible={attachmentsManageVisible}
+          title={
+            attachmentsManageSide === 'above'
+              ? 'Attachments (above)'
+              : attachmentsManageSide === 'below'
+                ? 'Attachments (below)'
+                : 'Attachments'
+          }
+          attachments={attachmentsManageRows}
+          disabled={sendInProgress || !!activeRequestId}
+          onMove={(draftId, direction) => {
+            if (!attachmentsManageSide) return;
+            moveAttachmentWithinSide(attachmentsManageSide, draftId, direction);
+          }}
+          onEditMetadata={(draftId) => {
+            if (!attachmentsManageSide) return;
+            openAttachmentMetadataForEdit(attachmentsManageSide, draftId);
+          }}
+          onDelete={(draftId) => {
+            if (!attachmentsManageSide) return;
+            removeAttachmentFromSide(attachmentsManageSide, draftId);
+          }}
+          onRequestClose={() => {
+            setAttachmentsManageVisible(false);
+          }}
+        />
+
+        <AttachmentMetadataModal
+          visible={attachmentMetadataVisible}
+          title={attachmentMetadataTitle}
+          metadataUi={attachmentMetadataUi}
+          initialMetadata={attachmentMetadataInitial}
+          onCancel={handleAttachmentMetadataCancel}
+          onSave={handleAttachmentMetadataSave}
+        />
+
+        {imageAttachVisible && (
+          <Modal
+            visible={imageAttachVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setImageAttachVisible(false)}
+          >
+            <TouchableWithoutFeedback onPress={() => setImageAttachVisible(false)}>
+              <View style={styles.modalOverlay}>
+                <TouchableWithoutFeedback onPress={() => { }}>
+                  <View style={styles.modalContent}>
+                    <Text style={styles.modalTitle}>Add image</Text>
+                    <Text style={styles.modalSubtitle}>
+                      Choose a photo source or paste an image URL.
+                    </Text>
+
+                    <View style={styles.imageSourceButtonsRow}>
+                      <TouchableOpacity
+                        style={[styles.button, styles.secondaryButton, styles.modalButton]}
+                        onPress={() => pickImageForElement('library')}
+                        disabled={sendInProgress || !!activeRequestId || attachmentPickInProgress}
+                      >
+                        <Text style={styles.buttonTextSecondary}>Photo library</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.button, styles.secondaryButton, styles.modalButton]}
+                        onPress={() => pickImageForElement('camera')}
+                        disabled={sendInProgress || !!activeRequestId || attachmentPickInProgress}
+                      >
+                        <Text style={styles.buttonTextSecondary}>Take photo</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <Text style={styles.rangeLabel}>Image URL</Text>
+                    <TextInput
+                      style={styles.modalInput}
+                      value={imageUrlText}
+                      onChangeText={setImageUrlText}
+                      placeholder="https://... or data:image/..."
+                      keyboardType="default"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+
+                    <View style={styles.modalButtonsRow}>
+                      <TouchableOpacity
+                        style={[styles.button, styles.secondaryButton, styles.modalButton]}
+                        onPress={() => setImageAttachVisible(false)}
+                      >
+                        <Text style={styles.buttonTextSecondary}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.button, styles.primaryButton, styles.modalButton]}
+                        onPress={addImageUrlForElement}
+                        disabled={!imageUrlText.trim()}
+                      >
+                        <Text style={styles.buttonText}>Add URL</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
+        )}
+
+        {appendAsVisible && (
+          <Modal
+            visible={appendAsVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setAppendAsVisible(false)}
+          >
+            <TouchableWithoutFeedback onPress={() => setAppendAsVisible(false)}>
+              <View style={styles.modalOverlay}>
+                <TouchableWithoutFeedback onPress={() => { }}>
+                  <View style={styles.modalContent}>
+                    <Text style={styles.modalTitle}>Append as</Text>
+                    <Text style={styles.modalSubtitle}>
+                      Choose a role for the appended message.
+                    </Text>
+
+                    <View style={styles.chipsRow}>
+                      {([
+                        { key: 'system', label: 'System' },
+                        { key: 'developer', label: 'Developer' },
+                        { key: 'user', label: 'User' },
+                        { key: 'assistant', label: 'Assistant' },
+                      ] as Array<{ key: AppendAsRole; label: string }>).map((opt) => {
+                        const selected = opt.key === appendAsRole;
+                        return (
+                          <TouchableOpacity
+                            key={opt.key}
+                            style={selected ? styles.chipSelected : styles.chip}
+                            onPress={() => setAppendAsRole(opt.key)}
+                          >
+                            <Text style={selected ? styles.chipTextSelected : styles.chipText}>
+                              {opt.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    <View style={styles.modalButtonsRow}>
+                      <TouchableOpacity
+                        style={[styles.button, styles.secondaryButton, styles.modalButton]}
+                        onPress={() => setAppendAsVisible(false)}
+                      >
+                        <Text style={styles.buttonTextSecondary}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.button, styles.primaryButton, styles.modalButton]}
+                        onPress={() => {
+                          handleAppendAs().catch(() => { });
+                        }}
+                      >
+                        {sendInProgress ? (
+                          <ActivityIndicator size="small" color={theme.textOnPrimary} />
+                        ) : (
+                          <Text style={styles.buttonText}>Append</Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
+        )}
+
+        {messageLimitVisible && (
+          <Modal
+            visible={messageLimitVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setMessageLimitVisible(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Message range</Text>
+                <Text style={styles.modalSubtitle}>
+                  Python-style range (start:end). Example: -50: for last 50 messages.
+                </Text>
+                <View style={styles.rangeRow}>
+                  <View style={styles.rangeInputContainer}>
+                    <Text style={styles.rangeLabel}>Start</Text>
+                    <TextInput
+                      style={styles.modalInput}
+                      value={rangeStartText}
+                      onChangeText={setRangeStartText}
+                      placeholder="e.g. -50"
+                      keyboardType="default"
+                    />
+                  </View>
+                  <View style={styles.rangeInputContainer}>
+                    <Text style={styles.rangeLabel}>End</Text>
+                    <TextInput
+                      style={styles.modalInput}
+                      value={rangeEndText}
+                      onChangeText={setRangeEndText}
+                      placeholder="optional"
+                      keyboardType="default"
+                    />
+                  </View>
+                </View>
+                <View style={styles.modalButtonsRow}>
+                  <TouchableOpacity
+                    style={[styles.button, styles.secondaryButton, styles.modalButton]}
+                    onPress={() => setMessageLimitVisible(false)}
+                  >
+                    <Text style={styles.buttonTextSecondary}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.button, styles.primaryButton, styles.modalButton]}
+                    onPress={applyMessageLimitAndReload}
+                  >
+                    <Text style={styles.buttonText}>Apply</Text>
+                  </TouchableOpacity>
+                </View>
+                {lastReloadAt && (
+                  <Text style={styles.modalHelperText}>
+                    Last reload at {lastReloadAt.toLocaleTimeString()}
+                  </Text>
+                )}
+              </View>
+            </View>
+          </Modal>
+        )}
+
+        {deleteRangeVisible && (
+          <Modal
+            visible={deleteRangeVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setDeleteRangeVisible(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Delete range</Text>
+                <Text style={styles.modalSubtitle}>
+                  Python-style range (start:end). Messages in this range will be removed.
+                </Text>
+                <View style={styles.rangeRow}>
+                  <View style={styles.rangeInputContainer}>
+                    <Text style={styles.rangeLabel}>Start</Text>
+                    <TextInput
+                      style={styles.modalInput}
+                      value={deleteRangeStartText}
+                      onChangeText={setDeleteRangeStartText}
+                      placeholder="e.g. 0 or -10"
+                      keyboardType="default"
+                    />
+                  </View>
+                  <View style={styles.rangeInputContainer}>
+                    <Text style={styles.rangeLabel}>End</Text>
+                    <TextInput
+                      style={styles.modalInput}
+                      value={deleteRangeEndText}
+                      onChangeText={setDeleteRangeEndText}
+                      placeholder="optional"
+                      keyboardType="default"
+                    />
+                  </View>
+                </View>
+                <View style={styles.modalButtonsRow}>
+                  <TouchableOpacity
+                    style={[styles.button, styles.secondaryButton, styles.modalButton]}
+                    onPress={() => setDeleteRangeVisible(false)}
+                  >
+                    <Text style={styles.buttonTextSecondary}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.button, styles.primaryButton, styles.modalButton]}
+                    onPress={confirmDeleteRange}
+                  >
+                    <Text style={styles.buttonText}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
+        )}
+        <AgentSwitchModal
+          visible={agentModalVisible}
+          loading={agentsLoading || agentSwitchInProgress}
+          agents={availableAgents}
+          selectedAgentId={sessionAgentId}
+          onRequestClose={() => setAgentModalVisible(false)}
+          onSelectAgent={handleSwitchAgent}
+        />
+
+        <SessionSettingsModal
+          backend={backend}
+          sessionId={sessionId}
+          visible={settingsVisible}
+          onRequestClose={() => setSettingsVisible(false)}
+        />
+        <OptionsPickerModal
+          visible={!!composerLeftSelectModalElement}
+          options={
+            composerLeftSelectModalElement
+              ? normalizeSelectOptions(composerLeftSelectModalElement.options)
+              : []
+          }
+          onSelect={(value) => {
+            if (composerLeftSelectModalElement?.key != null) {
+              handleComposerLeftSelectOption(
+                String(composerLeftSelectModalElement.key),
+                value,
+              );
+            }
+            setComposerLeftSelectModalElement(null);
+          }}
+          onRequestClose={() => setComposerLeftSelectModalElement(null)}
+        />
+        <SessionPluginsModal
+          backend={backend}
+          sessionId={sessionId}
+          visible={pluginsVisible}
+          onRequestClose={() => setPluginsVisible(false)}
+        />
+        <ApplicationActionDialog
+          visible={!!activePluginDialogElement}
+          dialog={(activePluginDialogElement as any)?.dialog || null}
+          titleFallback={activePluginDialogElement?.label}
+          prefillContext={{
+            session:
+              activePluginDialogContext && 'sessionSummary' in activePluginDialogContext
+                ? activePluginDialogContext.sessionSummary || undefined
+                : undefined,
+            message:
+              activePluginDialogContext && activePluginDialogContext.kind === 'message'
+                ? {
+                  index: (activePluginDialogContext as any).index,
+                  ...(activePluginDialogContext as any).message,
+                }
+                : undefined,
+          }}
+          onSubmit={handleSubmitPluginDialog}
+          onCancel={handleCancelPluginDialog}
+        />
+        {debugVisible && (
+          <View style={styles.debugOverlay}>
+            <DebugEventsView events={debugEvents} onClose={() => setDebugVisible(false)} />
+          </View>
+        )}
       </View>
-
-      <ComposerAttachmentsManageModal
-        visible={attachmentsManageVisible}
-        title={
-          attachmentsManageSide === 'above'
-            ? 'Attachments (above)'
-            : attachmentsManageSide === 'below'
-              ? 'Attachments (below)'
-              : 'Attachments'
-        }
-        attachments={attachmentsManageRows}
-        disabled={sendInProgress || !!activeRequestId}
-        onMove={(draftId, direction) => {
-          if (!attachmentsManageSide) return;
-          moveAttachmentWithinSide(attachmentsManageSide, draftId, direction);
-        }}
-        onEditMetadata={(draftId) => {
-          if (!attachmentsManageSide) return;
-          openAttachmentMetadataForEdit(attachmentsManageSide, draftId);
-        }}
-        onDelete={(draftId) => {
-          if (!attachmentsManageSide) return;
-          removeAttachmentFromSide(attachmentsManageSide, draftId);
-        }}
-        onRequestClose={() => {
-          setAttachmentsManageVisible(false);
-        }}
-      />
-
-      <AttachmentMetadataModal
-        visible={attachmentMetadataVisible}
-        title={attachmentMetadataTitle}
-        metadataUi={attachmentMetadataUi}
-        initialMetadata={attachmentMetadataInitial}
-        onCancel={handleAttachmentMetadataCancel}
-        onSave={handleAttachmentMetadataSave}
-      />
-
-      {imageAttachVisible && (
-        <Modal
-          visible={imageAttachVisible}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setImageAttachVisible(false)}
-        >
-          <TouchableWithoutFeedback onPress={() => setImageAttachVisible(false)}>
-            <View style={styles.modalOverlay}>
-              <TouchableWithoutFeedback onPress={() => {}}>
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>Add image</Text>
-                  <Text style={styles.modalSubtitle}>
-                    Choose a photo source or paste an image URL.
-                  </Text>
-
-                  <View style={styles.imageSourceButtonsRow}>
-                    <TouchableOpacity
-                      style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                      onPress={() => pickImageForElement('library')}
-                      disabled={sendInProgress || !!activeRequestId || attachmentPickInProgress}
-                    >
-                      <Text style={styles.buttonTextSecondary}>Photo library</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                      onPress={() => pickImageForElement('camera')}
-                      disabled={sendInProgress || !!activeRequestId || attachmentPickInProgress}
-                    >
-                      <Text style={styles.buttonTextSecondary}>Take photo</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <Text style={styles.rangeLabel}>Image URL</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    value={imageUrlText}
-                    onChangeText={setImageUrlText}
-                    placeholder="https://... or data:image/..."
-                    keyboardType="default"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-
-                  <View style={styles.modalButtonsRow}>
-                    <TouchableOpacity
-                      style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                      onPress={() => setImageAttachVisible(false)}
-                    >
-                      <Text style={styles.buttonTextSecondary}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.button, styles.primaryButton, styles.modalButton]}
-                      onPress={addImageUrlForElement}
-                      disabled={!imageUrlText.trim()}
-                    >
-                      <Text style={styles.buttonText}>Add URL</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </TouchableWithoutFeedback>
-            </View>
-          </TouchableWithoutFeedback>
-        </Modal>
-      )}
-
-      {appendAsVisible && (
-        <Modal
-          visible={appendAsVisible}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setAppendAsVisible(false)}
-        >
-          <TouchableWithoutFeedback onPress={() => setAppendAsVisible(false)}>
-            <View style={styles.modalOverlay}>
-              <TouchableWithoutFeedback onPress={() => {}}>
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>Append as</Text>
-                  <Text style={styles.modalSubtitle}>
-                    Choose a role for the appended message.
-                  </Text>
-
-                  <View style={styles.chipsRow}>
-                    {([
-                      { key: 'system', label: 'System' },
-                      { key: 'developer', label: 'Developer' },
-                      { key: 'user', label: 'User' },
-                      { key: 'assistant', label: 'Assistant' },
-                    ] as Array<{ key: AppendAsRole; label: string }>).map((opt) => {
-                      const selected = opt.key === appendAsRole;
-                      return (
-                        <TouchableOpacity
-                          key={opt.key}
-                          style={selected ? styles.chipSelected : styles.chip}
-                          onPress={() => setAppendAsRole(opt.key)}
-                        >
-                          <Text style={selected ? styles.chipTextSelected : styles.chipText}>
-                            {opt.label}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-
-                  <View style={styles.modalButtonsRow}>
-                    <TouchableOpacity
-                      style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                      onPress={() => setAppendAsVisible(false)}
-                    >
-                      <Text style={styles.buttonTextSecondary}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.button, styles.primaryButton, styles.modalButton]}
-                      onPress={() => {
-                        handleAppendAs().catch(() => {});
-                      }}
-                    >
-                      {sendInProgress ? (
-                        <ActivityIndicator size="small" color={theme.textOnPrimary} />
-                      ) : (
-                        <Text style={styles.buttonText}>Append</Text>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </TouchableWithoutFeedback>
-            </View>
-          </TouchableWithoutFeedback>
-        </Modal>
-      )}
-
-	      {messageLimitVisible && (
-	        <Modal
-	          visible={messageLimitVisible}
-	          transparent
-	          animationType="fade"
-	          onRequestClose={() => setMessageLimitVisible(false)}
-	        >
-	          <View style={styles.modalOverlay}>
-	            <View style={styles.modalContent}>
-	              <Text style={styles.modalTitle}>Message range</Text>
-	              <Text style={styles.modalSubtitle}>
-	                Python-style range (start:end). Example: -50: for last 50 messages.
-	              </Text>
-	              <View style={styles.rangeRow}>
-	                <View style={styles.rangeInputContainer}>
-	                  <Text style={styles.rangeLabel}>Start</Text>
-	                  <TextInput
-	                    style={styles.modalInput}
-	                    value={rangeStartText}
-	                    onChangeText={setRangeStartText}
-	                    placeholder="e.g. -50"
-	                    keyboardType="default"
-	                  />
-	                </View>
-	                <View style={styles.rangeInputContainer}>
-	                  <Text style={styles.rangeLabel}>End</Text>
-	                  <TextInput
-	                    style={styles.modalInput}
-	                    value={rangeEndText}
-	                    onChangeText={setRangeEndText}
-	                    placeholder="optional"
-	                    keyboardType="default"
-	                  />
-	                </View>
-	              </View>
-	              <View style={styles.modalButtonsRow}>
-	                <TouchableOpacity
-	                  style={[styles.button, styles.secondaryButton, styles.modalButton]}
-	                  onPress={() => setMessageLimitVisible(false)}
-	                >
-	                  <Text style={styles.buttonTextSecondary}>Cancel</Text>
-	                </TouchableOpacity>
-	                <TouchableOpacity
-	                  style={[styles.button, styles.primaryButton, styles.modalButton]}
-	                  onPress={applyMessageLimitAndReload}
-	                >
-	                  <Text style={styles.buttonText}>Apply</Text>
-	                </TouchableOpacity>
-	              </View>
-	              {lastReloadAt && (
-	                <Text style={styles.modalHelperText}>
-	                  Last reload at {lastReloadAt.toLocaleTimeString()}
-	                </Text>
-	              )}
-	            </View>
-	          </View>
-	        </Modal>
-	      )}
-
-	      {deleteRangeVisible && (
-	        <Modal
-	          visible={deleteRangeVisible}
-	          transparent
-	          animationType="fade"
-	          onRequestClose={() => setDeleteRangeVisible(false)}
-	        >
-	          <View style={styles.modalOverlay}>
-	            <View style={styles.modalContent}>
-	              <Text style={styles.modalTitle}>Delete range</Text>
-	              <Text style={styles.modalSubtitle}>
-	                Python-style range (start:end). Messages in this range will be removed.
-	              </Text>
-	              <View style={styles.rangeRow}>
-	                <View style={styles.rangeInputContainer}>
-	                  <Text style={styles.rangeLabel}>Start</Text>
-	                  <TextInput
-	                    style={styles.modalInput}
-	                    value={deleteRangeStartText}
-	                    onChangeText={setDeleteRangeStartText}
-	                    placeholder="e.g. 0 or -10"
-	                    keyboardType="default"
-	                  />
-	                </View>
-	                <View style={styles.rangeInputContainer}>
-	                  <Text style={styles.rangeLabel}>End</Text>
-	                  <TextInput
-	                    style={styles.modalInput}
-	                    value={deleteRangeEndText}
-	                    onChangeText={setDeleteRangeEndText}
-	                    placeholder="optional"
-	                    keyboardType="default"
-	                  />
-	                </View>
-	              </View>
-	              <View style={styles.modalButtonsRow}>
-	                <TouchableOpacity
-	                  style={[styles.button, styles.secondaryButton, styles.modalButton]}
-	                  onPress={() => setDeleteRangeVisible(false)}
-	                >
-	                  <Text style={styles.buttonTextSecondary}>Cancel</Text>
-	                </TouchableOpacity>
-	                <TouchableOpacity
-	                  style={[styles.button, styles.primaryButton, styles.modalButton]}
-	                  onPress={confirmDeleteRange}
-	                >
-	                  <Text style={styles.buttonText}>Delete</Text>
-	                </TouchableOpacity>
-	              </View>
-	            </View>
-	          </View>
-	        </Modal>
-	      )}
-	      <AgentSwitchModal
-	        visible={agentModalVisible}
-	        loading={agentsLoading || agentSwitchInProgress}
-	        agents={availableAgents}
-	        selectedAgentId={sessionAgentId}
-	        onRequestClose={() => setAgentModalVisible(false)}
-	        onSelectAgent={handleSwitchAgent}
-	      />
-
-	      <SessionSettingsModal
-	        backend={backend}
-	        sessionId={sessionId}
-	        visible={settingsVisible}
-	        onRequestClose={() => setSettingsVisible(false)}
-	      />
-	      <OptionsPickerModal
-	        visible={!!composerLeftSelectModalElement}
-	        options={
-	          composerLeftSelectModalElement
-	            ? normalizeSelectOptions(composerLeftSelectModalElement.options)
-	            : []
-	        }
-	        onSelect={(value) => {
-	          if (composerLeftSelectModalElement?.key != null) {
-	            handleComposerLeftSelectOption(
-	              String(composerLeftSelectModalElement.key),
-	              value,
-	            );
-	          }
-	          setComposerLeftSelectModalElement(null);
-	        }}
-	        onRequestClose={() => setComposerLeftSelectModalElement(null)}
-	      />
-	      <SessionPluginsModal
-	        backend={backend}
-	        sessionId={sessionId}
-	        visible={pluginsVisible}
-	        onRequestClose={() => setPluginsVisible(false)}
-	      />
-	      <ApplicationActionDialog
-	        visible={!!activePluginDialogElement}
-	        dialog={(activePluginDialogElement as any)?.dialog || null}
-	        titleFallback={activePluginDialogElement?.label}
-	        prefillContext={{
-	          session:
-	            activePluginDialogContext && 'sessionSummary' in activePluginDialogContext
-	              ? activePluginDialogContext.sessionSummary || undefined
-	              : undefined,
-	          message:
-	            activePluginDialogContext && activePluginDialogContext.kind === 'message'
-	              ? {
-	                  index: (activePluginDialogContext as any).index,
-	                  ...(activePluginDialogContext as any).message,
-	                }
-	              : undefined,
-	        }}
-	        onSubmit={handleSubmitPluginDialog}
-	        onCancel={handleCancelPluginDialog}
-	      />
-	      {debugVisible && (
-	        <View style={styles.debugOverlay}>
-	          <DebugEventsView events={debugEvents} onClose={() => setDebugVisible(false)} />
-	        </View>
-	      )}
-	    </View>
-	    </KeyboardAvoidingView>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -2486,25 +2492,25 @@ const createStyles = (theme: Theme) =>
     buttonTextDisabled: {
       color: theme.textSecondary,
     },
-	    dirtyBanner: {
-	      flexDirection: 'row',
-	      alignItems: 'center',
-	      marginHorizontal: 4,
-	      marginBottom: 8,
-	      paddingHorizontal: 10,
-	      paddingVertical: 8,
-	      borderRadius: 8,
-	      borderWidth: 1,
-	      borderColor: theme.primary,
-	      backgroundColor: theme.primaryMuted,
-	    },
-	    dirtyBannerText: {
-	      flex: 1,
-	      fontSize: 14,
-	      fontWeight: '600',
-	      color: theme.text,
-	      marginRight: 8,
-	    },
+    dirtyBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginHorizontal: 4,
+      marginBottom: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.primary,
+      backgroundColor: theme.primaryMuted,
+    },
+    dirtyBannerText: {
+      flex: 1,
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.text,
+      marginRight: 8,
+    },
     loadingContainer: {
       flexDirection: 'row',
       alignItems: 'center',

@@ -1506,15 +1506,14 @@ class AgentCore:
         """
         base_config: Dict[str, Any] = dict(config) if isinstance(config, dict) else {}
 
-        base_config: Dict[str, Any] = dict(config) if isinstance(config, dict) else {}
-
         tool_schemas: List[Dict[str, Any]] = []
         for tool in tools:
             tool_state = tool.init(base_config)
             tool_schemas.extend(tool.get_tool_schemas(tool_state))
         provider_config = {**base_config, **({"tools": tool_schemas} if tool_schemas else {})}
 
-        state = provider.init(provider_config)
+        models = self._get_models_for_config(provider, base_config)
+        state = provider.init(provider_config, models=models)
         sorted_features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
         for feature in sorted_features:
             state = feature.init(provider_config, state)
@@ -1627,6 +1626,7 @@ class AgentCore:
             provider: Provider wrapper selected for this request.
             features: Enabled feature wrappers for this request.
             tools: Enabled tool wrappers for this request.
+            tags: Optional resolved capability tags for this request; stored in state for extensions.
 
         Returns:
             A tuple of (messages, native_messages, state):
@@ -1957,7 +1957,7 @@ class AgentCore:
             config,
             provider,
             features,
-            tools,
+            tools
         )
         baseline_native_len = len(native_messages)
 

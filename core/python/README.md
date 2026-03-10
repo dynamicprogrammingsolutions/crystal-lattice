@@ -199,7 +199,7 @@ class MyProvider:
         Dict[str, Any],
     ]:
         # Return (partial_messages, final_messages, native_messages, new_state)
-        msg = {"role": "assistant", "content": "Response"}
+        msg = {"role": "assistant", "content": "Response", "metadata": {}}
         return ([], [msg], [*native_messages, msg], state)
 ```
 

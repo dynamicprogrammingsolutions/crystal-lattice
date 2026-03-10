@@ -13,6 +13,8 @@ def test_ui_schema_includes_tools():
     core.register_tool(DummyCalculator)
     ui = core.get_ui_schema({})
 
+    ui = core.get_ui_schema(config={})
+
     assert isinstance(ui, list)
     keys = {el.get("key") for el in ui if isinstance(el, dict)}
     # Provider UI element from DummyProvider should be present.

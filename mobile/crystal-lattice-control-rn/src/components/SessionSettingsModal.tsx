@@ -211,84 +211,84 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   };
 
   const renderTextLike = (ctx: SessionSettingRenderCtx) => {
-      const { item } = ctx;
-      const key = item.key;
-      const hasPending = Object.prototype.hasOwnProperty.call(pendingTextByKey, key);
-      const pending = hasPending ? pendingTextByKey[key] : undefined;
+    const { item } = ctx;
+    const key = item.key;
+    const hasPending = Object.prototype.hasOwnProperty.call(pendingTextByKey, key);
+    const pending = hasPending ? pendingTextByKey[key] : undefined;
 
-      const textValue =
-        pending ??
-        (item.effectiveValue !== undefined && item.effectiveValue !== null
-          ? String(item.effectiveValue)
-          : '');
+    const textValue =
+      pending ??
+      (item.effectiveValue !== undefined && item.effectiveValue !== null
+        ? String(item.effectiveValue)
+        : '');
 
-      return (
-        <View style={styles.itemRow}>
-          <View style={styles.itemTextColumn}>
-            <View style={styles.itemLabelRow}>
-              <View style={styles.itemLabelChipColumn}>
-                <Text style={styles.itemLabel}>{item.label}</Text>
-                {item.tagLabel && (
-                  <View
+    return (
+      <View style={styles.itemRow}>
+        <View style={styles.itemTextColumn}>
+          <View style={styles.itemLabelRow}>
+            <View style={styles.itemLabelChipColumn}>
+              <Text style={styles.itemLabel}>{item.label}</Text>
+              {item.tagLabel && (
+                <View
+                  style={
+                    item.tagLabel === 'config'
+                      ? styles.tagConfig
+                      : styles.tagDefault
+                  }
+                >
+                  <Text
                     style={
                       item.tagLabel === 'config'
-                        ? styles.tagConfig
-                        : styles.tagDefault
+                        ? styles.tagTextConfig
+                        : styles.tagTextDefault
                     }
                   >
-                    <Text
-                      style={
-                        item.tagLabel === 'config'
-                          ? styles.tagTextConfig
-                          : styles.tagTextDefault
-                      }
-                    >
-                      {item.tagLabel}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              {item.hasOverride && (
-                <TouchableOpacity
-                  style={styles.trashRightOfLabel}
-                  onPress={() => ctx.actions.revertToDefault(key)}
-                >
-                  <Icon name="trash-2" size={14} color={theme.danger} />
-                </TouchableOpacity>
+                    {item.tagLabel}
+                  </Text>
+                </View>
               )}
             </View>
-            {item.description ? (
-              <Text style={styles.itemDescription}>{item.description}</Text>
-            ) : null}
-            <View style={styles.textRow}>
-              <TextInput
-                style={styles.textInput}
-                value={textValue}
-                onChangeText={(txt) =>
-                  setPendingTextByKey((prev) => ({
-                    ...prev,
-                    [key]: txt,
-                  }))
-                }
-                placeholder="Enter value"
-                placeholderTextColor={theme.textSecondary}
-              />
+            {item.hasOverride && (
               <TouchableOpacity
-                style={styles.saveButton}
-                onPress={() => ctx.actions.saveText(key)}
-                disabled={savingKey === key}
+                style={styles.trashRightOfLabel}
+                onPress={() => ctx.actions.revertToDefault(key)}
               >
-                {savingKey === key ? (
-                  <ActivityIndicator size="small" color={theme.textOnPrimary} />
-                ) : (
-                  <Text style={styles.saveButtonText}>Save</Text>
-                )}
+                <Icon name="trash-2" size={14} color={theme.danger} />
               </TouchableOpacity>
-            </View>
+            )}
+          </View>
+          {item.description ? (
+            <Text style={styles.itemDescription}>{item.description}</Text>
+          ) : null}
+          <View style={styles.textRow}>
+            <TextInput
+              style={styles.textInput}
+              value={textValue}
+              onChangeText={(txt) =>
+                setPendingTextByKey((prev) => ({
+                  ...prev,
+                  [key]: txt,
+                }))
+              }
+              placeholder="Enter value"
+              placeholderTextColor={theme.textSecondary}
+            />
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={() => ctx.actions.saveText(key)}
+              disabled={savingKey === key}
+            >
+              {savingKey === key ? (
+                <ActivityIndicator size="small" color={theme.textOnPrimary} />
+              ) : (
+                <Text style={styles.saveButtonText}>Save</Text>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
-      );
-    };
+      </View>
+    );
+  };
 
   const renderers: SessionSettingsRenderers = {
     fallback: renderTextLike,

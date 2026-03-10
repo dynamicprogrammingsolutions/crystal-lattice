@@ -34,7 +34,9 @@
       "api_key": "${env:OPENROUTER_API_KEY}",
       "base_url": "https://openrouter.ai/api/v1",
       "timeout": 300,
-      "allowed_paths": ["."],
+      "allowed_paths": [
+        "."
+      ],
       "max_file_size": 5242880,
       "working_directory": ".",
       "enable_reasoning": true,
@@ -45,6 +47,7 @@
   },
   "plugins": [
     "path:../../../plugins/openrouter",
+    "path:../../../plugins/feature-request-options",
     "path:../../../plugins/codex-tools",
     "path:../../../plugins/feature-system-message",
     "path:../../../plugins/feature-file-context",
