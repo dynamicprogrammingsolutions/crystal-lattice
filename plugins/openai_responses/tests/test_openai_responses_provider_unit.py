@@ -159,6 +159,8 @@ def test_provider_metadata_schema_and_tags() -> None:
         "provider:openai_responses",
         "openai_responses",
         "supports_streaming",
+        "supports_reasoning",
+        "supports_reasoning_effort",
         "supports_tools",
     ]
 

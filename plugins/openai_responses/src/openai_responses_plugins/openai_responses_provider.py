@@ -69,6 +69,8 @@ class OpenAIResponsesProvider(ProviderPlugin):
             "provider:openai_responses",
             "openai_responses",
             "supports_streaming",
+            "supports_reasoning",
+            "supports_reasoning_effort",
             "supports_tools",
         ]
 
