@@ -4,7 +4,8 @@ Short description: Create the new `plugins/openai_responses` package skeleton (p
 
 Parent Task: `tasks/20260310-openai-responses-provider/000-main.md`
 
-Depends On: `tasks/20260310-openai-responses-provider/010-architecture-scope-and-boundaries.md`
+Depends On:
+- `tasks/20260310-openai-responses-provider/010-architecture-scope-and-boundaries.md`
 
 ## Implementation
 

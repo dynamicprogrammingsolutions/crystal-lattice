@@ -13,11 +13,14 @@ Short description: Create a new `openai_responses` plugin bundle using the OpenA
 7. `tasks/20260310-openai-responses-provider/070-usage-extension-responses-api.md`
 8. `tasks/20260310-openai-responses-provider/080-verbosity-extension-responses-api.md`
 9. `tasks/20260310-openai-responses-provider/090-integration-native-retention-and-regression-tests.md`
-10. `tasks/20260310-openai-responses-provider/100-docs-readme-and-config-examples.md`
+10. `tasks/20260310-openai-responses-provider/095-native-compaction-provider-extension.md`
+11. `tasks/20260310-openai-responses-provider/100-docs-readme-and-config-examples.md`
 
 ## Status
 
 - `010` completed during planning handoff (this task-file creation step).
+- `020` through `070` have already been implemented.
+- `095` is a late-stage native compaction subtask and includes its own high-level prerequisite core capability scope (no separate prerequisite task file).
 - Remaining subtasks are implementation work.
 
 ## Architectural intent (must hold across all subtasks)

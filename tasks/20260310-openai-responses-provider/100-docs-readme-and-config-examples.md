@@ -4,7 +4,9 @@ Short description: Document the new `openai_responses` plugin bundle, its extens
 
 Parent Task: `tasks/20260310-openai-responses-provider/000-main.md`
 
-Depends On: `tasks/20260310-openai-responses-provider/090-integration-native-retention-and-regression-tests.md`
+Depends On:
+- `tasks/20260310-openai-responses-provider/090-integration-native-retention-and-regression-tests.md`
+- `tasks/20260310-openai-responses-provider/095-native-compaction-provider-extension.md`
 
 ## Implementation
 
