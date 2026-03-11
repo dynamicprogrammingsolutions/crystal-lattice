@@ -29,6 +29,9 @@ package-dir = {"" = "src"}
 where = ["src"]
 include = ["openai_responses_plugins*"]
 
+[tool.setuptools.package-data]
+openai_responses_plugins = ["data/*.json"]
+
 
 [tool.setuptools.data-files]
 "" = ["agent_plugin.json"]

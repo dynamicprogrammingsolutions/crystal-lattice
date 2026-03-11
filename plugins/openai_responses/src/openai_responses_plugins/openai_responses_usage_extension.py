@@ -1,4 +1,9 @@
-"""OpenAI Responses usage extension scaffold."""
+"""OpenAI Responses usage tracking extension.
+
+This extension owns public usage metadata attachment and cumulative accounting.
+The provider only passes through raw response usage in private native metadata so
+the non-streaming path can expose the same metadata fields as the streaming path.
+"""
 
 from __future__ import annotations
 
@@ -6,13 +11,25 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from agent_core.types import ProviderExtensionPlugin
 
+from .openai_responses_pricing import estimate_usage_cost
+
+
+_RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
+
 
 class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
     name: str = "openai_responses_usage"
     version: str = "0.1.0"
+    priority: int = 60
 
     def get_config_schema(self) -> Dict[str, Any]:
-        return {}
+        return {
+            "pricing_snapshot_path": {
+                "type": "string",
+                "required": False,
+                "description": "Optional path override for the checked-in OpenAI pricing snapshot.",
+            }
+        }
 
     def get_ui_elements(
         self,
@@ -20,23 +37,56 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
+        _ = (tags, models)
         if isinstance(config, dict) and config.get("show_usage") is False:
             return []
         return [
             {
                 "ui_type": "message_footer",
-                "data": "metadata.usage_total_tokens",
-                "template": "tokens: {{data}}",
-            }
+                "data": "metadata.usage_prompt_tokens_formatted",
+                "template": "input: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_cached_tokens_formatted",
+                "template": "cached: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_completion_tokens_formatted",
+                "template": "completion: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_total_cost_formatted",
+                "template": "cost: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_turn_cost_cumulative_formatted",
+                "template": "turn: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_turn_reasoning_tokens_cumulative_formatted",
+                "template": "reasoning: {{data}}",
+            },
+            {
+                "ui_type": "status_bar",
+                "data": "metadata.usage_total_cost_cumulative_formatted",
+                "template": "Total: {{data}}",
+            },
         ]
 
     def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
+        _ = (config, models)
         return ["ext:openai_responses_usage"]
 
     def required_tags(self) -> List[str]:
         return ["openai_responses"]
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        _ = config
         return state
 
     def to_native_messages(
@@ -44,6 +94,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
+        _ = messages
         return list(native_messages)
 
     def from_native_messages(
@@ -51,11 +102,340 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         native_messages: List[Dict[str, Any]],
         messages: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
+        _ = native_messages
         return list(messages)
 
-    def initialize_request(
+    @staticmethod
+    def _usage_reasoning_tokens(usage: Dict[str, Any]) -> int:
+        try:
+            details = (
+                usage.get("output_tokens_details")
+                or usage.get("completion_tokens_details")
+                or {}
+            )
+            if not isinstance(details, dict):
+                return 0
+            val = details.get("reasoning_tokens")
+            if isinstance(val, (int, float)):
+                return int(val)
+        except Exception:
+            return 0
+        return 0
+
+    @staticmethod
+    def _public_usage_from_internal(internal: Any) -> Optional[Dict[str, Any]]:
+        if not isinstance(internal, dict):
+            return None
+        usage = internal.get("usage")
+        if isinstance(usage, dict) and usage:
+            return usage
+        usage = internal.get(_RAW_USAGE_METADATA_KEY)
+        if isinstance(usage, dict) and usage:
+            return usage
+        return None
+
+    @staticmethod
+    def _existing_total_cost_from_internal(internal: Any) -> Optional[float]:
+        if not isinstance(internal, dict):
+            return None
+        raw_total = internal.get("usage_total_cost")
+        if isinstance(raw_total, (int, float)):
+            return float(raw_total)
+        return None
+
+    @staticmethod
+    def _attach_internal_md(item: Dict[str, Any], extra: Dict[str, Any]) -> Dict[str, Any]:
+        base = item.get("_metadata")
+        base_md = base if isinstance(base, dict) else {}
+        cleaned = {k: v for k, v in base_md.items() if k != _RAW_USAGE_METADATA_KEY}
+        return {**item, "_metadata": {**cleaned, **extra}}
+
+    @staticmethod
+    def _assistant_message_candidate_indices(items: List[Dict[str, Any]]) -> List[int]:
+        indices: List[int] = []
+        for idx, item in enumerate(items):
+            if not isinstance(item, dict) or item.get("type") != "message":
+                continue
+            role = item.get("role")
+            if role is None or role == "assistant":
+                indices.append(idx)
+        return indices
+
+    def _select_attach_index(self, items: List[Dict[str, Any]]) -> Optional[int]:
+        candidates = self._assistant_message_candidate_indices(items)
+        if candidates:
+            attach_idx = candidates[-1]
+            for idx in reversed(candidates):
+                item = items[idx]
+                if isinstance(item, dict) and item.get("phase") == "final_answer":
+                    return idx
+            return attach_idx
+        if items:
+            return len(items) - 1
+        return None
+
+    def _build_usage_metadata(
         self,
+        usage: Dict[str, Any],
+        base_native: List[Dict[str, Any]],
+        current_items: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        prompt_tokens_str = None
+        cached_tokens_str = None
+        completion_tokens_str = None
+        cost_str = None
+        total_cost = None
+
+        config = state.get("config") if isinstance(state, dict) else None
+        model = config.get("model") if isinstance(config, dict) else None
+        snapshot_path = config.get("pricing_snapshot_path") if isinstance(config, dict) else None
+
+        input_tokens = usage.get("input_tokens")
+        if isinstance(input_tokens, (int, float)):
+            prompt_tokens_str = f"{int(input_tokens):,}"
+
+        cached = None
+        try:
+            cached = (usage.get("input_tokens_details") or {}).get("cached_tokens")
+        except Exception:
+            cached = None
+        if isinstance(cached, (int, float)):
+            cached_tokens_str = f"{int(cached):,}"
+
+        output_tokens = usage.get("output_tokens")
+        if isinstance(output_tokens, (int, float)):
+            completion_tokens_str = f"{int(output_tokens):,}"
+
+        if isinstance(model, str) and model:
+            try:
+                total_cost = estimate_usage_cost(
+                    usage,
+                    model=model,
+                    snapshot_path=snapshot_path if isinstance(snapshot_path, str) else None,
+                )
+            except Exception:
+                total_cost = None
+
+        if isinstance(total_cost, (int, float)):
+            total_cost = float(total_cost)
+            cost_str = f"${total_cost:.6f}"
+
+        base_total = 0.0
+        base_total_turn = 0.0
+        base_total_turn_reasoning = 0
+
+        for item in base_native:
+            if not isinstance(item, dict):
+                continue
+            internal_prev = item.get("_metadata")
+            previous_cost = self._existing_total_cost_from_internal(internal_prev)
+            if previous_cost is None:
+                continue
+            base_total += previous_cost
+
+        last_sep_idx = -1
+        for idx, item in enumerate(base_native):
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") == "message" and item.get("role") in ("user", "system"):
+                last_sep_idx = idx
+                continue
+            internal_prev = item.get("_metadata")
+            if not isinstance(internal_prev, dict):
+                continue
+            usage_prev = self._public_usage_from_internal(internal_prev)
+            if not isinstance(usage_prev, dict):
+                continue
+            if internal_prev.get("has_tool_calls") is False:
+                last_sep_idx = idx
+
+        for idx, item in enumerate(base_native):
+            if idx <= last_sep_idx or not isinstance(item, dict):
+                continue
+            internal_prev = item.get("_metadata")
+            previous_cost = self._existing_total_cost_from_internal(internal_prev)
+            usage_prev = self._public_usage_from_internal(internal_prev)
+            if previous_cost is None:
+                continue
+            base_total_turn += previous_cost
+            if isinstance(usage_prev, dict):
+                base_total_turn_reasoning += self._usage_reasoning_tokens(usage_prev)
+
+        effective_total_cost = float(total_cost) if isinstance(total_cost, (int, float)) else 0.0
+        cumulative_cost = base_total + effective_total_cost
+        usage_turn_cumulative = base_total_turn + effective_total_cost
+        current_reasoning = self._usage_reasoning_tokens(usage)
+        usage_turn_reasoning_cumulative = base_total_turn_reasoning + current_reasoning
+
+        has_tool_calls = any(
+            isinstance(it, dict) and it.get("type") == "function_call" for it in current_items
+        )
+
+        extra_md: Dict[str, Any] = {
+            "usage": usage,
+            "has_tool_calls": has_tool_calls,
+            "usage_total_cost": effective_total_cost,
+            "usage_total_cost_cumulative": cumulative_cost,
+            "usage_total_cost_cumulative_formatted": f"${cumulative_cost:.6f}",
+            "usage_turn_cost_cumulative": usage_turn_cumulative,
+            "usage_turn_cost_cumulative_formatted": f"${usage_turn_cumulative:.6f}",
+            "usage_turn_reasoning_tokens_cumulative": usage_turn_reasoning_cumulative,
+            "usage_turn_reasoning_tokens_cumulative_formatted": (
+                f"{int(usage_turn_reasoning_cumulative):,}"
+            ),
+        }
+
+        if prompt_tokens_str is not None:
+            extra_md["usage_prompt_tokens_formatted"] = prompt_tokens_str
+        if cached_tokens_str is not None:
+            extra_md["usage_cached_tokens_formatted"] = cached_tokens_str
+        if completion_tokens_str is not None:
+            extra_md["usage_completion_tokens_formatted"] = completion_tokens_str
+        if cost_str is not None and effective_total_cost != 0.0:
+            extra_md["usage_total_cost_formatted"] = cost_str
+
+        return extra_md
+
+    def _extract_stream_usage(self, native_chunk: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        if not isinstance(native_chunk, dict):
+            return None
+        if native_chunk.get("type") == "response.completed":
+            response = native_chunk.get("response")
+            if isinstance(response, dict):
+                usage = response.get("usage")
+                if isinstance(usage, dict) and usage:
+                    return usage
+        usage = native_chunk.get("usage")
+        if isinstance(usage, dict) and usage:
+            return usage
+        return None
+
+    def process_chunk(
+        self,
+        native_chunk: Optional[Dict[str, Any]],
+        partial_messages: List[Dict[str, Any]],
+        final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-        return list(native_messages), state
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        usage = self._extract_stream_usage(native_chunk)
+        if not isinstance(usage, dict) or not usage or not final_messages:
+            return partial_messages, final_messages, native_messages, state
+
+        base_native = list(native_messages)
+        try:
+            base_native = base_native[: -len(final_messages)]
+        except Exception:
+            base_native = list(native_messages)
+
+        extra_md = self._build_usage_metadata(usage, base_native, final_messages, state)
+        attach_idx = self._select_attach_index(final_messages)
+        if attach_idx is None:
+            return partial_messages, final_messages, native_messages, state
+
+        new_finals: List[Dict[str, Any]] = []
+        for idx, item in enumerate(final_messages):
+            if idx == attach_idx and isinstance(item, dict):
+                new_finals.append(self._attach_internal_md(item, extra_md))
+            elif isinstance(item, dict):
+                new_finals.append(self._attach_internal_md(item, {}))
+            else:
+                new_finals.append(item)
+
+        new_native = list(native_messages)
+        if len(new_native) >= len(final_messages):
+            start = len(new_native) - len(final_messages)
+            for rel_idx in range(len(final_messages)):
+                native_item = new_native[start + rel_idx]
+                if not isinstance(native_item, dict):
+                    continue
+                if rel_idx == attach_idx:
+                    new_native[start + rel_idx] = self._attach_internal_md(native_item, extra_md)
+                else:
+                    new_native[start + rel_idx] = self._attach_internal_md(native_item, {})
+
+        return partial_messages, new_finals, new_native, state
+
+    def finalize(
+        self,
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        if final_messages:
+            return final_messages, native_messages, state
+
+        current_response_id: Optional[str] = None
+        current_usage: Optional[Dict[str, Any]] = None
+
+        for item in reversed(native_messages):
+            if not isinstance(item, dict):
+                continue
+            internal = item.get("_metadata")
+            if not isinstance(internal, dict):
+                continue
+            usage = internal.get(_RAW_USAGE_METADATA_KEY)
+            response_id = internal.get("response_id")
+            if isinstance(usage, dict) and usage:
+                current_usage = usage
+                if isinstance(response_id, str) and response_id:
+                    current_response_id = response_id
+                break
+
+        if not isinstance(current_usage, dict) or not current_usage:
+            return final_messages, native_messages, state
+
+        response_indices: List[int] = []
+        if isinstance(current_response_id, str) and current_response_id:
+            for idx, item in enumerate(native_messages):
+                if not isinstance(item, dict):
+                    continue
+                internal = item.get("_metadata")
+                if not isinstance(internal, dict):
+                    continue
+                if internal.get("response_id") == current_response_id:
+                    response_indices.append(idx)
+        else:
+            for idx, item in enumerate(native_messages):
+                if not isinstance(item, dict):
+                    continue
+                internal = item.get("_metadata")
+                if isinstance(internal, dict) and isinstance(
+                    internal.get(_RAW_USAGE_METADATA_KEY), dict
+                ):
+                    response_indices.append(idx)
+
+        if not response_indices:
+            return final_messages, native_messages, state
+
+        current_items = [
+            native_messages[idx]
+            for idx in response_indices
+            if isinstance(native_messages[idx], dict)
+        ]
+        if not current_items:
+            return final_messages, native_messages, state
+
+        response_index_set = set(response_indices)
+        base_native = [
+            item
+            for idx, item in enumerate(native_messages)
+            if idx not in response_index_set and isinstance(item, dict)
+        ]
+        extra_md = self._build_usage_metadata(current_usage, base_native, current_items, state)
+        attach_rel_idx = self._select_attach_index(current_items)
+        if attach_rel_idx is None:
+            return final_messages, native_messages, state
+
+        attach_abs_idx = response_indices[attach_rel_idx]
+
+        for abs_idx in response_indices:
+            item = native_messages[abs_idx]
+            if not isinstance(item, dict):
+                continue
+            updated = self._attach_internal_md(item, extra_md if abs_idx == attach_abs_idx else {})
+            item.clear()
+            item.update(updated)
+
+        return final_messages, native_messages, state

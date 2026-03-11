@@ -24,6 +24,7 @@ from agent_core.types import ProviderPlugin
 JsonObject = Dict[str, Any]
 _DEFAULT_BASE_URL = "https://api.openai.com/v1"
 _DEFAULT_TIMEOUT = 60.0
+_RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
 
 
 class OpenAIResponsesProvider(ProviderPlugin):
@@ -157,8 +158,11 @@ class OpenAIResponsesProvider(ProviderPlugin):
     def _core_metadata_from_native_internal(self, internal: Any) -> Dict[str, Any]:
         if not isinstance(internal, dict):
             return {}
-        out = dict(internal)
-        out.pop("native_indices", None)
+        out = {
+            key: value
+            for key, value in internal.items()
+            if key != "native_indices" and not str(key).startswith("_openai_responses_")
+        }
         return out
 
     def _extract_text_and_images_from_content(
@@ -562,6 +566,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
         if isinstance(response_id, str) and response_id:
             md["response_id"] = response_id
 
+        # Keep raw usage available to extensions without exposing provider-owned
+        # usage fields directly in core message metadata.
+        usage = self._safe_dict_payload(response_obj.get("usage"))
+        if usage:
+            md[_RAW_USAGE_METADATA_KEY] = usage
+
         return md
 
     def _attach_internal_metadata_to_output(
@@ -572,8 +582,6 @@ class OpenAIResponsesProvider(ProviderPlugin):
         if not output_items:
             return list(output_items)
 
-        response_id = response_md.get("response_id")
-
         annotated: List[JsonObject] = []
         for item in output_items:
             if not isinstance(item, dict):
@@ -583,10 +591,11 @@ class OpenAIResponsesProvider(ProviderPlugin):
             base_internal = item.get("_metadata")
             base_internal_dict = base_internal if isinstance(base_internal, dict) else {}
 
-            if isinstance(response_id, str) and response_id:
-                annotated.append({**item, "_metadata": {**base_internal_dict, "response_id": response_id}})
-            else:
-                annotated.append(item)
+            if response_md:
+                annotated.append({**item, "_metadata": {**base_internal_dict, **response_md}})
+                continue
+
+            annotated.append(item)
         return annotated
 
     def call_api(
