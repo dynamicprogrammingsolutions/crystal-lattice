@@ -146,3 +146,22 @@ Suggested coverage:
 - Multi-provider installation in the app environment no longer forces message-edit operations into failure or fallback when the selected provider is unambiguous.
 - Features, tools, and extensions remain enabled according to existing agent/session plugin rules.
 - Tests cover the provider-narrowing behavior and the resulting end-to-end regression case.
+
+## Completion notes (added during completion as a prerequisite for `tasks/20260310-openai-responses-provider/090-integration-native-retention-and-regression-tests.md`)
+
+1. Implemented provider narrowing in `core/python/agent_app/application_future.py`.
+- `_build_core_with_enabled_ids(...)` now accepts an effective provider config and resolves exactly one enabled provider class for the built core
+- `load_session(...)` now resolves the effective config from stored overrides plus optional request overrides before building the per-session core
+- `create_session_ephemeral(...)` and `update_agent(...)` now build a core aligned with the selected provider
+
+2. Updated request/session callers that needed the effective config.
+- `application/python/agent_terminal_app/server.py` now passes request overrides into the session-context helper used by send flows
+- `application/python/agent_terminal_app/terminal_app.py` refreshes the active core after override updates so the terminal state stays aligned with the selected provider
+
+3. Added regression coverage.
+- `core/python/tests/test_application_single_provider_selection.py`
+- `application/python/tests/test_agent_terminal_app_server.py` multi-provider server regression
+- existing app/plugin tests were also rerun to verify delete/fork/override paths remain healthy
+
+4. Outcome.
+- application-built cores now use exactly one provider when the effective config selects one, which removes the old multi-provider `slice_session()` fallback in the covered app/server flows

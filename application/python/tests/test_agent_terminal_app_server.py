@@ -35,6 +35,43 @@ from typing import Any, Dict
 
 from agent_app.application_future import AgentApplication
 from agent_app.events import InMemoryEventStore
+from agent_core import Message, Session
+
+# Make dotted-path test plugins available to the application plugin loader.
+from plugins.echo_openai_like_provider import EchoOpenAILikeProvider  # noqa: F401
+from tests.dummy_provider import DummyProvider  # noqa: F401
+
+
+def _make_multi_provider_echo_config(tmp_path: Path) -> Path:
+    cfg: Dict[str, Any] = {
+        "plugin_cache_dir": str(tmp_path / ".plugin_cache"),
+        "providers": {
+            "echo": {"provider": "echo_openai_like", "model": "echo-model"},
+            "dummy": {"provider": "dummy_provider", "model": "dummy-model"},
+        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "tests.dummy_provider.DummyProvider",
+        ],
+        "agents": {
+            "default": {"provider": "echo"},
+        },
+    }
+
+    path = tmp_path / "config_multi_provider_echo.json"
+    path.write_text(json.dumps(cfg), encoding="utf-8")
+    return path
+
+
+def _wait_for_request_completion(app: AgentApplication, session_id: str, timeout_seconds: float = 10.0) -> None:
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        events = app.get_event_store().list(session_id=session_id, limit=100)
+        kinds = {ev.get("type") for ev in events}
+        if "final" in kinds or "request_completed" in kinds:
+            return
+        time.sleep(0.05)
+    raise AssertionError("timed out waiting for final/request_completed events")
 
 
 def test_server_flow_with_echo_provider(tmp_path: Path) -> None:
@@ -112,6 +149,88 @@ def test_server_flow_with_echo_provider(tmp_path: Path) -> None:
     assert "session_created" in kinds
     assert "message_appended" in kinds
     assert "request_started" in kinds or "final" in kinds
+
+
+def test_server_delete_preserves_native_history_with_multiple_loaded_providers(tmp_path: Path) -> None:
+    from agent_terminal_app import server as server_mod
+
+    config_path = _make_multi_provider_echo_config(tmp_path)
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create_resp = server_mod.create_session(
+        {"agent_id": "default"},
+        app_instance=app,
+    )
+    session_id = create_resp["session"]["session_id"]
+
+    ctx = app.load_session(session_id)
+    assert ctx is not None
+    core, _base_config, _session = ctx
+    assert len(getattr(core, "_providers")) == 1
+    assert getattr(core, "_providers")[0].plugin_class.__name__ == "EchoOpenAILikeProvider"
+
+    provider = EchoOpenAILikeProvider()
+    native_messages = provider.to_native_messages(
+        [
+            {"role": "system", "content": "Keep native history."},
+            {"role": "user", "content": "first turn"},
+            {"role": "assistant", "content": "reply"},
+        ],
+        {},
+    )
+    rebuilt_core = provider.from_native_messages(native_messages, {})
+    normalized_core = core._normalize_final_core_with_native_indices(
+        rebuilt_core,
+        native_messages,
+        baseline_offset=0,
+    )
+    persisted_messages = [
+        Message(
+            role=message["role"],
+            content=message.get("content", ""),
+            metadata=message.get("metadata"),
+        )
+        for message in normalized_core
+    ]
+    session = Session(
+        session_id=session_id,
+        messages=persisted_messages,
+        metadata={
+            "agent_id": "default",
+            "native_messages": native_messages,
+            "native_messages_integrity": core._compute_native_integrity(persisted_messages),
+        },
+    )
+    app.save_session(session)
+
+    native_before = (session.metadata or {}).get("native_messages")
+    assert isinstance(native_before, list)
+    assert native_before
+
+    delete_resp = server_mod.delete_messages(
+        session_id,
+        {"indices": [1]},
+        app_instance=app,
+    )
+
+    deleted_metadata = delete_resp["session"].get("metadata") or {}
+    native_after_delete = deleted_metadata.get("native_messages")
+    assert isinstance(native_after_delete, list)
+    assert native_after_delete
+    assert [message["content"] for message in delete_resp["session"]["messages"]] == [
+        "Keep native history.",
+        "reply",
+    ]
+
+    final_ctx = app.load_session(session_id)
+    assert final_ctx is not None
+    final_core, _final_base_config, final_session = final_ctx
+    assert len(getattr(final_core, "_providers")) == 1
+    assert getattr(final_core, "_providers")[0].plugin_class.__name__ == "EchoOpenAILikeProvider"
+    assert isinstance((final_session.metadata or {}).get("native_messages"), list)
 
 
 def test_send_request_single_flight_blocks_while_running(tmp_path: Path) -> None:

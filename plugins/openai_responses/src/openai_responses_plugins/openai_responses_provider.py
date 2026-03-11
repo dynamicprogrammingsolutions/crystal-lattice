@@ -490,6 +490,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
             return item
         return {k: v for k, v in item.items() if k != "_metadata"}
 
+    def _sanitize_input_item(self, item: JsonObject) -> JsonObject:
+        sanitized = dict(self._strip_internal_metadata(item))
+        for key in ("id", "status", "namespace"):
+            sanitized.pop(key, None)
+        return sanitized
+
     def _response_to_dict(self, response: Any) -> Dict[str, Any]:
         if isinstance(response, dict):
             return response
@@ -620,7 +626,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
         self._validate_native_item_list(base_history)
 
         input_items = [
-            self._strip_internal_metadata(item)
+            self._sanitize_input_item(item)
             for item in base_history
             if isinstance(item, dict)
         ]
@@ -675,7 +681,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
         self._validate_native_item_list(base_history)
 
         input_items = [
-            self._strip_internal_metadata(item)
+            self._sanitize_input_item(item)
             for item in base_history
             if isinstance(item, dict)
         ]

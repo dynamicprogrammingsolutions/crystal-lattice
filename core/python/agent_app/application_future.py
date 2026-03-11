@@ -6,10 +6,9 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, ca
 import uuid
 from contextlib import contextmanager
 from datetime import datetime
-from threading import Lock
 import os
 
-from agent_core import AgentCore, MessageRole, Session
+from agent_core import AgentCore, Session
 from agent_core.plugin.loader import validate_plugin_for_kind
 
 from .app_plugins import ApplicationPluginWrapper
@@ -258,6 +257,7 @@ class AgentApplication:
     def _build_core_with_enabled_ids(
         self,
         enabled_ids: Optional[List[str]],
+        selected_provider_config: Optional[Dict[str, Any]] = None,
     ) -> AgentCore:
         """Construct a fresh AgentCore with only selected plugins enabled.
 
@@ -286,6 +286,13 @@ class AgentApplication:
         if not enabled_providers:
             raise RuntimeError("No provider plugins enabled")
 
+        if isinstance(selected_provider_config, dict):
+            selected_provider = self._resolve_provider_class_for_config(
+                enabled_providers,
+                selected_provider_config,
+            )
+            enabled_providers = [selected_provider]
+
         enabled_extensions = _filter_plugins("extensions")
         enabled_features = _filter_plugins("features")
         enabled_tools = _filter_plugins("tools")
@@ -308,6 +315,123 @@ class AgentApplication:
         """
 
         return self._build_core_with_enabled_ids(None)
+
+    def _provider_identities_for_class(self, provider_class: type[Any]) -> List[str]:
+        names: List[str] = []
+
+        raw_names: List[Any] = [
+            getattr(provider_class, "name", None),
+            getattr(provider_class, "__name__", None),
+            getattr(provider_class, "__qualname__", None),
+        ]
+        for value in raw_names:
+            if isinstance(value, str) and value:
+                names.append(value)
+
+        module = getattr(provider_class, "__module__", None)
+        if isinstance(module, str) and module:
+            class_names: List[str] = []
+            qual = getattr(provider_class, "__qualname__", "") or ""
+            if qual:
+                class_names.append(qual)
+            cls_name = getattr(provider_class, "__name__", "") or ""
+            if cls_name and cls_name not in class_names:
+                class_names.append(cls_name)
+            cfg_name = getattr(provider_class, "name", None)
+            if isinstance(cfg_name, str) and cfg_name and cfg_name not in class_names:
+                class_names.append(cfg_name)
+            for class_name in class_names:
+                names.append(f"{module}.{class_name}")
+
+        seen: Set[str] = set()
+        unique: List[str] = []
+        for name in names:
+            if name not in seen:
+                seen.add(name)
+                unique.append(name)
+        return unique
+
+    def _resolve_provider_class_for_config(
+        self,
+        provider_classes: List[type[Any]],
+        config: Dict[str, Any],
+    ) -> type[Any]:
+        if len(provider_classes) == 1 and "provider" not in config:
+            return provider_classes[0]
+
+        provider_value = config.get("provider")
+        identity_map: Dict[str, List[type[Any]]] = {}
+        for provider_class in provider_classes:
+            for ident in self._provider_identities_for_class(provider_class):
+                identity_map.setdefault(ident, []).append(provider_class)
+
+        def _format_available() -> str:
+            items: List[str] = []
+            for provider_class in provider_classes:
+                idents = self._provider_identities_for_class(provider_class)
+                if not idents:
+                    continue
+                primary = idents[0]
+                extras = [ident for ident in idents[1:] if ident != primary]
+                if extras:
+                    items.append(f"{primary} (also: {', '.join(extras)})")
+                else:
+                    items.append(primary)
+            return ", ".join(items)
+
+        if not isinstance(provider_value, str) or not provider_value.strip():
+            raise RuntimeError(
+                "Configuration must include a non-empty 'provider' string when multiple provider "
+                "plugins are enabled. Known providers: "
+                f"{_format_available()}"
+            )
+
+        provider_key = provider_value.strip()
+        matches = identity_map.get(provider_key, [])
+        if not matches:
+            raise RuntimeError(
+                f"Unknown provider '{provider_key}' in configuration. Known providers: "
+                f"{_format_available()}"
+            )
+
+        if len(matches) > 1:
+            suggestions: List[str] = []
+            for provider_class in matches:
+                idents = self._provider_identities_for_class(provider_class)
+                fq = next((ident for ident in idents if "." in ident), idents[0] if idents else "")
+                if fq:
+                    suggestions.append(fq)
+            suggestions_str = ", ".join(sorted(set(suggestions)))
+            raise RuntimeError(
+                f"Ambiguous provider name '{provider_key}' in configuration; it matches multiple "
+                "enabled provider plugins. Please choose a more specific value, for example one of: "
+                f"{suggestions_str}"
+            )
+
+        return matches[0]
+
+    def _effective_overrides(
+        self,
+        session_metadata: Dict[str, Any],
+        overrides: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        stored_raw = session_metadata.get("overrides")
+        stored = stored_raw if isinstance(stored_raw, dict) else {}
+        if not isinstance(overrides, dict) or not overrides:
+            return stored
+        if not stored:
+            return overrides
+        return {**stored, **overrides}
+
+    def _enabled_plugin_ids_for_session(
+        self,
+        agent_id: str,
+        session_metadata: Dict[str, Any],
+    ) -> Optional[List[str]]:
+        plugins_from_session = session_metadata.get("plugins")
+        if isinstance(plugins_from_session, list):
+            return [p for p in plugins_from_session if isinstance(p, str)]
+        return self._agent_plugin_ids.get(agent_id)
 
     def _load_session_required(self, session_id: str) -> Session:
         session = self._session_store.load(session_id)
@@ -922,7 +1046,9 @@ class AgentApplication:
         return wrapper.execute_action(self, action_id, validated_inputs)
 
     def load_session(
-        self, session_id: str
+        self,
+        session_id: str,
+        overrides: Optional[Dict[str, Any]] = None,
     ) -> Optional[Tuple[AgentCore, Dict[str, Any], Session]]:
         """Load a session and return ``(core, base_config, session)`` or ``None``.
 
@@ -944,14 +1070,14 @@ class AgentApplication:
 
         base_cfg = self._get_agent_base_config(agent_id)
 
-        plugins_from_session = metadata.get("plugins")
-        if isinstance(plugins_from_session, list):
-            enabled_ids = [p for p in plugins_from_session if isinstance(p, str)]
-        else:
-            enabled_ids = self._agent_plugin_ids.get(agent_id)
+        enabled_ids = self._enabled_plugin_ids_for_session(agent_id, metadata)
+        effective_overrides = self._effective_overrides(metadata, overrides)
+        effective_config = resolve_request_config(base_cfg, effective_overrides)
 
-        # TODO: Instead of bulding a new core, add the enabled_ids to the config
-        core = self._build_core_with_enabled_ids(enabled_ids)
+        core = self._build_core_with_enabled_ids(
+            enabled_ids,
+            selected_provider_config=effective_config,
+        )
         return core, base_cfg, session
 
     def load_session_record(self, session_id: str) -> Optional[Session]:
@@ -1002,7 +1128,10 @@ class AgentApplication:
 
         base_cfg = self._get_agent_base_config(agent_id)
         enabled_ids = self._agent_plugin_ids.get(agent_id)
-        core = self._build_core_with_enabled_ids(enabled_ids)
+        core = self._build_core_with_enabled_ids(
+            enabled_ids,
+            selected_provider_config=base_cfg,
+        )
 
         base = core.create_session()
         session = Session(
@@ -1026,7 +1155,10 @@ class AgentApplication:
 
         base_cfg = self._get_agent_base_config(agent_id)
         enabled_ids = self._agent_plugin_ids.get(agent_id)
-        core = self._build_core_with_enabled_ids(enabled_ids)
+        core = self._build_core_with_enabled_ids(
+            enabled_ids,
+            selected_provider_config=base_cfg,
+        )
 
         metadata = session.metadata or {}
         new_metadata = {**metadata, "agent_id": agent_id}

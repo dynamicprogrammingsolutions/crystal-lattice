@@ -212,13 +212,14 @@ def _generate_request_id(app_instance: AgentApplication) -> str:
 def _load_session_ctx_for_send(
     app_instance: AgentApplication,
     session_id: str,
+    overrides: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Any, Any, Session]:
     try:
         session_record = app_instance.load_session_record(session_id)
         if session_record is None:
             raise KeyError(f"Session {session_id!r} not found")
 
-        ctx = app_instance.load_session(session_id)
+        ctx = app_instance.load_session(session_id, overrides=overrides)
         if ctx is None:
             raise KeyError(f"Session {session_id!r} not found")
 
@@ -1642,7 +1643,7 @@ def send_request(
             detail="config_overrides must be a mapping if provided",
         )
 
-    _ = _load_session_ctx_for_send(app_instance, session_id)
+    _ = _load_session_ctx_for_send(app_instance, session_id, overrides=overrides)
 
     request_id = _generate_request_id(app_instance)
     existing = _reserve_active_send_request_id(session_id, request_id)
@@ -1716,7 +1717,11 @@ def send_message(
         if cached is not None:
             return cached
 
-        core, base_config, session = _load_session_ctx_for_send(app_instance, session_id)
+        core, base_config, session = _load_session_ctx_for_send(
+            app_instance,
+            session_id,
+            overrides=overrides,
+        )
 
         request_id = _generate_request_id(app_instance)
         existing = _reserve_active_send_request_id(session_id, request_id)

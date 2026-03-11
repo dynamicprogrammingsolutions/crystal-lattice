@@ -407,6 +407,50 @@ def test_call_api_uses_fixture_payload_shape_and_normalizes_output() -> None:
     )
 
 
+def test_call_api_strips_output_only_fields_from_input_history() -> None:
+    provider = OpenAIResponsesProvider()
+    fixture = _load_fixture()
+    fake_client = _FixtureClient(fixture)
+
+    input_items = [
+        {
+            "type": "function_call",
+            "call_id": "call_123",
+            "name": "add",
+            "arguments": "{\"a\": 1, \"b\": 2}",
+            "id": "fc_123",
+            "status": "completed",
+            "namespace": None,
+            "_metadata": {"response_id": "resp_1"},
+        }
+    ]
+
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 12,
+        },
+        "client": fake_client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 12,
+        },
+    }
+
+    provider.call_api(input_items, state)
+
+    sent_item = fake_client.responses.calls[0]["input"][0]
+    assert sent_item == {
+        "type": "function_call",
+        "call_id": "call_123",
+        "name": "add",
+        "arguments": "{\"a\": 1, \"b\": 2}",
+    }
+
+
 def test_call_api_raises_on_invalid_input_item_shape() -> None:
     provider = OpenAIResponsesProvider()
     fixture = _load_fixture()

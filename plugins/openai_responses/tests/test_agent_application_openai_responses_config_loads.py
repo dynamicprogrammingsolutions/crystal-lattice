@@ -45,3 +45,22 @@ def test_openai_responses_agent_application_config_loads(
     app = AgentApplication(str(config_path), str(session_root))
     errs = app.get_config_errors()
     assert errs == [], f"expected no config/plugin errors, got: {errs}"
+
+    core, base_config, session = app.create_session("default")
+
+    assert base_config["provider"] == "openai_responses"
+    assert session.metadata == {"agent_id": "default"}
+
+    providers = getattr(core, "_providers")
+    assert len(providers) == 1
+
+    provider_wrapper = providers[0]
+    assert provider_wrapper.plugin_class.__name__ == "OpenAIResponsesProvider"
+
+    extension_names = [ext.plugin_class.__name__ for ext in provider_wrapper.extensions]
+    assert extension_names == [
+        "OpenAIResponsesToolsExtension",
+        "OpenAIResponsesReasoningExtension",
+        "OpenAIResponsesUsageExtension",
+        "OpenAIResponsesVerbosityExtension",
+    ]

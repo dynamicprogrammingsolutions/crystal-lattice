@@ -1011,6 +1011,15 @@ class TerminalApplication:
             metadata=new_metadata,
         )
         self._app.save_session(new_session)
+
+        ctx = self._app.load_session(new_session.session_id)
+        if ctx is not None:
+            core, base_config, loaded_session = ctx
+            self._core = core
+            self._base_config = base_config
+            self._session = loaded_session
+            return loaded_session
+
         self._session = new_session
         return new_session
 
