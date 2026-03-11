@@ -16,7 +16,7 @@ from __future__ import annotations
 import inspect
 from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Tuple, cast
 
-from ..types import FeaturePlugin, ProviderExtensionPlugin, ProviderPlugin, ToolPlugin
+from ..types import FeaturePlugin, ProviderExtensionPlugin, ProviderPlugin, Session, ToolPlugin
 
 
 class _BasePluginDefaults:
@@ -419,6 +419,28 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
                 fn(final_messages, native_messages, state),
             )
         return final_messages, native_messages, state
+
+    def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:  # type: ignore[override]
+        fn = self._get_impl_method("get_actions", ProviderExtensionPlugin)
+        if fn is not None:
+            out = fn(state)
+            items = self._safe_list(out)
+            return [item for item in items if isinstance(item, dict)]
+        return []
+
+    def execute_action(  # type: ignore[override]
+        self,
+        action_id: str,
+        session: Session,
+        native_messages: List[Dict[str, Any]],
+        params: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        fn = self._get_impl_method("execute_action", ProviderExtensionPlugin)
+        if fn is not None:
+            out = fn(action_id, session, native_messages, params, state)
+            return out if isinstance(out, dict) else {"native_messages": list(native_messages)}
+        return {"native_messages": list(native_messages)}
 
 
 class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):

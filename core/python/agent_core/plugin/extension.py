@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple, Optional
 
-from ..types import ProviderExtensionPlugin
+from ..types import ProviderExtensionPlugin, Session
 from .adapters import ProviderExtensionDefaultsAdapter
 
 
@@ -112,3 +112,18 @@ class ExtensionWrapper(ProviderExtensionPlugin):
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Finalize after provider; return (final_messages, native_messages, new_state)."""
         return self.plugin.finalize(final_messages, native_messages, state)
+
+    def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return session-scoped action definitions from the extension."""
+        return self.plugin.get_actions(state)
+
+    def execute_action(
+        self,
+        action_id: str,
+        session: Session,
+        native_messages: List[Dict[str, Any]],
+        params: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Execute a session-scoped action from the extension."""
+        return self.plugin.execute_action(action_id, session, native_messages, params, state)

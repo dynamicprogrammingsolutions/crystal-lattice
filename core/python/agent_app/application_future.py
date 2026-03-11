@@ -1045,6 +1045,107 @@ class AgentApplication:
 
         return wrapper.execute_action(self, action_id, validated_inputs)
 
+    def execute_session_action(
+        self,
+        plugin_id: str,
+        action_id: str,
+        params: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Execute a provider-extension session action via the core layer."""
+
+        if not isinstance(plugin_id, str) or not plugin_id:
+            raise ValueError("plugin_id must be a non-empty string")
+        if not isinstance(action_id, str) or not action_id:
+            raise ValueError("action_id must be a non-empty string")
+        if not isinstance(params, dict):
+            raise ValueError("params must be a mapping of action inputs")
+
+        session_id = params.get("session_id")
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("session_id must be a non-empty string")
+
+        action_params = dict(params)
+        action_params.pop("session_id", None)
+
+        with self.acquire_session_lock(session_id):
+            ctx = self.load_session(session_id)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
+
+            core, base_config, session = ctx
+            metadata = session.metadata if isinstance(session.metadata, dict) else {}
+            overrides = metadata.get("overrides")
+            if not isinstance(overrides, dict):
+                overrides = {}
+            effective_config = resolve_request_config(base_config, overrides)
+
+            try:
+                new_session, result = core.execute_session_action(
+                    session,
+                    effective_config,
+                    plugin_id,
+                    action_id,
+                    action_params,
+                )
+            except AgentCore._SessionActionValidationError as exc:  # type: ignore[attr-defined]
+                raise self._ApplicationActionValidationError(
+                    str(exc),
+                    getattr(exc, "details", {}) or {},
+                ) from exc
+
+            self.save_session(new_session)
+
+        if not isinstance(result, dict):
+            result = {}
+
+        mutations = result.get("mutations") if isinstance(result.get("mutations"), dict) else {}
+        ui_effects = result.get("ui_effects") if isinstance(result.get("ui_effects"), dict) else {}
+
+        reload_ids = ui_effects.get("reload_session_ids")
+        reload_list = list(reload_ids) if isinstance(reload_ids, list) else []
+        if session_id not in reload_list:
+            reload_list.append(session_id)
+
+        updated_ids = mutations.get("updated_session_ids")
+        updated_list = list(updated_ids) if isinstance(updated_ids, list) else []
+        if session_id not in updated_list:
+            updated_list.append(session_id)
+
+        return {
+            **result,
+            "mutations": {
+                "created_session_ids": [],
+                "updated_session_ids": updated_list,
+                "deleted_session_ids": [],
+            },
+            "ui_effects": {
+                **ui_effects,
+                "reload_session_ids": reload_list,
+            },
+        }
+
+    def execute_action(
+        self,
+        plugin_id: str,
+        action_id: str,
+        params: Dict[str, Any],
+        *,
+        action_owner: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Execute either an application action or a provider-extension session action."""
+
+        if action_owner == "application":
+            return self.execute_application_action(plugin_id, action_id, params)
+        if action_owner == "provider_extension":
+            return self.execute_session_action(plugin_id, action_id, params)
+
+        try:
+            return self.execute_application_action(plugin_id, action_id, params)
+        except KeyError:
+            if not (isinstance(params, dict) and isinstance(params.get("session_id"), str)):
+                raise
+            return self.execute_session_action(plugin_id, action_id, params)
+
     def load_session(
         self,
         session_id: str,

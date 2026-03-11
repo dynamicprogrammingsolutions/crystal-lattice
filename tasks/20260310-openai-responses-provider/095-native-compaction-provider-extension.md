@@ -111,3 +111,103 @@ The prerequisite output should be a design note and/or follow-up implementation 
 - `plugins/docs/provider-plugins.md`
 - `plugins/docs/provider-extensions.md`
 - `plugins/docs/plugin-execution-order.md`
+
+## Approved plan (added during completion)
+
+1. Add a generic, session-scoped action contract for provider extensions.
+- extend the provider-extension protocol with optional action methods that are not compaction-specific:
+  - `get_actions(state) -> list[dict]`
+  - `execute_action(action_id, session, native_messages, params, state) -> dict`
+- these actions are single-session only and operate on provider-native history plus validated action params
+- `get_ui_elements(...)` remains the place where extensions define their own `session_action` UI entries, but those entries will execute through the new generic extension-action path rather than an application plugin
+
+2. Add generic core orchestration for extension session actions.
+- add `AgentCore.get_session_actions(config)` to enumerate enabled extension-owned actions for the selected provider/config
+- add `AgentCore.execute_session_action(session, config, plugin_id, action_id, params)` to resolve the selected provider/extensions, prepare current native history, validate and dispatch the action, rebuild canonical core messages from the returned native history, and persist updated native-history integrity metadata
+- keep the core change generic so the core only knows that an extension can transform one session's provider-native history into another valid provider-native history
+
+3. Preserve the existing frontend-facing action model and app/server integration shape.
+- application actions and extension session actions remain separate in ownership, but they should be discoverable through the same app/server action discovery surfaces
+- preserve current frontend-facing `session_action` UI patterns and existing action execution flow
+- add only the minimal routing metadata needed for backend dispatch, such as an explicit action owner marker when useful
+
+4. Use the new generic action contract to implement compaction as the first concrete action.
+- add an `openai_responses` extension that defines a session action for native compaction
+- implement it with the OpenAI Python SDK `client.responses.compact(...)`
+- keep compaction ownership inside the extension while the generic core action path handles session rebuild and persistence
+
+5. Add tests in the same change and run focused suites.
+- core tests for action discovery, validation, dispatch, native-history rewrite, and integrity preservation
+- `openai_responses` tests for compact-action SDK call shaping and post-action native-history continuity
+- app/server tests that extension-defined `session_action` UI elements are discoverable and executable through the existing action endpoints
+- a regression test showing `summarize_range` remains distinct from native compaction
+
+## Completion notes (added during completion)
+
+### What changed
+
+1. Added a generic session-scoped action contract for provider extensions in the core/plugin layer.
+- `ProviderExtensionPlugin` now supports optional `get_actions(state)` and `execute_action(action_id, session, native_messages, params, state)` hooks
+- wrappers/adapters were extended so provider extensions can declare session actions without being mis-modeled as application plugins
+- `AgentCore` now has generic `get_session_actions(config)` and `execute_session_action(session, config, plugin_id, action_id, params)` orchestration
+
+2. Kept the action model frontend-facing shape compatible while routing through existing backend surfaces.
+- extension-contributed `session_action` / `message_action` UI elements are automatically marked with `action_owner: "provider_extension"`
+- the existing `POST /actions` path now dispatches either application actions or provider-extension session actions
+- `AgentApplication` gained generic dispatch plus a provider-extension session-action execution path that loads the session, resolves effective config, saves the updated session, and returns standard mutation / reload metadata
+
+3. Implemented native compaction as the first concrete `openai_responses` session action.
+- added `OpenAIResponsesNativeCompactionExtension`
+- it defines a `compact_native_history` session action and corresponding UI element
+- it calls `client.responses.compact(...)` via the OpenAI Python SDK
+- the action returns compacted provider-native history and intentionally preserves the visible transcript instead of replacing it with a summary message
+- when transcript preservation is requested, the core now clears stale `native_indices` from visible messages while keeping the compacted native history for future Responses turns
+
+4. Registered the new extension in the `openai_responses` bundle.
+- updated `plugins/openai_responses/agent_plugin.json`
+- updated `plugins/openai_responses/src/openai_responses_plugins/__init__.py`
+
+5. Added test coverage for the generic mechanism and the OpenAI-specific action.
+- core tests for session-action discovery, validation, action-owner normalization, and native-history rewrite behavior
+- application/server tests for discovery through existing session UI schema plus execution through `POST /actions`
+- `openai_responses` tests for SDK compaction call shaping, input sanitization, transcript preservation, and future-turn continuity through compacted native history
+
+### Files touched
+
+1. `core/python/agent_core/types.py`
+2. `core/python/agent_core/plugin/adapters.py`
+3. `core/python/agent_core/plugin/extension.py`
+4. `core/python/agent_core/plugin/provider.py`
+5. `core/python/agent_core/core.py`
+6. `core/python/agent_app/application_future.py`
+7. `application/python/agent_terminal_app/server.py`
+8. `core/python/tests/dummy_provider_extension_session_action.py`
+9. `core/python/tests/test_provider_extension_session_actions.py`
+10. `application/python/tests/test_provider_extension_session_actions_endpoints.py`
+11. `plugins/openai_responses/src/openai_responses_plugins/openai_responses_native_compaction_extension.py`
+12. `plugins/openai_responses/src/openai_responses_plugins/__init__.py`
+13. `plugins/openai_responses/agent_plugin.json`
+14. `plugins/openai_responses/tests/test_openai_responses_native_compaction_extension_unit.py`
+
+### Tests run
+
+1. `pytest core/python/tests/test_provider_extension_session_actions.py application/python/tests/test_provider_extension_session_actions_endpoints.py plugins/openai_responses/tests/test_openai_responses_native_compaction_extension_unit.py -q`
+- result: `8 passed`
+
+2. `pytest application/python/tests/test_application_actions_endpoints.py application/python/tests/test_provider_extension_session_actions_endpoints.py core/python/tests/test_provider_extension_session_actions.py plugins/openai_responses/tests/test_openai_responses_native_compaction_extension_unit.py plugins/openai_responses/tests/test_openai_responses_native_history_regressions.py plugins/openai_responses/tests/test_agent_application_openai_responses_config_loads.py -q`
+- result: `18 passed`
+
+3. `ruff check core/python/tests/dummy_provider_extension_session_action.py core/python/tests/test_provider_extension_session_actions.py application/python/tests/test_provider_extension_session_actions_endpoints.py plugins/openai_responses/src/openai_responses_plugins/openai_responses_native_compaction_extension.py plugins/openai_responses/tests/test_openai_responses_native_compaction_extension_unit.py core/python/agent_app/application_future.py`
+- result: `All checks passed`
+
+### Outcomes
+
+1. Subtask `095` completed with a generic provider-extension session-action mechanism rather than a compaction-only core hook.
+2. Native compaction for `openai_responses` now exists as an extension-owned session action using the OpenAI SDK compact API.
+3. The visible transcript remains separate from provider-native compaction artifacts, preserving the distinction from `summarize_range`.
+4. Existing backend action execution shape is preserved through `POST /actions`; discovery uses existing session UI schema elements with the new `action_owner` marker.
+
+### Open issues
+
+1. Session actions are discoverable today through existing session UI schema (`/sessions/{id}/ui-schema`) and executable through the existing action endpoint, but they are not included in the global `/application/actions` or `/application/ui-schema` listings because those remain application-plugin scoped.
+2. When a session action preserves the visible transcript while replacing provider-native history, message-level `native_indices` are cleared to avoid stale ownership metadata; history-editing operations after such an action may therefore fall back to core-only behavior until native history is rebuilt by a later turn or explicit rebuild flow.

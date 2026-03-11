@@ -2106,6 +2106,7 @@ class AgentCore:
         enabled_tools = sorted(
             enabled_tools, key=lambda tool: getattr(tool, "priority", 100)
         )
+        extension_plugin_names = {ext.name for ext in enabled_extensions}
 
         elements: List[Dict[str, Any]] = []
         config_by_key: Dict[str, Dict[str, Any]] = {}
@@ -2121,6 +2122,14 @@ class AgentCore:
                     ui_type = "config"
                 if "plugin" not in entry and plugin_name:
                     entry["plugin"] = plugin_name
+
+                if (
+                    plugin_name in extension_plugin_names
+                    and ui_type in {"session_action", "message_action"}
+                    and isinstance(entry.get("action_id"), str)
+                    and "action_owner" not in entry
+                ):
+                    entry["action_owner"] = "provider_extension"
 
                 if ui_type == "config":
                     key = entry.get("key")
@@ -2143,6 +2152,254 @@ class AgentCore:
 
         elements.extend(config_by_key.values())
         return elements
+
+    class _SessionActionValidationError(Exception):
+        """Internal exception used for provider-extension session actions."""
+
+        def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+            super().__init__(message)
+            self.details: Dict[str, Any] = details or {}
+
+    @staticmethod
+    def _session_action_param_type_matches(value: Any, expected_type: str) -> bool:
+        if expected_type == "string":
+            return isinstance(value, str)
+        if expected_type == "integer":
+            return isinstance(value, int) and not isinstance(value, bool)
+        if expected_type == "number":
+            return (isinstance(value, int) and not isinstance(value, bool)) or isinstance(
+                value, float
+            )
+        if expected_type == "boolean":
+            return isinstance(value, bool)
+        return True
+
+    def _validate_session_action_inputs(
+        self,
+        action_def: Dict[str, Any],
+        inputs: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        schema_raw = action_def.get("inputs") or {}
+        schema = schema_raw if isinstance(schema_raw, dict) else {}
+        validated: Dict[str, Any] = {}
+        missing: List[str] = []
+        invalid_types: Dict[str, Dict[str, str]] = {}
+
+        for name, raw_spec in schema.items():
+            if not isinstance(name, str) or not name:
+                continue
+            spec = raw_spec if isinstance(raw_spec, dict) else {}
+            required = bool(spec.get("required", False))
+            param_type = spec.get("type")
+
+            has_value = name in inputs
+            value = inputs.get(name)
+
+            if not has_value or value is None:
+                if "default" in spec:
+                    validated[name] = spec["default"]
+                elif required:
+                    missing.append(name)
+                continue
+
+            if isinstance(param_type, str):
+                if not self._session_action_param_type_matches(value, param_type):
+                    invalid_types[name] = {
+                        "expected": param_type,
+                        "actual_type": type(value).__name__,
+                    }
+                else:
+                    validated[name] = value
+            else:
+                validated[name] = value
+
+        extra = [name for name in inputs.keys() if name not in schema]
+        if missing or invalid_types or extra:
+            details: Dict[str, Any] = {}
+            if missing:
+                details["missing_params"] = missing
+            if invalid_types:
+                details["invalid_types"] = invalid_types
+            if extra:
+                details["extra_params"] = extra
+            raise self._SessionActionValidationError(
+                "action input validation failed",
+                details,
+            )
+
+        return validated
+
+    def get_session_actions(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return session-scoped provider-extension actions for the config."""
+
+        if not isinstance(config, dict):
+            raise TypeError("config must be a dict")
+        if not self._providers:
+            return []
+
+        provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
+            config
+        )
+        features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
+        provider.set_active_extensions(enabled_extensions)
+        _provider_config, state = self._init_provider_and_features_for_config(
+            provider,
+            features,
+            tools,
+            config,
+        )
+
+        actions: List[Dict[str, Any]] = []
+        for plugin_id, raw_actions in provider.get_extension_actions(state).items():
+            for raw_action in raw_actions:
+                if not isinstance(raw_action, dict):
+                    continue
+                action = dict(raw_action)
+                action.setdefault("plugin", plugin_id)
+                action.setdefault("action_owner", "provider_extension")
+                actions.append(action)
+        return actions
+
+    def _find_session_action_definition(
+        self,
+        actions: List[Dict[str, Any]],
+        plugin_id: str,
+        action_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        for action in actions:
+            if not isinstance(action, dict):
+                continue
+            if action.get("plugin") == plugin_id and action.get("id") == action_id:
+                return action
+        return None
+
+    def _messages_without_native_indices(self, messages: List[Message]) -> List[Message]:
+        cleaned: List[Message] = []
+        for message in messages:
+            data = message.to_dict()
+            raw_md = data.get("metadata") or {}
+            metadata = dict(raw_md) if isinstance(raw_md, dict) else {}
+            metadata.pop("native_indices", None)
+            cleaned.append(
+                Message(
+                    role=data.get("role", "user"),
+                    content=data.get("content", ""),
+                    metadata=metadata or None,
+                    multipart_content=data.get("multipartContent"),
+                )
+            )
+        return cleaned
+
+    def _native_messages_for_session_action(
+        self,
+        session: Session,
+        config: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        retained_native = None
+        if isinstance(session.metadata, dict):
+            retained_native = session.metadata.get("native_messages")
+
+        if isinstance(retained_native, list):
+            try:
+                self._verify_native_integrity(session)
+                return list(retained_native)
+            except Exception:
+                pass
+
+        core_messages = [message.to_dict() for message in session.messages]
+        return self._core_messages_to_native_for_config(core_messages, config)
+
+    def execute_session_action(
+        self,
+        session: Session,
+        config: Dict[str, Any],
+        plugin_id: str,
+        action_id: str,
+        params: Dict[str, Any],
+    ) -> Tuple[Session, Dict[str, Any]]:
+        """Execute a generic session-scoped provider-extension action."""
+
+        if not isinstance(config, dict):
+            raise TypeError("config must be a dict")
+        if not isinstance(plugin_id, str) or not plugin_id:
+            raise ValueError("plugin_id must be a non-empty string")
+        if not isinstance(action_id, str) or not action_id:
+            raise ValueError("action_id must be a non-empty string")
+        if not isinstance(params, dict):
+            raise ValueError("params must be a mapping of action inputs")
+
+        provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
+            config
+        )
+        features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
+        provider.set_active_extensions(enabled_extensions)
+        _provider_config, state = self._init_provider_and_features_for_config(
+            provider,
+            features,
+            tools,
+            config,
+        )
+
+        available_actions: List[Dict[str, Any]] = []
+        for extension_id, raw_actions in provider.get_extension_actions(state).items():
+            for raw_action in raw_actions:
+                if not isinstance(raw_action, dict):
+                    continue
+                action = dict(raw_action)
+                action.setdefault("plugin", extension_id)
+                action.setdefault("action_owner", "provider_extension")
+                available_actions.append(action)
+
+        action_def = self._find_session_action_definition(available_actions, plugin_id, action_id)
+        if action_def is None:
+            raise KeyError(f"Unknown session action {action_id!r} for plugin {plugin_id!r}")
+
+        validated_inputs = self._validate_session_action_inputs(action_def, params)
+        native_messages = self._native_messages_for_session_action(session, config)
+        result = provider.execute_extension_action(
+            plugin_id,
+            action_id,
+            session,
+            native_messages,
+            validated_inputs,
+            state,
+        )
+        if not isinstance(result, dict):
+            raise RuntimeError("session action must return a dict")
+
+        raw_native = result.get("native_messages")
+        if not isinstance(raw_native, list) or not all(isinstance(item, dict) for item in raw_native):
+            raise RuntimeError("session action must return full native_messages as a list of dicts")
+        new_native_messages = [item for item in raw_native if isinstance(item, dict)]
+
+        rebuild_messages = bool(result.get("rebuild_messages_from_native", True))
+        if rebuild_messages:
+            new_messages = self._rebuild_core_from_native(new_native_messages, config)
+        else:
+            new_messages = self._messages_without_native_indices(session.messages)
+
+        metadata_patch_raw = result.get("session_metadata")
+        metadata_patch = metadata_patch_raw if isinstance(metadata_patch_raw, dict) else {}
+
+        new_metadata = dict(session.metadata) if isinstance(session.metadata, dict) else {}
+        new_metadata.update(metadata_patch)
+        new_metadata["native_messages"] = new_native_messages
+        new_metadata["native_messages_integrity"] = self._compute_native_integrity(new_messages)
+
+        public_result = {
+            key: value
+            for key, value in result.items()
+            if key not in {"native_messages", "session_metadata", "rebuild_messages_from_native"}
+        }
+
+        return (
+            Session(
+                session_id=session.session_id,
+                messages=new_messages,
+                metadata=new_metadata,
+            ),
+            public_result,
+        )
 
     def get_completions(self, config: Dict[str, Any], text: str) -> List[Dict[str, Any]]:
         """Collect completion suggestions from registered feature plugins.

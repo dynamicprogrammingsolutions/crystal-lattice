@@ -2678,6 +2678,7 @@ def execute_action(
     body = payload or {}
     plugin_id = body.get("plugin")
     action_id = body.get("action_id")
+    action_owner = body.get("action_owner")
     raw_inputs = body.get("inputs") or {}
 
     scope = f"POST /actions/{plugin_id}/{action_id}"
@@ -2686,10 +2687,11 @@ def execute_action(
         return cached
 
     try:
-        result = app_instance.execute_application_action(
+        result = app_instance.execute_action(
             plugin_id=plugin_id,
             action_id=action_id,
             params=raw_inputs,
+            action_owner=action_owner if isinstance(action_owner, str) else None,
         )
         if not isinstance(result, dict):
             result = {}
@@ -2697,6 +2699,7 @@ def execute_action(
             "status": "ok",
             "plugin": plugin_id,
             "action_id": action_id,
+            "action_owner": action_owner,
             "result": result,
         }
     except AgentApplication._ApplicationActionValidationError as exc:  # type: ignore[attr-defined]
@@ -2704,6 +2707,7 @@ def execute_action(
             "status": "error",
             "plugin": plugin_id,
             "action_id": action_id,
+            "action_owner": action_owner,
             "error_type": "validation",
             "message": str(exc),
             "details": getattr(exc, "details", {}) or {},
@@ -2713,6 +2717,7 @@ def execute_action(
             "status": "error",
             "plugin": plugin_id,
             "action_id": action_id,
+            "action_owner": action_owner,
             "error_type": "not_found",
             "message": str(exc),
             "details": {},
@@ -2723,6 +2728,7 @@ def execute_action(
             "status": "error",
             "plugin": plugin_id,
             "action_id": action_id,
+            "action_owner": action_owner,
             "error_type": "validation",
             "message": str(exc),
             "details": {},
@@ -2733,6 +2739,7 @@ def execute_action(
             "status": "error",
             "plugin": plugin_id,
             "action_id": action_id,
+            "action_owner": action_owner,
             "error_type": "internal",
             "message": str(exc),
             "details": {},

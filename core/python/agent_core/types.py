@@ -637,6 +637,56 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         """
         return final_messages, native_messages, state
 
+    def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return session-scoped action definitions for this extension.
+
+        These actions are analogous to application-plugin actions, but they
+        operate only on a single session's provider-native history. The core
+        owns session loading/saving and passes the selected session, current
+        provider-native history, validated action params, and shared provider
+        state into :meth:`execute_action`.
+
+        Action definitions are plain dictionaries. A common shape is::
+
+            {
+                "id": "compact_native_history",
+                "label": "Compact native history",
+                "description": "Provider-native session action.",
+                "inputs": {
+                    "instructions": {"type": "string", "required": False},
+                },
+            }
+
+        Transport-specific inputs such as ``session_id`` are handled by higher
+        layers and should not be declared here unless the extension itself
+        needs them.
+        """
+        return []
+
+    def execute_action(
+        self,
+        action_id: str,
+        session: "Session",
+        native_messages: List[Dict[str, Any]],
+        params: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Execute a session-scoped provider-native action.
+
+        The returned mapping is generic. Extensions should always return a
+        full ``native_messages`` list representing the new provider-native
+        history for the session. Optional control keys currently understood by
+        the core include:
+
+        - ``session_metadata``: mapping merged into ``session.metadata``
+        - ``rebuild_messages_from_native``: bool controlling whether visible
+          core messages should be rebuilt from the returned native history
+
+        Additional keys are preserved and surfaced back to higher layers as an
+        opaque result payload.
+        """
+        return {"native_messages": list(native_messages)}
+
 
 class FeaturePlugin(BasePlugin, Protocol):
     """Protocol for feature plugins (cold path; shared provider state).

@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Iterator, AsyncIterator, Tuple, Optional
 
 from .adapters import ProviderDefaultsAdapter
 from .extension import ExtensionWrapper
-from ..types import ProviderPlugin
+from ..types import ProviderPlugin, Session
 from ..utils import pipeline, get_logger
 
 logger = None
@@ -476,6 +476,31 @@ class ProviderWrapper(ProviderPlugin):
         """
 
         return {ext.name: ext.get_ui_elements(config, tags, models) for ext in self._iter_extensions()}
+
+    def get_extension_actions(
+        self,
+        state: Dict[str, Any],
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """Return session-scoped action definitions for active extensions."""
+
+        return {ext.name: ext.get_actions(state) for ext in self._iter_extensions()}
+
+    def execute_extension_action(
+        self,
+        plugin_id: str,
+        action_id: str,
+        session: Session,
+        native_messages: List[Dict[str, Any]],
+        params: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Dispatch a session-scoped action to the matching active extension."""
+
+        for ext in self._iter_extensions():
+            if ext.name != plugin_id:
+                continue
+            return ext.execute_action(action_id, session, native_messages, params, state)
+        raise KeyError(f"Unknown provider extension {plugin_id!r}")
 
     def reset_state(self) -> None:
         """Discard internal shared state after request."""
