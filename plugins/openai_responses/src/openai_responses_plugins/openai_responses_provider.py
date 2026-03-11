@@ -69,6 +69,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
             "provider:openai_responses",
             "openai_responses",
             "supports_streaming",
+            "supports_tools",
         ]
 
     def _coerce_timeout(self, raw: Any) -> float:
