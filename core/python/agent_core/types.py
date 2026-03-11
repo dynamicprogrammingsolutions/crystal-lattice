@@ -679,8 +679,6 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         the core include:
 
         - ``session_metadata``: mapping merged into ``session.metadata``
-        - ``rebuild_messages_from_native``: bool controlling whether visible
-          core messages should be rebuilt from the returned native history
 
         Additional keys are preserved and surfaced back to higher layers as an
         opaque result payload.

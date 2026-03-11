@@ -210,4 +210,76 @@ The prerequisite output should be a design note and/or follow-up implementation 
 ### Open issues
 
 1. Session actions are discoverable today through existing session UI schema (`/sessions/{id}/ui-schema`) and executable through the existing action endpoint, but they are not included in the global `/application/actions` or `/application/ui-schema` listings because those remain application-plugin scoped.
-2. When a session action preserves the visible transcript while replacing provider-native history, message-level `native_indices` are cleared to avoid stale ownership metadata; history-editing operations after such an action may therefore fall back to core-only behavior until native history is rebuilt by a later turn or explicit rebuild flow.
+2. The real integration tests pass, but they emit SDK/Pydantic serialization warnings around OpenAI response model types during `model_dump` conversion; these warnings did not block functionality and were not addressed in this subtask.
+
+## Follow-up approved plan (added during completion)
+
+1. Make native-history rebuild mandatory after provider-extension session actions.
+- remove the optional transcript-preservation path from the core session-action execution flow
+- require session actions to return replacement native history and always rebuild visible `session.messages` from that native history
+
+2. Represent compacted history explicitly in visible messages.
+- map provider-native compaction artifacts to a visible assistant placeholder message with explanatory content
+- store round-trip metadata on that placeholder so converting back to native messages remains lossless for future requests
+
+3. Support prefix-slice compaction.
+- update the native compaction action to accept an end index representing the slice `[:end]`
+- enforce that compaction starts from the first message only
+- replace only that prefix with the compacted representation while preserving the untouched suffix
+
+4. Add integration coverage for both full and partial compaction.
+- include a full-compaction integration test that sends another message afterwards
+- include a partial-compaction integration test that sends another message afterwards
+- if partial compaction fails for provider reasons that do not appear fixable in code, keep the failure visible and document it rather than hiding it
+
+## Follow-up completion notes (added during completion)
+
+### What changed
+
+1. Made post-action rebuild mandatory again.
+- `AgentCore.execute_session_action(...)` now always rebuilds visible `session.messages` from returned native history
+- the temporary transcript-preservation path is gone
+
+2. Added explicit visible compaction placeholders.
+- `OpenAIResponsesNativeCompactionExtension` now maps compacted native segments to a regular assistant message with explanatory content
+- placeholder metadata stores the underlying native segment under `metadata.openai_responses_compaction.native_segment`
+- converting core messages back to native messages expands that placeholder back into the stored native compaction segment
+
+3. Implemented prefix-slice compaction.
+- `compact_native_history` now accepts optional `end_index` and interprets it as the exclusive slice end for `[:end_index]`
+- the extension validates that the chosen visible prefix maps to a contiguous native prefix before calling `responses.compact(...)`
+- only the selected prefix is compacted; the untouched suffix stays in native history and remains visible after rebuild
+
+4. Fixed follow-up request compatibility after compaction.
+- sanitized compacted native items before re-sending them to the Responses API
+- stripped unsupported fields observed during real integration runs (`phase`, `annotations`, `logprobs`, `created_by` for compaction items, etc.)
+- verified that both fully compacted and partially compacted sessions can send another message successfully with the real provider
+
+5. Added and ran integration coverage for both full and partial compaction.
+- new integration file: `plugins/openai_responses/tests/test_openai_responses_native_compaction_integration.py`
+- both tests compact, then send another message afterward to verify native-history validity survives the compaction step
+
+### Additional files touched in the follow-up
+
+1. `plugins/openai_responses/src/openai_responses_plugins/openai_responses_provider.py`
+2. `plugins/openai_responses/tests/test_openai_responses_native_compaction_integration.py`
+3. `plugins/openai_responses/tests/test_agent_application_openai_responses_config_loads.py`
+
+### Follow-up tests run
+
+1. `pytest core/python/tests/test_provider_extension_session_actions.py application/python/tests/test_provider_extension_session_actions_endpoints.py plugins/openai_responses/tests/test_openai_responses_native_compaction_extension_unit.py plugins/openai_responses/tests/test_agent_application_openai_responses_config_loads.py -q`
+- result: `10 passed`
+
+2. `pytest plugins/openai_responses/tests/test_openai_responses_native_compaction_integration.py -q -m 'integration and openai'`
+- first run failed with real-provider validation errors on replayed compacted items
+- after sanitization fixes, rerun result: `2 passed`
+
+3. `pytest application/python/tests/test_application_actions_endpoints.py application/python/tests/test_provider_extension_session_actions_endpoints.py core/python/tests/test_provider_extension_session_actions.py plugins/openai_responses/tests/test_openai_responses_native_compaction_extension_unit.py plugins/openai_responses/tests/test_openai_responses_native_compaction_integration.py plugins/openai_responses/tests/test_openai_responses_native_history_regressions.py plugins/openai_responses/tests/test_agent_application_openai_responses_config_loads.py -q`
+- result: `21 passed`
+
+### Updated outcome
+
+1. The visible transcript is now always rebuilt from native history after compaction.
+2. Compacted ranges are shown explicitly as assistant placeholder messages instead of silently preserving old visible messages.
+3. Prefix-slice compaction `[:end_index]` works with the real OpenAI Responses provider in the tested scenarios.
+4. Both full and partial compaction survived a follow-up turn in real integration tests.

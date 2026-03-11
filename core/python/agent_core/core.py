@@ -2273,23 +2273,6 @@ class AgentCore:
                 return action
         return None
 
-    def _messages_without_native_indices(self, messages: List[Message]) -> List[Message]:
-        cleaned: List[Message] = []
-        for message in messages:
-            data = message.to_dict()
-            raw_md = data.get("metadata") or {}
-            metadata = dict(raw_md) if isinstance(raw_md, dict) else {}
-            metadata.pop("native_indices", None)
-            cleaned.append(
-                Message(
-                    role=data.get("role", "user"),
-                    content=data.get("content", ""),
-                    metadata=metadata or None,
-                    multipart_content=data.get("multipartContent"),
-                )
-            )
-        return cleaned
-
     def _native_messages_for_session_action(
         self,
         session: Session,
@@ -2372,11 +2355,7 @@ class AgentCore:
             raise RuntimeError("session action must return full native_messages as a list of dicts")
         new_native_messages = [item for item in raw_native if isinstance(item, dict)]
 
-        rebuild_messages = bool(result.get("rebuild_messages_from_native", True))
-        if rebuild_messages:
-            new_messages = self._rebuild_core_from_native(new_native_messages, config)
-        else:
-            new_messages = self._messages_without_native_indices(session.messages)
+        new_messages = self._rebuild_core_from_native(new_native_messages, config)
 
         metadata_patch_raw = result.get("session_metadata")
         metadata_patch = metadata_patch_raw if isinstance(metadata_patch_raw, dict) else {}

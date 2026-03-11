@@ -492,8 +492,32 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
     def _sanitize_input_item(self, item: JsonObject) -> JsonObject:
         sanitized = dict(self._strip_internal_metadata(item))
-        for key in ("id", "status", "namespace"):
+        item_type = sanitized.get("type")
+
+        if item_type == "compaction":
+            compacted: JsonObject = {
+                "type": "compaction",
+                "encrypted_content": sanitized.get("encrypted_content", ""),
+            }
+            if isinstance(sanitized.get("id"), str) and sanitized.get("id"):
+                compacted["id"] = sanitized["id"]
+            return compacted
+
+        for key in ("id", "status", "namespace", "phase"):
             sanitized.pop(key, None)
+
+        content = sanitized.get("content")
+        if isinstance(content, list):
+            cleaned_content: List[Dict[str, Any]] = []
+            for part in content:
+                if not isinstance(part, dict):
+                    continue
+                cleaned_part = dict(part)
+                cleaned_part.pop("annotations", None)
+                cleaned_part.pop("logprobs", None)
+                cleaned_content.append(cleaned_part)
+            sanitized["content"] = cleaned_content
+
         return sanitized
 
     def _response_to_dict(self, response: Any) -> Dict[str, Any]:

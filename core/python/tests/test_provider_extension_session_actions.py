@@ -44,7 +44,7 @@ def test_get_ui_schema_marks_extension_actions_with_owner() -> None:
     assert element["action_owner"] == "provider_extension"
 
 
-def test_execute_session_action_updates_native_history_without_rebuilding_messages() -> None:
+def test_execute_session_action_rebuilds_messages_from_native_history() -> None:
     core = _build_core()
     config = _config()
 
@@ -68,17 +68,18 @@ def test_execute_session_action_updates_native_history_without_rebuilding_messag
     assert [message.content for message in updated_session.messages] == [
         "hello",
         "SYS= | USER=hello",
+        "MARKER=after-send",
     ]
     assert all(
-        "native_indices" not in ((message.metadata or {})) for message in updated_session.messages
+        "native_indices" in ((message.metadata or {})) for message in updated_session.messages
     )
 
     native_history = (updated_session.metadata or {}).get("native_messages")
     assert isinstance(native_history, list)
-    assert native_history[-1] == {"type": "dummy_marker", "marker": "after-send"}
+    assert native_history[-1] == {"role": "assistant", "content": "MARKER=after-send"}
     assert (updated_session.metadata or {}).get("native_messages_integrity") == {
-        "message_count": 2,
-        "total_chars": len("hello") + len("SYS= | USER=hello"),
+        "message_count": 3,
+        "total_chars": len("hello") + len("SYS= | USER=hello") + len("MARKER=after-send"),
     }
 
 

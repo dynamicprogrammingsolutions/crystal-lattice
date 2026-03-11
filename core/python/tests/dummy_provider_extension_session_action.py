@@ -73,8 +73,7 @@ class DummySessionActionExtension:
         return {
             "native_messages": [
                 *native_messages,
-                {"type": "dummy_marker", "marker": marker},
+                {"role": "assistant", "content": f"MARKER={marker}"},
             ],
-            "rebuild_messages_from_native": False,
             "message": f"Appended marker {marker}",
         }

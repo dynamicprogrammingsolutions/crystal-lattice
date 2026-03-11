@@ -102,6 +102,10 @@ def test_actions_endpoint_executes_provider_extension_session_action(tmp_path: P
 
     loaded = app.load_session_record(session.session_id)
     assert loaded is not None
+    assert [message.content for message in loaded.messages] == [
+        "hello from app",
+        "MARKER=server-path",
+    ]
     native_history = (loaded.metadata or {}).get("native_messages")
     assert isinstance(native_history, list)
-    assert native_history[-1] == {"type": "dummy_marker", "marker": "server-path"}
+    assert native_history[-1] == {"role": "assistant", "content": "MARKER=server-path"}
