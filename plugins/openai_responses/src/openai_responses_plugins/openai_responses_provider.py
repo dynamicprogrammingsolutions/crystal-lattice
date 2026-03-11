@@ -66,7 +66,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
         return []
 
     def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
-        return [
+        tags = [
             "provider:openai_responses",
             "openai_responses",
             "supports_streaming",
@@ -74,6 +74,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
             "supports_reasoning_effort",
             "supports_tools",
         ]
+
+        model = config.get("model")
+        if isinstance(model, str) and "gpt-5" in model:
+            tags.append("supports_verbosity")
+
+        return tags
 
     def _coerce_timeout(self, raw: Any) -> float:
         try:

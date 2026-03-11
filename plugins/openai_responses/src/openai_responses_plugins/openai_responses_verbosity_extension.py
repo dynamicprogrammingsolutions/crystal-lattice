@@ -1,4 +1,8 @@
-"""OpenAI Responses verbosity extension scaffold."""
+"""OpenAI Responses verbosity extension.
+
+Injects Responses API ``text.verbosity`` for models that advertise the
+``supports_verbosity`` capability tag.
+"""
 
 from __future__ import annotations
 
@@ -27,6 +31,7 @@ class OpenAIResponsesVerbosityExtension(ProviderExtensionPlugin):
                 "type": "string",
                 "required": False,
                 "enum": list(_VERBOSITY_LEVELS),
+                "description": "Response verbosity level for supported models.",
             }
         }
 
@@ -36,6 +41,8 @@ class OpenAIResponsesVerbosityExtension(ProviderExtensionPlugin):
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
+        if isinstance(tags, list) and "ext:openai_responses_verbosity" not in tags:
+            return []
         if isinstance(config, dict) and config.get("show_verbosity_ui") is False:
             return []
         return [
@@ -50,7 +57,7 @@ class OpenAIResponsesVerbosityExtension(ProviderExtensionPlugin):
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         verbosity = config.get("verbosity")
         if isinstance(verbosity, str) and verbosity in _VERBOSITY_LEVELS:
-            return {**state, "openai_responses_verbosity": verbosity}
+            return {**state, "openai_responses_verbosity": {"verbosity": verbosity}}
         return state
 
     def to_native_messages(
@@ -72,4 +79,25 @@ class OpenAIResponsesVerbosityExtension(ProviderExtensionPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-        return list(native_messages), state
+        cfg = state.get("openai_responses_verbosity") or {}
+        verbosity = cfg.get("verbosity")
+        if not isinstance(verbosity, str) or verbosity not in _VERBOSITY_LEVELS:
+            return list(native_messages), state
+
+        request = state.get("request") or {}
+        payload = dict(request.get("payload", {}))
+
+        text_cfg = payload.get("text")
+        if isinstance(text_cfg, dict):
+            next_text_cfg = dict(text_cfg)
+        else:
+            next_text_cfg = {"format": {"type": "text"}}
+
+        fmt = next_text_cfg.get("format")
+        if not isinstance(fmt, dict) or not fmt:
+            next_text_cfg["format"] = {"type": "text"}
+
+        next_text_cfg["verbosity"] = verbosity
+        payload["text"] = next_text_cfg
+
+        return list(native_messages), {**state, "request": {**request, "payload": payload}}

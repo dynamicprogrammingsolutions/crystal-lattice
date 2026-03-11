@@ -162,7 +162,16 @@ def test_provider_metadata_schema_and_tags() -> None:
         "supports_reasoning",
         "supports_reasoning_effort",
         "supports_tools",
+        "supports_verbosity",
     ]
+
+
+def test_get_tags_does_not_advertise_verbosity_for_non_gpt5_models() -> None:
+    provider = OpenAIResponsesProvider()
+
+    tags = provider.get_tags({"model": "gpt-4.1-mini"}, [{"id": "gpt-4.1-mini"}])
+
+    assert "supports_verbosity" not in tags
 
 
 def test_init_uses_env_api_key_when_not_in_config(monkeypatch: pytest.MonkeyPatch) -> None:
