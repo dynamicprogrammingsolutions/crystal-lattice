@@ -10,6 +10,7 @@ Use it when you want an OpenAI-backed agent with:
 - reasoning controls and surfaced reasoning metadata
 - usage and cost metadata in message/UI output
 - verbosity controls for supported models
+- prompt caching controls with a session-owned cache key
 - native conversation compaction for longer sessions
 
 Most users can think of this as a single plugin bundle that adds OpenAI
@@ -100,6 +101,8 @@ combination.
       "api_key": "${env:OPENAI_API_KEY}",
       "base_url": "https://api.openai.com/v1",
       "timeout": 120,
+      "enable_prompt_cache_key": true,
+      "enable_prompt_cache_retention_24h": false,
       "reasoning_effort": "minimal",
       "reasoning_summary": "concise",
       "verbosity": "high"
@@ -120,6 +123,7 @@ What this enables:
 - tool schema injection and tool-call handling
 - usage and cost metadata
 - GPT-5 verbosity controls
+- prompt caching settings plus a regenerate-key session action
 - a native compaction session action for longer conversations
 
 ## Features
@@ -148,6 +152,26 @@ preserved in raw metadata for future native replay.
 Usage metadata is attached to assistant messages, including formatted prompt,
 completion, cached-token, and cost fields. This is useful in the terminal UI
 and other clients that render message footers or status bars.
+
+### Prompt caching
+
+Prompt caching controls are available through:
+
+- `enable_prompt_cache_key`
+- `prompt_cache_key`
+- `enable_prompt_cache_retention_24h`
+
+When prompt cache key support is enabled:
+
+- new sessions automatically receive a generated session-owned key
+- older sessions missing a key are repaired on first request
+- forked sessions keep the same key by default
+- users can manually edit the key through normal session settings
+- users can regenerate the key through the `regenerate_prompt_cache_key` session action
+
+By default, prompt cache key support is enabled when this extension is loaded.
+Set `enable_prompt_cache_key: false` if you want to turn off automatic
+session-owned key generation and request injection.
 
 ### Verbosity
 
@@ -204,6 +228,12 @@ models whose id contains `gpt-5`.
 - `pricing_snapshot_path`: optional override for the checked-in pricing snapshot
 - `show_usage`: set to `false` to hide usage footer/status UI elements
 
+### Prompt caching keys
+
+- `enable_prompt_cache_key`: defaults to `true`; set to `false` to disable automatic session-owned prompt cache keys
+- `prompt_cache_key`: optional manual cache key override shown in normal session settings UI
+- `enable_prompt_cache_retention_24h`: set to `true` to send `prompt_cache_retention: "24h"`
+
 ### Tools
 
 Tool schemas come from loaded tool plugins such as `plugins.math_tools.MathTools`.
@@ -215,6 +245,12 @@ No extra config key is required beyond loading tools in the application.
 It exposes a session action with id `compact_native_history` that uses the
 native compaction API and rewrites provider-native history while keeping a
 visible placeholder message in the transcript.
+
+### Prompt caching session action
+
+It exposes a session action with id `regenerate_prompt_cache_key` that replaces
+the current session-owned prompt cache key without changing the visible
+transcript.
 
 ## Capabilities and caveats
 
@@ -252,12 +288,14 @@ like this:
 - reasoning: reasoning request shaping and reasoning metadata
 - usage: usage formatting and pricing metadata
 - verbosity: `text.verbosity` request shaping
+- prompt caching: `prompt_cache_key` / retention request shaping and session-key lifecycle
 - native compaction: session action for provider-native compaction
 
 Implementation classes registered by the bundle:
 
 - `openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider`
 - `openai_responses_plugins.openai_responses_native_compaction_extension.OpenAIResponsesNativeCompactionExtension`
+- `openai_responses_plugins.openai_responses_prompt_caching_extension.OpenAIResponsesPromptCachingExtension`
 - `openai_responses_plugins.openai_responses_tools_extension.OpenAIResponsesToolsExtension`
 - `openai_responses_plugins.openai_responses_reasoning_extension.OpenAIResponsesReasoningExtension`
 - `openai_responses_plugins.openai_responses_usage_extension.OpenAIResponsesUsageExtension`

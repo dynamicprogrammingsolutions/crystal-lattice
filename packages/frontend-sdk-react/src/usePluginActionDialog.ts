@@ -14,6 +14,19 @@ export interface UsePluginActionDialogResult<Context> {
   handleCancel: () => void;
 }
 
+export function shouldOpenPluginActionDialog(dialog: any): boolean {
+  if (!dialog || typeof dialog !== 'object') {
+    return false;
+  }
+
+  const kind = typeof dialog.kind === 'string' ? dialog.kind : '';
+  if (!kind || kind === 'none') {
+    return false;
+  }
+
+  return true;
+}
+
 export function usePluginActionDialog<Context = any>(
   runAction: (
     element: ActionUiElement,
@@ -25,8 +38,8 @@ export function usePluginActionDialog<Context = any>(
 
   const openForElement = useCallback(
     (element: ActionUiElement, context: Context) => {
-      const dialog: any = (element as any).dialog || {};
-      if (!dialog || dialog.kind === 'none') {
+      const dialog: any = (element as any).dialog;
+      if (!shouldOpenPluginActionDialog(dialog)) {
         runAction(element, context, undefined).catch(() => {
           // Errors are handled inside runAction.
         });

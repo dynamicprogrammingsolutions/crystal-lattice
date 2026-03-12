@@ -9,6 +9,7 @@ import os
 import pytest
 
 from agent_app.application_future import AgentApplication
+from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider
 
 
 def test_openai_responses_agent_application_config_loads(
@@ -16,6 +17,7 @@ def test_openai_responses_agent_application_config_loads(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "test_key")
+    monkeypatch.setattr(OpenAIResponsesProvider, "get_models", lambda self, config: [])
 
     cfg: Dict[str, Any] = {
         "plugin_cache_dir": str(tmp_path / ".plugin_cache"),
@@ -31,6 +33,7 @@ def test_openai_responses_agent_application_config_loads(
         "plugins": [
             "openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider",
             "openai_responses_plugins.openai_responses_native_compaction_extension.OpenAIResponsesNativeCompactionExtension",
+            "openai_responses_plugins.openai_responses_prompt_caching_extension.OpenAIResponsesPromptCachingExtension",
             "openai_responses_plugins.openai_responses_tools_extension.OpenAIResponsesToolsExtension",
             "openai_responses_plugins.openai_responses_reasoning_extension.OpenAIResponsesReasoningExtension",
             "openai_responses_plugins.openai_responses_usage_extension.OpenAIResponsesUsageExtension",
@@ -50,7 +53,10 @@ def test_openai_responses_agent_application_config_loads(
     core, base_config, session = app.create_session("default")
 
     assert base_config["provider"] == "openai_responses"
-    assert session.metadata == {"agent_id": "default"}
+    assert session.metadata["agent_id"] == "default"
+    overrides = session.metadata.get("overrides") or {}
+    assert isinstance(overrides.get("prompt_cache_key"), str)
+    assert overrides["prompt_cache_key"].startswith("opcache_")
 
     providers = getattr(core, "_providers")
     assert len(providers) == 1
@@ -61,6 +67,7 @@ def test_openai_responses_agent_application_config_loads(
     extension_names = [ext.plugin_class.__name__ for ext in provider_wrapper.extensions]
     assert extension_names == [
         "OpenAIResponsesNativeCompactionExtension",
+        "OpenAIResponsesPromptCachingExtension",
         "OpenAIResponsesToolsExtension",
         "OpenAIResponsesReasoningExtension",
         "OpenAIResponsesUsageExtension",

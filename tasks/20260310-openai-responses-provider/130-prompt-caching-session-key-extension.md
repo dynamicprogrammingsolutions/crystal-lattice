@@ -105,3 +105,99 @@ The extension should not own cached-token display logic; cached-token observabil
 - `plugins/openai_responses/src/openai_responses_plugins/openai_responses_usage_extension.py`
 - `plugins/openai_responses/src/openai_responses_plugins/openai_responses_verbosity_extension.py`
 - `plugins/openai_responses/README.md`
+
+## Approved plan (added during completion)
+
+1. Add a dedicated `openai_responses` prompt-caching extension.
+- own config schema and UI for:
+  - `enable_prompt_cache_key`
+  - `prompt_cache_key`
+  - `enable_prompt_cache_retention_24h`
+- expose a separate `regenerate_prompt_cache_key` session action
+- keep all request shaping inside the extension's `initialize_request(...)`
+
+2. Use the shared lifecycle action system for session-owned key management.
+- auto-generate a prompt cache key on `session_create` when key support is enabled
+- repair legacy sessions on `request_prepare` when key support is enabled but no key exists
+- rely on default fork metadata preservation so fork keeps the same key without generating a new one
+
+3. Register the extension in the `openai_responses` bundle and document it.
+- update bundle exports and plugin descriptor registration
+- update `plugins/openai_responses/README.md` with settings, lifecycle behavior, and regenerate action usage
+
+4. Add tests in the same change.
+- unit tests for request mutation, lifecycle generation/repair, and regenerate action behavior
+- app/server-oriented tests that session settings UI exposes the config keys and that the session action executes through existing action endpoints
+- OpenAI integration smoke tests for generated key enabled, manual key supplied, and 24-hour retention enabled
+
+5. Run focused tests and then append completion notes to this task file.
+- report exact test commands and outcomes
+- stop after this subtask only
+
+## Completion notes (added during completion)
+
+### What changed
+
+1. Added a new `openai_responses` prompt-caching extension.
+- new file: `plugins/openai_responses/src/openai_responses_plugins/openai_responses_prompt_caching_extension.py`
+- owns:
+  - config schema for `enable_prompt_cache_key`, `prompt_cache_key`, and `enable_prompt_cache_retention_24h`
+  - config UI elements so the key is visible/editable in normal session settings
+  - request shaping for `prompt_cache_key` and optional `prompt_cache_retention: "24h"`
+  - a separate `regenerate_prompt_cache_key` provider-extension session action
+
+2. Implemented session-owned key lifecycle through the shared lifecycle-action system.
+- `ensure_prompt_cache_key` runs on `session_create` and `request_prepare`
+- new sessions auto-generate a key when key support is enabled
+- legacy sessions missing a key are repaired on first request
+- fork preservation relies on the default metadata-preserving fork behavior, so no fork-specific regeneration path was added
+
+3. Registered the extension in the `openai_responses` bundle.
+- updated `plugins/openai_responses/src/openai_responses_plugins/__init__.py`
+- updated `plugins/openai_responses/agent_plugin.json`
+- updated import/descriptor coverage accordingly
+
+4. Updated docs and examples for the new prompt-caching controls.
+- `plugins/openai_responses/README.md` now documents:
+  - the three prompt-caching settings
+  - auto-generation and first-request repair behavior
+  - manual key editing through session settings
+  - the `regenerate_prompt_cache_key` session action
+
+5. Added tests covering unit behavior, app/server flows, and live OpenAI smoke behavior.
+- unit tests for request mutation and lifecycle/action behavior
+- application/server tests for UI schema exposure, manual edit, regenerate action execution, request-time repair, and fork preservation
+- integration tests for live OpenAI success with generated key enabled, manual key supplied, and 24-hour retention enabled
+
+### Files touched
+
+1. `plugins/openai_responses/src/openai_responses_plugins/openai_responses_prompt_caching_extension.py`
+2. `plugins/openai_responses/src/openai_responses_plugins/__init__.py`
+3. `plugins/openai_responses/agent_plugin.json`
+4. `plugins/openai_responses/README.md`
+5. `plugins/openai_responses/tests/test_openai_responses_prompt_caching_extension_unit.py`
+6. `plugins/openai_responses/tests/test_openai_responses_prompt_caching_integration.py`
+7. `plugins/openai_responses/tests/test_agent_application_openai_responses_config_loads.py`
+8. `plugins/openai_responses/tests/test_openai_responses_imports.py`
+9. `application/python/tests/test_openai_responses_prompt_caching_endpoints.py`
+
+### Tests run
+
+1. `pytest plugins/openai_responses/tests/test_openai_responses_prompt_caching_extension_unit.py plugins/openai_responses/tests/test_agent_application_openai_responses_config_loads.py application/python/tests/test_openai_responses_prompt_caching_endpoints.py plugins/openai_responses/tests/test_openai_responses_imports.py -q`
+- result: `11 passed`
+
+2. `ruff check plugins/openai_responses/src/openai_responses_plugins/openai_responses_prompt_caching_extension.py plugins/openai_responses/tests/test_openai_responses_prompt_caching_extension_unit.py plugins/openai_responses/tests/test_agent_application_openai_responses_config_loads.py application/python/tests/test_openai_responses_prompt_caching_endpoints.py plugins/openai_responses/tests/test_openai_responses_imports.py`
+- result: `All checks passed`
+
+3. `pytest plugins/openai_responses/tests/test_openai_responses_prompt_caching_integration.py -q`
+- result: `3 passed`
+
+### Outcomes
+
+1. Prompt-caching request shaping remains extension-owned; no prompt-caching request logic was added to the provider.
+2. Session-owned prompt cache key creation, repair, editing, regeneration, and fork preservation now work end-to-end through the generic lifecycle/action/session-settings mechanisms.
+3. Live OpenAI smoke coverage passed for the three required prompt-caching request modes.
+
+### Open issues
+
+1. Focused application tests still surface the pre-existing FastAPI `on_event` deprecation warnings from `application/python/agent_terminal_app/server.py`; those warnings were not changed in this subtask.
