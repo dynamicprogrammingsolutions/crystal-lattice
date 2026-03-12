@@ -311,8 +311,6 @@ class SessionActionsAppPlugin:
 
         new_session_id = str(uuid.uuid4())
 
-        from agent_core import AgentCore  # local import to avoid cycles
-
         with app.acquire_session_lock(session_id):
             ctx = app.load_session(session_id)
             if ctx is None:
@@ -322,11 +320,6 @@ class SessionActionsAppPlugin:
 
             message_count = len(session.messages)
             metadata = session.metadata if isinstance(session.metadata, dict) else {}
-            overrides_val = metadata.get("overrides")
-            overrides: Dict[str, Any] = (
-                overrides_val if isinstance(overrides_val, dict) else {}
-            )
-            config = resolve_request_config(base_config, overrides)
 
             if message_count == 0:
                 # For empty sessions, perform a shallow copy of metadata and
@@ -336,12 +329,21 @@ class SessionActionsAppPlugin:
                     messages=list(session.messages),
                     metadata=dict(metadata) if isinstance(metadata, dict) else None,
                 )
+                _new_core, _new_base_config, new_session, _ = app.run_session_lifecycle(
+                    "session_fork",
+                    new_session,
+                    base_config=base_config,
+                    context={
+                        "session_id": new_session.session_id,
+                        "fork_upto_index": -1,
+                        "original_session": session.to_dict(),
+                    },
+                )
             else:
-                if not isinstance(core, AgentCore):  # pragma: no cover - defensive
-                    core = AgentCore()
-                new_session = core.fork_session(
+                _new_core, _new_base_config, new_session = app.fork_session(
+                    core,
                     session,
-                    config,
+                    base_config,
                     upto_index=message_count - 1,
                     new_session_id=new_session_id,
                 )
@@ -392,8 +394,6 @@ class SessionActionsAppPlugin:
 
         new_session_id = str(uuid.uuid4())
 
-        from agent_core import AgentCore  # local import to avoid cycles
-
         with app.acquire_session_lock(session_id):
             ctx = app.load_session(session_id)
             if ctx is None:
@@ -410,19 +410,10 @@ class SessionActionsAppPlugin:
             except IndexError as exc:
                 raise ValueError(str(exc)) from exc
 
-            metadata = session.metadata if isinstance(session.metadata, dict) else {}
-            overrides_val = metadata.get("overrides")
-            overrides: Dict[str, Any] = (
-                overrides_val if isinstance(overrides_val, dict) else {}
-            )
-            config = resolve_request_config(base_config, overrides)
-
-            if not isinstance(core, AgentCore):  # pragma: no cover - defensive
-                core = AgentCore()
-
-            new_session = core.fork_session(
+            _new_core, _new_base_config, new_session = app.fork_session(
+                core,
                 session,
-                config,
+                base_config,
                 upto_index=target_index,
                 new_session_id=new_session_id,
             )

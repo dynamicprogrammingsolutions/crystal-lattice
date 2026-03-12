@@ -73,8 +73,9 @@ def _deduce_kind_from_class(plugin_class: type) -> str:
     - provider: has ``stream_api`` or ``call_api``
     - tool: has both ``get_tool_schemas`` and ``execute_tool``
     - extension: has ``process_chunk``
+    - feature: feature-style request/finalize/message hooks
     - application: heuristics for app plugins (``get_actions`` or ``execute_action``)
-    - feature: fallback
+    - feature: final fallback
     """
 
     if hasattr(plugin_class, "stream_api") or hasattr(plugin_class, "call_api"):
@@ -83,6 +84,19 @@ def _deduce_kind_from_class(plugin_class: type) -> str:
         return "tools"
     if hasattr(plugin_class, "process_chunk"):
         return "extensions"
+    if any(
+        hasattr(plugin_class, attr)
+        for attr in (
+            "initialize_request",
+            "finalize",
+            "to_native_messages",
+            "from_native_messages",
+            "get_template",
+            "get_completions",
+            "apply_completion",
+        )
+    ):
+        return "features"
     # Application-level plugin heuristic (app layer protocol):
     if hasattr(plugin_class, "get_actions") or hasattr(plugin_class, "execute_action"):
         return "application"

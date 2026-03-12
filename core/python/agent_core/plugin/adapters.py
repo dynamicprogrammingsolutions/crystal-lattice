@@ -44,6 +44,42 @@ class _BasePluginDefaults:
         except Exception:
             return []
 
+    @staticmethod
+    def _call_with_optional_context(
+        fn: Any,
+        args_before_context: Tuple[Any, ...],
+        context: Any,
+        args_after_context: Tuple[Any, ...] = (),
+    ) -> Any:
+        """Call ``fn`` with ``context`` when the implementation accepts it.
+
+        This preserves backward compatibility for existing plugins whose
+        ``execute_action`` implementations predate the extra context argument.
+        """
+
+        try:
+            sig = inspect.signature(fn)
+        except (TypeError, ValueError):
+            return fn(*args_before_context, context, *args_after_context)
+
+        params = list(sig.parameters.values())
+        if any(
+            p.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+            for p in params
+        ):
+            return fn(*args_before_context, context, *args_after_context)
+
+        positional = [
+            p
+            for p in params
+            if p.kind
+            in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        ]
+
+        if len(positional) >= len(args_before_context) + len(args_after_context) + 1:
+            return fn(*args_before_context, context, *args_after_context)
+        return fn(*args_before_context, *args_after_context)
+
     def _get_impl_method(self, name: str, protocol_cls: Optional[type] = None) -> Optional[Any]:
         """Return a concrete implementation for an optional hook.
 
@@ -434,11 +470,17 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
         session: Session,
         native_messages: List[Dict[str, Any]],
         params: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Dict[str, Any]:
         fn = self._get_impl_method("execute_action", ProviderExtensionPlugin)
         if fn is not None:
-            out = fn(action_id, session, native_messages, params, state)
+            out = self._call_with_optional_context(
+                fn,
+                (action_id, session, native_messages, params),
+                context,
+                (state,),
+            )
             return out if isinstance(out, dict) else {"native_messages": list(native_messages)}
         return {"native_messages": list(native_messages)}
 
@@ -545,6 +587,34 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
                 fn(final_messages, native_messages, state),
             )
         return final_messages, native_messages, state
+
+    def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:  # type: ignore[override]
+        fn = self._get_impl_method("get_actions", FeaturePlugin)
+        if fn is not None:
+            out = fn(state)
+            items = self._safe_list(out)
+            return [item for item in items if isinstance(item, dict)]
+        return []
+
+    def execute_action(  # type: ignore[override]
+        self,
+        action_id: str,
+        session: Session,
+        native_messages: List[Dict[str, Any]],
+        params: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        fn = self._get_impl_method("execute_action", FeaturePlugin)
+        if fn is not None:
+            out = self._call_with_optional_context(
+                fn,
+                (action_id, session, native_messages, params),
+                context,
+                (state,),
+            )
+            return out if isinstance(out, dict) else {"native_messages": list(native_messages)}
+        return {"native_messages": list(native_messages)}
 
     def get_completions(  # type: ignore[override]
         self,

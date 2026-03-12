@@ -2107,6 +2107,7 @@ class AgentCore:
             enabled_tools, key=lambda tool: getattr(tool, "priority", 100)
         )
         extension_plugin_names = {ext.name for ext in enabled_extensions}
+        feature_plugin_names = {feature.name for feature in enabled_features}
 
         elements: List[Dict[str, Any]] = []
         config_by_key: Dict[str, Dict[str, Any]] = {}
@@ -2130,6 +2131,13 @@ class AgentCore:
                     and "action_owner" not in entry
                 ):
                     entry["action_owner"] = "provider_extension"
+                elif (
+                    plugin_name in feature_plugin_names
+                    and ui_type in {"session_action", "message_action"}
+                    and isinstance(entry.get("action_id"), str)
+                    and "action_owner" not in entry
+                ):
+                    entry["action_owner"] = "feature"
 
                 if ui_type == "config":
                     key = entry.get("key")
@@ -2230,34 +2238,14 @@ class AgentCore:
         return validated
 
     def get_session_actions(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Return session-scoped provider-extension actions for the config."""
+        """Return session-scoped extension and feature actions for the config."""
 
         if not isinstance(config, dict):
             raise TypeError("config must be a dict")
         if not self._providers:
             return []
 
-        provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
-            config
-        )
-        features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
-        provider.set_active_extensions(enabled_extensions)
-        _provider_config, state = self._init_provider_and_features_for_config(
-            provider,
-            features,
-            tools,
-            config,
-        )
-
-        actions: List[Dict[str, Any]] = []
-        for plugin_id, raw_actions in provider.get_extension_actions(state).items():
-            for raw_action in raw_actions:
-                if not isinstance(raw_action, dict):
-                    continue
-                action = dict(raw_action)
-                action.setdefault("plugin", plugin_id)
-                action.setdefault("action_owner", "provider_extension")
-                actions.append(action)
+        _provider, _features, _state, actions = self._get_core_session_actions_and_state(config)
         return actions
 
     def _find_session_action_definition(
@@ -2292,25 +2280,19 @@ class AgentCore:
         core_messages = [message.to_dict() for message in session.messages]
         return self._core_messages_to_native_for_config(core_messages, config)
 
-    def execute_session_action(
+    @staticmethod
+    def _action_matches_trigger(action: Dict[str, Any], trigger: str) -> bool:
+        trigger_val = action.get("trigger")
+        if isinstance(trigger_val, str):
+            return trigger_val == trigger
+        if isinstance(trigger_val, list):
+            return any(isinstance(item, str) and item == trigger for item in trigger_val)
+        return False
+
+    def _get_core_session_actions_and_state(
         self,
-        session: Session,
         config: Dict[str, Any],
-        plugin_id: str,
-        action_id: str,
-        params: Dict[str, Any],
-    ) -> Tuple[Session, Dict[str, Any]]:
-        """Execute a generic session-scoped provider-extension action."""
-
-        if not isinstance(config, dict):
-            raise TypeError("config must be a dict")
-        if not isinstance(plugin_id, str) or not plugin_id:
-            raise ValueError("plugin_id must be a non-empty string")
-        if not isinstance(action_id, str) or not action_id:
-            raise ValueError("action_id must be a non-empty string")
-        if not isinstance(params, dict):
-            raise ValueError("params must be a mapping of action inputs")
-
+    ) -> Tuple[Any, List[Any], Dict[str, Any], List[Dict[str, Any]]]:
         provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
             config
         )
@@ -2323,33 +2305,33 @@ class AgentCore:
             config,
         )
 
-        available_actions: List[Dict[str, Any]] = []
-        for extension_id, raw_actions in provider.get_extension_actions(state).items():
+        actions: List[Dict[str, Any]] = []
+        for plugin_id, raw_actions in provider.get_extension_actions(state).items():
             for raw_action in raw_actions:
                 if not isinstance(raw_action, dict):
                     continue
                 action = dict(raw_action)
-                action.setdefault("plugin", extension_id)
+                action.setdefault("plugin", plugin_id)
                 action.setdefault("action_owner", "provider_extension")
-                available_actions.append(action)
+                actions.append(action)
 
-        action_def = self._find_session_action_definition(available_actions, plugin_id, action_id)
-        if action_def is None:
-            raise KeyError(f"Unknown session action {action_id!r} for plugin {plugin_id!r}")
+        for feature in features:
+            for raw_action in feature.get_actions(state):
+                if not isinstance(raw_action, dict):
+                    continue
+                action = dict(raw_action)
+                action.setdefault("plugin", feature.name)
+                action.setdefault("action_owner", "feature")
+                actions.append(action)
 
-        validated_inputs = self._validate_session_action_inputs(action_def, params)
-        native_messages = self._native_messages_for_session_action(session, config)
-        result = provider.execute_extension_action(
-            plugin_id,
-            action_id,
-            session,
-            native_messages,
-            validated_inputs,
-            state,
-        )
-        if not isinstance(result, dict):
-            raise RuntimeError("session action must return a dict")
+        return provider, features, state, actions
 
+    def _apply_session_action_result(
+        self,
+        session: Session,
+        config: Dict[str, Any],
+        result: Dict[str, Any],
+    ) -> Tuple[Session, Dict[str, Any]]:
         raw_native = result.get("native_messages")
         if not isinstance(raw_native, list) or not all(isinstance(item, dict) for item in raw_native):
             raise RuntimeError("session action must return full native_messages as a list of dicts")
@@ -2379,6 +2361,144 @@ class AgentCore:
             ),
             public_result,
         )
+
+    def execute_session_action(
+        self,
+        session: Session,
+        config: Dict[str, Any],
+        plugin_id: str,
+        action_id: str,
+        params: Dict[str, Any],
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Session, Dict[str, Any]]:
+        """Execute a generic session-scoped extension or feature action."""
+
+        if not isinstance(config, dict):
+            raise TypeError("config must be a dict")
+        if not isinstance(plugin_id, str) or not plugin_id:
+            raise ValueError("plugin_id must be a non-empty string")
+        if not isinstance(action_id, str) or not action_id:
+            raise ValueError("action_id must be a non-empty string")
+        if not isinstance(params, dict):
+            raise ValueError("params must be a mapping of action inputs")
+
+        provider, features, state, available_actions = self._get_core_session_actions_and_state(config)
+
+        action_def = self._find_session_action_definition(available_actions, plugin_id, action_id)
+        if action_def is None:
+            raise KeyError(f"Unknown session action {action_id!r} for plugin {plugin_id!r}")
+
+        validated_inputs = self._validate_session_action_inputs(action_def, params)
+        native_messages = self._native_messages_for_session_action(session, config)
+        action_owner = action_def.get("action_owner")
+        if action_owner == "feature":
+            result: Optional[Dict[str, Any]] = None
+            for feature in features:
+                if feature.name != plugin_id:
+                    continue
+                result = feature.execute_action(
+                    action_id,
+                    session,
+                    native_messages,
+                    validated_inputs,
+                    context,
+                    state,
+                )
+                break
+            if result is None:
+                raise KeyError(f"Unknown feature action {action_id!r} for plugin {plugin_id!r}")
+        else:
+            result = provider.execute_extension_action(
+                plugin_id,
+                action_id,
+                session,
+                native_messages,
+                validated_inputs,
+                context,
+                state,
+            )
+        if not isinstance(result, dict):
+            raise RuntimeError("session action must return a dict")
+        return self._apply_session_action_result(session, config, result)
+
+    def execute_lifecycle_actions(
+        self,
+        session: Session,
+        config: Dict[str, Any],
+        trigger: str,
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Session, List[Dict[str, Any]]]:
+        """Execute all extension/feature actions whose trigger matches ``trigger``."""
+
+        if not isinstance(config, dict):
+            raise TypeError("config must be a dict")
+        if not isinstance(trigger, str) or not trigger:
+            raise ValueError("trigger must be a non-empty string")
+        if not self._providers:
+            return session, []
+
+        provider, features, state, available_actions = self._get_core_session_actions_and_state(config)
+
+        current_session = session
+        results: List[Dict[str, Any]] = []
+        for action_def in available_actions:
+            if not self._action_matches_trigger(action_def, trigger):
+                continue
+
+            plugin_id = action_def.get("plugin")
+            action_id = action_def.get("id")
+            action_owner = action_def.get("action_owner")
+            if not isinstance(plugin_id, str) or not isinstance(action_id, str):
+                continue
+
+            validated_inputs = self._validate_session_action_inputs(action_def, {})
+            native_messages = self._native_messages_for_session_action(current_session, config)
+
+            if action_owner == "feature":
+                result: Optional[Dict[str, Any]] = None
+                for feature in features:
+                    if feature.name != plugin_id:
+                        continue
+                    result = feature.execute_action(
+                        action_id,
+                        current_session,
+                        native_messages,
+                        validated_inputs,
+                        context,
+                        state,
+                    )
+                    break
+                if result is None:
+                    continue
+            else:
+                result = provider.execute_extension_action(
+                    plugin_id,
+                    action_id,
+                    current_session,
+                    native_messages,
+                    validated_inputs,
+                    context,
+                    state,
+                )
+
+            if not isinstance(result, dict):
+                raise RuntimeError("session action must return a dict")
+            current_session, public_result = self._apply_session_action_result(
+                current_session,
+                config,
+                result,
+            )
+            results.append(
+                {
+                    "plugin": plugin_id,
+                    "action_id": action_id,
+                    "action_owner": action_owner,
+                    "result": public_result,
+                }
+            )
+
+        return current_session, results
 
     def get_completions(self, config: Dict[str, Any], text: str) -> List[Dict[str, Any]]:
         """Collect completion suggestions from registered feature plugins.

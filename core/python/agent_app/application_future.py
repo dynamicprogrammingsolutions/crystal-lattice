@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, cast
 import uuid
@@ -432,6 +433,180 @@ class AgentApplication:
         if isinstance(plugins_from_session, list):
             return [p for p in plugins_from_session if isinstance(p, str)]
         return self._agent_plugin_ids.get(agent_id)
+
+    def _resolve_runtime_for_session(
+        self,
+        session: Session,
+        overrides: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[AgentCore, Dict[str, Any], Dict[str, Any]]:
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        agent_id = metadata.get("agent_id")
+        if not isinstance(agent_id, str) or not agent_id:
+            raise RuntimeError("session.metadata must contain non-empty 'agent_id'")
+
+        base_cfg = self._get_agent_base_config(agent_id)
+        enabled_ids = self._enabled_plugin_ids_for_session(agent_id, metadata)
+        effective_overrides = self._effective_overrides(metadata, overrides)
+        effective_config = resolve_request_config(base_cfg, effective_overrides)
+        core = self._build_core_with_enabled_ids(
+            enabled_ids,
+            selected_provider_config=effective_config,
+        )
+        return core, base_cfg, effective_config
+
+    @staticmethod
+    def _action_matches_trigger(action: Dict[str, Any], lifecycle: str) -> bool:
+        trigger_val = action.get("trigger")
+        if isinstance(trigger_val, str):
+            return trigger_val == lifecycle
+        if isinstance(trigger_val, list):
+            return any(isinstance(item, str) and item == lifecycle for item in trigger_val)
+        return False
+
+    @staticmethod
+    def _ensure_serializable_context(context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        if context is None:
+            return {}
+        if not isinstance(context, dict):
+            raise TypeError("context must be a mapping")
+        try:
+            json.dumps(context)
+        except Exception as exc:
+            raise TypeError("context must be JSON-serializable") from exc
+        return dict(context)
+
+    def _build_lifecycle_context(
+        self,
+        lifecycle: str,
+        session: Session,
+        config: Dict[str, Any],
+        extra_context: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        context = self._ensure_serializable_context(extra_context)
+        return {
+            **context,
+            "lifecycle": lifecycle,
+            "trigger_source": "application",
+            "session": session.to_dict(),
+            "config": config,
+        }
+
+    @staticmethod
+    def _session_from_result_value(value: Any) -> Optional[Session]:
+        if isinstance(value, Session):
+            return value
+        if isinstance(value, dict):
+            try:
+                return Session.from_dict(value)
+            except Exception:
+                return None
+        return None
+
+    def _apply_lifecycle_result(
+        self,
+        session: Session,
+        result: Dict[str, Any],
+    ) -> Session:
+        next_session = self._session_from_result_value(result.get("session")) or session
+
+        metadata_patch_raw = result.get("session_metadata")
+        metadata_patch = metadata_patch_raw if isinstance(metadata_patch_raw, dict) else {}
+
+        overrides_patch_raw = result.get("session_overrides")
+        overrides_patch = overrides_patch_raw if isinstance(overrides_patch_raw, dict) else {}
+
+        if not metadata_patch and not overrides_patch:
+            return next_session
+
+        metadata = dict(next_session.metadata) if isinstance(next_session.metadata, dict) else {}
+        metadata.update(metadata_patch)
+
+        if overrides_patch:
+            stored_overrides = metadata.get("overrides")
+            normalized_overrides = stored_overrides if isinstance(stored_overrides, dict) else {}
+            metadata["overrides"] = {**normalized_overrides, **overrides_patch}
+
+        return Session(
+            session_id=next_session.session_id,
+            messages=next_session.messages,
+            metadata=metadata,
+        )
+
+    def run_session_lifecycle(
+        self,
+        lifecycle: str,
+        session: Session,
+        *,
+        core: Optional[AgentCore] = None,
+        base_config: Optional[Dict[str, Any]] = None,
+        overrides: Optional[Dict[str, Any]] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[AgentCore, Dict[str, Any], Session, List[Dict[str, Any]]]:
+        if not isinstance(lifecycle, str) or not lifecycle:
+            raise ValueError("lifecycle must be a non-empty string")
+
+        current_session = session
+        if core is None or base_config is None:
+            core, base_config, effective_config = self._resolve_runtime_for_session(
+                current_session,
+                overrides,
+            )
+        else:
+            metadata = current_session.metadata if isinstance(current_session.metadata, dict) else {}
+            effective_overrides = self._effective_overrides(metadata, overrides)
+            effective_config = resolve_request_config(base_config, effective_overrides)
+
+        results: List[Dict[str, Any]] = []
+
+        for action in self.get_application_actions():
+            if not isinstance(action, dict) or not self._action_matches_trigger(action, lifecycle):
+                continue
+            plugin_id = action.get("plugin")
+            action_id = action.get("id")
+            if not isinstance(plugin_id, str) or not isinstance(action_id, str):
+                continue
+
+            action_context = self._build_lifecycle_context(
+                lifecycle,
+                current_session,
+                effective_config,
+                context,
+            )
+            result = self.execute_application_action(
+                plugin_id,
+                action_id,
+                {},
+                context=action_context,
+            )
+            results.append(
+                {
+                    "plugin": plugin_id,
+                    "action_id": action_id,
+                    "action_owner": "application",
+                    "result": result,
+                }
+            )
+            current_session = self._apply_lifecycle_result(current_session, result)
+            core, base_config, effective_config = self._resolve_runtime_for_session(
+                current_session,
+                overrides,
+            )
+
+        core_context = self._build_lifecycle_context(
+            lifecycle,
+            current_session,
+            effective_config,
+            context,
+        )
+        current_session, core_results = core.execute_lifecycle_actions(
+            current_session,
+            effective_config,
+            lifecycle,
+            context=core_context,
+        )
+        results.extend(core_results)
+        core, base_config, _ = self._resolve_runtime_for_session(current_session, overrides)
+        return core, base_config, current_session, results
 
     def _load_session_required(self, session_id: str) -> Session:
         session = self._session_store.load(session_id)
@@ -1018,6 +1193,8 @@ class AgentApplication:
         plugin_id: str,
         action_id: str,
         params: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Execute an application-level action.
 
@@ -1043,13 +1220,15 @@ class AgentApplication:
 
         validated_inputs = self._validate_action_inputs(action_def, params)
 
-        return wrapper.execute_action(self, action_id, validated_inputs)
+        return wrapper.execute_action(self, action_id, validated_inputs, context=context)
 
     def execute_session_action(
         self,
         plugin_id: str,
         action_id: str,
         params: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Execute a provider-extension session action via the core layer."""
 
@@ -1086,6 +1265,7 @@ class AgentApplication:
                     plugin_id,
                     action_id,
                     action_params,
+                    context=context,
                 )
             except AgentCore._SessionActionValidationError as exc:  # type: ignore[attr-defined]
                 raise self._ApplicationActionValidationError(
@@ -1131,20 +1311,21 @@ class AgentApplication:
         params: Dict[str, Any],
         *,
         action_owner: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Execute either an application action or a provider-extension session action."""
 
         if action_owner == "application":
-            return self.execute_application_action(plugin_id, action_id, params)
-        if action_owner == "provider_extension":
-            return self.execute_session_action(plugin_id, action_id, params)
+            return self.execute_application_action(plugin_id, action_id, params, context=context)
+        if action_owner in {"provider_extension", "feature"}:
+            return self.execute_session_action(plugin_id, action_id, params, context=context)
 
         try:
-            return self.execute_application_action(plugin_id, action_id, params)
+            return self.execute_application_action(plugin_id, action_id, params, context=context)
         except KeyError:
             if not (isinstance(params, dict) and isinstance(params.get("session_id"), str)):
                 raise
-            return self.execute_session_action(plugin_id, action_id, params)
+            return self.execute_session_action(plugin_id, action_id, params, context=context)
 
     def load_session(
         self,
@@ -1164,21 +1345,7 @@ class AgentApplication:
         if session is None:
             return None
 
-        metadata = session.metadata if isinstance(session.metadata, dict) else {}
-        agent_id = metadata.get("agent_id")
-        if not isinstance(agent_id, str) or not agent_id:
-            raise RuntimeError("session.metadata must contain non-empty 'agent_id'")
-
-        base_cfg = self._get_agent_base_config(agent_id)
-
-        enabled_ids = self._enabled_plugin_ids_for_session(agent_id, metadata)
-        effective_overrides = self._effective_overrides(metadata, overrides)
-        effective_config = resolve_request_config(base_cfg, effective_overrides)
-
-        core = self._build_core_with_enabled_ids(
-            enabled_ids,
-            selected_provider_config=effective_config,
-        )
+        core, base_cfg, _effective_config = self._resolve_runtime_for_session(session, overrides)
         return core, base_cfg, session
 
     def load_session_record(self, session_id: str) -> Optional[Session]:
@@ -1196,11 +1363,23 @@ class AgentApplication:
     def save_session(self, session: Session) -> None:
         """Persist a session using the configured session store."""
 
-        self._session_store.save(session)
+        _core, _base_cfg, prepared_session, _results = self.run_session_lifecycle(
+            "session_save_prepare",
+            session,
+            context={"session_id": session.session_id},
+        )
+        self._session_store.save(prepared_session)
 
     def delete_session(self, session_id: str) -> None:
         """Delete a session from the store (no-op if missing)."""
 
+        session = self._session_store.load(session_id)
+        if session is not None:
+            self.run_session_lifecycle(
+                "session_delete_prepare",
+                session,
+                context={"session_id": session_id},
+            )
         self._session_store.delete(session_id)
 
     def create_session(self, agent_id: str) -> Tuple[AgentCore, Dict[str, Any], Session]:
@@ -1212,7 +1391,10 @@ class AgentApplication:
         """
 
         core, base_cfg, session = self.create_session_ephemeral(agent_id)
-        self._session_store.save(session)
+        self.save_session(session)
+        stored = self.load_session_record(session.session_id)
+        session = stored or session
+        core, base_cfg, _effective_config = self._resolve_runtime_for_session(session)
         return core, base_cfg, session
 
     def create_session_ephemeral(self, agent_id: str) -> Tuple[AgentCore, Dict[str, Any], Session]:
@@ -1240,8 +1422,56 @@ class AgentApplication:
             messages=base.messages,
             metadata={"agent_id": agent_id},
         )
+        core, base_cfg, session, _results = self.run_session_lifecycle(
+            "session_create",
+            session,
+            core=core,
+            base_config=base_cfg,
+            context={"agent_id": agent_id, "session_id": session.session_id},
+        )
 
         return core, base_cfg, session
+
+    def fork_session(
+        self,
+        core: AgentCore,
+        session: Session,
+        base_config: Dict[str, Any],
+        *,
+        upto_index: int,
+        new_session_id: Optional[str] = None,
+    ) -> Tuple[AgentCore, Dict[str, Any], Session]:
+        """Fork ``session`` and run lifecycle-triggered actions on the fork."""
+
+        if not isinstance(upto_index, int):
+            raise TypeError("upto_index must be an integer")
+
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides_val = metadata.get("overrides")
+        overrides: Dict[str, Any] = (
+            overrides_val if isinstance(overrides_val, dict) else {}
+        )
+        config = resolve_request_config(base_config, overrides)
+
+        fork_id = new_session_id or str(uuid.uuid4())
+        new_session = core.fork_session(
+            session,
+            config,
+            upto_index=upto_index,
+            new_session_id=fork_id,
+        )
+        core, base_config, new_session, _results = self.run_session_lifecycle(
+            "session_fork",
+            new_session,
+            core=core,
+            base_config=base_config,
+            context={
+                "session_id": new_session.session_id,
+                "fork_upto_index": upto_index,
+                "original_session": session.to_dict(),
+            },
+        )
+        return core, base_config, new_session
 
     def update_agent(self, agent_id: str, session: Session) -> Tuple[AgentCore, Dict[str, Any], Session]:
         """Reconfigure core/base_config for ``agent_id`` and update session metadata.
@@ -1254,21 +1484,45 @@ class AgentApplication:
         if not isinstance(agent_id, str) or not agent_id:
             raise ValueError("agent_id must be a non-empty string")
 
+        existing_metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        previous_agent_id = existing_metadata.get("agent_id")
+        switch_context = {
+            "session_id": session.session_id,
+            "previous_agent_id": previous_agent_id if isinstance(previous_agent_id, str) else None,
+            "next_agent_id": agent_id,
+        }
+
+        current_core, current_base_cfg, _current_config = self._resolve_runtime_for_session(session)
+        _prep_core, _prep_base_cfg, prepared_session, _prep_results = self.run_session_lifecycle(
+            "agent_switch_prepare",
+            session,
+            core=current_core,
+            base_config=current_base_cfg,
+            context=switch_context,
+        )
+
+        metadata = prepared_session.metadata or {}
+        switched_metadata = {**metadata, "agent_id": agent_id}
+        switched_session = Session(
+            session_id=prepared_session.session_id,
+            messages=prepared_session.messages,
+            metadata=switched_metadata,
+        )
+
         base_cfg = self._get_agent_base_config(agent_id)
-        enabled_ids = self._agent_plugin_ids.get(agent_id)
+        enabled_ids = self._enabled_plugin_ids_for_session(agent_id, switched_metadata)
         core = self._build_core_with_enabled_ids(
             enabled_ids,
             selected_provider_config=base_cfg,
         )
-
-        metadata = session.metadata or {}
-        new_metadata = {**metadata, "agent_id": agent_id}
-        new_session = Session(
-            session_id=session.session_id,
-            messages=session.messages,
-            metadata=new_metadata,
+        core, base_cfg, switched_session, _results = self.run_session_lifecycle(
+            "agent_switch_complete",
+            switched_session,
+            core=core,
+            base_config=base_cfg,
+            context=switch_context,
         )
-        return core, base_cfg, new_session
+        return core, base_cfg, switched_session
 
     # ------------------------------------------------------------------
     # Core-first request API (new architecture)
@@ -1299,8 +1553,30 @@ class AgentApplication:
           depth (:class:`_ToolLoopConfig`).
         """
 
-        config = resolve_request_config(base_config, overrides or {})
         rid = request_id or self._new_request_id()
+
+        request_context = {
+            "session_id": session.session_id,
+            "request_id": rid,
+            "stream": bool(stream),
+            "overrides": dict(overrides or {}),
+        }
+        original_session = session
+        core, base_config, session, _results = self.run_session_lifecycle(
+            "request_prepare",
+            session,
+            core=core,
+            base_config=base_config,
+            overrides=overrides,
+            context=request_context,
+        )
+        config = resolve_request_config(
+            base_config,
+            self._effective_overrides(
+                session.metadata if isinstance(session.metadata, dict) else {},
+                overrides,
+            ),
+        )
 
         def _is_cancelled() -> bool:
             return rid in self._cancelled_requests
@@ -1313,6 +1589,15 @@ class AgentApplication:
             "stream": bool(stream),
         }
 
+        latest_session = session
+        if session != original_session:
+            yield {
+                "type": "session_checkpoint",
+                "session_id": session.session_id,
+                "request_id": rid,
+                "session": session,
+            }
+
         loop_runner = ToolLoopRunner(
             core=core,
             config=config,
@@ -1321,7 +1606,63 @@ class AgentApplication:
             cancel_callback=_is_cancelled,
         )
 
+        error_seen = False
+
         try:
-            yield from loop_runner.run(session=session, stream=stream)
+            for event in loop_runner.run(session=session, stream=stream):
+                event_type = event.get("type")
+
+                if event_type == "session_checkpoint":
+                    event_session = event.get("session")
+                    if isinstance(event_session, Session):
+                        latest_session = event_session
+                    yield event
+                    continue
+
+                if event_type == "error":
+                    yield event
+                    if not error_seen:
+                        error_seen = True
+                        core, base_config, latest_session, _ = self.run_session_lifecycle(
+                            "request_error",
+                            latest_session,
+                            core=core,
+                            base_config=base_config,
+                            overrides=overrides,
+                            context={
+                                **request_context,
+                                "error": {
+                                    "message": event.get("detail"),
+                                },
+                            },
+                        )
+                        yield {
+                            "type": "session_checkpoint",
+                            "session_id": latest_session.session_id,
+                            "request_id": rid,
+                            "session": latest_session,
+                        }
+                    continue
+
+                if event_type == "request_completed":
+                    if not error_seen:
+                        core, base_config, latest_session, _ = self.run_session_lifecycle(
+                            "request_complete",
+                            latest_session,
+                            core=core,
+                            base_config=base_config,
+                            overrides=overrides,
+                            context=request_context,
+                        )
+                        yield {
+                            "type": "session_checkpoint",
+                            "session_id": latest_session.session_id,
+                            "request_id": rid,
+                            "session": latest_session,
+                        }
+                    yield event
+                    continue
+
+                yield event
         finally:
             self._cancelled_requests.discard(rid)

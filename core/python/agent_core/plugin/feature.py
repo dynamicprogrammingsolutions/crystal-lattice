@@ -6,9 +6,9 @@ Stateless wrapper; features operate on shared provider state managed by the prov
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from ..types import FeaturePlugin
+from ..types import FeaturePlugin, Session
 from .adapters import FeatureDefaultsAdapter
 
 
@@ -87,6 +87,22 @@ class FeatureWrapper(FeaturePlugin):
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Run feature finalize; return (final_messages, native_messages, new_state)."""
         return self.plugin.finalize(final_messages, native_messages, state)
+
+    def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return session-scoped action definitions from the feature."""
+        return self.plugin.get_actions(state)
+
+    def execute_action(
+        self,
+        action_id: str,
+        session: Session,
+        native_messages: List[Dict[str, Any]],
+        params: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Execute a session-scoped action from the feature."""
+        return self.plugin.execute_action(action_id, session, native_messages, params, context, state)
 
     def get_completions(
         self,

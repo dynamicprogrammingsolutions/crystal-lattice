@@ -123,7 +123,8 @@ class ExtensionWrapper(ProviderExtensionPlugin):
         session: Session,
         native_messages: List[Dict[str, Any]],
         params: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Execute a session-scoped action from the extension."""
-        return self.plugin.execute_action(action_id, session, native_messages, params, state)
+        return self.plugin.execute_action(action_id, session, native_messages, params, context, state)

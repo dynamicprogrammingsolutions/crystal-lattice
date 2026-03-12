@@ -492,6 +492,7 @@ class ProviderWrapper(ProviderPlugin):
         session: Session,
         native_messages: List[Dict[str, Any]],
         params: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Dispatch a session-scoped action to the matching active extension."""
@@ -499,7 +500,7 @@ class ProviderWrapper(ProviderPlugin):
         for ext in self._iter_extensions():
             if ext.name != plugin_id:
                 continue
-            return ext.execute_action(action_id, session, native_messages, params, state)
+            return ext.execute_action(action_id, session, native_messages, params, context, state)
         raise KeyError(f"Unknown provider extension {plugin_id!r}")
 
     def reset_state(self) -> None:

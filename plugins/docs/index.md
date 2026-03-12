@@ -1,6 +1,7 @@
 # Plugin development docs
 
 - [Provider plugins](provider-plugins.md)
+- [Plugin actions](actions.md)
 - [Provider extensions (tools + reasoning)](provider-extensions.md)
 - [Packaging & loading plugins](plugin-packaging-and-loading.md)
 - [Execution order (providers, extensions, features, tools)](plugin-execution-order.md)

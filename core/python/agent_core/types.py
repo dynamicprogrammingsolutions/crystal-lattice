@@ -669,6 +669,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         session: "Session",
         native_messages: List[Dict[str, Any]],
         params: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Execute a session-scoped provider-native action.
@@ -850,6 +851,32 @@ class FeaturePlugin(BasePlugin, Protocol):
             Tuple of (final_messages, native_messages, new_state), all provider-native.
         """
         return final_messages, native_messages, state
+
+    def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return session-scoped action definitions for this feature.
+
+        Feature actions follow the same session-scoped shape as provider
+        extension actions. They are optional and are primarily used for
+        lifecycle-triggered single-session mutations.
+        """
+        return []
+
+    def execute_action(
+        self,
+        action_id: str,
+        session: "Session",
+        native_messages: List[Dict[str, Any]],
+        params: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Execute a session-scoped feature action.
+
+        The supported return contract matches provider-extension actions:
+        features may return replacement ``native_messages`` and/or a
+        ``session_metadata`` mapping that is merged into the session.
+        """
+        return {"native_messages": list(native_messages)}
 
     # Completion / templates
     def get_template(self, config: Dict[str, Any]) -> str:

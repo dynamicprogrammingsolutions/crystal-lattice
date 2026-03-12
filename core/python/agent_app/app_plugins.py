@@ -12,6 +12,7 @@ server, terminal, mobile) can use to build flows such as copy/fork/delete or
 session summarization.
 """
 
+import inspect
 from typing import Any, Dict, List, Optional, Protocol, TYPE_CHECKING, cast, runtime_checkable
 
 if TYPE_CHECKING:  # pragma: no cover - imported only for type checking
@@ -88,6 +89,7 @@ class ApplicationPlugin(Protocol):
         app: "AgentApplication",
         action_id: str,
         params: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Execute an action with already‑validated parameters.
@@ -96,6 +98,9 @@ class ApplicationPlugin(Protocol):
             app: Owning :class:`AgentApplication` instance.
             action_id: Action identifier defined by :meth:`get_actions`.
             params: Final, validated parameters for the action.
+            context: Optional execution context, used especially for
+                lifecycle-triggered actions. The mapping is expected to be
+                serializable and language-neutral.
             state: Current plugin state returned from :meth:`init`.
 
         Returns:
@@ -173,10 +178,33 @@ class ApplicationPluginWrapper:
         app: "AgentApplication",
         action_id: str,
         params: Dict[str, Any],
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Invoke the underlying plugin's :meth:`execute_action` method."""
 
-        result = self.plugin.execute_action(app, action_id, params, self._state)
+        fn = self.plugin.execute_action
+        try:
+            sig = inspect.signature(fn)
+        except (TypeError, ValueError):
+            result = fn(app, action_id, params, context, self._state)
+        else:
+            params_sig = list(sig.parameters.values())
+            if any(
+                p.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+                for p in params_sig
+            ):
+                result = fn(app, action_id, params, context, self._state)
+            else:
+                positional = [
+                    p
+                    for p in params_sig
+                    if p.kind
+                    in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+                ]
+                if len(positional) >= 5:
+                    result = fn(app, action_id, params, context, self._state)
+                else:
+                    result = fn(app, action_id, params, self._state)  # type: ignore[misc]
         if not isinstance(result, dict):
             return {}
         return result

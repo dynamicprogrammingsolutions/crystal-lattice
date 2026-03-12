@@ -2310,17 +2310,11 @@ def fork_session(
             except IndexError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-            metadata = session.metadata if isinstance(session.metadata, dict) else {}
-            overrides_val = metadata.get("overrides")
-            overrides: Dict[str, Any] = (
-                overrides_val if isinstance(overrides_val, dict) else {}
-            )
-            config = resolve_request_config(base_config, overrides)
-
             new_session_id = str(uuid.uuid4())
-            new_session = core.fork_session(
+            _new_core, _new_base_config, new_session = app_instance.fork_session(
+                core,
                 session,
-                config,
+                base_config,
                 upto_index=target_index,
                 new_session_id=new_session_id,
             )
