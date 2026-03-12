@@ -36,6 +36,11 @@ python -m pip install -e "plugins/openai_responses[dev]"
 The provider defaults to `OPENAI_API_KEY` automatically, so `api_key` can be
 omitted from config when the env var is present.
 
+When credentials and network access are available, the provider now fetches the
+real OpenAI model list through the OpenAI Python SDK. The provider UI uses that
+list for dropdown-based model selection. If discovery is unavailable, the UI
+falls back to manual text entry for `model`.
+
 ## Quickstart
 
 This is the smallest useful terminal/app-layer config when you want basic
@@ -69,6 +74,10 @@ Run the terminal app:
 cd application/python
 python -m agent_terminal_app --console --config /path/to/config_openai_responses.json
 ```
+
+In config-aware UIs, the provider will try to populate the `model` selector
+from the live OpenAI catalog. If that lookup fails, you can still type a model
+id manually.
 
 ## Full bundle example
 

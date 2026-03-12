@@ -23,6 +23,24 @@ def ensure_openai_api_key() -> str:
 
 @pytest.mark.integration
 @pytest.mark.openai
+def test_openai_responses_get_models_real_api(ensure_openai_api_key: str) -> None:
+    _ = ensure_openai_api_key
+
+    provider = OpenAIResponsesProvider()
+    config = {
+        "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
+        "timeout": 120,
+    }
+
+    models = provider.get_models(config)
+
+    assert isinstance(models, list)
+    assert models
+    assert all(isinstance(model.get("id"), str) and model["id"] for model in models[:20])
+
+
+@pytest.mark.integration
+@pytest.mark.openai
 def test_openai_responses_non_streaming_gpt5mini_real_api(ensure_openai_api_key: str) -> None:
     core = AgentCore()
     core.register_provider(OpenAIResponsesProvider)

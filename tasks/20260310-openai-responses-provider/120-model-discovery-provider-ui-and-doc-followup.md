@@ -125,6 +125,31 @@ Depends On:
 3. Do not reopen completed extension work.
 - if model discovery reveals future opportunities for reasoning/verbosity/tool-specific UI refinement, capture those separately rather than extending this subtask's scope
 
+## Approved plan (added during completion)
+
+1. Update `OpenAIResponsesProvider` model discovery to use the OpenAI Python SDK.
+- add a provider-local helper that resolves `api_key`, `base_url`, and timeout consistently with `init()`, including `OPENAI_API_KEY` fallback
+- call the SDK models endpoint, normalize results into model descriptors with `id` and optional `name`, and return `[]` on missing credentials or API/shape failures
+- keep discovery failures non-fatal by logging warnings instead of raising during model/UI generation
+
+2. Add provider-owned UI elements for model selection.
+- mirror the OpenRouter/OpenRouter Responses pattern for the `model` config element: dropdown when discovered models exist and text otherwise
+- add a `model_picker` entry wired to the same model options
+- add an image `composer_attachment` consistent with the provider's existing image-input support
+
+3. Expand provider tests in the same change.
+- add unit coverage for successful model discovery, normalization, env-based API key fallback, and failure returning `[]`
+- add unit coverage for provider UI behavior: dropdown vs text fallback, `model_picker`, and image attachment presence
+- add a live integration test guarded by `OPENAI_API_KEY` that asserts real discovery returns a non-empty list of string ids without brittle catalog assertions
+
+4. Update docs narrowly for this subtask.
+- refresh `plugins/openai_responses/README.md` so it explains real OpenAI model discovery and the manual-entry fallback when discovery is unavailable
+- keep the docs change provider-focused without moving extension-owned behavior into the provider story
+
+5. Verify with focused test runs and then append completion notes.
+- run the relevant provider unit tests and the new discovery integration test
+- record files changed, tests run, outcomes, and any remaining caveats in this task file
+
 ## References
 
 - [plugins/openai_responses/src/openai_responses_plugins/openai_responses_provider.py](plugins/openai_responses/src/openai_responses_plugins/openai_responses_provider.py)
@@ -135,3 +160,55 @@ Depends On:
 - [plugins/openai_responses/tests/test_openai_responses_provider_unit.py](plugins/openai_responses/tests/test_openai_responses_provider_unit.py)
 - [plugins/openai_responses/tests/test_agent_application_openai_responses_config_loads.py](plugins/openai_responses/tests/test_agent_application_openai_responses_config_loads.py)
 - [plugins/openai_responses/README.md](plugins/openai_responses/README.md)
+
+## Completion notes (added during completion)
+
+### What changed
+
+1. Replaced placeholder model discovery in `OpenAIResponsesProvider` with real SDK-backed discovery.
+- `get_models(config)` now creates an OpenAI SDK client using the same credential/base URL/timeout resolution pattern as provider initialization
+- discovery calls the SDK `models.list()` endpoint and normalizes results into repo-style descriptors with `id` and optional `name`
+- failures during credential resolution, transport, or response normalization now log a warning and return `[]` instead of raising during UI generation
+
+2. Added provider-owned model-selection UI elements.
+- `get_ui_elements(...)` now exposes a `model` config element that renders as a dropdown when discovered models exist and falls back to text otherwise
+- added a `model_picker` entry wired to the same model options
+- added an image `composer_attachment` consistent with the provider's existing image-input support
+
+3. Expanded provider test coverage.
+- added unit tests for SDK-backed discovery success, descriptor normalization, env-based `OPENAI_API_KEY` fallback, and warning-backed failure handling
+- added unit tests for provider UI behavior covering dropdown mode, text fallback, `model_picker`, and image attachment presence
+- added a live integration test asserting that real OpenAI discovery returns a non-empty list of string model ids
+
+4. Updated provider docs in `plugins/openai_responses/README.md`.
+- documented that provider UIs now try to populate model selection from the live OpenAI catalog via the OpenAI Python SDK
+- documented the fallback to manual model entry when discovery is unavailable
+
+### Files touched
+
+1. `plugins/openai_responses/src/openai_responses_plugins/openai_responses_provider.py`
+2. `plugins/openai_responses/tests/test_openai_responses_provider_unit.py`
+3. `plugins/openai_responses/tests/test_openai_responses_provider_integration.py`
+4. `plugins/openai_responses/README.md`
+5. `tasks/20260310-openai-responses-provider/120-model-discovery-provider-ui-and-doc-followup.md`
+
+### Tests run
+
+1. `pytest plugins/openai_responses/tests/test_openai_responses_provider_unit.py -q`
+- result: `31 passed`
+
+2. `pytest plugins/openai_responses/tests/test_agent_application_openai_responses_config_loads.py -q`
+- result: `1 passed`
+
+3. `pytest plugins/openai_responses/tests/test_openai_responses_provider_integration.py -q`
+- result: `3 passed`
+
+### Outcomes
+
+1. `openai_responses` no longer synthesizes model discovery from `config["model"]`; it uses the real OpenAI models endpoint through the OpenAI Python SDK.
+2. Provider UI now supports discovered-model dropdown selection, model picker wiring, and image composer attachments while preserving a manual-entry fallback.
+3. Focused unit, app-config, and live integration coverage all passed for this subtask.
+
+### Open issues
+
+1. None identified within this subtask's approved scope.

@@ -7,6 +7,7 @@ from typing import Any, Dict
 import pytest
 
 from agent_core import AgentCore
+import openai_responses_plugins.openai_responses_provider as provider_module
 from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider
 
 
@@ -51,6 +52,35 @@ class _FixtureResponsesResource:
 class _FixtureClient:
     def __init__(self, payload: Dict[str, Any]) -> None:
         self.responses = _FixtureResponsesResource(payload)
+
+
+class _FixtureModelObject:
+    def __init__(self, model_id: str, name: str | None = None) -> None:
+        self.id = model_id
+        self.name = name
+
+
+class _FixtureModelListResponse:
+    def __init__(self, data: list[Any]) -> None:
+        self.data = data
+
+
+class _FixtureModelsResource:
+    def __init__(self, result: Any = None, error: Exception | None = None) -> None:
+        self._result = result
+        self._error = error
+        self.calls = 0
+
+    def list(self) -> Any:
+        self.calls += 1
+        if self._error is not None:
+            raise self._error
+        return self._result
+
+
+class _FixtureModelsClient:
+    def __init__(self, result: Any = None, error: Exception | None = None) -> None:
+        self.models = _FixtureModelsResource(result=result, error=error)
 
 
 class _FixtureStreamEvent:
@@ -172,6 +202,150 @@ def test_get_tags_does_not_advertise_verbosity_for_non_gpt5_models() -> None:
     tags = provider.get_tags({"model": "gpt-4.1-mini"}, [{"id": "gpt-4.1-mini"}])
 
     assert "supports_verbosity" not in tags
+
+
+def test_get_models_uses_sdk_and_normalizes_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    captured: dict[str, Any] = {}
+    fake_client = _FixtureModelsClient(
+        _FixtureModelListResponse(
+            [
+                _FixtureModelObject("gpt-5-mini"),
+                {"id": "gpt-4.1-mini", "name": "GPT 4.1 Mini"},
+                _FixtureModelObject("", "skip-me"),
+                {"name": "missing id"},
+            ]
+        )
+    )
+
+    def _fake_openai(**kwargs: Any) -> _FixtureModelsClient:
+        captured.update(kwargs)
+        return fake_client
+
+    monkeypatch.setattr(provider_module, "OpenAI", _fake_openai)
+    monkeypatch.setenv("OPENAI_API_KEY", "test_env_key")
+
+    models = provider.get_models({"base_url": "https://example.test/v1", "timeout": 15})
+
+    assert captured == {
+        "api_key": "test_env_key",
+        "base_url": "https://example.test/v1",
+        "timeout": 15.0,
+    }
+    assert fake_client.models.calls == 1
+    assert models == [
+        {"id": "gpt-5-mini"},
+        {"id": "gpt-4.1-mini", "name": "GPT 4.1 Mini"},
+    ]
+
+
+def test_get_models_returns_empty_list_and_logs_warning_when_credentials_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    warnings: list[tuple[str, dict[str, Any]]] = []
+
+    class _Logger:
+        def warning(self, message: str, **kwargs: Any) -> None:
+            warnings.append((message, kwargs))
+
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(provider_module, "get_logger", lambda name: _Logger())
+
+    models = provider.get_models({"base_url": "https://api.openai.com/v1"})
+
+    assert models == []
+    assert warnings
+    assert warnings[0][0] == "Failed to fetch models from OpenAI"
+    assert "api_key is required" in warnings[0][1]["error"]
+
+
+def test_get_models_returns_empty_list_and_logs_warning_when_sdk_call_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    warnings: list[tuple[str, dict[str, Any]]] = []
+
+    class _Logger:
+        def warning(self, message: str, **kwargs: Any) -> None:
+            warnings.append((message, kwargs))
+
+    monkeypatch.setattr(
+        provider,
+        "_create_sdk_client_for_discovery",
+        lambda config: _FixtureModelsClient(error=RuntimeError("network boom")),
+    )
+    monkeypatch.setattr(provider_module, "get_logger", lambda name: _Logger())
+
+    models = provider.get_models({"api_key": "test_key"})
+
+    assert models == []
+    assert warnings
+    assert warnings[0][0] == "Failed to fetch models from OpenAI"
+    assert warnings[0][1]["error"] == "network boom"
+
+
+def test_get_ui_elements_uses_dropdown_when_models_are_available() -> None:
+    provider = OpenAIResponsesProvider()
+
+    elements = provider.get_ui_elements(
+        config={},
+        tags=["openai_responses"],
+        models=[
+            {"id": "gpt-5-mini", "name": "GPT-5 Mini"},
+            {"id": "gpt-4.1-mini"},
+        ],
+    )
+
+    assert elements[0] == {
+        "ui_type": "config",
+        "type": "dropdown",
+        "key": "model",
+        "label": "OpenAI Model",
+        "options": [
+            {"label": "GPT-5 Mini", "value": "gpt-5-mini"},
+            {"label": "gpt-4.1-mini", "value": "gpt-4.1-mini"},
+        ],
+    }
+    assert elements[1] == {
+        "ui_type": "model_picker",
+        "key": "model",
+        "attachment_type": "dropdown",
+        "display_placement": "left",
+        "options": [
+            {"label": "GPT-5 Mini", "value": "gpt-5-mini"},
+            {"label": "gpt-4.1-mini", "value": "gpt-4.1-mini"},
+        ],
+        "label": "model",
+    }
+    assert elements[2] == {
+        "ui_type": "composer_attachment",
+        "key": "openai_responses:attachment:image",
+        "attachment_type": "image",
+        "supports_url": True,
+        "supported_file_types": ["png", "jpg", "jpeg", "webp", "gif"],
+        "display_placement": "below",
+        "label": "Image",
+        "icon": "image",
+    }
+
+
+def test_get_ui_elements_falls_back_to_text_when_models_are_unavailable() -> None:
+    provider = OpenAIResponsesProvider()
+
+    elements = provider.get_ui_elements(config={}, tags=["openai_responses"], models=[])
+
+    assert elements[0] == {
+        "ui_type": "config",
+        "type": "text",
+        "key": "model",
+        "label": "OpenAI Model",
+    }
+    assert elements[1]["ui_type"] == "model_picker"
+    assert elements[1]["options"] == []
+    assert elements[2]["ui_type"] == "composer_attachment"
 
 
 def test_init_uses_env_api_key_when_not_in_config(monkeypatch: pytest.MonkeyPatch) -> None:

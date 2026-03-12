@@ -19,12 +19,14 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 from openai import OpenAI
 
 from agent_core.types import ProviderPlugin
+from agent_core.utils import get_logger
 
 
 JsonObject = Dict[str, Any]
 _DEFAULT_BASE_URL = "https://api.openai.com/v1"
 _DEFAULT_TIMEOUT = 60.0
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
+_IMAGE_ATTACHMENT_TYPES = ["png", "jpg", "jpeg", "webp", "gif"]
 
 
 class OpenAIResponsesProvider(ProviderPlugin):
@@ -57,13 +59,62 @@ class OpenAIResponsesProvider(ProviderPlugin):
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
-        return []
+        model_options: List[Dict[str, str]] = []
+        for model in models or []:
+            if not isinstance(model, dict):
+                continue
+            model_id = model.get("id")
+            if model_id is None:
+                continue
+            model_name = model.get("name")
+            model_options.append(
+                {
+                    "label": str(model_name) if model_name is not None else str(model_id),
+                    "value": str(model_id),
+                }
+            )
+
+        use_dropdown = len(model_options) > 0
+        return [
+            {
+                "ui_type": "config",
+                "type": "dropdown" if use_dropdown else "text",
+                "key": "model",
+                "label": "OpenAI Model",
+                **({"options": model_options} if use_dropdown else {}),
+            },
+            {
+                "ui_type": "model_picker",
+                "key": "model",
+                "attachment_type": "dropdown",
+                "display_placement": "left",
+                "options": model_options,
+                "label": "model",
+            },
+            {
+                "ui_type": "composer_attachment",
+                "key": "openai_responses:attachment:image",
+                "attachment_type": "image",
+                "supports_url": True,
+                "supported_file_types": _IMAGE_ATTACHMENT_TYPES,
+                "display_placement": "below",
+                "label": "Image",
+                "icon": "image",
+            },
+        ]
 
     def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        model = config.get("model")
-        if isinstance(model, str) and model.strip():
-            return [{"id": model.strip()}]
-        return []
+        try:
+            client = self._create_sdk_client_for_discovery(config)
+            raw_result = client.models.list()
+            return self._normalize_model_descriptors(raw_result)
+        except Exception as exc:
+            get_logger("openai_responses_provider").warning(
+                "Failed to fetch models from OpenAI",
+                error=str(exc),
+                base_url=(config.get("base_url") or _DEFAULT_BASE_URL),
+            )
+            return []
 
     def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
         tags = [
@@ -110,6 +161,44 @@ class OpenAIResponsesProvider(ProviderPlugin):
             raise ValueError("[openai_responses_provider] base_url must be a non-empty string")
         return base_url.rstrip("/")
 
+    def _create_sdk_client(self, config: Dict[str, Any]) -> OpenAI:
+        api_key = self._resolve_api_key(config)
+        base_url = self._resolve_base_url(config)
+        timeout = self._coerce_timeout(config.get("timeout", _DEFAULT_TIMEOUT))
+        return OpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
+
+    def _create_sdk_client_for_discovery(self, config: Dict[str, Any]) -> OpenAI:
+        if not isinstance(config, dict):
+            raise TypeError("[openai_responses_provider] config must be a dict")
+        return self._create_sdk_client(config)
+
+    def _normalize_model_descriptors(self, raw_result: Any) -> List[Dict[str, Any]]:
+        data = getattr(raw_result, "data", raw_result)
+        if not isinstance(data, list):
+            raise ValueError("[openai_responses_provider] models list response missing data list")
+
+        normalized: List[Dict[str, Any]] = []
+        for item in data:
+            model_id = None
+            model_name = None
+
+            if isinstance(item, dict):
+                model_id = item.get("id")
+                model_name = item.get("name")
+            else:
+                model_id = getattr(item, "id", None)
+                model_name = getattr(item, "name", None)
+
+            if not isinstance(model_id, str) or not model_id.strip():
+                continue
+
+            descriptor: Dict[str, Any] = {"id": model_id.strip()}
+            if isinstance(model_name, str) and model_name.strip():
+                descriptor["name"] = model_name.strip()
+            normalized.append(descriptor)
+
+        return normalized
+
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(config, dict):
             raise TypeError("[openai_responses_provider] config must be a dict")
@@ -127,7 +216,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
             "timeout": timeout,
         }
 
-        client = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
+        client = self._create_sdk_client(normalized_config)
         return {"config": normalized_config, "client": client}
 
     def initialize_request(
