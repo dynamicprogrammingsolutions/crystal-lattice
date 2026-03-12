@@ -15,7 +15,7 @@ Short description: Create a new `openai_responses` plugin bundle using the OpenA
 9. `tasks/20260310-openai-responses-provider/090-integration-native-retention-and-regression-tests.md`
 10. `tasks/20260310-openai-responses-provider/095-native-compaction-provider-extension.md`
 11. `tasks/20260310-openai-responses-provider/100-docs-readme-and-config-examples.md`
-12. `tasks/20260310-openai-responses-provider/110-wire-provider-extension-session-actions-into-frontend.md`
+12. `tasks/20260310-openai-responses-provider/110-replaced-by-provider-extension-session-actions-020.md`
 13. `tasks/20260310-openai-responses-provider/120-model-discovery-provider-ui-and-doc-followup.md`
 14. `tasks/20260310-openai-responses-provider/130-prompt-caching-session-key-extension.md`
 
