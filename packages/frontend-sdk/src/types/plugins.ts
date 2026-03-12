@@ -23,6 +23,7 @@ export interface ActionUiElement {
   icon?: string;
   order?: number;
   action_id: string;
+  action_owner?: string;
   fixed_params?: Record<string, any>;
   param_map?: Record<string, string>;
   dialog?: any;

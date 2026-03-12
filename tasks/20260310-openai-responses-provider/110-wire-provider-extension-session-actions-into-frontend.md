@@ -123,6 +123,35 @@ The intended UX model remains:
 4. Existing application-plugin actions continue to work.
 5. The `openai_responses` native compaction action is actually usable from the frontend, not only from backend tests.
 
+## Approved plan (added during completion)
+
+1. Add shared action-merging helpers to `packages/frontend-sdk`.
+- introduce a small helper module that extracts `session_action` and `message_action` elements from per-session UI schema
+- merge them with application-plugin action lists
+- de-duplicate deterministically by `id`
+- prefer session-scoped UI schema actions on collisions so provider-extension actions can override generic app actions when needed
+
+2. Extend the shared frontend action execution path to preserve `action_owner`.
+- add optional `action_owner` support to the frontend SDK action types and backend interface
+- update `runApplicationAction(...)` to forward `element.action_owner`
+- update `RestAgentBackend.executeAction(...)` so `/actions` receives `action_owner` unchanged
+- add SDK tests confirming provider-extension actions keep `action_owner: "provider_extension"` through the request payload
+
+3. Switch both mobile and desktop chat screens to the shared merged action sources.
+- in `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx`, replace direct use of plugin-only session/message action lists for visible menus and action lookup with the shared merged results
+- in `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx`, make the same change
+- keep discovery sources conceptually separate: application actions still come from `useApplicationPlugins()`, while session-scoped provider-extension actions come from per-session UI schema
+
+4. Keep the UI behavior additive and compatible.
+- existing application-plugin actions remain visible and executable
+- provider-extension session/message actions become visible in the same menus without introducing a new action surface
+- session/message context, dialog values, and reload/navigation effects continue to use the existing action flow
+
+5. Add tests and run focused suites.
+- SDK unit tests for merge behavior and `action_owner` forwarding
+- use the shared helper from both frontends so the action-source behavior is exercised through one implementation
+- run focused `vitest` for `packages/frontend-sdk` and focused frontend tests only if app-level coverage becomes necessary
+
 ## References
 
 1. Session chat frontend action sources and dispatch:
@@ -144,3 +173,59 @@ The intended UX model remains:
 
 5. Preceding subtask with the backend/provider work and completion notes:
 - `tasks/20260310-openai-responses-provider/095-native-compaction-provider-extension.md`
+
+## Completion notes (added during completion)
+
+### What changed
+
+1. Added shared frontend-sdk helpers for session-scoped action discovery and merging.
+- added `mergeSessionScopedActionElements(...)` and `selectSessionScopedActionElements(...)` in `packages/frontend-sdk/src/plugins/actionSources.ts`
+- the helper extracts `session_action` / `message_action` elements from per-session UI schema, merges them with application-plugin action lists, de-duplicates by `id`, and prefers session UI schema actions on collisions
+
+2. Preserved `action_owner` through the shared action execution path.
+- `ActionUiElement` now explicitly supports `action_owner`
+- `runApplicationAction(...)` forwards `element.action_owner`
+- `AgentBackend.executeAction(...)` and `RestAgentBackend.executeAction(...)` now support `actionOwner` and send `action_owner` to `/actions`
+
+3. Updated both mobile and desktop chat UIs to use the shared merged action lists.
+- `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx` now merges application actions with per-session UI schema actions for visible session/message action menus and for action lookup on tap
+- `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx` now does the same
+- this makes provider-extension actions like native compaction visible in the same menus as existing app/plugin actions without introducing a separate interaction path
+
+### Files touched
+
+1. `packages/frontend-sdk/src/plugins/actionSources.ts`
+2. `packages/frontend-sdk/src/plugins/__tests__/actionSources.test.ts`
+3. `packages/frontend-sdk/src/plugins/actionRunner.ts`
+4. `packages/frontend-sdk/src/plugins/__tests__/actionRunner.test.ts`
+5. `packages/frontend-sdk/src/backend/backend.ts`
+6. `packages/frontend-sdk/src/backend/restBackend.ts`
+7. `packages/frontend-sdk/src/backend/restBackend.idempotency.test.ts`
+8. `packages/frontend-sdk/src/types/plugins.ts`
+9. `packages/frontend-sdk/src/index.ts`
+10. `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx`
+11. `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx`
+
+### Tests run
+
+1. `npm test -- src/plugins/__tests__/actionRunner.test.ts src/plugins/__tests__/actionSources.test.ts src/backend/restBackend.idempotency.test.ts`
+- workdir: `packages/frontend-sdk`
+- result: `11 passed`
+
+2. `npm test -- --runInBand __tests__/App.test.tsx`
+- workdir: `mobile/crystal-lattice-control-rn`
+- result: `1 passed`
+
+3. `npm test -- --runInBand __tests__/App.test.tsx`
+- workdir: `desktop/crystal-lattice-control-desktop-rn`
+- result: `1 passed`
+
+### Outcomes
+
+1. Provider-extension `session_action` and `message_action` elements from session UI schema are now merged into the visible action sources used by both mobile and desktop chat screens.
+2. Existing application-plugin actions remain available because the merge is additive rather than a replacement.
+3. Executing merged session-scoped actions now preserves `action_owner`, so provider-extension actions continue through the existing `/actions` flow and reach backend routing correctly.
+
+### Open issues
+
+1. This subtask updated the mobile and desktop chat surfaces that had the known gap. Other frontend surfaces that may eventually want to show session-scoped actions still need to opt into the shared helper explicitly.

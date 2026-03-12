@@ -31,6 +31,7 @@ import type {
 } from '@crystal-lattice/frontend-sdk';
 import {
   filterFooterElements,
+  mergeSessionScopedActionElements,
   runApplicationAction,
   selectDisplayContent,
 } from '@crystal-lattice/frontend-sdk';
@@ -338,9 +339,33 @@ export const ChatPane = React.memo(function ChatPane({
 	  enabled: !!(backend && isActive),
   });
 
+  const {
+    actionsById,
+    sessionActions: pluginSessionActions,
+    messageActions: pluginMessageActions,
+  } = useApplicationPlugins();
+
   const uiSchemaElements = useMemo(
     () => sessionUiSchemaState?.elements ?? [],
     [sessionUiSchemaState?.elements],
+  );
+  const visibleSessionActions = useMemo(
+    () =>
+      mergeSessionScopedActionElements({
+        applicationActions: pluginSessionActions,
+        uiSchemaElements,
+        uiType: 'session_action',
+      }),
+    [pluginSessionActions, uiSchemaElements],
+  );
+  const visibleMessageActions = useMemo(
+    () =>
+      mergeSessionScopedActionElements({
+        applicationActions: pluginMessageActions,
+        uiSchemaElements,
+        uiType: 'message_action',
+      }),
+    [pluginMessageActions, uiSchemaElements],
   );
   const footerElements = useMemo(
     () => filterFooterElements(uiSchemaElements),
@@ -420,32 +445,26 @@ export const ChatPane = React.memo(function ChatPane({
 
   const hasAttachments = attachmentsAbove.length + attachmentsBelow.length > 0;
 
-  const {
-    actionsById,
-    sessionActions: pluginSessionActions,
-    messageActions: pluginMessageActions,
-  } = useApplicationPlugins();
-
   const pluginSessionActionDefs: ActionDefinition[] = useMemo(() => {
     if (!backend) {
       return [];
     }
 
-    return (pluginSessionActions || [])
+    return (visibleSessionActions || [])
       .map((el) => ({
         key: el.id,
         label: el.label,
         iconName: (el as any).icon || 'zap',
       }))
       .filter((def) => typeof def.key === 'string' && def.key);
-  }, [backend, pluginSessionActions]);
+  }, [backend, visibleSessionActions]);
 
   const pluginMessageActionDefs: MessageActionDefinition[] = useMemo(() => {
     if (!backend) {
       return [];
     }
 
-    return (pluginMessageActions || [])
+    return (visibleMessageActions || [])
       .map((el) => ({
         key: el.id,
         label: el.label,
@@ -454,7 +473,7 @@ export const ChatPane = React.memo(function ChatPane({
         allowedRoles: ['user', 'assistant', 'system', 'tool'],
       }))
       .filter((def) => typeof def.key === 'string' && def.key);
-  }, [backend, pluginMessageActions]);
+  }, [backend, visibleMessageActions]);
 
   const hydrateFromCache = useCallback(
     (
@@ -1607,7 +1626,7 @@ export const ChatPane = React.memo(function ChatPane({
         return;
       }
 
-      const pluginEl = pluginSessionActions.find((el) => el.id === key);
+      const pluginEl = visibleSessionActions.find((el) => el.id === key);
       if (pluginEl) {
         openPluginDialogForElement(pluginEl, {
           kind: 'session',
@@ -1623,7 +1642,7 @@ export const ChatPane = React.memo(function ChatPane({
       openPluginDialogForElement,
       openAgentPickerForSwitch,
       openMessageLimitPopover,
-      pluginSessionActions,
+      visibleSessionActions,
       sessionId,
       sessionSummary,
     ],
@@ -1737,7 +1756,7 @@ export const ChatPane = React.memo(function ChatPane({
         return;
       }
 
-      const pluginEl = pluginMessageActions.find((el) => el.id === action);
+      const pluginEl = visibleMessageActions.find((el) => el.id === action);
       if (pluginEl) {
         openPluginDialogForElement(pluginEl, {
           kind: 'message',
@@ -1747,7 +1766,7 @@ export const ChatPane = React.memo(function ChatPane({
         });
       }
     },
-    [handleStartEditMessage, openPluginDialogForElement, pluginMessageActions, sessionSummary],
+    [handleStartEditMessage, openPluginDialogForElement, sessionSummary, visibleMessageActions],
   );
 
   const streamingFooter = useMemo(() => {

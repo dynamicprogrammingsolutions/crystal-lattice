@@ -99,4 +99,31 @@ describe('RestAgentBackend idempotency headers', () => {
       }),
     );
   });
+
+  it('forwards action_owner in executeAction payloads', async () => {
+    const transport: Transport = {
+      request: vi.fn(async () => ({ status: 200, data: { status: 'ok', result: {} } })),
+    };
+
+    const backend = new RestAgentBackend({ transport });
+    await backend.executeAction({
+      pluginId: 'provider_ext',
+      actionId: 'compact_native_history',
+      actionOwner: 'provider_extension',
+      inputs: { end_index: 12 },
+    });
+
+    expect(transport.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'POST',
+        path: '/actions',
+        body: {
+          plugin: 'provider_ext',
+          action_id: 'compact_native_history',
+          action_owner: 'provider_extension',
+          inputs: { end_index: 12 },
+        },
+      }),
+    );
+  });
 });

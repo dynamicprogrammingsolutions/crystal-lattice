@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { AgentBackend } from '../../backend/backend';
 import type { ActionUiElement, ApplicationActionDefinition, ExecuteActionResponseOk } from '../../types/plugins';
@@ -35,6 +35,49 @@ const ELEMENT: ActionUiElement = {
 };
 
 describe('runApplicationAction effect derivation', () => {
+  it('forwards action_owner to backend execution for provider-extension actions', async () => {
+    const executeAction = vi.fn(async () => ({
+      status: 'ok',
+      plugin: 'provider_ext',
+      action_id: 'compact_native_history',
+      result: { mutations: {}, ui_effects: {} },
+    }));
+    const backend: AgentBackend = {
+      kind: 'test',
+      getCapabilities: () => ({
+        featureCompletions: false,
+        sessionUiSchema: false,
+        sessionConfigOverrides: false,
+        sessionPlugins: false,
+        applicationActions: true,
+        applicationConfig: false,
+      }),
+      executeAction,
+    } as any;
+
+    const res = await runApplicationAction({
+      backend,
+      element: {
+        ui_type: 'session_action',
+        plugin: 'provider_ext',
+        id: 'compact',
+        label: 'Compact',
+        action_id: 'compact_native_history',
+        action_owner: 'provider_extension',
+      },
+      actionsById: {},
+      context: { sessionId: 's1' },
+    });
+
+    expect(res.ok).toBe(true);
+    expect(executeAction).toHaveBeenCalledWith({
+      pluginId: 'provider_ext',
+      actionId: 'compact_native_history',
+      actionOwner: 'provider_extension',
+      inputs: {},
+    });
+  });
+
   it('does not reload the current session just because it was updated', async () => {
     const backend = buildBackend({
       status: 'ok',

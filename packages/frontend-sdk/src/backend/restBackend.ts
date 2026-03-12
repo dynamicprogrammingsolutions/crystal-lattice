@@ -455,12 +455,14 @@ export class RestAgentBackend implements AgentBackend {
   async executeAction(params: {
     pluginId: string;
     actionId: string;
+    actionOwner?: string;
     inputs: Record<string, any>;
     idempotencyKey?: string;
   }): Promise<ExecuteActionResponse> {
     const payload = {
       plugin: params.pluginId,
       action_id: params.actionId,
+      action_owner: params.actionOwner,
       inputs: params.inputs,
     };
     const resp = await this.transport.request<ExecuteActionResponse>({

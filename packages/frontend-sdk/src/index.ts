@@ -80,6 +80,11 @@ export { PollingEventSource } from './events/pollingEventSource';
 
 export type { PluginsResult, PluginsRegistryState } from './plugins/pluginsRegistry';
 export { PluginsRegistry } from './plugins/pluginsRegistry';
+export type { SessionScopedActionUiType } from './plugins/actionSources';
+export {
+  mergeSessionScopedActionElements,
+  selectSessionScopedActionElements,
+} from './plugins/actionSources';
 
 export type { ActionEffect, RunActionResult, RunActionContext, RunActionEffectsOptions } from './plugins/actionRunner';
 export { runApplicationAction, getRunActionErrorMessage } from './plugins/actionRunner';

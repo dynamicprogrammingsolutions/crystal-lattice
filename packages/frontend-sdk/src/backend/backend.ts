@@ -157,6 +157,7 @@ export interface AgentBackend {
   executeAction(params: {
     pluginId: string;
     actionId: string;
+    actionOwner?: string;
     inputs: Record<string, any>;
     idempotencyKey?: string;
   }): Promise<ExecuteActionResponse>;

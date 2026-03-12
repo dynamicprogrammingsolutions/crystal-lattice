@@ -196,6 +196,10 @@ export async function runApplicationAction(options: {
     const rawResponse = await backend.executeAction({
       pluginId,
       actionId,
+      actionOwner:
+        typeof element.action_owner === 'string' && element.action_owner
+          ? element.action_owner
+          : undefined,
       inputs,
     });
 

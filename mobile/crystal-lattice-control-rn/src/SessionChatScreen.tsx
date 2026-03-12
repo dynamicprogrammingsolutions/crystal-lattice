@@ -26,6 +26,7 @@ import {
   filterFooterElements,
   filterStatusBarElements,
   groupSessionListFields,
+  mergeSessionScopedActionElements,
   runApplicationAction,
   selectLastAssistantMessage,
 } from '@crystal-lattice/frontend-sdk';
@@ -452,6 +453,26 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   });
   const uiSchemaElements = sessionUiSchemaState?.elements ?? [];
 
+  const visibleSessionActions = useMemo(
+    () =>
+      mergeSessionScopedActionElements({
+        applicationActions: pluginSessionActions,
+        uiSchemaElements,
+        uiType: 'session_action',
+      }),
+    [pluginSessionActions, uiSchemaElements],
+  );
+
+  const visibleMessageActions = useMemo(
+    () =>
+      mergeSessionScopedActionElements({
+        applicationActions: pluginMessageActions,
+        uiSchemaElements,
+        uiType: 'message_action',
+      }),
+    [pluginMessageActions, uiSchemaElements],
+  );
+
   // const composerAttachmentElements: ComposerAttachmentUiElement[] = useMemo(() => {
   //   return (uiSchemaElements || []).filter((el) => {
   //     if (!el || el.ui_type !== 'composer_attachment') return false;
@@ -641,25 +662,25 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   const pluginSessionActionDefs = useMemo(
     () =>
-      pluginSessionActions.map((el) => ({
+      visibleSessionActions.map((el) => ({
         key: el.id,
         label: el.label,
         iconName: (el as any).icon || 'zap',
         defaultPinned: false,
       })),
-    [pluginSessionActions],
+    [visibleSessionActions],
   );
 
   const pluginMessageActionDefs = useMemo(
     () =>
-      pluginMessageActions.map((el) => ({
+      visibleMessageActions.map((el) => ({
         key: el.id,
         label: el.label,
         iconName: (el as any).icon || 'zap',
         defaultPinnedRoles: ['user', 'assistant', 'system', 'tool'],
         allowedRoles: ['user', 'assistant', 'system', 'tool'],
       })),
-    [pluginMessageActions],
+    [visibleMessageActions],
   );
 
   const applyMessageLimitAndReload = () => {
@@ -1475,7 +1496,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       return;
     }
 
-    const pluginEl = pluginSessionActions.find((el) => el.id === action);
+    const pluginEl = visibleSessionActions.find((el) => el.id === action);
     if (pluginEl) {
       openPluginDialogForElement(pluginEl, { kind: 'session', sessionSummary });
     }
@@ -1579,7 +1600,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       Alert.alert('Copied', 'Message content copied to clipboard.');
       return;
     }
-    const pluginEl = pluginMessageActions.find((el) => el.id === action);
+    const pluginEl = visibleMessageActions.find((el) => el.id === action);
     if (pluginEl) {
       openPluginDialogForElement(pluginEl, {
         kind: 'message',
