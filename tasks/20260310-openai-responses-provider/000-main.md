@@ -15,12 +15,18 @@ Short description: Create a new `openai_responses` plugin bundle using the OpenA
 9. `tasks/20260310-openai-responses-provider/090-integration-native-retention-and-regression-tests.md`
 10. `tasks/20260310-openai-responses-provider/095-native-compaction-provider-extension.md`
 11. `tasks/20260310-openai-responses-provider/100-docs-readme-and-config-examples.md`
+12. `tasks/20260310-openai-responses-provider/110-wire-provider-extension-session-actions-into-frontend.md`
+13. `tasks/20260310-openai-responses-provider/120-model-discovery-provider-ui-and-doc-followup.md`
+14. `tasks/20260310-openai-responses-provider/130-prompt-caching-session-key-extension.md`
 
 ## Status
 
 - `010` completed during planning handoff (this task-file creation step).
 - `020` through `070` have already been implemented.
+- `100` has already been completed, but `120` is a targeted follow-up because provider model discovery and model-selection UI were left in placeholder form.
 - `095` is a late-stage native compaction subtask and includes its own high-level prerequisite core capability scope (no separate prerequisite task file).
+- `130` is a late-stage prompt-caching/session-key subtask that depends on a separate generic prerequisite task directory:
+  - `tasks/20260312-provider-extension-session-settings-lifecycle/000-main.md`
 - Remaining subtasks are implementation work.
 
 ## Architectural intent (must hold across all subtasks)
@@ -62,6 +68,7 @@ Short description: Create a new `openai_responses` plugin bundle using the OpenA
 3. `usage` and `verbosity` are included in v1 as separate extensions.
 4. Extension-centric separation is explicit in code and tests.
 5. Unit + integration tests cover non-streaming, streaming, tool loop, reasoning, usage, verbosity, and native-history continuity.
+6. Late-stage follow-up capabilities may add new extension-owned features when they preserve the same provider-vs-extension boundaries.
 
 ## Environment setup (handoff)
 
