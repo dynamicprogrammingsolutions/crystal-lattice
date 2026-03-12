@@ -91,7 +91,6 @@ combination.
       "api_key": "${env:OPENAI_API_KEY}",
       "base_url": "https://api.openai.com/v1",
       "timeout": 120,
-      "enable_reasoning": true,
       "reasoning_effort": "minimal",
       "reasoning_summary": "concise",
       "verbosity": "high"
@@ -125,13 +124,15 @@ Responses API and surface tool calls/results in the normal tool loop.
 
 Reasoning controls are available through:
 
-- `enable_reasoning`
 - `reasoning_effort`
 - `reasoning_summary`
-- `reasoning_max_tokens`
 
 To use those options, also load
 `plugins.request_options_feature.RequestOptionsFeature`.
+
+When the reasoning extension is active, it also requests
+`include: ["reasoning.encrypted_content"]` so OpenAI reasoning items can be
+preserved in raw metadata for future native replay.
 
 ### Usage
 
@@ -168,10 +169,17 @@ Configuration is a flat dict shared across the provider and enabled extensions.
 These require `plugins.request_options_feature.RequestOptionsFeature` to be
 loaded.
 
-- `enable_reasoning`: enable reasoning for supported models
-- `reasoning_effort`: one of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`
+- `reasoning_effort`: model-specific effort value. Current UI options are:
+  - GPT-5 models: `minimal`, `low`, `medium`, `high`
+  - GPT-5.1 models: `none`, `low`, `medium`, `high`
+  - GPT-5.2 and GPT-5.4 models: `none`, `low`, `medium`, `high`, `xhigh`
+  - GPT-5 pro: `high`
+  - unknown models: fallback UI shows all documented values
 - `reasoning_summary`: one of `auto`, `concise`, `detailed`
-- `reasoning_max_tokens`: optional numeric limit
+
+Assistant messages always expose the frontend-friendly field
+`metadata.reasoning`. OpenAI-specific raw reasoning data is preserved under
+`metadata.openai_responses_reasoning`.
 
 ### Verbosity keys
 
@@ -204,6 +212,8 @@ visible placeholder message in the transcript.
 - Both non-streaming and streaming Responses requests are supported.
 - The provider retains Responses-native history so future turns can replay
   native items rather than flattening everything to plain chat text.
+- Reasoning requests include `reasoning.encrypted_content` so raw reasoning can
+  be preserved even when the model does not expose readable reasoning text.
 - Verbosity support is model-gated and currently follows the provider tag check
   for `gpt-5` models.
 - Native compaction is intentionally different from human-readable summary

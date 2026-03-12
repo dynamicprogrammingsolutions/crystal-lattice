@@ -95,3 +95,9 @@ Depends On: `tasks/20260310-openai-responses-provider/040-provider-streaming-eve
 ### Open issues
 
 1. `enable_reasoning` is translated into a valid Responses API `reasoning.effort` value rather than sending `reasoning.enabled`, because the OpenAI Responses API rejected `reasoning.enabled` during real integration testing.
+
+## Post-completion corrections
+
+1. Removed `enable_reasoning` and `reasoning_max_tokens` from the OpenAI Responses reasoning extension surface after verifying the current Responses API contract.
+2. The extension now treats `reasoning_effort` as the single reasoning control and injects `include: ["reasoning.encrypted_content"]` so raw reasoning artifacts can be preserved correctly.
+3. Model-specific reasoning effort options are now constrained by model id patterns, with a documented fallback set for unknown models.

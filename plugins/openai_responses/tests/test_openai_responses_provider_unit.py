@@ -636,6 +636,47 @@ def test_process_chunk_emits_partials_and_completed_finals_only() -> None:
     )
 
 
+def test_process_chunk_emits_reasoning_delta_as_independent_partial() -> None:
+    provider = OpenAIResponsesProvider()
+
+    partials, finals, native_messages, _state = provider.process_chunk(
+        {"type": "response.reasoning_summary_text.delta", "delta": "thinking..."},
+        [],
+        {},
+    )
+
+    assert finals == []
+    assert native_messages == []
+    assert partials == [
+        {"role": "assistant", "content": "", "_metadata": {"reasoning": "thinking..."}}
+    ]
+
+
+def test_process_chunk_keeps_stream_deltas_as_separate_chunks() -> None:
+    provider = OpenAIResponsesProvider()
+    events = [
+        {"type": "response.output_text.delta", "delta": "A"},
+        {"type": "response.output_text.delta", "delta": "B"},
+        {"type": "response.reasoning.delta", "delta": "r1"},
+        {"type": "response.reasoning.delta", "delta": "r2"},
+    ]
+
+    seen_partials: list[Dict[str, Any]] = []
+    native_messages: list[Dict[str, Any]] = []
+    state: Dict[str, Any] = {}
+
+    for event in events:
+        partials, _finals, native_messages, state = provider.process_chunk(event, native_messages, state)
+        seen_partials.extend(partials)
+
+    assert seen_partials == [
+        {"role": "assistant", "content": "A"},
+        {"role": "assistant", "content": "B"},
+        {"role": "assistant", "content": "", "_metadata": {"reasoning": "r1"}},
+        {"role": "assistant", "content": "", "_metadata": {"reasoning": "r2"}},
+    ]
+
+
 def test_process_chunk_raises_on_completed_event_without_output() -> None:
     provider = OpenAIResponsesProvider()
 

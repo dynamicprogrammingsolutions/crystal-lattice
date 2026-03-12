@@ -92,3 +92,9 @@ Depends On:
 
 1. Per the approved narrowed scope for this pass, no shared docs index/navigation updates were made.
 2. No live OpenAI integration smoke test was run in this documentation-only pass.
+
+## Post-completion corrections
+
+1. README/config examples were later updated to match the final OpenAI Responses reasoning behavior.
+2. `enable_reasoning` and `reasoning_max_tokens` were removed from documented config.
+3. Reasoning docs now describe `reasoning_effort` as the primary control, model-specific effort values, and preservation of raw reasoning via `include: ["reasoning.encrypted_content"]`.

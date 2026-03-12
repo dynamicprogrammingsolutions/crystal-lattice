@@ -41,7 +41,6 @@ def _config(api_key: str) -> dict[str, object]:
         "api_key": api_key,
         "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
         "timeout": 120,
-        "enable_reasoning": True,
         "reasoning_effort": "minimal",
         "reasoning_summary": "concise",
     }

@@ -769,6 +769,20 @@ class OpenAIResponsesProvider(ProviderPlugin):
             if isinstance(delta, str) and delta:
                 emitted_partials.append({"role": "assistant", "content": delta})
 
+        if event_type in (
+            "response.reasoning_summary_text.delta",
+            "response.reasoning_summary.delta",
+            "response.reasoning.delta",
+        ):
+            delta = event.get("delta")
+            if not isinstance(delta, str) and isinstance(delta, dict):
+                raw_text = delta.get("text")
+                delta = raw_text if isinstance(raw_text, str) else None
+            if isinstance(delta, str) and delta:
+                emitted_partials.append(
+                    {"role": "assistant", "content": "", "_metadata": {"reasoning": delta}}
+                )
+
         if event_type == "response.completed":
             response_payload = event.get("response")
             response_obj = self._response_to_dict(response_payload)

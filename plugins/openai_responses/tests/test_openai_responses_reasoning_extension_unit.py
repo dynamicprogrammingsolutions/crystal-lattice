@@ -25,11 +25,13 @@ def test_initialize_request_merges_reasoning_request_options() -> None:
     ext = OpenAIResponsesReasoningExtension()
     config = {
         **_base_state()["config"],
-        "enable_reasoning": True,
         "reasoning_effort": "high",
         "reasoning_summary": "concise",
-        "reasoning_max_tokens": 256,
-        "request_options": {"temperature": 0.2, "reasoning": {"summary": "auto"}},
+        "request_options": {
+            "temperature": 0.2,
+            "include": ["message.input_image.image_url"],
+            "reasoning": {"summary": "auto"},
+        },
     }
 
     state = ext.init(config, {"config": config})
@@ -38,20 +40,94 @@ def test_initialize_request_merges_reasoning_request_options() -> None:
     assert native_messages == []
     request_options = new_state["config"]["request_options"]
     assert request_options["temperature"] == 0.2
+    assert request_options["include"] == [
+        "message.input_image.image_url",
+        "reasoning.encrypted_content",
+    ]
     assert request_options["reasoning"] == {
         "effort": "high",
         "summary": "concise",
-        "max_tokens": 256,
     }
 
 
-def test_process_chunk_accumulates_reasoning_deltas_into_partial_metadata() -> None:
+def test_initialize_request_adds_encrypted_reasoning_include_without_reasoning_config() -> None:
     ext = OpenAIResponsesReasoningExtension()
     state = ext.init(_base_state()["config"], _base_state())
 
+    native_messages, new_state = ext.initialize_request([], state)
+
+    assert native_messages == []
+    assert new_state["config"]["request_options"]["include"] == ["reasoning.encrypted_content"]
+
+
+def test_get_config_schema_exposes_current_reasoning_keys_only() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    schema = ext.get_config_schema()
+
+    assert "reasoning_effort" in schema
+    assert "reasoning_summary" in schema
+    assert "enable_reasoning" not in schema
+    assert "reasoning_max_tokens" not in schema
+
+
+def test_get_ui_elements_uses_model_specific_effort_values() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    gpt5 = ext.get_ui_elements(
+        config={"model": "gpt-5-mini"},
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-5-mini"}],
+    )
+    gpt51 = ext.get_ui_elements(
+        config={"model": "gpt-5.1-mini"},
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-5.1-mini"}],
+    )
+    gpt54 = ext.get_ui_elements(
+        config={"model": "gpt-5.4"},
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-5.4"}],
+    )
+    gpt5pro = ext.get_ui_elements(
+        config={"model": "gpt-5-pro"},
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-5-pro"}],
+    )
+    unknown = ext.get_ui_elements(
+        config={"model": "o3-mini"},
+        tags=["supports_reasoning"],
+        models=[{"id": "o3-mini"}],
+    )
+
+    def _options(elements: list[dict[str, Any]]) -> list[str]:
+        effort = next(element for element in elements if element.get("key") == "reasoning_effort")
+        return [option["value"] for option in effort["options"]]
+
+    assert _options(gpt5) == ["minimal", "low", "medium", "high"]
+    assert _options(gpt51) == ["none", "low", "medium", "high"]
+    assert _options(gpt54) == ["none", "low", "medium", "high", "xhigh"]
+    assert _options(gpt5pro) == ["high"]
+    assert _options(unknown) == ["none", "minimal", "low", "medium", "high", "xhigh"]
+
+
+def test_init_ignores_effort_not_supported_by_selected_model() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {**_base_state()["config"], "model": "gpt-5.1-mini", "reasoning_effort": "minimal"}
+
+    state = ext.init(config, {"config": config})
+
+    assert "_openai_responses_reasoning" not in state
+
+
+def test_process_chunk_leaves_streaming_chunks_unchanged() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    state = ext.init(_base_state()["config"], _base_state())
+    partial_input = [{"role": "assistant", "content": "", "_metadata": {"reasoning": "Plan: "}}]
+
     partials, finals, native_messages, state = ext.process_chunk(
         {"type": "response.reasoning_summary_text.delta", "delta": "Plan: "},
-        [{"role": "assistant", "content": "STREAM"}],
+        partial_input,
         [],
         [],
         state,
@@ -59,21 +135,7 @@ def test_process_chunk_accumulates_reasoning_deltas_into_partial_metadata() -> N
 
     assert finals == []
     assert native_messages == []
-    assert partials[-1]["metadata"]["reasoning"] == "Plan: "
-    raw_reasoning = partials[-1]["metadata"]["openai_responses_reasoning"]
-    assert raw_reasoning["summary_text"] == "Plan: "
-
-    partials, _finals, _native_messages, state = ext.process_chunk(
-        {"type": "response.reasoning_summary_text.delta", "delta": "step 1"},
-        partials,
-        [],
-        [],
-        state,
-    )
-
-    assert partials[-1]["metadata"]["reasoning"] == "Plan: step 1"
-    raw_reasoning = partials[-1]["metadata"]["openai_responses_reasoning"]
-    assert raw_reasoning["summary_text"] == "Plan: step 1"
+    assert partials == partial_input
 
 
 def test_from_native_messages_extracts_reasoning_metadata_from_native_indices() -> None:
@@ -195,23 +257,29 @@ def test_streaming_send_request_integration_with_scripted_reasoning_events() -> 
 
     config = {
         **_base_state()["config"],
-        "enable_reasoning": True,
+        "reasoning_effort": "minimal",
         "reasoning_summary": "concise",
     }
 
     final_message = None
-    saw_reasoning_partial = False
+    reasoning_partials: list[str] = []
+    text_partials: list[str] = []
     for event in core.send_request_stream(session, config):
         if event["type"] == "partial":
             metadata = (event.get("message") or {}).get("metadata") or {}
-            if metadata.get("reasoning"):
-                saw_reasoning_partial = True
+            reasoning = metadata.get("reasoning")
+            if isinstance(reasoning, str) and reasoning:
+                reasoning_partials.append(reasoning)
+            text = (event.get("message") or {}).get("content")
+            if isinstance(text, str) and text:
+                text_partials.append(text)
         if event["type"] == "final":
             messages = event.get("messages") or []
             if messages:
                 final_message = messages[-1]
 
-    assert saw_reasoning_partial is True
+    assert reasoning_partials == ["Considering options. "]
+    assert text_partials == ["STREAM_REASONING_OK"]
     assert final_message is not None
     assert final_message["content"] == "STREAM_REASONING_OK"
     metadata = final_message["metadata"]
