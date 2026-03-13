@@ -57,6 +57,32 @@ class _FixtureClient:
         self.responses = _FixtureResponsesResource(payload)
 
 
+class _FixtureFileObject:
+    def __init__(self, file_id: str) -> None:
+        self.id = file_id
+
+    def model_dump(self, mode: str = "python") -> Dict[str, Any]:
+        _ = mode
+        return {"id": self.id}
+
+
+class _FixtureFilesResource:
+    def __init__(self) -> None:
+        self.calls: list[Dict[str, Any]] = []
+        self._cursor = 0
+
+    def create(self, **kwargs: Any) -> _FixtureFileObject:
+        self.calls.append(kwargs)
+        self._cursor += 1
+        return _FixtureFileObject(f"file_{self._cursor}")
+
+
+class _UploadFixtureClient(_FixtureClient):
+    def __init__(self, payload: Dict[str, Any]) -> None:
+        super().__init__(payload)
+        self.files = _FixtureFilesResource()
+
+
 class _FixtureModelObject:
     def __init__(self, model_id: str, name: str | None = None) -> None:
         self.id = model_id
@@ -129,6 +155,12 @@ class _FixtureStreamingResponsesResource:
 class _FixtureStreamingClient:
     def __init__(self, events: list[Dict[str, Any]]) -> None:
         self.responses = _FixtureStreamingResponsesResource(events)
+
+
+class _UploadStreamingFixtureClient(_FixtureStreamingClient):
+    def __init__(self, events: list[Dict[str, Any]]) -> None:
+        super().__init__(events)
+        self.files = _FixtureFilesResource()
 
 
 class _ErrorResponsesResource:
@@ -490,6 +522,26 @@ def test_to_native_messages_supports_image_url_and_data_url() -> None:
                 {"type": "input_image", "image_url": "https://example.com/cat.png"},
                 {"type": "input_image", "image_url": "data:image/png;base64,Zm9v"},
             ],
+            "_metadata": {
+                "_openai_responses_attachment_sources": [
+                    {
+                        "content_index": 1,
+                        "multipart_part": {
+                            "type": "image",
+                            "content": {"url": "https://example.com/cat.png"},
+                            "metadata": {},
+                        },
+                    },
+                    {
+                        "content_index": 2,
+                        "multipart_part": {
+                            "type": "image",
+                            "content": {"url": "data:image/png;base64,Zm9v"},
+                            "metadata": {},
+                        },
+                    },
+                ]
+            },
         }
     ]
 
@@ -526,6 +578,22 @@ def test_to_native_messages_converts_image_data_base64_to_data_url() -> None:
                 {"type": "input_text", "text": "what is this"},
                 {"type": "input_image", "image_url": "data:image/png;base64,YWJjMTIz"},
             ],
+            "_metadata": {
+                "_openai_responses_attachment_sources": [
+                    {
+                        "content_index": 1,
+                        "multipart_part": {
+                            "type": "image",
+                            "content": {
+                                "data_base64": "YWJjMTIz",
+                                "mime_type": "image/png",
+                                "filename": "tiny.png",
+                            },
+                            "metadata": {},
+                        },
+                    }
+                ]
+            },
         }
     ]
 
@@ -543,6 +611,84 @@ def test_to_native_messages_raises_for_image_data_base64_without_mime_type() -> 
                         {
                             "type": "image",
                             "content": {"data_base64": "YWJjMTIz"},
+                            "metadata": {},
+                        }
+                    ],
+                }
+            ],
+            {},
+        )
+
+
+def test_to_native_messages_adds_pdf_input_file_when_upload_mode_enabled() -> None:
+    provider = OpenAIResponsesProvider()
+
+    native = provider.to_native_messages(
+        [
+            {
+                "role": "user",
+                "content": "read this pdf",
+                "multipartContent": [
+                    {
+                        "type": "pdf",
+                        "content": {
+                            "data_base64": "JVBERi0xLjQK",
+                            "mime_type": "application/pdf",
+                            "filename": "brief.pdf",
+                        },
+                        "metadata": {},
+                    }
+                ],
+            }
+        ],
+        {"openai_responses_attachments": {"attachment_upload_mode": "upload_before_send"}},
+    )
+
+    assert native == [
+        {
+            "type": "message",
+            "role": "user",
+            "content": [
+                {"type": "input_text", "text": "read this pdf"},
+                {"type": "input_file", "file_data": "JVBERi0xLjQK", "filename": "brief.pdf"},
+            ],
+            "_metadata": {
+                "_openai_responses_attachment_sources": [
+                    {
+                        "content_index": 1,
+                        "multipart_part": {
+                            "type": "pdf",
+                            "content": {
+                                "data_base64": "JVBERi0xLjQK",
+                                "mime_type": "application/pdf",
+                                "filename": "brief.pdf",
+                            },
+                            "metadata": {},
+                        },
+                    }
+                ]
+            },
+        }
+    ]
+
+
+def test_to_native_messages_rejects_pdf_when_upload_mode_disabled() -> None:
+    provider = OpenAIResponsesProvider()
+
+    with pytest.raises(ValueError, match="attachment_upload_mode=upload_before_send"):
+        provider.to_native_messages(
+            [
+                {
+                    "role": "user",
+                    "content": "read this pdf",
+                    "multipartContent": [
+                        {
+                            "type": "pdf",
+                            "content": {
+                                "data_base64": "JVBERi0xLjQK",
+                                "mime_type": "application/pdf",
+                                "filename": "brief.pdf",
+                            },
                             "metadata": {},
                         }
                     ],
@@ -597,6 +743,81 @@ def test_from_native_messages_preserves_image_multipart_content() -> None:
                     "content": {"url": "data:image/png;base64,Zm9v"},
                     "metadata": {},
                 }
+            ],
+        }
+    ]
+
+
+def test_from_native_messages_preserves_uploaded_attachment_sources() -> None:
+    provider = OpenAIResponsesProvider()
+
+    rebuilt = provider.from_native_messages(
+        [
+            {
+                "type": "message",
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": "see both"},
+                    {"type": "input_image", "file_id": "file_img_1"},
+                    {"type": "input_file", "file_id": "file_pdf_1"},
+                ],
+                "_metadata": {
+                    "_openai_responses_attachment_sources": [
+                        {
+                            "content_index": 1,
+                            "multipart_part": {
+                                "type": "image",
+                                "content": {
+                                    "url": "data:image/png;base64,Zm9v",
+                                    "mime_type": "image/png",
+                                    "filename": "image.png",
+                                },
+                                "metadata": {},
+                            },
+                        },
+                        {
+                            "content_index": 2,
+                            "multipart_part": {
+                                "type": "pdf",
+                                "content": {
+                                    "data_base64": "JVBERi0xLjQK",
+                                    "mime_type": "application/pdf",
+                                    "filename": "brief.pdf",
+                                },
+                                "metadata": {},
+                            },
+                        },
+                    ]
+                },
+            }
+        ],
+        {},
+    )
+
+    assert rebuilt == [
+        {
+            "role": "user",
+            "content": "see both",
+            "metadata": {"native_indices": [0]},
+            "multipartContent": [
+                {
+                    "type": "image",
+                    "content": {
+                        "url": "data:image/png;base64,Zm9v",
+                        "mime_type": "image/png",
+                        "filename": "image.png",
+                    },
+                    "metadata": {},
+                },
+                {
+                    "type": "pdf",
+                    "content": {
+                        "data_base64": "JVBERi0xLjQK",
+                        "mime_type": "application/pdf",
+                        "filename": "brief.pdf",
+                    },
+                    "metadata": {},
+                },
             ],
         }
     ]
@@ -949,6 +1170,187 @@ def test_call_api_normalizes_assistant_input_text_history_to_output_text() -> No
     }
 
 
+def test_call_api_upload_mode_rewrites_inline_image_and_pdf_before_send() -> None:
+    provider = OpenAIResponsesProvider()
+    fixture = _load_fixture()
+    fake_client = _UploadFixtureClient(fixture)
+
+    input_items = [
+        {
+            "type": "message",
+            "role": "user",
+            "content": [
+                {"type": "input_text", "text": "see attachments"},
+                {"type": "input_image", "image_url": "data:image/png;base64,Zm9v"},
+                {"type": "input_file", "file_data": "JVBERi0xLjQK", "filename": "brief.pdf"},
+            ],
+            "_metadata": {
+                "_openai_responses_attachment_sources": [
+                    {
+                        "content_index": 1,
+                        "multipart_part": {
+                            "type": "image",
+                            "content": {
+                                "url": "data:image/png;base64,Zm9v",
+                                "mime_type": "image/png",
+                                "filename": "pixel.png",
+                            },
+                            "metadata": {},
+                        },
+                    },
+                    {
+                        "content_index": 2,
+                        "multipart_part": {
+                            "type": "pdf",
+                            "content": {
+                                "data_base64": "JVBERi0xLjQK",
+                                "mime_type": "application/pdf",
+                                "filename": "brief.pdf",
+                            },
+                            "metadata": {},
+                        },
+                    },
+                ]
+            },
+        }
+    ]
+
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 12,
+        },
+        "openai_responses_attachments": {"attachment_upload_mode": "upload_before_send"},
+        "client": fake_client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 12,
+        },
+    }
+
+    _partials, _finals, full_native, new_state = provider.call_api(input_items, state)
+
+    sent_content = fake_client.responses.calls[0]["input"][0]["content"]
+    assert sent_content == [
+        {"type": "input_text", "text": "see attachments"},
+        {"type": "input_image", "file_id": "file_1"},
+        {"type": "input_file", "file_id": "file_2"},
+    ]
+    assert len(fake_client.files.calls) == 2
+    assert fake_client.files.calls[0]["purpose"] == "vision"
+    assert fake_client.files.calls[1]["purpose"] == "user_data"
+
+    stored_input = full_native[0]
+    assert stored_input["content"][1] == {
+        "type": "input_image",
+        "image_url": "data:image/png;base64,Zm9v",
+    }
+    assert stored_input["content"][2] == {
+        "type": "input_file",
+        "file_data": "JVBERi0xLjQK",
+        "filename": "brief.pdf",
+    }
+    assert stored_input["_metadata"]["_openai_responses_attachment_sources"][0]["multipart_part"]["type"] == "image"
+    assert stored_input["_metadata"]["_openai_responses_attachment_sources"][1]["multipart_part"]["type"] == "pdf"
+    assert stored_input["_metadata"]["_openai_responses_uploaded_attachments"] == [
+        {"content_index": 1, "uploaded_part": {"type": "input_image", "file_id": "file_1"}},
+        {"content_index": 2, "uploaded_part": {"type": "input_file", "file_id": "file_2"}},
+    ]
+    assert new_state["_openai_responses_upload_cache"]
+
+
+def test_call_api_upload_mode_reuses_cached_upload_for_request_and_history() -> None:
+    provider = OpenAIResponsesProvider()
+    fixture = _load_fixture()
+    fake_client = _UploadFixtureClient(fixture)
+
+    input_items = [
+        {
+            "type": "message",
+            "role": "user",
+            "content": [
+                {"type": "input_text", "text": "see image"},
+                {"type": "input_image", "image_url": "data:image/png;base64,Zm9v"},
+            ],
+            "_metadata": {
+                "_openai_responses_attachment_sources": [
+                    {
+                        "content_index": 1,
+                        "multipart_part": {
+                            "type": "image",
+                            "content": {
+                                "url": "data:image/png;base64,Zm9v",
+                                "mime_type": "image/png",
+                                "filename": "pixel.png",
+                            },
+                            "metadata": {},
+                        },
+                    }
+                ]
+            },
+        }
+    ]
+
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 12,
+        },
+        "openai_responses_attachments": {"attachment_upload_mode": "upload_before_send"},
+        "client": fake_client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 12,
+        },
+    }
+
+    provider.call_api(input_items, state)
+
+    assert len(fake_client.files.calls) == 1
+
+
+def test_initialize_request_does_not_upload_attachments() -> None:
+    provider = OpenAIResponsesProvider()
+    fake_client = _UploadFixtureClient(_load_fixture())
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 12,
+        },
+        "openai_responses_attachments": {"attachment_upload_mode": "upload_before_send"},
+        "client": fake_client,
+    }
+
+    native_after, new_state = provider.initialize_request(
+        [
+            {
+                "type": "message",
+                "role": "user",
+                "content": [{"type": "input_image", "image_url": "data:image/png;base64,Zm9v"}],
+            }
+        ],
+        state,
+    )
+
+    assert native_after == [
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_image", "image_url": "data:image/png;base64,Zm9v"}],
+        }
+    ]
+    assert fake_client.files.calls == []
+    assert new_state["request"]["payload"] == {"model": "gpt-5-mini"}
+
+
 def test_call_api_raises_on_invalid_input_item_shape() -> None:
     provider = OpenAIResponsesProvider()
     fixture = _load_fixture()
@@ -1088,6 +1490,63 @@ def test_stream_api_wraps_sdk_error() -> None:
                 state,
             )
         )
+
+
+def test_stream_api_upload_mode_rewrites_inline_image_before_send() -> None:
+    provider = OpenAIResponsesProvider()
+    fake_client = _UploadStreamingFixtureClient(_load_stream_fixture_events())
+
+    input_items = [
+        {
+            "type": "message",
+            "role": "user",
+            "content": [
+                {"type": "input_text", "text": "stream image"},
+                {"type": "input_image", "image_url": "data:image/png;base64,Zm9v"},
+            ],
+            "_metadata": {
+                "_openai_responses_attachment_sources": [
+                    {
+                        "content_index": 1,
+                        "multipart_part": {
+                            "type": "image",
+                            "content": {
+                                "url": "data:image/png;base64,Zm9v",
+                                "mime_type": "image/png",
+                                "filename": "pixel.png",
+                            },
+                            "metadata": {},
+                        },
+                    }
+                ]
+            },
+        }
+    ]
+
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 30,
+        },
+        "openai_responses_attachments": {"attachment_upload_mode": "upload_before_send"},
+        "client": fake_client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 30,
+        },
+    }
+
+    list(provider.stream_api(input_items, state))
+
+    assert len(fake_client.files.calls) == 1
+    sent_content = fake_client.responses.calls[0]["input"][0]["content"]
+    assert sent_content == [
+        {"type": "input_text", "text": "stream image"},
+        {"type": "input_image", "file_id": "file_1"},
+    ]
 
 
 def test_process_chunk_emits_partials_and_completed_finals_only() -> None:

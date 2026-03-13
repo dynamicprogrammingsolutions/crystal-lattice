@@ -7,6 +7,7 @@ Use it when you want an OpenAI-backed agent with:
 - plain chat over the Responses API
 - streaming and non-streaming replies
 - direct-send image attachments
+- upload-before-send image/PDF attachments
 - tool calling
 - reasoning controls and surfaced reasoning metadata
 - usage and cost metadata in message/UI output
@@ -102,6 +103,7 @@ combination.
       "api_key": "${env:OPENAI_API_KEY}",
       "base_url": "https://api.openai.com/v1",
       "timeout": 120,
+      "attachment_upload_mode": "upload_before_send",
       "enable_prompt_cache_key": true,
       "enable_prompt_cache_retention_24h": false,
       "reasoning_effort": "minimal",
@@ -136,19 +138,37 @@ Responses API and surface tool calls/results in the normal tool loop.
 
 ### Image attachments
 
-The provider supports direct-send image attachments through Responses
-`input_image` items.
+The bundle supports two attachment paths for images:
 
-Currently supported Stage 1 shapes are:
+- direct send through Responses `input_image` items
+- upload-before-send through the OpenAI Files API, followed by Responses `file_id` references
+
+Direct-send image shapes:
 
 - `multipartContent[].content.url` with `http://` or `https://` image URLs
 - `multipartContent[].content.url` with `data:image/...` URLs
 - `multipartContent[].content.data_base64` plus `mime_type`, which the provider
   converts into a `data:` URL before sending
 
-This Stage 1 scope is intentionally limited to direct-send image inputs.
-PDF support, upload-before-send, and explicit upload actions are follow-up work
-and are not part of the current `openai_responses` attachment path.
+When `attachment_upload_mode: "upload_before_send"` is enabled, inline image
+attachments are uploaded first and then sent as `input_image` items using
+OpenAI file references.
+
+### PDF attachments
+
+PDF attachments are supported only when
+`attachment_upload_mode: "upload_before_send"` is enabled.
+
+Supported PDF input shapes:
+
+- `multipartContent[].content.url` with `data:application/pdf;base64,...`
+- `multipartContent[].content.data_base64` plus `mime_type: "application/pdf"`
+
+In this mode, the provider uploads the PDF through the OpenAI Files API and
+sends the Responses request using an `input_file` item with a `file_id`
+reference.
+
+Explicit upload actions are still follow-up work for Stage 3.
 
 ### Reasoning
 
@@ -213,6 +233,14 @@ Configuration is a flat dict shared across the provider and enabled extensions.
 - `api_key`: optional if `OPENAI_API_KEY` is set
 - `base_url`: optional, defaults to `https://api.openai.com/v1`
 - `timeout`: optional request timeout in seconds, defaults to `60`
+
+### Attachment keys
+
+- `attachment_upload_mode`: `direct` or `upload_before_send`; defaults to `direct`
+
+Use `upload_before_send` when you want the provider to upload inline image or
+PDF attachment data through the OpenAI Files API before the Responses request.
+PDF support is only available in this mode.
 
 ### Reasoning keys
 
@@ -301,6 +329,7 @@ like this:
 
 - provider: transport, SDK calls, Responses-native conversion, and native
   history replay
+- attachments: attachment upload policy/UI plus PDF composer UI
 - tools: tool schema injection and tool-call reconstruction
 - reasoning: reasoning request shaping and reasoning metadata
 - usage: usage formatting and pricing metadata
@@ -311,6 +340,7 @@ like this:
 Implementation classes registered by the bundle:
 
 - `openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider`
+- `openai_responses_plugins.openai_responses_attachments_extension.OpenAIResponsesAttachmentsExtension`
 - `openai_responses_plugins.openai_responses_native_compaction_extension.OpenAIResponsesNativeCompactionExtension`
 - `openai_responses_plugins.openai_responses_prompt_caching_extension.OpenAIResponsesPromptCachingExtension`
 - `openai_responses_plugins.openai_responses_tools_extension.OpenAIResponsesToolsExtension`

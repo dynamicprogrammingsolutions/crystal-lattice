@@ -255,6 +255,37 @@ Stage 3 acceptance criteria:
 3. Frontend can invoke the upload action for attachments.
 4. End-to-end tests cover the final action-driven workflow.
 
+## Approved Stage 2 plan (added during completion)
+
+1. Add a dedicated attachment policy extension in the `openai_responses` bundle.
+- Create `openai_responses_attachments_extension.py`.
+- Extension owns config schema for `attachment_upload_mode: "direct" | "upload_before_send"`.
+- Extension owns UI for the mode toggle and adds the PDF `composer_attachment` element.
+- Keep the provider's existing image attachment UI in place for this stage.
+
+2. Extend provider-native attachment conversion without doing any network work in `initialize_request(...)`.
+- Update the provider so it can normalize image parts into canonical `input_image` data.
+- Add PDF part normalization into canonical `input_file` data when upload mode is enabled.
+- If a PDF is attached while upload mode is still `direct`, raise a clear validation error.
+
+3. Perform the actual file uploads only in the long-running send path.
+- In `call_api(...)` and `stream_api(...)`, when the extension-selected mode is `upload_before_send`, inspect input items, upload image/PDF binaries via `client.files.create(...)`, and replace direct payloads with uploaded reference shapes before calling `client.responses.create(...)`.
+- Use `purpose="vision"` for images and `purpose="user_data"` for PDFs unless real API behavior requires adjustment.
+
+4. Preserve replay correctness by storing both uploaded references and original attachment sources in provider-native history metadata.
+- Persist uploaded reference shapes into native history for future replay efficiency.
+- Also keep internal provider metadata with original attachment source plus filename/mime info so `from_native_messages(...)` can rebuild `multipartContent` coherently after reload/slice/fork.
+
+5. Add tests in the same change.
+- Extension unit tests for config schema, required tags, UI toggle, and PDF attachment UI.
+- Provider unit tests for PDF normalization, upload-enabled request rewriting, upload-disabled no-op behavior, and ensuring `initialize_request(...)` does not upload.
+- Native-history regression coverage for reload/slice/fork after uploaded image and PDF turns.
+- Guarded real integration tests for upload-before-send image and upload-before-send PDF using locally generated assets.
+
+6. Update bundle registration and docs.
+- Add the new extension to bundle exports, plugin descriptor, and config/import tests.
+- Update README to document the upload mode config, that PDF support exists only in upload-before-send mode, and that Stage 3 action-driven uploads remain pending.
+
 ## Detailed implementation requirements
 
 1. Preserve current frontend payload compatibility.
@@ -471,3 +502,98 @@ Only after Stage 3 provider/extension integration is already working:
 
 1. Stage 2 remains open by design: config-gated upload-before-send and PDF support were not implemented in this subtask.
 2. Stage 3 remains open by design: provider-extension upload actions and server/frontend wiring were not implemented in this subtask.
+
+## Stage 2 completion notes (added during completion)
+
+### What changed
+
+1. Completed the Stage 2 attachment slice for `openai_responses`.
+- Added config-gated upload-before-send behavior.
+- Added PDF support in upload-before-send mode.
+- Kept action-based uploads and server/frontend action wiring out of scope for this stage.
+
+2. Added a dedicated attachment policy extension.
+- Created `plugins/openai_responses/src/openai_responses_plugins/openai_responses_attachments_extension.py`.
+- The extension owns `attachment_upload_mode: "direct" | "upload_before_send"`.
+- The extension adds a config UI select for upload mode and a PDF `composer_attachment` UI element.
+- Bundle registration/import/config-load tests were updated so the new extension is part of the shipped `openai_responses` bundle.
+
+3. Extended the provider for Stage 2 attachment handling while keeping uploads out of `initialize_request(...)`.
+- `plugins/openai_responses/src/openai_responses_plugins/openai_responses_provider.py` now:
+  - converts PDF multipart parts into Responses-native `input_file` items when upload mode is enabled
+  - raises a clear validation error if a PDF is attached while upload mode is still `direct`
+  - uploads inline image/PDF attachment data through `client.files.create(...)` only during the long-running request path in `call_api(...)` and `stream_api(...)`
+  - sends uploaded references to Responses using `file_id`
+  - reuses uploaded file references across later turns by storing them in provider-internal native-history metadata
+
+4. Preserved native-history replay correctness without fighting the provider-wrapper merge contract.
+- The first implementation attempt tried to replace stored native attachment items with uploaded `file_id` items directly.
+- That caused duplicate history entries because the provider wrapper only knows how to append or accept a prefix-equal full history.
+- The final implementation stores uploaded references in provider-internal `_metadata` on the original native message instead.
+- Future requests can therefore reuse `file_id` references without re-uploading, while `from_native_messages(...)` still rebuilds the original frontend-friendly `multipartContent` from the preserved source attachment payload.
+
+5. Added Stage 2 tests in the same change.
+- New extension unit tests cover schema/tags/UI/init behavior.
+- Provider unit tests cover:
+  - PDF conversion in upload mode
+  - PDF rejection in direct mode
+  - upload-before-send request rewriting for image and PDF
+  - upload-cache reuse
+  - no uploads during `initialize_request(...)`
+  - streaming upload-before-send rewriting
+- Native-history regression tests cover reload/slice/fork behavior after upload-before-send attachment turns.
+- Real OpenAI integration tests now cover:
+  - upload-before-send generated image
+  - upload-before-send generated PDF
+
+6. Updated docs for Stage 2.
+- `plugins/openai_responses/README.md` now documents:
+  - `attachment_upload_mode`
+  - upload-before-send image support
+  - PDF support being limited to upload-before-send mode
+  - Stage 3 explicit upload actions still being follow-up work
+
+### Files touched in Stage 2
+
+1. `plugins/openai_responses/src/openai_responses_plugins/openai_responses_attachments_extension.py`
+2. `plugins/openai_responses/src/openai_responses_plugins/openai_responses_provider.py`
+3. `plugins/openai_responses/src/openai_responses_plugins/__init__.py`
+4. `plugins/openai_responses/agent_plugin.json`
+5. `plugins/openai_responses/tests/test_openai_responses_attachments_extension_unit.py`
+6. `plugins/openai_responses/tests/test_openai_responses_provider_unit.py`
+7. `plugins/openai_responses/tests/test_openai_responses_native_history_regressions.py`
+8. `plugins/openai_responses/tests/test_openai_responses_provider_integration.py`
+9. `plugins/openai_responses/tests/test_openai_responses_imports.py`
+10. `plugins/openai_responses/tests/test_agent_application_openai_responses_config_loads.py`
+11. `plugins/openai_responses/README.md`
+12. `tasks/20260310-openai-responses-provider/140-openai-image-pdf-upload-and-upload-modes.md`
+
+### Tests run for Stage 2
+
+1. `pytest plugins/openai_responses/tests/test_openai_responses_attachments_extension_unit.py plugins/openai_responses/tests/test_openai_responses_provider_unit.py plugins/openai_responses/tests/test_openai_responses_native_history_regressions.py plugins/openai_responses/tests/test_openai_responses_imports.py plugins/openai_responses/tests/test_agent_application_openai_responses_config_loads.py -q`
+- result: `58 passed`
+
+2. `pytest plugins/openai_responses/tests/test_openai_responses_provider_integration.py -q`
+- result: `7 passed`
+
+### OpenAI documentation verification result for Stage 2
+
+1. Re-attempted direct docs verification via `https://platform.openai.com/docs/guides/images` from this terminal.
+- result: still blocked by a Cloudflare challenge page, so direct live-doc review was not possible from this environment.
+
+2. Conservative implementation choice used for Stage 2.
+- The installed OpenAI SDK surface confirms Responses support for `input_image` and `input_file`, and the Files API surface confirms upload via `client.files.create(...)`.
+- The implementation therefore supports direct-send image compatibility for Stage 1 and upload-before-send image/PDF support for Stage 2, but does **not** claim stronger caching or reuse guarantees than were directly verifiable here.
+
+### Outcomes
+
+1. `openai_responses` now supports upload-before-send image attachments through the OpenAI Files API.
+2. `openai_responses` now supports PDF attachments in upload-before-send mode.
+3. Non-streaming and streaming request paths both handle upload-before-send attachments.
+4. Native-history replay, reload, slice, and fork remain covered after upload-before-send turns.
+5. Provider/extension separation stayed intact: policy/UI live in the new extension, while the provider remains focused on transport/native-history/request execution.
+
+### Remaining open issues
+
+1. Stage 3 is still open by design: explicit provider-extension upload actions were not implemented here.
+2. Server/frontend action wiring for upload remains follow-up work.

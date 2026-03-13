@@ -12,7 +12,12 @@ extraction) is intentionally out of scope here.
 
 from __future__ import annotations
 
+import base64
+import binascii
+import hashlib
+import io
 import json
+import mimetypes
 import os
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
@@ -26,7 +31,14 @@ JsonObject = Dict[str, Any]
 _DEFAULT_BASE_URL = "https://api.openai.com/v1"
 _DEFAULT_TIMEOUT = 60.0
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
+_ATTACHMENT_UPLOAD_MODE_KEY = "attachment_upload_mode"
+_ATTACHMENT_STATE_KEY = "openai_responses_attachments"
+_ATTACHMENT_UPLOAD_MODE_DIRECT = "direct"
+_ATTACHMENT_UPLOAD_MODE_UPLOAD = "upload_before_send"
+_ATTACHMENT_SOURCES_METADATA_KEY = "_openai_responses_attachment_sources"
+_UPLOADED_ATTACHMENTS_METADATA_KEY = "_openai_responses_uploaded_attachments"
 _IMAGE_ATTACHMENT_TYPES = ["png", "jpg", "jpeg", "webp", "gif"]
+_PDF_ATTACHMENT_TYPES = ["pdf"]
 
 
 class OpenAIResponsesProvider(ProviderPlugin):
@@ -263,14 +275,16 @@ class OpenAIResponsesProvider(ProviderPlugin):
     def _extract_text_and_images_from_content(
         self,
         content: Any,
+        raw_internal_metadata: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, List[Dict[str, Any]]]:
         text_parts: List[str] = []
-        images: List[Dict[str, Any]] = []
+        multipart_parts: List[Dict[str, Any]] = []
+        source_map = self._attachment_source_map(raw_internal_metadata)
 
         if not isinstance(content, list):
-            return "", images
+            return "", multipart_parts
 
-        for part in content:
+        for index, part in enumerate(content):
             if not isinstance(part, dict):
                 continue
 
@@ -281,14 +295,112 @@ class OpenAIResponsesProvider(ProviderPlugin):
                     text_parts.append(text)
                 continue
 
+            source_override = source_map.get(index)
+            if isinstance(source_override, dict):
+                multipart_parts.append(source_override)
+                continue
+
             if ptype in ("input_image", "image_url"):
                 image_url = part.get("image_url")
                 if isinstance(image_url, dict):
                     image_url = image_url.get("url")
                 if isinstance(image_url, str) and image_url:
-                    images.append({"type": "image", "content": {"url": image_url}, "metadata": {}})
+                    multipart_parts.append(
+                        {"type": "image", "content": {"url": image_url}, "metadata": {}}
+                    )
+                    continue
 
-        return "\n".join(text_parts).strip(), images
+                file_id = part.get("file_id")
+                if isinstance(file_id, str) and file_id:
+                    multipart_parts.append(
+                        {"type": "image", "content": {"file_id": file_id}, "metadata": {}}
+                    )
+                continue
+
+            if ptype == "input_file":
+                file_url = part.get("file_url")
+                file_id = part.get("file_id")
+                file_data = part.get("file_data")
+                filename = part.get("filename")
+                payload: Dict[str, Any] = {}
+                if isinstance(file_url, str) and file_url:
+                    payload["url"] = file_url
+                if isinstance(file_id, str) and file_id:
+                    payload["file_id"] = file_id
+                if isinstance(file_data, str) and file_data:
+                    payload["data_base64"] = file_data
+                if isinstance(filename, str) and filename:
+                    payload["filename"] = filename
+                if payload:
+                    multipart_parts.append({"type": "pdf", "content": payload, "metadata": {}})
+
+        return "\n".join(text_parts).strip(), multipart_parts
+
+    def _attachment_upload_mode(self, state: Dict[str, Any]) -> str:
+        attachment_state = state.get(_ATTACHMENT_STATE_KEY)
+        if isinstance(attachment_state, dict):
+            mode = attachment_state.get(_ATTACHMENT_UPLOAD_MODE_KEY)
+            if mode in (_ATTACHMENT_UPLOAD_MODE_DIRECT, _ATTACHMENT_UPLOAD_MODE_UPLOAD):
+                return mode
+
+        config = state.get("config") if isinstance(state.get("config"), dict) else {}
+        mode = config.get(_ATTACHMENT_UPLOAD_MODE_KEY)
+        if mode in (_ATTACHMENT_UPLOAD_MODE_DIRECT, _ATTACHMENT_UPLOAD_MODE_UPLOAD):
+            return mode
+        return _ATTACHMENT_UPLOAD_MODE_DIRECT
+
+    def _normalized_multipart_part(self, part: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        part_type = part.get("type")
+        if part_type not in ("image", "pdf"):
+            return None
+
+        content = part.get("content")
+        metadata = part.get("metadata")
+        normalized: Dict[str, Any] = {"type": part_type}
+        normalized["content"] = dict(content) if isinstance(content, dict) else {}
+        normalized["metadata"] = dict(metadata) if isinstance(metadata, dict) else {}
+        return normalized
+
+    def _attachment_source_map(self, raw_internal_metadata: Optional[Dict[str, Any]]) -> Dict[int, Dict[str, Any]]:
+        if not isinstance(raw_internal_metadata, dict):
+            return {}
+        raw_sources = raw_internal_metadata.get(_ATTACHMENT_SOURCES_METADATA_KEY)
+        if not isinstance(raw_sources, list):
+            return {}
+
+        source_map: Dict[int, Dict[str, Any]] = {}
+        for entry in raw_sources:
+            if not isinstance(entry, dict):
+                continue
+            content_index = entry.get("content_index")
+            multipart_part = entry.get("multipart_part")
+            if not isinstance(content_index, int) or not isinstance(multipart_part, dict):
+                continue
+            normalized = self._normalized_multipart_part(multipart_part)
+            if normalized is not None:
+                source_map[content_index] = normalized
+        return source_map
+
+    def _uploaded_attachment_map(
+        self,
+        raw_internal_metadata: Optional[Dict[str, Any]],
+    ) -> Dict[int, Dict[str, Any]]:
+        if not isinstance(raw_internal_metadata, dict):
+            return {}
+        raw_uploaded = raw_internal_metadata.get(_UPLOADED_ATTACHMENTS_METADATA_KEY)
+        if not isinstance(raw_uploaded, list):
+            return {}
+
+        uploaded_map: Dict[int, Dict[str, Any]] = {}
+        for entry in raw_uploaded:
+            if not isinstance(entry, dict):
+                continue
+            content_index = entry.get("content_index")
+            uploaded_part = entry.get("uploaded_part")
+            if not isinstance(content_index, int) or not isinstance(uploaded_part, dict):
+                continue
+            uploaded_map[content_index] = dict(uploaded_part)
+        return uploaded_map
 
     def _image_part_to_input_image(self, content: Any) -> Dict[str, Any]:
         if not isinstance(content, dict):
@@ -314,12 +426,288 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
         return {"type": "input_image", "image_url": url}
 
+    def _pdf_part_to_input_file(self, content: Any) -> Dict[str, Any]:
+        if not isinstance(content, dict):
+            raise ValueError(
+                "[openai_responses_provider] pdf multipartContent part requires dict content"
+            )
+
+        filename = content.get("filename")
+        if not isinstance(filename, str) or not filename:
+            raise ValueError(
+                "[openai_responses_provider] pdf multipartContent part requires content.filename"
+            )
+
+        file_url = content.get("url")
+        if isinstance(file_url, str) and file_url:
+            if file_url.startswith("data:"):
+                mime_type, data_base64 = self._decode_data_url(file_url)
+                if mime_type != "application/pdf":
+                    raise ValueError(
+                        "[openai_responses_provider] pdf multipartContent data URL must use application/pdf"
+                    )
+                return {"type": "input_file", "file_data": data_base64, "filename": filename}
+            return {"type": "input_file", "file_url": file_url, "filename": filename}
+
+        data_base64 = content.get("data_base64")
+        mime_type = content.get("mime_type")
+        if isinstance(data_base64, str) and data_base64:
+            if mime_type != "application/pdf":
+                raise ValueError(
+                    "[openai_responses_provider] pdf multipartContent part using data_base64 requires mime_type application/pdf"
+                )
+            return {"type": "input_file", "file_data": data_base64, "filename": filename}
+
+        raise ValueError(
+            "[openai_responses_provider] pdf multipartContent part requires content.url or content.data_base64"
+        )
+
+    def _decode_base64_bytes(self, data_base64: str, *, field_name: str) -> bytes:
+        try:
+            return base64.b64decode(data_base64, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise ValueError(
+                f"[openai_responses_provider] invalid base64 payload for {field_name}"
+            ) from exc
+
+    def _decode_data_url(self, url: str) -> Tuple[str, str]:
+        if not isinstance(url, str) or not url.startswith("data:"):
+            raise ValueError("[openai_responses_provider] expected data URL")
+
+        header, sep, data_base64 = url.partition(",")
+        if not sep:
+            raise ValueError("[openai_responses_provider] malformed data URL")
+        if not header.endswith(";base64"):
+            raise ValueError("[openai_responses_provider] data URL must use base64 encoding")
+
+        mime_type = header[5:-7]
+        if not mime_type:
+            raise ValueError("[openai_responses_provider] data URL missing MIME type")
+        return mime_type, data_base64
+
+    def _default_filename_for_mime(self, mime_type: str, default_stem: str) -> str:
+        extension = mimetypes.guess_extension(mime_type) or ""
+        if extension == ".jpe":
+            extension = ".jpg"
+        return f"{default_stem}{extension}"
+
+    def _attachment_upload_cache_key(
+        self,
+        *,
+        purpose: str,
+        filename: str,
+        mime_type: str,
+        payload_bytes: bytes,
+    ) -> str:
+        digest = hashlib.sha256(payload_bytes).hexdigest()
+        return f"{purpose}:{filename}:{mime_type}:{digest}"
+
+    def _file_object_id(self, upload_response: Any) -> str:
+        response_obj = self._safe_dict_payload(upload_response)
+        file_id = response_obj.get("id")
+        if not isinstance(file_id, str) or not file_id:
+            raise RuntimeError("[openai_responses_provider] file upload response missing id")
+        return file_id
+
+    def _upload_attachment_bytes(
+        self,
+        *,
+        client: Any,
+        filename: str,
+        mime_type: str,
+        payload_bytes: bytes,
+        purpose: str,
+        timeout: float,
+        upload_cache: Dict[str, str],
+    ) -> str:
+        cache_key = self._attachment_upload_cache_key(
+            purpose=purpose,
+            filename=filename,
+            mime_type=mime_type,
+            payload_bytes=payload_bytes,
+        )
+        cached_id = upload_cache.get(cache_key)
+        if isinstance(cached_id, str) and cached_id:
+            return cached_id
+
+        upload_handle = io.BytesIO(payload_bytes)
+        upload_handle.name = filename
+        try:
+            upload_response = client.files.create(  # type: ignore[union-attr]
+                file=(filename, upload_handle.read(), mime_type),
+                purpose=purpose,
+                timeout=timeout,
+            )
+        except Exception as exc:
+            raise RuntimeError(f"OpenAI file upload failed: {exc}") from exc
+
+        file_id = self._file_object_id(upload_response)
+        upload_cache[cache_key] = file_id
+        return file_id
+
+    def _upload_state_cache(self, state: Dict[str, Any]) -> Dict[str, str]:
+        raw_cache = state.get("_openai_responses_upload_cache")
+        return raw_cache if isinstance(raw_cache, dict) else {}
+
+    def _uploaded_content_part(
+        self,
+        part: Dict[str, Any],
+        *,
+        source_override: Optional[Dict[str, Any]],
+        uploaded_override: Optional[Dict[str, Any]],
+        client: Any,
+        timeout: float,
+        upload_cache: Dict[str, str],
+    ) -> Dict[str, Any]:
+        if isinstance(uploaded_override, dict) and uploaded_override:
+            return dict(uploaded_override)
+
+        part_type = part.get("type")
+        if part_type == "input_image":
+            if isinstance(part.get("file_id"), str) and part.get("file_id"):
+                return dict(part)
+
+            image_url = part.get("image_url")
+            if not isinstance(image_url, str) or not image_url.startswith("data:"):
+                return dict(part)
+
+            mime_type, data_base64 = self._decode_data_url(image_url)
+            payload_bytes = self._decode_base64_bytes(data_base64, field_name="input_image.image_url")
+            source_content = source_override.get("content") if isinstance(source_override, dict) else {}
+            filename = source_content.get("filename") if isinstance(source_content, dict) else None
+            if not isinstance(filename, str) or not filename:
+                filename = self._default_filename_for_mime(mime_type, "attachment-image")
+
+            uploaded = {
+                "type": "input_image",
+                "file_id": self._upload_attachment_bytes(
+                    client=client,
+                    filename=filename,
+                    mime_type=mime_type,
+                    payload_bytes=payload_bytes,
+                    purpose="vision",
+                    timeout=timeout,
+                    upload_cache=upload_cache,
+                ),
+            }
+            detail = part.get("detail")
+            if isinstance(detail, str) and detail:
+                uploaded["detail"] = detail
+            return uploaded
+
+        if part_type == "input_file":
+            if isinstance(part.get("file_id"), str) and part.get("file_id"):
+                return dict(part)
+
+            filename = part.get("filename")
+            if not isinstance(filename, str) or not filename:
+                raise ValueError(
+                    "[openai_responses_provider] input_file attachment requires filename for upload"
+                )
+
+            payload_bytes: Optional[bytes] = None
+            mime_type = "application/pdf"
+            file_data = part.get("file_data")
+            file_url = part.get("file_url")
+            if isinstance(file_data, str) and file_data:
+                payload_bytes = self._decode_base64_bytes(file_data, field_name="input_file.file_data")
+            elif isinstance(file_url, str) and file_url.startswith("data:"):
+                mime_type, data_base64 = self._decode_data_url(file_url)
+                payload_bytes = self._decode_base64_bytes(data_base64, field_name="input_file.file_url")
+            elif isinstance(file_url, str) and file_url:
+                return dict(part)
+            else:
+                raise ValueError(
+                    "[openai_responses_provider] input_file attachment requires file_data or data URL for upload"
+                )
+
+            uploaded = {
+                "type": "input_file",
+                "file_id": self._upload_attachment_bytes(
+                    client=client,
+                    filename=filename,
+                    mime_type=mime_type,
+                    payload_bytes=payload_bytes,
+                    purpose="user_data",
+                    timeout=timeout,
+                    upload_cache=upload_cache,
+                ),
+            }
+            detail = part.get("detail")
+            if isinstance(detail, str) and detail:
+                uploaded["detail"] = detail
+            return uploaded
+
+        return dict(part)
+
+    def _prepare_uploaded_native_messages(
+        self,
+        native_messages: List[Dict[str, Any]],
+        *,
+        client: Any,
+        timeout: float,
+        upload_cache: Dict[str, str],
+        persist_uploaded_refs: bool = False,
+    ) -> List[Dict[str, Any]]:
+        rewritten: List[Dict[str, Any]] = []
+        for item in native_messages:
+            if not isinstance(item, dict):
+                continue
+            content = item.get("content")
+            if not isinstance(content, list):
+                rewritten.append(dict(item))
+                continue
+
+            raw_metadata = item.get("_metadata") if isinstance(item.get("_metadata"), dict) else {}
+            source_map = self._attachment_source_map(raw_metadata)
+            uploaded_map = self._uploaded_attachment_map(raw_metadata)
+            next_content: List[Dict[str, Any]] = []
+            changed = False
+            uploaded_entries: List[Dict[str, Any]] = []
+            for index, part in enumerate(content):
+                if not isinstance(part, dict):
+                    continue
+                next_part = self._uploaded_content_part(
+                    part,
+                    source_override=source_map.get(index),
+                    uploaded_override=uploaded_map.get(index),
+                    client=client,
+                    timeout=timeout,
+                    upload_cache=upload_cache,
+                )
+                changed = changed or next_part != part
+                next_content.append(next_part)
+                if next_part != part or index in uploaded_map:
+                    uploaded_entries.append(
+                        {
+                            "content_index": index,
+                            "uploaded_part": dict(next_part),
+                        }
+                    )
+
+            if persist_uploaded_refs:
+                if uploaded_entries:
+                    merged_metadata = {
+                        **raw_metadata,
+                        _UPLOADED_ATTACHMENTS_METADATA_KEY: uploaded_entries,
+                    }
+                    item["_metadata"] = merged_metadata
+                rewritten.append(item)
+                continue
+
+            if changed:
+                rewritten.append({**item, "content": next_content})
+            else:
+                rewritten.append(dict(item))
+        return rewritten
+
     def _assistant_candidate_from_response_item(
         self,
         item: Dict[str, Any],
         *,
         native_index: int,
         internal_md: Dict[str, Any],
+        raw_internal_md: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         if item.get("type") != "message":
             return None
@@ -328,7 +716,10 @@ class OpenAIResponsesProvider(ProviderPlugin):
         if role != "assistant":
             return None
 
-        text, images = self._extract_text_and_images_from_content(item.get("content"))
+        text, images = self._extract_text_and_images_from_content(
+            item.get("content"),
+            raw_internal_md if isinstance(raw_internal_md, dict) else None,
+        )
         metadata = dict(internal_md)
         phase = item.get("phase")
         if isinstance(phase, str) and phase:
@@ -353,6 +744,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
         assistant_candidates: List[Dict[str, Any]] = []
 
         for native_index, item, internal_md in segment:
+            raw_internal_md = item.get("_metadata") if isinstance(item.get("_metadata"), dict) else None
             segment_indices.append(native_index)
             if response_id is None:
                 rid = internal_md.get("response_id")
@@ -363,6 +755,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 item,
                 native_index=native_index,
                 internal_md=internal_md,
+                raw_internal_md=raw_internal_md,
             )
             if candidate is not None:
                 assistant_candidates.append(candidate)
@@ -452,6 +845,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 text = content if isinstance(content, str) else ""
 
                 parts: List[Dict[str, Any]] = []
+                attachment_sources: List[Dict[str, Any]] = []
                 if text:
                     text_part_type = "output_text" if role == "assistant" else "input_text"
                     parts.append({"type": text_part_type, "text": text})
@@ -459,9 +853,28 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 multipart = msg.get("multipartContent")
                 if isinstance(multipart, list):
                     for part in multipart:
-                        if not isinstance(part, dict) or part.get("type") != "image":
+                        if not isinstance(part, dict):
                             continue
-                        parts.append(self._image_part_to_input_image(part.get("content")))
+                        normalized_part = self._normalized_multipart_part(part)
+                        if normalized_part is None:
+                            continue
+
+                        if normalized_part.get("type") == "image":
+                            native_part = self._image_part_to_input_image(part.get("content"))
+                        else:
+                            if self._attachment_upload_mode(state) != _ATTACHMENT_UPLOAD_MODE_UPLOAD:
+                                raise ValueError(
+                                    "[openai_responses_provider] pdf multipartContent requires attachment_upload_mode=upload_before_send"
+                                )
+                            native_part = self._pdf_part_to_input_file(part.get("content"))
+
+                        parts.append(native_part)
+                        attachment_sources.append(
+                            {
+                                "content_index": len(parts) - 1,
+                                "multipart_part": normalized_part,
+                            }
+                        )
 
                 item: Dict[str, Any] = {
                     "type": "message",
@@ -476,6 +889,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
                 if internal_md:
                     item["_metadata"] = internal_md
+                if attachment_sources:
+                    base_metadata = item.get("_metadata") if isinstance(item.get("_metadata"), dict) else {}
+                    item["_metadata"] = {
+                        **base_metadata,
+                        _ATTACHMENT_SOURCES_METADATA_KEY: attachment_sources,
+                    }
                 native.append(item)
                 continue
 
@@ -583,6 +1002,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
             if not isinstance(item, dict):
                 continue
 
+            raw_internal_md = item.get("_metadata") if isinstance(item.get("_metadata"), dict) else {}
             internal_md = self._core_metadata_from_native_internal(item.get("_metadata"))
             response_id = (
                 internal_md.get("response_id") if isinstance(internal_md.get("response_id"), str) else None
@@ -613,7 +1033,10 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
             if item_type == "message":
                 role = item.get("role") if isinstance(item.get("role"), str) else "assistant"
-                text, images = self._extract_text_and_images_from_content(item.get("content"))
+                text, images = self._extract_text_and_images_from_content(
+                    item.get("content"),
+                    raw_internal_md,
+                )
 
                 md = dict(internal_md)
                 phase = item.get("phase")
@@ -871,11 +1294,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
         base_history = override if isinstance(override, list) else native_messages
         self._validate_native_item_list(base_history)
 
-        input_items = [
-            self._sanitize_input_item(item)
-            for item in base_history
-            if isinstance(item, dict)
-        ]
+        request_history = [item for item in base_history if isinstance(item, dict)]
 
         timeout = self._coerce_timeout(request.get("timeout", _DEFAULT_TIMEOUT))
         extra_headers = dict(request.get("headers") or {})
@@ -888,6 +1307,24 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 base_url=self._resolve_base_url(cfg),
                 timeout=timeout,
             )
+
+        upload_cache = self._upload_state_cache(state)
+        if self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD:
+            request_history = self._prepare_uploaded_native_messages(
+                request_history,
+                client=client,
+                timeout=timeout,
+                upload_cache=upload_cache,
+            )
+            self._prepare_uploaded_native_messages(
+                native_messages,
+                client=client,
+                timeout=timeout,
+                upload_cache=upload_cache,
+                persist_uploaded_refs=True,
+            )
+
+        input_items = [self._sanitize_input_item(item) for item in request_history]
 
         try:
             sdk_response = client.responses.create(  # type: ignore[union-attr]
@@ -909,7 +1346,8 @@ class OpenAIResponsesProvider(ProviderPlugin):
         response_md = self._response_internal_metadata(response_obj)
         annotated_output = self._attach_internal_metadata_to_output(output_items, response_md)
 
-        return [], annotated_output, [*native_messages, *annotated_output], state
+        new_state = {**state, "_openai_responses_upload_cache": upload_cache}
+        return [], annotated_output, [*native_messages, *annotated_output], new_state
 
     def stream_api(
         self,
@@ -926,11 +1364,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
         base_history = override if isinstance(override, list) else native_messages
         self._validate_native_item_list(base_history)
 
-        input_items = [
-            self._sanitize_input_item(item)
-            for item in base_history
-            if isinstance(item, dict)
-        ]
+        request_history = [item for item in base_history if isinstance(item, dict)]
 
         timeout = self._coerce_timeout(request.get("timeout", _DEFAULT_TIMEOUT))
         extra_headers = dict(request.get("headers") or {})
@@ -943,6 +1377,25 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 base_url=self._resolve_base_url(cfg),
                 timeout=timeout,
             )
+
+        upload_cache = self._upload_state_cache(state)
+        if self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD:
+            request_history = self._prepare_uploaded_native_messages(
+                request_history,
+                client=client,
+                timeout=timeout,
+                upload_cache=upload_cache,
+            )
+            self._prepare_uploaded_native_messages(
+                native_messages,
+                client=client,
+                timeout=timeout,
+                upload_cache=upload_cache,
+                persist_uploaded_refs=True,
+            )
+            state = {**state, "_openai_responses_upload_cache": upload_cache}
+
+        input_items = [self._sanitize_input_item(item) for item in request_history]
 
         try:
             sdk_stream = client.responses.create(  # type: ignore[union-attr]

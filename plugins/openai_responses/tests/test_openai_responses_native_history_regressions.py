@@ -4,6 +4,9 @@ from typing import Any, Dict, List
 
 from agent_core import AgentCore
 
+from openai_responses_plugins.openai_responses_attachments_extension import (
+    OpenAIResponsesAttachmentsExtension,
+)
 from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider
 from openai_responses_plugins.openai_responses_tools_extension import (
     OpenAIResponsesToolsExtension,
@@ -40,6 +43,32 @@ class _ScriptedClient:
         self.responses = _ScriptedResponsesResource(payloads)
 
 
+class _ScriptedFileObject:
+    def __init__(self, file_id: str) -> None:
+        self.id = file_id
+
+    def model_dump(self, mode: str = "python") -> Dict[str, Any]:
+        _ = mode
+        return {"id": self.id}
+
+
+class _ScriptedFilesResource:
+    def __init__(self) -> None:
+        self.calls: List[Dict[str, Any]] = []
+        self._cursor = 0
+
+    def create(self, **kwargs: Any) -> _ScriptedFileObject:
+        self.calls.append(kwargs)
+        self._cursor += 1
+        return _ScriptedFileObject(f"file_{self._cursor}")
+
+
+class _ScriptedUploadClient(_ScriptedClient):
+    def __init__(self, payloads: List[Dict[str, Any]]) -> None:
+        super().__init__(payloads)
+        self.files = _ScriptedFilesResource()
+
+
 class _ScriptedNativeHistoryProvider(OpenAIResponsesProvider):
     scripted_payloads: List[Dict[str, Any]] = []
     last_client: _ScriptedClient | None = None
@@ -48,6 +77,18 @@ class _ScriptedNativeHistoryProvider(OpenAIResponsesProvider):
         state = super().init(config)
         if type(self).last_client is None:
             type(self).last_client = _ScriptedClient(list(type(self).scripted_payloads))
+        state["client"] = type(self).last_client
+        return state
+
+
+class _ScriptedUploadNativeHistoryProvider(OpenAIResponsesProvider):
+    scripted_payloads: List[Dict[str, Any]] = []
+    last_client: _ScriptedUploadClient | None = None
+
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        state = super().init(config)
+        if type(self).last_client is None:
+            type(self).last_client = _ScriptedUploadClient(list(type(self).scripted_payloads))
         state["client"] = type(self).last_client
         return state
 
@@ -65,6 +106,12 @@ def _config() -> Dict[str, Any]:
 def _build_core() -> AgentCore:
     core = AgentCore()
     core.register_provider(_ScriptedNativeHistoryProvider)
+    return core
+
+
+def _build_upload_core() -> AgentCore:
+    core = AgentCore()
+    core.register_provider(_ScriptedUploadNativeHistoryProvider, [OpenAIResponsesAttachmentsExtension])
     return core
 
 
@@ -309,3 +356,195 @@ def test_rebuilt_follow_up_keeps_one_assistant_anchor_for_prior_tool_segment() -
     ]
     assert len(rebuilt_first_turn_assistants) == 1
     assert rebuilt_first_turn_assistants[0].content == "Using tool."
+
+
+def test_uploaded_attachment_history_rebuilds_original_multipart_content() -> None:
+    _ScriptedUploadNativeHistoryProvider.last_client = None
+    _ScriptedUploadNativeHistoryProvider.scripted_payloads = [
+        {
+            "id": "resp_upload_1",
+            "output": [
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "Attachment processed"}],
+                }
+            ],
+        }
+    ]
+
+    config = {**_config(), "attachment_upload_mode": "upload_before_send"}
+    core = _build_upload_core()
+
+    session = core.create_session()
+    session = core.add_message(
+        session,
+        "user",
+        "Review the attachments.",
+        config=config,
+        multipart_content=[
+            {
+                "type": "image",
+                "content": {
+                    "url": "data:image/png;base64,Zm9v",
+                    "mime_type": "image/png",
+                    "filename": "image.png",
+                },
+                "metadata": {},
+            },
+            {
+                "type": "pdf",
+                "content": {
+                    "data_base64": "JVBERi0xLjQK",
+                    "mime_type": "application/pdf",
+                    "filename": "brief.pdf",
+                },
+                "metadata": {},
+            },
+        ],
+    )
+    session, responses = core.send_request(session, config)
+
+    assert responses[-1]["content"] == "Attachment processed"
+
+    native_messages = (session.metadata or {}).get("native_messages") or []
+    user_message = native_messages[0]
+    assert user_message["content"][1] == {
+        "type": "input_image",
+        "image_url": "data:image/png;base64,Zm9v",
+    }
+    assert user_message["content"][2] == {
+        "type": "input_file",
+        "file_data": "JVBERi0xLjQK",
+        "filename": "brief.pdf",
+    }
+    assert user_message["_metadata"]["_openai_responses_uploaded_attachments"] == [
+        {"content_index": 1, "uploaded_part": {"type": "input_image", "file_id": "file_1"}},
+        {"content_index": 2, "uploaded_part": {"type": "input_file", "file_id": "file_2"}},
+    ]
+
+    rebuilt_user = session.messages[0]
+    assert rebuilt_user.multipart_content == [
+        {
+            "type": "image",
+            "content": {
+                "url": "data:image/png;base64,Zm9v",
+                "mime_type": "image/png",
+                "filename": "image.png",
+            },
+            "metadata": {},
+        },
+        {
+            "type": "pdf",
+            "content": {
+                "data_base64": "JVBERi0xLjQK",
+                "mime_type": "application/pdf",
+                "filename": "brief.pdf",
+            },
+            "metadata": {},
+        },
+    ]
+
+
+def test_uploaded_attachment_history_slice_and_fork_keep_coherent_native_segments() -> None:
+    _ScriptedUploadNativeHistoryProvider.last_client = None
+    _ScriptedUploadNativeHistoryProvider.scripted_payloads = [
+        {
+            "id": "resp_upload_a",
+            "output": [
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "First uploaded answer"}],
+                }
+            ],
+        },
+        {
+            "id": "resp_upload_b",
+            "output": [
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "Second uploaded answer"}],
+                }
+            ],
+        },
+    ]
+
+    config = {**_config(), "attachment_upload_mode": "upload_before_send"}
+    core = _build_upload_core()
+
+    session = core.create_session()
+    session = core.add_message(
+        session,
+        "user",
+        "First attachment turn.",
+        config=config,
+        multipart_content=[
+            {
+                "type": "image",
+                "content": {
+                    "url": "data:image/png;base64,Zm9v",
+                    "mime_type": "image/png",
+                    "filename": "one.png",
+                },
+                "metadata": {},
+            }
+        ],
+    )
+    session, _ = core.send_request(session, config)
+
+    session = core.add_message(
+        session,
+        "user",
+        "Second attachment turn.",
+        config=config,
+        multipart_content=[
+            {
+                "type": "pdf",
+                "content": {
+                    "data_base64": "JVBERi0xLjQK",
+                    "mime_type": "application/pdf",
+                    "filename": "two.pdf",
+                },
+                "metadata": {},
+            }
+        ],
+    )
+    session, _ = core.send_request(session, config)
+
+    deleted = core.slice_session(session, config, remove_indices=[0, 1])
+    deleted_native = (deleted.metadata or {}).get("native_messages") or []
+    assert _response_ids(deleted_native) == {"resp_upload_b"}
+    assert deleted_native[0]["_metadata"]["_openai_responses_uploaded_attachments"] == [
+        {"content_index": 1, "uploaded_part": {"type": "input_file", "file_id": "file_2"}},
+    ]
+    assert deleted.messages[0].multipart_content == [
+        {
+            "type": "pdf",
+            "content": {
+                "data_base64": "JVBERi0xLjQK",
+                "mime_type": "application/pdf",
+                "filename": "two.pdf",
+            },
+            "metadata": {},
+        }
+    ]
+
+    forked = core.fork_session(session, config, upto_index=1, new_session_id="uploaded-fork")
+    forked_native = (forked.metadata or {}).get("native_messages") or []
+    assert _response_ids(forked_native) == {"resp_upload_a"}
+    assert forked_native[0]["_metadata"]["_openai_responses_uploaded_attachments"] == [
+        {"content_index": 1, "uploaded_part": {"type": "input_image", "file_id": "file_1"}},
+    ]
+    assert forked.messages[0].multipart_content == [
+        {
+            "type": "image",
+            "content": {
+                "url": "data:image/png;base64,Zm9v",
+                "mime_type": "image/png",
+                "filename": "one.png",
+            },
+            "metadata": {},
+        }
+    ]

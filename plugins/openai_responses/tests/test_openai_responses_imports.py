@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from openai_responses_plugins import (
+    OpenAIResponsesAttachmentsExtension,
     OpenAIResponsesPromptCachingExtension,
     OpenAIResponsesProvider,
     OpenAIResponsesReasoningExtension,
@@ -22,6 +23,7 @@ def _import_symbol(dotted_path: str):
 
 def test_all_entry_classes_are_importable() -> None:
     assert OpenAIResponsesProvider.name == "openai_responses"
+    assert OpenAIResponsesAttachmentsExtension.name == "openai_responses_attachments"
     assert OpenAIResponsesPromptCachingExtension.name == "openai_responses_prompt_caching"
     assert OpenAIResponsesToolsExtension.name == "openai_responses_tools"
     assert OpenAIResponsesReasoningExtension.name == "openai_responses_reasoning"

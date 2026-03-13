@@ -9,6 +9,9 @@ import pytest
 from dotenv import load_dotenv
 
 from agent_core import AgentCore
+from openai_responses_plugins.openai_responses_attachments_extension import (
+    OpenAIResponsesAttachmentsExtension,
+)
 from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider
 
 
@@ -25,6 +28,19 @@ def _vision_test_config(api_key: str) -> dict[str, object]:
         "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
         "timeout": 120,
     }
+
+
+def _upload_attachment_test_config(api_key: str) -> dict[str, object]:
+    return {
+        **_vision_test_config(api_key),
+        "attachment_upload_mode": "upload_before_send",
+    }
+
+
+def _build_attachment_core() -> AgentCore:
+    core = AgentCore()
+    core.register_provider(OpenAIResponsesProvider, [OpenAIResponsesAttachmentsExtension])
+    return core
 
 
 def _make_data_url(path: Path, mime_type: str) -> str:
@@ -55,6 +71,35 @@ def _generate_red_square_png(tmp_path: Path) -> Path:
     if not image_path.exists():
         pytest.fail("ImageMagick did not create the expected test image")
     return image_path
+
+
+def _generate_text_pdf(tmp_path: Path) -> Path:
+    pdf_path = tmp_path / "attachment-brief.pdf"
+    try:
+        subprocess.run(
+            [
+                "magick",
+                "-background",
+                "white",
+                "-fill",
+                "black",
+                "-size",
+                "800x400",
+                "caption:PDF_STAGE2_OK",
+                str(pdf_path),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        pytest.skip("magick not available; skipping generated-pdf integration test")
+    except subprocess.CalledProcessError as exc:
+        pytest.fail(f"failed to generate test PDF with ImageMagick: {exc.stderr.strip()}")
+
+    if not pdf_path.exists():
+        pytest.fail("ImageMagick did not create the expected test PDF")
+    return pdf_path
 
 
 @pytest.fixture(scope="module")
@@ -277,6 +322,116 @@ def test_openai_responses_generated_image_real_api(
             and part.get("type") == "input_image"
             and part.get("image_url") == image_data_url
             for part in (item.get("content") or [])
+        )
+        for item in native_history
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.openai
+def test_openai_responses_uploaded_image_real_api(
+    ensure_openai_api_key: str,
+    tmp_path: Path,
+) -> None:
+    core = _build_attachment_core()
+
+    config = _upload_attachment_test_config(ensure_openai_api_key)
+    image_path = _generate_red_square_png(tmp_path)
+    image_data_url = _make_data_url(image_path, "image/png")
+
+    session = core.create_session()
+    session = core.add_message(
+        session,
+        "user",
+        (
+            "Reply with exactly RED_SQUARE_UPLOAD_OK if the attached image is predominantly "
+            "a solid red square. Otherwise reply with exactly NOT_RED."
+        ),
+        config=config,
+        multipart_content=[
+            {
+                "type": "image",
+                "content": {
+                    "url": image_data_url,
+                    "mime_type": "image/png",
+                    "filename": image_path.name,
+                },
+                "metadata": {},
+            }
+        ],
+    )
+
+    new_session, responses = core.send_request(session, config)
+
+    assert responses
+    assert "RED_SQUARE_UPLOAD_OK" in responses[-1]["content"]
+
+    native_history = (new_session.metadata or {}).get("native_messages")
+    assert isinstance(native_history, list)
+    assert any(
+        isinstance(item, dict)
+        and item.get("type") == "message"
+        and isinstance(item.get("_metadata"), dict)
+        and any(
+            isinstance(entry, dict)
+            and isinstance((entry.get("uploaded_part") or {}).get("file_id"), str)
+            and (entry.get("uploaded_part") or {}).get("type") == "input_image"
+            for entry in (item.get("_metadata") or {}).get("_openai_responses_uploaded_attachments", [])
+        )
+        for item in native_history
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.openai
+def test_openai_responses_uploaded_pdf_real_api(
+    ensure_openai_api_key: str,
+    tmp_path: Path,
+) -> None:
+    core = _build_attachment_core()
+
+    config = _upload_attachment_test_config(ensure_openai_api_key)
+    pdf_path = _generate_text_pdf(tmp_path)
+    pdf_data_url = _make_data_url(pdf_path, "application/pdf")
+
+    session = core.create_session()
+    session = core.add_message(
+        session,
+        "user",
+        (
+            "Reply with exactly PDF_UPLOAD_OK if you can access one attached PDF whose visible "
+            "text includes PDF_STAGE2_OK. Otherwise reply with exactly PDF_UPLOAD_FAIL."
+        ),
+        config=config,
+        multipart_content=[
+            {
+                "type": "pdf",
+                "content": {
+                    "url": pdf_data_url,
+                    "mime_type": "application/pdf",
+                    "filename": pdf_path.name,
+                },
+                "metadata": {},
+            }
+        ],
+    )
+
+    new_session, responses = core.send_request(session, config)
+
+    assert responses
+    assert "PDF_UPLOAD_OK" in responses[-1]["content"]
+
+    native_history = (new_session.metadata or {}).get("native_messages")
+    assert isinstance(native_history, list)
+    assert any(
+        isinstance(item, dict)
+        and item.get("type") == "message"
+        and isinstance(item.get("_metadata"), dict)
+        and any(
+            isinstance(entry, dict)
+            and isinstance((entry.get("uploaded_part") or {}).get("file_id"), str)
+            and (entry.get("uploaded_part") or {}).get("type") == "input_file"
+            for entry in (item.get("_metadata") or {}).get("_openai_responses_uploaded_attachments", [])
         )
         for item in native_history
     )

@@ -32,6 +32,7 @@ def test_openai_responses_agent_application_config_loads(
         },
         "plugins": [
             "openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider",
+            "openai_responses_plugins.openai_responses_attachments_extension.OpenAIResponsesAttachmentsExtension",
             "openai_responses_plugins.openai_responses_native_compaction_extension.OpenAIResponsesNativeCompactionExtension",
             "openai_responses_plugins.openai_responses_prompt_caching_extension.OpenAIResponsesPromptCachingExtension",
             "openai_responses_plugins.openai_responses_tools_extension.OpenAIResponsesToolsExtension",
@@ -66,6 +67,7 @@ def test_openai_responses_agent_application_config_loads(
 
     extension_names = [ext.plugin_class.__name__ for ext in provider_wrapper.extensions]
     assert extension_names == [
+        "OpenAIResponsesAttachmentsExtension",
         "OpenAIResponsesNativeCompactionExtension",
         "OpenAIResponsesPromptCachingExtension",
         "OpenAIResponsesToolsExtension",
