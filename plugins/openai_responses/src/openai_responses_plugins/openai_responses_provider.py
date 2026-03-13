@@ -290,6 +290,30 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
         return "\n".join(text_parts).strip(), images
 
+    def _image_part_to_input_image(self, content: Any) -> Dict[str, Any]:
+        if not isinstance(content, dict):
+            raise ValueError(
+                "[openai_responses_provider] image multipartContent part requires dict content"
+            )
+
+        url = content.get("url")
+        if not isinstance(url, str) or not url:
+            data_base64 = content.get("data_base64")
+            mime_type = content.get("mime_type")
+            if isinstance(data_base64, str) and data_base64:
+                if not isinstance(mime_type, str) or not mime_type:
+                    raise ValueError(
+                        "[openai_responses_provider] image multipartContent part using data_base64 requires mime_type"
+                    )
+                url = f"data:{mime_type};base64,{data_base64}"
+
+        if not isinstance(url, str) or not url:
+            raise ValueError(
+                "[openai_responses_provider] image multipartContent part requires content.url or content.data_base64"
+            )
+
+        return {"type": "input_image", "image_url": url}
+
     def _assistant_candidate_from_response_item(
         self,
         item: Dict[str, Any],
@@ -437,12 +461,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
                     for part in multipart:
                         if not isinstance(part, dict) or part.get("type") != "image":
                             continue
-                        pcontent = part.get("content")
-                        if not isinstance(pcontent, dict):
-                            continue
-                        url = pcontent.get("url")
-                        if isinstance(url, str) and url:
-                            parts.append({"type": "input_image", "image_url": url})
+                        parts.append(self._image_part_to_input_image(part.get("content")))
 
                 item: Dict[str, Any] = {
                     "type": "message",

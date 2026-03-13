@@ -6,6 +6,7 @@ Use it when you want an OpenAI-backed agent with:
 
 - plain chat over the Responses API
 - streaming and non-streaming replies
+- direct-send image attachments
 - tool calling
 - reasoning controls and surfaced reasoning metadata
 - usage and cost metadata in message/UI output
@@ -132,6 +133,22 @@ What this enables:
 
 Load one or more tool plugins, and the bundle will pass their schemas to the
 Responses API and surface tool calls/results in the normal tool loop.
+
+### Image attachments
+
+The provider supports direct-send image attachments through Responses
+`input_image` items.
+
+Currently supported Stage 1 shapes are:
+
+- `multipartContent[].content.url` with `http://` or `https://` image URLs
+- `multipartContent[].content.url` with `data:image/...` URLs
+- `multipartContent[].content.data_base64` plus `mime_type`, which the provider
+  converts into a `data:` URL before sending
+
+This Stage 1 scope is intentionally limited to direct-send image inputs.
+PDF support, upload-before-send, and explicit upload actions are follow-up work
+and are not part of the current `openai_responses` attachment path.
 
 ### Reasoning
 

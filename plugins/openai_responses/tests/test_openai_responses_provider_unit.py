@@ -456,6 +456,152 @@ def test_to_native_and_from_native_roundtrip_with_tool_output() -> None:
     assert rebuilt[2]["metadata"]["native_indices"] == [2]
 
 
+def test_to_native_messages_supports_image_url_and_data_url() -> None:
+    provider = OpenAIResponsesProvider()
+
+    native = provider.to_native_messages(
+        [
+            {
+                "role": "user",
+                "content": "describe these",
+                "multipartContent": [
+                    {
+                        "type": "image",
+                        "content": {"url": "https://example.com/cat.png"},
+                        "metadata": {},
+                    },
+                    {
+                        "type": "image",
+                        "content": {"url": "data:image/png;base64,Zm9v"},
+                        "metadata": {},
+                    },
+                ],
+            }
+        ],
+        {},
+    )
+
+    assert native == [
+        {
+            "type": "message",
+            "role": "user",
+            "content": [
+                {"type": "input_text", "text": "describe these"},
+                {"type": "input_image", "image_url": "https://example.com/cat.png"},
+                {"type": "input_image", "image_url": "data:image/png;base64,Zm9v"},
+            ],
+        }
+    ]
+
+
+def test_to_native_messages_converts_image_data_base64_to_data_url() -> None:
+    provider = OpenAIResponsesProvider()
+
+    native = provider.to_native_messages(
+        [
+            {
+                "role": "user",
+                "content": "what is this",
+                "multipartContent": [
+                    {
+                        "type": "image",
+                        "content": {
+                            "data_base64": "YWJjMTIz",
+                            "mime_type": "image/png",
+                            "filename": "tiny.png",
+                        },
+                        "metadata": {},
+                    }
+                ],
+            }
+        ],
+        {},
+    )
+
+    assert native == [
+        {
+            "type": "message",
+            "role": "user",
+            "content": [
+                {"type": "input_text", "text": "what is this"},
+                {"type": "input_image", "image_url": "data:image/png;base64,YWJjMTIz"},
+            ],
+        }
+    ]
+
+
+def test_to_native_messages_raises_for_image_data_base64_without_mime_type() -> None:
+    provider = OpenAIResponsesProvider()
+
+    with pytest.raises(ValueError, match="requires mime_type"):
+        provider.to_native_messages(
+            [
+                {
+                    "role": "user",
+                    "content": "broken",
+                    "multipartContent": [
+                        {
+                            "type": "image",
+                            "content": {"data_base64": "YWJjMTIz"},
+                            "metadata": {},
+                        }
+                    ],
+                }
+            ],
+            {},
+        )
+
+
+def test_from_native_messages_preserves_image_multipart_content() -> None:
+    provider = OpenAIResponsesProvider()
+
+    rebuilt = provider.from_native_messages(
+        [
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": [
+                    {"type": "output_text", "text": "here you go"},
+                    {"type": "input_image", "image_url": "data:image/png;base64,Zm9v"},
+                ],
+                "_metadata": {"response_id": "resp_img_1"},
+            }
+        ],
+        {},
+    )
+
+    assert rebuilt == [
+        {
+            "role": "assistant",
+            "content": "here you go",
+            "metadata": {
+                "response_id": "resp_img_1",
+                "native_indices": [0],
+                "phase_messages": [
+                    {
+                        "content": "here you go",
+                        "native_index": 0,
+                        "multipartContent": [
+                            {
+                                "type": "image",
+                                "content": {"url": "data:image/png;base64,Zm9v"},
+                                "metadata": {},
+                            }
+                        ],
+                    }
+                ],
+            },
+            "multipartContent": [
+                {
+                    "type": "image",
+                    "content": {"url": "data:image/png;base64,Zm9v"},
+                    "metadata": {},
+                }
+            ],
+        }
+    ]
+
+
 def test_from_native_messages_assigns_response_segment_indices_for_unconverted_items() -> None:
     provider = OpenAIResponsesProvider()
 

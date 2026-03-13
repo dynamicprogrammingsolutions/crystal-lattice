@@ -379,3 +379,95 @@ Only after Stage 3 provider/extension integration is already working:
 - `tasks/20260215-multipart-upload/050-provider-mapping-multipartcontent.md`
 - `tasks/20260215-multipart-upload/090-asset-prepare-upload-action.md`
 - `tasks/20260312-provider-extension-session-actions/000-main.md`
+
+## Approved plan (added during completion)
+
+1. Complete this subtask as Stage 1 only.
+- Keep `140` limited to direct-send image attachment support and the required caching-guidance documentation.
+- Defer Stage 2 upload-before-send, PDF support, and Stage 3 action wiring to follow-up `141+` subtasks instead of broadening provider scope here.
+
+2. Tighten provider-side direct image conversion in `openai_responses`.
+- Update `plugins/openai_responses/src/openai_responses_plugins/openai_responses_provider.py` so Stage 1 image handling explicitly supports:
+  - `multipartContent[].content.url` with `http(s)` image URLs
+  - `multipartContent[].content.url` with `data:image/...` URLs from the existing mobile flow
+  - `multipartContent[].content.data_base64` plus `mime_type`, converted into a `data:` URL for parity with existing provider behavior elsewhere in the repo
+- Keep the provider transport/native-history focused and do not add PDF, file-upload, or action logic in this step.
+
+3. Add tests in the same change.
+- Expand `plugins/openai_responses/tests/test_openai_responses_provider_unit.py` with coverage for direct image URL conversion, `data:image/...` URL pass-through, `data_base64` plus `mime_type` conversion, and provider-native back-conversion preserving image attachments in `multipartContent`.
+- Add one guarded integration test in `plugins/openai_responses/tests/test_openai_responses_provider_integration.py` that sends a real image-bearing request through `AgentCore` using `OPENAI_API_KEY` from the repo root `.env`.
+
+4. Verify and document the Stage 1 caching/reuse guidance.
+- Check current OpenAI documentation, if reachable from this environment, for recommendations comparing external URLs, inline `data:` URLs, and uploaded-file references for repeated image/file inputs.
+- Record the result conservatively in completion notes and avoid claiming stronger caching guarantees than the documentation actually supports.
+
+5. Update narrow bundle docs for the implemented Stage 1 behavior.
+- Refresh `plugins/openai_responses/README.md` so it documents direct-send image attachment support and clearly states that PDF/upload-before-send/action workflows remain staged follow-up work.
+
+6. Verify with focused test runs, append completion notes, and stop after this one subtask.
+
+## Completion notes (added during completion)
+
+### What changed
+
+1. Completed `140` as Stage 1 only.
+- Kept this subtask limited to direct-send image attachment support in the provider.
+- Did not implement PDF handling, upload-before-send, or provider-extension action wiring in this change.
+
+2. Tightened direct image conversion in `plugins/openai_responses/src/openai_responses_plugins/openai_responses_provider.py`.
+- Added explicit provider-side handling for image multipart parts using:
+  - `content.url` with external image URLs
+  - `content.url` with `data:image/...` URLs from the existing mobile flow
+  - `content.data_base64` plus `mime_type`, converted into a `data:` URL before send
+- Added validation errors for malformed image parts so bad payloads fail clearly instead of being silently ignored.
+
+3. Added Stage 1 test coverage.
+- Expanded `plugins/openai_responses/tests/test_openai_responses_provider_unit.py` with unit tests for:
+  - direct image URL conversion
+  - `data:image/...` URL pass-through
+  - `data_base64` plus `mime_type` conversion
+  - malformed image payload rejection
+  - provider-native back-conversion preserving image `multipartContent`
+- Added a guarded real-API integration test in `plugins/openai_responses/tests/test_openai_responses_provider_integration.py` that sends a message with one image attachment using a small inline `data:image/gif` payload.
+- Added a second guarded real-API integration test in `plugins/openai_responses/tests/test_openai_responses_provider_integration.py` that generates a local red PNG with ImageMagick, converts it to a `data:image/png` URL, and verifies the model recognizes the image content.
+- The image integration test allows model override through `OPENAI_RESPONSES_VISION_MODEL` and otherwise defaults to `gpt-5-mini`.
+
+4. Updated docs for the implemented Stage 1 behavior.
+- Updated `plugins/openai_responses/README.md` to document direct-send image attachment support and to state clearly that PDF/upload-before-send/action workflows remain follow-up work.
+
+### Files touched
+
+1. `plugins/openai_responses/src/openai_responses_plugins/openai_responses_provider.py`
+2. `plugins/openai_responses/tests/test_openai_responses_provider_unit.py`
+3. `plugins/openai_responses/tests/test_openai_responses_provider_integration.py`
+4. `plugins/openai_responses/README.md`
+5. `tasks/20260310-openai-responses-provider/140-openai-image-pdf-upload-and-upload-modes.md`
+
+### Tests run
+
+1. `pytest plugins/openai_responses/tests/test_openai_responses_provider_unit.py -q`
+- result: `39 passed`
+
+2. `pytest plugins/openai_responses/tests/test_openai_responses_provider_integration.py -q`
+- result: `5 passed`
+
+### OpenAI documentation verification result
+
+1. Attempted to verify the current OpenAI image/file guidance directly from this environment via `https://platform.openai.com/docs/guides/images`.
+- result: the docs page was blocked by a Cloudflare challenge in this terminal environment, so a direct documentation review was not possible here.
+
+2. Conservative conclusion used for Stage 1.
+- The OpenAI SDK surface and the task's pre-collected investigation notes confirm that `input_image.image_url` accepts both external URLs and base64 `data:` URLs.
+- Because the current docs could not be directly reviewed from this environment, this change does **not** claim that inline `data:` URLs are cache-friendly or preferable for repeated reuse.
+- Stage 1 therefore keeps compatibility-first direct-send image support for the existing frontend payloads, while leaving any stronger cache-optimized recommendation to the later upload-before-send follow-up work.
+
+### Outcomes
+
+1. `openai_responses` now explicitly supports the repo's current direct image attachment payload shapes, including `data_base64` plus `mime_type`.
+2. Real API coverage confirms that an image-bearing request succeeds through the OpenAI Responses provider.
+3. Provider scope remains transport/native-history focused; no upload policy, PDF logic, or action behavior was moved into the provider in this subtask.
+
+### Open issues
+
+1. Stage 2 remains open by design: config-gated upload-before-send and PDF support were not implemented in this subtask.
+2. Stage 3 remains open by design: provider-extension upload actions and server/frontend wiring were not implemented in this subtask.
