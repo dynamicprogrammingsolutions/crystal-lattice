@@ -57,7 +57,22 @@ def refresh_snapshot(models: Sequence[str], output_path: Path) -> Path:
         except (HTTPError, URLError, TimeoutError, ValueError, RuntimeError) as exc:
             raise RuntimeError(f"failed to refresh pricing for {model} from {source_url}: {exc}") from exc
 
-    payload = build_snapshot_payload(fetched_at=fetched_at, model_entries=model_entries)
+    existing_entries = []
+    if output_path.exists():
+        existing_payload = json.loads(output_path.read_text(encoding="utf-8"))
+        existing_models = existing_payload.get("models")
+        if isinstance(existing_models, dict):
+            existing_entries = [entry for entry in existing_models.values() if isinstance(entry, dict)]
+
+    refreshed_models = {entry["model"] for entry in model_entries}
+    merged_entries = [
+        entry
+        for entry in existing_entries
+        if isinstance(entry.get("model"), str) and entry["model"] not in refreshed_models
+    ]
+    merged_entries.extend(model_entries)
+
+    payload = build_snapshot_payload(fetched_at=fetched_at, model_entries=merged_entries)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return output_path
@@ -77,7 +92,7 @@ def parse_args() -> argparse.Namespace:
         "models",
         nargs="*",
         default=list(DEFAULT_MODEL_DOC_SLUGS),
-        help="Model doc slugs to refresh, e.g. gpt-5-mini gpt-4.1-mini.",
+        help="Model doc slugs to refresh, e.g. gpt-5-mini gpt-4.1-mini. Explicit args replace only those models in the snapshot and keep other existing entries.",
     )
     return parser.parse_args()
 
