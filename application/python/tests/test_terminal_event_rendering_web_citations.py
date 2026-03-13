@@ -94,7 +94,16 @@ def _make_assistant_message() -> Dict[str, Any]:
                 {
                     "url": "https://example.com/b",
                 },
-            ]
+            ],
+            "web_search_sources": [
+                {
+                    "url": "https://example.com/full-a",
+                    "title": "Full Source A",
+                },
+                {
+                    "url": "https://example.com/full-b",
+                },
+            ],
         },
     }
 
@@ -120,6 +129,9 @@ def test_assistant_renderer_renders_citations_in_list_view(terminal_app: Termina
     assert "citations:" in rendered
     assert "https://example.com/a" in rendered
     assert "https://example.com/b" in rendered
+    assert "sources:" in rendered
+    assert "https://example.com/full-a" in rendered
+    assert "https://example.com/full-b" in rendered
 
 
 def test_assistant_renderer_renders_citations_on_final_event(terminal_app: TerminalApplication) -> None:
@@ -149,3 +161,6 @@ def test_assistant_renderer_renders_citations_on_final_event(terminal_app: Termi
     assert "citations:" in rendered
     assert "https://example.com/a" in rendered
     assert "https://example.com/b" in rendered
+    assert "sources:" in rendered
+    assert "https://example.com/full-a" in rendered
+    assert "https://example.com/full-b" in rendered

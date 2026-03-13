@@ -7,6 +7,7 @@
     "openai_responses_plugins.openai_responses_native_compaction_extension.OpenAIResponsesNativeCompactionExtension",
     "openai_responses_plugins.openai_responses_prompt_caching_extension.OpenAIResponsesPromptCachingExtension",
     "openai_responses_plugins.openai_responses_tools_extension.OpenAIResponsesToolsExtension",
+    "openai_responses_plugins.openai_responses_websearch_extension.OpenAIResponsesWebSearchExtension",
     "openai_responses_plugins.openai_responses_reasoning_extension.OpenAIResponsesReasoningExtension",
     "openai_responses_plugins.openai_responses_usage_extension.OpenAIResponsesUsageExtension",
     "openai_responses_plugins.openai_responses_verbosity_extension.OpenAIResponsesVerbosityExtension"
@@ -17,6 +18,7 @@
     "openai_responses_plugins.openai_responses_native_compaction_extension.OpenAIResponsesNativeCompactionExtension": "extensions",
     "openai_responses_plugins.openai_responses_prompt_caching_extension.OpenAIResponsesPromptCachingExtension": "extensions",
     "openai_responses_plugins.openai_responses_tools_extension.OpenAIResponsesToolsExtension": "extensions",
+    "openai_responses_plugins.openai_responses_websearch_extension.OpenAIResponsesWebSearchExtension": "extensions",
     "openai_responses_plugins.openai_responses_reasoning_extension.OpenAIResponsesReasoningExtension": "extensions",
     "openai_responses_plugins.openai_responses_usage_extension.OpenAIResponsesUsageExtension": "extensions",
     "openai_responses_plugins.openai_responses_verbosity_extension.OpenAIResponsesVerbosityExtension": "extensions"

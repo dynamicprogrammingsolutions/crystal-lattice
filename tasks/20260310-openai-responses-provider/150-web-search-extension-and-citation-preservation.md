@@ -476,3 +476,107 @@ When this subtask is completed, the completion notes should explicitly record:
 3. how include merging was implemented
 4. whether any model or tag gating was needed for `web_search`
 5. whether live OpenAI integration tests were added or intentionally deferred
+
+## Approved execution plan (added during completion)
+
+1. Add a dedicated `OpenAIResponsesWebSearchExtension` to the `openai_responses` bundle and register/export it. The extension will own config, UI schema, and request shaping only:
+- `enable_web_search`
+- optional allowed domains
+- optional search context size
+- optional approximate user location
+- a new opt-in flag for full consulted sources, disabled by default
+- built-in `{"type":"web_search"}` injection plus merged `include: ["web_search_call.action.sources"]` only when full sources are enabled
+- duplicate prevention for both tool entries and include values
+
+2. Extend the provider to normalize web-search output into stable assistant metadata without taking over request logic:
+- always derive `metadata.url_citations` from `message.content[].annotations`
+- derive `metadata.web_search_sources` from `web_search_call.action.sources` only when that data is present in the native response
+- keep streaming and non-streaming behavior aligned through the existing response-segment path
+- preserve native history continuity for replay, slice, fork, and follow-up turns
+
+3. Add Python tests only:
+- extension unit tests for enablement, optional request fields, duplicate prevention, and conditional `include` merging for full sources
+- provider unit tests for citation extraction, optional source extraction, canonical assistant metadata assignment, and non-web-search no-op behavior
+- integration/fixture-backed regression coverage proving multi-turn continuity after a web-search turn
+- live OpenAI integration tests against `gpt-5-mini` for non-streaming and streaming web-search requests
+- terminal rendering coverage if needed for the separate sources presentation
+
+4. Update rendering behavior for user-facing surfaces:
+- terminal stays citation-compatible and will render full sources separately only when `metadata.web_search_sources` exists
+- mobile will be updated for manual verification only, not automated testing:
+- citations visible/clickable as before
+- full sources shown separately from citations
+- full sources hidden by default behind a collapsible section so we do not imply every consulted source was cited
+
+5. After approval, append this approved plan to this task file, implement only this scope in the new worktree, run the relevant Python tests there, append completion notes to this task file, and stop after this one subtask.
+
+## Completion notes (added during completion)
+
+### What changed
+
+1. Added `OpenAIResponsesWebSearchExtension` in `plugins/openai_responses/src/openai_responses_plugins/openai_responses_websearch_extension.py` and registered/exported it from the bundle.
+2. The extension owns request shaping only:
+- `enable_web_search`
+- `include_full_web_search_sources` with default-disabled behavior
+- optional `web_search_allowed_domains`
+- optional `web_search_search_context_size`
+- optional approximate user-location fields
+3. Full consulted sources are only requested when `include_full_web_search_sources` is truthy.
+- implementation detail: `include: ["web_search_call.action.sources"]` is merged only in that case and never overwrites existing include values
+4. The extension runs after the existing tools extension (`priority = 110`) so built-in web search is appended without blocking function-tool injection.
+5. Provider-side normalization was added in `plugins/openai_responses/src/openai_responses_plugins/openai_responses_provider.py`.
+- final metadata field names chosen:
+- `metadata.url_citations`
+- `metadata.web_search_sources`
+6. Citation/source metadata is derived during response-segment assistant assembly, so non-streaming and streaming-final paths share the same normalization behavior.
+7. Terminal rendering now shows citations and, when present, a separate `sources:` line.
+8. Mobile rendering was updated for manual verification.
+- citations render as visible/clickable links
+- full sources render separately from citations
+- full sources are hidden behind a collapsible section by default
+9. Added live OpenAI integration coverage in `plugins/openai_responses/tests/test_openai_responses_websearch_integration.py`.
+- live tests use `gpt-5-mini`
+- live tests load `OPENAI_API_KEY` from the original repo root `.env` while running inside the worktree
+- live non-streaming coverage asserts citations plus opt-in consulted sources
+- live streaming coverage asserts citations while full sources remain disabled by default
+
+### Files touched
+
+1. `plugins/openai_responses/agent_plugin.json`
+2. `plugins/openai_responses/src/openai_responses_plugins/__init__.py`
+3. `plugins/openai_responses/src/openai_responses_plugins/openai_responses_provider.py`
+4. `plugins/openai_responses/src/openai_responses_plugins/openai_responses_websearch_extension.py`
+5. `plugins/openai_responses/tests/test_openai_responses_imports.py`
+6. `plugins/openai_responses/tests/test_openai_responses_websearch_extension_unit.py`
+7. `plugins/openai_responses/tests/test_openai_responses_websearch_integration.py`
+8. `application/python/agent_terminal_app/event_rendering.py`
+9. `application/python/tests/test_terminal_event_rendering_web_citations.py`
+10. `mobile/crystal-lattice-control-rn/src/components/MessageBubble.tsx`
+
+### Tests run
+
+1. `pytest plugins/openai_responses/tests/test_openai_responses_websearch_extension_unit.py -q`
+- result: `6 passed`
+2. `pytest plugins/openai_responses/tests/test_openai_responses_websearch_integration.py -q`
+- result: `5 passed`
+3. `pytest application/python/tests/test_terminal_event_rendering_web_citations.py -q`
+- result: `2 passed` with existing FastAPI deprecation warnings
+4. `pytest plugins/openai_responses/tests/test_openai_responses_imports.py -q`
+- result: `2 passed`
+5. `pytest plugins/openai_responses/tests/test_openai_responses_provider_unit.py -q`
+- result: `35 passed`
+6. `pytest plugins/openai_responses/tests/test_openai_responses_native_history_regressions.py -q`
+- result: `3 passed`
+7. `pytest plugins/openai_responses/tests -q`
+- outcome: timed out at `180s`; not used as the final gating signal
+
+### Scope / gating notes
+
+1. No model-specific gating was added for web search; the extension is gated by the provider tag `openai_responses` only.
+2. Live OpenAI integration tests were added in this subtask and passed against `gpt-5-mini`.
+3. Mobile changes were implemented for manual verification only; no mobile automated tests were added per approval.
+
+### Open issues
+
+1. None found in the implemented scope.
+2. The broad `pytest plugins/openai_responses/tests -q` sweep timed out in this environment, so verification relies on the focused passing test set listed above.

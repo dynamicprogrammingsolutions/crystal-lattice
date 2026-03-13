@@ -12,6 +12,7 @@ from openai_responses_plugins import (
     OpenAIResponsesToolsExtension,
     OpenAIResponsesUsageExtension,
     OpenAIResponsesVerbosityExtension,
+    OpenAIResponsesWebSearchExtension,
 )
 
 
@@ -26,6 +27,7 @@ def test_all_entry_classes_are_importable() -> None:
     assert OpenAIResponsesAttachmentsExtension.name == "openai_responses_attachments"
     assert OpenAIResponsesPromptCachingExtension.name == "openai_responses_prompt_caching"
     assert OpenAIResponsesToolsExtension.name == "openai_responses_tools"
+    assert OpenAIResponsesWebSearchExtension.name == "openai_responses_websearch"
     assert OpenAIResponsesReasoningExtension.name == "openai_responses_reasoning"
     assert OpenAIResponsesUsageExtension.name == "openai_responses_usage"
     assert OpenAIResponsesVerbosityExtension.name == "openai_responses_verbosity"

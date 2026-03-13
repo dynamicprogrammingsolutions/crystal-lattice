@@ -701,6 +701,105 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 rewritten.append(dict(item))
         return rewritten
 
+    def _extract_url_citations(
+        self,
+        output_items: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        citations: List[Dict[str, Any]] = []
+
+        for item in output_items:
+            if not isinstance(item, dict) or item.get("type") != "message":
+                continue
+
+            content = item.get("content")
+            if not isinstance(content, list):
+                continue
+
+            for part in content:
+                if not isinstance(part, dict) or part.get("type") != "output_text":
+                    continue
+                annotations = part.get("annotations")
+                if not isinstance(annotations, list):
+                    continue
+
+                for annotation in annotations:
+                    if not isinstance(annotation, dict) or annotation.get("type") != "url_citation":
+                        continue
+
+                    payload = (
+                        annotation.get("url_citation")
+                        if isinstance(annotation.get("url_citation"), dict)
+                        else annotation
+                    )
+                    if not isinstance(payload, dict):
+                        continue
+
+                    entry: Dict[str, Any] = {}
+                    for key in ("url", "title", "content"):
+                        value = payload.get(key)
+                        if isinstance(value, str) and value:
+                            entry[key] = value
+
+                    for key in ("start_index", "end_index"):
+                        value = payload.get(key)
+                        if isinstance(value, int):
+                            entry[key] = value
+
+                    if not entry:
+                        continue
+
+                    already_seen = any(
+                        entry.get("url") == existing.get("url")
+                        and entry.get("start_index") == existing.get("start_index")
+                        and entry.get("end_index") == existing.get("end_index")
+                        for existing in citations
+                    )
+                    if not already_seen:
+                        citations.append(entry)
+
+        return citations
+
+    def _extract_web_search_sources(
+        self,
+        output_items: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        sources: List[Dict[str, Any]] = []
+
+        for item in output_items:
+            if not isinstance(item, dict) or item.get("type") != "web_search_call":
+                continue
+
+            action = item.get("action")
+            if not isinstance(action, dict):
+                continue
+
+            action_sources = action.get("sources")
+            if not isinstance(action_sources, list):
+                continue
+
+            for source in action_sources:
+                if not isinstance(source, dict):
+                    continue
+
+                entry: Dict[str, Any] = {}
+                for key in ("url", "title", "content", "snippet"):
+                    value = source.get(key)
+                    if isinstance(value, str) and value:
+                        entry[key] = value
+
+                if not entry:
+                    continue
+
+                already_seen = any(
+                    entry.get("url") == existing.get("url")
+                    and entry.get("title") == existing.get("title")
+                    for existing in sources
+                )
+                if not already_seen:
+                    sources.append(entry)
+
+        return sources
+
     def _assistant_candidate_from_response_item(
         self,
         item: Dict[str, Any],
@@ -742,10 +841,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
         response_id: Optional[str] = None
         segment_indices: List[int] = []
         assistant_candidates: List[Dict[str, Any]] = []
+        segment_output_items: List[Dict[str, Any]] = []
 
         for native_index, item, internal_md in segment:
             raw_internal_md = item.get("_metadata") if isinstance(item.get("_metadata"), dict) else None
             segment_indices.append(native_index)
+            segment_output_items.append(item)
             if response_id is None:
                 rid = internal_md.get("response_id")
                 if isinstance(rid, str) and rid:
@@ -797,6 +898,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
             metadata: Dict[str, Any] = {}
             if response_id:
                 metadata["response_id"] = response_id
+            url_citations = self._extract_url_citations(segment_output_items)
+            if url_citations:
+                metadata["url_citations"] = url_citations
+            web_search_sources = self._extract_web_search_sources(segment_output_items)
+            if web_search_sources:
+                metadata["web_search_sources"] = web_search_sources
             metadata["native_indices"] = sorted(set(segment_indices))
             if phase_messages:
                 metadata["phase_messages"] = phase_messages
@@ -806,6 +913,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
         canonical_md = dict(canonical_md_raw) if isinstance(canonical_md_raw, dict) else {}
         if response_id:
             canonical_md["response_id"] = response_id
+        url_citations = self._extract_url_citations(segment_output_items)
+        if url_citations:
+            canonical_md["url_citations"] = url_citations
+        web_search_sources = self._extract_web_search_sources(segment_output_items)
+        if web_search_sources:
+            canonical_md["web_search_sources"] = web_search_sources
         canonical_md["native_indices"] = sorted(set(segment_indices))
         if phase_messages:
             canonical_md["phase_messages"] = phase_messages

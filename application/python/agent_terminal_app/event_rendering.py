@@ -447,10 +447,8 @@ class AssistantRenderer(BaseMessageRenderer):
         if parts:
             write(" ".join(parts))
 
-        # Render web-search URL citations, when present, on a
-        # dedicated gray line below the standard footer. Citations are
-        # exposed via metadata.url_citations (from the OpenRouter
-        # websearch extension) and are purely informational.
+        # Render web-search metadata, when present, on dedicated gray
+        # lines below the standard footer.
         citations = md.get("url_citations")
         if isinstance(citations, list) and citations:
             items: List[str] = []
@@ -476,6 +474,31 @@ class AssistantRenderer(BaseMessageRenderer):
             if items:
                 summary = "; ".join(items)
                 write(f"{GRAY}citations: {summary}{RESET}")
+
+        sources = md.get("web_search_sources")
+        if isinstance(sources, list) and sources:
+            items = []
+            for idx, source in enumerate(sources, start=1):
+                if not isinstance(source, dict):
+                    continue
+                url = source.get("url")
+                title = source.get("title")
+                label: Optional[str]
+                if isinstance(title, str) and title:
+                    label = title
+                elif isinstance(url, str) and url:
+                    label = url
+                else:
+                    continue
+                if isinstance(url, str) and url and label != url:
+                    item_text = f"{idx}. {label} ({url})"
+                else:
+                    item_text = f"{idx}. {label}"
+                items.append(item_text)
+
+            if items:
+                summary = "; ".join(items)
+                write(f"{GRAY}sources: {summary}{RESET}")
 
     def render_message(self, index: int, message: Any, write: WriteFn, *, short: bool = False) -> None:
         msg = _message_to_dict(message)
