@@ -24,6 +24,7 @@ Short description: Create a new `openai_responses` plugin bundle using the OpenA
 18. `tasks/20260310-openai-responses-provider/130-prompt-caching-session-key-extension.md`
 19. `tasks/20260310-openai-responses-provider/140-openai-image-pdf-upload-and-upload-modes.md`
 20. `tasks/20260310-openai-responses-provider/150-web-search-extension-and-citation-preservation.md`
+21. `tasks/20260310-openai-responses-provider/160-openai-flex-processing-extension-and-provider-retries.md`
 
 ## Status
 
@@ -33,11 +34,12 @@ Short description: Create a new `openai_responses` plugin bundle using the OpenA
 - `095` is a late-stage native compaction subtask and includes its own high-level prerequisite core capability scope (no separate prerequisite task file).
 - `041` and `042` are follow-ups added after reviewing a real session with the `feature-system-message` plugin against `openai_responses`.
 - `041` is focused on outbound request correctness and red-green regression coverage for placeholder rendering plus developer-role normalization.
-- `042` is focused on excluding leading system/developer instruction messages from native compaction input and routing them through the Compact API `instructions` field instead.
+- `042` is focused on a generic core-owned native-message preparation lifecycle/hook for session actions, with `openai_responses` native compaction as the first consumer and later range/message-action plus auto-compaction follow-ups building on that mechanism.
 - `130` is a late-stage prompt-caching/session-key subtask that depends on a separate generic prerequisite task directory:
   - `tasks/20260312-provider-extension-session-settings-lifecycle/000-main.md`
 - `140` is a staged attachment/upload follow-up and explicitly allows the implementing agent to create `141+` subtasks when splitting work across stages.
 - `150` is a late-stage web-search follow-up for the OpenAI Responses bundle, including citation/source preservation and frontend visibility.
+- `160` is a flex-processing follow-up that keeps the provider responsible for applying request/service-tier/retry behavior while a dedicated extension owns UI/config and request override shaping.
 - Remaining subtasks are implementation work.
 
 ## Architectural intent (must hold across all subtasks)
