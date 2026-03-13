@@ -277,3 +277,41 @@ def test_shell_tool_marks_truncated_output_in_format(tmp_path):
     formatted = wrapper.format_tool_result(result, state)
     assert "STDOUT (truncated):" in formatted
     assert "... (truncated," in formatted
+
+
+def test_shell_tool_stream_truncates_long_single_line_by_char_limit(tmp_path):
+    """Streaming mode should truncate a very long single-line stdout payload."""
+
+    wrapper = ToolWrapper(ShellTool)
+    state = wrapper.init(
+        {
+            "working_directory": str(tmp_path),
+            "max_output_chars": 16,
+            "max_output_lines": 10,
+        }
+    )
+
+    events = list(
+        wrapper.stream_tool(
+            "shell",
+            {"command": "printf 'abcdefghijklmnopqrstuvwxyz'", "workdir": str(tmp_path)},
+            state,
+        )
+    )
+
+    final = _get_final_stream_result(events)
+
+    assert final["success"] is True
+    assert final.get("stdout_truncated") is True
+    assert final.get("stdout", "").startswith("abcdefghijklmnop")
+    assert "... (truncated," in str(final.get("stdout") or "")
+
+    summary_parts = [
+        e.get("part")
+        for e in events
+        if isinstance(e, dict) and e.get("part", {}).get("type") == "summary"
+    ]
+    combined_summary = "".join(
+        str(p.get("content", "")) for p in summary_parts if isinstance(p, dict)
+    )
+    assert "STDOUT was truncated" in combined_summary

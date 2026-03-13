@@ -135,3 +135,43 @@ def test_fork_and_agent_switch_run_lifecycle_actions(tmp_path: Path) -> None:
     assert switched.metadata["agent_id"] == "other"
     assert switched.metadata["agent_switch_prepare_to"] == "other"
     assert switched.metadata["agent_switch_complete_to"] == "other"
+
+
+def test_agent_switch_resets_stale_session_plugin_selection(tmp_path: Path) -> None:
+    config = {
+        "providers": {
+            "dummy": {"provider": "dummy_provider", "model": "test-model"},
+            "other": {"provider": "failing_dummy_provider", "model": "other-model"},
+        },
+        "plugins": [
+            "tests.dummy_provider.DummyProvider",
+            "tests.dummy_provider.FailingOnceDummyProvider",
+        ],
+        "agents": {
+            "default": {
+                "provider": "dummy",
+                "plugins": ["dummy_provider"],
+            },
+            "other": {
+                "provider": "other",
+                "plugins": ["failing_dummy_provider"],
+            },
+        },
+    }
+    config_path = tmp_path / "config_switch_plugins.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    app = AgentApplication(str(config_path), str(tmp_path / "sessions"), core_factory=AgentCore)
+
+    _core, _base_config, session = app.create_session("default")
+    session = type(session)(
+        session_id=session.session_id,
+        messages=session.messages,
+        metadata={**(session.metadata or {}), "plugins": ["dummy_provider"]},
+    )
+
+    _switched_core, switched_base, switched = app.update_agent("other", session)
+
+    assert switched_base["provider"] == "failing_dummy_provider"
+    assert switched.metadata["agent_id"] == "other"
+    assert switched.metadata["plugins"] == ["failing_dummy_provider"]

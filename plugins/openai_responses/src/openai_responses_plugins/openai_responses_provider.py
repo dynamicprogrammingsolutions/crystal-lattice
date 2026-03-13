@@ -429,7 +429,8 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
                 parts: List[Dict[str, Any]] = []
                 if text:
-                    parts.append({"type": "input_text", "text": text})
+                    text_part_type = "output_text" if role == "assistant" else "input_text"
+                    parts.append({"type": text_part_type, "text": text})
 
                 multipart = msg.get("multipartContent")
                 if isinstance(multipart, list):
@@ -506,6 +507,18 @@ class OpenAIResponsesProvider(ProviderPlugin):
         def _append_core_message(core_msg: Dict[str, Any], *, owned_indices: List[int]) -> None:
             out.append(core_msg)
             owned_native_indices.update(i for i in owned_indices if isinstance(i, int))
+
+        def _merge_native_indices(core_index: int, indices: List[int]) -> None:
+            raw_md = out[core_index].get("metadata") or {}
+            md = dict(raw_md) if isinstance(raw_md, dict) else {}
+            existing = md.get("native_indices")
+            existing_indices = (
+                [i for i in existing if isinstance(i, int)] if isinstance(existing, list) else []
+            )
+            merged = sorted(set(existing_indices + [i for i in indices if isinstance(i, int)]))
+            md["native_indices"] = merged
+            out[core_index] = {**out[core_index], "metadata": md}
+            owned_native_indices.update(merged)
 
         def _flush_response_segment() -> None:
             nonlocal current_segment, current_response_id
@@ -696,12 +709,15 @@ class OpenAIResponsesProvider(ProviderPlugin):
         content = sanitized.get("content")
         if isinstance(content, list):
             cleaned_content: List[Dict[str, Any]] = []
+            role = sanitized.get("role") if isinstance(sanitized.get("role"), str) else None
             for part in content:
                 if not isinstance(part, dict):
                     continue
                 cleaned_part = dict(part)
                 cleaned_part.pop("annotations", None)
                 cleaned_part.pop("logprobs", None)
+                if role == "assistant" and cleaned_part.get("type") == "input_text":
+                    cleaned_part["type"] = "output_text"
                 cleaned_content.append(cleaned_part)
             sanitized["content"] = cleaned_content
 

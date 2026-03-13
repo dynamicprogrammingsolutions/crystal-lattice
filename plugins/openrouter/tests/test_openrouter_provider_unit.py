@@ -177,6 +177,60 @@ def test_to_native_messages():
     assert native[2] == {"role": "assistant", "content": "Hi there"}
 
 
+def test_to_native_and_from_native_roundtrip_preserves_tool_metadata_without_extension():
+    """Provider conversion should preserve tool metadata even without tools extension."""
+    provider = OpenRouterProvider()
+
+    core_messages = [
+        {
+            "role": "assistant",
+            "content": "",
+            "metadata": {
+                "tool_calls": [
+                    {
+                        "id": "call_123",
+                        "type": "function",
+                        "function": {"name": "read_file", "arguments": '{"path":"x.txt"}'},
+                    }
+                ],
+                "trace_id": "assistant-1",
+            },
+        },
+        {
+            "role": "tool",
+            "content": "file contents",
+            "metadata": {
+                "tool_call_id": "call_123",
+                "tool_name": "read_file",
+                "tool_plugin": "file_reader",
+                "display": "Read x.txt",
+            },
+        },
+    ]
+
+    native = provider.to_native_messages(core_messages, {})
+
+    assert native[0]["tool_calls"][0]["id"] == "call_123"
+    assert native[0]["_metadata"] == {"trace_id": "assistant-1"}
+    assert native[1]["tool_call_id"] == "call_123"
+    assert native[1]["_metadata"] == {
+        "tool_name": "read_file",
+        "tool_plugin": "file_reader",
+        "display": "Read x.txt",
+    }
+
+    rebuilt = provider.from_native_messages(native, {})
+
+    assert rebuilt[0]["metadata"]["tool_calls"][0]["id"] == "call_123"
+    assert rebuilt[0]["metadata"]["trace_id"] == "assistant-1"
+    assert rebuilt[0]["metadata"]["native_indices"] == [0]
+    assert rebuilt[1]["metadata"]["tool_call_id"] == "call_123"
+    assert rebuilt[1]["metadata"]["tool_name"] == "read_file"
+    assert rebuilt[1]["metadata"]["tool_plugin"] == "file_reader"
+    assert rebuilt[1]["metadata"]["display"] == "Read x.txt"
+    assert rebuilt[1]["metadata"]["native_indices"] == [1]
+
+
 def test_from_native_messages():
     """Convert provider-native messages to core format."""
     provider = OpenRouterProvider()
@@ -191,9 +245,10 @@ def test_from_native_messages():
     assert len(messages) == 2
     assert messages[0]["role"] == "user"
     assert messages[0]["content"] == "Test"
-    assert messages[0]["metadata"] == {}
+    assert messages[0]["metadata"] == {"native_indices": [0]}
     assert messages[1]["role"] == "assistant"
     assert messages[1]["content"] == "Response"
+    assert messages[1]["metadata"] == {"native_indices": [1]}
 
 
 def test_from_native_messages_ignores_reasoning_field():

@@ -430,6 +430,7 @@ def test_to_native_and_from_native_roundtrip_with_tool_output() -> None:
 
     assert native[1]["type"] == "message"
     assert native[1]["role"] == "assistant"
+    assert native[1]["content"] == [{"type": "output_text", "text": "working"}]
     assert native[1]["phase"] == "commentary"
 
     assert native[2]["type"] == "function_call_output"
@@ -759,6 +760,46 @@ def test_call_api_strips_output_only_fields_from_input_history() -> None:
         "call_id": "call_123",
         "name": "add",
         "arguments": "{\"a\": 1, \"b\": 2}",
+    }
+
+
+def test_call_api_normalizes_assistant_input_text_history_to_output_text() -> None:
+    provider = OpenAIResponsesProvider()
+    fixture = _load_fixture()
+    fake_client = _FixtureClient(fixture)
+
+    input_items = [
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "input_text", "text": "legacy assistant text"}],
+            "phase": "commentary",
+            "_metadata": {"response_id": "resp_legacy"},
+        }
+    ]
+
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 12,
+        },
+        "client": fake_client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 12,
+        },
+    }
+
+    provider.call_api(input_items, state)
+
+    sent_item = fake_client.responses.calls[0]["input"][0]
+    assert sent_item == {
+        "type": "message",
+        "role": "assistant",
+        "content": [{"type": "output_text", "text": "legacy assistant text"}],
     }
 
 

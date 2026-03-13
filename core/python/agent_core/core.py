@@ -1528,10 +1528,11 @@ class AgentCore:
         config: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         """Convert core messages to provider-native messages for this config."""
-        provider, _enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
+        provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
             config
         )
         features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
+        provider.set_active_extensions(enabled_extensions)
         _provider_config, state = self._init_provider_and_features_for_config(
             provider,
             features,
@@ -1573,6 +1574,7 @@ class AgentCore:
         ) = self._resolve_plugins_for_config(config)
 
         features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
+        provider.set_active_extensions(enabled_extensions)
 
         _provider_config, state = self._init_provider_and_features_for_config(
             provider,

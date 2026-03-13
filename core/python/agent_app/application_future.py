@@ -1503,6 +1503,17 @@ class AgentApplication:
 
         metadata = prepared_session.metadata or {}
         switched_metadata = {**metadata, "agent_id": agent_id}
+
+        # Session-scoped plugin selections are tied to the previous agent's
+        # provider stack. When switching agents, reset that selection to the
+        # target agent defaults so we do not carry forward an incompatible
+        # provider-only subset that excludes the new agent's provider.
+        target_plugin_ids = self._agent_plugin_ids.get(agent_id)
+        if target_plugin_ids is None:
+            switched_metadata.pop("plugins", None)
+        else:
+            switched_metadata["plugins"] = list(target_plugin_ids)
+
         switched_session = Session(
             session_id=prepared_session.session_id,
             messages=prepared_session.messages,

@@ -19,6 +19,25 @@ from agent_core.utils import get_logger
 class OpenRouterProvider(ProviderPlugin):
     name: str = "openrouter"
     version: str = "0.1.0"
+
+    def _native_internal_from_core_metadata(self, metadata: Any) -> Dict[str, Any]:
+        if not isinstance(metadata, dict):
+            return {}
+        out = dict(metadata)
+        out.pop("native_indices", None)
+        out.pop("tool_calls", None)
+        out.pop("tool_call_id", None)
+        return out
+
+    def _core_metadata_from_native_internal(self, internal: Any) -> Dict[str, Any]:
+        if not isinstance(internal, dict):
+            return {}
+        out = {
+            key: value
+            for key, value in internal.items()
+            if key not in {"native_indices", "tool_calls", "tool_call_id"}
+        }
+        return out
     
     # ---------- Schemas ----------
     def get_config_schema(self) -> Dict[str, Any]:
@@ -231,12 +250,28 @@ class OpenRouterProvider(ProviderPlugin):
 
             role = msg.get("role", "user")
             content = msg.get("content", "")
+            raw_metadata = msg.get("metadata")
+            metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
             if not isinstance(content, str):
                 content = ""
 
+            native_message: Dict[str, Any] = {"role": role, "content": content}
+
+            tool_calls = metadata.get("tool_calls")
+            if role == "assistant" and isinstance(tool_calls, list) and tool_calls:
+                native_message["tool_calls"] = tool_calls
+
+            tool_call_id = metadata.get("tool_call_id")
+            if role == "tool" and isinstance(tool_call_id, str) and tool_call_id:
+                native_message["tool_call_id"] = tool_call_id
+
+            internal_metadata = self._native_internal_from_core_metadata(metadata)
+            if internal_metadata:
+                native_message["_metadata"] = internal_metadata
+
             multipart = msg.get("multipartContent")
             if not isinstance(multipart, list) or not multipart:
-                native.append({"role": role, "content": content})
+                native.append(native_message)
                 continue
 
             parts: List[Dict[str, Any]] = [{"type": "text", "text": content}]
@@ -274,7 +309,7 @@ class OpenRouterProvider(ProviderPlugin):
 
                 parts.append({"type": "image_url", "image_url": {"url": url}})
 
-            native.append({"role": role, "content": parts})
+            native.append({**native_message, "content": parts})
 
         return native
 
@@ -288,7 +323,7 @@ class OpenRouterProvider(ProviderPlugin):
         reasoning and reasoning_details via message metadata.
         """
         normalized: List[Dict[str, Any]] = []
-        for m in native_messages:
+        for native_idx, m in enumerate(native_messages):
             if not isinstance(m, dict):
                 continue
             if not ("role" in m or "content" in m):
@@ -296,6 +331,7 @@ class OpenRouterProvider(ProviderPlugin):
 
             role = m.get("role", "assistant")
             content = m.get("content", "")
+            metadata = self._core_metadata_from_native_internal(m.get("_metadata"))
 
             msg: Dict[str, Any] = {"role": role, "content": ""}
             multipart_out: List[Dict[str, Any]] = []
@@ -332,7 +368,16 @@ class OpenRouterProvider(ProviderPlugin):
             else:
                 msg["content"] = content if isinstance(content, str) else ""
 
-            normalized.append({**msg, "metadata": {}})
+            tool_calls = m.get("tool_calls")
+            if isinstance(tool_calls, list) and tool_calls:
+                metadata["tool_calls"] = tool_calls
+
+            tool_call_id = m.get("tool_call_id")
+            if isinstance(tool_call_id, str) and tool_call_id:
+                metadata["tool_call_id"] = tool_call_id
+
+            metadata["native_indices"] = [native_idx]
+            normalized.append({**msg, "metadata": metadata})
 
         return normalized
 

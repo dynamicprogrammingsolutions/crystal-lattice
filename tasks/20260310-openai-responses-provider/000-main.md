@@ -13,16 +13,17 @@ Short description: Create a new `openai_responses` plugin bundle using the OpenA
 7. `tasks/20260310-openai-responses-provider/050-tools-extension-responses-api.md`
 8. `tasks/20260310-openai-responses-provider/060-reasoning-extension-responses-api.md`
 9. `tasks/20260310-openai-responses-provider/061-openai-responses-native-conversion-and-reasoning-followup-regressions.md`
-10. `tasks/20260310-openai-responses-provider/070-usage-extension-responses-api.md`
-11. `tasks/20260310-openai-responses-provider/080-verbosity-extension-responses-api.md`
-12. `tasks/20260310-openai-responses-provider/090-integration-native-retention-and-regression-tests.md`
-13. `tasks/20260310-openai-responses-provider/095-native-compaction-provider-extension.md`
-14. `tasks/20260310-openai-responses-provider/100-docs-readme-and-config-examples.md`
-15. `tasks/20260310-openai-responses-provider/110-replaced-by-provider-extension-session-actions-020.md`
-16. `tasks/20260310-openai-responses-provider/120-model-discovery-provider-ui-and-doc-followup.md`
-17. `tasks/20260310-openai-responses-provider/130-prompt-caching-session-key-extension.md`
-18. `tasks/20260310-openai-responses-provider/140-openai-image-pdf-upload-and-upload-modes.md`
-19. `tasks/20260310-openai-responses-provider/150-web-search-extension-and-citation-preservation.md`
+10. `tasks/20260310-openai-responses-provider/062-cross-provider-agent-switch-native-rebuild-regressions.md`
+11. `tasks/20260310-openai-responses-provider/070-usage-extension-responses-api.md`
+12. `tasks/20260310-openai-responses-provider/080-verbosity-extension-responses-api.md`
+13. `tasks/20260310-openai-responses-provider/090-integration-native-retention-and-regression-tests.md`
+14. `tasks/20260310-openai-responses-provider/095-native-compaction-provider-extension.md`
+15. `tasks/20260310-openai-responses-provider/100-docs-readme-and-config-examples.md`
+16. `tasks/20260310-openai-responses-provider/110-replaced-by-provider-extension-session-actions-020.md`
+17. `tasks/20260310-openai-responses-provider/120-model-discovery-provider-ui-and-doc-followup.md`
+18. `tasks/20260310-openai-responses-provider/130-prompt-caching-session-key-extension.md`
+19. `tasks/20260310-openai-responses-provider/140-openai-image-pdf-upload-and-upload-modes.md`
+20. `tasks/20260310-openai-responses-provider/150-web-search-extension-and-citation-preservation.md`
 
 ## Status
 

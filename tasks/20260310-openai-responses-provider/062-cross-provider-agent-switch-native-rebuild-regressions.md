@@ -235,3 +235,63 @@ Skip unless both `OPENAI_API_KEY` and `OPENROUTER_API_KEY` are available.
 2. The product behavior here is still manual. Do not turn this into an automatic rebuild-on-switch change as part of the test task.
 3. If a structural assertion is hard to make provider-agnostic, prefer a weaker shape invariant plus a stronger behavioral follow-up request.
 4. The highest-value regression is: OpenAI Responses two-turn history -> switch to OpenRouter chat -> rebuild native -> continue successfully.
+
+---
+
+## Execution plan added during task completion
+
+1. Add a dedicated live integration test file under `plugins/openai_responses/tests/` for the cross-provider migration scenario instead of extending the existing OpenAI reasoning test inline.
+2. Build a two-agent `AgentApplication` config that includes:
+   - an `openai_responses` provider using `gpt-5-mini`
+   - an `openrouter` provider using chat completions with `openai/gpt-5-mini`
+   - the OpenAI/OpenRouter reasoning and tools extensions
+   - `plugins.request_options_feature.RequestOptionsFeature`
+   - `plugins.file_reader_tool.FileReaderTool`
+   - the `rebuild_native` application plugin
+   - `plugin_cache_dir` so the application plugin manager can load the rebuild plugin reliably
+3. Skip the test unless both `OPENAI_API_KEY` and `OPENROUTER_API_KEY` are available.
+4. Reuse the existing reasoning fixture inputs and expected-label calculation pattern so the test exercises the same real tool/reasoning workflow already covered in the OpenAI application-level test.
+5. Create a baseline session on the OpenAI Responses agent, then run two completed reasoning/tool turns with distinct seeds and assert both turns succeed and grow retained native history.
+6. Switch the live session to the OpenRouter-backed agent via `app.update_agent(...)`, save that switched session, execute the rebuild action through `app.execute_application_action("rebuild_native", "rebuild_native_history", {"session_id": ...})`, and reload the saved session from storage.
+7. Assert the rebuilt switched session has coherent retained native history using provider-agnostic checks:
+   - `session.metadata["native_messages"]` is a non-empty list
+   - `session.metadata["native_messages_integrity"]` exists
+   - any visible-message `metadata.native_indices` values are integer indices within the current native-history bounds
+   - the visible transcript does not end in an orphaned tool message
+8. Send a third prompt through the rebuilt OpenRouter session and assert the request completes, tool activity still occurs, the final assistant answer matches the expected label for that seed, and native history grows again.
+9. Branch from the converted session into independent delete, fork, and edit scenarios:
+   - delete: remove a coherent whole-turn tail slice rather than a single arbitrary tool message
+   - fork: use `app.fork_session(...)` to keep a coherent prefix of the converted session
+   - edit: use `core.modify_message(...)` on a visible non-tool message that has native mappings
+10. After each branch mutation, save/reload as needed, rerun the same structural shape checks, then send another fresh-seed follow-up request and assert OpenRouter responds successfully. The successful follow-up is the main regression signal that native/core state is still compatible after migration and history edits.
+11. Verify the new test directly with pytest using the combined integration marks, without broadening scope into product behavior changes unless the test exposes a genuine bug.
+
+---
+
+## Completion notes added during task completion
+
+Implemented the task with a new live integration regression test at `plugins/openai_responses/tests/test_agent_application_openai_responses_provider_switch.py`.
+
+What the new test covers:
+1. Builds a two-agent `AgentApplication` config using `openai_responses` first and `openrouter` chat completions second.
+2. Loads the OpenAI Responses provider bundle, the OpenRouter provider bundle, `RequestOptionsFeature`, `FileReaderTool`, and the `rebuild_native` application plugin through the application plugin manager.
+3. Creates a baseline session on the OpenAI Responses agent and completes two reasoning/tool turns.
+4. Switches the live session to the OpenRouter-backed agent, persists that switch, runs the `rebuild_native_history` application action, reloads the session, and verifies the rebuilt native/core shape.
+5. Sends a successful third follow-up request through OpenRouter after the rebuild.
+6. Creates separate delete, fork, and edit branches from the converted session and confirms each branch can still accept a fresh follow-up request after the mutation.
+
+During implementation, the new regression test exposed two real bugs and both were fixed:
+1. `plugins/openrouter/src/openrouter_plugins/openrouter_provider.py`
+   - `from_native_messages()` dropped native-index mapping whenever native history contained filtered items, which broke rebuilds with `RuntimeError: from_native_messages changed message count without providing native_indices mapping`.
+   - Fixed by preserving the original native index on each reconstructed visible message.
+2. `core/python/agent_core/core.py`
+   - The rebuild/native-conversion helpers resolved the correct provider extension set but did not activate that filtered set on the provider wrapper before running provider init and native conversion/rebuild.
+   - This allowed unrelated extensions from other providers to run during manual rebuilds, which polluted OpenRouter rebuild output with OpenAI Responses-style `function_call` items.
+   - Fixed by calling `provider.set_active_extensions(enabled_extensions)` in both `_core_messages_to_native_for_config(...)` and `_rebuild_core_from_native(...)` before provider initialization/conversion.
+
+Verification run:
+1. `pytest plugins/openai_responses/tests/test_agent_application_openai_responses_provider_switch.py -q`
+2. Result: passed.
+
+Residual note:
+1. The direct root-level pytest invocation emitted `PytestUnknownMarkWarning` for `@pytest.mark.openrouter` because that marker is not registered by the root test configuration in this workspace. The test itself passed end to end.
