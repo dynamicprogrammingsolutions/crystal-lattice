@@ -26,6 +26,21 @@ type MultipartPart = {
   metadata?: any;
 };
 
+type WebLinkEntry = {
+  url?: string;
+  title?: string;
+  content?: string;
+  snippet?: string;
+};
+
+function selectWebLinkEntries(value: any): WebLinkEntry[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is WebLinkEntry => {
+    if (!entry || typeof entry !== 'object') return false;
+    return typeof (entry as any).url === 'string' || typeof (entry as any).title === 'string';
+  });
+}
+
 function selectMultipartParts(message: ApiMessage): MultipartPart[] {
   const parts = (message as any)?.multipartContent;
   return Array.isArray(parts) ? (parts as MultipartPart[]) : [];
@@ -448,10 +463,19 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [reasoningExpanded, setReasoningExpanded] = useState(false);
   const [toolCallsExpanded, setToolCallsExpanded] = useState(false);
+  const [webSourcesExpanded, setWebSourcesExpanded] = useState(false);
   const content = selectDisplayContent(message);
   const reasoning = typeof (message.metadata as any)?.reasoning === 'string'
     ? (message.metadata as any).reasoning
     : undefined;
+  const citations = useMemo(
+    () => selectWebLinkEntries((message.metadata as any)?.url_citations),
+    [message.metadata],
+  );
+  const webSearchSources = useMemo(
+    () => selectWebLinkEntries((message.metadata as any)?.web_search_sources),
+    [message.metadata],
+  );
   const toolCalls = Array.isArray((message.metadata as any)?.tool_calls)
     ? (message.metadata as any).tool_calls
     : [];
@@ -490,6 +514,15 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
     });
     return parts;
   }, [footerElements, message]);
+
+  const openWebLink = async (url: string) => {
+    try {
+      await Linking.openURL(url);
+    } catch (err) {
+      console.log('Failed to open web link', err);
+      Alert.alert('Unable to open link', url);
+    }
+  };
 
   if (isEditing && onChangeEditingText && onSubmitEdit && onCancelEdit) {
     return (
@@ -598,6 +631,64 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
             />
           )
         ) : null}
+
+        {citations.length > 0 && (
+          <View style={styles.linkSection}>
+            <Text style={styles.linkSectionLabel}>Citations</Text>
+            {citations.map((entry, idx) => {
+              const label = entry.title || entry.url || `Citation ${idx + 1}`;
+              return (
+                <TouchableOpacity
+                  key={`${entry.url || label}-${idx}`}
+                  style={styles.linkItem}
+                  onPress={() => entry.url && openWebLink(entry.url)}
+                  disabled={!entry.url}
+                >
+                  <Text style={styles.linkItemTitle}>{`${idx + 1}. ${label}`}</Text>
+                  {entry.url ? <Text style={styles.linkItemUrl}>{entry.url}</Text> : null}
+                  {entry.content ? <Text style={styles.linkItemSnippet}>{entry.content}</Text> : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        {webSearchSources.length > 0 && (
+          <View style={styles.linkSection}>
+            <TouchableOpacity
+              style={styles.linkSectionToggle}
+              onPress={() => setWebSourcesExpanded((prev) => !prev)}
+            >
+              <Text style={styles.linkSectionLabel}>{`Sources (${webSearchSources.length})`}</Text>
+              <Icon
+                name={webSourcesExpanded ? 'chevron-up' : 'chevron-down'}
+                size={14}
+                color={theme.textSecondary}
+              />
+            </TouchableOpacity>
+
+            {webSourcesExpanded ? (
+              webSearchSources.map((entry, idx) => {
+                const label = entry.title || entry.url || `Source ${idx + 1}`;
+                const snippet = entry.snippet || entry.content;
+                return (
+                  <TouchableOpacity
+                    key={`${entry.url || label}-${idx}`}
+                    style={styles.linkItem}
+                    onPress={() => entry.url && openWebLink(entry.url)}
+                    disabled={!entry.url}
+                  >
+                    <Text style={styles.linkItemTitle}>{`${idx + 1}. ${label}`}</Text>
+                    {entry.url ? <Text style={styles.linkItemUrl}>{entry.url}</Text> : null}
+                    {snippet ? <Text style={styles.linkItemSnippet}>{snippet}</Text> : null}
+                  </TouchableOpacity>
+                );
+              })
+            ) : (
+              <Text style={styles.collapsedHintText}>Consulted sources hidden (tap chevron to expand).</Text>
+            )}
+          </View>
+        )}
 
         {toolCallNames.length > 0 && toolCallsExpanded && (
           <View style={styles.collapsibleContainerTool}>
@@ -919,6 +1010,47 @@ const createStyles = (theme: Theme) =>
       fontSize: 11,
       color: theme.textSecondary,
       fontFamily: 'Courier',
+    },
+    linkSection: {
+      marginTop: 8,
+      paddingTop: 6,
+      borderTopWidth: 1,
+      borderTopColor: theme.border,
+    },
+    linkSectionToggle: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    linkSectionLabel: {
+      fontSize: 11,
+      color: theme.textSecondary,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      letterSpacing: 0.4,
+    },
+    linkItem: {
+      marginTop: 6,
+      paddingVertical: 6,
+      paddingHorizontal: 8,
+      borderRadius: 6,
+      backgroundColor: theme.bubbleToolBg,
+    },
+    linkItemTitle: {
+      fontSize: 13,
+      color: theme.text,
+      fontWeight: '600',
+    },
+    linkItemUrl: {
+      marginTop: 2,
+      fontSize: 11,
+      color: theme.primary,
+      textDecorationLine: 'underline',
+    },
+    linkItemSnippet: {
+      marginTop: 4,
+      fontSize: 11,
+      color: theme.textSecondary,
     },
     editInput: {
       marginTop: 4,
