@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Dimensions,
   Platform,
   Text,
   StyleSheet,
@@ -247,16 +248,23 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
                 const rowHeight = 42;
                 const headerHeight = 44;
                 const paddingHeight = 12;
-                const maxVisibleRows = 8;
-                const height =
+                const bottomBuffer = 10;
+                const estimatedContentHeight =
                   headerHeight +
                   paddingHeight +
-                  Math.min(actions.length, maxVisibleRows) * rowHeight;
+                  actions.length * rowHeight +
+                  bottomBuffer;
+                const windowHeight = Dimensions.get('window').height;
+                const maxPopoverHeight = Math.max(220, Math.floor(windowHeight * 0.8));
+                const height = Math.max(
+                  140,
+                  Math.min(maxPopoverHeight, estimatedContentHeight),
+                );
 
                 desktopWindowManager?.toggleActionsPopover?.({
                   anchorTag,
                   width: 320,
-                  height: Math.max(140, Math.min(420, height)),
+                  height,
                 });
                 return;
               }
