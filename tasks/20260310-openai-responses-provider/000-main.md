@@ -8,18 +8,21 @@ Short description: Create a new `openai_responses` plugin bundle using the OpenA
 2. `tasks/20260310-openai-responses-provider/020-scaffold-openai-responses-plugin-package.md`
 3. `tasks/20260310-openai-responses-provider/030-provider-core-conversion-and-nonstreaming-sdk.md`
 4. `tasks/20260310-openai-responses-provider/040-provider-streaming-event-normalization-and-finalization.md`
-5. `tasks/20260310-openai-responses-provider/050-tools-extension-responses-api.md`
-6. `tasks/20260310-openai-responses-provider/060-reasoning-extension-responses-api.md`
-7. `tasks/20260310-openai-responses-provider/070-usage-extension-responses-api.md`
-8. `tasks/20260310-openai-responses-provider/080-verbosity-extension-responses-api.md`
-9. `tasks/20260310-openai-responses-provider/090-integration-native-retention-and-regression-tests.md`
-10. `tasks/20260310-openai-responses-provider/095-native-compaction-provider-extension.md`
-11. `tasks/20260310-openai-responses-provider/100-docs-readme-and-config-examples.md`
-12. `tasks/20260310-openai-responses-provider/110-replaced-by-provider-extension-session-actions-020.md`
-13. `tasks/20260310-openai-responses-provider/120-model-discovery-provider-ui-and-doc-followup.md`
-14. `tasks/20260310-openai-responses-provider/130-prompt-caching-session-key-extension.md`
-15. `tasks/20260310-openai-responses-provider/140-openai-image-pdf-upload-and-upload-modes.md`
-16. `tasks/20260310-openai-responses-provider/150-web-search-extension-and-citation-preservation.md`
+5. `tasks/20260310-openai-responses-provider/041-system-message-rendering-and-developer-role-followup.md`
+6. `tasks/20260310-openai-responses-provider/042-native-compaction-instruction-message-exclusion.md`
+7. `tasks/20260310-openai-responses-provider/050-tools-extension-responses-api.md`
+8. `tasks/20260310-openai-responses-provider/060-reasoning-extension-responses-api.md`
+9. `tasks/20260310-openai-responses-provider/061-openai-responses-native-conversion-and-reasoning-followup-regressions.md`
+10. `tasks/20260310-openai-responses-provider/070-usage-extension-responses-api.md`
+11. `tasks/20260310-openai-responses-provider/080-verbosity-extension-responses-api.md`
+12. `tasks/20260310-openai-responses-provider/090-integration-native-retention-and-regression-tests.md`
+13. `tasks/20260310-openai-responses-provider/095-native-compaction-provider-extension.md`
+14. `tasks/20260310-openai-responses-provider/100-docs-readme-and-config-examples.md`
+15. `tasks/20260310-openai-responses-provider/110-replaced-by-provider-extension-session-actions-020.md`
+16. `tasks/20260310-openai-responses-provider/120-model-discovery-provider-ui-and-doc-followup.md`
+17. `tasks/20260310-openai-responses-provider/130-prompt-caching-session-key-extension.md`
+18. `tasks/20260310-openai-responses-provider/140-openai-image-pdf-upload-and-upload-modes.md`
+19. `tasks/20260310-openai-responses-provider/150-web-search-extension-and-citation-preservation.md`
 
 ## Status
 
@@ -27,6 +30,9 @@ Short description: Create a new `openai_responses` plugin bundle using the OpenA
 - `020` through `070` have already been implemented.
 - `100` has already been completed, but `120` is a targeted follow-up because provider model discovery and model-selection UI were left in placeholder form.
 - `095` is a late-stage native compaction subtask and includes its own high-level prerequisite core capability scope (no separate prerequisite task file).
+- `041` and `042` are follow-ups added after reviewing a real session with the `feature-system-message` plugin against `openai_responses`.
+- `041` is focused on outbound request correctness and red-green regression coverage for placeholder rendering plus developer-role normalization.
+- `042` is focused on excluding leading system/developer instruction messages from native compaction input and routing them through the Compact API `instructions` field instead.
 - `130` is a late-stage prompt-caching/session-key subtask that depends on a separate generic prerequisite task directory:
   - `tasks/20260312-provider-extension-session-settings-lifecycle/000-main.md`
 - `140` is a staged attachment/upload follow-up and explicitly allows the implementing agent to create `141+` subtasks when splitting work across stages.

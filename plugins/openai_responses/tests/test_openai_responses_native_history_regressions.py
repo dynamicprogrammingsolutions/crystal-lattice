@@ -5,6 +5,10 @@ from typing import Any, Dict, List
 from agent_core import AgentCore
 
 from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider
+from openai_responses_plugins.openai_responses_tools_extension import (
+    OpenAIResponsesToolsExtension,
+)
+from plugins.math_tools import MathTools
 
 
 class _ScriptedResponse:
@@ -200,3 +204,108 @@ def test_slice_and_fork_keep_response_segments_coherent() -> None:
     forked_native = (forked.metadata or {}).get("native_messages") or []
     assert _response_ids(forked_native) == {"resp_1"}
     assert [message.content for message in forked.messages] == ["first turn", "First answer"]
+
+
+def test_rebuilt_follow_up_keeps_one_assistant_anchor_for_prior_tool_segment() -> None:
+    _ScriptedNativeHistoryProvider.last_client = None
+    _ScriptedNativeHistoryProvider.scripted_payloads = [
+        {
+            "id": "resp_tool_1",
+            "output": [
+                {
+                    "type": "reasoning",
+                    "summary": [{"type": "summary_text", "text": "plan"}],
+                },
+                {
+                    "type": "function_call",
+                    "call_id": "call_add_1",
+                    "name": "add",
+                    "arguments": "{\"a\":2,\"b\":3}",
+                },
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "phase": "commentary",
+                    "content": [{"type": "output_text", "text": "Using tool."}],
+                },
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "phase": "final_answer",
+                    "content": [],
+                },
+            ],
+        },
+        {
+            "id": "resp_tool_2",
+            "output": [
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "Final answer: 5"}],
+                }
+            ],
+        },
+        {
+            "id": "resp_tool_3",
+            "output": [
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "Follow-up answer"}],
+                }
+            ],
+        },
+    ]
+
+    config = _config()
+
+    core1 = AgentCore()
+    core1.register_provider(_ScriptedNativeHistoryProvider, extensions=[OpenAIResponsesToolsExtension])
+    core1.register_tool(MathTools)
+
+    session = core1.create_session()
+    session = core1.add_message(session, "user", "Compute 2 + 3 with tools.", config=config)
+    session, first_responses = core1.send_request(session, config)
+
+    first_assistant = first_responses[-1]
+    tool_calls = (first_assistant.get("metadata") or {}).get("tool_calls") or []
+    assert len(tool_calls) == 1
+    assert first_assistant.get("content") == "Using tool."
+
+    for tool_message in core1.execute_tool_calls(tool_calls, config):
+        session = core1.add_message(
+            session,
+            role=tool_message.get("role", "tool"),
+            content=tool_message.get("content", ""),
+            metadata=tool_message.get("metadata"),
+            config=config,
+        )
+
+    session, second_responses = core1.send_request(session, config)
+    assert second_responses[-1].get("content") == "Final answer: 5"
+
+    first_turn_assistants = [
+        message
+        for message in session.messages
+        if message.role == "assistant"
+        and (message.metadata or {}).get("response_id") == "resp_tool_1"
+    ]
+    assert len(first_turn_assistants) == 1
+
+    core2 = AgentCore()
+    core2.register_provider(_ScriptedNativeHistoryProvider, extensions=[OpenAIResponsesToolsExtension])
+    core2.register_tool(MathTools)
+
+    session = core2.add_message(session, "user", "Say the answer again.", config=config)
+    session_after_follow_up, third_responses = core2.send_request(session, config)
+    assert third_responses[-1].get("content") == "Follow-up answer"
+
+    rebuilt_first_turn_assistants = [
+        message
+        for message in session_after_follow_up.messages
+        if message.role == "assistant"
+        and (message.metadata or {}).get("response_id") == "resp_tool_1"
+    ]
+    assert len(rebuilt_first_turn_assistants) == 1
+    assert rebuilt_first_turn_assistants[0].content == "Using tool."

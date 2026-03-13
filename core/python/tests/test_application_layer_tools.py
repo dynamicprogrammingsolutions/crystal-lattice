@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Dict, List
 
 from agent_app.application_future import AgentApplication
+from agent_app.tool_loop import ToolLoopRunner
 from agent_core import AgentCore, Session
 from .dummy_tool import DummyCalculator  # noqa: F401  (imported for side effects)
 
@@ -104,3 +106,46 @@ def test_execute_tool_calls_streaming(tmp_path: Path) -> None:
         for ev in partial_events
     )
     assert any(ev.get("type") == "tool_results" for ev in events)
+
+
+def test_pending_tool_calls_ignored_after_follow_up_user_message() -> None:
+    core = AgentCore()
+    runner = ToolLoopRunner(
+        core=core,
+        config={},
+        request_id="req_pending",
+        tool_loop_cfg=SimpleNamespace(max_loops=8),
+    )
+
+    tool_call: Dict[str, object] = {
+        "id": "call_1",
+        "type": "function",
+        "function": {"name": "add", "arguments": json.dumps({"a": 2, "b": 3})},
+    }
+
+    session = core.create_session()
+    session = core.add_message(session, "assistant", "", {"tool_calls": [tool_call]})
+    session = core.add_message(session, "user", "Thanks, now answer directly.")
+
+    assert runner._extract_pending_tool_calls_from_session(session) == []
+
+
+def test_pending_tool_calls_returned_for_unresolved_tail_assistant() -> None:
+    core = AgentCore()
+    runner = ToolLoopRunner(
+        core=core,
+        config={},
+        request_id="req_pending_tail",
+        tool_loop_cfg=SimpleNamespace(max_loops=8),
+    )
+
+    tool_call: Dict[str, object] = {
+        "id": "call_1",
+        "type": "function",
+        "function": {"name": "add", "arguments": json.dumps({"a": 2, "b": 3})},
+    }
+
+    session = core.create_session()
+    session = core.add_message(session, "assistant", "", {"tool_calls": [tool_call]})
+
+    assert runner._extract_pending_tool_calls_from_session(session) == [tool_call]

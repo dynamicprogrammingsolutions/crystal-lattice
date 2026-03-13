@@ -9,6 +9,9 @@ import pytest
 from agent_core import AgentCore
 import openai_responses_plugins.openai_responses_provider as provider_module
 from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider
+from openai_responses_plugins.openai_responses_tools_extension import (
+    OpenAIResponsesToolsExtension,
+)
 
 
 FIXTURE_PATH = (
@@ -479,6 +482,140 @@ def test_from_native_messages_assigns_response_segment_indices_for_unconverted_i
     md = owner.get("metadata") or {}
     assert md.get("response_id") == "resp_1"
     assert md.get("native_indices") == [0, 1]
+
+
+def test_from_native_messages_collapses_commentary_and_empty_final_answer_into_one_assistant() -> None:
+    provider = OpenAIResponsesProvider()
+
+    native_messages = [
+        {
+            "type": "reasoning",
+            "summary": [{"type": "summary_text", "text": "thinking"}],
+            "_metadata": {"response_id": "resp_1"},
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "phase": "commentary",
+            "content": [{"type": "output_text", "text": "working"}],
+            "_metadata": {"response_id": "resp_1", "trace_id": "commentary"},
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "phase": "final_answer",
+            "content": [],
+            "_metadata": {"response_id": "resp_1", "trace_id": "final"},
+        },
+    ]
+
+    rebuilt = provider.from_native_messages(native_messages, {})
+
+    assistants = [msg for msg in rebuilt if msg.get("role") == "assistant"]
+    assert len(assistants) == 1
+    assistant = assistants[0]
+    assert assistant["content"] == "working"
+
+    md = assistant.get("metadata") or {}
+    assert md.get("response_id") == "resp_1"
+    assert md.get("native_indices") == [0, 1, 2]
+    assert md.get("phase") == "commentary"
+
+    phase_messages = md.get("phase_messages") or []
+    assert len(phase_messages) == 2
+    assert phase_messages[0]["phase"] == "commentary"
+    assert phase_messages[0]["content"] == "working"
+    assert phase_messages[1]["phase"] == "final_answer"
+    assert phase_messages[1]["content"] == ""
+
+
+def test_from_native_messages_collapses_reasoning_and_function_call_into_one_assistant_anchor() -> None:
+    provider = OpenAIResponsesProvider()
+    tools_ext = OpenAIResponsesToolsExtension()
+
+    native_messages = [
+        {
+            "type": "reasoning",
+            "summary": [{"type": "summary_text", "text": "thinking"}],
+            "_metadata": {"response_id": "resp_2"},
+        },
+        {
+            "type": "function_call",
+            "call_id": "call_1",
+            "name": "lookup",
+            "arguments": "{\"id\":1}",
+            "_metadata": {"response_id": "resp_2"},
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "Calling tool"}],
+            "_metadata": {"response_id": "resp_2"},
+        },
+    ]
+
+    rebuilt = provider.from_native_messages(native_messages, {})
+    rebuilt = tools_ext.from_native_messages(native_messages, rebuilt)
+
+    assistants = [msg for msg in rebuilt if msg.get("role") == "assistant"]
+    assert len(assistants) == 1
+    assistant = assistants[0]
+    assert assistant["content"] == "Calling tool"
+
+    md = assistant.get("metadata") or {}
+    assert md.get("response_id") == "resp_2"
+    assert md.get("native_indices") == [0, 1, 2]
+    tool_calls = md.get("tool_calls") or []
+    assert len(tool_calls) == 1
+    assert tool_calls[0]["id"] == "call_1"
+    assert (tool_calls[0].get("function") or {}).get("name") == "lookup"
+
+
+def test_from_native_messages_preserves_phase_messages_when_final_and_tool_call_share_segment() -> None:
+    provider = OpenAIResponsesProvider()
+
+    native_messages = [
+        {
+            "type": "reasoning",
+            "summary": [{"type": "summary_text", "text": "thinking"}],
+            "_metadata": {"response_id": "resp_3"},
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "phase": "commentary",
+            "content": [{"type": "output_text", "text": "working"}],
+            "_metadata": {"response_id": "resp_3"},
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "phase": "final_answer",
+            "content": [{"type": "output_text", "text": "done"}],
+            "_metadata": {"response_id": "resp_3"},
+        },
+        {
+            "type": "function_call",
+            "call_id": "call_3",
+            "name": "lookup",
+            "arguments": "{}",
+            "_metadata": {"response_id": "resp_3"},
+        },
+    ]
+
+    rebuilt = provider.from_native_messages(native_messages, {})
+
+    assistants = [msg for msg in rebuilt if msg.get("role") == "assistant"]
+    assert len(assistants) == 1
+    assistant = assistants[0]
+    assert assistant["content"] == "done"
+
+    md = assistant.get("metadata") or {}
+    assert md.get("phase") == "final_answer"
+    assert md.get("native_indices") == [0, 1, 2, 3]
+    phase_messages = md.get("phase_messages") or []
+    assert [entry.get("phase") for entry in phase_messages] == ["commentary", "final_answer"]
+    assert [entry.get("content") for entry in phase_messages] == ["working", "done"]
 
 
 def test_from_native_messages_assigns_tool_call_indices_without_tool_calls_metadata() -> None:

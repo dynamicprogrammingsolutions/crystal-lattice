@@ -51,8 +51,9 @@ class ToolLoopRunner:
     def _extract_pending_tool_calls_from_session(self, session: Session) -> List[Dict[str, Any]]:
         """Return tool_calls from the last assistant message, if not yet answered.
 
-        A simple heuristic is used: if there is any tool message after the last
-        assistant-with-tool_calls, we treat the calls as already handled.
+        We only auto-resume the tool loop when the assistant-with-tool_calls is
+        still the unresolved tail of the conversation. Any later tool, user, or
+        assistant message means the conversation already moved on.
         """
 
         last_tc_index: int | None = None
@@ -70,10 +71,8 @@ class ToolLoopRunner:
         if last_tc_index is None or not last_tc_calls:
             return []
 
-        # If there is any tool message after this index, assume the calls have
-        # already been processed.
         for msg in session.messages[last_tc_index + 1 :]:
-            if msg.role == "tool":
+            if msg.role in {"tool", "user", "assistant"}:
                 return []
 
         return last_tc_calls

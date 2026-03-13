@@ -295,6 +295,129 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                 continue
         return "\n".join(text_parts).strip(), images
 
+    def _assistant_candidate_from_response_item(
+        self,
+        item: JsonObject,
+        *,
+        native_index: int,
+        internal_md: Dict[str, Any],
+    ) -> Optional[JsonObject]:
+        if item.get("type") != "message":
+            return None
+
+        role = item.get("role")
+        if role is not None and role != "assistant":
+            return None
+
+        text, images = self._message_item_text_and_images(item.get("content"))
+        metadata = dict(internal_md)
+        phase = item.get("phase")
+        if isinstance(phase, str) and phase:
+            metadata["phase"] = phase
+
+        candidate: JsonObject = {
+            "role": "assistant",
+            "content": text,
+            "metadata": metadata,
+            "_segment_native_index": native_index,
+        }
+        if images:
+            candidate["multipartContent"] = images
+        return candidate
+
+    def _build_response_segment_assistant(
+        self,
+        segment: List[Tuple[int, JsonObject, Dict[str, Any]]],
+    ) -> JsonObject:
+        response_id: Optional[str] = None
+        segment_indices: List[int] = []
+        assistant_candidates: List[JsonObject] = []
+        tool_calls: List[JsonObject] = []
+
+        for native_index, item, internal_md in segment:
+            segment_indices.append(native_index)
+            if response_id is None:
+                rid = internal_md.get("response_id")
+                if isinstance(rid, str) and rid:
+                    response_id = rid
+
+            if item.get("type") == "function_call":
+                try:
+                    converted = DEFAULT_TOOL_INTEROP_REGISTRY.convert_tool_calls(
+                        [item],
+                        adapters=[OpenAIResponsesToolCallToOpenAIChatToolCall()],
+                        target=ToolInteropTarget("openai.chat_completions"),
+                    )
+                except Exception:
+                    converted = []
+                if converted and isinstance(converted[0], dict):
+                    tool_calls.append(converted[0])
+
+            candidate = self._assistant_candidate_from_response_item(
+                item,
+                native_index=native_index,
+                internal_md=internal_md,
+            )
+            if candidate is not None:
+                assistant_candidates.append(candidate)
+
+        canonical: Optional[JsonObject] = None
+        for candidate in reversed(assistant_candidates):
+            content = candidate.get("content")
+            if isinstance(content, str) and content.strip():
+                canonical = candidate
+                break
+        if canonical is None and assistant_candidates:
+            for candidate in reversed(assistant_candidates):
+                phase = (candidate.get("metadata") or {}).get("phase")
+                if phase == "final_answer":
+                    canonical = candidate
+                    break
+        if canonical is None and assistant_candidates:
+            canonical = assistant_candidates[-1]
+
+        phase_messages: List[JsonObject] = []
+        for candidate in assistant_candidates:
+            candidate_md = candidate.get("metadata") or {}
+            phase_entry: JsonObject = {
+                "content": candidate.get("content") if isinstance(candidate.get("content"), str) else "",
+                "native_index": candidate.get("_segment_native_index"),
+            }
+            phase = candidate_md.get("phase")
+            if isinstance(phase, str) and phase:
+                phase_entry["phase"] = phase
+            multipart = candidate.get("multipartContent")
+            if isinstance(multipart, list) and multipart:
+                phase_entry["multipartContent"] = multipart
+            extra_md = {k: v for k, v in candidate_md.items() if k not in {"phase", "response_id"}}
+            if extra_md:
+                phase_entry["metadata"] = extra_md
+            phase_messages.append(phase_entry)
+
+        metadata: Dict[str, Any] = {}
+        if canonical is not None:
+            canonical_md = canonical.get("metadata")
+            if isinstance(canonical_md, dict):
+                metadata.update(canonical_md)
+        if response_id:
+            metadata["response_id"] = response_id
+        metadata["native_indices"] = sorted(set(segment_indices))
+        if phase_messages:
+            metadata["phase_messages"] = phase_messages
+        if tool_calls:
+            metadata["tool_calls"] = tool_calls
+
+        out: JsonObject = {
+            "role": "assistant",
+            "content": canonical.get("content") if canonical is not None and isinstance(canonical.get("content"), str) else "",
+            "metadata": metadata,
+        }
+        if canonical is not None:
+            multipart = canonical.get("multipartContent")
+            if isinstance(multipart, list) and multipart:
+                out["multipartContent"] = multipart
+        return out
+
     def to_native_messages(
         self, messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
@@ -421,25 +544,40 @@ class OpenRouterResponsesProvider(ProviderPlugin):
         normalized: List[Dict[str, Any]] = []
 
         response_items: Dict[str, List[JsonObject]] = {}
-        response_item_indices: Dict[str, List[int]] = {}
+        current_segment: List[Tuple[int, JsonObject, Dict[str, Any]]] = []
+        current_response_id: Optional[str] = None
 
-        buffered_tool_calls: List[JsonObject] = []
-        buffered_tool_md: Dict[str, Any] = {}
-        buffered_tool_indices: List[int] = []
-        buffered_tool_response_id: Optional[str] = None
+        def _append_normalized(message: Dict[str, Any]) -> None:
+            normalized.append(message)
 
-        def _flush_tool_calls() -> None:
-            nonlocal buffered_tool_calls, buffered_tool_md, buffered_tool_indices, buffered_tool_response_id
-            if not buffered_tool_calls:
+        def _flush_response_segment() -> None:
+            nonlocal current_segment, current_response_id
+            if not current_segment:
+                current_response_id = None
                 return
-            md_out = dict(buffered_tool_md)
-            md_out["tool_calls"] = list(buffered_tool_calls)
-            md_out["native_indices"] = sorted(set(buffered_tool_indices))
-            normalized.append({"role": "assistant", "content": "", "metadata": md_out})
-            buffered_tool_calls = []
-            buffered_tool_md = {}
-            buffered_tool_indices = []
-            buffered_tool_response_id = None
+
+            assistant_message = self._build_response_segment_assistant(current_segment)
+            _append_normalized(assistant_message)
+
+            for native_index, item, internal_md in current_segment:
+                if item.get("type") != "function_call_output":
+                    continue
+                call_id = item.get("call_id")
+                if not isinstance(call_id, str) or not call_id:
+                    continue
+                output = item.get("output")
+                if not isinstance(output, str):
+                    try:
+                        output = json.dumps(output, ensure_ascii=False)
+                    except Exception:
+                        output = ""
+                core_md = dict(internal_md)
+                core_md.setdefault("tool_call_id", call_id)
+                core_md["native_indices"] = [native_index]
+                _append_normalized({"role": "tool", "content": output, "metadata": core_md})
+
+            current_segment = []
+            current_response_id = None
 
         for native_index, m in enumerate(native_messages):
             if not isinstance(m, dict):
@@ -447,7 +585,7 @@ class OpenRouterResponsesProvider(ProviderPlugin):
 
             # Streaming partials may be emitted in a chat-like shape.
             if "type" not in m and ("role" in m and "content" in m):
-                _flush_tool_calls()
+                _flush_response_segment()
                 role = m.get("role", "assistant")
                 content = m.get("content", "")
                 core_msg: Dict[str, Any] = {"role": role, "content": content if isinstance(content, str) else ""}
@@ -461,36 +599,15 @@ class OpenRouterResponsesProvider(ProviderPlugin):
             rid = internal_md.get("response_id") if isinstance(internal_md.get("response_id"), str) else None
             if rid is not None:
                 response_items.setdefault(rid, []).append(m)
-                response_item_indices.setdefault(rid, []).append(native_index)
 
-            # If tool calls are buffered for a response, flush them when the
-            # response segment ends (response_id changes or disappears).
-            if buffered_tool_calls and buffered_tool_response_id != rid:
-                _flush_tool_calls()
-
-            if itype == "function_call":
-                try:
-                    tool_call = DEFAULT_TOOL_INTEROP_REGISTRY.convert_tool_calls(
-                        [m],
-                        adapters=[OpenAIResponsesToolCallToOpenAIChatToolCall()],
-                        target=ToolInteropTarget("openai.chat_completions"),
-                    )[0]
-                except Exception:
-                    continue
-
-                # For responses, keep tool calls buffered until the end of the
-                # response segment so the tool-loop sees tool_calls on the last
-                # assistant message. For non-response (no response_id), flush on
-                # the next non-function_call item.
-                buffered_tool_response_id = rid
-                buffered_tool_calls.append(tool_call)
-                buffered_tool_indices.append(native_index)
-                if internal_md:
-                    buffered_tool_md = {**buffered_tool_md, **internal_md}
+            if rid:
+                if current_segment and rid != current_response_id:
+                    _flush_response_segment()
+                current_response_id = rid
+                current_segment.append((native_index, m, internal_md))
                 continue
 
-            if buffered_tool_calls and buffered_tool_response_id is None:
-                _flush_tool_calls()
+            _flush_response_segment()
 
             if itype == "message":
                 role = m.get("role")
@@ -526,7 +643,7 @@ class OpenRouterResponsesProvider(ProviderPlugin):
 
             # Ignore other items (e.g. reasoning). They remain in native history.
 
-        _flush_tool_calls()
+        _flush_response_segment()
 
         # UI metadata required by terminal/mobile.
         # Derive from Responses-native items (single source of truth).
@@ -558,14 +675,8 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                 items,
             )
 
-            segment_native_indices = sorted(set(response_item_indices.get(rid, [])))
-
             base = dict(normalized[chosen_index])
             md = dict(base.get("metadata") or {})
-            if segment_native_indices:
-                # Ensure one canonical assistant message owns the full response
-                # segment so history slicing can remove whole turns safely.
-                md["native_indices"] = segment_native_indices
             if citations:
                 md["url_citations"] = citations
             if reasoning_summary:

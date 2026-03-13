@@ -253,14 +253,13 @@ def test_from_native_messages_aggregates_function_calls_to_last_assistant_messag
         },
     ]
     out = provider.from_native_messages(native_messages, {})
-    assert len(out) == 2
+    assert len(out) == 1
     assert out[0]["role"] == "assistant"
     assert out[0]["content"] == "OK"
-    assert out[1]["role"] == "assistant"
-    assert out[1]["content"] == ""
-    md = out[1].get("metadata") or {}
+    md = out[0].get("metadata") or {}
     tcs = md.get("tool_calls") or []
     assert isinstance(tcs, list) and tcs
+    assert md.get("native_indices") == [0, 1]
 
 
 def test_from_native_messages_assigns_segment_native_indices_to_final_answer_assistant() -> None:
@@ -289,18 +288,16 @@ def test_from_native_messages_assigns_segment_native_indices_to_final_answer_ass
 
     out = provider.from_native_messages(native_messages, {})
 
-    final = next(
-        (
-            m
-            for m in out
-            if m.get("role") == "assistant"
-            and (m.get("metadata") or {}).get("phase") == "final_answer"
-        ),
-        None,
-    )
-    assert isinstance(final, dict)
+    assistants = [m for m in out if m.get("role") == "assistant"]
+    assert len(assistants) == 1
+    final = assistants[0]
+    assert final.get("content") == "answer"
     md = final.get("metadata") or {}
+    assert md.get("phase") == "final_answer"
     assert md.get("native_indices") == [0, 1, 2]
+    phase_messages = md.get("phase_messages") or []
+    assert [entry.get("phase") for entry in phase_messages] == ["commentary", "final_answer"]
+    assert [entry.get("content") for entry in phase_messages] == ["thinking", "answer"]
 
 
 def test_from_native_messages_assigns_segment_native_indices_to_tool_call_assistant() -> None:
