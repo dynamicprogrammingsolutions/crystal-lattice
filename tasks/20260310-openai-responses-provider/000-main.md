@@ -18,6 +18,8 @@ Short description: Create a new `openai_responses` plugin bundle using the OpenA
 12. `tasks/20260310-openai-responses-provider/110-replaced-by-provider-extension-session-actions-020.md`
 13. `tasks/20260310-openai-responses-provider/120-model-discovery-provider-ui-and-doc-followup.md`
 14. `tasks/20260310-openai-responses-provider/130-prompt-caching-session-key-extension.md`
+15. `tasks/20260310-openai-responses-provider/140-openai-image-pdf-upload-and-upload-modes.md`
+16. `tasks/20260310-openai-responses-provider/150-web-search-extension-and-citation-preservation.md`
 
 ## Status
 
@@ -27,6 +29,8 @@ Short description: Create a new `openai_responses` plugin bundle using the OpenA
 - `095` is a late-stage native compaction subtask and includes its own high-level prerequisite core capability scope (no separate prerequisite task file).
 - `130` is a late-stage prompt-caching/session-key subtask that depends on a separate generic prerequisite task directory:
   - `tasks/20260312-provider-extension-session-settings-lifecycle/000-main.md`
+- `140` is a staged attachment/upload follow-up and explicitly allows the implementing agent to create `141+` subtasks when splitting work across stages.
+- `150` is a late-stage web-search follow-up for the OpenAI Responses bundle, including citation/source preservation and frontend visibility.
 - Remaining subtasks are implementation work.
 
 ## Architectural intent (must hold across all subtasks)
