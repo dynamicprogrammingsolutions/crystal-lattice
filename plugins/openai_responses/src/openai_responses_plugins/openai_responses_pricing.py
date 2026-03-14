@@ -1,7 +1,7 @@
 """Pricing snapshot loading and estimation helpers for OpenAI Responses.
 
-The refresh script writes a checked-in pricing snapshot sourced from official
-OpenAI model documentation pages. Runtime code reads only the saved snapshot so
+The refresh script writes a checked-in pricing snapshot sourced from the
+OpenAI pricing page. Runtime code reads only the saved snapshot so
 estimated-cost behavior is deterministic and does not depend on live network
 access.
 """
@@ -16,25 +16,20 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
 
-DEFAULT_MODEL_DOC_SLUGS = (
-    "gpt-5",
-    "gpt-5-mini",
-    "gpt-5-nano",
-    "gpt-5.1",
-    "gpt-4.1",
-    "gpt-4.1-mini",
-    "gpt-4.1-nano",
-    "gpt-4o",
-    "gpt-4o-mini",
+DEFAULT_PRICING_PAGE_URLS = (
+    "https://developers.openai.com/api/docs/pricing?latest-pricing=standard",
+    "https://developers.openai.com/api/docs/pricing?latest-pricing=flex",
 )
 
 _DEFAULT_SNAPSHOT_RELATIVE = "data/openai_model_pricing.json"
 _SNAPSHOT_SUFFIX_RE = re.compile(r"^(?P<base>.+)-\d{4}-\d{2}-\d{2}$")
-_PRICING_VALUE_RE = re.compile(
-    r"<div>\s*(Input|Cached input|Output)\s*</div>"
-    r"\s*<div[^>]*>\s*\$(\d+(?:\.\d+)?)\s*</div>",
-    re.IGNORECASE,
+_TEXT_TOKEN_TABLE_RE = re.compile(
+    r'component-export="TextTokenPricingTables".*?props="(.*?)" ssr',
+    re.DOTALL,
 )
+_TIER_RE = re.compile(r'"tier":\[\d+,"([^"]+)"\]')
+_ROW_RE = re.compile(r'\[\[0,"([^"]+)"\],\[0,([^\]]+)\],\[0,([^\]]+)\],\[0,([^\]]+)\]\]')
+_CONTEXT_SUFFIX_RE = re.compile(r"\s+\([^)]*context length[^)]*\)$", re.IGNORECASE)
 
 
 def default_snapshot_path() -> Path:
@@ -70,6 +65,19 @@ def normalize_model_name(model: str) -> str:
     return value
 
 
+def normalize_service_tier(service_tier: str | None) -> str:
+    if not isinstance(service_tier, str):
+        return ""
+    return service_tier.strip().lower()
+
+
+def normalize_pricing_table_model_name(model: str) -> str:
+    normalized = normalize_model_name(model)
+    if not normalized:
+        return ""
+    return _CONTEXT_SUFFIX_RE.sub("", normalized).strip()
+
+
 def resolve_pricing_entry(
     model: str,
     snapshot: Dict[str, Any] | None = None,
@@ -94,24 +102,76 @@ def resolve_pricing_entry(
     return None
 
 
-def _pricing_block(entry: Dict[str, Any]) -> Optional[Dict[str, float]]:
-    pricing = entry.get("pricing")
+def _coerce_price(raw: Any) -> Optional[float]:
+    if isinstance(raw, (int, float)):
+        return float(raw)
+    if not isinstance(raw, str):
+        return None
+
+    value = raw.strip().strip('"')
+    if not value or value in {"-", "/"}:
+        return None
+    if value == "null":
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+def _pricing_block_from_mapping(pricing: Any) -> Optional[Dict[str, Optional[float]]]:
     if not isinstance(pricing, dict):
         return None
 
-    required = ("input_per_1m", "cached_input_per_1m", "output_per_1m")
-    out: Dict[str, float] = {}
-    for key in required:
-        raw = pricing.get(key)
-        if not isinstance(raw, (int, float)):
-            return None
-        out[key] = float(raw)
-    return out
+    input_price = pricing.get("input_per_1m")
+    output_price = pricing.get("output_per_1m")
+    if not isinstance(input_price, (int, float)) or not isinstance(output_price, (int, float)):
+        return None
+
+    cached_price = pricing.get("cached_input_per_1m")
+    cached_value: Optional[float] = None
+    if isinstance(cached_price, (int, float)):
+        cached_value = float(cached_price)
+
+    return {
+        "input_per_1m": float(input_price),
+        "cached_input_per_1m": cached_value,
+        "output_per_1m": float(output_price),
+    }
+
+
+def _pricing_block(entry: Dict[str, Any], service_tier: str | None = None) -> Optional[Dict[str, Optional[float]]]:
+    normalized_tier = normalize_service_tier(service_tier)
+    service_tiers = entry.get("service_tiers") if isinstance(entry, dict) else None
+    if isinstance(service_tiers, dict) and normalized_tier:
+        tier_pricing = _pricing_block_from_mapping(service_tiers.get(normalized_tier))
+        if tier_pricing is not None:
+            return tier_pricing
+
+        if normalized_tier in {"default", "auto", "standard"}:
+            standard_pricing = _pricing_block_from_mapping(service_tiers.get("standard"))
+            if standard_pricing is not None:
+                return standard_pricing
+            return _pricing_block_from_mapping(entry.get("pricing"))
+
+        return None
+
+    if normalized_tier and normalized_tier not in {"default", "auto", "standard"}:
+        return None
+
+    pricing = entry.get("pricing")
+    if isinstance(pricing, dict):
+        return _pricing_block_from_mapping(pricing)
+
+    if isinstance(service_tiers, dict):
+        return _pricing_block_from_mapping(service_tiers.get("standard"))
+    return None
 
 
 def estimate_usage_cost(
     usage: Dict[str, Any],
     model: str,
+    service_tier: str | None = None,
     snapshot: Dict[str, Any] | None = None,
     snapshot_path: str | None = None,
 ) -> Optional[float]:
@@ -122,7 +182,7 @@ def estimate_usage_cost(
     if not isinstance(entry, dict):
         return None
 
-    pricing = _pricing_block(entry)
+    pricing = _pricing_block(entry, service_tier=service_tier)
     if pricing is None:
         return None
 
@@ -143,54 +203,93 @@ def estimate_usage_cost(
     cached_total = min(input_total, cached_tokens)
     uncached_total = input_total - cached_total
 
+    cached_price = pricing.get("cached_input_per_1m")
+    if cached_total > 0 and cached_price is None:
+        return None
+
     estimated = (
         uncached_total * pricing["input_per_1m"]
-        + cached_total * pricing["cached_input_per_1m"]
+        + cached_total * (cached_price if cached_price is not None else 0.0)
         + output_total * pricing["output_per_1m"]
     ) / 1_000_000.0
 
     return float(estimated)
 
 
-def extract_pricing_from_model_doc_html(
+def extract_visible_text_token_tier_pricing_from_page_html(
     html: str,
-    model: str,
     source_url: str,
-) -> Dict[str, Any]:
+) -> Dict[str, Dict[str, Any]]:
     if not isinstance(html, str) or not html.strip():
-        raise ValueError("model doc html must be a non-empty string")
+        raise ValueError("pricing page html must be a non-empty string")
 
-    compact = re.sub(r"\s+", " ", unescape(html))
-    pricing_anchor = compact.find("Text tokens")
-    if pricing_anchor < 0:
-        raise RuntimeError(f"pricing section not found for {model}")
+    model_entries: Dict[str, Dict[str, Any]] = {}
 
-    section_end = len(compact)
-    for marker in ("Quick comparison", "Modalities", "Endpoints"):
-        idx = compact.find(marker, pricing_anchor)
-        if idx >= 0:
-            section_end = min(section_end, idx)
-    section = compact[pricing_anchor:section_end]
+    for match in _TEXT_TOKEN_TABLE_RE.finditer(html):
+        props = unescape(match.group(1))
+        tier_match = _TIER_RE.search(props)
+        if not tier_match:
+            continue
+        tier = normalize_service_tier(tier_match.group(1))
+        if not tier:
+            continue
 
-    matches = _PRICING_VALUE_RE.findall(section)
-    prices: Dict[str, float] = {}
-    for label, value in matches:
-        label_key = label.strip().lower().replace(" ", "_")
-        prices[label_key] = float(value)
+        for raw_model, raw_input, raw_cached, raw_output in _ROW_RE.findall(props):
+            model = normalize_pricing_table_model_name(raw_model)
+            if not model:
+                continue
 
-    missing = [key for key in ("input", "cached_input", "output") if key not in prices]
-    if missing:
-        raise RuntimeError(f"missing pricing fields for {model}: {', '.join(missing)}")
+            input_price = _coerce_price(raw_input)
+            cached_input_price = _coerce_price(raw_cached)
+            output_price = _coerce_price(raw_output)
+            if input_price is None or output_price is None:
+                continue
 
-    return {
-        "model": model,
-        "source_url": source_url,
-        "pricing": {
-            "input_per_1m": prices["input"],
-            "cached_input_per_1m": prices["cached_input"],
-            "output_per_1m": prices["output"],
-        },
-    }
+            entry = model_entries.setdefault(
+                model,
+                {
+                    "model": model,
+                    "source_url": source_url,
+                    "service_tiers": {},
+                },
+            )
+            service_tiers = entry.setdefault("service_tiers", {})
+            tier_pricing = {
+                "input_per_1m": input_price,
+                "output_per_1m": output_price,
+            }
+            if cached_input_price is not None:
+                tier_pricing["cached_input_per_1m"] = cached_input_price
+            service_tiers[tier] = tier_pricing
+
+    if not model_entries:
+        raise RuntimeError(f"no visible text-token pricing tables found in {source_url}")
+
+    return model_entries
+
+
+def merge_pricing_entry(existing: Dict[str, Any] | None, incoming: Dict[str, Any]) -> Dict[str, Any]:
+    existing_entry = existing if isinstance(existing, dict) else {}
+    incoming_entry = incoming if isinstance(incoming, dict) else {}
+
+    merged: Dict[str, Any] = {**existing_entry, **incoming_entry}
+
+    existing_tiers = existing_entry.get("service_tiers") if isinstance(existing_entry, dict) else None
+    incoming_tiers = incoming_entry.get("service_tiers") if isinstance(incoming_entry, dict) else None
+    merged_tiers: Dict[str, Any] = {}
+    if isinstance(existing_tiers, dict):
+        merged_tiers.update(existing_tiers)
+    if isinstance(incoming_tiers, dict):
+        merged_tiers.update(incoming_tiers)
+    if merged_tiers:
+        merged["service_tiers"] = merged_tiers
+
+    if not isinstance(merged.get("pricing"), dict):
+        standard_pricing = _pricing_block_from_mapping(merged_tiers.get("standard"))
+        if standard_pricing is not None:
+            merged["pricing"] = standard_pricing
+
+    return merged
 
 
 def build_snapshot_payload(
@@ -207,8 +306,8 @@ def build_snapshot_payload(
         models[model] = entry
 
     return {
-        "version": 1,
+        "version": 2,
         "fetched_at": fetched_at,
-        "source_base_url": "https://developers.openai.com/api/docs/models",
+        "source_base_url": "https://developers.openai.com/api/docs/pricing",
         "models": dict(sorted(models.items())),
     }

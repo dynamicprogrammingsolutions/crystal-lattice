@@ -5,46 +5,122 @@ import json
 from openai_responses_plugins.openai_responses_pricing import (
     build_snapshot_payload,
     estimate_usage_cost,
-    extract_pricing_from_model_doc_html,
+    extract_visible_text_token_tier_pricing_from_page_html,
+    merge_pricing_entry,
     normalize_model_name,
+    normalize_pricing_table_model_name,
     resolve_pricing_entry,
 )
 from scripts.refresh_openai_responses_pricing import refresh_snapshot
 
 
-def test_extract_pricing_from_model_doc_html_parses_input_cached_and_output() -> None:
+def test_extract_visible_text_token_tier_pricing_from_page_html_parses_tiers() -> None:
     html = """
-    <div>Text tokens</div>
-    <div><div>Input</div><div class="text-2xl font-semibold">$0.25</div></div>
-    <div><div>Cached input</div><div class="text-2xl font-semibold">$0.025</div></div>
-    <div><div>Output</div><div class="text-2xl font-semibold">$2.00</div></div>
-    <div>Modalities</div>
+    <astro-island component-export="TextTokenPricingTables"
+      props="{&quot;tier&quot;:[0,&quot;standard&quot;],&quot;rows&quot;:[1,[[1,[[0,&quot;gpt-5.4 (&lt;272K context length)&quot;],[0,2.5],[0,0.25],[0,15]]],[1,[[0,&quot;gpt-5-mini&quot;],[0,0.25],[0,0.025],[0,2]]]]]}" ssr></astro-island>
+    <astro-island component-export="TextTokenPricingTables"
+      props="{&quot;tier&quot;:[0,&quot;flex&quot;],&quot;rows&quot;:[1,[[1,[[0,&quot;gpt-5.4 (&lt;272K context length)&quot;],[0,1.25],[0,0.13],[0,7.5]]],[1,[[0,&quot;gpt-5.4-pro (&lt;272K context length)&quot;],[0,15],[0,&quot;&quot;],[0,90]]],[1,[[0,&quot;gpt-5-mini&quot;],[0,0.125],[0,0.0125],[0,1]]]]]}" ssr></astro-island>
     """
 
-    entry = extract_pricing_from_model_doc_html(
+    entries = extract_visible_text_token_tier_pricing_from_page_html(
         html=html,
-        model="gpt-5-mini",
-        source_url="https://developers.openai.com/api/docs/models/gpt-5-mini",
+        source_url="https://developers.openai.com/api/docs/pricing?latest-pricing=flex",
     )
 
-    assert entry == {
-        "model": "gpt-5-mini",
-        "source_url": "https://developers.openai.com/api/docs/models/gpt-5-mini",
-        "pricing": {
-            "input_per_1m": 0.25,
-            "cached_input_per_1m": 0.025,
-            "output_per_1m": 2.0,
-        },
+    assert normalize_pricing_table_model_name("gpt-5.4 (<272K context length)") == "gpt-5.4"
+    assert entries["gpt-5.4"]["service_tiers"]["standard"] == {
+        "input_per_1m": 2.5,
+        "cached_input_per_1m": 0.25,
+        "output_per_1m": 15.0,
+    }
+    assert entries["gpt-5.4"]["service_tiers"]["flex"] == {
+        "input_per_1m": 1.25,
+        "cached_input_per_1m": 0.13,
+        "output_per_1m": 7.5,
+    }
+    assert entries["gpt-5-mini"]["service_tiers"]["flex"]["output_per_1m"] == 1.0
+    assert entries["gpt-5.4-pro"]["service_tiers"]["flex"] == {
+        "input_per_1m": 15.0,
+        "output_per_1m": 90.0,
     }
 
 
-def test_estimate_usage_cost_uses_cached_and_uncached_token_rates() -> None:
+def test_estimate_usage_cost_prefers_requested_service_tier() -> None:
     snapshot = build_snapshot_payload(
         fetched_at="2026-03-11T00:00:00+00:00",
         model_entries=[
             {
                 "model": "gpt-5-mini",
-                "source_url": "https://developers.openai.com/api/docs/models/gpt-5-mini",
+                "pricing": {
+                    "input_per_1m": 0.25,
+                    "cached_input_per_1m": 0.025,
+                    "output_per_1m": 2.0,
+                },
+                "service_tiers": {
+                    "flex": {
+                        "input_per_1m": 0.125,
+                        "cached_input_per_1m": 0.0125,
+                        "output_per_1m": 1.0,
+                    }
+                },
+            }
+        ],
+    )
+    usage = {
+        "input_tokens": 1000,
+        "input_tokens_details": {"cached_tokens": 200},
+        "output_tokens": 100,
+    }
+
+    default_estimated = estimate_usage_cost(usage, model="gpt-5-mini", snapshot=snapshot)
+    flex_estimated = estimate_usage_cost(
+        usage,
+        model="gpt-5-mini",
+        service_tier="flex",
+        snapshot=snapshot,
+    )
+
+    assert default_estimated == 0.000405
+    assert flex_estimated == 0.0002025
+
+
+def test_estimate_usage_cost_allows_missing_cached_tier_price_when_no_cached_tokens() -> None:
+    snapshot = build_snapshot_payload(
+        fetched_at="2026-03-11T00:00:00+00:00",
+        model_entries=[
+            {
+                "model": "gpt-5.4-pro",
+                "service_tiers": {
+                    "flex": {
+                        "input_per_1m": 15.0,
+                        "output_per_1m": 90.0,
+                    }
+                },
+            }
+        ],
+    )
+    usage = {
+        "input_tokens": 1000,
+        "input_tokens_details": {"cached_tokens": 0},
+        "output_tokens": 100,
+    }
+
+    estimated = estimate_usage_cost(
+        usage,
+        model="gpt-5.4-pro",
+        service_tier="flex",
+        snapshot=snapshot,
+    )
+
+    assert estimated == 0.024
+
+
+def test_estimate_usage_cost_does_not_fallback_when_requested_service_tier_missing() -> None:
+    snapshot = build_snapshot_payload(
+        fetched_at="2026-03-11T00:00:00+00:00",
+        model_entries=[
+            {
+                "model": "gpt-5-mini",
                 "pricing": {
                     "input_per_1m": 0.25,
                     "cached_input_per_1m": 0.025,
@@ -59,9 +135,14 @@ def test_estimate_usage_cost_uses_cached_and_uncached_token_rates() -> None:
         "output_tokens": 100,
     }
 
-    estimated = estimate_usage_cost(usage, model="gpt-5-mini", snapshot=snapshot)
+    estimated = estimate_usage_cost(
+        usage,
+        model="gpt-5-mini",
+        service_tier="flex",
+        snapshot=snapshot,
+    )
 
-    assert estimated == 0.000405
+    assert estimated is None
 
 
 def test_resolve_pricing_entry_normalizes_snapshot_suffix_models() -> None:
@@ -70,7 +151,6 @@ def test_resolve_pricing_entry_normalizes_snapshot_suffix_models() -> None:
         model_entries=[
             {
                 "model": "gpt-5-mini",
-                "source_url": "https://developers.openai.com/api/docs/models/gpt-5-mini",
                 "pricing": {
                     "input_per_1m": 0.25,
                     "cached_input_per_1m": 0.025,
@@ -86,48 +166,45 @@ def test_resolve_pricing_entry_normalizes_snapshot_suffix_models() -> None:
     assert entry["model"] == "gpt-5-mini"
 
 
-def test_refresh_snapshot_writes_json_from_official_model_doc_fetches(
-    monkeypatch, tmp_path
-) -> None:
-    html = """
-    <div>Text tokens</div>
-    <div><div>Input</div><div>$1.25</div></div>
-    <div><div>Cached input</div><div>$0.125</div></div>
-    <div><div>Output</div><div>$10.00</div></div>
-    <div>Quick comparison</div>
-    """
-
-    def fake_fetch(url: str) -> str:
-        assert url.endswith("/gpt-5")
-        return html
-
-    monkeypatch.setattr("scripts.refresh_openai_responses_pricing._fetch_text", fake_fetch)
-
-    output_path = tmp_path / "pricing.json"
-    written = refresh_snapshot(models=["gpt-5"], output_path=output_path)
-
-    assert written == output_path
-    payload = json.loads(output_path.read_text(encoding="utf-8"))
-    assert payload["models"]["gpt-5"]["pricing"] == {
-        "cached_input_per_1m": 0.125,
-        "input_per_1m": 1.25,
-        "output_per_1m": 10.0,
+def test_merge_pricing_entry_preserves_existing_pricing_and_adds_tiers() -> None:
+    existing = {
+        "model": "gpt-5-mini",
+        "pricing": {
+            "input_per_1m": 0.25,
+            "cached_input_per_1m": 0.025,
+            "output_per_1m": 2.0,
+        },
+    }
+    incoming = {
+        "model": "gpt-5-mini",
+        "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex",
+        "service_tiers": {
+            "flex": {
+                "input_per_1m": 0.125,
+                "cached_input_per_1m": 0.0125,
+                "output_per_1m": 1.0,
+            }
+        },
     }
 
+    merged = merge_pricing_entry(existing, incoming)
 
-def test_refresh_snapshot_preserves_models_not_explicitly_refreshed(
+    assert merged["pricing"]["input_per_1m"] == 0.25
+    assert merged["service_tiers"]["flex"]["output_per_1m"] == 1.0
+
+
+def test_refresh_snapshot_writes_visible_pricing_rows_and_preserves_existing_models(
     monkeypatch, tmp_path
 ) -> None:
     html = """
-    <div>Text tokens</div>
-    <div><div>Input</div><div>$1.25</div></div>
-    <div><div>Cached input</div><div>$0.125</div></div>
-    <div><div>Output</div><div>$10.00</div></div>
-    <div>Quick comparison</div>
+    <astro-island component-export="TextTokenPricingTables"
+      props="{&quot;tier&quot;:[0,&quot;standard&quot;],&quot;rows&quot;:[1,[[1,[[0,&quot;gpt-5.4 (&lt;272K context length)&quot;],[0,2.5],[0,0.25],[0,15]]],[1,[[0,&quot;gpt-5-mini&quot;],[0,0.25],[0,0.025],[0,2]]]]]}" ssr></astro-island>
+    <astro-island component-export="TextTokenPricingTables"
+      props="{&quot;tier&quot;:[0,&quot;flex&quot;],&quot;rows&quot;:[1,[[1,[[0,&quot;gpt-5.4 (&lt;272K context length)&quot;],[0,1.25],[0,0.13],[0,7.5]]],[1,[[0,&quot;gpt-5.4-pro (&lt;272K context length)&quot;],[0,15],[0,&quot;&quot;],[0,90]]],[1,[[0,&quot;gpt-5-mini&quot;],[0,0.125],[0,0.0125],[0,1]]]]]}" ssr></astro-island>
     """
 
     def fake_fetch(url: str) -> str:
-        assert url.endswith("/gpt-5")
+        assert "pricing" in url
         return html
 
     monkeypatch.setattr("scripts.refresh_openai_responses_pricing._fetch_text", fake_fetch)
@@ -142,7 +219,6 @@ def test_refresh_snapshot_preserves_models_not_explicitly_refreshed(
                 "models": {
                     "gpt-4o": {
                         "model": "gpt-4o",
-                        "source_url": "https://developers.openai.com/api/docs/models/gpt-4o",
                         "pricing": {
                             "input_per_1m": 2.5,
                             "cached_input_per_1m": 1.25,
@@ -155,16 +231,21 @@ def test_refresh_snapshot_preserves_models_not_explicitly_refreshed(
         encoding="utf-8",
     )
 
-    refresh_snapshot(models=["gpt-5"], output_path=output_path)
+    refresh_snapshot(
+        urls=["https://developers.openai.com/api/docs/pricing?latest-pricing=standard"],
+        output_path=output_path,
+    )
 
     payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["version"] == 2
     assert payload["models"]["gpt-4o"]["pricing"] == {
         "cached_input_per_1m": 1.25,
         "input_per_1m": 2.5,
         "output_per_1m": 10.0,
     }
-    assert payload["models"]["gpt-5"]["pricing"] == {
-        "cached_input_per_1m": 0.125,
+    assert payload["models"]["gpt-5.4"]["service_tiers"]["flex"] == {
+        "cached_input_per_1m": 0.13,
         "input_per_1m": 1.25,
-        "output_per_1m": 10.0,
+        "output_per_1m": 7.5,
     }
+    assert payload["models"]["gpt-5-mini"]["service_tiers"]["standard"]["output_per_1m"] == 2.0
