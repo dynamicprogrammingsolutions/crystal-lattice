@@ -9,6 +9,17 @@ Depends On:
 - `tasks/20260310-openai-responses-provider/070-usage-extension-responses-api.md`
 - `tasks/20260310-openai-responses-provider/095-native-compaction-provider-extension.md`
 
+## Status note
+
+This task's original broad scope has since been split into narrower follow-ups:
+
+1. `tasks/20260310-openai-responses-provider/043-native-message-preparation-for-compaction.md`
+2. `tasks/20260310-openai-responses-provider/044-visible-rebuild-from-compacted-native-output.md`
+3. `tasks/20260310-openai-responses-provider/046-manual-range-selection-native-compaction.md`
+4. `tasks/20260310-openai-responses-provider/047-auto-compaction-after-request-complete.md`
+
+This file remains as the broader design umbrella and rationale reference for those splits.
+
 ## Goal
 
 Native compaction should not need to know about `SystemMessageFeature` or any other specific plugin.
