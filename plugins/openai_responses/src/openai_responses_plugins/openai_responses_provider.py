@@ -25,6 +25,13 @@ from openai import OpenAI
 
 from agent_core.types import ProviderPlugin
 from agent_core.utils import get_logger
+from .openai_responses_attachment_assets import (
+    build_openai_provider_ref,
+    merge_openai_provider_ref,
+    openai_provider_ref,
+    openai_provider_ref_is_usable,
+    session_asset_ref_from_content,
+)
 
 
 JsonObject = Dict[str, Any]
@@ -38,6 +45,7 @@ _ATTACHMENT_UPLOAD_MODE_DIRECT = "direct"
 _ATTACHMENT_UPLOAD_MODE_UPLOAD = "upload_before_send"
 _ATTACHMENT_SOURCES_METADATA_KEY = "_openai_responses_attachment_sources"
 _UPLOADED_ATTACHMENTS_METADATA_KEY = "_openai_responses_uploaded_attachments"
+_SESSION_ASSET_STORE_CONFIG_KEY = "_session_asset_store"
 _IMAGE_ATTACHMENT_TYPES = ["png", "jpg", "jpeg", "webp", "gif"]
 _PDF_ATTACHMENT_TYPES = ["pdf"]
 
@@ -426,11 +434,58 @@ class OpenAIResponsesProvider(ProviderPlugin):
             uploaded_map[content_index] = dict(uploaded_part)
         return uploaded_map
 
-    def _image_part_to_input_image(self, content: Any) -> Dict[str, Any]:
+    def _session_asset_store(self, state: Dict[str, Any]) -> Any:
+        config = state.get("config") if isinstance(state.get("config"), dict) else {}
+        store = config.get(_SESSION_ASSET_STORE_CONFIG_KEY)
+        if store is None:
+            raise RuntimeError(
+                "[openai_responses_provider] session asset attachment requires _session_asset_store in config"
+            )
+        return store
+
+    def _session_asset_record_and_bytes(
+        self,
+        state: Dict[str, Any],
+        *,
+        asset_ref: Dict[str, Any],
+        expected_attachment_type: str,
+    ) -> Tuple[Any, bytes]:
+        store = self._session_asset_store(state)
+        session_id = asset_ref.get("session_id")
+        asset_id = asset_ref.get("asset_id")
+        if not isinstance(session_id, str) or not isinstance(asset_id, str):
+            raise ValueError("[openai_responses_provider] invalid session asset reference")
+        record = store.load(session_id, asset_id)
+        if record.attachment_type != expected_attachment_type:
+            raise ValueError(
+                f"[openai_responses_provider] session asset {asset_id!r} is not a {expected_attachment_type} attachment"
+            )
+        return record, store.load_bytes(session_id, asset_id)
+
+    def _data_url_from_bytes(self, *, mime_type: str, payload_bytes: bytes) -> str:
+        encoded = base64.b64encode(payload_bytes).decode("ascii")
+        return f"data:{mime_type};base64,{encoded}"
+
+    def _image_part_to_input_image(self, content: Any, state: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(content, dict):
             raise ValueError(
                 "[openai_responses_provider] image multipartContent part requires dict content"
             )
+
+        asset_ref = session_asset_ref_from_content(content)
+        if asset_ref is not None:
+            record, payload_bytes = self._session_asset_record_and_bytes(
+                state,
+                asset_ref=asset_ref,
+                expected_attachment_type="image",
+            )
+            return {
+                "type": "input_image",
+                "image_url": self._data_url_from_bytes(
+                    mime_type=record.mime_type,
+                    payload_bytes=payload_bytes,
+                ),
+            }
 
         url = content.get("url")
         if not isinstance(url, str) or not url:
@@ -450,11 +505,24 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
         return {"type": "input_image", "image_url": url}
 
-    def _pdf_part_to_input_file(self, content: Any) -> Dict[str, Any]:
+    def _pdf_part_to_input_file(self, content: Any, state: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(content, dict):
             raise ValueError(
                 "[openai_responses_provider] pdf multipartContent part requires dict content"
             )
+
+        asset_ref = session_asset_ref_from_content(content)
+        if asset_ref is not None:
+            record, payload_bytes = self._session_asset_record_and_bytes(
+                state,
+                asset_ref=asset_ref,
+                expected_attachment_type="pdf",
+            )
+            return {
+                "type": "input_file",
+                "file_data": base64.b64encode(payload_bytes).decode("ascii"),
+                "filename": record.filename,
+            }
 
         filename = content.get("filename")
         if not isinstance(filename, str) or not filename:
@@ -533,6 +601,26 @@ class OpenAIResponsesProvider(ProviderPlugin):
             raise RuntimeError("[openai_responses_provider] file upload response missing id")
         return file_id
 
+    def _file_object_reference(
+        self,
+        upload_response: Any,
+        *,
+        purpose: str,
+        filename: str,
+        mime_type: str,
+    ) -> Dict[str, Any]:
+        response_obj = self._safe_dict_payload(upload_response)
+        file_id = response_obj.get("id")
+        if not isinstance(file_id, str) or not file_id:
+            raise RuntimeError("[openai_responses_provider] file upload response missing id")
+        return build_openai_provider_ref(
+            file_id=file_id,
+            purpose=purpose,
+            filename=filename,
+            mime_type=mime_type,
+            expires_at=response_obj.get("expires_at"),
+        )
+
     def _upload_attachment_bytes(
         self,
         *,
@@ -543,7 +631,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
         purpose: str,
         timeout: float,
         upload_cache: Dict[str, str],
-    ) -> str:
+    ) -> Dict[str, Any]:
         cache_key = self._attachment_upload_cache_key(
             purpose=purpose,
             filename=filename,
@@ -552,7 +640,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
         )
         cached_id = upload_cache.get(cache_key)
         if isinstance(cached_id, str) and cached_id:
-            return cached_id
+            return build_openai_provider_ref(
+                file_id=cached_id,
+                purpose=purpose,
+                filename=filename,
+                mime_type=mime_type,
+            )
 
         upload_handle = io.BytesIO(payload_bytes)
         upload_handle.name = filename
@@ -565,9 +658,15 @@ class OpenAIResponsesProvider(ProviderPlugin):
         except Exception as exc:
             raise RuntimeError(f"OpenAI file upload failed: {exc}") from exc
 
-        file_id = self._file_object_id(upload_response)
+        upload_ref = self._file_object_reference(
+            upload_response,
+            purpose=purpose,
+            filename=filename,
+            mime_type=mime_type,
+        )
+        file_id = upload_ref["file_id"]
         upload_cache[cache_key] = file_id
-        return file_id
+        return upload_ref
 
     def _upload_state_cache(self, state: Dict[str, Any]) -> Dict[str, str]:
         raw_cache = state.get("_openai_responses_upload_cache")
@@ -577,16 +676,57 @@ class OpenAIResponsesProvider(ProviderPlugin):
         self,
         part: Dict[str, Any],
         *,
+        state: Dict[str, Any],
         source_override: Optional[Dict[str, Any]],
         uploaded_override: Optional[Dict[str, Any]],
         client: Any,
         timeout: float,
         upload_cache: Dict[str, str],
+        force_reupload: bool = False,
     ) -> Dict[str, Any]:
-        if isinstance(uploaded_override, dict) and uploaded_override:
+        part_type = part.get("type")
+        source_content = source_override.get("content") if isinstance(source_override, dict) else {}
+        asset_ref = session_asset_ref_from_content(source_content)
+        detail = part.get("detail") if isinstance(part.get("detail"), str) and part.get("detail") else None
+
+        if asset_ref is not None:
+            expected_attachment_type = "image" if part_type == "input_image" else "pdf"
+            purpose = "vision" if part_type == "input_image" else "user_data"
+            record, payload_bytes = self._session_asset_record_and_bytes(
+                state,
+                asset_ref=asset_ref,
+                expected_attachment_type=expected_attachment_type,
+            )
+            provider_ref = openai_provider_ref(record.provider_refs)
+            if not force_reupload and openai_provider_ref_is_usable(provider_ref):
+                uploaded = {"type": part_type, "file_id": provider_ref["file_id"]}
+                if detail is not None:
+                    uploaded["detail"] = detail
+                return uploaded
+
+            upload_ref = self._upload_attachment_bytes(
+                client=client,
+                filename=record.filename,
+                mime_type=record.mime_type,
+                payload_bytes=payload_bytes,
+                purpose=purpose,
+                timeout=timeout,
+                upload_cache=upload_cache,
+            )
+            self._session_asset_store(state).update_manifest(
+                record.session_id,
+                record.asset_id,
+                provider_refs=merge_openai_provider_ref(record.provider_refs, upload_ref),
+                metadata=record.metadata,
+            )
+            uploaded = {"type": part_type, "file_id": upload_ref["file_id"]}
+            if detail is not None:
+                uploaded["detail"] = detail
+            return uploaded
+
+        if not force_reupload and isinstance(uploaded_override, dict) and uploaded_override:
             return dict(uploaded_override)
 
-        part_type = part.get("type")
         if part_type == "input_image":
             if isinstance(part.get("file_id"), str) and part.get("file_id"):
                 return dict(part)
@@ -597,25 +737,24 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
             mime_type, data_base64 = self._decode_data_url(image_url)
             payload_bytes = self._decode_base64_bytes(data_base64, field_name="input_image.image_url")
-            source_content = source_override.get("content") if isinstance(source_override, dict) else {}
             filename = source_content.get("filename") if isinstance(source_content, dict) else None
             if not isinstance(filename, str) or not filename:
                 filename = self._default_filename_for_mime(mime_type, "attachment-image")
 
+            upload_ref = self._upload_attachment_bytes(
+                client=client,
+                filename=filename,
+                mime_type=mime_type,
+                payload_bytes=payload_bytes,
+                purpose="vision",
+                timeout=timeout,
+                upload_cache=upload_cache,
+            )
             uploaded = {
                 "type": "input_image",
-                "file_id": self._upload_attachment_bytes(
-                    client=client,
-                    filename=filename,
-                    mime_type=mime_type,
-                    payload_bytes=payload_bytes,
-                    purpose="vision",
-                    timeout=timeout,
-                    upload_cache=upload_cache,
-                ),
+                "file_id": upload_ref["file_id"],
             }
-            detail = part.get("detail")
-            if isinstance(detail, str) and detail:
+            if detail is not None:
                 uploaded["detail"] = detail
             return uploaded
 
@@ -645,20 +784,20 @@ class OpenAIResponsesProvider(ProviderPlugin):
                     "[openai_responses_provider] input_file attachment requires file_data or data URL for upload"
                 )
 
+            upload_ref = self._upload_attachment_bytes(
+                client=client,
+                filename=filename,
+                mime_type=mime_type,
+                payload_bytes=payload_bytes,
+                purpose="user_data",
+                timeout=timeout,
+                upload_cache=upload_cache,
+            )
             uploaded = {
                 "type": "input_file",
-                "file_id": self._upload_attachment_bytes(
-                    client=client,
-                    filename=filename,
-                    mime_type=mime_type,
-                    payload_bytes=payload_bytes,
-                    purpose="user_data",
-                    timeout=timeout,
-                    upload_cache=upload_cache,
-                ),
+                "file_id": upload_ref["file_id"],
             }
-            detail = part.get("detail")
-            if isinstance(detail, str) and detail:
+            if detail is not None:
                 uploaded["detail"] = detail
             return uploaded
 
@@ -668,10 +807,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
         self,
         native_messages: List[Dict[str, Any]],
         *,
+        state: Dict[str, Any],
         client: Any,
         timeout: float,
         upload_cache: Dict[str, str],
         persist_uploaded_refs: bool = False,
+        force_reupload: bool = False,
     ) -> List[Dict[str, Any]]:
         rewritten: List[Dict[str, Any]] = []
         for item in native_messages:
@@ -693,11 +834,13 @@ class OpenAIResponsesProvider(ProviderPlugin):
                     continue
                 next_part = self._uploaded_content_part(
                     part,
+                    state=state,
                     source_override=source_map.get(index),
                     uploaded_override=uploaded_map.get(index),
                     client=client,
                     timeout=timeout,
                     upload_cache=upload_cache,
+                    force_reupload=force_reupload,
                 )
                 changed = changed or next_part != part
                 next_content.append(next_part)
@@ -724,6 +867,17 @@ class OpenAIResponsesProvider(ProviderPlugin):
             else:
                 rewritten.append(dict(item))
         return rewritten
+
+    def _is_attachment_reference_error(self, exc: Exception) -> bool:
+        message = str(exc).lower()
+        patterns = (
+            "no such file",
+            "file not found",
+            "file has expired",
+            "expired file",
+            "invalid file",
+        )
+        return any(pattern in message for pattern in patterns)
 
     def _extract_url_citations(
         self,
@@ -997,13 +1151,13 @@ class OpenAIResponsesProvider(ProviderPlugin):
                             continue
 
                         if normalized_part.get("type") == "image":
-                            native_part = self._image_part_to_input_image(part.get("content"))
+                            native_part = self._image_part_to_input_image(part.get("content"), state)
                         else:
                             if self._attachment_upload_mode(state) != _ATTACHMENT_UPLOAD_MODE_UPLOAD:
                                 raise ValueError(
                                     "[openai_responses_provider] pdf multipartContent requires attachment_upload_mode=upload_before_send"
                                 )
-                            native_part = self._pdf_part_to_input_file(part.get("content"))
+                            native_part = self._pdf_part_to_input_file(part.get("content"), state)
 
                         parts.append(native_part)
                         attachment_sources.append(
@@ -1456,12 +1610,14 @@ class OpenAIResponsesProvider(ProviderPlugin):
         if self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD:
             request_history = self._prepare_uploaded_native_messages(
                 request_history,
+                state=state,
                 client=client,
                 timeout=timeout,
                 upload_cache=upload_cache,
             )
             self._prepare_uploaded_native_messages(
                 native_messages,
+                state=state,
                 client=client,
                 timeout=timeout,
                 upload_cache=upload_cache,
@@ -1477,7 +1633,38 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 timeout=timeout,
             )
         except Exception as exc:
-            raise RuntimeError(f"OpenAI Responses call failed: {exc}") from exc
+            if (
+                self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD
+                and self._is_attachment_reference_error(exc)
+            ):
+                request_history = self._prepare_uploaded_native_messages(
+                    request_history,
+                    state=state,
+                    client=client,
+                    timeout=timeout,
+                    upload_cache=upload_cache,
+                    force_reupload=True,
+                )
+                self._prepare_uploaded_native_messages(
+                    native_messages,
+                    state=state,
+                    client=client,
+                    timeout=timeout,
+                    upload_cache=upload_cache,
+                    persist_uploaded_refs=True,
+                    force_reupload=True,
+                )
+                retry_input_items = [self._sanitize_input_item(item) for item in request_history]
+                try:
+                    sdk_response = request_client.responses.create(  # type: ignore[union-attr]
+                        **{**payload, "input": retry_input_items, "stream": False},
+                        extra_headers=extra_headers,
+                        timeout=timeout,
+                    )
+                except Exception as retry_exc:
+                    raise RuntimeError(f"OpenAI Responses call failed: {retry_exc}") from retry_exc
+            else:
+                raise RuntimeError(f"OpenAI Responses call failed: {exc}") from exc
 
         response_obj = self._response_to_dict(sdk_response)
 
@@ -1529,12 +1716,14 @@ class OpenAIResponsesProvider(ProviderPlugin):
         if self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD:
             request_history = self._prepare_uploaded_native_messages(
                 request_history,
+                state=state,
                 client=client,
                 timeout=timeout,
                 upload_cache=upload_cache,
             )
             self._prepare_uploaded_native_messages(
                 native_messages,
+                state=state,
                 client=client,
                 timeout=timeout,
                 upload_cache=upload_cache,
@@ -1551,7 +1740,38 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 timeout=timeout,
             )
         except Exception as exc:
-            raise RuntimeError(f"OpenAI Responses stream failed: {exc}") from exc
+            if (
+                self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD
+                and self._is_attachment_reference_error(exc)
+            ):
+                request_history = self._prepare_uploaded_native_messages(
+                    request_history,
+                    state=state,
+                    client=client,
+                    timeout=timeout,
+                    upload_cache=upload_cache,
+                    force_reupload=True,
+                )
+                self._prepare_uploaded_native_messages(
+                    native_messages,
+                    state=state,
+                    client=client,
+                    timeout=timeout,
+                    upload_cache=upload_cache,
+                    persist_uploaded_refs=True,
+                    force_reupload=True,
+                )
+                retry_input_items = [self._sanitize_input_item(item) for item in request_history]
+                try:
+                    sdk_stream = request_client.responses.create(  # type: ignore[union-attr]
+                        **{**payload, "input": retry_input_items, "stream": True},
+                        extra_headers=extra_headers,
+                        timeout=timeout,
+                    )
+                except Exception as retry_exc:
+                    raise RuntimeError(f"OpenAI Responses stream failed: {retry_exc}") from retry_exc
+            else:
+                raise RuntimeError(f"OpenAI Responses stream failed: {exc}") from exc
 
         try:
             if hasattr(sdk_stream, "__enter__") and hasattr(sdk_stream, "__exit__"):

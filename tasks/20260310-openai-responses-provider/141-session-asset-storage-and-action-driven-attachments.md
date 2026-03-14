@@ -416,3 +416,40 @@ Current intentional limits after Stage 1:
 1. The provider send path does not consume `asset_ref` yet.
 2. OpenAI-side upload caching/reupload logic is still in the provider and has not been refactored into helper modules yet.
 3. Mobile/desktop background upload UX and sent-message attachment preview continuity are still pending later stages.
+
+## Stage 2 completion notes (added during completion)
+
+Stage 2 landed the backend `asset_ref` send path and local-asset-backed OpenAI upload reuse:
+
+1. Added `openai_responses_attachment_assets.py` to centralize session-asset-ref parsing plus OpenAI provider-ref merging/reuse checks.
+2. Decorated effective runtime request configs with the application-owned session asset store so provider send/add-message flows can resolve `asset_ref` attachments without changing the public API.
+3. Updated the `openai_responses` provider so image/PDF `multipartContent` parts with `content.asset_ref` resolve against the local session asset store and normalize into the same native inline shapes used by the existing attachment path.
+4. Extended the existing upload-before-send path so it reuses cached OpenAI `file_id` references from the local asset manifest, updates the manifest after fresh uploads, and retries once with re-upload if OpenAI rejects a stale cached file reference.
+5. Preserved native-history replay by continuing to keep original multipart attachment source entries in `_openai_responses_attachment_sources`, which now round-trip `asset_ref`-backed attachments correctly.
+6. Added an application-level regression test proving the action-store -> add message with `asset_ref` -> send request path works end-to-end and reuses the cached upload on a later request.
+7. Added one guarded live OpenAI integration test for an `asset_ref`-backed image attachment stored locally and sent through the real Responses API.
+
+Files touched:
+
+1. `plugins/openai_responses/src/openai_responses_plugins/openai_responses_attachment_assets.py`
+2. `plugins/openai_responses/src/openai_responses_plugins/openai_responses_provider.py`
+3. `core/python/agent_app/application_future.py`
+4. `application/python/agent_terminal_app/server.py`
+5. `plugins/openai_responses/tests/test_openai_responses_provider_unit.py`
+6. `plugins/openai_responses/tests/test_openai_responses_native_history_regressions.py`
+7. `application/python/tests/test_openai_responses_session_asset_send_path.py`
+8. `plugins/openai_responses/tests/test_openai_responses_provider_integration.py`
+
+Tests run:
+
+1. `pytest plugins/openai_responses/tests/test_openai_responses_provider_unit.py -q` -> `54 passed`
+2. `pytest plugins/openai_responses/tests/test_openai_responses_native_history_regressions.py -q` -> `6 passed`
+3. `pytest application/python/tests/test_openai_responses_attachment_actions_endpoints.py -q` -> `1 passed`
+4. `pytest application/python/tests/test_openai_responses_session_asset_send_path.py -q` -> `1 passed`
+5. `pytest plugins/openai_responses/tests/test_openai_responses_provider_integration.py -q -k session_asset_image_real_api` -> `1 passed, 7 deselected`
+
+Current intentional limits after Stage 2:
+
+1. The OpenAI file-cache / asset-resolution logic is still partially inside `openai_responses_provider.py`; a later cleanup pass should move more of that orchestration into dedicated helpers.
+2. Mobile and desktop still use inline composer attachments; background upload UX, send blocking, and sent-message preview continuity for `asset_ref` attachments are still pending.
+3. There is not yet a dedicated server/frontend asset preview endpoint for rendering thumbnails of stored attachments in sent messages.

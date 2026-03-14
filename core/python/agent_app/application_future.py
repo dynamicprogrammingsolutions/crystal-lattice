@@ -452,12 +452,32 @@ class AgentApplication:
         base_cfg = self._get_agent_base_config(agent_id)
         enabled_ids = self._enabled_plugin_ids_for_session(agent_id, metadata)
         effective_overrides = self._effective_overrides(metadata, overrides)
-        effective_config = resolve_request_config(base_cfg, effective_overrides)
+        effective_config = self._decorate_runtime_config(
+            resolve_request_config(base_cfg, effective_overrides)
+        )
         core = self._build_core_with_enabled_ids(
             enabled_ids,
             selected_provider_config=effective_config,
         )
         return core, base_cfg, effective_config
+
+    def _decorate_runtime_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            **config,
+            "_session_asset_store": self._session_asset_store,
+        }
+
+    def resolve_effective_config(
+        self,
+        base_config: Dict[str, Any],
+        session: Session,
+        overrides: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        effective_overrides = self._effective_overrides(metadata, overrides)
+        return self._decorate_runtime_config(
+            resolve_request_config(base_config, effective_overrides)
+        )
 
     @staticmethod
     def _action_matches_trigger(action: Dict[str, Any], lifecycle: str) -> bool:
@@ -557,9 +577,11 @@ class AgentApplication:
                 overrides,
             )
         else:
-            metadata = current_session.metadata if isinstance(current_session.metadata, dict) else {}
-            effective_overrides = self._effective_overrides(metadata, overrides)
-            effective_config = resolve_request_config(base_config, effective_overrides)
+            effective_config = self.resolve_effective_config(
+                base_config,
+                current_session,
+                overrides,
+            )
 
         results: List[Dict[str, Any]] = []
 
@@ -1261,7 +1283,7 @@ class AgentApplication:
             overrides = metadata.get("overrides")
             if not isinstance(overrides, dict):
                 overrides = {}
-            effective_config = resolve_request_config(base_config, overrides)
+            effective_config = self.resolve_effective_config(base_config, session, overrides)
 
             action_context = dict(context) if isinstance(context, dict) else {}
             action_context.setdefault("application", self)
@@ -1593,13 +1615,7 @@ class AgentApplication:
             overrides=overrides,
             context=request_context,
         )
-        config = resolve_request_config(
-            base_config,
-            self._effective_overrides(
-                session.metadata if isinstance(session.metadata, dict) else {},
-                overrides,
-            ),
-        )
+        config = self.resolve_effective_config(base_config, session, overrides)
 
         def _is_cancelled() -> bool:
             return rid in self._cancelled_requests

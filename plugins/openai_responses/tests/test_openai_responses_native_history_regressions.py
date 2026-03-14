@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import base64
 from typing import Any, Dict, List
 
+from agent_app.session_assets import FilesystemSessionAssetStore
 from agent_core import AgentCore
 
 from openai_responses_plugins.openai_responses_attachments_extension import (
@@ -544,6 +546,78 @@ def test_uploaded_attachment_history_slice_and_fork_keep_coherent_native_segment
                 "url": "data:image/png;base64,Zm9v",
                 "mime_type": "image/png",
                 "filename": "one.png",
+            },
+            "metadata": {},
+        }
+    ]
+
+
+def test_session_asset_attachment_history_rebuilds_original_asset_ref(tmp_path) -> None:
+    _ScriptedUploadNativeHistoryProvider.last_client = None
+    _ScriptedUploadNativeHistoryProvider.scripted_payloads = [
+        {
+            "id": "resp_asset_1",
+            "output": [
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "Asset processed"}],
+                }
+            ],
+        }
+    ]
+
+    asset_store = FilesystemSessionAssetStore(tmp_path / "session_assets")
+    image_record = asset_store.store_base64(
+        session_id="sess_asset",
+        attachment_type="image",
+        filename="square.png",
+        mime_type="image/png",
+        data_base64=base64.b64encode(b"image-bytes").decode("ascii"),
+    )
+
+    config = {
+        **_config(),
+        "attachment_upload_mode": "upload_before_send",
+        "_session_asset_store": asset_store,
+    }
+    core = _build_upload_core()
+
+    session = core.create_session()
+    session = core.add_message(
+        session,
+        "user",
+        "Review the stored image.",
+        config=config,
+        multipart_content=[
+            {
+                "type": "image",
+                "content": {
+                    "asset_ref": image_record.asset_ref(),
+                    "mime_type": image_record.mime_type,
+                    "filename": image_record.filename,
+                },
+                "metadata": {},
+            }
+        ],
+    )
+    session, responses = core.send_request(session, config)
+
+    assert responses[-1]["content"] == "Asset processed"
+    native_messages = (session.metadata or {}).get("native_messages") or []
+    user_message = native_messages[0]
+    assert user_message["_metadata"]["_openai_responses_uploaded_attachments"] == [
+        {"content_index": 1, "uploaded_part": {"type": "input_image", "file_id": "file_1"}}
+    ]
+
+    rebuilt_user = session.messages[0]
+    assert rebuilt_user.multipart_content == [
+        {
+            "type": "image",
+            "content": {
+                "asset_ref": image_record.asset_ref(),
+                "mime_type": "image/png",
+                "filename": "square.png",
             },
             "metadata": {},
         }

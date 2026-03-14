@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import base64
 import json
 from pathlib import Path
 from typing import Any, Dict
 
 import pytest
 
+from agent_app.session_assets import FilesystemSessionAssetStore
 from agent_core import AgentCore
 import openai_responses_plugins.openai_responses_provider as provider_module
 from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider
@@ -171,6 +173,26 @@ class _UploadStreamingFixtureClient(_FixtureStreamingClient):
     def __init__(self, events: list[Dict[str, Any]]) -> None:
         super().__init__(events)
         self.files = _FixtureFilesResource()
+
+
+class _RetryOnceResponsesResource:
+    def __init__(self, payload: Dict[str, Any]) -> None:
+        self._payload = payload
+        self.calls: list[Dict[str, Any]] = []
+        self._failed = False
+
+    def create(self, **kwargs: Any) -> _FixtureResponse:
+        self.calls.append(kwargs)
+        if not self._failed:
+            self._failed = True
+            raise RuntimeError("No such file: file_stale")
+        return _FixtureResponse(self._payload)
+
+
+class _RetryOnceUploadFixtureClient(_UploadFixtureClient):
+    def __init__(self, payload: Dict[str, Any]) -> None:
+        super().__init__(payload)
+        self.responses = _RetryOnceResponsesResource(payload)
 
 
 class _ErrorResponsesResource:
@@ -1324,6 +1346,286 @@ def test_call_api_upload_mode_reuses_cached_upload_for_request_and_history() -> 
     provider.call_api(input_items, state)
 
     assert len(fake_client.files.calls) == 1
+
+
+def test_to_native_messages_resolves_session_asset_refs_to_inline_parts(tmp_path: Path) -> None:
+    provider = OpenAIResponsesProvider()
+    asset_store = FilesystemSessionAssetStore(tmp_path / "session_assets")
+    image_record = asset_store.store_base64(
+        session_id="sess_asset",
+        attachment_type="image",
+        filename="square.png",
+        mime_type="image/png",
+        data_base64=base64.b64encode(b"image-bytes").decode("ascii"),
+    )
+    pdf_record = asset_store.store_base64(
+        session_id="sess_asset",
+        attachment_type="pdf",
+        filename="brief.pdf",
+        mime_type="application/pdf",
+        data_base64=base64.b64encode(b"pdf-bytes").decode("ascii"),
+    )
+
+    native = provider.to_native_messages(
+        [
+            {
+                "role": "user",
+                "content": "review these",
+                "multipartContent": [
+                    {
+                        "type": "image",
+                        "content": {
+                            "asset_ref": image_record.asset_ref(),
+                            "filename": image_record.filename,
+                            "mime_type": image_record.mime_type,
+                        },
+                        "metadata": {},
+                    },
+                    {
+                        "type": "pdf",
+                        "content": {
+                            "asset_ref": pdf_record.asset_ref(),
+                            "filename": pdf_record.filename,
+                            "mime_type": pdf_record.mime_type,
+                        },
+                        "metadata": {},
+                    },
+                ],
+            }
+        ],
+        {
+            "config": {
+                "model": "gpt-5-mini",
+                "api_key": "test_key",
+                "base_url": "https://api.openai.com/v1",
+                "timeout": 12,
+                "_session_asset_store": asset_store,
+            },
+            "openai_responses_attachments": {"attachment_upload_mode": "upload_before_send"},
+        },
+    )
+
+    assert native == [
+        {
+            "type": "message",
+            "role": "user",
+            "content": [
+                {"type": "input_text", "text": "review these"},
+                {
+                    "type": "input_image",
+                    "image_url": "data:image/png;base64," + base64.b64encode(b"image-bytes").decode("ascii"),
+                },
+                {
+                    "type": "input_file",
+                    "file_data": base64.b64encode(b"pdf-bytes").decode("ascii"),
+                    "filename": "brief.pdf",
+                },
+            ],
+            "_metadata": {
+                "_openai_responses_attachment_sources": [
+                    {
+                        "content_index": 1,
+                        "multipart_part": {
+                            "type": "image",
+                            "content": {
+                                "asset_ref": image_record.asset_ref(),
+                                "filename": "square.png",
+                                "mime_type": "image/png",
+                            },
+                            "metadata": {},
+                        },
+                    },
+                    {
+                        "content_index": 2,
+                        "multipart_part": {
+                            "type": "pdf",
+                            "content": {
+                                "asset_ref": pdf_record.asset_ref(),
+                                "filename": "brief.pdf",
+                                "mime_type": "application/pdf",
+                            },
+                            "metadata": {},
+                        },
+                    },
+                ]
+            },
+        }
+    ]
+
+
+def test_call_api_upload_mode_uses_cached_session_asset_provider_ref_without_reupload(
+    tmp_path: Path,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    fixture = _load_fixture()
+    fake_client = _UploadFixtureClient(fixture)
+    asset_store = FilesystemSessionAssetStore(tmp_path / "session_assets")
+    image_record = asset_store.store_base64(
+        session_id="sess_asset",
+        attachment_type="image",
+        filename="square.png",
+        mime_type="image/png",
+        data_base64=base64.b64encode(b"image-bytes").decode("ascii"),
+        provider_refs={
+            "openai_responses": {
+                "status": "uploaded",
+                "file_id": "file_existing",
+                "purpose": "vision",
+                "filename": "square.png",
+                "mime_type": "image/png",
+            }
+        },
+    )
+
+    input_items = provider.to_native_messages(
+        [
+            {
+                "role": "user",
+                "content": "review image",
+                "multipartContent": [
+                    {
+                        "type": "image",
+                        "content": {
+                            "asset_ref": image_record.asset_ref(),
+                            "filename": image_record.filename,
+                            "mime_type": image_record.mime_type,
+                        },
+                        "metadata": {},
+                    }
+                ],
+            }
+        ],
+        {
+            "config": {
+                "model": "gpt-5-mini",
+                "api_key": "test_key",
+                "base_url": "https://api.openai.com/v1",
+                "timeout": 12,
+                "_session_asset_store": asset_store,
+            },
+            "openai_responses_attachments": {"attachment_upload_mode": "upload_before_send"},
+        },
+    )
+
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 12,
+            "_session_asset_store": asset_store,
+        },
+        "openai_responses_attachments": {"attachment_upload_mode": "upload_before_send"},
+        "client": fake_client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 12,
+        },
+    }
+
+    provider.call_api(input_items, state)
+
+    sent_content = fake_client.responses.calls[0]["input"][0]["content"]
+    assert sent_content == [
+        {"type": "input_text", "text": "review image"},
+        {"type": "input_image", "file_id": "file_existing"},
+    ]
+    assert fake_client.files.calls == []
+    assert asset_store.load("sess_asset", image_record.asset_id).provider_refs == image_record.provider_refs
+
+
+def test_call_api_upload_mode_reuploads_session_asset_when_cached_ref_is_rejected(
+    tmp_path: Path,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    fixture = _load_fixture()
+    fake_client = _RetryOnceUploadFixtureClient(fixture)
+    asset_store = FilesystemSessionAssetStore(tmp_path / "session_assets")
+    image_record = asset_store.store_base64(
+        session_id="sess_asset",
+        attachment_type="image",
+        filename="square.png",
+        mime_type="image/png",
+        data_base64=base64.b64encode(b"image-bytes").decode("ascii"),
+        provider_refs={
+            "openai_responses": {
+                "status": "uploaded",
+                "file_id": "file_stale",
+                "purpose": "vision",
+                "filename": "square.png",
+                "mime_type": "image/png",
+            }
+        },
+    )
+
+    input_items = provider.to_native_messages(
+        [
+            {
+                "role": "user",
+                "content": "review image",
+                "multipartContent": [
+                    {
+                        "type": "image",
+                        "content": {
+                            "asset_ref": image_record.asset_ref(),
+                            "filename": image_record.filename,
+                            "mime_type": image_record.mime_type,
+                        },
+                        "metadata": {},
+                    }
+                ],
+            }
+        ],
+        {
+            "config": {
+                "model": "gpt-5-mini",
+                "api_key": "test_key",
+                "base_url": "https://api.openai.com/v1",
+                "timeout": 12,
+                "_session_asset_store": asset_store,
+            },
+            "openai_responses_attachments": {"attachment_upload_mode": "upload_before_send"},
+        },
+    )
+
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 12,
+            "_session_asset_store": asset_store,
+        },
+        "openai_responses_attachments": {"attachment_upload_mode": "upload_before_send"},
+        "client": fake_client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 12,
+        },
+    }
+
+    _partials, _finals, full_native, _new_state = provider.call_api(input_items, state)
+
+    assert len(fake_client.responses.calls) == 2
+    assert fake_client.responses.calls[0]["input"][0]["content"][1] == {
+        "type": "input_image",
+        "file_id": "file_stale",
+    }
+    assert fake_client.responses.calls[1]["input"][0]["content"][1] == {
+        "type": "input_image",
+        "file_id": "file_1",
+    }
+    assert len(fake_client.files.calls) == 1
+    assert fake_client.files.calls[0]["purpose"] == "vision"
+    assert full_native[0]["_metadata"]["_openai_responses_uploaded_attachments"] == [
+        {"content_index": 1, "uploaded_part": {"type": "input_image", "file_id": "file_1"}}
+    ]
+
+    updated_record = asset_store.load("sess_asset", image_record.asset_id)
+    assert updated_record.provider_refs["openai_responses"]["file_id"] == "file_1"
+    assert updated_record.provider_refs["openai_responses"]["purpose"] == "vision"
 
 
 def test_initialize_request_does_not_upload_attachments() -> None:

@@ -233,10 +233,33 @@ def _load_session_ctx_for_send(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def _merged_session_overrides(
+    session: Session,
+    request_overrides: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    metadata = session.metadata if isinstance(session.metadata, dict) else {}
+    stored_val = metadata.get("overrides")
+    stored_overrides: Dict[str, Any] = (
+        stored_val if isinstance(stored_val, dict) else {}
+    )
+    http_overrides = request_overrides if isinstance(request_overrides, dict) else {}
+    return {**stored_overrides, **http_overrides}
+
+
+def _effective_session_config(
+    app_instance: AgentApplication,
+    base_config: Any,
+    session: Session,
+    request_overrides: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    cfg = base_config if isinstance(base_config, dict) else {}
+    return app_instance.resolve_effective_config(cfg, session, request_overrides)
+
+
 def _append_message_to_session_locked(
     app_instance: AgentApplication,
     core: Any,
-    base_config: Any,
+    config: Any,
     session: Session,
     *,
     role: str,
@@ -249,7 +272,7 @@ def _append_message_to_session_locked(
         role,
         content,
         metadata,
-        base_config,
+        config,
         multipart_content=multipart_content,
     )
     app_instance.save_session(new_session)
@@ -908,13 +931,7 @@ def _run_send_request_background(
         # mirrors the terminal application's behaviour where
         # `session.metadata["overrides"]` is always applied and
         # explicit overrides can further refine it.
-        metadata = session.metadata if isinstance(session.metadata, dict) else {}
-        stored_val = metadata.get("overrides")
-        stored_overrides: Dict[str, Any] = (
-            stored_val if isinstance(stored_val, dict) else {}
-        )
-        http_overrides = overrides if isinstance(overrides, dict) else {}
-        merged_overrides: Dict[str, Any] = {**stored_overrides, **http_overrides}
+        merged_overrides = _merged_session_overrides(session, overrides)
 
         final_session_dict: Optional[Dict[str, Any]] = session.to_dict()
         final_messages: List[Dict[str, Any]] = []
@@ -1127,10 +1144,11 @@ def add_message(
                 raise KeyError(f"Session {session_id!r} not found")
 
             core, base_config, session = ctx
+            effective_config = _effective_session_config(app_instance, base_config, session)
             new_session = _append_message_to_session_locked(
                 app_instance,
                 core,
-                base_config,
+                effective_config,
                 session,
                 role=normalized_role,
                 content=content,
@@ -1140,6 +1158,8 @@ def add_message(
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     response = {"session": new_session.to_dict()}
     _idempotency_store(scope, idempotency_key, payload, response)
@@ -1710,48 +1730,57 @@ def send_message(
     if cached is not None:
         return cached
 
-    with app_instance.acquire_session_lock(session_id):
-        cached = _idempotency_maybe_replay(
-            scope, effective_idempotency_key, idempotency_payload
-        )
-        if cached is not None:
-            return cached
-
-        core, base_config, session = _load_session_ctx_for_send(
-            app_instance,
-            session_id,
-            overrides=overrides,
-        )
-
-        request_id = _generate_request_id(app_instance)
-        existing = _reserve_active_send_request_id(session_id, request_id)
-        if existing is not None:
-            raise HTTPException(
-                status_code=409,
-                detail={"status": "already_running", "request_id": existing},
+    try:
+        with app_instance.acquire_session_lock(session_id):
+            cached = _idempotency_maybe_replay(
+                scope, effective_idempotency_key, idempotency_payload
             )
+            if cached is not None:
+                return cached
 
-        try:
-            _append_message_to_session_locked(
+            core, base_config, session = _load_session_ctx_for_send(
                 app_instance,
-                core,
-                base_config,
-                session,
-                role=normalized_role,
-                content=content,
-                metadata=metadata,
-                multipart_content=multipart_content,
+                session_id,
+                overrides=overrides,
             )
-        except Exception:
-            _clear_active_send_request_id(session_id, request_id)
-            raise
 
-        response = {
-            "status": "started",
-            "request_id": request_id,
-            "session_id": session_id,
-        }
-        _idempotency_store(scope, effective_idempotency_key, idempotency_payload, response)
+            request_id = _generate_request_id(app_instance)
+            existing = _reserve_active_send_request_id(session_id, request_id)
+            if existing is not None:
+                raise HTTPException(
+                    status_code=409,
+                    detail={"status": "already_running", "request_id": existing},
+                )
+
+            try:
+                effective_config = _effective_session_config(
+                    app_instance,
+                    base_config,
+                    session,
+                    overrides,
+                )
+                _append_message_to_session_locked(
+                    app_instance,
+                    core,
+                    effective_config,
+                    session,
+                    role=normalized_role,
+                    content=content,
+                    metadata=metadata,
+                    multipart_content=multipart_content,
+                )
+            except Exception:
+                _clear_active_send_request_id(session_id, request_id)
+                raise
+
+            response = {
+                "status": "started",
+                "request_id": request_id,
+                "session_id": session_id,
+            }
+            _idempotency_store(scope, effective_idempotency_key, idempotency_payload, response)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     threading.Thread(
         target=_run_send_request_background,

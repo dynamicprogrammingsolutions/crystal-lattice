@@ -8,6 +8,7 @@ import subprocess
 import pytest
 from dotenv import load_dotenv
 
+from agent_app.session_assets import FilesystemSessionAssetStore
 from agent_core import AgentCore
 from openai_responses_plugins.openai_responses_attachments_extension import (
     OpenAIResponsesAttachmentsExtension,
@@ -432,6 +433,73 @@ def test_openai_responses_uploaded_pdf_real_api(
             and isinstance((entry.get("uploaded_part") or {}).get("file_id"), str)
             and (entry.get("uploaded_part") or {}).get("type") == "input_file"
             for entry in (item.get("_metadata") or {}).get("_openai_responses_uploaded_attachments", [])
+        )
+        for item in native_history
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.openai
+def test_openai_responses_session_asset_image_real_api(
+    ensure_openai_api_key: str,
+    tmp_path: Path,
+) -> None:
+    core = _build_attachment_core()
+    asset_store = FilesystemSessionAssetStore(tmp_path / "session_assets")
+
+    config = {
+        **_upload_attachment_test_config(ensure_openai_api_key),
+        "_session_asset_store": asset_store,
+    }
+    image_path = _generate_red_square_png(tmp_path)
+    image_record = asset_store.store_base64(
+        session_id="sess_asset_image",
+        attachment_type="image",
+        filename=image_path.name,
+        mime_type="image/png",
+        data_base64=base64.b64encode(image_path.read_bytes()).decode("ascii"),
+    )
+
+    session = core.create_session()
+    session = core.add_message(
+        session,
+        "user",
+        (
+            "Reply with exactly ASSET_IMAGE_OK if the attached stored image is predominantly "
+            "a solid red square. Otherwise reply with exactly NOT_RED."
+        ),
+        config=config,
+        multipart_content=[
+            {
+                "type": "image",
+                "content": {
+                    "asset_ref": image_record.asset_ref(),
+                    "mime_type": image_record.mime_type,
+                    "filename": image_record.filename,
+                },
+                "metadata": {},
+            }
+        ],
+    )
+
+    new_session, responses = core.send_request(session, config)
+
+    assert responses
+    assert "ASSET_IMAGE_OK" in responses[-1]["content"]
+
+    updated_record = asset_store.load(image_record.session_id, image_record.asset_id)
+    assert isinstance(updated_record.provider_refs["openai_responses"]["file_id"], str)
+
+    native_history = (new_session.metadata or {}).get("native_messages")
+    assert isinstance(native_history, list)
+    assert any(
+        isinstance(item, dict)
+        and item.get("type") == "message"
+        and isinstance(item.get("_metadata"), dict)
+        and any(
+            isinstance(entry, dict)
+            and (entry.get("multipart_part") or {}).get("content", {}).get("asset_ref") == image_record.asset_ref()
+            for entry in (item.get("_metadata") or {}).get("_openai_responses_attachment_sources", [])
         )
         for item in native_history
     )
