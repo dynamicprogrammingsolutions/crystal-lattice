@@ -15,6 +15,7 @@ from .openai_responses_pricing import estimate_usage_cost
 
 
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
+_RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
 
 
 class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
@@ -55,6 +56,12 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                 "ui_type": "message_footer",
                 "data": "metadata.usage_completion_tokens_formatted",
                 "template": "completion: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_service_tier",
+                "template": "tier: {{data}}",
+                "condition": {"path": "metadata.usage_service_tier", "eq": "flex"},
             },
             {
                 "ui_type": "message_footer",
@@ -144,6 +151,19 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         return None
 
     @staticmethod
+    def _service_tier_from_items(items: List[Dict[str, Any]]) -> Optional[str]:
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            internal = item.get("_metadata")
+            if not isinstance(internal, dict):
+                continue
+            service_tier = internal.get(_RAW_SERVICE_TIER_METADATA_KEY)
+            if isinstance(service_tier, str) and service_tier:
+                return service_tier
+        return None
+
+    @staticmethod
     def _attach_internal_md(item: Dict[str, Any], extra: Dict[str, Any]) -> Dict[str, Any]:
         base = item.get("_metadata")
         base_md = base if isinstance(base, dict) else {}
@@ -190,6 +210,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         config = state.get("config") if isinstance(state, dict) else None
         model = config.get("model") if isinstance(config, dict) else None
         snapshot_path = config.get("pricing_snapshot_path") if isinstance(config, dict) else None
+        service_tier = self._service_tier_from_items(current_items)
 
         input_tokens = usage.get("input_tokens")
         if isinstance(input_tokens, (int, float)):
@@ -212,6 +233,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                 total_cost = estimate_usage_cost(
                     usage,
                     model=model,
+                    service_tier=service_tier,
                     snapshot_path=snapshot_path if isinstance(snapshot_path, str) else None,
                 )
             except Exception:
@@ -285,6 +307,9 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                 f"{int(usage_turn_reasoning_cumulative):,}"
             ),
         }
+
+        if isinstance(service_tier, str) and service_tier:
+            extra_md["usage_service_tier"] = service_tier
 
         if prompt_tokens_str is not None:
             extra_md["usage_prompt_tokens_formatted"] = prompt_tokens_str

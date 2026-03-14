@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Dict, List
 
 import pytest
@@ -70,6 +71,72 @@ def test_streaming_usage_attaches_openrouter_compatible_fields() -> None:
     native_md = new_native[0].get("_metadata") or {}
     assert native_md.get("usage") == usage
     assert RAW_USAGE_KEY not in native_md
+
+
+def test_streaming_usage_surfaces_flex_tier_and_uses_tier_pricing(tmp_path: Path) -> None:
+    ext = OpenAIResponsesUsageExtension()
+
+    snapshot_path = tmp_path / "pricing.json"
+    snapshot_path.write_text(
+        """
+{
+  "version": 2,
+  "fetched_at": "2026-03-14T00:00:00+00:00",
+  "source_base_url": "https://developers.openai.com/api/docs/pricing",
+  "models": {
+    "gpt-5-mini": {
+      "model": "gpt-5-mini",
+      "pricing": {
+        "input_per_1m": 0.25,
+        "cached_input_per_1m": 0.025,
+        "output_per_1m": 2.0
+      },
+      "service_tiers": {
+        "flex": {
+          "input_per_1m": 0.125,
+          "cached_input_per_1m": 0.0125,
+          "output_per_1m": 1.0
+        }
+      }
+    }
+  }
+}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    usage = {
+        "input_tokens": 1000,
+        "input_tokens_details": {"cached_tokens": 200},
+        "output_tokens": 100,
+    }
+    final_messages: List[Dict[str, Any]] = [
+        _assistant_output_item(
+            "hi",
+            response_id="resp_flex",
+            extra_metadata={"_openai_responses_service_tier": "flex"},
+        )
+    ]
+    native_messages: List[Dict[str, Any]] = list(final_messages)
+    native_chunk = {"type": "response.completed", "response": {"id": "resp_flex", "usage": usage}}
+
+    _partials, finals, _new_native, _state = ext.process_chunk(
+        native_chunk=native_chunk,
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=native_messages,
+        state={
+            "config": {
+                "model": "gpt-5-mini",
+                "pricing_snapshot_path": str(snapshot_path),
+            }
+        },
+    )
+
+    md = finals[0].get("_metadata") or {}
+    assert md.get("usage_service_tier") == "flex"
+    assert md.get("usage_total_cost") == pytest.approx(0.0002025, rel=1e-9)
+    assert md.get("usage_total_cost_formatted") == "$0.000202"
 
 
 def test_streaming_usage_marks_tool_call_turns_and_attaches_to_assistant_item() -> None:
@@ -194,8 +261,10 @@ def test_usage_ui_elements_match_openrouter_usage_fields() -> None:
         "metadata.usage_prompt_tokens_formatted",
         "metadata.usage_cached_tokens_formatted",
         "metadata.usage_completion_tokens_formatted",
+        "metadata.usage_service_tier",
         "metadata.usage_total_cost_formatted",
         "metadata.usage_turn_cost_cumulative_formatted",
         "metadata.usage_turn_reasoning_tokens_cumulative_formatted",
         "metadata.usage_total_cost_cumulative_formatted",
     ]
+    assert elements[3]["condition"] == {"path": "metadata.usage_service_tier", "eq": "flex"}

@@ -1,4 +1,4 @@
-"""Refresh the checked-in OpenAI pricing snapshot from official model docs."""
+"""Refresh the checked-in OpenAI pricing snapshot from official pricing pages."""
 
 # ruff: noqa: E402
 
@@ -21,14 +21,14 @@ if plugin_src_str not in sys.path:
     sys.path.insert(0, plugin_src_str)
 
 from openai_responses_plugins.openai_responses_pricing import (
-    DEFAULT_MODEL_DOC_SLUGS,
+    DEFAULT_PRICING_PAGE_URLS,
     build_snapshot_payload,
     default_snapshot_path,
-    extract_pricing_from_model_doc_html,
+    extract_visible_text_token_tier_pricing_from_page_html,
+    merge_pricing_entry,
 )
 
 
-DOC_BASE_URL = "https://developers.openai.com/api/docs/models"
 USER_AGENT = "openai-responses-pricing-refresh/1.0"
 
 
@@ -39,23 +39,21 @@ def _fetch_text(url: str) -> str:
         return response.read().decode(charset, errors="replace")
 
 
-def refresh_snapshot(models: Sequence[str], output_path: Path) -> Path:
+def refresh_snapshot(urls: Sequence[str], output_path: Path) -> Path:
     fetched_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-    model_entries = []
+    model_entries: dict[str, dict] = {}
 
-    for model in models:
-        source_url = f"{DOC_BASE_URL}/{model}"
+    for source_url in urls:
         try:
             html = _fetch_text(source_url)
-            model_entries.append(
-                extract_pricing_from_model_doc_html(
-                    html=html,
-                    model=model,
-                    source_url=source_url,
-                )
+            parsed_entries = extract_visible_text_token_tier_pricing_from_page_html(
+                html=html,
+                source_url=source_url,
             )
+            for model, entry in parsed_entries.items():
+                model_entries[model] = merge_pricing_entry(model_entries.get(model), entry)
         except (HTTPError, URLError, TimeoutError, ValueError, RuntimeError) as exc:
-            raise RuntimeError(f"failed to refresh pricing for {model} from {source_url}: {exc}") from exc
+            raise RuntimeError(f"failed to refresh pricing from {source_url}: {exc}") from exc
 
     existing_entries = []
     if output_path.exists():
@@ -64,15 +62,19 @@ def refresh_snapshot(models: Sequence[str], output_path: Path) -> Path:
         if isinstance(existing_models, dict):
             existing_entries = [entry for entry in existing_models.values() if isinstance(entry, dict)]
 
-    refreshed_models = {entry["model"] for entry in model_entries}
-    merged_entries = [
-        entry
-        for entry in existing_entries
-        if isinstance(entry.get("model"), str) and entry["model"] not in refreshed_models
-    ]
-    merged_entries.extend(model_entries)
+    merged_entries_by_model: dict[str, dict] = {}
+    for entry in existing_entries:
+        model = entry.get("model")
+        if isinstance(model, str) and model:
+            merged_entries_by_model[model] = entry
 
-    payload = build_snapshot_payload(fetched_at=fetched_at, model_entries=merged_entries)
+    for model, entry in model_entries.items():
+        merged_entries_by_model[model] = merge_pricing_entry(merged_entries_by_model.get(model), entry)
+
+    payload = build_snapshot_payload(
+        fetched_at=fetched_at,
+        model_entries=merged_entries_by_model.values(),
+    )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return output_path
@@ -89,17 +91,21 @@ def parse_args() -> argparse.Namespace:
         help="Where to write the pricing snapshot JSON.",
     )
     parser.add_argument(
-        "models",
-        nargs="*",
-        default=list(DEFAULT_MODEL_DOC_SLUGS),
-        help="Model doc slugs to refresh, e.g. gpt-5-mini gpt-4.1-mini. Explicit args replace only those models in the snapshot and keep other existing entries.",
+        "--url",
+        dest="urls",
+        action="append",
+        default=list(DEFAULT_PRICING_PAGE_URLS),
+        help=(
+            "Pricing page URL to scrape. May be provided multiple times; defaults scrape "
+            "the OpenAI pricing page variants used for visible tier rows."
+        ),
     )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    output_path = refresh_snapshot(models=args.models, output_path=args.output)
+    output_path = refresh_snapshot(urls=args.urls, output_path=args.output)
     print(f"Wrote pricing snapshot to {output_path}")
     return 0
 
