@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+import base64
+
+import pytest
+
+from agent_app.session_assets import FilesystemSessionAssetStore
+from agent_core import Session
+
 from openai_responses_plugins.openai_responses_attachments_extension import (
     OpenAIResponsesAttachmentsExtension,
 )
@@ -79,3 +86,123 @@ def test_attachment_extension_initialize_request_normalizes_state() -> None:
     assert state["openai_responses_attachments"] == {
         "attachment_upload_mode": "upload_before_send"
     }
+
+
+def test_attachment_extension_actions_are_exposed() -> None:
+    extension = OpenAIResponsesAttachmentsExtension()
+
+    actions = extension.get_actions({})
+
+    assert actions == [
+        {
+            "id": "store_attachment",
+            "label": "Store attachment",
+            "description": "Store one attachment as a session-owned asset.",
+            "inputs": {
+                "client_attachment_id": {"type": "string", "required": False},
+                "attachment_type": {"type": "string", "required": True},
+                "filename": {"type": "string", "required": True},
+                "mime_type": {"type": "string", "required": True},
+                "data_base64": {"type": "string", "required": True},
+            },
+        },
+        {
+            "id": "delete_attachment",
+            "label": "Delete attachment",
+            "description": "Delete a stored session-owned attachment asset.",
+            "inputs": {
+                "asset_id": {"type": "string", "required": True},
+            },
+        },
+    ]
+
+
+def test_store_attachment_action_persists_session_asset(tmp_path: Path) -> None:
+    extension = OpenAIResponsesAttachmentsExtension()
+    asset_store = FilesystemSessionAssetStore(tmp_path / "session_assets")
+    session = Session(session_id="sess_123", messages=[], metadata={})
+
+    result = extension.execute_action(
+        "store_attachment",
+        session,
+        [],
+        {
+            "client_attachment_id": "draft_1",
+            "attachment_type": "image",
+            "filename": "square.png",
+            "mime_type": "image/png",
+            "data_base64": base64.b64encode(b"png-bytes").decode("ascii"),
+        },
+        {"session_asset_store": asset_store},
+        {},
+    )
+
+    asset = result["attachment_asset"]
+    asset_ref = asset["asset_ref"]
+    asset_id = asset_ref["asset_id"]
+    stored = asset_store.load("sess_123", asset_id)
+
+    assert stored.filename == "square.png"
+    assert stored.mime_type == "image/png"
+    assert stored.provider_refs == {"openai_responses": {"status": "not_uploaded"}}
+    assert result["session_metadata"]["session_assets"][asset_id]["client_attachment_id"] == "draft_1"
+
+
+def test_delete_attachment_action_removes_session_asset(tmp_path: Path) -> None:
+    extension = OpenAIResponsesAttachmentsExtension()
+    asset_store = FilesystemSessionAssetStore(tmp_path / "session_assets")
+    stored = asset_store.store_base64(
+        session_id="sess_123",
+        attachment_type="pdf",
+        filename="brief.pdf",
+        mime_type="application/pdf",
+        data_base64=base64.b64encode(b"pdf-bytes").decode("ascii"),
+        provider_refs={"openai_responses": {"status": "not_uploaded"}},
+    )
+    session = Session(
+        session_id="sess_123",
+        messages=[],
+        metadata={
+            "session_assets": {
+                stored.asset_id: {
+                    **stored.public_descriptor(),
+                    "client_attachment_id": "draft_2",
+                }
+            }
+        },
+    )
+
+    result = extension.execute_action(
+        "delete_attachment",
+        session,
+        [],
+        {"asset_id": stored.asset_id},
+        {"session_asset_store": asset_store},
+        {},
+    )
+
+    assert result["deleted_attachment_asset"]["asset_ref"]["asset_id"] == stored.asset_id
+    assert result["session_metadata"]["session_assets"] == {}
+    with pytest.raises(FileNotFoundError):
+        asset_store.load("sess_123", stored.asset_id)
+
+
+def test_store_attachment_action_rejects_invalid_mime_type(tmp_path: Path) -> None:
+    extension = OpenAIResponsesAttachmentsExtension()
+    asset_store = FilesystemSessionAssetStore(tmp_path / "session_assets")
+    session = Session(session_id="sess_123", messages=[], metadata={})
+
+    with pytest.raises(ValueError, match=r"image/\* mime_type"):
+        extension.execute_action(
+            "store_attachment",
+            session,
+            [],
+            {
+                "attachment_type": "image",
+                "filename": "not-image.txt",
+                "mime_type": "text/plain",
+                "data_base64": base64.b64encode(b"x").decode("ascii"),
+            },
+            {"session_asset_store": asset_store},
+            {},
+        )

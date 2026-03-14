@@ -20,6 +20,7 @@ from .config import (
     resolve_request_config,
 )
 from .events import EventStore, InMemoryEventStore
+from .session_assets import FilesystemSessionAssetStore
 from .sessions import FilesystemSessionStore
 from .tool_loop import ToolLoopRunner
 from agent_core.utils import get_logger
@@ -183,7 +184,11 @@ class AgentApplication:
             wrapper.init(resolved_config)
             self._app_plugins[plugin_id] = wrapper
 
-        self._session_store = FilesystemSessionStore(Path(session_root), core)
+        session_root_path = Path(session_root)
+        self._session_store = FilesystemSessionStore(session_root_path, core)
+        self._session_asset_store = FilesystemSessionAssetStore(
+            session_root_path.parent / "session_assets"
+        )
         self._tool_loop_cfg = _ToolLoopConfig()
         self._cancelled_requests: set[str] = set()
 
@@ -1258,6 +1263,10 @@ class AgentApplication:
                 overrides = {}
             effective_config = resolve_request_config(base_config, overrides)
 
+            action_context = dict(context) if isinstance(context, dict) else {}
+            action_context.setdefault("application", self)
+            action_context.setdefault("session_asset_store", self._session_asset_store)
+
             try:
                 new_session, result = core.execute_session_action(
                     session,
@@ -1265,7 +1274,7 @@ class AgentApplication:
                     plugin_id,
                     action_id,
                     action_params,
-                    context=context,
+                    context=action_context,
                 )
             except AgentCore._SessionActionValidationError as exc:  # type: ignore[attr-defined]
                 raise self._ApplicationActionValidationError(
@@ -1359,6 +1368,9 @@ class AgentApplication:
             raise ValueError("session_id must be a non-empty string")
 
         return self._session_store.load(session_id)
+
+    def get_session_asset_store(self) -> FilesystemSessionAssetStore:
+        return self._session_asset_store
 
     def save_session(self, session: Session) -> None:
         """Persist a session using the configured session store."""

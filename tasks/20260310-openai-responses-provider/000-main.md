@@ -10,21 +10,24 @@ Short description: Create a new `openai_responses` plugin bundle using the OpenA
 4. `tasks/20260310-openai-responses-provider/040-provider-streaming-event-normalization-and-finalization.md`
 5. `tasks/20260310-openai-responses-provider/041-system-message-rendering-and-developer-role-followup.md`
 6. `tasks/20260310-openai-responses-provider/042-native-compaction-instruction-message-exclusion.md`
-7. `tasks/20260310-openai-responses-provider/050-tools-extension-responses-api.md`
-8. `tasks/20260310-openai-responses-provider/060-reasoning-extension-responses-api.md`
-9. `tasks/20260310-openai-responses-provider/061-openai-responses-native-conversion-and-reasoning-followup-regressions.md`
-10. `tasks/20260310-openai-responses-provider/062-cross-provider-agent-switch-native-rebuild-regressions.md`
-11. `tasks/20260310-openai-responses-provider/070-usage-extension-responses-api.md`
-12. `tasks/20260310-openai-responses-provider/080-verbosity-extension-responses-api.md`
-13. `tasks/20260310-openai-responses-provider/090-integration-native-retention-and-regression-tests.md`
-14. `tasks/20260310-openai-responses-provider/095-native-compaction-provider-extension.md`
-15. `tasks/20260310-openai-responses-provider/100-docs-readme-and-config-examples.md`
-16. `tasks/20260310-openai-responses-provider/110-replaced-by-provider-extension-session-actions-020.md`
-17. `tasks/20260310-openai-responses-provider/120-model-discovery-provider-ui-and-doc-followup.md`
-18. `tasks/20260310-openai-responses-provider/130-prompt-caching-session-key-extension.md`
-19. `tasks/20260310-openai-responses-provider/140-openai-image-pdf-upload-and-upload-modes.md`
-20. `tasks/20260310-openai-responses-provider/150-web-search-extension-and-citation-preservation.md`
-21. `tasks/20260310-openai-responses-provider/160-openai-flex-processing-extension-and-provider-retries.md`
+7. `tasks/20260310-openai-responses-provider/043-native-message-preparation-for-compaction.md`
+8. `tasks/20260310-openai-responses-provider/044-visible-rebuild-from-compacted-native-output.md`
+9. `tasks/20260310-openai-responses-provider/050-tools-extension-responses-api.md`
+10. `tasks/20260310-openai-responses-provider/060-reasoning-extension-responses-api.md`
+11. `tasks/20260310-openai-responses-provider/061-openai-responses-native-conversion-and-reasoning-followup-regressions.md`
+12. `tasks/20260310-openai-responses-provider/062-cross-provider-agent-switch-native-rebuild-regressions.md`
+13. `tasks/20260310-openai-responses-provider/070-usage-extension-responses-api.md`
+14. `tasks/20260310-openai-responses-provider/080-verbosity-extension-responses-api.md`
+15. `tasks/20260310-openai-responses-provider/090-integration-native-retention-and-regression-tests.md`
+16. `tasks/20260310-openai-responses-provider/095-native-compaction-provider-extension.md`
+17. `tasks/20260310-openai-responses-provider/100-docs-readme-and-config-examples.md`
+18. `tasks/20260310-openai-responses-provider/110-replaced-by-provider-extension-session-actions-020.md`
+19. `tasks/20260310-openai-responses-provider/120-model-discovery-provider-ui-and-doc-followup.md`
+20. `tasks/20260310-openai-responses-provider/130-prompt-caching-session-key-extension.md`
+21. `tasks/20260310-openai-responses-provider/140-openai-image-pdf-upload-and-upload-modes.md`
+22. `tasks/20260310-openai-responses-provider/141-session-asset-storage-and-action-driven-attachments.md`
+23. `tasks/20260310-openai-responses-provider/150-web-search-extension-and-citation-preservation.md`
+24. `tasks/20260310-openai-responses-provider/160-openai-flex-processing-extension-and-provider-retries.md`
 
 ## Status
 
@@ -35,9 +38,12 @@ Short description: Create a new `openai_responses` plugin bundle using the OpenA
 - `041` and `042` are follow-ups added after reviewing a real session with the `feature-system-message` plugin against `openai_responses`.
 - `041` is focused on outbound request correctness and red-green regression coverage for placeholder rendering plus developer-role normalization.
 - `042` is focused on a generic core-owned native-message preparation lifecycle/hook for session actions, with `openai_responses` native compaction as the first consumer and later range/message-action plus auto-compaction follow-ups building on that mechanism.
+- `044` is focused on removing the compaction placeholder hiding behavior so compacted native output is rebuilt into visible core messages directly.
+- `043` is a narrowed implementation split from `042`: a generic but non-persisting native-message preparation helper for session-action purposes, with `compact_native_history` as the first consumer and `feature-system-message` as the motivating cooperation case.
 - `130` is a late-stage prompt-caching/session-key subtask that depends on a separate generic prerequisite task directory:
   - `tasks/20260312-provider-extension-session-settings-lifecycle/000-main.md`
 - `140` is a staged attachment/upload follow-up and explicitly allows the implementing agent to create `141+` subtasks when splitting work across stages.
+- `141` is the Stage 3 follow-up for action-driven attachments backed by application-owned session asset storage, including frontend upload UX and attachment preview continuity for sent messages.
 - `150` is a late-stage web-search follow-up for the OpenAI Responses bundle, including citation/source preservation and frontend visibility.
 - `160` is a flex-processing follow-up that keeps the provider responsible for applying request/service-tier/retry behavior while a dedicated extension owns UI/config and request override shaping.
 - Remaining subtasks are implementation work.
