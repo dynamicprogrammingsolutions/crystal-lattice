@@ -31,6 +31,7 @@ JsonObject = Dict[str, Any]
 _DEFAULT_BASE_URL = "https://api.openai.com/v1"
 _DEFAULT_TIMEOUT = 60.0
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
+_RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
 _ATTACHMENT_UPLOAD_MODE_KEY = "attachment_upload_mode"
 _ATTACHMENT_STATE_KEY = "openai_responses_attachments"
 _ATTACHMENT_UPLOAD_MODE_DIRECT = "direct"
@@ -153,6 +154,15 @@ class OpenAIResponsesProvider(ProviderPlugin):
             raise ValueError("[openai_responses_provider] timeout must be > 0")
         return timeout
 
+    def _coerce_max_retries(self, raw: Any) -> int:
+        try:
+            max_retries = int(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("[openai_responses_provider] max_retries must be an integer") from exc
+        if max_retries < 0:
+            raise ValueError("[openai_responses_provider] max_retries must be >= 0")
+        return max_retries
+
     def _resolve_api_key(self, config: Dict[str, Any]) -> str:
         api_key = config.get("api_key") or os.getenv("OPENAI_API_KEY")
         if not isinstance(api_key, str) or not api_key.strip():
@@ -178,6 +188,20 @@ class OpenAIResponsesProvider(ProviderPlugin):
         base_url = self._resolve_base_url(config)
         timeout = self._coerce_timeout(config.get("timeout", _DEFAULT_TIMEOUT))
         return OpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
+
+    def _request_max_retries(self, request: Dict[str, Any]) -> Optional[int]:
+        if "max_retries" not in request:
+            return None
+        return self._coerce_max_retries(request.get("max_retries"))
+
+    def _request_client(self, client: Any, *, timeout: float, max_retries: Optional[int]) -> Any:
+        if max_retries is None:
+            return client
+
+        with_options = getattr(client, "with_options", None)
+        if callable(with_options):
+            return with_options(timeout=timeout, max_retries=max_retries)
+        return client
 
     def _create_sdk_client_for_discovery(self, config: Dict[str, Any]) -> OpenAI:
         if not isinstance(config, dict):
@@ -1366,6 +1390,10 @@ class OpenAIResponsesProvider(ProviderPlugin):
         if usage:
             md[_RAW_USAGE_METADATA_KEY] = usage
 
+        service_tier = response_obj.get("service_tier")
+        if isinstance(service_tier, str) and service_tier:
+            md[_RAW_SERVICE_TIER_METADATA_KEY] = service_tier
+
         return md
 
     def _attach_internal_metadata_to_output(
@@ -1410,6 +1438,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
         request_history = [item for item in base_history if isinstance(item, dict)]
 
         timeout = self._coerce_timeout(request.get("timeout", _DEFAULT_TIMEOUT))
+        max_retries = self._request_max_retries(request)
         extra_headers = dict(request.get("headers") or {})
 
         client = state.get("client")
@@ -1419,7 +1448,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 api_key=self._resolve_api_key(cfg),
                 base_url=self._resolve_base_url(cfg),
                 timeout=timeout,
+                **({"max_retries": max_retries} if max_retries is not None else {}),
             )
+        request_client = self._request_client(client, timeout=timeout, max_retries=max_retries)
 
         upload_cache = self._upload_state_cache(state)
         if self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD:
@@ -1440,7 +1471,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
         input_items = [self._sanitize_input_item(item) for item in request_history]
 
         try:
-            sdk_response = client.responses.create(  # type: ignore[union-attr]
+            sdk_response = request_client.responses.create(  # type: ignore[union-attr]
                 **{**payload, "input": input_items, "stream": False},
                 extra_headers=extra_headers,
                 timeout=timeout,
@@ -1480,6 +1511,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
         request_history = [item for item in base_history if isinstance(item, dict)]
 
         timeout = self._coerce_timeout(request.get("timeout", _DEFAULT_TIMEOUT))
+        max_retries = self._request_max_retries(request)
         extra_headers = dict(request.get("headers") or {})
 
         client = state.get("client")
@@ -1489,7 +1521,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 api_key=self._resolve_api_key(cfg),
                 base_url=self._resolve_base_url(cfg),
                 timeout=timeout,
+                **({"max_retries": max_retries} if max_retries is not None else {}),
             )
+        request_client = self._request_client(client, timeout=timeout, max_retries=max_retries)
 
         upload_cache = self._upload_state_cache(state)
         if self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD:
@@ -1511,7 +1545,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
         input_items = [self._sanitize_input_item(item) for item in request_history]
 
         try:
-            sdk_stream = client.responses.create(  # type: ignore[union-attr]
+            sdk_stream = request_client.responses.create(  # type: ignore[union-attr]
                 **{**payload, "input": input_items, "stream": True},
                 extra_headers=extra_headers,
                 timeout=timeout,

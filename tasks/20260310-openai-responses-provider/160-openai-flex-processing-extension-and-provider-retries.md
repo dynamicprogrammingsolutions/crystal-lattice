@@ -210,3 +210,44 @@ If added, it must:
 1. Flex controls should be shown for all `openai_responses` models for now because current model discovery does not expose a reliable flex-capability signal.
 2. The provider remains responsible for actual request execution behavior, even though the extension chooses the effective timeout and retry values.
 3. A dedicated extension should own user-facing defaults so those values can evolve without pushing UI policy into the provider.
+
+## Approved execution plan (added during completion)
+
+1. Inspect the current `openai_responses` provider execution path and nearby extensions to pin down the smallest provider-owned request override shape for `service_tier`, `timeout`, and `max_retries`.
+2. Add a new `OpenAIResponsesFlexProcessingExtension` under `plugins/openai_responses/src/openai_responses_plugins/` with flat config keys: `enable_flex_processing`, `flex_timeout_seconds`, `enable_flex_retries`, and `flex_max_retries`. It will own UI schema, value normalization, and request-state injection only.
+3. Register that extension in `plugins/openai_responses/agent_plugin.json` and update config-load coverage so bundle ordering includes it.
+4. Extend the provider so `call_api()` and `stream_api()` honor per-request timeout and retry overrides using the OpenAI SDK request/client options, while only adding `service_tier="flex"` when the extension enabled flex.
+5. Add extension unit tests for schema/UI exposure, disabled no-op behavior, normalization rules, and request injection semantics.
+6. Add provider unit tests proving timeout and retry overrides are applied in both non-streaming and streaming paths, plus unchanged behavior without flex overrides.
+7. Add app-layer regression coverage showing the flex settings appear in session UI output for the `openai_responses` bundle.
+8. Update the `openai_responses` README/config example just enough to document flex processing without expanding scope beyond this subtask.
+9. Run the relevant targeted test files in the worktree and report results, then append completion notes to the subtask file and stop there.
+## Completion notes (added during completion)
+
+### Changes made
+
+1. Added `OpenAIResponsesFlexProcessingExtension` in `plugins/openai_responses/src/openai_responses_plugins/openai_responses_flex_processing_extension.py`.
+2. Registered and exported the new extension in `plugins/openai_responses/agent_plugin.json` and `plugins/openai_responses/src/openai_responses_plugins/__init__.py`.
+3. Extended `plugins/openai_responses/src/openai_responses_plugins/openai_responses_provider.py` so `call_api()` and `stream_api()` honor request-scoped `max_retries` through SDK `with_options(...)`, while continuing to honor per-request timeout overrides and preserving unchanged behavior when no retry override is present.
+4. Added flex extension unit coverage in `plugins/openai_responses/tests/test_openai_responses_flex_processing_extension_unit.py`.
+5. Added provider regression coverage in `plugins/openai_responses/tests/test_openai_responses_provider_unit.py` for timeout and retry application in both streaming and non-streaming paths.
+6. Added config-load and import coverage in `plugins/openai_responses/tests/test_agent_application_openai_responses_config_loads.py` and `plugins/openai_responses/tests/test_openai_responses_imports.py`.
+7. Added app-layer UI schema coverage in `application/python/tests/test_openai_responses_flex_processing_endpoints.py`.
+8. Updated `plugins/openai_responses/README.md` with flex-processing config/examples.
+
+### Tests run
+
+1. `pytest plugins/openai_responses/tests/test_openai_responses_flex_processing_extension_unit.py plugins/openai_responses/tests/test_openai_responses_provider_unit.py plugins/openai_responses/tests/test_openai_responses_imports.py plugins/openai_responses/tests/test_agent_application_openai_responses_config_loads.py application/python/tests/test_openai_responses_flex_processing_endpoints.py -q`
+- result: `60 passed`
+- notes: FastAPI emitted existing deprecation warnings about `.on_event`; no flex-specific failures.
+
+### Open issues
+
+1. A broad `pytest plugins/openai_responses/tests -q` run exceeded the time budget in this environment, so verification is limited to the targeted subtask-related suites above.
+
+## Post-completion follow-up (added after flex verification discussion)
+
+1. Provider now preserves returned `response.service_tier` in private native metadata as `_openai_responses_service_tier`.
+2. `OpenAIResponsesFlexProcessingExtension` now surfaces that value on assistant message metadata as `openai_service_tier` and `flex_processing_applied`.
+3. Added live integration coverage in `plugins/openai_responses/tests/test_openai_responses_flex_processing_integration.py`.
+4. Test outcome in this environment: `pytest plugins/openai_responses/tests/test_openai_responses_flex_processing_integration.py -q` -> `1 passed`.

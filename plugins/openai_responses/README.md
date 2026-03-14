@@ -12,6 +12,7 @@ Use it when you want an OpenAI-backed agent with:
 - reasoning controls and surfaced reasoning metadata
 - usage and cost metadata in message/UI output
 - verbosity controls for supported models
+- flex processing controls with configurable timeout and retries
 - prompt caching controls with a session-owned cache key
 - native conversation compaction for longer sessions
 
@@ -103,6 +104,10 @@ combination.
       "api_key": "${env:OPENAI_API_KEY}",
       "base_url": "https://api.openai.com/v1",
       "timeout": 120,
+      "enable_flex_processing": false,
+      "flex_timeout_seconds": 300,
+      "enable_flex_retries": true,
+      "flex_max_retries": 2,
       "attachment_upload_mode": "upload_before_send",
       "enable_prompt_cache_key": true,
       "enable_prompt_cache_retention_24h": false,
@@ -126,6 +131,7 @@ What this enables:
 - tool schema injection and tool-call handling
 - usage and cost metadata
 - GPT-5 verbosity controls
+- flex processing controls for supported OpenAI accounts
 - prompt caching settings plus a regenerate-key session action
 - a native compaction session action for longer conversations
 
@@ -210,6 +216,19 @@ By default, prompt cache key support is enabled when this extension is loaded.
 Set `enable_prompt_cache_key: false` if you want to turn off automatic
 session-owned key generation and request injection.
 
+### Flex processing
+
+Flex processing controls are available through:
+
+- `enable_flex_processing`
+- `flex_timeout_seconds`
+- `enable_flex_retries`
+- `flex_max_retries`
+
+When flex processing is enabled, the extension writes request overrides so the
+provider can apply `service_tier: "flex"`, the configured timeout, and the
+configured retry policy on both streaming and non-streaming Responses calls.
+
 ### Verbosity
 
 `verbosity` controls the Responses `text.verbosity` option for supported
@@ -241,6 +260,13 @@ Configuration is a flat dict shared across the provider and enabled extensions.
 Use `upload_before_send` when you want the provider to upload inline image or
 PDF attachment data through the OpenAI Files API before the Responses request.
 PDF support is only available in this mode.
+
+### Flex processing keys
+
+- `enable_flex_processing`: enable `service_tier: "flex"` for Responses calls
+- `flex_timeout_seconds`: per-request timeout to apply when flex is enabled; defaults to `300`
+- `enable_flex_retries`: enable request-scoped retries for flex calls; defaults to `true`
+- `flex_max_retries`: max retry count when flex retries are enabled; defaults to `2`
 
 ### Reasoning keys
 

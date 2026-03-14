@@ -55,6 +55,11 @@ class _FixtureResponsesResource:
 class _FixtureClient:
     def __init__(self, payload: Dict[str, Any]) -> None:
         self.responses = _FixtureResponsesResource(payload)
+        self.option_calls: list[Dict[str, Any]] = []
+
+    def with_options(self, **kwargs: Any) -> "_FixtureClient":
+        self.option_calls.append(kwargs)
+        return self
 
 
 class _FixtureFileObject:
@@ -155,6 +160,11 @@ class _FixtureStreamingResponsesResource:
 class _FixtureStreamingClient:
     def __init__(self, events: list[Dict[str, Any]]) -> None:
         self.responses = _FixtureStreamingResponsesResource(events)
+        self.option_calls: list[Dict[str, Any]] = []
+
+    def with_options(self, **kwargs: Any) -> "_FixtureStreamingClient":
+        self.option_calls.append(kwargs)
+        return self
 
 
 class _UploadStreamingFixtureClient(_FixtureStreamingClient):
@@ -1084,6 +1094,7 @@ def test_call_api_uses_fixture_payload_shape_and_normalizes_output() -> None:
         )
         for item in finals
     )
+    assert call_kwargs["timeout"] == 12.0
 
 
 def test_call_api_strips_output_only_fields_from_input_history() -> None:
@@ -1464,6 +1475,129 @@ def test_stream_api_normalizes_events_and_strips_internal_metadata() -> None:
     assert call_kwargs["stream"] is True
     assert isinstance(call_kwargs["input"], list)
     assert "_metadata" not in call_kwargs["input"][0]
+    assert call_kwargs["timeout"] == 30.0
+
+
+def test_call_api_applies_request_retry_override_via_sdk_options() -> None:
+    provider = OpenAIResponsesProvider()
+    fixture = _load_fixture()
+    fake_client = _FixtureClient(fixture)
+
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 12,
+        },
+        "client": fake_client,
+        "request": {
+            "payload": {"model": "gpt-5-mini", "service_tier": "flex"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 300,
+            "max_retries": 4,
+        },
+    }
+
+    provider.call_api(
+        [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+        state,
+    )
+
+    assert fake_client.option_calls == [{"timeout": 300.0, "max_retries": 4}]
+    call_kwargs = fake_client.responses.calls[0]
+    assert call_kwargs["service_tier"] == "flex"
+    assert call_kwargs["timeout"] == 300.0
+
+
+def test_stream_api_applies_request_retry_override_via_sdk_options() -> None:
+    provider = OpenAIResponsesProvider()
+    fake_client = _FixtureStreamingClient(_load_stream_fixture_events())
+
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 30,
+        },
+        "client": fake_client,
+        "request": {
+            "payload": {"model": "gpt-5-mini", "service_tier": "flex"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 420,
+            "max_retries": 2,
+        },
+    }
+
+    list(
+        provider.stream_api(
+            [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+            state,
+        )
+    )
+
+    assert fake_client.option_calls == [{"timeout": 420.0, "max_retries": 2}]
+    call_kwargs = fake_client.responses.calls[0]
+    assert call_kwargs["service_tier"] == "flex"
+    assert call_kwargs["timeout"] == 420.0
+
+
+def test_call_api_preserves_existing_behavior_without_retry_override() -> None:
+    provider = OpenAIResponsesProvider()
+    fixture = _load_fixture()
+    fake_client = _FixtureClient(fixture)
+
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 12,
+        },
+        "client": fake_client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 12,
+        },
+    }
+
+    provider.call_api(
+        [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+        state,
+    )
+
+    assert fake_client.option_calls == []
+
+
+def test_stream_api_preserves_existing_behavior_without_retry_override() -> None:
+    provider = OpenAIResponsesProvider()
+    fake_client = _FixtureStreamingClient(_load_stream_fixture_events())
+
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 30,
+        },
+        "client": fake_client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 30,
+        },
+    }
+
+    list(
+        provider.stream_api(
+            [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+            state,
+        )
+    )
+
+    assert fake_client.option_calls == []
 
 
 def test_stream_api_wraps_sdk_error() -> None:
@@ -1768,3 +1902,11 @@ def test_send_request_stream_raises_on_failed_terminal_event() -> None:
 
     with pytest.raises(RuntimeError, match="response.failed"):
         list(core.send_request_stream(session, config))
+
+
+def test_response_internal_metadata_preserves_service_tier() -> None:
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata({"id": "resp_1", "service_tier": "flex"})
+
+    assert response_md["_openai_responses_service_tier"] == "flex"
