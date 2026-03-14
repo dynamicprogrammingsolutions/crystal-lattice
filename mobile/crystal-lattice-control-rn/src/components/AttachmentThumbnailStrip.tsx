@@ -15,9 +15,11 @@ export type AttachmentLike = {
   type: string;
   content: any;
   metadata?: any;
+  previewUrl?: string | null;
 };
 
-function selectAttachmentUrl(content: any): string | null {
+function selectAttachmentUrl(content: any, previewUrl?: string | null): string | null {
+  if (typeof previewUrl === 'string' && previewUrl) return previewUrl;
   if (!content || typeof content !== 'object') return null;
   if (typeof content.url === 'string' && content.url) return content.url;
   if (typeof content.data_base64 === 'string' && content.data_base64) {
@@ -56,7 +58,7 @@ export const AttachmentThumbnailStrip: React.FC<{
         contentContainerStyle={scrollContentStyle}
       >
         {attachments.map((attachment) => {
-          const url = selectAttachmentUrl(attachment.content);
+          const url = selectAttachmentUrl(attachment.content, attachment.previewUrl);
           const isImage = attachment.type === 'image' && url;
           const tile = (
             <View style={styles.tileInner}>

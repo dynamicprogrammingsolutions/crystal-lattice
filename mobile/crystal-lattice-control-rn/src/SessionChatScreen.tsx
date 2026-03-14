@@ -21,6 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Clipboard from '@react-native-clipboard/clipboard';
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import {
+  deleteSessionAttachment,
   deriveChatStatusBarParts,
   deriveSessionListPresentationFromGroups,
   filterFooterElements,
@@ -28,7 +29,9 @@ import {
   groupSessionListFields,
   mergeSessionScopedActionElements,
   runApplicationAction,
+  selectSessionAssetId,
   selectLastAssistantMessage,
+  storeSessionAttachment,
 } from '@crystal-lattice/frontend-sdk';
 import {
   ApplicationActionDialog,
@@ -137,11 +140,17 @@ type MultipartPartDraft = {
   type: string;
   content: any;
   metadata?: any;
+  previewUrl?: string | null;
   attachmentKey: string;
   title: string;
   iconName: string | null;
   metadataUi: AttachmentMetadataUi | null;
 };
+
+type AttachmentBackgroundOperation =
+  | { kind: 'upload'; filename: string }
+  | { kind: 'delete'; filename: string }
+  | null;
 
 const TRANSCRIPT_STATUS_ROW: TranscriptRow = { kind: 'status' };
 const TRANSCRIPT_STREAM_ROW: TranscriptRow = { kind: 'stream' };
@@ -184,11 +193,19 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     {},
   );
   const [attachmentMetadataContext, setAttachmentMetadataContext] = useState<
-    | { kind: 'new'; element: ComposerAttachmentUiElement; content: any }
+    | {
+        kind: 'new';
+        element: ComposerAttachmentUiElement;
+        content: any;
+        previewUrl?: string | null;
+        pendingAssetId?: string | null;
+      }
     | { kind: 'edit'; side: 'above' | 'below'; draftId: string }
     | null
   >(null);
   const [attachmentPickInProgress, setAttachmentPickInProgress] = useState(false);
+  const [attachmentBackgroundOperation, setAttachmentBackgroundOperation] =
+    useState<AttachmentBackgroundOperation>(null);
   const [imageAttachVisible, setImageAttachVisible] = useState(false);
   const [imageAttachElement, setImageAttachElement] = useState<ComposerAttachmentUiElement | null>(
     null,
@@ -619,6 +636,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   const hasDraftMessage =
     composeText.trim().length > 0 || attachmentsAbove.length > 0 || attachmentsBelow.length > 0;
+  const attachmentActionInProgress = attachmentBackgroundOperation != null;
+  const attachmentActionText =
+    attachmentBackgroundOperation?.kind === 'upload'
+      ? `Uploading ${attachmentBackgroundOperation.filename}...`
+      : attachmentBackgroundOperation?.kind === 'delete'
+        ? `Deleting ${attachmentBackgroundOperation.filename}...`
+        : '';
 
   const attachmentsAboveStrip: AttachmentLike[] = useMemo(
     () =>
@@ -627,6 +651,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         type: part.type,
         content: part.content,
         metadata: part.metadata,
+        previewUrl: part.previewUrl,
       })),
     [attachmentsAbove],
   );
@@ -638,6 +663,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         type: part.type,
         content: part.content,
         metadata: part.metadata,
+        previewUrl: part.previewUrl,
       })),
     [attachmentsBelow],
   );
@@ -872,15 +898,49 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     setAttachmentsBelow([]);
   }, [onSaveComposeText]);
 
-  const removeAttachmentFromSide = useCallback(
-    (side: 'above' | 'below', draftId: string) => {
-      if (side === 'above') {
-        setAttachmentsAbove((prev) => prev.filter((p) => p.draftId !== draftId));
+  const deleteStoredAttachmentAsset = useCallback(
+    async (assetId: string, filename?: string, suppressAlert = false) => {
+      if (!backend) {
         return;
       }
-      setAttachmentsBelow((prev) => prev.filter((p) => p.draftId !== draftId));
+      setAttachmentBackgroundOperation({
+        kind: 'delete',
+        filename: filename || 'attachment',
+      });
+      try {
+        await deleteSessionAttachment({
+          backend,
+          sessionId,
+          assetId,
+        });
+      } catch (err: any) {
+        if (!suppressAlert) {
+          const message = err?.message || 'Failed to delete attachment.';
+          Alert.alert('Attachment error', message);
+        }
+      } finally {
+        setAttachmentBackgroundOperation(null);
+      }
     },
-    [],
+    [backend, sessionId],
+  );
+
+  const removeAttachmentFromSide = useCallback(
+    (side: 'above' | 'below', draftId: string) => {
+      const list = side === 'above' ? attachmentsAbove : attachmentsBelow;
+      const removed = list.find((p) => p.draftId === draftId);
+      if (side === 'above') {
+        setAttachmentsAbove((prev) => prev.filter((p) => p.draftId !== draftId));
+      } else {
+        setAttachmentsBelow((prev) => prev.filter((p) => p.draftId !== draftId));
+      }
+
+      const assetId = selectSessionAssetId(removed?.content);
+      if (assetId) {
+        deleteStoredAttachmentAsset(assetId, removed?.content?.filename, false).catch(() => {});
+      }
+    },
+    [attachmentsAbove, attachmentsBelow, deleteStoredAttachmentAsset],
   );
 
   const moveAttachmentWithinSide = useCallback(
@@ -910,6 +970,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     element: ComposerAttachmentUiElement;
     content: any;
     metadata?: any;
+    previewUrl?: string | null;
   }) => {
     const pluginName =
       typeof (options.element as any).plugin === 'string' && (options.element as any).plugin
@@ -938,6 +999,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       type: options.element.attachment_type,
       content: options.content,
       metadata: options.metadata ?? {},
+      previewUrl: options.previewUrl ?? null,
       attachmentKey: attachmentKeyRaw,
       title: String(titleRaw),
       iconName: iconNameRaw,
@@ -955,7 +1017,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   }, []);
 
   const beginAddAttachmentPart = useCallback(
-    (options: { element: ComposerAttachmentUiElement; content: any }) => {
+    (options: {
+      element: ComposerAttachmentUiElement;
+      content: any;
+      previewUrl?: string | null;
+      pendingAssetId?: string | null;
+    }) => {
       const metadataUi =
         options.element.metadata_ui && typeof options.element.metadata_ui === 'object'
           ? (options.element.metadata_ui as AttachmentMetadataUi)
@@ -973,7 +1040,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         setAttachmentMetadataTitle(`${String(titleRaw)} metadata`);
         setAttachmentMetadataUi(metadataUi);
         setAttachmentMetadataInitial(defaults);
-        setAttachmentMetadataContext({ kind: 'new', element: options.element, content: options.content });
+        setAttachmentMetadataContext({
+          kind: 'new',
+          element: options.element,
+          content: options.content,
+          previewUrl: options.previewUrl ?? null,
+          pendingAssetId: options.pendingAssetId ?? null,
+        });
         setAttachmentMetadataVisible(true);
         return;
       }
@@ -982,6 +1055,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         element: options.element,
         content: options.content,
         metadata: defaults,
+        previewUrl: options.previewUrl ?? null,
       });
     },
     [addAttachmentPart],
@@ -1037,6 +1111,48 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     [],
   );
 
+  const storePickedAttachment = useCallback(
+    async (options: {
+      element: ComposerAttachmentUiElement;
+      filename: string;
+      mimeType: string;
+      dataUrl: string;
+    }) => {
+      if (!backend) {
+        throw new Error('Connect to a server before uploading attachments.');
+      }
+
+      setAttachmentBackgroundOperation({
+        kind: 'upload',
+        filename: options.filename,
+      });
+      try {
+        const stored = await storeSessionAttachment({
+          backend,
+          sessionId,
+          attachmentType: options.element.attachment_type,
+          filename: options.filename,
+          mimeType: options.mimeType,
+          dataUrl: options.dataUrl,
+        });
+
+        beginAddAttachmentPart({
+          element: options.element,
+          content: {
+            asset_ref: stored.asset_ref,
+            filename: stored.filename,
+            mime_type: stored.mime_type,
+          },
+          previewUrl: options.element.attachment_type === 'image' ? options.dataUrl : null,
+          pendingAssetId: stored.asset_ref.asset_id,
+        });
+      } finally {
+        setAttachmentBackgroundOperation(null);
+      }
+    },
+    [backend, beginAddAttachmentPart, sessionId],
+  );
+
   const handlePickAttachment = useCallback(
     async (element: ComposerAttachmentUiElement) => {
       if (attachmentPickInProgress) return;
@@ -1059,13 +1175,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           return;
         }
 
-        beginAddAttachmentPart({
+        await storePickedAttachment({
           element,
-          content: {
-            url: picked.dataUrl,
-            mime_type: picked.mimeType,
-            filename: picked.filename,
-          },
+          filename: picked.filename,
+          mimeType: picked.mimeType,
+          dataUrl: picked.dataUrl,
         });
       } catch (err: any) {
         console.log('Failed to pick attachment', err);
@@ -1075,7 +1189,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         setAttachmentPickInProgress(false);
       }
     },
-    [attachmentPickInProgress, beginAddAttachmentPart],
+    [attachmentPickInProgress, storePickedAttachment],
   );
 
   const pickImageForElement = useCallback(
@@ -1101,13 +1215,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         }
         setImageAttachVisible(false);
 
-        beginAddAttachmentPart({
+        await storePickedAttachment({
           element: imageAttachElement,
-          content: {
-            url: picked.dataUrl,
-            mime_type: picked.mimeType,
-            filename: picked.filename,
-          },
+          filename: picked.filename,
+          mimeType: picked.mimeType,
+          dataUrl: picked.dataUrl,
         });
       } catch (err: any) {
         console.log('Failed to pick image attachment', err);
@@ -1117,7 +1229,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         setAttachmentPickInProgress(false);
       }
     },
-    [attachmentPickInProgress, beginAddAttachmentPart, imageAttachElement],
+    [attachmentPickInProgress, imageAttachElement, storePickedAttachment],
   );
 
   const addImageUrlForElement = useCallback(() => {
@@ -1180,6 +1292,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     if (!text && multipartContent.length === 0) {
       return;
     }
+    if (attachmentActionInProgress) {
+      Alert.alert('Attachment in progress', 'Wait for attachment uploads to finish before appending.');
+      return;
+    }
     if (!chatController) {
       Alert.alert('No connection', 'Connect to a server to append messages.');
       return;
@@ -1209,13 +1325,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       Alert.alert('No connection', 'Connect to a server to append messages.');
       return;
     }
-    if (sendInProgress || activeRequestId) {
+    if (sendInProgress || activeRequestId || attachmentActionInProgress) {
       return;
     }
 
     setAppendAsRole('user');
     setAppendAsVisible(true);
-  }, [activeRequestId, chatController, hasDraftMessage, sendInProgress]);
+  }, [activeRequestId, attachmentActionInProgress, chatController, hasDraftMessage, sendInProgress]);
 
   const handleAppendAs = useCallback(async () => {
     const text = composeText.trim();
@@ -1229,11 +1345,15 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     if (!text && multipartContent.length === 0) {
       return;
     }
+    if (attachmentActionInProgress) {
+      Alert.alert('Attachment in progress', 'Wait for attachment uploads to finish before appending.');
+      return;
+    }
     if (!chatController) {
       Alert.alert('No connection', 'Connect to a server to append messages.');
       return;
     }
-    if (sendInProgress || activeRequestId) {
+    if (sendInProgress || activeRequestId || attachmentActionInProgress) {
       return;
     }
 
@@ -1255,6 +1375,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
   }, [
     activeRequestId,
+    attachmentActionInProgress,
     appendAsRole,
     attachmentsAbove,
     attachmentsBelow,
@@ -1274,6 +1395,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }),
     );
     if (!text && multipartContent.length === 0) {
+      return;
+    }
+    if (attachmentActionInProgress) {
+      Alert.alert('Attachment in progress', 'Wait for attachment uploads to finish before sending.');
       return;
     }
     if (sendInProgress) {
@@ -1383,13 +1508,19 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }
 
       if (composerAttachmentElementByActionKey[key]) {
-        return sendInProgress || !!activeRequestId || attachmentPickInProgress;
+        return (
+          sendInProgress ||
+          !!activeRequestId ||
+          attachmentPickInProgress ||
+          attachmentActionInProgress
+        );
       }
 
       return false;
     },
     [
       activeRequestId,
+      attachmentActionInProgress,
       attachmentPickInProgress,
       backend,
       composerAttachmentElementByActionKey,
@@ -1716,9 +1847,15 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     );
 
     const handleAttachmentMetadataCancel = useCallback(() => {
+      const ctx = attachmentMetadataContext;
       setAttachmentMetadataVisible(false);
       setAttachmentMetadataContext(null);
-    }, []);
+      if (ctx?.kind === 'new' && ctx.pendingAssetId) {
+        deleteStoredAttachmentAsset(ctx.pendingAssetId, ctx.content?.filename, false).catch(
+          () => {},
+        );
+      }
+    }, [attachmentMetadataContext, deleteStoredAttachmentAsset]);
 
     const handleAttachmentMetadataSave = useCallback(
       (metadata: Record<string, any>) => {
@@ -1733,6 +1870,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
             element: ctx.element,
             content: ctx.content,
             metadata,
+            previewUrl: ctx.previewUrl ?? null,
           });
         } else if (ctx.kind === 'edit') {
           updateAttachmentMetadata(ctx.side, ctx.draftId, metadata);
@@ -1814,11 +1952,15 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        </View>
 	      )}
 
-	      {(loadingMessages || pluginActionInProgress) && (
+	      {(loadingMessages || pluginActionInProgress || attachmentActionInProgress) && (
 	        <View style={styles.loadingContainer}>
 	          <ActivityIndicator size="small" color={theme.primary} />
 	          <Text style={styles.loadingText}>
-	            {loadingMessages ? 'Loading messages...' : 'Running action...'}
+	            {loadingMessages
+	              ? 'Loading messages...'
+	              : pluginActionInProgress
+	                ? 'Running action...'
+	                : attachmentActionText}
 	          </Text>
 	        </View>
 	      )}
@@ -1982,7 +2124,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                     key={key}
                     style={styles.composerInlineSelectButton}
                     onPress={() => setComposerLeftSelectModalElement(el)}
-                    disabled={sendInProgress || !!activeRequestId || options.length === 0}
+                    disabled={
+                      sendInProgress ||
+                      !!activeRequestId ||
+                      attachmentActionInProgress ||
+                      options.length === 0
+                    }
                   >
                     <Text style={styles.composerInlineSelectLabel} numberOfLines={1}>
                       {label}:
@@ -2023,7 +2170,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 setAttachmentsManageSide('above');
                 setAttachmentsManageVisible(true);
               }}
-              disabled={sendInProgress || !!activeRequestId}
+              disabled={sendInProgress || !!activeRequestId || attachmentActionInProgress}
             />
 
             <TextInput
@@ -2043,9 +2190,17 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
             {/** Compute per-button enablement so we can style text when disabled. */}
             {(() => {
               const canAppend =
-                !!backend && !sendInProgress && !activeRequestId && hasDraftMessage;
+                !!backend &&
+                !sendInProgress &&
+                !activeRequestId &&
+                !attachmentActionInProgress &&
+                hasDraftMessage;
               const canSend =
-                !!backend && !sendInProgress && !activeRequestId && hasDraftMessage;
+                !!backend &&
+                !sendInProgress &&
+                !activeRequestId &&
+                !attachmentActionInProgress &&
+                hasDraftMessage;
 
               return (
                 <View style={styles.composerButtonsRow}>
@@ -2091,7 +2246,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 setAttachmentsManageSide('below');
                 setAttachmentsManageVisible(true);
               }}
-              disabled={sendInProgress || !!activeRequestId}
+              disabled={sendInProgress || !!activeRequestId || attachmentActionInProgress}
             />
           </View>
       </View>
@@ -2106,7 +2261,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
               : 'Attachments'
         }
         attachments={attachmentsManageRows}
-        disabled={sendInProgress || !!activeRequestId}
+        disabled={sendInProgress || !!activeRequestId || attachmentActionInProgress}
         onMove={(draftId, direction) => {
           if (!attachmentsManageSide) return;
           moveAttachmentWithinSide(attachmentsManageSide, draftId, direction);
@@ -2153,14 +2308,24 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                     <TouchableOpacity
                       style={[styles.button, styles.secondaryButton, styles.modalButton]}
                       onPress={() => pickImageForElement('library')}
-                      disabled={sendInProgress || !!activeRequestId || attachmentPickInProgress}
+                      disabled={
+                        sendInProgress ||
+                        !!activeRequestId ||
+                        attachmentPickInProgress ||
+                        attachmentActionInProgress
+                      }
                     >
                       <Text style={styles.buttonTextSecondary}>Photo library</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.button, styles.secondaryButton, styles.modalButton]}
                       onPress={() => pickImageForElement('camera')}
-                      disabled={sendInProgress || !!activeRequestId || attachmentPickInProgress}
+                      disabled={
+                        sendInProgress ||
+                        !!activeRequestId ||
+                        attachmentPickInProgress ||
+                        attachmentActionInProgress
+                      }
                     >
                       <Text style={styles.buttonTextSecondary}>Take photo</Text>
                     </TouchableOpacity>
@@ -2187,7 +2352,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                     <TouchableOpacity
                       style={[styles.button, styles.primaryButton, styles.modalButton]}
                       onPress={addImageUrlForElement}
-                      disabled={!imageUrlText.trim()}
+                      disabled={!imageUrlText.trim() || attachmentActionInProgress}
                     >
                       <Text style={styles.buttonText}>Add URL</Text>
                     </TouchableOpacity>

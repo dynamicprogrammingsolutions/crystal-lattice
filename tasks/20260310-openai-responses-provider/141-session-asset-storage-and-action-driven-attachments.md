@@ -258,6 +258,49 @@ Expected direction:
 
 1. Move attachment parsing/normalization helpers into dedicated modules.
 2. Move server-asset reference helpers into dedicated modules.
+
+## Live testing sequence (added during completion)
+
+Implement and verify the remaining live integration coverage in this order before relying on an SDK end-to-end test:
+
+1. Add the optional provider-level real API test for session-asset-backed PDF send so both image and PDF are covered at the provider/core boundary.
+2. Add an AgentApplication real API test that executes `store_attachment`, sends a message with the returned `asset_ref`, and verifies provider-ref caching from the local asset store.
+3. Add a FastAPI real API test that goes through the generic action endpoint to store an attachment, sends by `asset_ref`, and verifies the full server path with the real OpenAI backend.
+4. Add an SDK real-backend real-OpenAI end-to-end test that uses the frontend SDK attachment helper against the live FastAPI server and real OpenAI API.
+
+Execution notes:
+
+1. Keep the provider/core, AgentApplication, FastAPI, and SDK tests isolated so failures can be attributed to the correct moving part.
+2. Use generated local image/PDF fixtures where practical so the tests stay self-contained.
+3. Load `OPENAI_API_KEY` from the repo root `.env` for the live tests when the surrounding test harness does not already do so.
+4. Minor issues found while implementing or running these tests may be corrected in the same change; pause only for major design issues or significant architectural surprises.
+
+## Live integration completion notes (added during completion)
+
+Completed the staged live coverage in the planned order:
+
+1. Added the optional provider/core real API test for session-asset-backed PDF send in `plugins/openai_responses/tests/test_openai_responses_provider_integration.py`.
+2. Added an AgentApplication real API test for `store_attachment` plus send-by-`asset_ref` in `plugins/openai_responses/tests/test_agent_application_openai_responses_attachments.py`.
+3. Added a FastAPI real API test for `/actions` store plus `/messages` and `/send` by `asset_ref` in `application/python/tests/test_openai_responses_attachment_action_flow_real_api.py`.
+4. Added an SDK real-backend real-OpenAI end-to-end test in `packages/frontend-sdk/src/integration/__tests__/backend.openai.integration.test.ts` using `storeSessionAttachment(...)`, a real spawned FastAPI backend, and the `openai_responses` plugin loaded via a local-path plugin spec.
+
+Minor follow-up fixed during testing:
+
+1. Registered `integration` and `openai` pytest markers in `application/python/pyproject.toml` so the new FastAPI live test does not emit unknown-mark warnings.
+
+Tests run:
+
+1. `pytest plugins/openai_responses/tests/test_openai_responses_provider_integration.py -q -k session_asset_pdf_real_api` -> `1 passed, 8 deselected`
+2. `pytest plugins/openai_responses/tests/test_agent_application_openai_responses_attachments.py -q` -> `1 passed`
+3. `pytest application/python/tests/test_openai_responses_attachment_action_flow_real_api.py -q` -> `1 passed`
+4. `npm test -- --run src/integration/__tests__/backend.openai.integration.test.ts` in `packages/frontend-sdk` with `RUN_BACKEND_OPENAI_INTEGRATION=1` -> `1 passed`
+5. `git diff --check` -> clean
+
+Notable implementation details:
+
+1. The SDK live test explicitly loads `OPENAI_API_KEY` and optional `OPENAI_BASE_URL` from the repo root `.env` when they are not already present in the environment.
+2. The spawned SDK backend loads `openai_responses` through the application plugin manager using a local-path plugin spec (`path:<repo>/plugins/openai_responses`) so the test does not depend on ambient Python import path configuration.
+3. Generated local fixtures were used where practical to keep the live tests self-contained and avoid network dependencies for assets.
 3. Move OpenAI file-cache/upload/retry helpers into dedicated modules.
 4. Keep the provider focused on orchestrating request conversion and API execution.
 
@@ -453,3 +496,39 @@ Current intentional limits after Stage 2:
 1. The OpenAI file-cache / asset-resolution logic is still partially inside `openai_responses_provider.py`; a later cleanup pass should move more of that orchestration into dedicated helpers.
 2. Mobile and desktop still use inline composer attachments; background upload UX, send blocking, and sent-message preview continuity for `asset_ref` attachments are still pending.
 3. There is not yet a dedicated server/frontend asset preview endpoint for rendering thumbnails of stored attachments in sent messages.
+
+## Stage 3 completion notes (added during completion)
+
+Stage 3 landed the shared frontend upload/delete helper plus composer-side background storage flows on mobile and desktop:
+
+1. Added `packages/frontend-sdk/src/plugins/attachmentActions.ts` with typed helpers for `store_attachment` and `delete_attachment`, shared action constants, `session_asset` result validation, and a small `selectSessionAssetId(...)` helper for composer cleanup paths.
+2. Exported those helpers from `packages/frontend-sdk/src/index.ts` and added focused Vitest coverage for action request shaping, data-URL base64 extraction, error surfacing, and `asset_ref` extraction.
+3. Updated the mobile composer in `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx` so local file picks now call `store_attachment` immediately in the background, then add an `asset_ref`-backed draft instead of sending inline base64 content. URL-based image attachments still stay direct-send.
+4. Added mobile send/append blocking while attachment uploads or deletions are in progress, surfaced upload/delete status in the existing top loading banner, and wired unsent draft removal plus metadata-dialog cancel to `delete_attachment` for stored assets.
+5. Updated the desktop chat composer in `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx` with the same action-driven storage flow for picked files, the same send/append blocking rules, a matching top-of-chat loading row, and unsent draft deletion cleanup.
+6. Extended both attachment thumbnail strip components to accept a local-only `previewUrl` so freshly picked image drafts can still render thumbnails in the composer even after their request payload switches to `asset_ref`.
+
+Files touched:
+
+1. `packages/frontend-sdk/src/plugins/attachmentActions.ts`
+2. `packages/frontend-sdk/src/plugins/__tests__/attachmentActions.test.ts`
+3. `packages/frontend-sdk/src/index.ts`
+4. `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx`
+5. `mobile/crystal-lattice-control-rn/src/components/AttachmentThumbnailStrip.tsx`
+6. `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx`
+7. `desktop/crystal-lattice-control-desktop-rn/src/chat/AttachmentThumbnailStrip.tsx`
+
+Tests and verification run:
+
+1. `npm test -- --run src/plugins/__tests__/attachmentActions.test.ts src/plugins/__tests__/actionRunner.test.ts` in `packages/frontend-sdk` -> `9 passed`
+2. `npm test -- --run src/plugins/__tests__/attachmentActions.test.ts` in `packages/frontend-sdk` -> `4 passed`
+3. `git diff --check` -> clean
+4. `npx eslint src/chat/ChatPane.tsx src/chat/AttachmentThumbnailStrip.tsx` in `desktop/crystal-lattice-control-desktop-rn` -> no errors, 2 pre-existing `no-shadow` warnings in `ChatPane.tsx`
+5. `npm run tsc -- --noEmit` in `mobile/crystal-lattice-control-rn` -> blocked by pre-existing `ApiMessage` cast errors in `src/components/MessageBubble.tsx` and `@crystal-lattice/frontend-sdk/src/chat/presentation.ts`, not by the new upload flow changes
+6. `npx tsc --noEmit` in `desktop/crystal-lattice-control-desktop-rn` -> blocked by the same pre-existing `ApiMessage` cast error in `@crystal-lattice/frontend-sdk/src/chat/presentation.ts`
+
+Current intentional limits after Stage 3:
+
+1. Sent-message preview continuity is only partial: composer drafts preserve local image thumbnails via `previewUrl`, but there is still no dedicated server asset-preview endpoint for reloaded/sent `asset_ref` attachments.
+2. Mobile and desktop currently perform draft cleanup on metadata-cancel/delete, but sent attachments still rely on later stages for any broader post-send asset lifecycle UX.
+3. The pre-existing TypeScript cast errors in frontend message rendering remain and still block whole-app typecheck runs unrelated to this stage.

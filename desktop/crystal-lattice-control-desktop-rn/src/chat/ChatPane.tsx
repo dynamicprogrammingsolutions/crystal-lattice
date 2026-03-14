@@ -30,10 +30,13 @@ import type {
   SessionSummary,
 } from '@crystal-lattice/frontend-sdk';
 import {
+  deleteSessionAttachment,
   filterFooterElements,
   mergeSessionScopedActionElements,
   runApplicationAction,
+  selectSessionAssetId,
   selectDisplayContent,
+  storeSessionAttachment,
 } from '@crystal-lattice/frontend-sdk';
 import {
   useApplicationPlugins,
@@ -127,10 +130,16 @@ type ComposerAttachmentDraft = {
   type: string;
   content: any;
   metadata?: Record<string, any> | null;
+  previewUrl?: string | null;
   schemaKey?: string;
   plugin?: string;
   placement: 'above' | 'below';
 };
+
+type AttachmentBackgroundOperation =
+  | { kind: 'upload'; filename: string }
+  | { kind: 'delete'; filename: string }
+  | null;
 
 type PluginActionContext =
   | { kind: 'session'; sessionSummary: SessionSummary | null }
@@ -223,6 +232,8 @@ export const ChatPane = React.memo(function ChatPane({
   const [reloadInFlight, setReloadInFlight] = useState(false);
   const [cancelInFlight, setCancelInFlight] = useState(false);
   const [pluginActionRunning, setPluginActionRunning] = useState(false);
+  const [attachmentBackgroundOperation, setAttachmentBackgroundOperation] =
+    useState<AttachmentBackgroundOperation>(null);
   const [openingAgentPicker, setOpeningAgentPicker] = useState(false);
   const composerRef = useRef<MacTextViewHandle | null>(null);
   const attachmentPlusButtonRef = useRef<any>(null);
@@ -751,13 +762,21 @@ export const ChatPane = React.memo(function ChatPane({
   });
 
   const messagesCount = messages.length;
+  const attachmentActionInProgress = attachmentBackgroundOperation != null;
+  const attachmentActionText =
+    attachmentBackgroundOperation?.kind === 'upload'
+      ? `Uploading ${attachmentBackgroundOperation.filename}...`
+      : attachmentBackgroundOperation?.kind === 'delete'
+        ? `Deleting ${attachmentBackgroundOperation.filename}...`
+        : '';
 
 	const canSend =
     backend != null &&
     chatController != null &&
     isActive &&
     !sendInFlight &&
-    !chatState?.activeRequestId;
+    !chatState?.activeRequestId &&
+    !attachmentActionInProgress;
 
   const canSendNow = canSend && (composeText.trim().length > 0 || hasAttachments);
 
@@ -776,6 +795,33 @@ export const ChatPane = React.memo(function ChatPane({
     setAttachmentsAboveExpanded(false);
     setAttachmentsBelowExpanded(false);
   }, []);
+
+  const deleteStoredAttachmentAsset = useCallback(
+    async (assetId: string, filename?: string, suppressAlert = false) => {
+      if (!backend) {
+        return;
+      }
+      setAttachmentBackgroundOperation({
+        kind: 'delete',
+        filename: filename || 'attachment',
+      });
+      try {
+        await deleteSessionAttachment({
+          backend,
+          sessionId,
+          assetId,
+        });
+      } catch (err: any) {
+        if (!suppressAlert) {
+          const message = err?.message || 'Failed to delete attachment.';
+          Alert.alert('Attachment error', message);
+        }
+      } finally {
+        setAttachmentBackgroundOperation(null);
+      }
+    },
+    [backend, sessionId],
+  );
 
   const updateDraftMetadata = useCallback(
     (draftId: string, placement: 'above' | 'below', nextMetadata: Record<string, any>) => {
@@ -844,6 +890,7 @@ export const ChatPane = React.memo(function ChatPane({
       content: any;
       placement: 'above' | 'below';
       metadata: Record<string, any>;
+      previewUrl?: string | null;
     }) => {
       const attachmentType = String((params.element as any).attachment_type ?? '');
       if (!attachmentType) {
@@ -860,6 +907,7 @@ export const ChatPane = React.memo(function ChatPane({
         type: attachmentType,
         content: params.content,
         metadata: params.metadata,
+        previewUrl: params.previewUrl ?? null,
         schemaKey: actionKey,
         plugin:
           typeof (params.element as any).plugin === 'string'
@@ -883,6 +931,8 @@ export const ChatPane = React.memo(function ChatPane({
       element: ComposerAttachmentUiElement;
       content: any;
       placement: 'above' | 'below';
+      previewUrl?: string | null;
+      pendingAssetId?: string | null;
     }) => {
       const metadataUi = ((params.element as any).metadata_ui ?? null) as AttachmentMetadataUi | null;
       const defaults = buildAttachmentMetadataDefaults(metadataUi);
@@ -904,13 +954,22 @@ export const ChatPane = React.memo(function ChatPane({
           attachmentContent: params.content,
           metadataUi,
           initialMetadata: defaults,
-          onCancel: () => {},
+          onCancel: () => {
+            if (params.pendingAssetId) {
+              deleteStoredAttachmentAsset(
+                params.pendingAssetId,
+                (params.content as any)?.filename,
+                false,
+              ).catch(() => {});
+            }
+          },
           onSave: (metadata) => {
             addDraftAttachment({
               element: params.element,
               placement: params.placement,
               content: params.content,
               metadata,
+              previewUrl: params.previewUrl ?? null,
             });
           },
         });
@@ -922,9 +981,56 @@ export const ChatPane = React.memo(function ChatPane({
         placement: params.placement,
         content: params.content,
         metadata: defaults,
+        previewUrl: params.previewUrl ?? null,
       });
     },
-    [addDraftAttachment, connectionId, sessionId],
+    [addDraftAttachment, connectionId, deleteStoredAttachmentAsset, sessionId],
+  );
+
+  const storePickedAttachment = useCallback(
+    async (params: {
+      element: ComposerAttachmentUiElement;
+      placement: 'above' | 'below';
+      filename: string;
+      mimeType: string;
+      dataBase64: string;
+    }) => {
+      if (!backend) {
+        throw new Error('Connect to a server before uploading attachments.');
+      }
+      setAttachmentBackgroundOperation({
+        kind: 'upload',
+        filename: params.filename,
+      });
+      try {
+        const stored = await storeSessionAttachment({
+          backend,
+          sessionId,
+          attachmentType: String((params.element as any).attachment_type ?? ''),
+          filename: params.filename,
+          mimeType: params.mimeType,
+          dataBase64: params.dataBase64,
+        });
+
+        beginAddDraftAttachment({
+          element: params.element,
+          placement: params.placement,
+          content: {
+            asset_ref: stored.asset_ref,
+            filename: stored.filename,
+            mime_type: stored.mime_type,
+          },
+          previewUrl:
+            String((params.element as any).attachment_type ?? '') === 'image'
+              ? `data:${params.mimeType};base64,${params.dataBase64}`
+              : null,
+          pendingAssetId: stored.asset_ref.asset_id,
+        });
+      } finally {
+        setAttachmentBackgroundOperation(null);
+      }
+    },
+    [backend, beginAddDraftAttachment, sessionId],
   );
 
   const handleSend = useCallback(async (overrideText?: string) => {
@@ -972,7 +1078,8 @@ export const ChatPane = React.memo(function ChatPane({
     canRunComposerActions &&
     composerAttachmentPlusRows.length > 0 &&
     !sendInFlight &&
-    !chatState?.activeRequestId;
+    !chatState?.activeRequestId &&
+    !attachmentActionInProgress;
 
   const appendMessageForRole = useCallback(
     async (role: AppendAsRole) => {
@@ -986,7 +1093,7 @@ export const ChatPane = React.memo(function ChatPane({
         Alert.alert('Offline', 'Connect to a server to append messages.');
         return;
       }
-      if (sendInFlight || chatState?.activeRequestId) {
+      if (sendInFlight || chatState?.activeRequestId || attachmentActionInProgress) {
         return;
       }
 
@@ -1001,7 +1108,7 @@ export const ChatPane = React.memo(function ChatPane({
         setSendInFlight(false);
       }
     },
-    [buildMultipartContentPayload, canRunComposerActions, chatController, chatState?.activeRequestId, composeText, composeTextRef, sendInFlight],
+    [attachmentActionInProgress, buildMultipartContentPayload, canRunComposerActions, chatController, chatState?.activeRequestId, composeText, composeTextRef, sendInFlight],
   );
 
   const handleAppend = useCallback(async () => {
@@ -1019,7 +1126,7 @@ export const ChatPane = React.memo(function ChatPane({
       Alert.alert('Offline', 'Connect to a server to append messages.');
       return;
     }
-    if (sendInFlight || chatState?.activeRequestId) {
+    if (sendInFlight || chatState?.activeRequestId || attachmentActionInProgress) {
       return;
     }
 
@@ -1055,7 +1162,7 @@ export const ChatPane = React.memo(function ChatPane({
         />
       ),
     });
-  }, [appendMessageForRole, buildMultipartContentPayload, canRunComposerActions, chatState?.activeRequestId, composeText, composeTextRef, connectionId, sendInFlight, sessionId]);
+  }, [appendMessageForRole, attachmentActionInProgress, buildMultipartContentPayload, canRunComposerActions, chatState?.activeRequestId, composeText, composeTextRef, connectionId, sendInFlight, sessionId]);
 
   const handleResend = useCallback(async () => {
     if (!canRunComposerActions) {
@@ -1154,17 +1261,15 @@ export const ChatPane = React.memo(function ChatPane({
         return;
       }
 
-      beginAddDraftAttachment({
+      await storePickedAttachment({
         element: params.element,
         placement: (params.element as any).display_placement === 'above' ? 'above' : 'below',
-        content: {
-          filename: picked.filename,
-          mime_type: picked.mime_type,
-          data_base64: picked.data_base64,
-        },
+        filename: picked.filename,
+        mimeType: picked.mime_type,
+        dataBase64: picked.data_base64,
       });
     },
-    [beginAddDraftAttachment],
+    [storePickedAttachment],
   );
 
   const getAttachmentPlusAnchorTag = useCallback((): number | undefined => {
@@ -1252,6 +1357,7 @@ export const ChatPane = React.memo(function ChatPane({
         type: d.type,
         content: d.content,
         metadata: d.metadata,
+        previewUrl: d.previewUrl,
       }));
     },
     [],
@@ -1293,6 +1399,8 @@ export const ChatPane = React.memo(function ChatPane({
 
   const handleDeleteDraft = useCallback(
     (placement: 'above' | 'below', draftId: string) => {
+      const list = placement === 'above' ? attachmentsAbove : attachmentsBelow;
+      const draft = list.find((d) => d.draftId === draftId);
       const update = (prev: ComposerAttachmentDraft[]) => {
         const next = prev.filter((d) => d.draftId !== draftId);
         if (next.length === 0) {
@@ -1309,12 +1417,17 @@ export const ChatPane = React.memo(function ChatPane({
       } else {
         setAttachmentsBelow(update);
       }
+
+      const assetId = selectSessionAssetId(draft?.content);
+      if (assetId) {
+        deleteStoredAttachmentAsset(assetId, draft?.content?.filename, false).catch(() => {});
+      }
     },
-    [],
+    [attachmentsAbove, attachmentsBelow, deleteStoredAttachmentAsset],
   );
 
   const handleEditDraftMetadata = useCallback(
-    (placement: 'above' | 'below', draftId: string, anchorTag?: number) => {
+    (placement: 'above' | 'below', draftId: string, _anchorTag?: number) => {
       const list = placement === 'above' ? attachmentsAbove : attachmentsBelow;
       const draft = list.find((d) => d.draftId === draftId);
       if (!draft) return;
@@ -1929,6 +2042,13 @@ export const ChatPane = React.memo(function ChatPane({
           </View>
         ) : null}
 
+        {attachmentActionInProgress ? (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator size="small" color={theme.textSecondary} />
+            <Text style={styles.hintSecondary}>{attachmentActionText}</Text>
+          </View>
+        ) : null}
+
         {loadError ? (
           <View style={styles.errorRow}>
             <Text style={styles.errorText} numberOfLines={2}>
@@ -2067,7 +2187,7 @@ export const ChatPane = React.memo(function ChatPane({
                     return true;
                   }
                   if (key === 'append' || key === 'appendAs') {
-                    if (sendInFlight || chatState?.activeRequestId) {
+                    if (sendInFlight || chatState?.activeRequestId || attachmentActionInProgress) {
                       return true;
                     }
                     return !composeText.trim() && !hasAttachments;
@@ -2100,7 +2220,7 @@ export const ChatPane = React.memo(function ChatPane({
                 </View>
                 <ComposerAttachmentsExpandedPanel
                   attachments={buildManageRows(attachmentsAbove)}
-                  disabled={!canRunComposerActions}
+                  disabled={!canRunComposerActions || attachmentActionInProgress}
                   onMove={(draftId, direction) => handleMoveDraft('above', draftId, direction)}
                   onEditMetadata={(draftId, anchorTag) =>
                     handleEditDraftMetadata('above', draftId, anchorTag)
@@ -2111,7 +2231,7 @@ export const ChatPane = React.memo(function ChatPane({
             ) : (
               <AttachmentThumbnailStrip
                 attachments={buildAttachmentStripRows(attachmentsAbove)}
-                disabled={!canRunComposerActions}
+                disabled={!canRunComposerActions || attachmentActionInProgress}
                 expanded={false}
                 onToggleExpanded={() => setAttachmentsAboveExpanded(true)}
               />
@@ -2205,7 +2325,7 @@ export const ChatPane = React.memo(function ChatPane({
                 </View>
                 <ComposerAttachmentsExpandedPanel
                   attachments={buildManageRows(attachmentsBelow)}
-                  disabled={!canRunComposerActions}
+                  disabled={!canRunComposerActions || attachmentActionInProgress}
                   onMove={(draftId, direction) => handleMoveDraft('below', draftId, direction)}
                   onEditMetadata={(draftId, anchorTag) =>
                     handleEditDraftMetadata('below', draftId, anchorTag)
@@ -2216,7 +2336,7 @@ export const ChatPane = React.memo(function ChatPane({
             ) : (
               <AttachmentThumbnailStrip
                 attachments={buildAttachmentStripRows(attachmentsBelow)}
-                disabled={!canRunComposerActions}
+                disabled={!canRunComposerActions || attachmentActionInProgress}
                 expanded={false}
                 onToggleExpanded={() => setAttachmentsBelowExpanded(true)}
               />

@@ -503,3 +503,70 @@ def test_openai_responses_session_asset_image_real_api(
         )
         for item in native_history
     )
+
+
+@pytest.mark.integration
+@pytest.mark.openai
+def test_openai_responses_session_asset_pdf_real_api(
+    ensure_openai_api_key: str,
+    tmp_path: Path,
+) -> None:
+    core = _build_attachment_core()
+    asset_store = FilesystemSessionAssetStore(tmp_path / "session_assets")
+
+    config = {
+        **_upload_attachment_test_config(ensure_openai_api_key),
+        "_session_asset_store": asset_store,
+    }
+    pdf_path = _generate_text_pdf(tmp_path)
+    pdf_record = asset_store.store_base64(
+        session_id="sess_asset_pdf",
+        attachment_type="pdf",
+        filename=pdf_path.name,
+        mime_type="application/pdf",
+        data_base64=base64.b64encode(pdf_path.read_bytes()).decode("ascii"),
+    )
+
+    session = core.create_session()
+    session = core.add_message(
+        session,
+        "user",
+        (
+            "Reply with exactly ASSET_PDF_OK if you can access one attached stored PDF whose "
+            "visible text includes PDF_STAGE2_OK. Otherwise reply with exactly ASSET_PDF_FAIL."
+        ),
+        config=config,
+        multipart_content=[
+            {
+                "type": "pdf",
+                "content": {
+                    "asset_ref": pdf_record.asset_ref(),
+                    "mime_type": pdf_record.mime_type,
+                    "filename": pdf_record.filename,
+                },
+                "metadata": {},
+            }
+        ],
+    )
+
+    new_session, responses = core.send_request(session, config)
+
+    assert responses
+    assert "ASSET_PDF_OK" in responses[-1]["content"]
+
+    updated_record = asset_store.load(pdf_record.session_id, pdf_record.asset_id)
+    assert isinstance(updated_record.provider_refs["openai_responses"]["file_id"], str)
+
+    native_history = (new_session.metadata or {}).get("native_messages")
+    assert isinstance(native_history, list)
+    assert any(
+        isinstance(item, dict)
+        and item.get("type") == "message"
+        and isinstance(item.get("_metadata"), dict)
+        and any(
+            isinstance(entry, dict)
+            and (entry.get("multipart_part") or {}).get("content", {}).get("asset_ref") == pdf_record.asset_ref()
+            for entry in (item.get("_metadata") or {}).get("_openai_responses_attachment_sources", [])
+        )
+        for item in native_history
+    )

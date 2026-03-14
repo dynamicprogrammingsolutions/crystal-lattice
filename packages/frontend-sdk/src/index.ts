@@ -88,6 +88,16 @@ export {
 
 export type { ActionEffect, RunActionResult, RunActionContext, RunActionEffectsOptions } from './plugins/actionRunner';
 export { runApplicationAction, getRunActionErrorMessage } from './plugins/actionRunner';
+export type { SessionAssetRef, StoredAttachmentAssetDescriptor } from './plugins/attachmentActions';
+export {
+  DEFAULT_ATTACHMENT_ACTION_PLUGIN_ID,
+  DEFAULT_ATTACHMENT_ACTION_OWNER,
+  STORE_ATTACHMENT_ACTION_ID,
+  DELETE_ATTACHMENT_ACTION_ID,
+  selectSessionAssetId,
+  storeSessionAttachment,
+  deleteSessionAttachment,
+} from './plugins/attachmentActions';
 
 export type { SessionsControllerState } from './sessions/sessionsController';
 export { SessionsController } from './sessions/sessionsController';
