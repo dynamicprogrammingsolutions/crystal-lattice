@@ -11,6 +11,7 @@ import {
 import Icon from 'react-native-vector-icons/Feather';
 
 import { useTheme } from '@crystal-lattice/frontend-rn-components';
+import { selectAttachmentPreviewUrl } from '@crystal-lattice/frontend-sdk';
 
 export type ComposerAttachmentDraftRow = {
   draftId: string;
@@ -18,19 +19,6 @@ export type ComposerAttachmentDraftRow = {
   content: any;
   title?: string;
 };
-
-function selectAttachmentUrl(content: any): string | null {
-  if (!content || typeof content !== 'object') return null;
-  if (typeof content.url === 'string' && content.url) return content.url;
-  if (typeof content.data_base64 === 'string' && content.data_base64) {
-    const mimeType =
-      typeof content.mime_type === 'string' && content.mime_type
-        ? content.mime_type
-        : 'application/octet-stream';
-    return `data:${mimeType};base64,${content.data_base64}`;
-  }
-  return null;
-}
 
 function selectFilename(row: ComposerAttachmentDraftRow): string {
   const content = row.content;
@@ -58,7 +46,7 @@ export const ComposerAttachmentsExpandedPanel: React.FC<{
       ) : (
         <ScrollView style={styles.list} nestedScrollEnabled>
           {attachments.map((row, idx) => {
-            const url = selectAttachmentUrl(row.content);
+            const url = selectAttachmentPreviewUrl(row.content);
             const isImage = row.type === 'image' && url;
             const filename = selectFilename(row);
             const canMoveUp = idx > 0;

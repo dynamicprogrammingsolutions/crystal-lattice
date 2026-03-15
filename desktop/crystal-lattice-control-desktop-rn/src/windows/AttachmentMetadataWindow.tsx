@@ -3,6 +3,7 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 
 import { ThemeProvider, useTheme } from '@crystal-lattice/frontend-rn-components';
+import { selectAttachmentPreviewUrl } from '@crystal-lattice/frontend-sdk';
 
 import { useDesktopTheme } from '../theme/useDesktopTheme';
 import {
@@ -10,19 +11,6 @@ import {
   useActiveAttachmentMetadataWindow,
 } from './attachmentMetadataCoordinator';
 import { AttachmentMetadataPopoverContent } from '../chat/AttachmentMetadataPopoverContent';
-
-function selectAttachmentUrl(content: any): string | null {
-  if (!content || typeof content !== 'object') return null;
-  if (typeof content.url === 'string' && content.url) return content.url;
-  if (typeof content.data_base64 === 'string' && content.data_base64) {
-    const mimeType =
-      typeof content.mime_type === 'string' && content.mime_type
-        ? content.mime_type
-        : 'application/octet-stream';
-    return `data:${mimeType};base64,${content.data_base64}`;
-  }
-  return null;
-}
 
 function selectFilename(content: any): string | null {
   if (!content || typeof content !== 'object') return null;
@@ -61,7 +49,7 @@ function AttachmentMetadataWindowInner(): React.JSX.Element {
   }
 
   const { attachmentType, attachmentContent, metadataUi, initialMetadata } = active.state;
-  const previewUrl = selectAttachmentUrl(attachmentContent);
+  const previewUrl = selectAttachmentPreviewUrl(attachmentContent);
   const filename = selectFilename(attachmentContent);
 
   const preview = (

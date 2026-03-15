@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import Clipboard from '@react-native-clipboard/clipboard';
+import { selectAttachmentPreviewUrl } from '@crystal-lattice/frontend-sdk';
 import type { ApiMessage, UiSchemaElement } from '../api';
 import MessageActionsBar from './MessageActionsBar';
 import type { MessageActionKey, MessageActionDefinition } from '../messageActions';
@@ -46,19 +47,6 @@ function selectMultipartParts(message: ApiMessage): MultipartPart[] {
   return Array.isArray(parts) ? (parts as MultipartPart[]) : [];
 }
 
-function selectAttachmentUrl(content: any): string | null {
-  if (!content || typeof content !== 'object') return null;
-  if (typeof content.url === 'string' && content.url) return content.url;
-  if (typeof content.data_base64 === 'string' && content.data_base64) {
-    const mimeType =
-      typeof content.mime_type === 'string' && content.mime_type
-        ? content.mime_type
-        : 'application/octet-stream';
-    return `data:${mimeType};base64,${content.data_base64}`;
-  }
-  return null;
-}
-
 const MessageAttachments: React.FC<{ message: ApiMessage; onBlue?: boolean }> = ({
   message,
   onBlue,
@@ -84,7 +72,7 @@ const MessageAttachments: React.FC<{ message: ApiMessage; onBlue?: boolean }> = 
       <AttachmentThumbnailStrip
         attachments={attachments}
         onPress={async (attachment) => {
-          const url = selectAttachmentUrl(attachment.content);
+          const url = selectAttachmentPreviewUrl(attachment.content);
           const isPdf = attachment.type === 'pdf' && url;
           if (typeof url !== 'string' || !url) {
             return;

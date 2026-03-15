@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import asyncio
+import base64
 import hashlib
 import json
 import os
@@ -244,6 +245,69 @@ def _merged_session_overrides(
     )
     http_overrides = request_overrides if isinstance(request_overrides, dict) else {}
     return {**stored_overrides, **http_overrides}
+
+
+def _enrich_multipart_part_for_client(
+    part: Dict[str, Any],
+    app_instance: AgentApplication,
+) -> Dict[str, Any]:
+    enriched = dict(part)
+    content = part.get("content")
+    if not isinstance(content, dict):
+        return enriched
+
+    next_content = dict(content)
+    asset_ref = next_content.get("asset_ref")
+    if not isinstance(asset_ref, dict) or asset_ref.get("kind") != "session_asset":
+        enriched["content"] = next_content
+        return enriched
+
+    session_id = asset_ref.get("session_id")
+    asset_id = asset_ref.get("asset_id")
+    if not isinstance(session_id, str) or not isinstance(asset_id, str):
+        enriched["content"] = next_content
+        return enriched
+
+    try:
+        asset_store = app_instance.get_session_asset_store()
+        record = asset_store.load(session_id, asset_id)
+    except FileNotFoundError:
+        metadata = enriched.get("metadata") if isinstance(enriched.get("metadata"), dict) else {}
+        enriched["metadata"] = {**metadata, "asset_missing": True}
+        enriched["content"] = next_content
+        return enriched
+
+    next_content.setdefault("filename", record.filename)
+    next_content.setdefault("mime_type", record.mime_type)
+
+    if (
+        part.get("type") == "image"
+        and "url" not in next_content
+        and "data_base64" not in next_content
+        and "preview_data_base64" not in next_content
+    ):
+        payload_bytes = asset_store.load_bytes(session_id, asset_id)
+        next_content["preview_data_base64"] = base64.b64encode(payload_bytes).decode("ascii")
+        next_content.setdefault("preview_mime_type", record.mime_type)
+
+    enriched["content"] = next_content
+    return enriched
+
+
+def _enrich_message_for_client(
+    message: Dict[str, Any],
+    app_instance: AgentApplication,
+) -> Dict[str, Any]:
+    enriched = dict(message)
+    multipart_content = message.get("multipartContent")
+    if not isinstance(multipart_content, list):
+        return enriched
+
+    enriched["multipartContent"] = [
+        _enrich_multipart_part_for_client(part, app_instance) if isinstance(part, dict) else part
+        for part in multipart_content
+    ]
+    return enriched
 
 
 def _effective_session_config(
@@ -2414,7 +2478,12 @@ def list_session_messages(
             results: List[Dict[str, Any]] = []
             for idx in range(start_idx, end_idx):
                 msg = session.messages[idx]
-                results.append({"index": idx, "message": msg.to_dict()})
+                results.append(
+                    {
+                        "index": idx,
+                        "message": _enrich_message_for_client(msg.to_dict(), app_instance),
+                    }
+                )
 
             cursor_event_id = app_instance.get_session_cursor_event_id(session_id)
 

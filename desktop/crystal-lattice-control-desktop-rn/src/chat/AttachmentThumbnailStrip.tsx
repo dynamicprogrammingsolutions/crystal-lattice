@@ -7,6 +7,7 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
+import { selectAttachmentPreviewUrl } from '@crystal-lattice/frontend-sdk';
 
 import { useTheme } from '@crystal-lattice/frontend-rn-components';
 
@@ -17,20 +18,6 @@ export type AttachmentLike = {
   metadata?: any;
   previewUrl?: string | null;
 };
-
-function selectAttachmentUrl(content: any, previewUrl?: string | null): string | null {
-  if (typeof previewUrl === 'string' && previewUrl) return previewUrl;
-  if (!content || typeof content !== 'object') return null;
-  if (typeof content.url === 'string' && content.url) return content.url;
-  if (typeof content.data_base64 === 'string' && content.data_base64) {
-    const mimeType =
-      typeof content.mime_type === 'string' && content.mime_type
-        ? content.mime_type
-        : 'application/octet-stream';
-    return `data:${mimeType};base64,${content.data_base64}`;
-  }
-  return null;
-}
 
 export const AttachmentThumbnailStrip: React.FC<{
   attachments: AttachmentLike[];
@@ -55,7 +42,7 @@ export const AttachmentThumbnailStrip: React.FC<{
     <View style={styles.container}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={scrollContentStyle}>
         {attachments.map((attachment) => {
-          const url = selectAttachmentUrl(attachment.content, attachment.previewUrl);
+          const url = selectAttachmentPreviewUrl(attachment.content, attachment.previewUrl);
           const isImage = attachment.type === 'image' && url;
           const tile = (
             <View style={styles.tileInner}>

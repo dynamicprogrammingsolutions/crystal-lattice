@@ -734,3 +734,41 @@ Verification run for this slice:
 1. `pytest plugins/openai_responses/tests/test_openai_responses_attachments_extension_unit.py -q` -> passed
 2. `pytest plugins/openai_responses/tests/test_openai_responses_provider_unit.py -q` -> passed
 3. `pytest plugins/openai_responses/tests/test_openai_responses_provider_integration.py -q -k 'image_data_url_real_api or uploaded_image_real_api or uploaded_pdf_real_api'` -> passed
+
+## Follow-up progress note: sent-message preview continuity (added during completion)
+
+Completed the next slice for sent/reloaded attachment previews by using server-side payload enrichment rather than a plain backend asset URL.
+
+What changed:
+
+1. The FastAPI `GET /sessions/{session_id}/messages` path now enriches visible `asset_ref` attachments before returning them to clients.
+2. Image `asset_ref` parts now receive lightweight preview payload fields when no direct URL/data payload is already present:
+   - `preview_data_base64`
+   - `preview_mime_type`
+3. Stored attachment metadata such as `filename` and `mime_type` is filled in from the session asset manifest when missing.
+4. Missing assets are marked on the returned part metadata with `asset_missing: true` rather than crashing the message listing route.
+5. Frontend preview selection was centralized into a shared frontend-SDK helper so mobile and desktop both understand preview-enriched attachment content.
+
+Files changed:
+
+1. `application/python/agent_terminal_app/server.py`
+2. `application/python/tests/test_session_asset_message_preview_enrichment.py`
+3. `packages/frontend-sdk/src/attachments/preview.ts`
+4. `packages/frontend-sdk/src/attachments/preview.test.ts`
+5. `packages/frontend-sdk/src/index.ts`
+6. `mobile/crystal-lattice-control-rn/src/components/AttachmentThumbnailStrip.tsx`
+7. `mobile/crystal-lattice-control-rn/src/components/MessageBubble.tsx`
+8. `desktop/crystal-lattice-control-desktop-rn/src/chat/AttachmentThumbnailStrip.tsx`
+9. `desktop/crystal-lattice-control-desktop-rn/src/chat/ComposerAttachmentsManageModal.tsx`
+10. `desktop/crystal-lattice-control-desktop-rn/src/chat/ComposerAttachmentsExpandedPanel.tsx`
+11. `desktop/crystal-lattice-control-desktop-rn/src/windows/AttachmentMetadataWindow.tsx`
+
+Verification run for this slice:
+
+1. `pytest application/python/tests/test_session_asset_message_preview_enrichment.py -q` -> passed
+2. `npm test -- --run src/attachments/preview.test.ts` in `packages/frontend-sdk` -> passed
+3. `npx eslint src/chat/AttachmentThumbnailStrip.tsx src/chat/ComposerAttachmentsManageModal.tsx src/chat/ComposerAttachmentsExpandedPanel.tsx src/windows/AttachmentMetadataWindow.tsx` in `desktop/crystal-lattice-control-desktop-rn` -> passed
+
+Note:
+
+1. The mobile package currently does not have a discoverable ESLint config in this workspace, so direct linting there could not be run the same way.

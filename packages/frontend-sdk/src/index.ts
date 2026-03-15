@@ -56,6 +56,7 @@ export {
 export { selectDisplayContent, selectSingleLineContent } from './utils/messages';
 
 export { parseOptionalInt, parseIndexRangeText } from './utils/range';
+export { selectAttachmentPreviewUrl } from './attachments/preview';
 
 export type {
   Transport,
