@@ -1,0 +1,6 @@
+{
+  "module": "gemini_tools",
+  "subdirectory": ".",
+  "entries": ["gemini_tools.gemini_read_file_tool.GeminiReadFileTool"],
+  "kinds": {"gemini_tools.gemini_read_file_tool.GeminiReadFileTool": "tools"}
+}

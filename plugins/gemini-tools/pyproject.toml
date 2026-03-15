@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "gemini-tools"
+version = "0.1.0"
+description = "Gemini-style tool plugin bundle"
+readme = "README.md"
+requires-python = ">=3.10"
+dynamic = ["dependencies"]
+
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0.0"]
+
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["gemini_tools*"]
+
+
+[tool.setuptools.data-files]
+"" = ["agent_plugin.json"]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+markers = [
+  "integration: integration tests that may hit real services",
+  "openrouter: tests exercising the OpenRouter provider"
+]

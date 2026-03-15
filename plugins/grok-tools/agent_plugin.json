@@ -1,0 +1,6 @@
+{
+  "module": "grok_tools",
+  "subdirectory": ".",
+  "entries": ["grok_tools.grok_view_file_tool.GrokViewFileTool"],
+  "kinds": {"grok_tools.grok_view_file_tool.GrokViewFileTool": "tools"}
+}

@@ -5,9 +5,7 @@ from typing import Any, Dict, List, Mapping, Optional
 
 import hashlib
 import os
-import shutil
 import subprocess
-import tempfile
 
 from agent_core.utils import get_logger
 
@@ -135,15 +133,13 @@ class LocalPathRepoSource:
 
         src_root = cache_dir / "src"
         src_root.mkdir(parents=True, exist_ok=True)
-        tmp_copy = Path(tempfile.mkdtemp(prefix="plugin_copy_", dir=str(src_root)))
         try:
-            shutil.copytree(project_dir, tmp_copy, dirs_exist_ok=True)
             install_dir = self._installer.ensure_installed(
                 InstallRequest(
                     cache_dir=cache_dir,
                     safe_id=safe_id,
                     revision=revision,
-                    project_dir=tmp_copy,
+                    project_dir=project_dir,
                     policy=ctx.policy,
                     metadata=metadata,
                 )
@@ -160,11 +156,6 @@ class LocalPathRepoSource:
                 "detail": f"install failed: {exc}",
                 "path": str(project_dir),
             }])
-        finally:
-            try:
-                shutil.rmtree(tmp_copy, ignore_errors=True)
-            except Exception:
-                pass
 
         logger.info("plugin_local_resolved", path=str(base), install_dir=str(install_dir))
 

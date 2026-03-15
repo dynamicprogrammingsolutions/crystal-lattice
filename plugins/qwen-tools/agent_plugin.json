@@ -1,0 +1,6 @@
+{
+  "module": "qwen_tools",
+  "subdirectory": ".",
+  "entries": ["qwen_tools.qwen_read_file_tool.QwenReadFileTool"],
+  "kinds": {"qwen_tools.qwen_read_file_tool.QwenReadFileTool": "tools"}
+}
