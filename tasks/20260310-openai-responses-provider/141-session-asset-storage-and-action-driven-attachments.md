@@ -532,3 +532,178 @@ Current intentional limits after Stage 3:
 1. Sent-message preview continuity is only partial: composer drafts preserve local image thumbnails via `previewUrl`, but there is still no dedicated server asset-preview endpoint for reloaded/sent `asset_ref` attachments.
 2. Mobile and desktop currently perform draft cleanup on metadata-cancel/delete, but sent attachments still rely on later stages for any broader post-send asset lifecycle UX.
 3. The pre-existing TypeScript cast errors in frontend message rendering remain and still block whole-app typecheck runs unrelated to this stage.
+
+## Follow-up design note: split image-inline policy from upload timing (added after review)
+
+During review and manual testing, one confusing behavior remained: PDFs still require `attachment_upload_mode=upload_before_send`, while the Stage 3 action-driven flow can make that dependency look optional from the UI. The follow-up implementation should simplify that policy model.
+
+### Desired policy model
+
+1. Add a separate image-only mode setting:
+   - `image_attachment_mode: "inline" | "upload"`
+2. Keep `attachment_upload_mode` as the provider-backed upload timing/policy setting, but hide it from UI for now.
+3. For now, `attachment_upload_mode` should only support one effective value:
+   - `upload_before_send`
+4. The image-only `inline` setting takes precedence for image attachments.
+5. PDFs should always use the upload-backed path.
+
+### Effective behavior
+
+1. Image + `image_attachment_mode=inline`:
+   - send as inline/direct image content
+   - do not route through provider-backed upload for that request
+2. Image + `image_attachment_mode=upload`:
+   - use the stored session asset plus OpenAI upload cache/reuse path
+3. PDF:
+   - always use the stored session asset plus OpenAI upload cache/reuse path
+4. `attachment_upload_mode` controls when upload-backed attachments are uploaded to OpenAI, not whether PDFs are allowed at all.
+
+### UI expectations
+
+1. Expose only the image-inline toggle in UI.
+2. Hide `attachment_upload_mode` from the user-facing UI for now; keep it config-file-only so later values can be introduced without reworking the UI again.
+3. The old generic upload-mode selector should be removed from the visible UI once this lands.
+
+### Migration / compatibility expectations
+
+1. Preserve backward compatibility for configs that still use the old `attachment_upload_mode: "direct"` setting.
+2. Normalize legacy `direct` behavior into the new split model rather than failing old configs abruptly.
+3. Recommended normalized defaults:
+   - `image_attachment_mode: "inline"`
+   - `attachment_upload_mode: "upload_before_send"`
+
+### Follow-up implementation notes
+
+1. The attachment extension should own the new config schema and UI exposure rules.
+2. The provider should branch image behavior on `image_attachment_mode`, not on the old generic direct/upload switch.
+3. The provider should stop treating PDFs as conditionally allowed based on a visible UI mode; PDFs should always flow through the upload-backed path.
+4. Tests should be updated to cover:
+   - image inline mode
+   - image upload-backed mode
+   - PDF send without requiring a user-visible upload-mode toggle
+   - legacy config normalization from `attachment_upload_mode: "direct"`
+
+## Follow-up implementation plan for remaining `141` gaps (added after review)
+
+Review after the Stage 3 implementation identified a few remaining gaps against the original acceptance criteria. The next pass should close them together with the updated image-vs-upload policy model above.
+
+### Remaining gaps to close
+
+1. Sent-message preview continuity is still incomplete.
+   - Composer drafts preserve local image previews via `previewUrl`, but reloaded/sent `asset_ref` attachments still do not have a stable preview/download path.
+   - Mobile and desktop message rendering currently only know how to preview attachments from direct URLs or inline base64/data URLs.
+   - A follow-up should add a server-backed asset preview/download path or equivalent payload enrichment so sent image/PDF attachments render stable thumbnails/chips after reload.
+
+2. Frontend upload state is only partially modeled.
+   - There is currently a single background upload/delete banner, but not the richer per-draft state model originally called for (`local`, `uploading_to_server`, `stored`, `uploading_to_openai`, `ready`, `failed`, `deleting`).
+   - A follow-up should add explicit per-draft state and clear failure handling rather than relying only on alerts.
+
+3. Attachment refactor work is only partial.
+   - Some helper extraction landed, but too much asset-resolution and upload-cache orchestration still lives inside `openai_responses_provider.py`.
+   - A follow-up should continue moving attachment parsing, OpenAI upload cache logic, and request-item preparation into dedicated helper modules so the provider stays orchestration-focused.
+
+### Recommended execution order
+
+1. Update attachment policy schema and normalization.
+   - Add `image_attachment_mode: "inline" | "upload"`.
+   - Keep `attachment_upload_mode` config-only and normalize legacy `direct` behavior.
+   - Remove the visible generic upload-mode selector from UI.
+
+2. Update provider branching for images and PDFs.
+   - Images should use `image_attachment_mode` to choose inline vs upload-backed behavior.
+   - PDFs should always use the upload-backed path.
+   - Preserve cache reuse/reupload behavior for both Stage 2 and Stage 3 flows.
+
+3. Add stable preview support for sent/reloaded `asset_ref` attachments.
+   - Introduce a server-backed preview/download path or equivalent rendering payload enrichment.
+   - Update both mobile and desktop message rendering so sent image/PDF attachments continue to render thumbnails/chips after reload.
+   - Add regression coverage for reload/slice/fork preview continuity where feasible.
+
+4. Improve frontend attachment state modeling.
+   - Introduce explicit per-draft attachment state values.
+   - Keep the top-of-chat upload/delete indicator, but also surface local failure and readiness state on the affected draft attachment.
+
+5. Continue provider/helper cleanup.
+   - Move more attachment-specific request preparation and OpenAI file-cache logic out of `openai_responses_provider.py` into focused helper modules.
+
+### Verification expectations for the follow-up
+
+1. Provider/unit tests for the new image-inline vs upload-backed branching and legacy config normalization.
+2. Real integration coverage for:
+   - image inline mode
+   - image upload-backed mode
+   - PDF send without relying on a user-visible upload-mode toggle
+3. Frontend tests where practical for per-draft state transitions and sent-message preview rendering.
+4. End-to-end verification that sent `asset_ref` attachments still render usable previews/chips after reload in both mobile and desktop flows.
+
+### Detailed test plan for follow-up steps 1-5
+
+#### 1. Attachment policy schema and normalization
+
+Add extension-focused unit tests, primarily in `plugins/openai_responses/tests/test_openai_responses_attachments_extension_unit.py`, for:
+
+1. `image_attachment_mode` schema exists and defaults to `inline`.
+2. `attachment_upload_mode` remains accepted in config but is hidden from visible UI.
+3. Legacy `attachment_upload_mode: "direct"` normalizes into the new split model instead of failing.
+4. Visible UI exposes only the image-inline toggle and no longer exposes the old generic upload-mode selector.
+5. PDF composer attachment UI remains available under the new policy model.
+
+#### 2. Provider branching for images and PDFs
+
+Add provider unit tests, primarily in `plugins/openai_responses/tests/test_openai_responses_provider_unit.py`, for:
+
+1. Image + `image_attachment_mode=inline` stays inline and does not trigger upload-backed request rewriting.
+2. Image + `image_attachment_mode=upload` resolves through stored asset / upload-backed behavior.
+3. PDF send works through the upload-backed path without depending on a user-visible upload toggle.
+4. Legacy normalized config produces the same native request shapes as the new explicit config.
+5. Cached OpenAI `file_id` reuse still works for upload-backed image/PDF attachments.
+6. Stale cached `file_id` still triggers one re-upload retry.
+
+Add real provider integration coverage, primarily in `plugins/openai_responses/tests/test_openai_responses_provider_integration.py`, for:
+
+1. Real image send in inline mode.
+2. Real image send in upload-backed mode.
+3. Real PDF send under the new policy model without relying on the old visible upload-mode concept.
+
+#### 3. Stable preview support for sent/reloaded `asset_ref` attachments
+
+Add backend tests under `application/python/tests` for any preview/download route or payload-enrichment mechanism introduced:
+
+1. Stored image asset preview/download returns usable content and correct MIME type.
+2. Stored PDF attachment preview/download or chip metadata is returned consistently.
+3. Missing/deleted asset returns the correct error behavior.
+
+Add native-history regression coverage in `plugins/openai_responses/tests/test_openai_responses_native_history_regressions.py` for:
+
+1. Sent `asset_ref` attachments rebuild with enough preview metadata after reload.
+2. Preview continuity survives slice/fork where expected.
+
+Add frontend renderer tests for:
+
+1. `mobile/crystal-lattice-control-rn/src/components/MessageBubble.tsx`
+2. `desktop/crystal-lattice-control-desktop-rn/src/chat/DesktopMessageBubble.tsx`
+
+These should verify that a sent message with an `asset_ref`-backed image/PDF renders a thumbnail/chip after reload, not only during draft composition.
+
+#### 4. Frontend attachment state modeling
+
+Add frontend tests for shared state/contract code and UI seams where practical, covering:
+
+1. Upload state transitions such as `local -> uploading_to_server -> stored/ready`.
+2. Failed upload produces a persistent draft `failed` state instead of relying only on alerts.
+3. Delete transition such as `stored/ready -> deleting -> removed`.
+4. Send remains disabled while any draft is in a blocking upload/delete state.
+5. The top-of-chat indicator still appears while draft-local state is also rendered on the affected attachment.
+
+Prefer draft-row / attachment-strip level coverage over whole-chat-pane tests when that keeps tests more stable.
+
+#### 5. Provider/helper cleanup
+
+As helper extraction proceeds, add focused helper-unit tests in new files rather than relying only on large provider tests. Cover:
+
+1. Attachment policy normalization helpers.
+2. Request-item preparation helpers for image/PDF.
+3. OpenAI file-cache helpers for reuse, refresh, retry, and manifest updates.
+4. Asset-ref resolution helpers.
+
+Retain the higher-level provider/application/integration suites as regression coverage so helper extraction is verified as behavior-preserving.
