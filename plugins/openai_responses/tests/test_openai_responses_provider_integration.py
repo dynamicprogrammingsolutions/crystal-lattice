@@ -31,9 +31,10 @@ def _vision_test_config(api_key: str) -> dict[str, object]:
     }
 
 
-def _upload_attachment_test_config(api_key: str) -> dict[str, object]:
+def _upload_backed_image_test_config(api_key: str) -> dict[str, object]:
     return {
         **_vision_test_config(api_key),
+        "image_attachment_mode": "upload",
         "attachment_upload_mode": "upload_before_send",
     }
 
@@ -336,7 +337,7 @@ def test_openai_responses_uploaded_image_real_api(
 ) -> None:
     core = _build_attachment_core()
 
-    config = _upload_attachment_test_config(ensure_openai_api_key)
+    config = _upload_backed_image_test_config(ensure_openai_api_key)
     image_path = _generate_red_square_png(tmp_path)
     image_data_url = _make_data_url(image_path, "image/png")
 
@@ -391,7 +392,7 @@ def test_openai_responses_uploaded_pdf_real_api(
 ) -> None:
     core = _build_attachment_core()
 
-    config = _upload_attachment_test_config(ensure_openai_api_key)
+    config = _vision_test_config(ensure_openai_api_key)
     pdf_path = _generate_text_pdf(tmp_path)
     pdf_data_url = _make_data_url(pdf_path, "application/pdf")
 
@@ -448,7 +449,7 @@ def test_openai_responses_session_asset_image_real_api(
     asset_store = FilesystemSessionAssetStore(tmp_path / "session_assets")
 
     config = {
-        **_upload_attachment_test_config(ensure_openai_api_key),
+        **_upload_backed_image_test_config(ensure_openai_api_key),
         "_session_asset_store": asset_store,
     }
     image_path = _generate_red_square_png(tmp_path)
@@ -515,7 +516,7 @@ def test_openai_responses_session_asset_pdf_real_api(
     asset_store = FilesystemSessionAssetStore(tmp_path / "session_assets")
 
     config = {
-        **_upload_attachment_test_config(ensure_openai_api_key),
+        **_vision_test_config(ensure_openai_api_key),
         "_session_asset_store": asset_store,
     }
     pdf_path = _generate_text_pdf(tmp_path)

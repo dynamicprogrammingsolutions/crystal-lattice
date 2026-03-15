@@ -707,3 +707,30 @@ As helper extraction proceeds, add focused helper-unit tests in new files rather
 4. Asset-ref resolution helpers.
 
 Retain the higher-level provider/application/integration suites as regression coverage so helper extraction is verified as behavior-preserving.
+
+## Follow-up progress note: policy split and provider branching (added during completion)
+
+Completed the first runtime follow-up slice by landing the new policy split and the matching provider behavior together.
+
+What changed:
+
+1. The attachment extension now exposes `image_attachment_mode: inline | upload` in visible UI and no longer exposes the old generic upload-mode selector.
+2. The extension still accepts legacy `attachment_upload_mode: direct` in config, but normalizes it internally to:
+   - `image_attachment_mode=inline`
+   - `attachment_upload_mode=upload_before_send`
+3. The provider now branches image behavior on `image_attachment_mode`.
+4. PDFs no longer depend on a user-visible upload toggle and always flow through the upload-backed path.
+
+Files changed:
+
+1. `plugins/openai_responses/src/openai_responses_plugins/openai_responses_attachments_extension.py`
+2. `plugins/openai_responses/src/openai_responses_plugins/openai_responses_provider.py`
+3. `plugins/openai_responses/tests/test_openai_responses_attachments_extension_unit.py`
+4. `plugins/openai_responses/tests/test_openai_responses_provider_unit.py`
+5. `plugins/openai_responses/tests/test_openai_responses_provider_integration.py`
+
+Verification run for this slice:
+
+1. `pytest plugins/openai_responses/tests/test_openai_responses_attachments_extension_unit.py -q` -> passed
+2. `pytest plugins/openai_responses/tests/test_openai_responses_provider_unit.py -q` -> passed
+3. `pytest plugins/openai_responses/tests/test_openai_responses_provider_integration.py -q -k 'image_data_url_real_api or uploaded_image_real_api or uploaded_pdf_real_api'` -> passed

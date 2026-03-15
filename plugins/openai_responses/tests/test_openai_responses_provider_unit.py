@@ -704,30 +704,48 @@ def test_to_native_messages_adds_pdf_input_file_when_upload_mode_enabled() -> No
     ]
 
 
-def test_to_native_messages_rejects_pdf_when_upload_mode_disabled() -> None:
+def test_to_native_messages_accepts_pdf_without_visible_upload_toggle() -> None:
     provider = OpenAIResponsesProvider()
 
-    with pytest.raises(ValueError, match="attachment_upload_mode=upload_before_send"):
-        provider.to_native_messages(
-            [
-                {
-                    "role": "user",
-                    "content": "read this pdf",
-                    "multipartContent": [
-                        {
-                            "type": "pdf",
-                            "content": {
-                                "data_base64": "JVBERi0xLjQK",
-                                "mime_type": "application/pdf",
-                                "filename": "brief.pdf",
-                            },
-                            "metadata": {},
-                        }
-                    ],
-                }
-            ],
-            {},
-        )
+    native = provider.to_native_messages(
+        [
+            {
+                "role": "user",
+                "content": "read this pdf",
+                "multipartContent": [
+                    {
+                        "type": "pdf",
+                        "content": {
+                            "data_base64": "JVBERi0xLjQK",
+                            "mime_type": "application/pdf",
+                            "filename": "brief.pdf",
+                        },
+                        "metadata": {},
+                    }
+                ],
+            }
+        ],
+        {},
+    )
+
+    assert native[0]["content"][1] == {
+        "type": "input_file",
+        "file_data": "JVBERi0xLjQK",
+        "filename": "brief.pdf",
+    }
+
+
+def test_attachment_modes_normalize_legacy_direct_to_inline_images() -> None:
+    provider = OpenAIResponsesProvider()
+
+    mode = provider._image_attachment_mode(
+        {"config": {"attachment_upload_mode": "direct"}}
+    )
+
+    assert mode == "inline"
+    assert provider._attachment_upload_mode({"config": {"attachment_upload_mode": "direct"}}) == (
+        "upload_before_send"
+    )
 
 
 def test_from_native_messages_preserves_image_multipart_content() -> None:
@@ -1255,7 +1273,10 @@ def test_call_api_upload_mode_rewrites_inline_image_and_pdf_before_send() -> Non
             "base_url": "https://api.openai.com/v1",
             "timeout": 12,
         },
-        "openai_responses_attachments": {"attachment_upload_mode": "upload_before_send"},
+        "openai_responses_attachments": {
+            "attachment_upload_mode": "upload_before_send",
+            "image_attachment_mode": "upload",
+        },
         "client": fake_client,
         "request": {
             "payload": {"model": "gpt-5-mini"},
@@ -1334,7 +1355,10 @@ def test_call_api_upload_mode_reuses_cached_upload_for_request_and_history() -> 
             "base_url": "https://api.openai.com/v1",
             "timeout": 12,
         },
-        "openai_responses_attachments": {"attachment_upload_mode": "upload_before_send"},
+        "openai_responses_attachments": {
+            "attachment_upload_mode": "upload_before_send",
+            "image_attachment_mode": "upload",
+        },
         "client": fake_client,
         "request": {
             "payload": {"model": "gpt-5-mini"},
@@ -1346,6 +1370,66 @@ def test_call_api_upload_mode_reuses_cached_upload_for_request_and_history() -> 
     provider.call_api(input_items, state)
 
     assert len(fake_client.files.calls) == 1
+
+
+def test_call_api_leaves_inline_images_direct_when_image_mode_is_inline() -> None:
+    provider = OpenAIResponsesProvider()
+    fixture = _load_fixture()
+    fake_client = _UploadFixtureClient(fixture)
+
+    input_items = [
+        {
+            "type": "message",
+            "role": "user",
+            "content": [
+                {"type": "input_text", "text": "see image"},
+                {"type": "input_image", "image_url": "data:image/png;base64,Zm9v"},
+            ],
+            "_metadata": {
+                "_openai_responses_attachment_sources": [
+                    {
+                        "content_index": 1,
+                        "multipart_part": {
+                            "type": "image",
+                            "content": {
+                                "url": "data:image/png;base64,Zm9v",
+                                "mime_type": "image/png",
+                                "filename": "pixel.png",
+                            },
+                            "metadata": {},
+                        },
+                    }
+                ]
+            },
+        }
+    ]
+
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 12,
+        },
+        "openai_responses_attachments": {
+            "attachment_upload_mode": "upload_before_send",
+            "image_attachment_mode": "inline",
+        },
+        "client": fake_client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 12,
+        },
+    }
+
+    provider.call_api(input_items, state)
+
+    assert fake_client.files.calls == []
+    assert fake_client.responses.calls[0]["input"][0]["content"][1] == {
+        "type": "input_image",
+        "image_url": "data:image/png;base64,Zm9v",
+    }
 
 
 def test_to_native_messages_resolves_session_asset_refs_to_inline_parts(tmp_path: Path) -> None:
@@ -1401,7 +1485,10 @@ def test_to_native_messages_resolves_session_asset_refs_to_inline_parts(tmp_path
                 "timeout": 12,
                 "_session_asset_store": asset_store,
             },
-            "openai_responses_attachments": {"attachment_upload_mode": "upload_before_send"},
+            "openai_responses_attachments": {
+                "attachment_upload_mode": "upload_before_send",
+                "image_attachment_mode": "inline",
+            },
         },
     )
 
@@ -1515,7 +1602,10 @@ def test_call_api_upload_mode_uses_cached_session_asset_provider_ref_without_reu
             "timeout": 12,
             "_session_asset_store": asset_store,
         },
-        "openai_responses_attachments": {"attachment_upload_mode": "upload_before_send"},
+        "openai_responses_attachments": {
+            "attachment_upload_mode": "upload_before_send",
+            "image_attachment_mode": "upload",
+        },
         "client": fake_client,
         "request": {
             "payload": {"model": "gpt-5-mini"},
@@ -1585,7 +1675,10 @@ def test_call_api_upload_mode_reuploads_session_asset_when_cached_ref_is_rejecte
                 "timeout": 12,
                 "_session_asset_store": asset_store,
             },
-            "openai_responses_attachments": {"attachment_upload_mode": "upload_before_send"},
+            "openai_responses_attachments": {
+                "attachment_upload_mode": "upload_before_send",
+                "image_attachment_mode": "upload",
+            },
         },
     )
 
@@ -1597,7 +1690,10 @@ def test_call_api_upload_mode_reuploads_session_asset_when_cached_ref_is_rejecte
             "timeout": 12,
             "_session_asset_store": asset_store,
         },
-        "openai_responses_attachments": {"attachment_upload_mode": "upload_before_send"},
+        "openai_responses_attachments": {
+            "attachment_upload_mode": "upload_before_send",
+            "image_attachment_mode": "upload",
+        },
         "client": fake_client,
         "request": {
             "payload": {"model": "gpt-5-mini"},
@@ -1966,7 +2062,10 @@ def test_stream_api_upload_mode_rewrites_inline_image_before_send() -> None:
             "base_url": "https://api.openai.com/v1",
             "timeout": 30,
         },
-        "openai_responses_attachments": {"attachment_upload_mode": "upload_before_send"},
+        "openai_responses_attachments": {
+            "attachment_upload_mode": "upload_before_send",
+            "image_attachment_mode": "upload",
+        },
         "client": fake_client,
         "request": {
             "payload": {"model": "gpt-5-mini"},

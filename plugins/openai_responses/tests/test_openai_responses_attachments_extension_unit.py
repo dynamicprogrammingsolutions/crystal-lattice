@@ -21,23 +21,37 @@ def test_attachment_extension_schema_tags_and_init_defaults() -> None:
 
     schema = extension.get_config_schema()
     assert schema == {
+        "image_attachment_mode": {
+            "type": "string",
+            "required": False,
+            "enum": ["inline", "upload"],
+            "default": "inline",
+            "description": (
+                "Image attachment handling. Use inline to send image content directly, "
+                "or upload to route image attachments through the upload-backed path."
+            ),
+        },
         "attachment_upload_mode": {
             "type": "string",
             "required": False,
             "enum": ["direct", "upload_before_send"],
-            "default": "direct",
+            "default": "upload_before_send",
             "description": (
-                "Attachment send strategy. Use upload_before_send to upload image/PDF "
-                "attachments through the OpenAI Files API before the Responses request."
+                "Internal upload-backed attachment policy. upload_before_send uploads "
+                "attachment-backed files through the OpenAI Files API immediately before "
+                "the Responses request. Legacy direct is normalized for compatibility."
             ),
         }
     }
 
     state = extension.init({}, {})
-    assert state["openai_responses_attachments"] == {"attachment_upload_mode": "direct"}
+    assert state["openai_responses_attachments"] == {
+        "image_attachment_mode": "inline",
+        "attachment_upload_mode": "upload_before_send",
+    }
 
 
-def test_attachment_extension_ui_contains_mode_select_and_pdf_attachment() -> None:
+def test_attachment_extension_ui_contains_image_mode_select_and_pdf_attachment() -> None:
     extension = OpenAIResponsesAttachmentsExtension()
 
     elements = extension.get_ui_elements(config={}, tags=["openai_responses"], models=[])
@@ -45,11 +59,11 @@ def test_attachment_extension_ui_contains_mode_select_and_pdf_attachment() -> No
     assert elements == [
         {
             "type": "select",
-            "key": "attachment_upload_mode",
-            "label": "Attachment Upload Mode",
+            "key": "image_attachment_mode",
+            "label": "Image Attachment Mode",
             "options": [
-                {"value": "direct", "label": "direct"},
-                {"value": "upload_before_send", "label": "upload_before_send"},
+                {"value": "inline", "label": "inline"},
+                {"value": "upload", "label": "upload"},
             ],
         },
         {
@@ -84,7 +98,33 @@ def test_attachment_extension_initialize_request_normalizes_state() -> None:
 
     assert native_messages == []
     assert state["openai_responses_attachments"] == {
-        "attachment_upload_mode": "upload_before_send"
+        "image_attachment_mode": "inline",
+        "attachment_upload_mode": "upload_before_send",
+    }
+
+
+def test_attachment_extension_normalizes_legacy_direct_mode_to_inline_images() -> None:
+    extension = OpenAIResponsesAttachmentsExtension()
+
+    state = extension.init({"attachment_upload_mode": "direct"}, {})
+
+    assert state["openai_responses_attachments"] == {
+        "image_attachment_mode": "inline",
+        "attachment_upload_mode": "upload_before_send",
+    }
+
+
+def test_attachment_extension_prefers_explicit_image_upload_mode() -> None:
+    extension = OpenAIResponsesAttachmentsExtension()
+
+    state = extension.init(
+        {"attachment_upload_mode": "direct", "image_attachment_mode": "upload"},
+        {},
+    )
+
+    assert state["openai_responses_attachments"] == {
+        "image_attachment_mode": "upload",
+        "attachment_upload_mode": "upload_before_send",
     }
 
 

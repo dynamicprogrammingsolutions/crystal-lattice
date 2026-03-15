@@ -12,11 +12,15 @@ from agent_core.types import ProviderExtensionPlugin
 
 
 _ATTACHMENT_UPLOAD_MODE_KEY = "attachment_upload_mode"
+_IMAGE_ATTACHMENT_MODE_KEY = "image_attachment_mode"
 _ATTACHMENT_STATE_KEY = "openai_responses_attachments"
 _SESSION_ASSETS_METADATA_KEY = "session_assets"
 _DIRECT_MODE = "direct"
 _UPLOAD_BEFORE_SEND_MODE = "upload_before_send"
 _UPLOAD_MODE_VALUES = (_DIRECT_MODE, _UPLOAD_BEFORE_SEND_MODE)
+_IMAGE_ATTACHMENT_MODE_INLINE = "inline"
+_IMAGE_ATTACHMENT_MODE_UPLOAD = "upload"
+_IMAGE_ATTACHMENT_MODE_VALUES = (_IMAGE_ATTACHMENT_MODE_INLINE, _IMAGE_ATTACHMENT_MODE_UPLOAD)
 _STORE_ATTACHMENT_ACTION_ID = "store_attachment"
 _DELETE_ATTACHMENT_ACTION_ID = "delete_attachment"
 
@@ -35,14 +39,25 @@ class OpenAIResponsesAttachmentsExtension(ProviderExtensionPlugin):
 
     def get_config_schema(self) -> Dict[str, Any]:
         return {
+            _IMAGE_ATTACHMENT_MODE_KEY: {
+                "type": "string",
+                "required": False,
+                "enum": list(_IMAGE_ATTACHMENT_MODE_VALUES),
+                "default": _IMAGE_ATTACHMENT_MODE_INLINE,
+                "description": (
+                    "Image attachment handling. Use inline to send image content directly, "
+                    "or upload to route image attachments through the upload-backed path."
+                ),
+            },
             _ATTACHMENT_UPLOAD_MODE_KEY: {
                 "type": "string",
                 "required": False,
                 "enum": list(_UPLOAD_MODE_VALUES),
-                "default": _DIRECT_MODE,
+                "default": _UPLOAD_BEFORE_SEND_MODE,
                 "description": (
-                    "Attachment send strategy. Use upload_before_send to upload image/PDF "
-                    "attachments through the OpenAI Files API before the Responses request."
+                    "Internal upload-backed attachment policy. upload_before_send uploads "
+                    "attachment-backed files through the OpenAI Files API immediately before "
+                    "the Responses request. Legacy direct is normalized for compatibility."
                 ),
             }
         }
@@ -60,11 +75,11 @@ class OpenAIResponsesAttachmentsExtension(ProviderExtensionPlugin):
         return [
             {
                 "type": "select",
-                "key": _ATTACHMENT_UPLOAD_MODE_KEY,
-                "label": "Attachment Upload Mode",
+                "key": _IMAGE_ATTACHMENT_MODE_KEY,
+                "label": "Image Attachment Mode",
                 "options": [
-                    {"value": _DIRECT_MODE, "label": _DIRECT_MODE},
-                    {"value": _UPLOAD_BEFORE_SEND_MODE, "label": _UPLOAD_BEFORE_SEND_MODE},
+                    {"value": _IMAGE_ATTACHMENT_MODE_INLINE, "label": _IMAGE_ATTACHMENT_MODE_INLINE},
+                    {"value": _IMAGE_ATTACHMENT_MODE_UPLOAD, "label": _IMAGE_ATTACHMENT_MODE_UPLOAD},
                 ],
             },
             {
@@ -82,9 +97,7 @@ class OpenAIResponsesAttachmentsExtension(ProviderExtensionPlugin):
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         return {
             **state,
-            _ATTACHMENT_STATE_KEY: {
-                _ATTACHMENT_UPLOAD_MODE_KEY: self._normalized_mode(config),
-            },
+            _ATTACHMENT_STATE_KEY: self._normalized_settings(config),
         }
 
     def to_native_messages(
@@ -110,22 +123,18 @@ class OpenAIResponsesAttachmentsExtension(ProviderExtensionPlugin):
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         attachment_state = state.get(_ATTACHMENT_STATE_KEY)
         if isinstance(attachment_state, dict):
-            normalized = self._normalized_mode(attachment_state)
-            if attachment_state.get(_ATTACHMENT_UPLOAD_MODE_KEY) == normalized:
+            normalized = self._normalized_settings(attachment_state)
+            if attachment_state == normalized:
                 return list(native_messages), state
             return list(native_messages), {
                 **state,
-                _ATTACHMENT_STATE_KEY: {
-                    _ATTACHMENT_UPLOAD_MODE_KEY: normalized,
-                },
+                _ATTACHMENT_STATE_KEY: normalized,
             }
 
         config = state.get("config") if isinstance(state.get("config"), dict) else {}
         return list(native_messages), {
             **state,
-            _ATTACHMENT_STATE_KEY: {
-                _ATTACHMENT_UPLOAD_MODE_KEY: self._normalized_mode(config),
-            },
+            _ATTACHMENT_STATE_KEY: self._normalized_settings(config),
         }
 
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -169,11 +178,31 @@ class OpenAIResponsesAttachmentsExtension(ProviderExtensionPlugin):
             return self._delete_attachment_action(session, native_messages, params, context)
         raise ValueError(f"Unknown action_id {action_id!r}")
 
-    def _normalized_mode(self, config: Dict[str, Any]) -> str:
-        raw = config.get(_ATTACHMENT_UPLOAD_MODE_KEY)
-        if isinstance(raw, str) and raw in _UPLOAD_MODE_VALUES:
+    def _normalized_settings(self, config: Dict[str, Any]) -> Dict[str, str]:
+        image_mode = self._normalized_image_mode(config)
+        upload_mode = self._normalized_upload_mode(config)
+        return {
+            _IMAGE_ATTACHMENT_MODE_KEY: image_mode,
+            _ATTACHMENT_UPLOAD_MODE_KEY: upload_mode,
+        }
+
+    def _normalized_image_mode(self, config: Dict[str, Any]) -> str:
+        raw = config.get(_IMAGE_ATTACHMENT_MODE_KEY)
+        if isinstance(raw, str) and raw in _IMAGE_ATTACHMENT_MODE_VALUES:
             return raw
-        return _DIRECT_MODE
+
+        legacy_upload_mode = config.get(_ATTACHMENT_UPLOAD_MODE_KEY)
+        if legacy_upload_mode == _DIRECT_MODE:
+            return _IMAGE_ATTACHMENT_MODE_INLINE
+        return _IMAGE_ATTACHMENT_MODE_INLINE
+
+    def _normalized_upload_mode(self, config: Dict[str, Any]) -> str:
+        raw = config.get(_ATTACHMENT_UPLOAD_MODE_KEY)
+        if raw == _DIRECT_MODE:
+            return _UPLOAD_BEFORE_SEND_MODE
+        if isinstance(raw, str) and raw == _UPLOAD_BEFORE_SEND_MODE:
+            return raw
+        return _UPLOAD_BEFORE_SEND_MODE
 
     def _attachment_asset_store(self, context: Optional[Dict[str, Any]]) -> Any:
         if isinstance(context, dict) and context.get("session_asset_store") is not None:

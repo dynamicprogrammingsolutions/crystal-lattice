@@ -40,9 +40,12 @@ _DEFAULT_TIMEOUT = 60.0
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
 _ATTACHMENT_UPLOAD_MODE_KEY = "attachment_upload_mode"
+_IMAGE_ATTACHMENT_MODE_KEY = "image_attachment_mode"
 _ATTACHMENT_STATE_KEY = "openai_responses_attachments"
 _ATTACHMENT_UPLOAD_MODE_DIRECT = "direct"
 _ATTACHMENT_UPLOAD_MODE_UPLOAD = "upload_before_send"
+_IMAGE_ATTACHMENT_MODE_INLINE = "inline"
+_IMAGE_ATTACHMENT_MODE_UPLOAD = "upload"
 _ATTACHMENT_SOURCES_METADATA_KEY = "_openai_responses_attachment_sources"
 _UPLOADED_ATTACHMENTS_METADATA_KEY = "_openai_responses_uploaded_attachments"
 _SESSION_ASSET_STORE_CONFIG_KEY = "_session_asset_store"
@@ -372,14 +375,35 @@ class OpenAIResponsesProvider(ProviderPlugin):
         attachment_state = state.get(_ATTACHMENT_STATE_KEY)
         if isinstance(attachment_state, dict):
             mode = attachment_state.get(_ATTACHMENT_UPLOAD_MODE_KEY)
-            if mode in (_ATTACHMENT_UPLOAD_MODE_DIRECT, _ATTACHMENT_UPLOAD_MODE_UPLOAD):
+            if mode == _ATTACHMENT_UPLOAD_MODE_UPLOAD:
                 return mode
+            if mode == _ATTACHMENT_UPLOAD_MODE_DIRECT:
+                return _ATTACHMENT_UPLOAD_MODE_UPLOAD
 
         config = state.get("config") if isinstance(state.get("config"), dict) else {}
         mode = config.get(_ATTACHMENT_UPLOAD_MODE_KEY)
-        if mode in (_ATTACHMENT_UPLOAD_MODE_DIRECT, _ATTACHMENT_UPLOAD_MODE_UPLOAD):
+        if mode == _ATTACHMENT_UPLOAD_MODE_UPLOAD:
             return mode
-        return _ATTACHMENT_UPLOAD_MODE_DIRECT
+        if mode == _ATTACHMENT_UPLOAD_MODE_DIRECT:
+            return _ATTACHMENT_UPLOAD_MODE_UPLOAD
+        return _ATTACHMENT_UPLOAD_MODE_UPLOAD
+
+    def _image_attachment_mode(self, state: Dict[str, Any]) -> str:
+        attachment_state = state.get(_ATTACHMENT_STATE_KEY)
+        if isinstance(attachment_state, dict):
+            mode = attachment_state.get(_IMAGE_ATTACHMENT_MODE_KEY)
+            if mode in (_IMAGE_ATTACHMENT_MODE_INLINE, _IMAGE_ATTACHMENT_MODE_UPLOAD):
+                return mode
+            if attachment_state.get(_ATTACHMENT_UPLOAD_MODE_KEY) == _ATTACHMENT_UPLOAD_MODE_DIRECT:
+                return _IMAGE_ATTACHMENT_MODE_INLINE
+
+        config = state.get("config") if isinstance(state.get("config"), dict) else {}
+        mode = config.get(_IMAGE_ATTACHMENT_MODE_KEY)
+        if mode in (_IMAGE_ATTACHMENT_MODE_INLINE, _IMAGE_ATTACHMENT_MODE_UPLOAD):
+            return mode
+        if config.get(_ATTACHMENT_UPLOAD_MODE_KEY) == _ATTACHMENT_UPLOAD_MODE_DIRECT:
+            return _IMAGE_ATTACHMENT_MODE_INLINE
+        return _IMAGE_ATTACHMENT_MODE_INLINE
 
     def _normalized_multipart_part(self, part: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         part_type = part.get("type")
@@ -688,6 +712,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
         source_content = source_override.get("content") if isinstance(source_override, dict) else {}
         asset_ref = session_asset_ref_from_content(source_content)
         detail = part.get("detail") if isinstance(part.get("detail"), str) and part.get("detail") else None
+
+        if part_type == "input_image" and self._image_attachment_mode(state) != _IMAGE_ATTACHMENT_MODE_UPLOAD:
+            return dict(part)
 
         if asset_ref is not None:
             expected_attachment_type = "image" if part_type == "input_image" else "pdf"
@@ -1153,10 +1180,6 @@ class OpenAIResponsesProvider(ProviderPlugin):
                         if normalized_part.get("type") == "image":
                             native_part = self._image_part_to_input_image(part.get("content"), state)
                         else:
-                            if self._attachment_upload_mode(state) != _ATTACHMENT_UPLOAD_MODE_UPLOAD:
-                                raise ValueError(
-                                    "[openai_responses_provider] pdf multipartContent requires attachment_upload_mode=upload_before_send"
-                                )
                             native_part = self._pdf_part_to_input_file(part.get("content"), state)
 
                         parts.append(native_part)
