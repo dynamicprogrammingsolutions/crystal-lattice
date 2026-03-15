@@ -251,6 +251,77 @@ def test_nonstreaming_finalize_extracts_raw_usage_and_computes_cumulative_totals
     assert RAW_USAGE_KEY not in md
 
 
+def test_from_native_messages_lifts_usage_from_tool_call_item_to_assistant_message() -> None:
+    ext = OpenAIResponsesUsageExtension()
+
+    native_messages: List[Dict[str, Any]] = [
+        {
+            "type": "reasoning",
+            "id": "rs_1",
+            "summary": [],
+            "_metadata": {"response_id": "resp_1"},
+        },
+        {
+            "type": "function_call",
+            "call_id": "call_1",
+            "name": "lookup",
+            "arguments": "{}",
+            "_metadata": {
+                "response_id": "resp_1",
+                "usage": {
+                    "input_tokens": 20,
+                    "output_tokens": 10,
+                    "output_tokens_details": {"reasoning_tokens": 2},
+                },
+                "has_tool_calls": True,
+                "usage_total_cost": 0.000025,
+                "usage_total_cost_formatted": "$0.000025",
+                "usage_total_cost_cumulative": 0.000025,
+                "usage_total_cost_cumulative_formatted": "$0.000025",
+                "usage_turn_cost_cumulative": 0.000025,
+                "usage_turn_cost_cumulative_formatted": "$0.000025",
+                "usage_turn_reasoning_tokens_cumulative": 2,
+                "usage_turn_reasoning_tokens_cumulative_formatted": "2",
+                "usage_prompt_tokens_formatted": "20",
+                "usage_completion_tokens_formatted": "10",
+                "usage_service_tier": "default",
+            },
+        },
+    ]
+    messages = [
+        {
+            "role": "assistant",
+            "content": "",
+            "metadata": {
+                "response_id": "resp_1",
+                "native_indices": [0, 1],
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "lookup", "arguments": "{}"},
+                    }
+                ],
+                "reasoning": "Reasoning present but not exposed by model.",
+            },
+        }
+    ]
+
+    out = ext.from_native_messages(native_messages, messages)
+
+    md = out[0].get("metadata") or {}
+    assert md.get("usage") == {
+        "input_tokens": 20,
+        "output_tokens": 10,
+        "output_tokens_details": {"reasoning_tokens": 2},
+    }
+    assert md.get("has_tool_calls") is True
+    assert md.get("usage_total_cost") == pytest.approx(0.000025, rel=1e-9)
+    assert md.get("usage_total_cost_formatted") == "$0.000025"
+    assert md.get("usage_turn_cost_cumulative_formatted") == "$0.000025"
+    assert md.get("usage_turn_reasoning_tokens_cumulative_formatted") == "2"
+
+
 def test_usage_ui_elements_match_openrouter_usage_fields() -> None:
     ext = OpenAIResponsesUsageExtension()
 

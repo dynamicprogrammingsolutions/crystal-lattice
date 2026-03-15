@@ -16,6 +16,20 @@ from .openai_responses_pricing import estimate_usage_cost
 
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
+_PUBLIC_USAGE_METADATA_KEYS = (
+    "usage_prompt_tokens_formatted",
+    "usage_cached_tokens_formatted",
+    "usage_completion_tokens_formatted",
+    "usage_service_tier",
+    "usage_total_cost",
+    "usage_total_cost_formatted",
+    "usage_total_cost_cumulative",
+    "usage_total_cost_cumulative_formatted",
+    "usage_turn_cost_cumulative",
+    "usage_turn_cost_cumulative_formatted",
+    "usage_turn_reasoning_tokens_cumulative",
+    "usage_turn_reasoning_tokens_cumulative_formatted",
+)
 
 
 class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
@@ -109,8 +123,44 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         native_messages: List[Dict[str, Any]],
         messages: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        _ = native_messages
-        return list(messages)
+        out: List[Dict[str, Any]] = []
+
+        for message in messages:
+            if not isinstance(message, dict) or message.get("role") != "assistant":
+                out.append(message)
+                continue
+
+            metadata_raw = message.get("metadata")
+            metadata = dict(metadata_raw) if isinstance(metadata_raw, dict) else {}
+            native_indices = metadata.get("native_indices")
+            if not isinstance(native_indices, list):
+                out.append(message)
+                continue
+
+            extra_md: Dict[str, Any] = {}
+            for index in native_indices:
+                if not isinstance(index, int) or not (0 <= index < len(native_messages)):
+                    continue
+                native_item = native_messages[index]
+                if not isinstance(native_item, dict):
+                    continue
+                internal = native_item.get("_metadata")
+                candidate = self._public_usage_metadata_from_internal(internal)
+                if candidate:
+                    extra_md = candidate
+
+            if not extra_md:
+                out.append(message)
+                continue
+
+            merged = dict(metadata)
+            for key, value in extra_md.items():
+                if key not in merged:
+                    merged[key] = value
+
+            out.append({**message, "metadata": merged})
+
+        return out
 
     @staticmethod
     def _usage_reasoning_tokens(usage: Dict[str, Any]) -> int:
@@ -149,6 +199,26 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         if isinstance(raw_total, (int, float)):
             return float(raw_total)
         return None
+
+    @classmethod
+    def _public_usage_metadata_from_internal(cls, internal: Any) -> Dict[str, Any]:
+        if not isinstance(internal, dict):
+            return {}
+
+        out: Dict[str, Any] = {}
+        usage = cls._public_usage_from_internal(internal)
+        if isinstance(usage, dict) and usage:
+            out["usage"] = usage
+
+        has_tool_calls = internal.get("has_tool_calls")
+        if isinstance(has_tool_calls, bool):
+            out["has_tool_calls"] = has_tool_calls
+
+        for key in _PUBLIC_USAGE_METADATA_KEYS:
+            if key in internal:
+                out[key] = internal[key]
+
+        return out
 
     @staticmethod
     def _service_tier_from_items(items: List[Dict[str, Any]]) -> Optional[str]:

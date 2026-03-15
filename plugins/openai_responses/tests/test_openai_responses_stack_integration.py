@@ -98,6 +98,17 @@ def _run_tool_loop(
     pytest.fail(f"tool loop did not settle within {max_iterations} iterations")
 
 
+def _response_native_items(session: Any, response_id: str) -> List[Dict[str, Any]]:
+    native_history = (session.metadata or {}).get("native_messages") or []
+    return [
+        item
+        for item in native_history
+        if isinstance(item, dict)
+        and isinstance(item.get("_metadata"), dict)
+        and item["_metadata"].get("response_id") == response_id
+    ]
+
+
 @pytest.mark.integration
 @pytest.mark.openai
 def test_openai_responses_tool_reasoning_usage_and_verbosity_stack(
@@ -142,3 +153,70 @@ def test_openai_responses_tool_reasoning_usage_and_verbosity_stack(
         isinstance(item, dict) and item.get("type") == "function_call_output"
         for item in native_history
     )
+
+
+@pytest.mark.integration
+@pytest.mark.openai
+def test_openai_responses_tool_loop_surfaces_usage_on_every_assistant_turn(
+    ensure_openai_api_key: str,
+) -> None:
+    core = _build_core()
+    config = _config(ensure_openai_api_key)
+
+    session = core.create_session()
+    session = core.add_message(
+        session,
+        "user",
+        (
+            "Use the add tool to compute 123 + 456. Think briefly, call the tool, and then "
+            "finish with the final answer."
+        ),
+    )
+
+    saw_tool_call = False
+    assistant_turns: List[Dict[str, Any]] = []
+
+    for _ in range(5):
+        session, responses = core.send_request(session, config)
+        assert responses, "expected assistant response"
+
+        assistant = responses[-1]
+        assistant_turns.append(assistant)
+        metadata = assistant.get("metadata") or {}
+        response_id = metadata.get("response_id")
+
+        assert assistant.get("role") == "assistant"
+        assert isinstance(response_id, str) and response_id
+
+        response_native = _response_native_items(session, response_id)
+        assert response_native, "expected persisted native items for assistant response"
+        assert any(
+            isinstance((item.get("_metadata") or {}).get("usage"), dict)
+            for item in response_native
+        ), "expected at least one native response item to carry usage metadata"
+
+        assert isinstance(metadata.get("usage"), dict)
+        assert isinstance(metadata.get("usage_prompt_tokens_formatted"), str)
+        assert isinstance(metadata.get("usage_completion_tokens_formatted"), str)
+        assert isinstance(metadata.get("usage_turn_cost_cumulative"), (int, float))
+
+        tool_calls = metadata.get("tool_calls") or []
+        if not isinstance(tool_calls, list) or not tool_calls:
+            break
+
+        saw_tool_call = True
+        tool_messages = core.execute_tool_calls(tool_calls, config)
+        assert tool_messages, "expected tool execution results"
+        for tool_message in tool_messages:
+            session = core.add_message(
+                session,
+                role=tool_message.get("role", "tool"),
+                content=tool_message.get("content", ""),
+                metadata=tool_message.get("metadata"),
+                config=config,
+            )
+    else:
+        pytest.fail("tool loop did not settle within 5 iterations")
+
+    assert saw_tool_call, "expected at least one tool call in the live tool loop"
+    assert len(assistant_turns) >= 2, "expected tool-request and final assistant turns"
