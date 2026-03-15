@@ -1,13 +1,19 @@
 import React, { useMemo } from 'react';
 import {
+  ActivityIndicator,
   Image,
   ScrollView,
   StyleSheet,
+  Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
-import { selectAttachmentPreviewUrl } from '@crystal-lattice/frontend-sdk';
+import {
+  attachmentDraftStatusLabel,
+  type AttachmentDraftStatus,
+  selectAttachmentPreviewUrl,
+} from '@crystal-lattice/frontend-sdk';
 
 import { useTheme, type Theme } from '../theme';
 
@@ -17,6 +23,8 @@ export type AttachmentLike = {
   content: any;
   metadata?: any;
   previewUrl?: string | null;
+  status?: AttachmentDraftStatus;
+  errorMessage?: string | null;
 };
 
 export const AttachmentThumbnailStrip: React.FC<{
@@ -57,6 +65,26 @@ export const AttachmentThumbnailStrip: React.FC<{
                   size={18}
                   color={theme.textSecondary}
                 />
+              )}
+              {attachment.status && attachment.status !== 'ready' && (
+                <View
+                  style={[
+                    styles.statusBadge,
+                    attachment.status === 'failed' && styles.statusBadgeDanger,
+                  ]}
+                >
+                  {attachment.status === 'uploading_to_server' ||
+                  attachment.status === 'uploading_to_openai' ||
+                  attachment.status === 'deleting' ? (
+                    <ActivityIndicator size="small" color={theme.surface} />
+                  ) : attachment.status === 'failed' ? (
+                    <Icon name="alert-circle" size={12} color={theme.surface} />
+                  ) : (
+                    <Text style={styles.statusBadgeText}>
+                      {attachmentDraftStatusLabel(attachment.status, attachment.errorMessage).slice(0, 1)}
+                    </Text>
+                  )}
+                </View>
               )}
             </View>
           );
@@ -150,5 +178,25 @@ const createStyles = (theme: Theme) =>
       shadowRadius: 4,
       shadowOffset: { width: 0, height: 2 },
       elevation: 2,
+    },
+    statusBadge: {
+      position: 'absolute',
+      right: 4,
+      bottom: 4,
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      paddingHorizontal: 4,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.textSecondary,
+    },
+    statusBadgeDanger: {
+      backgroundColor: theme.danger,
+    },
+    statusBadgeText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: theme.surface,
     },
   });

@@ -772,3 +772,34 @@ Verification run for this slice:
 Note:
 
 1. The mobile package currently does not have a discoverable ESLint config in this workspace, so direct linting there could not be run the same way.
+
+## Follow-up progress note: per-draft attachment state (added during completion)
+
+Completed the next frontend slice by introducing explicit draft attachment states in both chat composers while keeping the top-of-chat upload/delete indicator.
+
+What changed:
+
+1. Composer draft attachments on mobile and desktop now carry explicit status and optional error text instead of behaving like undifferentiated ready drafts.
+2. File-pick uploads now create placeholder drafts immediately in `uploading_to_server` state, then transition to `stored` / `ready` on success or `failed` on error.
+3. Draft deletion now marks the affected attachment as `deleting` until the asset cleanup call completes, instead of removing it instantly.
+4. Send and append flows now refuse unresolved drafts so failed or in-progress uploads cannot leak placeholder attachment payloads into requests.
+5. Attachment strips and management views now render draft-local status information instead of relying only on the global background-operation banner.
+6. Shared frontend-SDK helpers now define the draft-state vocabulary and blocking-state semantics so mobile and desktop stay aligned.
+
+Files changed:
+
+1. `packages/frontend-sdk/src/attachments/draftStatus.ts`
+2. `packages/frontend-sdk/src/attachments/draftStatus.test.ts`
+3. `packages/frontend-sdk/src/index.ts`
+4. `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx`
+5. `mobile/crystal-lattice-control-rn/src/components/AttachmentThumbnailStrip.tsx`
+6. `mobile/crystal-lattice-control-rn/src/components/ComposerAttachmentsManageModal.tsx`
+7. `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx`
+8. `desktop/crystal-lattice-control-desktop-rn/src/chat/AttachmentThumbnailStrip.tsx`
+9. `desktop/crystal-lattice-control-desktop-rn/src/chat/ComposerAttachmentsExpandedPanel.tsx`
+
+Verification run for this slice:
+
+1. `npm test -- --run src/attachments/draftStatus.test.ts src/attachments/preview.test.ts` in `packages/frontend-sdk` -> passed
+2. `npx eslint src/chat/ChatPane.tsx src/chat/AttachmentThumbnailStrip.tsx src/chat/ComposerAttachmentsExpandedPanel.tsx` in `desktop/crystal-lattice-control-desktop-rn` -> passed with the same two pre-existing `no-shadow` warnings in `ChatPane.tsx`
+3. `git diff --check` -> passed

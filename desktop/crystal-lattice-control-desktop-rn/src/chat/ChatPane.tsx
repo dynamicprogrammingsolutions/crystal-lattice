@@ -30,13 +30,16 @@ import type {
   SessionSummary,
 } from '@crystal-lattice/frontend-sdk';
 import {
+  attachmentDraftStatusLabel,
   deleteSessionAttachment,
   filterFooterElements,
+  isAttachmentDraftBlocking,
   mergeSessionScopedActionElements,
   runApplicationAction,
   selectSessionAssetId,
   selectDisplayContent,
   storeSessionAttachment,
+  type AttachmentDraftStatus,
 } from '@crystal-lattice/frontend-sdk';
 import {
   useApplicationPlugins,
@@ -131,6 +134,8 @@ type ComposerAttachmentDraft = {
   content: any;
   metadata?: Record<string, any> | null;
   previewUrl?: string | null;
+  status: AttachmentDraftStatus;
+  errorMessage?: string | null;
   schemaKey?: string;
   plugin?: string;
   placement: 'above' | 'below';
@@ -762,13 +767,21 @@ export const ChatPane = React.memo(function ChatPane({
   });
 
   const messagesCount = messages.length;
-  const attachmentActionInProgress = attachmentBackgroundOperation != null;
+  const draftAttachments = [...attachmentsAbove, ...attachmentsBelow];
+  const blockingAttachmentDraft =
+    draftAttachments.find((draft) => isAttachmentDraftBlocking(draft.status)) ?? null;
+  const unresolvedAttachmentDraft =
+    draftAttachments.find((draft) => draft.status !== 'ready' && draft.status !== 'local') ?? null;
+  const attachmentActionInProgress =
+    attachmentBackgroundOperation != null || blockingAttachmentDraft != null;
   const attachmentActionText =
     attachmentBackgroundOperation?.kind === 'upload'
       ? `Uploading ${attachmentBackgroundOperation.filename}...`
       : attachmentBackgroundOperation?.kind === 'delete'
         ? `Deleting ${attachmentBackgroundOperation.filename}...`
-        : '';
+        : blockingAttachmentDraft
+          ? `${attachmentDraftStatusLabel(blockingAttachmentDraft.status, blockingAttachmentDraft.errorMessage)} ${blockingAttachmentDraft.content?.filename ?? blockingAttachmentDraft.type}...`
+          : '';
 
 	const canSend =
     backend != null &&
@@ -776,7 +789,8 @@ export const ChatPane = React.memo(function ChatPane({
     isActive &&
     !sendInFlight &&
     !chatState?.activeRequestId &&
-    !attachmentActionInProgress;
+    !attachmentActionInProgress &&
+    !unresolvedAttachmentDraft;
 
   const canSendNow = canSend && (composeText.trim().length > 0 || hasAttachments);
 
@@ -799,7 +813,7 @@ export const ChatPane = React.memo(function ChatPane({
   const deleteStoredAttachmentAsset = useCallback(
     async (assetId: string, filename?: string, suppressAlert = false) => {
       if (!backend) {
-        return;
+        return false;
       }
       setAttachmentBackgroundOperation({
         kind: 'delete',
@@ -816,9 +830,11 @@ export const ChatPane = React.memo(function ChatPane({
           const message = err?.message || 'Failed to delete attachment.';
           Alert.alert('Attachment error', message);
         }
+        return false;
       } finally {
         setAttachmentBackgroundOperation(null);
       }
+      return true;
     },
     [backend, sessionId],
   );
@@ -831,6 +847,23 @@ export const ChatPane = React.memo(function ChatPane({
         setAttachmentsAbove(updater);
       } else {
         setAttachmentsBelow(updater);
+      }
+    },
+    [],
+  );
+
+  const updateDraftState = useCallback(
+    (
+      draftId: string,
+      placement: 'above' | 'below',
+      updater: (draft: ComposerAttachmentDraft) => ComposerAttachmentDraft,
+    ) => {
+      const update = (prev: ComposerAttachmentDraft[]) =>
+        prev.map((draft) => (draft.draftId === draftId ? updater(draft) : draft));
+      if (placement === 'above') {
+        setAttachmentsAbove(update);
+      } else {
+        setAttachmentsBelow(update);
       }
     },
     [],
@@ -891,10 +924,13 @@ export const ChatPane = React.memo(function ChatPane({
       placement: 'above' | 'below';
       metadata: Record<string, any>;
       previewUrl?: string | null;
+      draftId?: string;
+      status?: AttachmentDraftStatus;
+      errorMessage?: string | null;
     }) => {
       const attachmentType = String((params.element as any).attachment_type ?? '');
       if (!attachmentType) {
-        return;
+        return null;
       }
 
       const actionKey =
@@ -903,11 +939,13 @@ export const ChatPane = React.memo(function ChatPane({
           : `${String((params.element as any).plugin ?? 'unknown')}:attachment:${attachmentType}`;
 
       const draft: ComposerAttachmentDraft = {
-        draftId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        draftId: params.draftId ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         type: attachmentType,
         content: params.content,
         metadata: params.metadata,
         previewUrl: params.previewUrl ?? null,
+        status: params.status ?? 'ready',
+        errorMessage: params.errorMessage ?? null,
         schemaKey: actionKey,
         plugin:
           typeof (params.element as any).plugin === 'string'
@@ -919,9 +957,10 @@ export const ChatPane = React.memo(function ChatPane({
       const append = (prev: ComposerAttachmentDraft[]) => [...prev, draft];
       if (params.placement === 'above') {
         setAttachmentsAbove(append);
-      } else {
-        setAttachmentsBelow(append);
+        return draft.draftId;
       }
+      setAttachmentsBelow(append);
+      return draft.draftId;
     },
     [],
   );
@@ -933,6 +972,7 @@ export const ChatPane = React.memo(function ChatPane({
       placement: 'above' | 'below';
       previewUrl?: string | null;
       pendingAssetId?: string | null;
+      draftId?: string | null;
     }) => {
       const metadataUi = ((params.element as any).metadata_ui ?? null) as AttachmentMetadataUi | null;
       const defaults = buildAttachmentMetadataDefaults(metadataUi);
@@ -941,6 +981,13 @@ export const ChatPane = React.memo(function ChatPane({
         shouldPromptForAttachmentMetadata({ metadataUi }) &&
         hasEditableAttachmentMetadataFields(metadataUi)
       ) {
+        if (params.draftId) {
+          updateDraftState(params.draftId, params.placement, (draft) => ({
+            ...draft,
+            status: 'stored',
+            errorMessage: null,
+          }));
+        }
         const attachmentType = String((params.element as any).attachment_type ?? '');
         const title =
           typeof (params.element as any).label === 'string' && (params.element as any).label
@@ -956,23 +1003,66 @@ export const ChatPane = React.memo(function ChatPane({
           initialMetadata: defaults,
           onCancel: () => {
             if (params.pendingAssetId) {
+              if (params.draftId) {
+                updateDraftState(params.draftId, params.placement, (draft) => ({
+                  ...draft,
+                  status: 'deleting',
+                  errorMessage: null,
+                }));
+              }
               deleteStoredAttachmentAsset(
                 params.pendingAssetId,
                 (params.content as any)?.filename,
                 false,
-              ).catch(() => {});
+              )
+                .then((deleted) => {
+                  if (deleted && params.draftId) {
+                    const remove = (prev: ComposerAttachmentDraft[]) =>
+                      prev.filter((draft) => draft.draftId !== params.draftId);
+                    if (params.placement === 'above') {
+                      setAttachmentsAbove(remove);
+                    } else {
+                      setAttachmentsBelow(remove);
+                    }
+                  }
+                })
+                .catch(() => {});
             }
           },
           onSave: (metadata) => {
+            if (params.draftId) {
+              updateDraftState(params.draftId, params.placement, (draft) => ({
+                ...draft,
+                content: params.content,
+                metadata,
+                previewUrl: params.previewUrl ?? null,
+                status: 'ready',
+                errorMessage: null,
+              }));
+              return;
+            }
             addDraftAttachment({
               element: params.element,
               placement: params.placement,
               content: params.content,
               metadata,
               previewUrl: params.previewUrl ?? null,
+              status: 'ready',
             });
           },
         });
+        return;
+      }
+
+      if (params.draftId) {
+        updateDraftState(params.draftId, params.placement, (draft) => ({
+          ...draft,
+          content: params.content,
+          metadata: defaults,
+          previewUrl: params.previewUrl ?? null,
+          status: 'ready',
+          errorMessage: null,
+        }));
         return;
       }
 
@@ -982,9 +1072,16 @@ export const ChatPane = React.memo(function ChatPane({
         content: params.content,
         metadata: defaults,
         previewUrl: params.previewUrl ?? null,
+        status: 'ready',
       });
     },
-    [addDraftAttachment, connectionId, deleteStoredAttachmentAsset, sessionId],
+    [
+      addDraftAttachment,
+      connectionId,
+      deleteStoredAttachmentAsset,
+      sessionId,
+      updateDraftState,
+    ],
   );
 
   const storePickedAttachment = useCallback(
@@ -997,6 +1094,24 @@ export const ChatPane = React.memo(function ChatPane({
     }) => {
       if (!backend) {
         throw new Error('Connect to a server before uploading attachments.');
+      }
+      const previewUrl =
+        String((params.element as any).attachment_type ?? '') === 'image'
+          ? `data:${params.mimeType};base64,${params.dataBase64}`
+          : null;
+      const draftId = addDraftAttachment({
+        element: params.element,
+        placement: params.placement,
+        content: {
+          filename: params.filename,
+          mime_type: params.mimeType,
+        },
+        metadata: {},
+        previewUrl,
+        status: 'uploading_to_server',
+      });
+      if (!draftId) {
+        throw new Error('Unable to create attachment draft.');
       }
       setAttachmentBackgroundOperation({
         kind: 'upload',
@@ -1020,21 +1135,32 @@ export const ChatPane = React.memo(function ChatPane({
             filename: stored.filename,
             mime_type: stored.mime_type,
           },
-          previewUrl:
-            String((params.element as any).attachment_type ?? '') === 'image'
-              ? `data:${params.mimeType};base64,${params.dataBase64}`
-              : null,
+          previewUrl,
           pendingAssetId: stored.asset_ref.asset_id,
+          draftId,
         });
+      } catch (err: any) {
+        updateDraftState(draftId, params.placement, (draft) => ({
+          ...draft,
+          status: 'failed',
+          errorMessage:
+            typeof err?.message === 'string' && err.message
+              ? err.message
+              : 'Upload failed',
+        }));
+        throw err;
       } finally {
         setAttachmentBackgroundOperation(null);
       }
     },
-    [backend, beginAddDraftAttachment, sessionId],
+    [addDraftAttachment, backend, beginAddDraftAttachment, sessionId, updateDraftState],
   );
 
   const handleSend = useCallback(async (overrideText?: string) => {
     if (!canSendNow) {
+      if (unresolvedAttachmentDraft) {
+        Alert.alert('Attachment not ready', 'Resolve attachment upload issues before sending.');
+      }
       return;
     }
 
@@ -1070,7 +1196,16 @@ export const ChatPane = React.memo(function ChatPane({
     } finally {
       setSendInFlight(false);
     }
-  }, [buildMultipartContentPayload, canSendNow, chatController, clearComposerAttachments, composeText, composeTextRef, setComposeText]);
+  }, [
+    buildMultipartContentPayload,
+    canSendNow,
+    chatController,
+    clearComposerAttachments,
+    composeText,
+    composeTextRef,
+    setComposeText,
+    unresolvedAttachmentDraft,
+  ]);
 
   const canRunComposerActions = backend != null && chatController != null && isActive;
 
@@ -1087,6 +1222,10 @@ export const ChatPane = React.memo(function ChatPane({
       const content = String(raw ?? '').trim();
       const multipartContent = buildMultipartContentPayload();
       if (!content && multipartContent.length === 0) {
+        return;
+      }
+      if (unresolvedAttachmentDraft) {
+        Alert.alert('Attachment not ready', 'Resolve attachment upload issues before appending.');
         return;
       }
       if (!canRunComposerActions) {
@@ -1108,7 +1247,17 @@ export const ChatPane = React.memo(function ChatPane({
         setSendInFlight(false);
       }
     },
-    [attachmentActionInProgress, buildMultipartContentPayload, canRunComposerActions, chatController, chatState?.activeRequestId, composeText, composeTextRef, sendInFlight],
+    [
+      attachmentActionInProgress,
+      buildMultipartContentPayload,
+      canRunComposerActions,
+      chatController,
+      chatState?.activeRequestId,
+      composeText,
+      composeTextRef,
+      sendInFlight,
+      unresolvedAttachmentDraft,
+    ],
   );
 
   const handleAppend = useCallback(async () => {
@@ -1122,11 +1271,15 @@ export const ChatPane = React.memo(function ChatPane({
     if (!content && multipartContent.length === 0) {
       return;
     }
+    if (unresolvedAttachmentDraft) {
+      Alert.alert('Attachment not ready', 'Resolve attachment upload issues before appending.');
+      return;
+    }
     if (!canRunComposerActions) {
       Alert.alert('Offline', 'Connect to a server to append messages.');
       return;
     }
-    if (sendInFlight || chatState?.activeRequestId || attachmentActionInProgress) {
+    if (sendInFlight || chatState?.activeRequestId || attachmentActionInProgress || unresolvedAttachmentDraft) {
       return;
     }
 
@@ -1162,7 +1315,19 @@ export const ChatPane = React.memo(function ChatPane({
         />
       ),
     });
-  }, [appendMessageForRole, attachmentActionInProgress, buildMultipartContentPayload, canRunComposerActions, chatState?.activeRequestId, composeText, composeTextRef, connectionId, sendInFlight, sessionId]);
+  }, [
+    appendMessageForRole,
+    attachmentActionInProgress,
+    buildMultipartContentPayload,
+    canRunComposerActions,
+    chatState?.activeRequestId,
+    composeText,
+    composeTextRef,
+    connectionId,
+    sendInFlight,
+    sessionId,
+    unresolvedAttachmentDraft,
+  ]);
 
   const handleResend = useCallback(async () => {
     if (!canRunComposerActions) {
@@ -1358,6 +1523,8 @@ export const ChatPane = React.memo(function ChatPane({
         content: d.content,
         metadata: d.metadata,
         previewUrl: d.previewUrl,
+        status: d.status,
+        errorMessage: d.errorMessage,
       }));
     },
     [],
@@ -1370,6 +1537,8 @@ export const ChatPane = React.memo(function ChatPane({
         type: d.type,
         content: d.content,
         title: typeof d.metadata?.title === 'string' ? d.metadata?.title : undefined,
+        status: d.status,
+        errorMessage: d.errorMessage,
       }));
     },
     [],
@@ -1398,9 +1567,12 @@ export const ChatPane = React.memo(function ChatPane({
   );
 
   const handleDeleteDraft = useCallback(
-    (placement: 'above' | 'below', draftId: string) => {
+    async (placement: 'above' | 'below', draftId: string) => {
       const list = placement === 'above' ? attachmentsAbove : attachmentsBelow;
       const draft = list.find((d) => d.draftId === draftId);
+      if (!draft) {
+        return;
+      }
       const update = (prev: ComposerAttachmentDraft[]) => {
         const next = prev.filter((d) => d.draftId !== draftId);
         if (next.length === 0) {
@@ -1412,18 +1584,39 @@ export const ChatPane = React.memo(function ChatPane({
         }
         return next;
       };
-      if (placement === 'above') {
-        setAttachmentsAbove(update);
-      } else {
-        setAttachmentsBelow(update);
-      }
 
       const assetId = selectSessionAssetId(draft?.content);
-      if (assetId) {
-        deleteStoredAttachmentAsset(assetId, draft?.content?.filename, false).catch(() => {});
+      if (!assetId) {
+        if (placement === 'above') {
+          setAttachmentsAbove(update);
+        } else {
+          setAttachmentsBelow(update);
+        }
+        return;
       }
+
+      const previousStatus = draft.status;
+      updateDraftState(draftId, placement, (current) => ({
+        ...current,
+        status: 'deleting',
+        errorMessage: null,
+      }));
+      const deleted = await deleteStoredAttachmentAsset(assetId, draft?.content?.filename, false);
+      if (deleted) {
+        if (placement === 'above') {
+          setAttachmentsAbove(update);
+        } else {
+          setAttachmentsBelow(update);
+        }
+        return;
+      }
+
+      updateDraftState(draftId, placement, (current) => ({
+        ...current,
+        status: previousStatus,
+      }));
     },
-    [attachmentsAbove, attachmentsBelow, deleteStoredAttachmentAsset],
+    [attachmentsAbove, attachmentsBelow, deleteStoredAttachmentAsset, updateDraftState],
   );
 
   const handleEditDraftMetadata = useCallback(

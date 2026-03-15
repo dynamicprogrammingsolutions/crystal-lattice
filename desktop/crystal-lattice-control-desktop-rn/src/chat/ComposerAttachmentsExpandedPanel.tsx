@@ -11,13 +11,19 @@ import {
 import Icon from 'react-native-vector-icons/Feather';
 
 import { useTheme } from '@crystal-lattice/frontend-rn-components';
-import { selectAttachmentPreviewUrl } from '@crystal-lattice/frontend-sdk';
+import {
+  attachmentDraftStatusLabel,
+  type AttachmentDraftStatus,
+  selectAttachmentPreviewUrl,
+} from '@crystal-lattice/frontend-sdk';
 
 export type ComposerAttachmentDraftRow = {
   draftId: string;
   type: string;
   content: any;
   title?: string;
+  status?: AttachmentDraftStatus;
+  errorMessage?: string | null;
 };
 
 function selectFilename(row: ComposerAttachmentDraftRow): string {
@@ -71,7 +77,7 @@ export const ComposerAttachmentsExpandedPanel: React.FC<{
                     {filename}
                   </Text>
                   <Text style={styles.subtle} numberOfLines={1}>
-                    {row.type}
+                    {row.status ? attachmentDraftStatusLabel(row.status, row.errorMessage) : row.type}
                   </Text>
                 </View>
 

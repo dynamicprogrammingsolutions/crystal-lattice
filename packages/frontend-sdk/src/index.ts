@@ -57,6 +57,8 @@ export { selectDisplayContent, selectSingleLineContent } from './utils/messages'
 
 export { parseOptionalInt, parseIndexRangeText } from './utils/range';
 export { selectAttachmentPreviewUrl } from './attachments/preview';
+export type { AttachmentDraftStatus } from './attachments/draftStatus';
+export { isAttachmentDraftBlocking, attachmentDraftStatusLabel } from './attachments/draftStatus';
 
 export type {
   Transport,
