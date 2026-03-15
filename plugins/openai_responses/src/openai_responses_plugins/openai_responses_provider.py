@@ -13,11 +13,9 @@ extraction) is intentionally out of scope here.
 from __future__ import annotations
 
 import base64
-import binascii
 import hashlib
 import io
 import json
-import mimetypes
 import os
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
@@ -30,8 +28,26 @@ from .openai_responses_attachment_assets import (
     merge_openai_provider_ref,
     openai_provider_ref,
     openai_provider_ref_is_usable,
-    session_asset_ref_from_content,
 )
+from .openai_responses_attachment_parts import (
+    decode_base64_bytes,
+    decode_data_url,
+    default_filename_for_mime,
+    image_content_to_input_image,
+    pdf_content_to_input_file,
+)
+from .openai_responses_attachment_policy import (
+    ATTACHMENT_SOURCES_METADATA_KEY as _ATTACHMENT_SOURCES_METADATA_KEY,
+    ATTACHMENT_UPLOAD_MODE_UPLOAD as _ATTACHMENT_UPLOAD_MODE_UPLOAD,
+    IMAGE_ATTACHMENT_MODE_UPLOAD as _IMAGE_ATTACHMENT_MODE_UPLOAD,
+    UPLOADED_ATTACHMENTS_METADATA_KEY as _UPLOADED_ATTACHMENTS_METADATA_KEY,
+    attachment_source_map,
+    normalized_multipart_part,
+    resolve_attachment_upload_mode,
+    resolve_image_attachment_mode,
+    uploaded_attachment_map,
+)
+from .openai_responses_attachment_assets import session_asset_ref_from_content
 
 
 JsonObject = Dict[str, Any]
@@ -39,15 +55,6 @@ _DEFAULT_BASE_URL = "https://api.openai.com/v1"
 _DEFAULT_TIMEOUT = 60.0
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
-_ATTACHMENT_UPLOAD_MODE_KEY = "attachment_upload_mode"
-_IMAGE_ATTACHMENT_MODE_KEY = "image_attachment_mode"
-_ATTACHMENT_STATE_KEY = "openai_responses_attachments"
-_ATTACHMENT_UPLOAD_MODE_DIRECT = "direct"
-_ATTACHMENT_UPLOAD_MODE_UPLOAD = "upload_before_send"
-_IMAGE_ATTACHMENT_MODE_INLINE = "inline"
-_IMAGE_ATTACHMENT_MODE_UPLOAD = "upload"
-_ATTACHMENT_SOURCES_METADATA_KEY = "_openai_responses_attachment_sources"
-_UPLOADED_ATTACHMENTS_METADATA_KEY = "_openai_responses_uploaded_attachments"
 _SESSION_ASSET_STORE_CONFIG_KEY = "_session_asset_store"
 _IMAGE_ATTACHMENT_TYPES = ["png", "jpg", "jpeg", "webp", "gif"]
 _PDF_ATTACHMENT_TYPES = ["pdf"]
@@ -372,91 +379,22 @@ class OpenAIResponsesProvider(ProviderPlugin):
         return "\n".join(text_parts).strip(), multipart_parts
 
     def _attachment_upload_mode(self, state: Dict[str, Any]) -> str:
-        attachment_state = state.get(_ATTACHMENT_STATE_KEY)
-        if isinstance(attachment_state, dict):
-            mode = attachment_state.get(_ATTACHMENT_UPLOAD_MODE_KEY)
-            if mode == _ATTACHMENT_UPLOAD_MODE_UPLOAD:
-                return mode
-            if mode == _ATTACHMENT_UPLOAD_MODE_DIRECT:
-                return _ATTACHMENT_UPLOAD_MODE_UPLOAD
-
-        config = state.get("config") if isinstance(state.get("config"), dict) else {}
-        mode = config.get(_ATTACHMENT_UPLOAD_MODE_KEY)
-        if mode == _ATTACHMENT_UPLOAD_MODE_UPLOAD:
-            return mode
-        if mode == _ATTACHMENT_UPLOAD_MODE_DIRECT:
-            return _ATTACHMENT_UPLOAD_MODE_UPLOAD
-        return _ATTACHMENT_UPLOAD_MODE_UPLOAD
+        return resolve_attachment_upload_mode(state)
 
     def _image_attachment_mode(self, state: Dict[str, Any]) -> str:
-        attachment_state = state.get(_ATTACHMENT_STATE_KEY)
-        if isinstance(attachment_state, dict):
-            mode = attachment_state.get(_IMAGE_ATTACHMENT_MODE_KEY)
-            if mode in (_IMAGE_ATTACHMENT_MODE_INLINE, _IMAGE_ATTACHMENT_MODE_UPLOAD):
-                return mode
-            if attachment_state.get(_ATTACHMENT_UPLOAD_MODE_KEY) == _ATTACHMENT_UPLOAD_MODE_DIRECT:
-                return _IMAGE_ATTACHMENT_MODE_INLINE
-
-        config = state.get("config") if isinstance(state.get("config"), dict) else {}
-        mode = config.get(_IMAGE_ATTACHMENT_MODE_KEY)
-        if mode in (_IMAGE_ATTACHMENT_MODE_INLINE, _IMAGE_ATTACHMENT_MODE_UPLOAD):
-            return mode
-        if config.get(_ATTACHMENT_UPLOAD_MODE_KEY) == _ATTACHMENT_UPLOAD_MODE_DIRECT:
-            return _IMAGE_ATTACHMENT_MODE_INLINE
-        return _IMAGE_ATTACHMENT_MODE_INLINE
+        return resolve_image_attachment_mode(state)
 
     def _normalized_multipart_part(self, part: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        part_type = part.get("type")
-        if part_type not in ("image", "pdf"):
-            return None
-
-        content = part.get("content")
-        metadata = part.get("metadata")
-        normalized: Dict[str, Any] = {"type": part_type}
-        normalized["content"] = dict(content) if isinstance(content, dict) else {}
-        normalized["metadata"] = dict(metadata) if isinstance(metadata, dict) else {}
-        return normalized
+        return normalized_multipart_part(part)
 
     def _attachment_source_map(self, raw_internal_metadata: Optional[Dict[str, Any]]) -> Dict[int, Dict[str, Any]]:
-        if not isinstance(raw_internal_metadata, dict):
-            return {}
-        raw_sources = raw_internal_metadata.get(_ATTACHMENT_SOURCES_METADATA_KEY)
-        if not isinstance(raw_sources, list):
-            return {}
-
-        source_map: Dict[int, Dict[str, Any]] = {}
-        for entry in raw_sources:
-            if not isinstance(entry, dict):
-                continue
-            content_index = entry.get("content_index")
-            multipart_part = entry.get("multipart_part")
-            if not isinstance(content_index, int) or not isinstance(multipart_part, dict):
-                continue
-            normalized = self._normalized_multipart_part(multipart_part)
-            if normalized is not None:
-                source_map[content_index] = normalized
-        return source_map
+        return attachment_source_map(raw_internal_metadata)
 
     def _uploaded_attachment_map(
         self,
         raw_internal_metadata: Optional[Dict[str, Any]],
     ) -> Dict[int, Dict[str, Any]]:
-        if not isinstance(raw_internal_metadata, dict):
-            return {}
-        raw_uploaded = raw_internal_metadata.get(_UPLOADED_ATTACHMENTS_METADATA_KEY)
-        if not isinstance(raw_uploaded, list):
-            return {}
-
-        uploaded_map: Dict[int, Dict[str, Any]] = {}
-        for entry in raw_uploaded:
-            if not isinstance(entry, dict):
-                continue
-            content_index = entry.get("content_index")
-            uploaded_part = entry.get("uploaded_part")
-            if not isinstance(content_index, int) or not isinstance(uploaded_part, dict):
-                continue
-            uploaded_map[content_index] = dict(uploaded_part)
-        return uploaded_map
+        return uploaded_attachment_map(raw_internal_metadata)
 
     def _session_asset_store(self, state: Dict[str, Any]) -> Any:
         config = state.get("config") if isinstance(state.get("config"), dict) else {}
@@ -486,126 +424,38 @@ class OpenAIResponsesProvider(ProviderPlugin):
             )
         return record, store.load_bytes(session_id, asset_id)
 
-    def _data_url_from_bytes(self, *, mime_type: str, payload_bytes: bytes) -> str:
-        encoded = base64.b64encode(payload_bytes).decode("ascii")
-        return f"data:{mime_type};base64,{encoded}"
+    def _resolve_session_asset(
+        self,
+        state: Dict[str, Any],
+        asset_ref: Dict[str, Any],
+        expected_attachment_type: str,
+    ) -> Tuple[str, str, bytes]:
+        record, payload_bytes = self._session_asset_record_and_bytes(
+            state,
+            asset_ref=asset_ref,
+            expected_attachment_type=expected_attachment_type,
+        )
+        return record.filename, record.mime_type, payload_bytes
 
     def _image_part_to_input_image(self, content: Any, state: Dict[str, Any]) -> Dict[str, Any]:
-        if not isinstance(content, dict):
-            raise ValueError(
-                "[openai_responses_provider] image multipartContent part requires dict content"
-            )
-
-        asset_ref = session_asset_ref_from_content(content)
-        if asset_ref is not None:
-            record, payload_bytes = self._session_asset_record_and_bytes(
+        return image_content_to_input_image(
+            content,
+            resolve_session_asset=lambda asset_ref, expected_attachment_type: self._resolve_session_asset(
                 state,
-                asset_ref=asset_ref,
-                expected_attachment_type="image",
-            )
-            return {
-                "type": "input_image",
-                "image_url": self._data_url_from_bytes(
-                    mime_type=record.mime_type,
-                    payload_bytes=payload_bytes,
-                ),
-            }
-
-        url = content.get("url")
-        if not isinstance(url, str) or not url:
-            data_base64 = content.get("data_base64")
-            mime_type = content.get("mime_type")
-            if isinstance(data_base64, str) and data_base64:
-                if not isinstance(mime_type, str) or not mime_type:
-                    raise ValueError(
-                        "[openai_responses_provider] image multipartContent part using data_base64 requires mime_type"
-                    )
-                url = f"data:{mime_type};base64,{data_base64}"
-
-        if not isinstance(url, str) or not url:
-            raise ValueError(
-                "[openai_responses_provider] image multipartContent part requires content.url or content.data_base64"
-            )
-
-        return {"type": "input_image", "image_url": url}
-
-    def _pdf_part_to_input_file(self, content: Any, state: Dict[str, Any]) -> Dict[str, Any]:
-        if not isinstance(content, dict):
-            raise ValueError(
-                "[openai_responses_provider] pdf multipartContent part requires dict content"
-            )
-
-        asset_ref = session_asset_ref_from_content(content)
-        if asset_ref is not None:
-            record, payload_bytes = self._session_asset_record_and_bytes(
-                state,
-                asset_ref=asset_ref,
-                expected_attachment_type="pdf",
-            )
-            return {
-                "type": "input_file",
-                "file_data": base64.b64encode(payload_bytes).decode("ascii"),
-                "filename": record.filename,
-            }
-
-        filename = content.get("filename")
-        if not isinstance(filename, str) or not filename:
-            raise ValueError(
-                "[openai_responses_provider] pdf multipartContent part requires content.filename"
-            )
-
-        file_url = content.get("url")
-        if isinstance(file_url, str) and file_url:
-            if file_url.startswith("data:"):
-                mime_type, data_base64 = self._decode_data_url(file_url)
-                if mime_type != "application/pdf":
-                    raise ValueError(
-                        "[openai_responses_provider] pdf multipartContent data URL must use application/pdf"
-                    )
-                return {"type": "input_file", "file_data": data_base64, "filename": filename}
-            return {"type": "input_file", "file_url": file_url, "filename": filename}
-
-        data_base64 = content.get("data_base64")
-        mime_type = content.get("mime_type")
-        if isinstance(data_base64, str) and data_base64:
-            if mime_type != "application/pdf":
-                raise ValueError(
-                    "[openai_responses_provider] pdf multipartContent part using data_base64 requires mime_type application/pdf"
-                )
-            return {"type": "input_file", "file_data": data_base64, "filename": filename}
-
-        raise ValueError(
-            "[openai_responses_provider] pdf multipartContent part requires content.url or content.data_base64"
+                asset_ref,
+                expected_attachment_type,
+            ),
         )
 
-    def _decode_base64_bytes(self, data_base64: str, *, field_name: str) -> bytes:
-        try:
-            return base64.b64decode(data_base64, validate=True)
-        except (binascii.Error, ValueError) as exc:
-            raise ValueError(
-                f"[openai_responses_provider] invalid base64 payload for {field_name}"
-            ) from exc
-
-    def _decode_data_url(self, url: str) -> Tuple[str, str]:
-        if not isinstance(url, str) or not url.startswith("data:"):
-            raise ValueError("[openai_responses_provider] expected data URL")
-
-        header, sep, data_base64 = url.partition(",")
-        if not sep:
-            raise ValueError("[openai_responses_provider] malformed data URL")
-        if not header.endswith(";base64"):
-            raise ValueError("[openai_responses_provider] data URL must use base64 encoding")
-
-        mime_type = header[5:-7]
-        if not mime_type:
-            raise ValueError("[openai_responses_provider] data URL missing MIME type")
-        return mime_type, data_base64
-
-    def _default_filename_for_mime(self, mime_type: str, default_stem: str) -> str:
-        extension = mimetypes.guess_extension(mime_type) or ""
-        if extension == ".jpe":
-            extension = ".jpg"
-        return f"{default_stem}{extension}"
+    def _pdf_part_to_input_file(self, content: Any, state: Dict[str, Any]) -> Dict[str, Any]:
+        return pdf_content_to_input_file(
+            content,
+            resolve_session_asset=lambda asset_ref, expected_attachment_type: self._resolve_session_asset(
+                state,
+                asset_ref,
+                expected_attachment_type,
+            ),
+        )
 
     def _attachment_upload_cache_key(
         self,
@@ -762,11 +612,11 @@ class OpenAIResponsesProvider(ProviderPlugin):
             if not isinstance(image_url, str) or not image_url.startswith("data:"):
                 return dict(part)
 
-            mime_type, data_base64 = self._decode_data_url(image_url)
-            payload_bytes = self._decode_base64_bytes(data_base64, field_name="input_image.image_url")
+            mime_type, data_base64 = decode_data_url(image_url)
+            payload_bytes = decode_base64_bytes(data_base64, field_name="input_image.image_url")
             filename = source_content.get("filename") if isinstance(source_content, dict) else None
             if not isinstance(filename, str) or not filename:
-                filename = self._default_filename_for_mime(mime_type, "attachment-image")
+                filename = default_filename_for_mime(mime_type, "attachment-image")
 
             upload_ref = self._upload_attachment_bytes(
                 client=client,
@@ -800,10 +650,10 @@ class OpenAIResponsesProvider(ProviderPlugin):
             file_data = part.get("file_data")
             file_url = part.get("file_url")
             if isinstance(file_data, str) and file_data:
-                payload_bytes = self._decode_base64_bytes(file_data, field_name="input_file.file_data")
+                payload_bytes = decode_base64_bytes(file_data, field_name="input_file.file_data")
             elif isinstance(file_url, str) and file_url.startswith("data:"):
-                mime_type, data_base64 = self._decode_data_url(file_url)
-                payload_bytes = self._decode_base64_bytes(data_base64, field_name="input_file.file_url")
+                mime_type, data_base64 = decode_data_url(file_url)
+                payload_bytes = decode_base64_bytes(data_base64, field_name="input_file.file_url")
             elif isinstance(file_url, str) and file_url:
                 return dict(part)
             else:

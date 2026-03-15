@@ -803,3 +803,34 @@ Verification run for this slice:
 1. `npm test -- --run src/attachments/draftStatus.test.ts src/attachments/preview.test.ts` in `packages/frontend-sdk` -> passed
 2. `npx eslint src/chat/ChatPane.tsx src/chat/AttachmentThumbnailStrip.tsx src/chat/ComposerAttachmentsExpandedPanel.tsx` in `desktop/crystal-lattice-control-desktop-rn` -> passed with the same two pre-existing `no-shadow` warnings in `ChatPane.tsx`
 3. `git diff --check` -> passed
+
+## Follow-up progress note: provider/helper cleanup (added during completion)
+
+Completed the next backend cleanup slice by moving attachment policy, attachment metadata mapping, and attachment request-part preparation out of the provider into focused helper modules.
+
+What changed:
+
+1. Attachment policy constants and normalization logic now live in a dedicated helper instead of being duplicated across the extension and provider.
+2. Native attachment-source metadata parsing and uploaded-reference map parsing now live in the same policy helper.
+3. Multipart attachment content conversion for image and PDF inputs now lives in a separate attachment-parts helper with focused unit coverage.
+4. The extension now reuses the shared attachment-policy helper for legacy `direct` normalization and UI schema values.
+5. The provider now delegates policy resolution, native attachment metadata parsing, and image/PDF request-part preparation to helpers, reducing inline attachment logic in `openai_responses_provider.py`.
+
+Files changed:
+
+1. `plugins/openai_responses/src/openai_responses_plugins/openai_responses_attachment_policy.py`
+2. `plugins/openai_responses/src/openai_responses_plugins/openai_responses_attachment_parts.py`
+3. `plugins/openai_responses/src/openai_responses_plugins/openai_responses_attachments_extension.py`
+4. `plugins/openai_responses/src/openai_responses_plugins/openai_responses_provider.py`
+5. `plugins/openai_responses/tests/test_openai_responses_attachment_helpers_unit.py`
+
+Verification run for this slice:
+
+1. `pytest plugins/openai_responses/tests/test_openai_responses_attachment_helpers_unit.py -q` -> passed
+2. `pytest plugins/openai_responses/tests/test_openai_responses_attachments_extension_unit.py -q` -> passed
+3. `pytest plugins/openai_responses/tests/test_openai_responses_provider_unit.py -q` -> passed
+4. `git diff --check` -> passed
+
+Residual note:
+
+1. The OpenAI file-upload/reuse path still has some provider-owned orchestration logic. This slice intentionally focused on extracting policy and request-part preparation first because those are the most reusable and the easiest to lock down with unit tests.
