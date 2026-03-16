@@ -1,6 +1,14 @@
 {
   "module": "gemini_tools",
   "subdirectory": ".",
-  "entries": ["gemini_tools.gemini_read_file_tool.GeminiReadFileTool"],
-  "kinds": {"gemini_tools.gemini_read_file_tool.GeminiReadFileTool": "tools"}
+  "entries": [
+    "gemini_tools.gemini_read_file_tool.GeminiReadFileTool",
+    "gemini_tools.gemini_write_file_tool.GeminiWriteFileTool",
+    "gemini_tools.gemini_replace_tool.GeminiReplaceTool"
+  ],
+  "kinds": {
+    "gemini_tools.gemini_read_file_tool.GeminiReadFileTool": "tools",
+    "gemini_tools.gemini_write_file_tool.GeminiWriteFileTool": "tools",
+    "gemini_tools.gemini_replace_tool.GeminiReplaceTool": "tools"
+  }
 }

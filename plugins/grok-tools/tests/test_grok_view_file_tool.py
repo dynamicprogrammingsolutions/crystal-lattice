@@ -81,4 +81,8 @@ def test_plugin_manager_loads_package_with_sibling_dependency(tmp_path: Path) ->
     repo = Path(__file__).resolve().parents[1]
     resolution = mgr.resolve_all([{"path": str(repo)}])
     assert resolution.errors == []
-    assert [cls.__name__ for cls in resolution.classes] == ["GrokViewFileTool"]
+    assert [cls.__name__ for cls in resolution.classes] == [
+        "GrokViewFileTool",
+        "GrokCreateFileTool",
+        "GrokStrReplaceEditorTool",
+    ]

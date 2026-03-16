@@ -1,6 +1,14 @@
 {
   "module": "qwen_tools",
   "subdirectory": ".",
-  "entries": ["qwen_tools.qwen_read_file_tool.QwenReadFileTool"],
-  "kinds": {"qwen_tools.qwen_read_file_tool.QwenReadFileTool": "tools"}
+  "entries": [
+    "qwen_tools.qwen_read_file_tool.QwenReadFileTool",
+    "qwen_tools.qwen_write_file_tool.QwenWriteFileTool",
+    "qwen_tools.qwen_edit_tool.QwenEditTool"
+  ],
+  "kinds": {
+    "qwen_tools.qwen_read_file_tool.QwenReadFileTool": "tools",
+    "qwen_tools.qwen_write_file_tool.QwenWriteFileTool": "tools",
+    "qwen_tools.qwen_edit_tool.QwenEditTool": "tools"
+  }
 }

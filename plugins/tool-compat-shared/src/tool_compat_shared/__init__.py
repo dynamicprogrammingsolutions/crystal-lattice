@@ -18,6 +18,7 @@ from .reader_engine import (
     resolve_path,
     validate_path_within_directories,
 )
+from .editor_engine import replace_literal_text, write_text_file
 
 __all__ = [
     "DEFAULT_GEMINI_LINE_LIMIT",
@@ -36,6 +37,8 @@ __all__ = [
     "read_file_with_encoding",
     "read_gemini_style_file",
     "read_qwen_style_file",
+    "replace_literal_text",
     "resolve_path",
     "validate_path_within_directories",
+    "write_text_file",
 ]

@@ -1,6 +1,14 @@
 {
   "module": "grok_tools",
   "subdirectory": ".",
-  "entries": ["grok_tools.grok_view_file_tool.GrokViewFileTool"],
-  "kinds": {"grok_tools.grok_view_file_tool.GrokViewFileTool": "tools"}
+  "entries": [
+    "grok_tools.grok_view_file_tool.GrokViewFileTool",
+    "grok_tools.grok_create_file_tool.GrokCreateFileTool",
+    "grok_tools.grok_str_replace_editor_tool.GrokStrReplaceEditorTool"
+  ],
+  "kinds": {
+    "grok_tools.grok_view_file_tool.GrokViewFileTool": "tools",
+    "grok_tools.grok_create_file_tool.GrokCreateFileTool": "tools",
+    "grok_tools.grok_str_replace_editor_tool.GrokStrReplaceEditorTool": "tools"
+  }
 }
