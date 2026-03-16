@@ -121,6 +121,9 @@ def test_plugin_manager_loads_package_with_sibling_dependency(tmp_path: Path) ->
     assert resolution.errors == []
     assert [cls.__name__ for cls in resolution.classes] == [
         "QwenReadFileTool",
+        "QwenListDirectoryTool",
+        "QwenGrepSearchTool",
+        "QwenGlobTool",
         "QwenWriteFileTool",
         "QwenEditTool",
     ]

@@ -16,6 +16,9 @@ model as text/JSON.
 Current public tools in this package:
 
 - `read_file`
+- `list_directory`
+- `grep_search`
+- `glob`
 - `write_file`
 - `edit`
 
@@ -28,6 +31,9 @@ Write/edit surface summary:
 The plugin repo exposes these classes through `agent_plugin.json`:
 
 - `qwen_tools.qwen_read_file_tool.QwenReadFileTool`
+- `qwen_tools.qwen_list_directory_tool.QwenListDirectoryTool`
+- `qwen_tools.qwen_grep_search_tool.QwenGrepSearchTool`
+- `qwen_tools.qwen_glob_tool.QwenGlobTool`
 - `qwen_tools.qwen_write_file_tool.QwenWriteFileTool`
 - `qwen_tools.qwen_edit_tool.QwenEditTool`
 
@@ -172,6 +178,53 @@ Error: File path must be absolute, but was relative: src/app.py. You must provid
 Error: File path '/workspace/secret.txt' is ignored by .qwenignore pattern(s).
 ```
 
+## Search behavior notes
+
+The Qwen-compatible search entrypoints are `list_directory`, `grep_search`,
+and `glob`.
+
+- `list_directory(path, ignore?, file_filtering_options?)` requires an absolute
+  directory path.
+- `grep_search(pattern, glob?, path?, limit?)` keeps the simpler Qwen shape and
+  is case-insensitive by default.
+- `glob(pattern, path?)` follows the Qwen-style path parameter and truncates
+  long results based on package config.
+- `list_directory` reports separate `git-ignored` and `qwen-ignored` counts
+  when those filters hide entries.
+- `grep_search` and `glob` both reuse the workspace/temp path allowlist used by
+  the rest of the Qwen bundle.
+
+Representative `list_directory` output:
+
+```text
+Directory listing for /workspace/src:
+[DIR] nested
+alpha.txt
+
+(1 git-ignored, 1 qwen-ignored)
+```
+
+Representative `glob` output:
+
+```text
+Found 3 file(s) matching "*.ts" in the workspace directory, sorted by modification time (newest first):
+---
+/workspace/src/app.ts
+/workspace/src/api.ts
+---
+[1 file truncated] ...
+```
+
+Representative `grep_search` output:
+
+```text
+Found 2 matches for pattern "todo" in the workspace directory (filter: "*.py"):
+---
+File: /workspace/src/main.py
+L4: # TODO: tighten validation
+---
+```
+
 ## Compatibility contract
 
 Parity for this package means:
@@ -225,6 +278,9 @@ Shared package-level config keys used by the current Qwen tools:
 - `truncate_tool_output_threshold`
   Default: `2500`.
   Character budget used by Qwen-style truncation.
+- `list_directory` requires an absolute `path` value.
+- `glob.path` and `grep_search.path` may be omitted, in which case the current
+  `working_directory` is used.
 
 Write/edit safety notes:
 
@@ -238,6 +294,10 @@ Write/edit safety notes:
 Ignore behavior:
 
 - `.qwenignore` is read from `working_directory` when present.
+- `list_directory` can report separate `git-ignored` and `qwen-ignored`
+  counts.
+- `glob` and `grep_search` reuse `.qwenignore` filtering and the same
+  workspace/temp allowlist as the Qwen reader and edit tools.
 
 ## Compatibility and Limitations
 
@@ -245,7 +305,8 @@ In scope for this package:
 
 - Qwen-style tool names and OpenAI chat-completions function schemas
 - Qwen-style absolute-path validation, truncation behavior, and major success/error wording
-- Qwen-style model-visible behavior for file reads, full-file writes, and literal replacements
+- Qwen-style model-visible behavior for file reads, listing, globbing,
+  grep-style search, full-file writes, and literal replacements
 
 Intentionally out of scope for this tool-plugin package:
 

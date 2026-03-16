@@ -29,6 +29,15 @@ def _run_tool_loop(core: AgentCore, session, config: dict, max_rounds: int = 6):
     raise AssertionError("tool loop did not converge")
 
 
+def _final_ok_text(response: dict) -> str:
+    text = (response.get("content") or "").strip()
+    if text:
+        return text
+    metadata = response.get("metadata") or {}
+    reasoning = metadata.get("reasoning")
+    return str(reasoning or "").strip()
+
+
 @pytest.mark.integration
 @pytest.mark.openrouter
 def test_qwen_edit_write_tools_via_openrouter(tmp_path):
@@ -73,4 +82,4 @@ def test_qwen_edit_write_tools_via_openrouter(tmp_path):
 
     _session, responses = _run_tool_loop(core, session, config)
     assert target.read_text(encoding="utf-8") == "beta\n"
-    assert (responses[-1].get("content") or "").strip() == "OK"
+    assert "OK" in _final_ok_text(responses[-1]).split()

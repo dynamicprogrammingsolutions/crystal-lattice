@@ -19,6 +19,18 @@ from .reader_engine import (
     validate_path_within_directories,
 )
 from .editor_engine import replace_literal_text, write_text_file
+from .search_engine import (
+    MAX_QWEN_GLOB_RESULTS,
+    format_gemini_glob_result,
+    format_gemini_grep_result,
+    format_gemini_list_result,
+    format_qwen_glob_result,
+    format_qwen_grep_result,
+    format_qwen_list_result,
+    glob_search,
+    grep_search,
+    list_directory_entries,
+)
 
 __all__ = [
     "DEFAULT_GEMINI_LINE_LIMIT",
@@ -27,12 +39,22 @@ __all__ = [
     "SVG_MAX_SIZE_BYTES",
     "build_qwen_truncation_wrapper",
     "detect_bom",
+    "format_gemini_glob_result",
+    "format_gemini_grep_result",
+    "format_gemini_list_result",
     "format_tool_result_text",
     "format_tool_result_payload",
+    "format_qwen_glob_result",
+    "format_qwen_grep_result",
+    "format_qwen_list_result",
     "gemini_display_path",
+    "glob_search",
     "grok_directory_listing",
+    "grep_search",
     "is_binary_file",
     "is_path_ignored",
+    "list_directory_entries",
+    "MAX_QWEN_GLOB_RESULTS",
     "qwen_display_path",
     "read_file_with_encoding",
     "read_gemini_style_file",

@@ -16,6 +16,9 @@ model as text/JSON.
 Current public tools in this package:
 
 - `read_file`
+- `list_directory`
+- `grep_search`
+- `glob`
 - `write_file`
 - `replace`
 
@@ -27,6 +30,9 @@ Write/edit surface summary:
 The plugin repo exposes these classes through `agent_plugin.json`:
 
 - `gemini_tools.gemini_read_file_tool.GeminiReadFileTool`
+- `gemini_tools.gemini_list_directory_tool.GeminiListDirectoryTool`
+- `gemini_tools.gemini_grep_search_tool.GeminiGrepSearchTool`
+- `gemini_tools.gemini_glob_tool.GeminiGlobTool`
 - `gemini_tools.gemini_write_file_tool.GeminiWriteFileTool`
 - `gemini_tools.gemini_replace_tool.GeminiReplaceTool`
 
@@ -172,6 +178,52 @@ Error: start_line cannot be greater than end_line
 Error: File path '/workspace/secret.txt' is ignored by configured ignore patterns.
 ```
 
+## Search behavior notes
+
+The Gemini-compatible search entrypoints are `list_directory`, `grep_search`,
+and `glob`.
+
+- `list_directory(dir_path, ignore?, file_filtering_options?)` lists only the
+  direct children of a directory.
+- `grep_search(pattern, dir_path?, include_pattern?, exclude_pattern?,
+  names_only?, max_matches_per_file?, total_max_matches?)` keeps the fuller
+  Gemini search shape, including names-only mode and per-file/total match caps.
+- `glob(pattern, dir_path?, case_sensitive?, respect_git_ignore?,
+  respect_gemini_ignore?)` returns absolute paths sorted by modification time
+  with recent files first.
+- Relative search paths are resolved from `working_directory`.
+- `.geminiignore` and optional `.gitignore` filtering are applied in the same
+  compatibility layer used by the reader and edit tools.
+
+Representative `list_directory` output:
+
+```text
+Directory listing for /workspace/src:
+[DIR] nested
+alpha.py (128 bytes)
+
+(1 ignored)
+```
+
+Representative `glob` output:
+
+```text
+Found 2 file(s) matching "*.py" within /workspace/src, sorted by modification time (newest first):
+/workspace/src/main.py
+/workspace/src/util.py
+```
+
+Representative `grep_search` output:
+
+```text
+Found 2 matches for pattern "TODO" in path "src":
+File: /workspace/src/main.py
+L12: # TODO: tighten validation
+---
+File: /workspace/src/util.py
+L7: # TODO: remove debug path
+```
+
 ## Compatibility contract
 
 Parity for this package means:
@@ -211,6 +263,9 @@ Shared package-level config keys used by the current Gemini tools:
 - `project_temp_dir`
   Default: `<working_directory>/.temp`.
   Additional allowed location for reads and writes.
+- `list_directory`, `grep_search`, and `glob` also resolve relative paths from
+  `working_directory` and restrict access to `allowed_paths` plus
+  `project_temp_dir`.
 
 Write/edit safety notes:
 
@@ -223,6 +278,10 @@ Write/edit safety notes:
 Ignore behavior:
 
 - `.geminiignore` is read from `working_directory` when present.
+- `list_directory` can also report ignored child counts.
+- `glob` and `grep_search` both reuse the same `.geminiignore` filtering and
+  accept optional `.gitignore` participation flags in the Gemini-compatible
+  schema.
 
 ## Compatibility and Limitations
 
@@ -230,7 +289,8 @@ In scope for this package:
 
 - Gemini-style tool names and OpenAI chat-completions function schemas
 - Gemini-style path handling, validation, and major success/error wording
-- Gemini-style model-visible behavior for file reads, full-file writes, and literal replacements
+- Gemini-style model-visible behavior for file reads, listing, globbing,
+  grep-style search, full-file writes, and literal replacements
 
 Intentionally out of scope for this tool-plugin package:
 

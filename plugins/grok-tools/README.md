@@ -15,6 +15,13 @@ Current public tools in this package:
 - `create_file`
 - `str_replace_editor`
 
+Search/list note:
+
+- Grok-compatible unified `search` is intentionally deferred. This package does
+  not expose Gemini/Qwen-style `list_directory`, `grep_search`, or `glob`
+  wrappers because Grok's search surface is structurally different and will be
+  handled in a later dedicated task.
+
 Write/edit surface summary:
 
 - `create_file(path, content)` is creation-only and fails if the target already exists.
@@ -220,6 +227,8 @@ Intentionally out of scope for this tool-plugin package:
 - IDE integration and diff handoff flows
 - telemetry and internal service behavior from Grok CLI
 - exact host-managed application prompting and orchestration
+- the future Grok unified `search` tool discussed in the Gemini/Qwen search
+  subtask
 
 That means schema parity and tool behavior parity are the goal here. CLI confirmation screens, editor handoff, and approval workflows remain host-application concerns rather than tool-plugin concerns.
 
