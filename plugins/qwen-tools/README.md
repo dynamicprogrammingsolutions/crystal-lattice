@@ -19,11 +19,67 @@ Current public tools in this package:
 - `write_file`
 - `edit`
 
+Write/edit surface summary:
+
+- `write_file(file_path, content)` writes the full file at an absolute path and overwrites existing content.
+- `edit(file_path, old_string, new_string, replace_all=false)` performs literal replacement and expects exactly one match unless `replace_all` is enabled.
+- `edit` also supports file creation when `old_string` is the empty string and the target file does not yet exist.
+
 The plugin repo exposes these classes through `agent_plugin.json`:
 
 - `qwen_tools.qwen_read_file_tool.QwenReadFileTool`
 - `qwen_tools.qwen_write_file_tool.QwenWriteFileTool`
 - `qwen_tools.qwen_edit_tool.QwenEditTool`
+
+## Write and Edit Examples
+
+Representative `write_file` call shape:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "write_file",
+    "arguments": {
+      "file_path": "/workspace/src/note.txt",
+      "content": "alpha\n"
+    }
+  }
+}
+```
+
+Representative outcomes:
+
+```text
+Successfully created and wrote to new file: /workspace/src/note.txt.
+Successfully overwrote file: /workspace/src/note.txt.
+File path must be absolute: src/note.txt
+```
+
+Representative `edit` call shape:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "edit",
+    "arguments": {
+      "file_path": "/workspace/src/note.txt",
+      "old_string": "alpha",
+      "new_string": "beta"
+    }
+  }
+}
+```
+
+Representative outcomes:
+
+```text
+The file: /workspace/src/note.txt has been updated.
+Failed to edit, 0 occurrences found for old_string in /workspace/src/note.txt. No edits made. The exact text in old_string was not found. Ensure you're not escaping content incorrectly and check whitespace, indentation, and context. Use read_file tool to verify.
+Failed to edit. Found 2 occurrences for old_string in /workspace/src/note.txt but replace_all was not enabled.
+Created new file: /workspace/src/note.txt with provided content.
+```
 
 ## Quickstart
 
@@ -132,6 +188,16 @@ Parity for this package means:
 This package does not attempt to mirror Qwen Code's internal service graph or
 application-side orchestration.
 
+## Cross-Package Edit Comparison
+
+The three compatibility packages intentionally preserve different public edit tool names and flags:
+
+- Gemini uses `replace(..., allow_multiple=false)` and keeps the Gemini name `replace`.
+- Qwen uses `edit(..., replace_all=false)` and keeps the Qwen name `edit`.
+- Grok uses `str_replace_editor(..., replace_all=false)` and keeps the Grok name `str_replace_editor`.
+
+If you are choosing between packages, the shared behavior is literal text replacement inside workspace-safe paths. The public name, argument names, path rules, and some validation wording stay vendor-specific.
+
 ## Configuration reference
 
 Shared package-level config keys used by the current Qwen tools:
@@ -160,11 +226,26 @@ Shared package-level config keys used by the current Qwen tools:
   Default: `2500`.
   Character budget used by Qwen-style truncation.
 
+Write/edit safety notes:
+
+- `write_file` and `edit` require absolute `file_path` values.
+- File access is restricted to `workspace_dirs`, `project_temp_dir`, `global_temp_dir`, and `user_skills_dir`.
+- `.qwenignore` can block both reads and edits.
+- `edit` is literal, not regex-based.
+- `replace_all` defaults to `false`, so repeated text requires an explicit opt-in.
+- Using `old_string: ""` is the package-level creation path for `edit` when the file does not already exist.
+
 Ignore behavior:
 
 - `.qwenignore` is read from `working_directory` when present.
 
-## Limitations
+## Compatibility and Limitations
+
+In scope for this package:
+
+- Qwen-style tool names and OpenAI chat-completions function schemas
+- Qwen-style absolute-path validation, truncation behavior, and major success/error wording
+- Qwen-style model-visible behavior for file reads, full-file writes, and literal replacements
 
 Intentionally out of scope for this tool-plugin package:
 
@@ -172,6 +253,8 @@ Intentionally out of scope for this tool-plugin package:
 - IDE integration and diff handoff flows
 - telemetry and internal service behavior from Qwen Code
 - exact host-managed application prompting and orchestration
+
+That means schema parity and tool behavior parity are the goal here. CLI confirmation screens, editor handoff, and approval workflows remain host-application concerns rather than tool-plugin concerns.
 
 ## Notes
 

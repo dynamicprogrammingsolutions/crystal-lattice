@@ -15,11 +15,65 @@ Current public tools in this package:
 - `create_file`
 - `str_replace_editor`
 
+Write/edit surface summary:
+
+- `create_file(path, content)` is creation-only and fails if the target already exists.
+- `str_replace_editor(path, old_str, new_str, replace_all=false)` performs literal replacement and expects exactly one match unless `replace_all` is enabled.
+- Grok keeps the shortest write surface of the three packages: new-file creation plus targeted replacement.
+
 The plugin repo exposes these classes through `agent_plugin.json`:
 
 - `grok_tools.grok_view_file_tool.GrokViewFileTool`
 - `grok_tools.grok_create_file_tool.GrokCreateFileTool`
 - `grok_tools.grok_str_replace_editor_tool.GrokStrReplaceEditorTool`
+
+## Write and Edit Examples
+
+Representative `create_file` call shape:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "create_file",
+    "arguments": {
+      "path": "src/note.txt",
+      "content": "alpha\n"
+    }
+  }
+}
+```
+
+Representative outcomes:
+
+```text
+Created new file: /workspace/src/note.txt
+File already exists, cannot create: /workspace/src/note.txt
+```
+
+Representative `str_replace_editor` call shape:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "str_replace_editor",
+    "arguments": {
+      "path": "src/note.txt",
+      "old_str": "alpha",
+      "new_str": "beta"
+    }
+  }
+}
+```
+
+Representative outcomes:
+
+```text
+Updated file: /workspace/src/note.txt
+Found 2 matches for old_str in /workspace/src/note.txt. Set replace_all to true to replace every occurrence.
+File not found: /workspace/src/note.txt
+```
 
 ## Quickstart
 
@@ -120,6 +174,16 @@ Parity for this package means:
 This package does not attempt to mirror Grok CLI's surrounding agent guidance,
 confirmation flow, or other application-side orchestration.
 
+## Cross-Package Edit Comparison
+
+The three compatibility packages intentionally preserve different public edit tool names and flags:
+
+- Gemini uses `replace(..., allow_multiple=false)` and keeps the Gemini name `replace`.
+- Qwen uses `edit(..., replace_all=false)` and keeps the Qwen name `edit`.
+- Grok uses `str_replace_editor(..., replace_all=false)` and keeps the Grok name `str_replace_editor`.
+
+If you are choosing between packages, the shared behavior is literal text replacement inside workspace-safe paths. The public name, argument names, path rules, and some validation wording stay vendor-specific.
+
 ## Configuration reference
 
 Shared package-level config keys used by the current Grok tools:
@@ -134,7 +198,21 @@ Shared package-level config keys used by the current Grok tools:
   Default: `<working_directory>/.temp`.
   Additional allowed location for reads and writes.
 
-## Limitations
+Write/edit safety notes:
+
+- `create_file` and `str_replace_editor` accept relative `path` values, resolved from `working_directory`.
+- Writes and edits are restricted to `allowed_paths` plus `project_temp_dir`.
+- `create_file` is intentionally creation-only and does not overwrite existing files.
+- `str_replace_editor` is literal, not regex-based.
+- `replace_all` defaults to `false`, so repeated text requires an explicit opt-in.
+
+## Compatibility and Limitations
+
+In scope for this package:
+
+- Grok-style tool names and OpenAI chat-completions function schemas
+- Grok-style path handling, directory listing support, and major success/error wording
+- Grok-style model-visible behavior for view, create, and literal replacement operations
 
 Intentionally out of scope for this tool-plugin package:
 
@@ -142,6 +220,8 @@ Intentionally out of scope for this tool-plugin package:
 - IDE integration and diff handoff flows
 - telemetry and internal service behavior from Grok CLI
 - exact host-managed application prompting and orchestration
+
+That means schema parity and tool behavior parity are the goal here. CLI confirmation screens, editor handoff, and approval workflows remain host-application concerns rather than tool-plugin concerns.
 
 ## Notes
 

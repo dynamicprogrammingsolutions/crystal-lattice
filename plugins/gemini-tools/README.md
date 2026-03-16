@@ -19,11 +19,69 @@ Current public tools in this package:
 - `write_file`
 - `replace`
 
+Write/edit surface summary:
+
+- `write_file(file_path, content)` writes the full file and overwrites existing content.
+- `replace(file_path, instruction, old_string, new_string, allow_multiple=false)` performs literal replacement and expects exactly one match unless `allow_multiple` is enabled.
+
 The plugin repo exposes these classes through `agent_plugin.json`:
 
 - `gemini_tools.gemini_read_file_tool.GeminiReadFileTool`
 - `gemini_tools.gemini_write_file_tool.GeminiWriteFileTool`
 - `gemini_tools.gemini_replace_tool.GeminiReplaceTool`
+
+## Write and Edit Examples
+
+Representative `write_file` call shape:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "write_file",
+    "arguments": {
+      "file_path": "src/note.txt",
+      "content": "alpha\n"
+    }
+  }
+}
+```
+
+Representative outcomes:
+
+```text
+Successfully created and wrote to new file: /workspace/src/note.txt.
+Successfully overwrote file: /workspace/src/note.txt.
+```
+
+Representative `replace` call shape:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "replace",
+    "arguments": {
+      "file_path": "src/note.txt",
+      "instruction": "Rename alpha to beta",
+      "old_string": "alpha",
+      "new_string": "beta"
+    }
+  }
+}
+```
+
+Representative outcomes:
+
+```text
+Successfully modified file: /workspace/src/note.txt (1 replacements).
+Failed to edit, 0 occurrences found for old_string in /workspace/src/note.txt. Ensure you're not escaping content incorrectly and check whitespace, indentation, and context. Use read_file tool to verify.
+Failed to edit. Expected 1 occurrence but found 2 for old_string in file: /workspace/src/note.txt. If you intended to replace multiple occurrences, set 'allow_multiple' to true.
+```
+
+Special case:
+
+- If `old_string` is empty and the target file does not already exist, `replace` creates a new file and returns `Created new file: ... with provided content.`
 
 ## Quickstart
 
@@ -130,6 +188,16 @@ Parity for this package means:
 This package does not attempt to mirror Gemini CLI's internal service graph or
 application-side orchestration.
 
+## Cross-Package Edit Comparison
+
+The three compatibility packages intentionally preserve different public edit tool names and flags:
+
+- Gemini uses `replace(..., allow_multiple=false)` and keeps the Gemini name `replace`.
+- Qwen uses `edit(..., replace_all=false)` and keeps the Qwen name `edit`.
+- Grok uses `str_replace_editor(..., replace_all=false)` and keeps the Grok name `str_replace_editor`.
+
+If you are choosing between packages, the shared behavior is literal text replacement inside workspace-safe paths. The public name, argument names, path rules, and some validation wording stay vendor-specific.
+
 ## Configuration reference
 
 Shared package-level config keys used by the current Gemini tools:
@@ -144,11 +212,25 @@ Shared package-level config keys used by the current Gemini tools:
   Default: `<working_directory>/.temp`.
   Additional allowed location for reads and writes.
 
+Write/edit safety notes:
+
+- `write_file` and `replace` both allow relative `file_path` values, resolved from `working_directory`.
+- Writes and edits are restricted to `allowed_paths` plus `project_temp_dir`.
+- `.geminiignore` can block both reads and edits.
+- `replace` is literal, not regex-based.
+- `allow_multiple` defaults to `false`, so repeated text requires an explicit opt-in.
+
 Ignore behavior:
 
 - `.geminiignore` is read from `working_directory` when present.
 
-## Limitations
+## Compatibility and Limitations
+
+In scope for this package:
+
+- Gemini-style tool names and OpenAI chat-completions function schemas
+- Gemini-style path handling, validation, and major success/error wording
+- Gemini-style model-visible behavior for file reads, full-file writes, and literal replacements
 
 Intentionally out of scope for this tool-plugin package:
 
@@ -156,6 +238,8 @@ Intentionally out of scope for this tool-plugin package:
 - IDE integration and diff handoff flows
 - telemetry and internal service behavior from Gemini CLI
 - exact host-managed application prompting and orchestration
+
+That means schema parity and tool behavior parity are the goal here. CLI confirmation screens, editor handoff, and approval workflows remain host-application concerns rather than tool-plugin concerns.
 
 ## Notes
 
