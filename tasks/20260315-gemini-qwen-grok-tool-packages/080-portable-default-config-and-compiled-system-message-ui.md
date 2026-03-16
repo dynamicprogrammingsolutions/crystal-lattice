@@ -237,3 +237,52 @@ This work should be handled after task `070` and in a separate commit from the c
 
 1. The earlier discussion temporarily considered a server-side enrichment step for `compiled_content`, but after clarifying the intended core fix, the preferred path is to rely on rebuilt core messages carrying provider-restored metadata.
 2. If that assumption fails in implementation, stop and document the exact gap before broadening the task.
+
+## Plan Added During Completion
+
+Added during completion on approval.
+
+1. Create `application/python/agent_terminal_app/default_config/config.json` as a portable copy of the simplified multi-family config and vendor every referenced prompt/helper asset under the new `default_config` tree, including the Codex developer-message markdown files.
+2. Rewrite the copied config so every prompt/helper reference uses `${env:CONFIG_DIR}` and the portable copy no longer depends on `docs/default-system-instructions/...`.
+3. Extend `SystemMessageFeature.initialize_request(...)` so the chosen native system message gets `_metadata["compiled_content"]` and a one-time logged marker the first time the compiled prompt is applied, while retaining template text in native `content`.
+4. Add focused plugin/application coverage for the new metadata and one-time console logging behavior.
+5. Extend the mobile `SystemMessageBubble` with a collapsible compiled-content panel modeled on the assistant reasoning panel, plus a React Native component test.
+6. Add portability/config tests and integration checks for the copied default config, then run the relevant Python and mobile test suites plus JSON validation.
+
+## Completion Notes Added During Completion
+
+Implemented:
+
+1. Added a portable config copy at `application/python/agent_terminal_app/default_config/config.json` and vendored the dependent runtime assets under `application/python/agent_terminal_app/default_config/`, including the full `system_messages/` tree and the referenced Codex prompt files under `default_config/codex/`.
+2. Rewrote the copied Codex developer-message references so the portable config now resolves them from `${env:CONFIG_DIR}/codex/...` rather than escaping back into `docs/default-system-instructions/...`.
+3. `SystemMessageFeature.initialize_request(...)` now stamps native `_metadata["compiled_content"]` plus a one-time logged marker on the chosen system message the first time it applies a compiled prompt, while preserving the templated native `content`.
+4. The first compiled prompt is printed to the console exactly once per retained native system message via a simple `[system_message compiled]` console print.
+5. Added a collapsible compiled-content panel to the mobile `SystemMessageBubble`, using the same visual treatment as the existing assistant reasoning panel.
+6. Added Python regression coverage for compiled-content metadata/logging and portable-config resolution, plus a React Native component test for the new collapsible system-message panel.
+
+Files touched:
+
+1. `application/python/agent_terminal_app/default_config/config.json`
+2. `application/python/agent_terminal_app/default_config/system_messages/...`
+3. `application/python/agent_terminal_app/default_config/codex/...`
+4. `plugins/feature-system-message/src/feature_system_message/system_message_feature.py`
+5. `plugins/feature-system-message/tests/test_system_message_feature.py`
+6. `plugins/feature-system-message/tests/test_system_message_feature_agent_application_integration.py`
+7. `core/python/tests/test_default_system_instructions_docs.py`
+8. `mobile/crystal-lattice-control-rn/src/components/MessageBubble.tsx`
+9. `mobile/crystal-lattice-control-rn/__tests__/MessageBubble.test.tsx`
+
+Verification run:
+
+1. `pytest plugins/feature-system-message/tests/test_system_message_feature.py -q`
+2. `pytest plugins/feature-system-message/tests/test_system_message_feature_agent_application_integration.py -q`
+3. `pytest plugins/feature-system-message/tests -q`
+4. `pytest core/python/tests/test_default_system_instructions_docs.py -q`
+5. `python -m json.tool application/python/agent_terminal_app/default_config/config.json >/dev/null`
+6. `ruff check plugins/feature-system-message/src/feature_system_message/system_message_feature.py plugins/feature-system-message/tests/test_system_message_feature.py plugins/feature-system-message/tests/test_system_message_feature_agent_application_integration.py core/python/tests/test_default_system_instructions_docs.py`
+7. `npm test -- --runInBand __tests__/MessageBubble.test.tsx` from `mobile/crystal-lattice-control-rn/`
+
+Notes:
+
+1. The targeted Jest run passes, but it emits the existing `baseline-browser-mapping` staleness warning from the frontend toolchain.
+2. The docs-only pytest run still emits the existing narrow-suite `pytest-cov` no-data warning.

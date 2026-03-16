@@ -233,7 +233,11 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const [compiledExpanded, setCompiledExpanded] = useState(false);
   const content = selectDisplayContent(message);
+  const compiledContent = typeof (message.metadata as any)?.compiled_content === 'string'
+    ? (message.metadata as any).compiled_content
+    : undefined;
   const role = 'system';
   const footerParts = useMemo(() => {
     const elements = footerElements || [];
@@ -284,7 +288,24 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
   return (
     <View style={styles.row}>
       <View style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}>
-        <Text style={styles.headerText}>{`[${index}] System`}</Text>
+        <View style={styles.headerRow}>
+          <Text style={styles.headerText}>{`[${index}] System`}</Text>
+          <View style={styles.headerIconsRow}>
+            {compiledContent && (
+              <TouchableOpacity
+                style={styles.collapseIconButton}
+                onPress={() => setCompiledExpanded((prev) => !prev)}
+                testID="system-compiled-toggle"
+              >
+                <Icon
+                  name={compiledExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={14}
+                  color={theme.textSecondary}
+                />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
         <MessageAttachments message={message} />
         {content ? (
           <Text
@@ -294,6 +315,30 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
             {content}
           </Text>
         ) : null}
+        {compiledContent && compiledExpanded && (
+          <View style={styles.collapsibleContainerReasoning}>
+            <ScrollView
+              style={styles.collapsibleScroll}
+              nestedScrollEnabled
+            >
+              <Text
+                style={styles.reasoningText}
+                selectable
+                testID="system-compiled-content"
+              >
+                {compiledContent}
+              </Text>
+            </ScrollView>
+          </View>
+        )}
+        {compiledContent && !compiledExpanded && (
+          <Text
+            style={styles.collapsedHintText}
+            selectable
+          >
+            Compiled system prompt hidden (tap chevron to expand).
+          </Text>
+        )}
         {footerParts.length > 0 && (
           <View style={styles.footerRow}>
             <Text style={styles.footerText}>{footerParts.join('   ')}</Text>

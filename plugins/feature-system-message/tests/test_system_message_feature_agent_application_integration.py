@@ -19,6 +19,15 @@ SIMPLIFIED_CONFIG_PATH = (
     / "config_v2_multi_family_tools_simplified.json"
 )
 SIMPLIFIED_CONFIG_DIR = SIMPLIFIED_CONFIG_PATH.parent
+DEFAULT_CONFIG_PATH = (
+    REPO_ROOT
+    / "application"
+    / "python"
+    / "agent_terminal_app"
+    / "default_config"
+    / "config.json"
+)
+DEFAULT_CONFIG_DIR = DEFAULT_CONFIG_PATH.parent
 
 
 def _simplified_agent_with_echo_provider(
@@ -26,6 +35,15 @@ def _simplified_agent_with_echo_provider(
     agent_id: str,
 ) -> dict[str, Any]:
     agent_config = dict(simplified_config["agents"][agent_id])
+    agent_config["provider"] = "echo_with_system"
+    return agent_config
+
+
+def _config_agent_with_echo_provider(
+    source_config: dict[str, Any],
+    agent_id: str,
+) -> dict[str, Any]:
+    agent_config = dict(source_config["agents"][agent_id])
     agent_config["provider"] = "echo_with_system"
     return agent_config
 
@@ -55,7 +73,7 @@ def _compiled_system_text(events: list[dict[str, Any]]) -> str:
 def test_system_message_feature_persists_single_template_system_message(
     tmp_path: Path,
 ) -> None:
-    system_template = "You are a helpful system message for tests."
+    system_template = "You are a helpful {{STYLE}} system message for tests."
     config: Dict[str, Any] = {
         "providers": {
             "echo_with_system": {
@@ -63,7 +81,10 @@ def test_system_message_feature_persists_single_template_system_message(
                 "model": "echo-test-1",
                 "timeout": 60,
                 "system_message_enabled": True,
-                "system_message": system_template,
+                "system_message": {
+                    "template": system_template,
+                    "variables": {"STYLE": "dynamic"},
+                },
             }
         },
         "plugins": [
@@ -105,6 +126,9 @@ def test_system_message_feature_persists_single_template_system_message(
     assert sys_native1 and sys_native1[0].get("content") == system_template
     assert [message.role for message in session1.messages] == ["system", "user", "assistant"]
     assert session1.messages[0].content == system_template
+    assert session1.messages[0].metadata["compiled_content"] == (
+        "You are a helpful dynamic system message for tests."
+    )
 
     core2, base_config2, loaded1 = app.load_session(session1.session_id)
     session2 = core2.add_message(
@@ -126,6 +150,9 @@ def test_system_message_feature_persists_single_template_system_message(
     assert len(sys_native2) == 1
     assert sys_native2[0].get("content") == system_template
     assert len([message for message in session3.messages if message.role == "system"]) == 1
+    assert session3.messages[0].metadata["compiled_content"] == (
+        "You are a helpful dynamic system message for tests."
+    )
 
 
 def test_system_message_feature_renders_conditional_markdown_sections_for_git_and_cwd(
@@ -456,3 +483,94 @@ def test_simplified_codex_runtime_helper_contributes_ui_schema(tmp_path: Path) -
         {"value": "friendly", "label": "friendly"},
         {"value": "pragmatic", "label": "pragmatic"},
     ]
+
+
+def test_portable_default_config_compiles_vendor_and_codex_system_messages(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    portable_config = json.loads(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"))
+
+    config: Dict[str, Any] = {
+        "plugin_cache_dir": str(tmp_path / "plugin_cache" / "plugins"),
+        "providers": {
+            "echo_with_system": {
+                "provider": "echo_openai_like",
+                "model": "echo-test-1",
+                "timeout": 60,
+                "system_message_enabled": True,
+            }
+        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "feature_system_message.system_message_feature.SystemMessageFeature",
+        ],
+        "agents": {
+            agent_id: _config_agent_with_echo_provider(portable_config, agent_id)
+            for agent_id in ("codex", "gemini", "qwen", "grok")
+        },
+    }
+
+    config_path = tmp_path / "config_portable_system_message_echo.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    subprocess.run(
+        ["git", "init"], cwd=repo_dir, check=True, capture_output=True, text=True
+    )
+    (repo_dir / "AGENTS.md").write_text(
+        "Portable repository policy from AGENTS.\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(repo_dir)
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        event_store=InMemoryEventStore(),
+        env_overrides={
+            "CONFIG_DIR": str(DEFAULT_CONFIG_DIR),
+            "WORKING_DIR": str(repo_dir),
+        },
+    )
+
+    assert app.get_config_errors() == []
+
+    expected_substrings = {
+        "codex": [
+            "You are Codex, a coding agent based on GPT-5.",
+            "As an expert coding agent, your primary focus is writing code, answering questions, and helping the user complete their task in the current environment.",
+        ],
+        "gemini": [
+            "You are Gemini CLI, an interactive CLI agent specializing in software engineering tasks.",
+            "Portable repository policy from AGENTS.",
+        ],
+        "qwen": [
+            "You are Qwen Code, an interactive CLI agent developed by Alibaba Group, specializing in software engineering tasks.",
+            "# Git Repository",
+        ],
+        "grok": [
+            "You are Grok CLI, an AI assistant that helps with file editing, coding tasks, and system operations.",
+            f"Current working directory: {repo_dir.resolve()}",
+        ],
+    }
+
+    for agent_id, substrings in expected_substrings.items():
+        core, base_config, session = app.create_session(agent_id)
+        session = core.add_message(
+            session,
+            "user",
+            f"Inspect the compiled system message for {agent_id}.",
+            metadata=None,
+            config=base_config,
+        )
+
+        events = list(
+            app.send_request(core, session, base_config, overrides=None, stream=False)
+        )
+        system_text = _compiled_system_text(events)
+
+        assert "{{" not in system_text
+        for substring in substrings:
+            assert substring in system_text

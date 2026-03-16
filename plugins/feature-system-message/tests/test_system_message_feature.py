@@ -130,6 +130,9 @@ def test_system_message_permanent_template_injected_when_missing() -> None:
     assert len(new_native) == 2
     assert new_native[0]["role"] == "system"
     assert new_native[0]["content"] == "You are a helper for {{PROJECT}}."
+    assert new_native[0]["_metadata"]["compiled_content"] == (
+        "You are a helper for AI Agent Platform."
+    )
     # Original user message preserved
     assert new_native[1]["role"] == "user"
     assert new_native[1]["content"] == "Hi"
@@ -162,7 +165,39 @@ def test_no_permanent_system_message_when_user_system_present() -> None:
 
     # Existing system message is preserved, no additional permanent
     # system is inserted.
-    assert new_native == native
+    assert len(new_native) == len(native)
+    assert [message["role"] for message in new_native] == ["system", "user"]
+    assert new_native[0]["content"] == "User system {{NAME}}"
+
+
+def test_compiled_content_is_stamped_and_logged_once(capsys) -> None:
+    feature = SystemMessageFeature()
+
+    config = {
+        "system_message_enabled": True,
+        "system_message": {
+            "template": "Hello {{NAME}}",
+            "variables": {"NAME": "Alice"},
+        },
+    }
+
+    state: Dict[str, Any] = {}
+    state = feature.init(config, state)
+
+    native = _simple_native([{"role": "user", "content": "Hi"}])
+
+    new_native, new_state = feature.initialize_request(native, state)
+    assert new_native[0]["content"] == "Hello {{NAME}}"
+    assert new_native[0]["_metadata"]["compiled_content"] == "Hello Alice"
+    assert new_native[0]["_metadata"]["system_message_compiled_logged"] is True
+
+    first_output = capsys.readouterr().out
+    assert "[system_message compiled]" in first_output
+    assert "Hello Alice" in first_output
+
+    newer_native, _newer_state = feature.initialize_request(new_native, new_state)
+    assert newer_native[0]["_metadata"]["compiled_content"] == "Hello Alice"
+    assert capsys.readouterr().out == ""
 
 
 def test_system_message_files_variable_loaded_relative_to_cwd(

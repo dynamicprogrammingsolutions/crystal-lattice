@@ -107,6 +107,8 @@ class SystemMessageFeature(FeaturePlugin):
 
     name: str = "system_message"
     version: str = "0.5.0"
+    _COMPILED_CONTENT_KEY = "compiled_content"
+    _COMPILED_LOGGED_KEY = "system_message_compiled_logged"
 
     def __init__(self) -> None:  # pragma: no cover - trivial initializer
         # Per-request configuration snapshot extracted from the flat
@@ -553,6 +555,40 @@ class SystemMessageFeature(FeaturePlugin):
         return str(value)
 
     @classmethod
+    def _stamp_compiled_content_once(
+        cls,
+        native_messages: List[Dict[str, Any]],
+        system_index: int,
+        rendered: str,
+    ) -> List[Dict[str, Any]]:
+        """Persist the first compiled prompt snapshot in native metadata.
+
+        The retained native ``content`` stays templated so users can edit the
+        template later. Only the native ``_metadata`` gains the compiled text.
+        """
+
+        try:
+            original = native_messages[system_index]
+        except Exception:
+            return native_messages
+        if not isinstance(original, dict):
+            return native_messages
+
+        raw_metadata = original.get("_metadata") or {}
+        metadata = dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
+        if metadata.get(cls._COMPILED_LOGGED_KEY):
+            return native_messages
+
+        metadata[cls._COMPILED_CONTENT_KEY] = rendered
+        metadata[cls._COMPILED_LOGGED_KEY] = True
+
+        print(f"[system_message compiled]\n{rendered}")
+
+        stamped_messages = list(native_messages)
+        stamped_messages[system_index] = {**original, "_metadata": metadata}
+        return stamped_messages
+
+    @classmethod
     def _evaluate_condition(
         cls,
         spec: Dict[str, Any] | None,
@@ -784,6 +820,12 @@ class SystemMessageFeature(FeaturePlugin):
             return working_native, state
 
         rendered = self._render_template(base_template, variables)
+        if system_index is not None:
+            working_native = self._stamp_compiled_content_once(
+                working_native,
+                system_index,
+                rendered,
+            )
 
         # Build override messages: same as native history, but with the
         # chosen system message rendered at the selected index.

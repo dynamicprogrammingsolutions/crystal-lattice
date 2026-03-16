@@ -9,6 +9,9 @@ DOCS_ROOT = REPO_ROOT / "docs" / "default-system-instructions"
 RUNTIME_SYSTEM_MESSAGES_ROOT = (
     REPO_ROOT / "application" / "python" / "agent_terminal_app" / "system_messages"
 )
+DEFAULT_CONFIG_ROOT = (
+    REPO_ROOT / "application" / "python" / "agent_terminal_app" / "default_config"
+)
 
 
 def test_vendor_instruction_directories_exist() -> None:
@@ -226,3 +229,34 @@ def test_runtime_templates_and_simplified_config_omit_deliberately_empty_placeho
         variables = simplified_config["agents"][agent_id]["system_message"]["variables"]
         for key in removed_keys:
             assert key not in variables, (agent_id, key)
+
+
+def test_portable_default_config_is_self_contained() -> None:
+    config_path = DEFAULT_CONFIG_ROOT / "config.json"
+    assert config_path.is_file()
+    assert (DEFAULT_CONFIG_ROOT / "system_messages").is_dir()
+    assert (DEFAULT_CONFIG_ROOT / "codex").is_dir()
+
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    codex_rows = config["agents"]["codex"]["codex_developer_messages"]
+
+    for row in codex_rows:
+        text = row["text"]
+        assert text.startswith("${file:${env:CONFIG_DIR}/codex/")
+        assert "../../../docs/" not in text
+
+        relative_path = text[len("${file:${env:CONFIG_DIR}/") : -1]
+        assert (DEFAULT_CONFIG_ROOT / relative_path).is_file(), relative_path
+
+    helper_paths = [
+        "system_messages/helpers/runtime.py",
+        "system_messages/helpers/render_agents_context_section.py",
+        "system_messages/helpers/select_codex_developer_message.py",
+        "system_messages/codex/template.md",
+        "system_messages/gemini/template.md",
+        "system_messages/qwen/template.md",
+        "system_messages/grok/template.md",
+    ]
+
+    for relative_path in helper_paths:
+        assert (DEFAULT_CONFIG_ROOT / relative_path).is_file(), relative_path
