@@ -1,6 +1,8 @@
-# Codex CLI default model instructions (extracted)
+# Codex Default System Instructions
 
-This folder contains the model instruction strings bundled with the **Codex CLI** project.
+This directory contains the model instruction strings bundled with the **Codex CLI** project.
+
+It was moved from `docs/codex-default-instructions/` into the shared vendor layout at `docs/default-system-instructions/codex/`.
 
 Source:
 - Repository: `https://github.com/openai/codex`

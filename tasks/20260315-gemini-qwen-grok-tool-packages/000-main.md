@@ -18,12 +18,13 @@ The user asked for:
 - edit and write tools
 - list, grep, and glob tools
 4. A fourth subtask to extend configuration so plugin packages can be declared at the agent or provider level in addition to the current global `plugins` list.
-5. For config-level agent/provider settings, reuse the `plugins` key with a new meaning.
+5. A fifth subtask to extract Gemini-friendly, Qwen-friendly, and Grok-friendly system-message templates and reconstruction notes for later manual or feature-backed implementation.
+6. For config-level agent/provider settings, reuse the `plugins` key with a new meaning.
 - At the agent/provider config level, `plugins` should mean plugin package specs.
 - No backward compatibility is required for the old agent-level meaning.
-6. Keep the existing session metadata/UI-controlled `plugins` key semantics.
+7. Keep the existing session metadata/UI-controlled `plugins` key semantics.
 - Session metadata `plugins` remains the explicit enabled-plugin-id list.
-7. Add a new config-level `disabled_plugins` key for less verbose plugin enablement.
+8. Add a new config-level `disabled_plugins` key for less verbose plugin enablement.
 
 ## Package structure direction
 
@@ -150,6 +151,7 @@ Key observations:
 2. `tasks/20260315-gemini-qwen-grok-tool-packages/020-edit-and-write-tools.md`
 3. `tasks/20260315-gemini-qwen-grok-tool-packages/030-list-grep-glob-tools.md`
 4. `tasks/20260315-gemini-qwen-grok-tool-packages/040-agent-and-provider-plugin-package-config.md`
+5. `tasks/20260315-gemini-qwen-grok-tool-packages/050-vendor-friendly-system-messages.md`
 
 ## Cross-cutting decisions to preserve throughout implementation
 
@@ -177,3 +179,4 @@ Key observations:
 2. Edit/write tools second, reusing the same shared package.
 3. List/grep/glob third, after the shared filesystem/search helpers are in place.
 4. Agent/provider plugin package config support either before tool-package rollout or in parallel, because it enables cleaner configuration of the new vendor bundles.
+5. Vendor-friendly system messages after the vendor tool surfaces are stable enough to reference accurately.

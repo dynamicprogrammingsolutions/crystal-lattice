@@ -17,8 +17,7 @@
       "system_message": "You are a helpful coding assistant. Respond concisely.",
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/codex-tools"
-      ],
-      "disabled_plugins": ["apply_patch"]
+      ]
     },
     "openrouter_qwen_tools": {
       "provider": "openrouter",
@@ -117,7 +116,7 @@
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/codex-tools"
       ],
-      "disabled_plugins": ["apply_patch"]
+      "disabled_plugins": []
     }
   },
   "plugins": [
