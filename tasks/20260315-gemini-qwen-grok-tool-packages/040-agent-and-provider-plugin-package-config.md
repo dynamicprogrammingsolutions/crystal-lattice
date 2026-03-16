@@ -161,3 +161,31 @@ Questions to settle during implementation:
 - plugin package specs
 - config-level `disabled_plugins`
 - session-level enabled plugin ids
+
+## Approved Documentation Plan Added After Planning
+
+Added on 2026-03-16 after review of existing user-facing plugin and config docs.
+
+This subtask should explicitly update `docs/plugins/application-config.md` so the new configuration model is discoverable without reading implementation code.
+
+The docs update should include:
+
+1. A clear explanation that `plugins` has different semantics by layer:
+- top-level `plugins`: global plugin package specs
+- provider-level `plugins`: provider-specific plugin package specs
+- agent-level `plugins`: agent-specific plugin package specs
+- session metadata `plugins`: explicit enabled plugin ids controlled by the existing session-level UI/API flow
+2. A section for `disabled_plugins` explaining that it is a config-level shorthand for "everything from the merged catalog except these ids".
+3. At least one complete example config showing:
+- global `plugins`
+- provider-level `plugins`
+- agent-level `plugins`
+- `disabled_plugins`
+4. A precedence explanation covering:
+- merged package loading order
+- how `disabled_plugins` affects the default enabled set
+- how session metadata `plugins` overrides the default enabled set when present
+5. A migration note stating that old configs using agent-level `plugins` as enabled ids are not kept backward-compatible.
+6. Any necessary cross-links to:
+- `plugins/docs/plugin-packaging-and-loading.md`
+- package README quickstarts for `gemini-tools`, `qwen-tools`, and `grok-tools`

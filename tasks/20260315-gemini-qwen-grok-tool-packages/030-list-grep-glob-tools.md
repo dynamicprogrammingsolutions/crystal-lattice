@@ -125,3 +125,23 @@ Instead, add a note in `grok-tools` docs that Grok-compatible `search` should be
 2. Qwen-compatible list/grep/glob tools.
 3. Shared internal search/list helpers.
 4. Documentation note deferring Grok unified `search` to a later task.
+5. README updates for `plugins/gemini-tools/README.md` and `plugins/qwen-tools/README.md` covering:
+- exposed list/grep/glob tool surface
+- quickstart usage examples
+- vendor-specific behavior notes for listing, globbing, and grep result formatting
+6. README update for `plugins/grok-tools/README.md` noting that Grok-compatible unified `search` is intentionally deferred to a later dedicated task.
+
+## Approved Documentation Plan Added After Planning
+
+Added on 2026-03-16 after review of existing plugin README patterns.
+
+User-facing docs produced by this subtask should follow the stronger README conventions already used in plugin bundles such as `plugins/reference-openai-compatible-provider/README.md` and `plugins/openai_responses/README.md`, not just the minimal template shape.
+
+At minimum, the README updates for this subtask should include:
+
+1. A short purpose/scope statement.
+2. Quickstart config examples.
+3. An exposed-tool list.
+4. Brief vendor-specific behavior notes users actually need when choosing between Gemini-like and Qwen-like tools.
+5. A short limitations section where behavior is only approximate.
+6. Development/test commands matching the repo's normal plugin README style.

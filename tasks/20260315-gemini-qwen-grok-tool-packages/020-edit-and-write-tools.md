@@ -148,6 +148,28 @@ This limitation should be documented in the implementation README and tests.
 3. Tests for schema parity and core replacement semantics.
 4. Clear docs about the scope of parity and known host-UX differences.
 
+## Documentation Follow-up Added After Completion
+
+Added on 2026-03-16 after the implementation portion of this subtask was already completed.
+
+User-facing documentation follow-up for this subtask should include:
+
+1. Expand the package READMEs in:
+- `plugins/gemini-tools/README.md`
+- `plugins/qwen-tools/README.md`
+- `plugins/grok-tools/README.md`
+2. Add an exposed-tool section listing the current write/edit public surface for each package.
+3. Add a write/edit examples section with representative tool-call shapes and outcomes.
+4. Add a cross-package comparison note so users can quickly understand:
+- Gemini `replace`
+- Qwen `edit`
+- Grok `str_replace_editor`
+5. Add a compatibility-and-limitations section making the host-UX boundary explicit:
+- schema/tool behavior parity is in scope
+- CLI confirmation UX, IDE diff handoff, and approval flows are not
+6. Add any package-level configuration notes relevant to write/edit behavior, safety constraints, workspace restrictions, or replacement settings.
+7. Where helpful, include one or two representative validation/error examples such as zero-match, multiple-match, or creation-vs-overwrite behavior.
+
 ## Execution Plan Added During Completion
 
 Added on 2026-03-16 during subtask completion.

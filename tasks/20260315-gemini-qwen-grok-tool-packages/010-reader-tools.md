@@ -257,6 +257,37 @@ Tests for this subtask should be more detailed than later subtasks.
 4. Tests for schema and behavior parity.
 5. README notes in each plugin package describing what level of compatibility is intended.
 
+## Documentation Follow-up Added After Completion
+
+Added on 2026-03-16 after the implementation portion of this subtask was already completed.
+
+User-facing documentation follow-up for this subtask should include:
+
+1. Expand the package READMEs in:
+- `plugins/gemini-tools/README.md`
+- `plugins/qwen-tools/README.md`
+- `plugins/grok-tools/README.md`
+2. Add a quickstart section for each package showing:
+- minimal global plugin loading
+- how to combine the package with a provider bundle
+- a note that agent/provider-level `plugins` config becomes available once subtask 040 is implemented
+3. Add an exposed-tool section listing the currently supported public tools for each package.
+4. Add reader-specific behavior notes describing the high-value differences users need to know:
+- Gemini: relative `file_path`, 1-based line ranges, 2000-line default window, Gemini-style truncation banner
+- Qwen: absolute `absolute_path`, 0-based `offset`, config-driven truncation, Qwen-style truncation wrapper
+- Grok: `view_file` reads files and lists directories
+5. Add a compatibility-contract section clarifying what parity means here:
+- schema names and parameter names
+- major parameter semantics
+- important truncation/error wording
+- LLM-visible result content
+6. Add an explicit limitations section clarifying what is intentionally out of scope:
+- host approval UX
+- IDE integration
+- telemetry/internal service behavior
+7. Add a short example section with representative read success/truncation/error output snippets so users can sanity-check behavior.
+8. If package-level config keys exist for workspace scoping, ignore behavior, truncation thresholds, or media handling, document them in a compact configuration reference.
+
 ## Execution Plan Added During Completion
 
 Added during completion on 2026-03-15.
