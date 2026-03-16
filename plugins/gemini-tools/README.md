@@ -36,59 +36,6 @@ The plugin repo exposes these classes through `agent_plugin.json`:
 - `gemini_tools.gemini_write_file_tool.GeminiWriteFileTool`
 - `gemini_tools.gemini_replace_tool.GeminiReplaceTool`
 
-## Write and Edit Examples
-
-Representative `write_file` call shape:
-
-```json
-{
-  "type": "function",
-  "function": {
-    "name": "write_file",
-    "arguments": {
-      "file_path": "src/note.txt",
-      "content": "alpha\n"
-    }
-  }
-}
-```
-
-Representative outcomes:
-
-```text
-Successfully created and wrote to new file: /workspace/src/note.txt.
-Successfully overwrote file: /workspace/src/note.txt.
-```
-
-Representative `replace` call shape:
-
-```json
-{
-  "type": "function",
-  "function": {
-    "name": "replace",
-    "arguments": {
-      "file_path": "src/note.txt",
-      "instruction": "Rename alpha to beta",
-      "old_string": "alpha",
-      "new_string": "beta"
-    }
-  }
-}
-```
-
-Representative outcomes:
-
-```text
-Successfully modified file: /workspace/src/note.txt (1 replacements).
-Failed to edit, 0 occurrences found for old_string in /workspace/src/note.txt. Ensure you're not escaping content incorrectly and check whitespace, indentation, and context. Use read_file tool to verify.
-Failed to edit. Expected 1 occurrence but found 2 for old_string in file: /workspace/src/note.txt. If you intended to replace multiple occurrences, set 'allow_multiple' to true.
-```
-
-Special case:
-
-- If `old_string` is empty and the target file does not already exist, `replace` creates a new file and returns `Created new file: ... with provided content.`
-
 ## Quickstart
 
 Minimal global plugin loading with the application plugin manager:
@@ -135,6 +82,75 @@ For now, the simplest setup is to load this package in the global `plugins`
 list. Once subtask `040-agent-and-provider-plugin-package-config` is completed,
 agent-level and provider-level `plugins` placement will also be documented and
 available for this package family.
+
+## Writer behavior notes
+
+The Gemini-compatible writer entrypoint is `write_file`.
+
+- `file_path` may be relative to `working_directory`.
+- `content` is the full file body and overwrites existing content.
+- Missing parent directories are created automatically.
+- `.geminiignore` patterns are honored relative to `working_directory`.
+- Writes are restricted to `allowed_paths` plus `project_temp_dir`.
+
+Representative `write_file` call shape:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "write_file",
+    "arguments": {
+      "file_path": "src/note.txt",
+      "content": "alpha\n"
+    }
+  }
+}
+```
+
+Representative outcomes:
+
+```text
+Successfully created and wrote to new file: /workspace/src/note.txt.
+Successfully overwrote file: /workspace/src/note.txt.
+```
+
+## Edit behavior notes
+
+The Gemini-compatible edit entrypoint is `replace`.
+
+- `replace` uses literal text matching, not regex.
+- `instruction` is required and mirrors the Gemini model-facing schema.
+- By default, `replace` expects exactly one match.
+- Set `allow_multiple` to `true` to replace every occurrence of `old_string`.
+- If `old_string` is empty and the target file does not already exist,
+  `replace` creates a new file with `new_string` as its content.
+
+Representative `replace` call shape:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "replace",
+    "arguments": {
+      "file_path": "src/note.txt",
+      "instruction": "Rename alpha to beta",
+      "old_string": "alpha",
+      "new_string": "beta"
+    }
+  }
+}
+```
+
+Representative outcomes:
+
+```text
+Successfully modified file: /workspace/src/note.txt (1 replacements).
+Failed to edit, 0 occurrences found for old_string in /workspace/src/note.txt. Ensure you're not escaping content incorrectly and check whitespace, indentation, and context. Use read_file tool to verify.
+Failed to edit. Expected 1 occurrence but found 2 for old_string in file: /workspace/src/note.txt. If you intended to replace multiple occurrences, set 'allow_multiple' to true.
+Created new file: /workspace/src/note.txt with provided content.
+```
 
 ## Reader behavior notes
 

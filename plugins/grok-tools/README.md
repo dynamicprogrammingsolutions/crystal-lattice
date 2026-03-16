@@ -34,54 +34,6 @@ The plugin repo exposes these classes through `agent_plugin.json`:
 - `grok_tools.grok_create_file_tool.GrokCreateFileTool`
 - `grok_tools.grok_str_replace_editor_tool.GrokStrReplaceEditorTool`
 
-## Write and Edit Examples
-
-Representative `create_file` call shape:
-
-```json
-{
-  "type": "function",
-  "function": {
-    "name": "create_file",
-    "arguments": {
-      "path": "src/note.txt",
-      "content": "alpha\n"
-    }
-  }
-}
-```
-
-Representative outcomes:
-
-```text
-Created new file: /workspace/src/note.txt
-File already exists, cannot create: /workspace/src/note.txt
-```
-
-Representative `str_replace_editor` call shape:
-
-```json
-{
-  "type": "function",
-  "function": {
-    "name": "str_replace_editor",
-    "arguments": {
-      "path": "src/note.txt",
-      "old_str": "alpha",
-      "new_str": "beta"
-    }
-  }
-}
-```
-
-Representative outcomes:
-
-```text
-Updated file: /workspace/src/note.txt
-Found 2 matches for old_str in /workspace/src/note.txt. Set replace_all to true to replace every occurrence.
-File not found: /workspace/src/note.txt
-```
-
 ## Quickstart
 
 Minimal global plugin loading with the application plugin manager:
@@ -128,6 +80,72 @@ For now, the simplest setup is to load this package in the global `plugins`
 list. Once subtask `040-agent-and-provider-plugin-package-config` is completed,
 agent-level and provider-level `plugins` placement will also be documented and
 available for this package family.
+
+## Writer behavior notes
+
+The Grok-compatible writer entrypoint is `create_file`.
+
+- `path` may be relative to `working_directory`.
+- `create_file` is creation-only and fails if the target already exists.
+- Missing parent directories are created automatically.
+- Writes are restricted to `allowed_paths` plus `project_temp_dir`.
+
+Representative `create_file` call shape:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "create_file",
+    "arguments": {
+      "path": "src/note.txt",
+      "content": "alpha\n"
+    }
+  }
+}
+```
+
+Representative outcomes:
+
+```text
+Created new file: /workspace/src/note.txt
+File already exists, cannot create: /workspace/src/note.txt
+```
+
+## Edit behavior notes
+
+The Grok-compatible edit entrypoint is `str_replace_editor`.
+
+- `str_replace_editor` uses literal text matching, not regex.
+- `path` may be relative to `working_directory`.
+- By default, `str_replace_editor` expects exactly one match.
+- Set `replace_all` to `true` to replace every occurrence of `old_str`.
+- Unlike Gemini and Qwen, this edit tool does not create files when the target
+  is missing.
+
+Representative `str_replace_editor` call shape:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "str_replace_editor",
+    "arguments": {
+      "path": "src/note.txt",
+      "old_str": "alpha",
+      "new_str": "beta"
+    }
+  }
+}
+```
+
+Representative outcomes:
+
+```text
+Updated file: /workspace/src/note.txt
+Found 2 matches for old_str in /workspace/src/note.txt. Set replace_all to true to replace every occurrence.
+File not found: /workspace/src/note.txt
+```
 
 ## Reader behavior notes
 

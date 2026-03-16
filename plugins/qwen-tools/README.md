@@ -37,56 +37,6 @@ The plugin repo exposes these classes through `agent_plugin.json`:
 - `qwen_tools.qwen_write_file_tool.QwenWriteFileTool`
 - `qwen_tools.qwen_edit_tool.QwenEditTool`
 
-## Write and Edit Examples
-
-Representative `write_file` call shape:
-
-```json
-{
-  "type": "function",
-  "function": {
-    "name": "write_file",
-    "arguments": {
-      "file_path": "/workspace/src/note.txt",
-      "content": "alpha\n"
-    }
-  }
-}
-```
-
-Representative outcomes:
-
-```text
-Successfully created and wrote to new file: /workspace/src/note.txt.
-Successfully overwrote file: /workspace/src/note.txt.
-File path must be absolute: src/note.txt
-```
-
-Representative `edit` call shape:
-
-```json
-{
-  "type": "function",
-  "function": {
-    "name": "edit",
-    "arguments": {
-      "file_path": "/workspace/src/note.txt",
-      "old_string": "alpha",
-      "new_string": "beta"
-    }
-  }
-}
-```
-
-Representative outcomes:
-
-```text
-The file: /workspace/src/note.txt has been updated.
-Failed to edit, 0 occurrences found for old_string in /workspace/src/note.txt. No edits made. The exact text in old_string was not found. Ensure you're not escaping content incorrectly and check whitespace, indentation, and context. Use read_file tool to verify.
-Failed to edit. Found 2 occurrences for old_string in /workspace/src/note.txt but replace_all was not enabled.
-Created new file: /workspace/src/note.txt with provided content.
-```
-
 ## Quickstart
 
 Minimal global plugin loading with the application plugin manager:
@@ -133,6 +83,76 @@ For now, the simplest setup is to load this package in the global `plugins`
 list. Once subtask `040-agent-and-provider-plugin-package-config` is completed,
 agent-level and provider-level `plugins` placement will also be documented and
 available for this package family.
+
+## Writer behavior notes
+
+The Qwen-compatible writer entrypoint is `write_file`.
+
+- `file_path` must be absolute.
+- `content` is the full file body and overwrites existing content.
+- Missing parent directories are created automatically.
+- `.qwenignore` patterns are honored relative to `working_directory`.
+- Writes are restricted to `workspace_dirs`, `project_temp_dir`,
+  `global_temp_dir`, and `user_skills_dir`.
+
+Representative `write_file` call shape:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "write_file",
+    "arguments": {
+      "file_path": "/workspace/src/note.txt",
+      "content": "alpha\n"
+    }
+  }
+}
+```
+
+Representative outcomes:
+
+```text
+Successfully created and wrote to new file: /workspace/src/note.txt.
+Successfully overwrote file: /workspace/src/note.txt.
+File path must be absolute: src/note.txt
+```
+
+## Edit behavior notes
+
+The Qwen-compatible edit entrypoint is `edit`.
+
+- `edit` uses literal text matching, not regex.
+- `file_path` must be absolute.
+- By default, `edit` expects exactly one match.
+- Set `replace_all` to `true` to replace every occurrence of `old_string`.
+- If `old_string` is empty and the target file does not already exist,
+  `edit` creates a new file with `new_string` as its content.
+
+Representative `edit` call shape:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "edit",
+    "arguments": {
+      "file_path": "/workspace/src/note.txt",
+      "old_string": "alpha",
+      "new_string": "beta"
+    }
+  }
+}
+```
+
+Representative outcomes:
+
+```text
+The file: /workspace/src/note.txt has been updated.
+Failed to edit, 0 occurrences found for old_string in /workspace/src/note.txt. No edits made. The exact text in old_string was not found. Ensure you're not escaping content incorrectly and check whitespace, indentation, and context. Use read_file tool to verify.
+Failed to edit. Found 2 occurrences for old_string in /workspace/src/note.txt but replace_all was not enabled.
+Created new file: /workspace/src/note.txt with provided content.
+```
 
 ## Reader behavior notes
 
