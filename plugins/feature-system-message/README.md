@@ -28,6 +28,17 @@ Optionally, the `system_message` object may also include:
 
 That file is executed once per request, and all exported non-underscore globals from it become the runtime namespace for `inline_code`, file-backed `code`, and their condition variants.
 
+The runtime namespace always includes:
+
+- `CONFIG`: the effective resolved config dict for the current request
+
+When the application asks the feature for UI schema, the runtime namespace also includes:
+
+- `TAGS`: resolved capability tags for the effective config
+- `MODELS`: resolved model descriptors for the effective config
+
+If `runtime_code` exports a zero-argument `get_ui_elements()` function, the feature calls it and merges the returned list into the UI schema.
+
 ## Example
 
 ```json
@@ -94,6 +105,8 @@ If an inline block does not set `VALUE`, the rendered value becomes an empty str
 
 `inline_code` only sees builtins by default. If you want convenience names such as `cwd` or `is_git_repo()`, define them in `runtime_code`.
 
+Because `CONFIG` is always present, inline snippets and helper files can also branch on ordinary config values such as `provider`, `model`, or custom keys.
+
 ## File-Backed `code`
 
 The existing `code` behavior is preserved.
@@ -154,11 +167,14 @@ All exported non-underscore globals become available to dynamic code.
 
 That means `inline_code` or `condition.inline_code` can use names such as:
 
+- `CONFIG`: effective resolved config for the current request
 - `cwd`: current working directory as an absolute string
 - `is_git_repo(path: str | None = None) -> bool`
 - `git_root(path: str | None = None) -> str | None`
 
 but those names now come from your config-defined runtime file rather than from the feature plugin itself.
+
+`runtime_code` may also contribute config UI. If it exports a zero-argument `get_ui_elements()` function, the feature evaluates that helper with `CONFIG`, `TAGS`, and `MODELS` already present in the runtime namespace.
 
 ## Recommended Pattern
 

@@ -118,6 +118,17 @@ Example:
 
 `runtime_code` is optional. When present, the plugin executes that Python file once per request and exports all non-underscore globals into the runtime namespace used by `inline_code`, file-backed `code`, and their condition variants.
 
+The runtime namespace always includes:
+
+- `CONFIG`: the effective resolved config dict for the current request
+
+When UI schema is queried, the runtime namespace also includes:
+
+- `TAGS`
+- `MODELS`
+
+If the runtime file exports a zero-argument `get_ui_elements()` function, `feature-system-message` calls it and merges the returned items into the normal UI schema.
+
 Typical `runtime_code` exports include:
 
 - `cwd`
@@ -127,6 +138,8 @@ Typical `runtime_code` exports include:
 - `os`
 
 Without `runtime_code`, dynamic snippets only see normal Python builtins unless they import what they need themselves.
+
+This makes it possible to keep model- or provider-specific prompt routing in config-owned helper code. A common pattern is to store an ordered config list such as `codex_developer_messages` and let `runtime_code` select the matching prompt text by inspecting `CONFIG`.
 
 For a complete example, see:
 

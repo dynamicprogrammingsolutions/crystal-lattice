@@ -77,6 +77,11 @@ executed once per request and all exported non-underscore globals from that
 file become the runtime namespace for file-backed ``code``, ``inline_code``,
 and their condition variants.
 
+The runtime namespace always includes ``CONFIG`` with the effective request
+config. When UI schema is queried through :meth:`get_ui_elements`, the runtime
+namespace also includes ``TAGS`` and ``MODELS`` and may optionally export a
+zero-argument ``get_ui_elements()`` helper.
+
 This keeps the feature generic while letting config authors define convenience
 helpers such as ``cwd`` or ``is_git_repo()`` entirely in configuration.
 """
@@ -101,7 +106,7 @@ class SystemMessageFeature(FeaturePlugin):
     """
 
     name: str = "system_message"
-    version: str = "0.4.0"
+    version: str = "0.5.0"
 
     def __init__(self) -> None:  # pragma: no cover - trivial initializer
         # Per-request configuration snapshot extracted from the flat
@@ -121,6 +126,7 @@ class SystemMessageFeature(FeaturePlugin):
             # Specs may also carry an optional normalized ``condition``.
             "variables": {},
         }
+        self._effective_config: Dict[str, Any] = {}
 
     # ---- Config / UI ----
     def get_config_schema(self) -> Dict[str, Any]:
@@ -214,8 +220,32 @@ class SystemMessageFeature(FeaturePlugin):
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
-        # UI wiring is application-specific; keep this feature config-only.
-        return []
+        plugin_cfg = self._extract_plugin_config(config or {})
+        runtime_path = plugin_cfg.get("runtime_code")
+        if not isinstance(runtime_path, str) or not runtime_path:
+            return []
+
+        runtime_context = self._load_runtime_context(
+            runtime_path,
+            base_context=self._build_base_runtime_context(
+                config=config,
+                tags=tags,
+                models=models,
+            ),
+        )
+        getter = runtime_context.get("get_ui_elements")
+        if not callable(getter):
+            return []
+
+        try:
+            raw = getter()
+        except Exception:
+            return []
+
+        if not isinstance(raw, list):
+            return []
+
+        return [item for item in raw if isinstance(item, dict)]
 
     # Uses adapter default get_models (no-op on models)
 
@@ -382,17 +412,38 @@ class SystemMessageFeature(FeaturePlugin):
             exported[name] = value
         return exported
 
+    @staticmethod
+    def _build_base_runtime_context(
+        config: Dict[str, Any] | None = None,
+        tags: List[str] | None = None,
+        models: List[Dict[str, Any]] | None = None,
+    ) -> Dict[str, Any]:
+        """Build the base runtime namespace exposed to helper code."""
+
+        return {
+            "CONFIG": dict(config or {}),
+            "TAGS": list(tags or []),
+            "MODELS": list(models or []),
+        }
+
     @classmethod
-    def _load_runtime_context(cls, path: str | None) -> Dict[str, Any]:
+    def _load_runtime_context(
+        cls,
+        path: str | None,
+        base_context: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
         """Load optional request-scoped runtime globals from ``runtime_code``."""
 
         if not isinstance(path, str) or not path:
-            return {}
+            return dict(base_context or {})
 
         try:
-            namespace = runpy.run_path(os.path.expanduser(path))
+            namespace = runpy.run_path(
+                os.path.expanduser(path),
+                init_globals=cls._build_exec_globals(base_context),
+            )
         except Exception:
-            return {}
+            return dict(base_context or {})
 
         return cls._export_runtime_context(namespace)
 
@@ -586,6 +637,7 @@ class SystemMessageFeature(FeaturePlugin):
         """
 
         self._config = self._extract_plugin_config(config)
+        self._effective_config = dict(config)
         return {**state, "config": {**state.get("config", {}), **config}}
 
     # ---- Stateless transforms (native side) ----
@@ -683,7 +735,10 @@ class SystemMessageFeature(FeaturePlugin):
 
         # Resolve request-scoped runtime globals once, then use them for all
         # dynamic value and condition evaluation in this request.
-        runtime_context = self._load_runtime_context(cfg.get("runtime_code"))
+        runtime_context = self._load_runtime_context(
+            cfg.get("runtime_code"),
+            base_context=self._build_base_runtime_context(config=self._effective_config),
+        )
         variables = self._resolve_variables(
             cfg.get("variables") or {},
             runtime_context=runtime_context,

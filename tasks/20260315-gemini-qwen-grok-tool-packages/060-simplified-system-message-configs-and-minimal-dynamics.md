@@ -508,3 +508,155 @@ Additional files/tests updated in the follow-up:
 - no default helper context exists without `runtime_code`
 - file-backed `code` can use names provided by `runtime_code`
 - application config resolves nested `system_message` fields, including `template`, `runtime_code`, and variable values, to the expected final config values
+
+## Approved Follow-up Plan Added During Completion
+
+Added on 2026-03-16 after user approval.
+
+Follow-up scope for this request:
+
+1. Remove the deliberately empty placeholders from the runtime templates under `application/python/agent_terminal_app/system_messages/`.
+2. Remove the matching empty-string variable entries from `application/python/agent_terminal_app/config_v2_multi_family_tools_simplified.json`.
+3. Add an application-level integration test that exercises the real `AgentApplication` request path using the simplified vendor `system_message` definitions and asserts known substrings in the compiled system message for Gemini, Qwen, and Grok.
+4. Keep the test deterministic by swapping in the in-process echo provider while preserving the actual simplified `system_message` config blocks and runtime assets.
+5. Add focused coverage that the runtime templates and simplified config no longer keep the deliberately omitted placeholder markers.
+6. Run the relevant focused pytest suites plus JSON validation and report results.
+
+## Follow-up Completion Notes Added During Completion
+
+Added on 2026-03-16 after implementing the approved follow-up scope.
+
+What changed in this follow-up:
+
+1. Removed deliberately empty placeholder markers from the runtime templates:
+- `application/python/agent_terminal_app/system_messages/gemini/template.md`
+- `application/python/agent_terminal_app/system_messages/qwen/template.md`
+- `application/python/agent_terminal_app/system_messages/grok/template.md`
+
+2. Removed the matching empty-string variable entries from:
+- `application/python/agent_terminal_app/config_v2_multi_family_tools_simplified.json`
+
+3. Added an application-level integration test that exercises the compiled system-message path through `AgentApplication.send_request(...)` while preserving the real simplified vendor `system_message` blocks and runtime assets:
+- `plugins/feature-system-message/tests/test_system_message_feature_agent_application_integration.py`
+
+4. The new integration test uses the in-process `EchoOpenAILikeProvider` so it can assert the exact compiled system text without external API calls. It verifies known substrings for:
+- Gemini
+- Qwen
+- Grok
+
+5. Added repository-level coverage that the runtime templates and simplified config no longer retain the deliberately omitted placeholder markers:
+- `core/python/tests/test_default_system_instructions_docs.py`
+
+Files touched in this follow-up:
+
+1. Runtime templates and simplified config:
+- `application/python/agent_terminal_app/system_messages/gemini/template.md`
+- `application/python/agent_terminal_app/system_messages/qwen/template.md`
+- `application/python/agent_terminal_app/system_messages/grok/template.md`
+- `application/python/agent_terminal_app/config_v2_multi_family_tools_simplified.json`
+
+2. Tests:
+- `plugins/feature-system-message/tests/test_system_message_feature_agent_application_integration.py`
+- `core/python/tests/test_default_system_instructions_docs.py`
+
+3. Task tracking:
+- `tasks/20260315-gemini-qwen-grok-tool-packages/060-simplified-system-message-configs-and-minimal-dynamics.md`
+
+Tests run in this follow-up:
+
+1. `pytest plugins/feature-system-message/tests/test_system_message_feature_agent_application_integration.py -q`
+2. `pytest core/python/tests/test_default_system_instructions_docs.py -q`
+3. `pytest plugins/feature-system-message/tests/test_system_message_integration_with_echo.py -q`
+4. `ruff check plugins/feature-system-message/tests/test_system_message_feature_agent_application_integration.py core/python/tests/test_default_system_instructions_docs.py`
+5. `python -m json.tool application/python/agent_terminal_app/config_v2_multi_family_tools_simplified.json >/dev/null`
+
+Outcomes:
+
+1. All targeted pytest suites passed.
+2. `ruff check` passed on the edited test files.
+3. The simplified config still validates as JSON.
+4. The docs-only pytest invocation still emits the existing pytest-cov warning about no coverage data for that narrow run, but the test suite itself passed.
+
+Open issues / intentional limitations:
+
+1. The new compiled-system-message test is integration-style and deterministic, but it does not call a paid external API.
+2. It preserves the real simplified vendor `system_message` config blocks and runtime assets, while substituting the provider with the in-process echo provider purely for assertion and test stability.
+
+## Approved Codex Follow-up Plan Added During Completion
+
+Added on 2026-03-16 after user approval.
+
+Follow-up scope for this request:
+
+1. Extend `feature-system-message` so request-time runtime evaluation gets `CONFIG` in its runtime namespace.
+2. Extend `feature-system-message` so `runtime_code` can optionally export a zero-argument `get_ui_elements()` function, with `CONFIG`, `TAGS`, and `MODELS` available as runtime globals when that helper is evaluated.
+3. Add a Codex helper under `application/python/agent_terminal_app/system_messages/helpers/` that:
+- selects a developer message from a flat `codex_developer_messages` config list
+- matches rows by `model_regex`
+- optionally filters by `personality`
+- exports zero-argument `get_ui_elements()` for a `codex_personality` select field
+4. Add a Codex provider and `codex` agent to `application/python/agent_terminal_app/config_v2_multi_family_tools_simplified.json` using OpenRouter plus `codex-tools`.
+5. Store Codex instruction mappings as a flat ordered list with `model_regex`, `text`, and optional `personality`, sourcing prompt text from `docs/default-system-instructions/codex/`.
+6. Keep the Codex system-message template minimal and drive message selection entirely through helper code plus config data.
+7. Add tests covering:
+- `CONFIG` visible to runtime code and inline/file-backed evaluation
+- zero-argument `get_ui_elements()` exported from `runtime_code`
+- Codex compiled system-message selection by model
+- Codex compiled system-message selection by `codex_personality`
+- `codex_personality` appearing in UI schema
+8. Run the focused test suites, validate the simplified JSON config, and append completion notes.
+
+## Codex Follow-up Completion Notes Added During Completion
+
+Added on 2026-03-16 after implementing the approved Codex follow-up scope.
+
+What changed in this follow-up:
+
+1. Extended `feature-system-message` so runtime evaluation always receives `CONFIG` and can optionally contribute UI schema through a zero-argument `get_ui_elements()` helper in `runtime_code`.
+2. Added a Codex-specific runtime helper and minimal template under `application/python/agent_terminal_app/system_messages/`.
+3. Added a new simplified `openrouter_codex_tools` provider plus a `codex` agent in `application/python/agent_terminal_app/config_v2_multi_family_tools_simplified.json`.
+4. The `codex` agent now stores `codex_personality` plus a flat `codex_developer_messages` list with `model_regex`, `text`, and optional `personality`.
+5. The helper selects the developer message entirely from config data and also contributes a `codex_personality` select control to UI schema.
+6. Added unit and integration tests covering `CONFIG` visibility, zero-argument runtime UI helpers, model-based Codex message routing, personality routing, and UI schema exposure.
+7. Updated the feature README and application config docs to describe `CONFIG`, `TAGS`, `MODELS`, and zero-argument runtime UI helpers.
+
+Files touched in this follow-up:
+
+1. Feature implementation:
+- `plugins/feature-system-message/src/feature_system_message/system_message_feature.py`
+
+2. Simplified config and runtime assets:
+- `application/python/agent_terminal_app/config_v2_multi_family_tools_simplified.json`
+- `application/python/agent_terminal_app/system_messages/codex/template.md`
+- `application/python/agent_terminal_app/system_messages/helpers/select_codex_developer_message.py`
+
+3. Tests:
+- `plugins/feature-system-message/tests/test_system_message_feature.py`
+- `plugins/feature-system-message/tests/test_system_message_feature_agent_application_integration.py`
+
+4. Docs:
+- `plugins/feature-system-message/README.md`
+- `docs/plugins/application-config.md`
+
+5. Task tracking:
+- `tasks/20260315-gemini-qwen-grok-tool-packages/060-simplified-system-message-configs-and-minimal-dynamics.md`
+
+Tests run in this follow-up:
+
+1. `ruff check plugins/feature-system-message/src/feature_system_message/system_message_feature.py plugins/feature-system-message/tests/test_system_message_feature.py plugins/feature-system-message/tests/test_system_message_feature_agent_application_integration.py`
+2. `pytest plugins/feature-system-message/tests/test_system_message_feature.py -q`
+3. `pytest plugins/feature-system-message/tests/test_system_message_feature_agent_application_integration.py -q`
+4. `python -m json.tool application/python/agent_terminal_app/config_v2_multi_family_tools_simplified.json >/dev/null`
+5. `pytest core/python/tests/test_default_system_instructions_docs.py -q`
+
+Outcomes:
+
+1. All targeted tests and lint checks passed.
+2. The simplified config validates as JSON after adding the Codex provider and agent.
+3. The new integration coverage verifies both model-based and personality-based Codex developer-message selection through the real application request path.
+4. The docs-only pytest run still emits the existing pytest-cov no-data warning for that narrow invocation, but the test itself passed.
+
+Open issues / intentional limitations:
+
+1. The plugin remains generic and does not implement any Codex-specific selector type; all Codex routing policy lives in config and helper code.
+2. The Codex simplified config covers extracted instruction families already present under `docs/default-system-instructions/codex/`; it does not attempt to recreate additional upstream runtime behaviors beyond developer-message selection and UI personality choice.

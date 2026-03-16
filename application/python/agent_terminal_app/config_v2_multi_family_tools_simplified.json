@@ -1,6 +1,23 @@
 {
   "plugin_cache_dir": "${env:CONFIG_DIR}/.plugin_cache/plugins",
   "providers": {
+    "openrouter_codex_tools": {
+      "provider": "openrouter",
+      "model": "openai/gpt-5.4",
+      "api_key": "${env:OPENROUTER_API_KEY}",
+      "base_url": "https://openrouter.ai/api/v1",
+      "timeout": 300,
+      "allowed_paths": [".", ".."],
+      "max_file_size": 5242880,
+      "max_output_chars": 10000,
+      "working_directory": ".",
+      "enable_reasoning": true,
+      "reasoning_effort": "medium",
+      "system_message_enabled": true,
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/codex-tools"
+      ]
+    },
     "openrouter_qwen_tools": {
       "provider": "openrouter",
       "model": "qwen/qwen3.5-flash-02-23",
@@ -69,6 +86,89 @@
     "tool_output_short_one_line": true
   },
   "agents": {
+    "codex": {
+      "provider": "openrouter_codex_tools",
+      "model": "openai/gpt-5.4",
+      "codex_personality": "default",
+      "codex_developer_messages": [
+        {
+          "model_regex": "^(openai/)?gpt-5\\.4$",
+          "personality": "default",
+          "text": "${file:${env:CONFIG_DIR}/../../../docs/default-system-instructions/codex/gpt-5.4/instructions_default.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5\\.4$",
+          "personality": "friendly",
+          "text": "${file:${env:CONFIG_DIR}/../../../docs/default-system-instructions/codex/gpt-5.4/instructions_friendly.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5\\.4$",
+          "personality": "pragmatic",
+          "text": "${file:${env:CONFIG_DIR}/../../../docs/default-system-instructions/codex/gpt-5.4/instructions_pragmatic.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5\\.3-codex$",
+          "personality": "default",
+          "text": "${file:${env:CONFIG_DIR}/../../../docs/default-system-instructions/codex/gpt-5.3-codex/instructions_default.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5\\.3-codex$",
+          "personality": "friendly",
+          "text": "${file:${env:CONFIG_DIR}/../../../docs/default-system-instructions/codex/gpt-5.3-codex/instructions_friendly.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5\\.3-codex$",
+          "personality": "pragmatic",
+          "text": "${file:${env:CONFIG_DIR}/../../../docs/default-system-instructions/codex/gpt-5.3-codex/instructions_pragmatic.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5\\.2-codex$",
+          "personality": "default",
+          "text": "${file:${env:CONFIG_DIR}/../../../docs/default-system-instructions/codex/gpt-5.2-codex/instructions_default.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5\\.2-codex$",
+          "personality": "friendly",
+          "text": "${file:${env:CONFIG_DIR}/../../../docs/default-system-instructions/codex/gpt-5.2-codex/instructions_friendly.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5\\.2-codex$",
+          "personality": "pragmatic",
+          "text": "${file:${env:CONFIG_DIR}/../../../docs/default-system-instructions/codex/gpt-5.2-codex/instructions_pragmatic.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5\\.1-codex$",
+          "text": "${file:${env:CONFIG_DIR}/../../../docs/default-system-instructions/codex/gpt-5.1-codex/instructions_default.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5\\.2$",
+          "text": "${file:${env:CONFIG_DIR}/../../../docs/default-system-instructions/codex/gpt-5.2/instructions_default.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5\\.1$",
+          "text": "${file:${env:CONFIG_DIR}/../../../docs/default-system-instructions/codex/gpt-5.1/instructions_default.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5$",
+          "text": "${file:${env:CONFIG_DIR}/../../../docs/default-system-instructions/codex/gpt-5/instructions_default.md}"
+        },
+        {
+          "model_regex": ".*",
+          "text": "${file:${env:CONFIG_DIR}/../../../docs/default-system-instructions/codex/gpt-5/instructions_default.md}"
+        }
+      ],
+      "system_message": {
+        "template": "${file:${env:CONFIG_DIR}/system_messages/codex/template.md}",
+        "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/select_codex_developer_message.py",
+        "variables": {
+          "CODEX_DEVELOPER_MESSAGE": {
+            "inline_code": "select_codex_developer_message()"
+          }
+        }
+      },
+      "enable_reasoning": true,
+      "reasoning_effort": "medium"
+    },
     "qwen": {
       "provider": "openrouter_qwen_tools",
       "model": "qwen/qwen3.5-flash-02-23",
@@ -81,7 +181,6 @@
               "${env:CONFIG_DIR}/system_messages/qwen/introduction-and-core-mandates.md"
             ]
           },
-          "TASK_MANAGEMENT": "",
           "PRIMARY_WORKFLOWS": {
             "files": [
               "${env:CONFIG_DIR}/system_messages/qwen/primary-workflows.md"
@@ -92,7 +191,6 @@
               "${env:CONFIG_DIR}/system_messages/qwen/operational-guidelines.md"
             ]
           },
-          "SANDBOX_SECTION": "",
           "GIT_SECTION": {
             "files": [
               "${env:CONFIG_DIR}/system_messages/qwen/git-section.md"
@@ -100,9 +198,7 @@
             "condition": {
               "inline_code": "is_git_repo()"
             }
-          },
-          "MODEL_TOOL_CALL_EXAMPLES": "",
-          "USER_MEMORY_SUFFIX": ""
+          }
         }
       },
       "enable_reasoning": true,
@@ -125,9 +221,6 @@
               "${env:CONFIG_DIR}/system_messages/gemini/core-mandates.md"
             ]
           },
-          "AVAILABLE_SUBAGENTS_SECTION": "",
-          "AVAILABLE_SKILLS_SECTION": "",
-          "HOOK_CONTEXT_SECTION": "",
           "WORKFLOW_SECTION": {
             "files": [
               "${env:CONFIG_DIR}/system_messages/gemini/workflow-section.md"
@@ -138,8 +231,6 @@
               "${env:CONFIG_DIR}/system_messages/gemini/operational-guidelines.md"
             ]
           },
-          "YOLO_SECTION": "",
-          "SANDBOX_SECTION": "",
           "GIT_SECTION": {
             "files": [
               "${env:CONFIG_DIR}/system_messages/gemini/git-section.md"
@@ -168,7 +259,6 @@
               "${env:CONFIG_DIR}/system_messages/grok/introduction.md"
             ]
           },
-          "CUSTOM_INSTRUCTIONS_SECTION": "",
           "AVAILABLE_TOOLS_SECTION": {
             "files": [
               "${env:CONFIG_DIR}/system_messages/grok/available-tools-section.md"
@@ -179,7 +269,6 @@
               "${env:CONFIG_DIR}/system_messages/grok/tool-usage-rules.md"
             ]
           },
-          "WEB_AND_REALTIME_CAPABILITIES_SECTION": "",
           "WORKFLOW_AND_RESPONSE_GUIDANCE": {
             "files": [
               "${env:CONFIG_DIR}/system_messages/grok/response-guidelines.md"

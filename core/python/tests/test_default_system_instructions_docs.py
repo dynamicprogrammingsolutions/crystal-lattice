@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 
@@ -162,3 +163,66 @@ def test_runtime_system_message_templates_exist() -> None:
         / "config_v2_multi_family_tools_simplified.json"
     )
     assert simplified_config.is_file()
+
+
+def test_runtime_templates_and_simplified_config_omit_deliberately_empty_placeholders() -> None:
+    runtime_templates = {
+        "gemini/template.md": {
+            "{{AVAILABLE_SUBAGENTS_SECTION}}",
+            "{{AVAILABLE_SKILLS_SECTION}}",
+            "{{HOOK_CONTEXT_SECTION}}",
+            "{{YOLO_SECTION}}",
+            "{{SANDBOX_SECTION}}",
+        },
+        "qwen/template.md": {
+            "{{TASK_MANAGEMENT}}",
+            "{{SANDBOX_SECTION}}",
+            "{{MODEL_TOOL_CALL_EXAMPLES}}",
+            "{{USER_MEMORY_SUFFIX}}",
+        },
+        "grok/template.md": {
+            "{{CUSTOM_INSTRUCTIONS_SECTION}}",
+            "{{WEB_AND_REALTIME_CAPABILITIES_SECTION}}",
+        },
+    }
+
+    for relative_path, removed_markers in runtime_templates.items():
+        template_text = (RUNTIME_SYSTEM_MESSAGES_ROOT / relative_path).read_text(
+            encoding="utf-8"
+        )
+        for marker in removed_markers:
+            assert marker not in template_text, (relative_path, marker)
+
+    simplified_config_path = (
+        REPO_ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "config_v2_multi_family_tools_simplified.json"
+    )
+    simplified_config = json.loads(simplified_config_path.read_text(encoding="utf-8"))
+
+    removed_variable_keys = {
+        "gemini": {
+            "AVAILABLE_SUBAGENTS_SECTION",
+            "AVAILABLE_SKILLS_SECTION",
+            "HOOK_CONTEXT_SECTION",
+            "YOLO_SECTION",
+            "SANDBOX_SECTION",
+        },
+        "qwen": {
+            "TASK_MANAGEMENT",
+            "SANDBOX_SECTION",
+            "MODEL_TOOL_CALL_EXAMPLES",
+            "USER_MEMORY_SUFFIX",
+        },
+        "grok": {
+            "CUSTOM_INSTRUCTIONS_SECTION",
+            "WEB_AND_REALTIME_CAPABILITIES_SECTION",
+        },
+    }
+
+    for agent_id, removed_keys in removed_variable_keys.items():
+        variables = simplified_config["agents"][agent_id]["system_message"]["variables"]
+        for key in removed_keys:
+            assert key not in variables, (agent_id, key)

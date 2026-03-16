@@ -249,6 +249,37 @@ def test_inline_code_expression_variable(tmp_path, monkeypatch) -> None:
     assert resolved["VAL"] == f"Current working directory: {tmp_path.resolve()}"
 
 
+def test_runtime_code_can_read_config_in_inline_code(tmp_path) -> None:
+    runtime_file = tmp_path / "runtime.py"
+    runtime_file.write_text(
+        "selected_model = CONFIG.get('model')\n",
+        encoding="utf-8",
+    )
+
+    config = {
+        "model": "openai/gpt-5.4",
+        "system_message": {
+            "template": "{{VAL}}",
+            "runtime_code": str(runtime_file),
+            "variables": {
+                "VAL": {"inline_code": "selected_model"},
+            },
+        },
+    }
+
+    cfg = SystemMessageFeature._extract_plugin_config(config)
+    runtime_context = SystemMessageFeature._load_runtime_context(
+        str(runtime_file),
+        base_context=SystemMessageFeature._build_base_runtime_context(config=config),
+    )
+    resolved = SystemMessageFeature._resolve_variables(
+        cfg["variables"],
+        runtime_context=runtime_context,
+    )
+
+    assert resolved["VAL"] == "openai/gpt-5.4"
+
+
 def test_inline_code_has_no_default_helper_context_without_runtime_code() -> None:
     config = {
         "system_message": {
@@ -413,6 +444,61 @@ def test_helper_runtime_available_to_file_backed_code(tmp_path, monkeypatch) -> 
     )
 
     assert resolved["VAL"] == f"{repo.resolve()}|True|{repo.resolve()}"
+
+
+def test_file_backed_code_can_read_config_without_custom_runtime_file(tmp_path) -> None:
+    code_file = tmp_path / "code_val.py"
+    code_file.write_text("SYSTEM_MESSAGE_VALUE = CONFIG['model']\n", encoding="utf-8")
+
+    config = {
+        "model": "openai/gpt-5.2",
+        "system_message": {
+            "template": "{{VAL}}",
+            "variables": {"VAL": {"code": str(code_file)}},
+        },
+    }
+
+    cfg = SystemMessageFeature._extract_plugin_config(config)
+    runtime_context = SystemMessageFeature._load_runtime_context(
+        None,
+        base_context=SystemMessageFeature._build_base_runtime_context(config=config),
+    )
+    resolved = SystemMessageFeature._resolve_variables(
+        cfg["variables"],
+        runtime_context=runtime_context,
+    )
+
+    assert resolved["VAL"] == "openai/gpt-5.2"
+
+
+def test_runtime_code_zero_arg_get_ui_elements_uses_runtime_globals(tmp_path) -> None:
+    runtime_file = tmp_path / "runtime.py"
+    runtime_file.write_text(
+        "def get_ui_elements():\n"
+        "    return [{\n"
+        "        'ui_type': 'config',\n"
+        "        'type': 'select',\n"
+        "        'key': 'codex_personality',\n"
+        "        'label': f\"{CONFIG.get('model')}|{','.join(TAGS)}|{MODELS[0]['id']}\",\n"
+        "        'options': ['default', 'friendly', 'pragmatic'],\n"
+        "    }]\n",
+        encoding="utf-8",
+    )
+
+    feature = SystemMessageFeature()
+    elements = feature.get_ui_elements(
+        config={
+            "model": "openai/gpt-5.4",
+            "system_message": {"runtime_code": str(runtime_file)},
+        },
+        tags=["supports_tools"],
+        models=[{"id": "openai/gpt-5.4"}],
+    )
+
+    assert len(elements) == 1
+    assert elements[0]["key"] == "codex_personality"
+    assert elements[0]["type"] == "select"
+    assert elements[0]["label"] == "openai/gpt-5.4|supports_tools|openai/gpt-5.4"
 
 
 def test_system_message_dynamic_variables_change_between_configs() -> None:
