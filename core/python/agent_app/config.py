@@ -11,6 +11,46 @@ import re
 JsonMapping = Mapping[str, Any]
 
 
+def _default_builtin_plugins_dir() -> Path:
+    """Return the default built-in plugins directory for this install layout.
+
+    In the repository layout this resolves to ``<repo>/plugins``. Packaged
+    distributions can override it by passing ``env_overrides`` when creating
+    the application.
+    """
+
+    return Path(__file__).resolve().parents[3] / "plugins"
+
+
+def build_config_resolution_env(
+    config_path: str | Path,
+    *,
+    env: Mapping[str, str] | None = None,
+    env_overrides: Mapping[str, str] | None = None,
+) -> Dict[str, str]:
+    """Build the environment used for config placeholder resolution.
+
+    Resolution starts with derived defaults, then overlays process env, and
+    finally applies explicit ``env_overrides`` from the embedding application.
+    This keeps configs portable while still allowing callers to override path
+    anchors without mutating global process state.
+    """
+
+    config_dir = str(Path(config_path).expanduser().resolve().parent)
+    working_dir = str(Path.cwd().resolve())
+    derived: Dict[str, str] = {
+        "CONFIG_DIR": config_dir,
+        "WORKING_DIR": working_dir,
+        "BUILTIN_PLUGINS": str(_default_builtin_plugins_dir()),
+    }
+
+    merged: Dict[str, str] = dict(derived)
+    merged.update(dict(env or os.environ))
+    if env_overrides:
+        merged.update({key: str(value) for key, value in env_overrides.items()})
+    return merged
+
+
 def load_raw_config(path: str | Path) -> Dict[str, Any]:
     """Load JSON configuration from disk.
 

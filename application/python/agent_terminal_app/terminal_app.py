@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from agent_app.application_future import AgentApplication
 from agent_app.config import resolve_request_config
@@ -39,6 +39,7 @@ class TerminalApplication:
         config_path: str | Path,
         session_root: str | Path,
         agent_app: AgentApplication | None = None,
+        env_overrides: Mapping[str, str] | None = None,
     ) -> None:
         self._session_root: Path = Path(session_root)
 
@@ -46,7 +47,11 @@ class TerminalApplication:
             self._app = agent_app
         else:
             self._session_root.mkdir(parents=True, exist_ok=True)
-            self._app = AgentApplication(str(config_path), str(self._session_root))
+            self._app = AgentApplication(
+                str(config_path),
+                str(self._session_root),
+                env_overrides=env_overrides,
+            )
 
         self._session: Session | None = None
         self._core: Any | None = None

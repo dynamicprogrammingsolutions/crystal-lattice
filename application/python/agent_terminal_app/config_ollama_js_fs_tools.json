@@ -15,7 +15,7 @@
     "plugins.openai_provider.OpenAICompatibleProvider",
     "plugins.openai_tools_extension.OpenAIToolsExtension",
     "plugins.ollama_thinking_extension.OllamaThinkingExtension",
-    "node:../../../plugins/js-fs-tools"
+    "node:${env:BUILTIN_PLUGINS}/js-fs-tools"
   ],
   "agents": {
     "default": {

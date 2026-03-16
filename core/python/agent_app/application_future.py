@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, cast
+from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Set, Tuple, cast
 import uuid
 from contextlib import contextmanager
 from datetime import datetime
@@ -14,6 +14,7 @@ from agent_core.plugin.loader import validate_plugin_for_kind
 
 from .app_plugins import ApplicationPluginWrapper
 from .config import (
+    build_config_resolution_env,
     build_agent_config,
     load_raw_config,
     resolve_placeholders,
@@ -69,6 +70,7 @@ class AgentApplication:
         session_root: str | Path,
         core_factory: Callable[[], AgentCore] = AgentCore,
         event_store: Optional[EventStore] = None,
+        env_overrides: Mapping[str, str] | None = None,
     ) -> None:
         logger = get_logger("AgentApplication")
         # Core factory is stored so that per-session cores can be created
@@ -84,7 +86,11 @@ class AgentApplication:
 
         raw_config = load_raw_config(config_path)
         config_base_dir = str(Path(config_path).resolve().parent)
-        resolved_config, placeholder_errors = resolve_placeholders(raw_config)
+        resolution_env = build_config_resolution_env(
+            config_path,
+            env_overrides=env_overrides,
+        )
+        resolved_config, placeholder_errors = resolve_placeholders(raw_config, env=resolution_env)
         self._config: Dict[str, Any] = resolved_config
         self._config_errors: List[Dict[str, Any]] = placeholder_errors
 

@@ -29,20 +29,20 @@
     }
   },
   "plugins": [
-    "path:../../../plugins/openrouter",
-    "path:../../../plugins/feature-request-options",
-    "path:../../../plugins/codex-tools",
-    "path:../../../plugins/feature-system-message",
-    "path:../../../plugins/feature-file-context",
-    "path:../../../plugins/feature-web-context",
-    "path:../../../plugins/timestamp-extension",
-    "path:../../../plugins/session-actions-app",
-    "path:../../../plugins/summarize-range-app",
-    "path:../../../plugins/session-title-app",
-    "path:../../../plugins/generate-title-app",
-    "path:../../../plugins/session-timestamp-meta-app",
-    "path:../../../plugins/session-message-count-meta-app",
-    "path:../../../plugins/session-pinned-app"
+    "path:${env:BUILTIN_PLUGINS}/openrouter",
+    "path:${env:BUILTIN_PLUGINS}/feature-request-options",
+    "path:${env:BUILTIN_PLUGINS}/codex-tools",
+    "path:${env:BUILTIN_PLUGINS}/feature-system-message",
+    "path:${env:BUILTIN_PLUGINS}/feature-file-context",
+    "path:${env:BUILTIN_PLUGINS}/feature-web-context",
+    "path:${env:BUILTIN_PLUGINS}/timestamp-extension",
+    "path:${env:BUILTIN_PLUGINS}/session-actions-app",
+    "path:${env:BUILTIN_PLUGINS}/summarize-range-app",
+    "path:${env:BUILTIN_PLUGINS}/session-title-app",
+    "path:${env:BUILTIN_PLUGINS}/generate-title-app",
+    "path:${env:BUILTIN_PLUGINS}/session-timestamp-meta-app",
+    "path:${env:BUILTIN_PLUGINS}/session-message-count-meta-app",
+    "path:${env:BUILTIN_PLUGINS}/session-pinned-app"
   ],
   "agents": {
     "default": {

@@ -12,6 +12,41 @@ This page explains how to configure plugins in the application. It covers the `p
 - `plugin_cache_dir`: enables plugin installs and caching (for both `git+...` and `path:...`).
 - `plugin_policy`: controls installation and security policy (see Policy & Security).
 
+## Built-in Placeholder Environment Variables
+
+When the application resolves placeholders, it now provides a few path-oriented
+environment variables automatically. These can still be overridden explicitly
+by the embedding app through `AgentApplication(..., env_overrides=...)`.
+
+- `CONFIG_DIR`: absolute path to the directory containing the active config file
+- `WORKING_DIR`: absolute path to the current working directory
+- `BUILTIN_PLUGINS`: default built-in plugin bundle directory for the current install layout
+
+These are especially useful for portable configs:
+
+```json
+{
+  "plugin_cache_dir": "${env:CONFIG_DIR}/.plugin_cache/plugins",
+  "plugins": [
+    "path:${env:BUILTIN_PLUGINS}/openrouter",
+    "path:${env:BUILTIN_PLUGINS}/feature-system-message"
+  ],
+  "agents": {
+    "default": {
+      "provider": "openrouter_tools",
+      "system_message": {
+        "template": "{{AGENTS}}",
+        "variables": {
+          "AGENTS": {
+            "text": "${file:${env:WORKING_DIR}/AGENTS.md}"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
 ## Configuration Layers
 
 `plugins` intentionally has different semantics depending on where it appears:
