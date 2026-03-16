@@ -4,9 +4,109 @@ This page explains how to configure plugins in the application. It covers the `p
 
 ## Overview
 
-- `plugins`: defines provider(s), extensions, features, tools, and application plugins.
+- top-level `plugins`: global plugin package specs shared by all agents.
+- provider-level `plugins`: additional plugin package specs for agents using that provider config.
+- agent-level `plugins`: additional plugin package specs for that agent only.
+- session metadata `plugins`: still means explicit enabled plugin ids, not plugin package specs.
+- `disabled_plugins`: config-level shorthand for disabling plugin ids by default after the merged catalog is built.
 - `plugin_cache_dir`: enables plugin installs and caching (for both `git+...` and `path:...`).
 - `plugin_policy`: controls installation and security policy (see Policy & Security).
+
+## Configuration Layers
+
+`plugins` intentionally has different semantics depending on where it appears:
+
+- top level: plugin package specs loaded for every agent
+- provider config: plugin package specs added for agents that use that provider
+- agent config: plugin package specs added only for that agent
+- session metadata: explicit enabled plugin ids controlled by the existing session UI/API flow
+
+`disabled_plugins` is available at the top level, provider level, and agent level. It is always a list of plugin ids, never plugin package specs.
+
+### Merge Order
+
+The effective plugin catalog for a session is built in this order:
+
+1. Load top-level `plugins`.
+2. Load `plugins` from the selected provider config.
+3. Load `plugins` from the selected agent config.
+4. Deduplicate by plugin id with first registration winning.
+5. Compute the default enabled set by taking the merged catalog and removing ids listed in merged `disabled_plugins`.
+6. If session metadata contains `plugins`, use that explicit enabled-id list instead of the config-derived default.
+
+This means provider-level and agent-level packages are additive. They do not replace the global packages.
+
+### Duplicate Plugin Ids
+
+When multiple config layers contribute plugin classes with the same plugin id, the first registration wins.
+
+- global package beats provider package for the same plugin id
+- provider package beats agent package for the same plugin id
+
+This is especially important for tool families that reuse names such as `read_file` or `glob`.
+
+## Example: Global + Provider + Agent
+
+```json
+{
+  "plugin_cache_dir": "${env:PLUGIN_CACHE_DIR}",
+  "providers": {
+    "openrouter_codex": {
+      "provider": "openrouter",
+      "model": "openai/gpt-5-mini",
+      "api_key": "${env:OPENROUTER_API_KEY}",
+      "plugins": [
+        "path:${env:REPO_ROOT}/plugins/codex-tools"
+      ],
+      "disabled_plugins": ["apply_patch"]
+    },
+    "openrouter_gemini": {
+      "provider": "openrouter",
+      "model": "google/gemini-2.5-flash-lite",
+      "api_key": "${env:OPENROUTER_API_KEY}",
+      "plugins": [
+        "path:${env:REPO_ROOT}/plugins/gemini-tools"
+      ]
+    }
+  },
+  "plugins": [
+    "path:${env:REPO_ROOT}/plugins/openrouter",
+    "path:${env:REPO_ROOT}/plugins/feature-request-options"
+  ],
+  "disabled_plugins": ["openrouter_usage"],
+  "agents": {
+    "codex-agent": {
+      "provider": "openrouter_codex"
+    },
+    "gemini-agent": {
+      "provider": "openrouter_gemini",
+      "plugins": [
+        "path:${env:REPO_ROOT}/plugins/session-title-app"
+      ],
+      "disabled_plugins": ["session_title_app"]
+    }
+  }
+}
+```
+
+In that example:
+
+- every agent gets the global OpenRouter provider package
+- `codex-agent` also gets `codex-tools` from its provider config
+- `gemini-agent` also gets `gemini-tools` from its provider config
+- `gemini-agent` adds one more package from its agent config
+- the default enabled set is the merged catalog minus top-level, provider-level, and agent-level `disabled_plugins`
+- if a session later stores `metadata.plugins`, that explicit enabled-id list overrides the config-derived default
+
+## Migration Note
+
+Older configs could use agent-level `plugins` as a list of enabled plugin ids. That meaning is no longer supported.
+
+Use:
+
+- agent/provider/top-level `plugins` for plugin package specs
+- config-level `disabled_plugins` for default opt-outs
+- session metadata `plugins` for explicit per-session enabled plugin ids
 
 ## Spec Formats
 
@@ -235,4 +335,9 @@ for err in app.get_config_errors():
 
 ## See Also
 - docs/plugins/development.md — authoring, packaging, and wiring guidelines
+- plugins/docs/plugin-packaging-and-loading.md — packaging and loader behavior for local/git plugin packages
+- plugins/codex-tools/README.md — Codex-style tool package quickstart
+- plugins/gemini-tools/README.md — Gemini-style tool package quickstart
+- plugins/qwen-tools/README.md — Qwen-style tool package quickstart
+- plugins/grok-tools/README.md — Grok-style tool package quickstart
 - docs/reference/tool-host-protocol.md — the NDJSON tool host protocol

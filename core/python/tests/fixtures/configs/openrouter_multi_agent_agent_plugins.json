@@ -1,0 +1,78 @@
+{
+  "plugin_cache_dir": "${env:PLUGIN_CACHE_DIR}",
+  "providers": {
+    "codex_provider": {
+      "provider": "openrouter",
+      "model": "openai/gpt-5-mini",
+      "api_key": "${env:OPENROUTER_API_KEY}",
+      "base_url": "https://openrouter.ai/api/v1",
+      "timeout": 180,
+      "temperature": 0.0,
+      "allowed_paths": ["${env:WORKSPACE_DIR}"],
+      "working_directory": "${env:WORKSPACE_DIR}",
+      "project_temp_dir": "${env:WORKSPACE_DIR}/.temp"
+    },
+    "gemini_provider": {
+      "provider": "openrouter",
+      "model": "google/gemini-2.5-flash-lite",
+      "api_key": "${env:OPENROUTER_API_KEY}",
+      "base_url": "https://openrouter.ai/api/v1",
+      "timeout": 180,
+      "temperature": 0.0,
+      "allowed_paths": ["${env:WORKSPACE_DIR}"],
+      "working_directory": "${env:WORKSPACE_DIR}",
+      "project_temp_dir": "${env:WORKSPACE_DIR}/.temp"
+    },
+    "qwen_provider": {
+      "provider": "openrouter",
+      "model": "qwen/qwen3.5-flash-02-23",
+      "api_key": "${env:OPENROUTER_API_KEY}",
+      "base_url": "https://openrouter.ai/api/v1",
+      "timeout": 180,
+      "temperature": 0.0,
+      "allowed_paths": ["${env:WORKSPACE_DIR}"],
+      "working_directory": "${env:WORKSPACE_DIR}",
+      "project_temp_dir": "${env:WORKSPACE_DIR}/.temp"
+    },
+    "grok_provider": {
+      "provider": "openrouter",
+      "model": "x-ai/grok-4.1-fast",
+      "api_key": "${env:OPENROUTER_API_KEY}",
+      "base_url": "https://openrouter.ai/api/v1",
+      "timeout": 180,
+      "temperature": 0.0,
+      "allowed_paths": ["${env:WORKSPACE_DIR}"],
+      "working_directory": "${env:WORKSPACE_DIR}",
+      "project_temp_dir": "${env:WORKSPACE_DIR}/.temp"
+    }
+  },
+  "plugins": [
+    "path:${env:REPO_ROOT}/plugins/openrouter"
+  ],
+  "agents": {
+    "codex-agent": {
+      "provider": "codex_provider",
+      "plugins": [
+        "path:${env:REPO_ROOT}/plugins/codex-tools"
+      ]
+    },
+    "gemini-agent": {
+      "provider": "gemini_provider",
+      "plugins": [
+        "path:${env:REPO_ROOT}/plugins/gemini-tools"
+      ]
+    },
+    "qwen-agent": {
+      "provider": "qwen_provider",
+      "plugins": [
+        "path:${env:REPO_ROOT}/plugins/qwen-tools"
+      ]
+    },
+    "grok-agent": {
+      "provider": "grok_provider",
+      "plugins": [
+        "path:${env:REPO_ROOT}/plugins/grok-tools"
+      ]
+    }
+  }
+}

@@ -125,6 +125,10 @@ def build_agent_config(resolved_config: JsonMapping, agent_id: str) -> Dict[str,
 
     merged: Dict[str, Any] = {**provider_defaults, **agent_cfg}
     merged["provider"] = provider_key
+    # These keys control application/plugin-package resolution and should not
+    # be forwarded into the runtime provider/tool config.
+    merged.pop("plugins", None)
+    merged.pop("disabled_plugins", None)
     return merged
 
 

@@ -38,6 +38,15 @@ class _ToolLoopConfig:
     max_loops: int = 100
 
 
+@dataclass(frozen=True)
+class _AgentPluginRuntime:
+    """Resolved plugin catalog and default enablement for one agent."""
+
+    plugin_classes: Dict[str, List[type[Any]]]
+    plugins_by_kind_and_id: Dict[str, Dict[str, type[Any]]]
+    default_enabled_ids: Optional[List[str]]
+
+
 class AgentApplication:
     """Future application-layer API around :class:`agent_core.AgentCore`.
 
@@ -79,20 +88,16 @@ class AgentApplication:
         self._config: Dict[str, Any] = resolved_config
         self._config_errors: List[Dict[str, Any]] = placeholder_errors
 
-        plugins_raw = resolved_config.get("plugins")
-        if plugins_raw is None:
-            plugin_specs: List[Any] = []
-        elif isinstance(plugins_raw, list):
-            plugin_specs = plugins_raw
-        else:
-            plugin_specs = [plugins_raw]
-            self._config_errors.append(
-                {
-                    "type": "plugin_config_invalid",
-                    "detail": "'plugins' should be a list; coerced single value into list",
-                    "path": "plugins",
-                }
-            )
+        plugin_specs = self._coerce_plugin_specs(
+            resolved_config.get("plugins"),
+            "plugins",
+            self._config_errors,
+        )
+        global_disabled_plugins = self._coerce_plugin_ids(
+            resolved_config.get("disabled_plugins"),
+            "disabled_plugins",
+            self._config_errors,
+        )
 
         plugin_cache_dir = resolved_config.get("plugin_cache_dir")
         if not (isinstance(plugin_cache_dir, str) and plugin_cache_dir.strip()):
@@ -116,50 +121,86 @@ class AgentApplication:
         plugin_policy.setdefault("base_dir", config_base_dir)
 
         mgr = PluginManager(cache_dir=cache_path, policy=plugin_policy)
-        resolution = mgr.resolve_all(plugin_specs)
-        if resolution.errors:
-            logger.error("plugin_manager_resolve_errors", errors=resolution.errors)
-        self._config_errors.extend(resolution.errors)
 
-        plugin_classes: Dict[str, List[type[Any]]] = {
+        providers_cfg = resolved_config.get("providers") or {}
+        provider_plugin_specs: Dict[str, List[Any]] = {}
+        provider_disabled_plugins: Dict[str, List[str]] = {}
+        if isinstance(providers_cfg, dict):
+            for provider_id, provider_cfg in providers_cfg.items():
+                if not isinstance(provider_cfg, dict):
+                    continue
+                provider_plugin_specs[provider_id] = self._coerce_plugin_specs(
+                    provider_cfg.get("plugins"),
+                    f"providers.{provider_id}.plugins",
+                    self._config_errors,
+                )
+                provider_disabled_plugins[provider_id] = self._coerce_plugin_ids(
+                    provider_cfg.get("disabled_plugins"),
+                    f"providers.{provider_id}.disabled_plugins",
+                    self._config_errors,
+                )
+
+        agents = resolved_config.get("agents") or {}
+        agent_plugin_specs: Dict[str, List[Any]] = {}
+        agent_disabled_plugins: Dict[str, List[str]] = {}
+        if isinstance(agents, dict):
+            for agent_id, agent_cfg in agents.items():
+                if not isinstance(agent_cfg, dict):
+                    continue
+                agent_plugin_specs[agent_id] = self._coerce_plugin_specs(
+                    agent_cfg.get("plugins"),
+                    f"agents.{agent_id}.plugins",
+                    self._config_errors,
+                )
+                agent_disabled_plugins[agent_id] = self._coerce_plugin_ids(
+                    agent_cfg.get("disabled_plugins"),
+                    f"agents.{agent_id}.disabled_plugins",
+                    self._config_errors,
+                )
+
+        spec_resolution_cache: Dict[str, List[type[Any]]] = {}
+        app_plugin_classes: List[type[Any]] = []
+        all_plugin_classes_by_kind: Dict[str, List[type[Any]]] = {
             "providers": [],
             "features": [],
             "tools": [],
             "extensions": [],
         }
-        app_plugin_classes: List[type[Any]] = []
 
-        for cls in resolution.classes:
-            kind = self._classify_plugin_class(cls)
-            if kind == "application":
-                app_plugin_classes.append(cls)
-            elif kind in plugin_classes:
-                plugin_classes[kind].append(cls)
-            else:
-                self._config_errors.append(
-                    {
-                        "type": "plugin_type_unknown",
-                        "detail": "Could not classify plugin by duck-typing",
-                        "path": f"{getattr(cls, '__module__', '')}.{getattr(cls, '__qualname__', '')}",
-                    }
-                )
+        for spec in self._iter_unique_specs(
+            plugin_specs,
+            provider_plugin_specs.values(),
+            agent_plugin_specs.values(),
+        ):
+            resolved_classes = self._resolve_plugin_spec_cached(
+                mgr,
+                spec,
+                spec_resolution_cache,
+                self._config_errors,
+                logger,
+            )
+            for cls in resolved_classes:
+                kind = self._classify_plugin_class(cls)
+                if kind == "application":
+                    if cls not in app_plugin_classes:
+                        app_plugin_classes.append(cls)
+                elif kind in all_plugin_classes_by_kind:
+                    all_plugin_classes_by_kind[kind].append(cls)
+                else:
+                    self._config_errors.append(
+                        {
+                            "type": "plugin_type_unknown",
+                            "detail": "Could not classify plugin by duck-typing",
+                            "path": f"{getattr(cls, '__module__', '')}.{getattr(cls, '__qualname__', '')}",
+                        }
+                    )
 
-        self._plugin_classes = plugin_classes
+        self._plugin_classes, self._plugins_by_kind_and_id = self._dedupe_plugin_classes_by_id(
+            all_plugin_classes_by_kind
+        )
 
-        # Build a catalog of plugins keyed by kind and plugin id (name attribute).
-        self._plugins_by_kind_and_id: Dict[str, Dict[str, type[Any]]] = {}
-        for kind, classes in self._plugin_classes.items():
-            kind_mapping: Dict[str, type[Any]] = {}
-            for plugin_cls in classes or []:
-                plugin_id = self._plugin_id_for_class(plugin_cls)
-                # First registration for a given id wins to preserve config order.
-                if plugin_id not in kind_mapping:
-                    kind_mapping[plugin_id] = plugin_cls
-            self._plugins_by_kind_and_id[kind] = kind_mapping
-
-        # Manual registration from config: providers with shared extensions,
-        # then features and tools. This mirrors ``application.AgentApplication``
-        # so the two versions can be compared easily.
+        # Manual registration from config on the shared core uses the
+        # application-wide deduplicated catalog.
         provider_exts = self._plugin_classes.get("extensions") or []
         for provider_cls in self._plugin_classes.get("providers") or []:
             core.register_provider(provider_cls, extensions=provider_exts)
@@ -171,7 +212,6 @@ class AgentApplication:
         # Application-level plugins are configured separately from core
         # provider/feature/tool plugins. They operate on the
         # :class:`AgentApplication` level (sessions, storage, actions).
-        # app_plugin_classes and app_plugin_errors set above in both branches
         self._app_plugin_classes = app_plugin_classes
 
         self._app_plugins: Dict[str, ApplicationPluginWrapper] = {}
@@ -199,20 +239,72 @@ class AgentApplication:
         self._enable_drop_redundant_partials: bool = True
         self._enable_merge_consecutive_partials: bool = True
 
-        # Cache per-agent base configs to avoid recomputing on every call.
-        agents = resolved_config.get("agents") or {}
+        # Cache per-agent base configs and plugin catalogs to avoid recomputing
+        # on every call.
         self._agent_base_configs: Dict[str, Dict[str, Any]] = {}
         self._agent_plugin_ids: Dict[str, Optional[List[str]]] = {}
+        self._agent_plugin_runtimes: Dict[str, _AgentPluginRuntime] = {}
         for agent_id, agent_cfg in agents.items():
+            if not isinstance(agent_cfg, dict):
+                continue
             self._agent_base_configs[agent_id] = build_agent_config(resolved_config, agent_id)
-            raw_plugins = agent_cfg.get("plugins") if isinstance(agent_cfg, dict) else None
-            if isinstance(raw_plugins, list):
-                self._agent_plugin_ids[agent_id] = [
-                    p for p in raw_plugins if isinstance(p, str)
-                ]
+
+            provider_name = agent_cfg.get("provider")
+            provider_spec_list = (
+                provider_plugin_specs.get(provider_name, [])
+                if isinstance(provider_name, str)
+                else []
+            )
+            provider_disabled = (
+                provider_disabled_plugins.get(provider_name, [])
+                if isinstance(provider_name, str)
+                else []
+            )
+
+            effective_classes_by_kind: Dict[str, List[type[Any]]] = {
+                "providers": [],
+                "features": [],
+                "tools": [],
+                "extensions": [],
+            }
+            for spec in self._iter_specs_in_order(
+                plugin_specs,
+                provider_spec_list,
+                agent_plugin_specs.get(agent_id, []),
+            ):
+                for cls in self._resolve_plugin_spec_cached(
+                    mgr,
+                    spec,
+                    spec_resolution_cache,
+                    self._config_errors,
+                    logger,
+                ):
+                    kind = self._classify_plugin_class(cls)
+                    if kind in effective_classes_by_kind:
+                        effective_classes_by_kind[kind].append(cls)
+
+            deduped_classes, deduped_by_id = self._dedupe_plugin_classes_by_id(
+                effective_classes_by_kind
+            )
+
+            disabled_set = set(global_disabled_plugins)
+            disabled_set.update(provider_disabled)
+            disabled_set.update(agent_disabled_plugins.get(agent_id, []))
+
+            all_plugin_ids = self._collect_plugin_ids(deduped_by_id)
+            default_enabled_ids = [pid for pid in all_plugin_ids if pid not in disabled_set]
+            if default_enabled_ids == all_plugin_ids:
+                default_enabled: Optional[List[str]] = None
             else:
-                # None means "all plugins enabled" for this agent.
-                self._agent_plugin_ids[agent_id] = None
+                default_enabled = default_enabled_ids
+
+            runtime = _AgentPluginRuntime(
+                plugin_classes=deduped_classes,
+                plugins_by_kind_and_id=deduped_by_id,
+                default_enabled_ids=default_enabled,
+            )
+            self._agent_plugin_runtimes[agent_id] = runtime
+            self._agent_plugin_ids[agent_id] = runtime.default_enabled_ids
 
     # ------------------------------------------------------------------
     # Helper methods (kept in the same order as application.AgentApplication)
@@ -234,6 +326,130 @@ class AgentApplication:
             cfg = build_agent_config(self._config, agent_id)
             self._agent_base_configs[agent_id] = cfg
         return cfg
+
+    @staticmethod
+    def _coerce_plugin_specs(
+        raw_value: Any,
+        path: str,
+        errors: List[Dict[str, Any]],
+    ) -> List[Any]:
+        if raw_value is None:
+            return []
+        if isinstance(raw_value, list):
+            return list(raw_value)
+        errors.append(
+            {
+                "type": "plugin_config_invalid",
+                "detail": f"'{path}' should be a list; coerced single value into list",
+                "path": path,
+            }
+        )
+        return [raw_value]
+
+    @staticmethod
+    def _coerce_plugin_ids(
+        raw_value: Any,
+        path: str,
+        errors: List[Dict[str, Any]],
+    ) -> List[str]:
+        if raw_value is None:
+            return []
+        values = raw_value if isinstance(raw_value, list) else [raw_value]
+        if not isinstance(raw_value, list):
+            errors.append(
+                {
+                    "type": "plugin_config_invalid",
+                    "detail": f"'{path}' should be a list; coerced single value into list",
+                    "path": path,
+                }
+            )
+        return [value for value in values if isinstance(value, str) and value]
+
+    @staticmethod
+    def _spec_cache_key(spec: Any) -> str:
+        if isinstance(spec, str):
+            return f"str:{spec}"
+        try:
+            encoded = json.dumps(spec, sort_keys=True, separators=(",", ":"))
+        except Exception:
+            encoded = repr(spec)
+        return f"json:{encoded}"
+
+    @classmethod
+    def _iter_specs_in_order(cls, *spec_lists: List[Any]) -> Iterator[Any]:
+        seen: Set[str] = set()
+        for spec_list in spec_lists:
+            for spec in spec_list:
+                cache_key = cls._spec_cache_key(spec)
+                if cache_key in seen:
+                    continue
+                seen.add(cache_key)
+                yield spec
+
+    @classmethod
+    def _iter_unique_specs(cls, first: List[Any], *rest: Any) -> Iterator[Any]:
+        flat_lists: List[List[Any]] = [first]
+        for value in rest:
+            for spec_list in value:
+                flat_lists.append(list(spec_list))
+        yield from cls._iter_specs_in_order(*flat_lists)
+
+    def _resolve_plugin_spec_cached(
+        self,
+        mgr: PluginManager,
+        spec: Any,
+        cache: Dict[str, List[type[Any]]],
+        errors: List[Dict[str, Any]],
+        logger: Any,
+    ) -> List[type[Any]]:
+        cache_key = self._spec_cache_key(spec)
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        resolution = mgr.resolve_all(spec)
+        if resolution.errors:
+            logger.error("plugin_manager_resolve_errors", errors=resolution.errors)
+        errors.extend(resolution.errors)
+        cache[cache_key] = list(resolution.classes)
+        return cache[cache_key]
+
+    def _dedupe_plugin_classes_by_id(
+        self,
+        plugin_classes: Dict[str, List[type[Any]]],
+    ) -> Tuple[Dict[str, List[type[Any]]], Dict[str, Dict[str, type[Any]]]]:
+        deduped_classes: Dict[str, List[type[Any]]] = {}
+        deduped_by_id: Dict[str, Dict[str, type[Any]]] = {}
+        for kind, classes in plugin_classes.items():
+            by_id: Dict[str, type[Any]] = {}
+            ordered: List[type[Any]] = []
+            for plugin_cls in classes or []:
+                plugin_id = self._plugin_id_for_class(plugin_cls)
+                if plugin_id in by_id:
+                    continue
+                by_id[plugin_id] = plugin_cls
+                ordered.append(plugin_cls)
+            deduped_classes[kind] = ordered
+            deduped_by_id[kind] = by_id
+        return deduped_classes, deduped_by_id
+
+    @staticmethod
+    def _collect_plugin_ids(plugins_by_kind_and_id: Dict[str, Dict[str, type[Any]]]) -> List[str]:
+        ordered: List[str] = []
+        seen: Set[str] = set()
+        for kind in ("providers", "extensions", "features", "tools"):
+            for plugin_id in (plugins_by_kind_and_id.get(kind) or {}).keys():
+                if plugin_id in seen:
+                    continue
+                seen.add(plugin_id)
+                ordered.append(plugin_id)
+        return ordered
+
+    def _get_agent_plugin_runtime(self, agent_id: str) -> _AgentPluginRuntime:
+        runtime = self._agent_plugin_runtimes.get(agent_id)
+        if runtime is None:
+            raise KeyError(f"Unknown agent_id {agent_id!r}")
+        return runtime
 
     def _plugin_id_for_class(self, plugin_class: type[Any]) -> str:
         """Return the stable plugin id for a plugin class.
@@ -264,6 +480,7 @@ class AgentApplication:
         self,
         enabled_ids: Optional[List[str]],
         selected_provider_config: Optional[Dict[str, Any]] = None,
+        plugins_by_kind_and_id: Optional[Dict[str, Dict[str, type[Any]]]] = None,
     ) -> AgentCore:
         """Construct a fresh AgentCore with only selected plugins enabled.
 
@@ -282,8 +499,10 @@ class AgentApplication:
         else:
             enabled_set = {p for p in enabled_ids if isinstance(p, str)}
 
+        catalog = plugins_by_kind_and_id or self._plugins_by_kind_and_id
+
         def _filter_plugins(kind: str) -> List[type[Any]]:
-            all_for_kind = self._plugins_by_kind_and_id.get(kind, {})
+            all_for_kind = catalog.get(kind, {})
             if enabled_set is None:
                 return list(all_for_kind.values())
             return [cls for pid, cls in all_for_kind.items() if pid in enabled_set]
@@ -450,6 +669,7 @@ class AgentApplication:
             raise RuntimeError("session.metadata must contain non-empty 'agent_id'")
 
         base_cfg = self._get_agent_base_config(agent_id)
+        plugin_runtime = self._get_agent_plugin_runtime(agent_id)
         enabled_ids = self._enabled_plugin_ids_for_session(agent_id, metadata)
         effective_overrides = self._effective_overrides(metadata, overrides)
         effective_config = self._decorate_runtime_config(
@@ -458,6 +678,7 @@ class AgentApplication:
         core = self._build_core_with_enabled_ids(
             enabled_ids,
             selected_provider_config=effective_config,
+            plugins_by_kind_and_id=plugin_runtime.plugins_by_kind_and_id,
         )
         return core, base_cfg, effective_config
 
@@ -988,10 +1209,12 @@ class AgentApplication:
         return sorted(self._agent_base_configs.keys())
 
     def get_agent_plugins(self, agent_id: str) -> Optional[List[str]]:
-        """Return the configured plugin id list for an agent.
+        """Return the default enabled plugin id list for an agent.
 
-        Returns the configured list, or ``None`` to indicate that all
-        plugins are enabled for this agent.
+        Returns the default enabled plugin ids after applying merged
+        config-layer plugin catalogs and ``disabled_plugins`` filtering,
+        or ``None`` to indicate that all plugins in the agent's resolved
+        catalog are enabled by default.
         """
 
         if not isinstance(agent_id, str) or not agent_id:
@@ -1001,6 +1224,26 @@ class AgentApplication:
 
         value = self._agent_plugin_ids.get(agent_id)
         return value if value is not None else None
+
+    def list_plugins_for_agent(self, agent_id: str) -> List[Dict[str, Any]]:
+        """Return metadata for the resolved plugin catalog of ``agent_id``."""
+
+        if not isinstance(agent_id, str) or not agent_id:
+            raise ValueError("agent_id must be a non-empty string")
+        runtime = self._get_agent_plugin_runtime(agent_id)
+
+        result: List[Dict[str, Any]] = []
+        for kind in ("providers", "extensions", "features", "tools"):
+            for plugin_class in runtime.plugin_classes.get(kind) or []:
+                plugin_id = self._plugin_id_for_class(plugin_class)
+                result.append(
+                    {
+                        "kind": kind,
+                        "id": plugin_id,
+                        "class_path": f"{plugin_class.__module__}.{plugin_class.__qualname__}",
+                    }
+                )
+        return result
 
     def list_plugins(self) -> List[Dict[str, Any]]:
         """Return metadata for all available plugins.
@@ -1444,10 +1687,12 @@ class AgentApplication:
             raise ValueError("agent_id must be a non-empty string")
 
         base_cfg = self._get_agent_base_config(agent_id)
+        plugin_runtime = self._get_agent_plugin_runtime(agent_id)
         enabled_ids = self._agent_plugin_ids.get(agent_id)
         core = self._build_core_with_enabled_ids(
             enabled_ids,
             selected_provider_config=base_cfg,
+            plugins_by_kind_and_id=plugin_runtime.plugins_by_kind_and_id,
         )
 
         base = core.create_session()
@@ -1555,10 +1800,12 @@ class AgentApplication:
         )
 
         base_cfg = self._get_agent_base_config(agent_id)
+        plugin_runtime = self._get_agent_plugin_runtime(agent_id)
         enabled_ids = self._enabled_plugin_ids_for_session(agent_id, switched_metadata)
         core = self._build_core_with_enabled_ids(
             enabled_ids,
             selected_provider_config=base_cfg,
+            plugins_by_kind_and_id=plugin_runtime.plugins_by_kind_and_id,
         )
         core, base_cfg, switched_session, _results = self.run_session_lifecycle(
             "agent_switch_complete",

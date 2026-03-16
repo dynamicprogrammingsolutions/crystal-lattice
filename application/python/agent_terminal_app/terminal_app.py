@@ -1035,8 +1035,15 @@ class TerminalApplication:
         """
 
         core, base_config, session = self.require_session()
-        all_plugins = self._app.list_plugins()
         metadata = session.metadata or {}
+
+        agent_val = metadata.get("agent_id")
+        agent_id = agent_val.strip() if isinstance(agent_val, str) else ""
+        if not agent_id:
+            agents = self.available_agents()
+            agent_id = agents[0] if agents else ""
+
+        all_plugins = self._app.list_plugins_for_agent(agent_id) if agent_id else self._app.list_plugins()
 
         plugins_from_session = metadata.get("plugins")
         if isinstance(plugins_from_session, list):
@@ -1045,12 +1052,6 @@ class TerminalApplication:
             }
             source = "session"
         else:
-            agent_val = metadata.get("agent_id")
-            agent_id = agent_val.strip() if isinstance(agent_val, str) else ""
-            if not agent_id:
-                agents = self.available_agents()
-                agent_id = agents[0] if agents else ""
-
             default_ids = self._app.get_agent_plugins(agent_id) if agent_id else None
             if default_ids is None:
                 enabled_ids = None  # treat as "all enabled"

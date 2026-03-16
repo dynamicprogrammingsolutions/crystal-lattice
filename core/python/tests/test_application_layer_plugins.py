@@ -1,13 +1,10 @@
-"""Plugin configuration tests for the future application layer.
-
-These tests exercise the plugin catalog and per-agent / per-session
-plugin selection used by :class:`agent_app.application_future.AgentApplication`.
-"""
+"""Plugin package configuration tests for the future application layer."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import pytest
 
@@ -15,190 +12,270 @@ from agent_app.application_future import AgentApplication
 from agent_core import AgentCore, Session
 
 # Import dummy plugins so they are available for dotted-path loading.
-from .dummy_provider import DummyProvider  # noqa: F401
-from .dummy_tool import DummyCalculator  # noqa: F401
 from .dummy_extension import DummyExtension  # noqa: F401
 from .dummy_feature import DummyFeature  # noqa: F401
+from .dummy_provider import DummyProvider  # noqa: F401
+from .dummy_tool import DummyCalculator  # noqa: F401
+from .dummy_tool_same_id import AlternateDummyCalculator  # noqa: F401
 
 
-def _make_full_plugin_config(tmp_path: Path, agent_plugins: List[str] | None = None) -> Path:
-    cfg: Dict[str, Any] = {
+def _write_config(tmp_path: Path, config: Dict[str, Any], name: str = "config_plugins.json") -> Path:
+    path = tmp_path / name
+    path.write_text(json.dumps(config), encoding="utf-8")
+    return path
+
+
+def _make_app(tmp_path: Path, config: Dict[str, Any], name: str = "config_plugins.json") -> AgentApplication:
+    config_path = _write_config(tmp_path, config, name=name)
+    session_root = tmp_path / f"sessions-{name}"
+    return AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+
+
+def _core_plugin_names(core: AgentCore) -> Tuple[List[str], List[str], List[str], List[str]]:
+    providers = [wrapper.plugin_class.__name__ for wrapper in getattr(core, "_providers")]
+    extensions: List[str] = []
+    for wrapper in getattr(core, "_providers"):
+        extensions.extend(ext.plugin_class.__name__ for ext in wrapper.extensions)
+    features = [wrapper.plugin_class.__name__ for wrapper in getattr(core, "_features")]
+    tools = [wrapper.plugin_class.__name__ for wrapper in getattr(core, "_tools")]
+    return providers, extensions, features, tools
+
+
+def test_list_plugins_for_agent_uses_global_provider_and_agent_package_specs(tmp_path: Path) -> None:
+    config = {
         "providers": {
-            "dummy": {"provider": "dummy_provider", "model": "test-model"}
+            "primary": {
+                "provider": "dummy_provider",
+                "model": "test-model",
+                "plugins": ["tests.dummy_extension.DummyExtension"],
+            }
+        },
+        "plugins": ["tests.dummy_provider.DummyProvider"],
+        "agents": {
+            "alpha": {
+                "provider": "primary",
+                "plugins": ["tests.dummy_tool.DummyCalculator"],
+            },
+            "beta": {"provider": "primary"},
+        },
+    }
+
+    app = _make_app(tmp_path, config)
+
+    alpha_plugins = app.list_plugins_for_agent("alpha")
+    beta_plugins = app.list_plugins_for_agent("beta")
+
+    assert [entry["id"] for entry in alpha_plugins] == [
+        "dummy_provider",
+        "dummy_extension",
+        "dummy_calculator",
+    ]
+    assert [entry["id"] for entry in beta_plugins] == [
+        "dummy_provider",
+        "dummy_extension",
+    ]
+
+    alpha_core, base_config, _alpha_session = app.create_session("alpha")
+    assert base_config["provider"] == "dummy_provider"
+    assert _core_plugin_names(alpha_core) == (
+        ["DummyProvider"],
+        ["DummyExtension"],
+        [],
+        ["DummyCalculator"],
+    )
+
+    beta_core, _base_config, _beta_session = app.create_session("beta")
+    assert _core_plugin_names(beta_core) == (
+        ["DummyProvider"],
+        ["DummyExtension"],
+        [],
+        [],
+    )
+
+
+def test_provider_level_plugins_only_apply_to_agents_using_that_provider(tmp_path: Path) -> None:
+    config = {
+        "providers": {
+            "tooling": {
+                "provider": "dummy_provider",
+                "model": "test-model",
+                "plugins": ["tests.dummy_tool.DummyCalculator"],
+            },
+            "features": {
+                "provider": "dummy_provider",
+                "model": "test-model",
+                "plugins": ["tests.dummy_feature.DummyFeature"],
+            },
+        },
+        "plugins": ["tests.dummy_provider.DummyProvider"],
+        "agents": {
+            "tool-agent": {"provider": "tooling"},
+            "feature-agent": {"provider": "features"},
+        },
+    }
+
+    app = _make_app(tmp_path, config)
+
+    assert [entry["id"] for entry in app.list_plugins_for_agent("tool-agent")] == [
+        "dummy_provider",
+        "dummy_calculator",
+    ]
+    assert [entry["id"] for entry in app.list_plugins_for_agent("feature-agent")] == [
+        "dummy_provider",
+        "dummy_feature",
+    ]
+
+    tool_core, _tool_cfg, _tool_session = app.create_session("tool-agent")
+    assert _core_plugin_names(tool_core) == (["DummyProvider"], [], [], ["DummyCalculator"])
+
+    feature_core, _feature_cfg, _feature_session = app.create_session("feature-agent")
+    assert _core_plugin_names(feature_core) == (["DummyProvider"], [], ["DummyFeature"], [])
+
+
+def test_agent_level_plugins_only_apply_to_that_agent(tmp_path: Path) -> None:
+    config = {
+        "providers": {
+            "shared": {"provider": "dummy_provider", "model": "test-model"}
+        },
+        "plugins": ["tests.dummy_provider.DummyProvider"],
+        "agents": {
+            "tool-agent": {
+                "provider": "shared",
+                "plugins": ["tests.dummy_tool.DummyCalculator"],
+            },
+            "feature-agent": {
+                "provider": "shared",
+                "plugins": ["tests.dummy_feature.DummyFeature"],
+            },
+        },
+    }
+
+    app = _make_app(tmp_path, config)
+
+    assert [entry["id"] for entry in app.list_plugins_for_agent("tool-agent")] == [
+        "dummy_provider",
+        "dummy_calculator",
+    ]
+    assert [entry["id"] for entry in app.list_plugins_for_agent("feature-agent")] == [
+        "dummy_provider",
+        "dummy_feature",
+    ]
+
+    tool_core, _tool_cfg, _tool_session = app.create_session("tool-agent")
+    assert _core_plugin_names(tool_core) == (["DummyProvider"], [], [], ["DummyCalculator"])
+
+    feature_core, _feature_cfg, _feature_session = app.create_session("feature-agent")
+    assert _core_plugin_names(feature_core) == (["DummyProvider"], [], ["DummyFeature"], [])
+
+
+def test_disabled_plugins_shape_default_enabled_set_and_session_override_can_reenable(
+    tmp_path: Path,
+) -> None:
+    config = {
+        "providers": {
+            "primary": {
+                "provider": "dummy_provider",
+                "model": "test-model",
+                "disabled_plugins": ["dummy_feature"],
+            }
         },
         "plugins": [
             "tests.dummy_provider.DummyProvider",
-            "tests.dummy_extension.DummyExtension",
             "tests.dummy_feature.DummyFeature",
             "tests.dummy_tool.DummyCalculator",
         ],
         "agents": {
-            "default": {"provider": "dummy"},
+            "default": {
+                "provider": "primary",
+                "disabled_plugins": ["dummy_calculator"],
+            }
         },
     }
-    if agent_plugins is not None:
-        cfg["agents"]["default"]["plugins"] = list(agent_plugins)
 
-    path = tmp_path / "config_plugins.json"
-    path.write_text(__import__("json").dumps(cfg), encoding="utf-8")
-    return path
+    app = _make_app(tmp_path, config)
 
+    assert app.get_agent_plugins("default") == ["dummy_provider"]
+    assert [entry["id"] for entry in app.list_plugins_for_agent("default")] == [
+        "dummy_provider",
+        "dummy_feature",
+        "dummy_calculator",
+    ]
 
-def test_list_plugins_exposes_all_kinds_and_ids(tmp_path: Path) -> None:
-    config_path = _make_full_plugin_config(tmp_path)
-    session_root = tmp_path / "sessions"
+    core, _base_config, session = app.create_session("default")
+    assert _core_plugin_names(core) == (["DummyProvider"], [], [], [])
 
-    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+    metadata = dict(session.metadata or {})
+    metadata["plugins"] = ["dummy_provider", "dummy_feature", "dummy_calculator"]
+    overridden = Session(
+        session_id=session.session_id,
+        messages=list(session.messages),
+        metadata=metadata,
+    )
+    app.save_session(overridden)
 
-    plugins = app.list_plugins()
-    by_kind: Dict[str, List[str]] = {}
-    for entry in plugins:
-        kind = entry["kind"]
-        by_kind.setdefault(kind, []).append(entry["id"])
-
-    assert "providers" in by_kind
-    assert "extensions" in by_kind
-    assert "features" in by_kind
-    assert "tools" in by_kind
-
-    assert "dummy_provider" in by_kind["providers"]
-    assert "dummy_extension" in by_kind["extensions"]
-    assert "dummy_feature" in by_kind["features"]
-    assert "dummy_calculator" in by_kind["tools"]
-
-
-def test_get_agent_plugins_round_trips_configured_list(tmp_path: Path) -> None:
-    plugins_list = ["dummy_provider", "dummy_calculator"]
-    config_path = _make_full_plugin_config(tmp_path, agent_plugins=plugins_list)
-    session_root = tmp_path / "sessions"
-
-    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
-
-    assert app.get_agent_plugins("default") == plugins_list
-
-    # When plugins key is omitted, None means "all plugins enabled".
-    config_path2 = _make_full_plugin_config(tmp_path, agent_plugins=None)
-    session_root2 = tmp_path / "sessions2"
-    app2 = AgentApplication(str(config_path2), str(session_root2), core_factory=AgentCore)
-
-    assert app2.get_agent_plugins("default") is None
-
-    with pytest.raises(KeyError):
-        _ = app2.get_agent_plugins("unknown")
-
-
-def test_create_session_uses_agent_plugin_list(tmp_path: Path) -> None:
-    # Only provider + tool enabled via agent-level list.
-    plugins_list = ["dummy_provider", "dummy_calculator"]
-    config_path = _make_full_plugin_config(tmp_path, agent_plugins=plugins_list)
-    session_root = tmp_path / "sessions"
-
-    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
-
-    core, base_config, session = app.create_session("default")
-    assert base_config["provider"] == "dummy_provider"
-    assert session.metadata == {"agent_id": "default"}
-
-    providers = getattr(core, "_providers")
-    features = getattr(core, "_features")
-    tools = getattr(core, "_tools")
-
-    # One provider with no extensions.
-    assert len(providers) == 1
-    provider_wrapper = providers[0]
-    assert provider_wrapper.plugin_class.__name__ == "DummyProvider"
-    assert provider_wrapper.extensions == []
-
-    # No features enabled.
-    assert features == []
-
-    # One tool enabled.
-    assert len(tools) == 1
-    tool_wrapper = tools[0]
-    assert tool_wrapper.plugin_class.__name__ == "DummyCalculator"
-
-
-def test_create_session_uses_all_plugins_when_agent_list_missing(tmp_path: Path) -> None:
-    # No agent-level plugins list: all configured plugins are enabled.
-    config_path = _make_full_plugin_config(tmp_path, agent_plugins=None)
-    session_root = tmp_path / "sessions"
-
-    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
-
-    core, base_config, session = app.create_session("default")
-    assert base_config["provider"] == "dummy_provider"
-    assert session.metadata == {"agent_id": "default"}
-
-    providers = getattr(core, "_providers")
-    features = getattr(core, "_features")
-    tools = getattr(core, "_tools")
-
-    assert len(providers) == 1
-    provider_wrapper = providers[0]
-    assert provider_wrapper.plugin_class.__name__ == "DummyProvider"
-    # One extension attached to the provider.
-    assert len(provider_wrapper.extensions) == 1
-    assert provider_wrapper.extensions[0].plugin_class.__name__ == "DummyExtension"
-
-    assert len(features) == 1
-    assert features[0].plugin_class.__name__ == "DummyFeature"
-
-    assert len(tools) == 1
-    assert tools[0].plugin_class.__name__ == "DummyCalculator"
-
-
-def test_load_session_uses_session_metadata_plugins(tmp_path: Path) -> None:
-    # Start with all plugins enabled, then restrict via session metadata.
-    config_path = _make_full_plugin_config(tmp_path, agent_plugins=None)
-    session_root = tmp_path / "sessions"
-
-    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
-
-    core, base_config, session = app.create_session("default")
-
-    # Persist a new session object with an explicit plugins list.
-    md = dict(session.metadata or {})
-    md["plugins"] = ["dummy_provider", "nonexistent_plugin"]
-    new_session = Session(session_id=session.session_id, messages=list(session.messages), metadata=md)
-    app.save_session(new_session)
-
-    ctx = app.load_session(new_session.session_id)
+    ctx = app.load_session(overridden.session_id)
     assert ctx is not None
-    core2, base_config2, loaded_session = ctx
+    override_core, _override_cfg, loaded = ctx
+    assert loaded.metadata["plugins"] == metadata["plugins"]
+    assert _core_plugin_names(override_core) == (
+        ["DummyProvider"],
+        [],
+        ["DummyFeature"],
+        ["DummyCalculator"],
+    )
 
-    assert base_config2 == base_config
-    assert loaded_session.metadata["agent_id"] == "default"
-    assert loaded_session.metadata["plugins"] == md["plugins"]
 
-    providers = getattr(core2, "_providers")
-    features = getattr(core2, "_features")
-    tools = getattr(core2, "_tools")
+def test_duplicate_plugin_ids_follow_first_registration_wins(tmp_path: Path) -> None:
+    config = {
+        "providers": {
+            "primary": {"provider": "dummy_provider", "model": "test-model"}
+        },
+        "plugins": [
+            "tests.dummy_provider.DummyProvider",
+            "tests.dummy_tool.DummyCalculator",
+        ],
+        "agents": {
+            "default": {
+                "provider": "primary",
+                "plugins": ["tests.dummy_tool_same_id.AlternateDummyCalculator"],
+            }
+        },
+    }
 
-    # Only the provider is enabled; extension, feature, and tool are disabled.
-    assert len(providers) == 1
-    provider_wrapper = providers[0]
-    assert provider_wrapper.plugin_class.__name__ == "DummyProvider"
-    assert provider_wrapper.extensions == []
+    app = _make_app(tmp_path, config)
 
-    assert features == []
-    assert tools == []
+    plugins = app.list_plugins_for_agent("default")
+    by_id = {entry["id"]: entry for entry in plugins}
+    assert by_id["dummy_calculator"]["class_path"] == "tests.dummy_tool.DummyCalculator"
+
+    core, _base_config, _session = app.create_session("default")
+    assert _core_plugin_names(core) == (["DummyProvider"], [], [], ["DummyCalculator"])
 
 
 def test_load_session_raises_when_no_provider_enabled(tmp_path: Path) -> None:
-    # Config has a provider, but session metadata disables all providers.
-    config_path = _make_full_plugin_config(tmp_path, agent_plugins=None)
-    session_root = tmp_path / "sessions"
+    config = {
+        "providers": {
+            "primary": {"provider": "dummy_provider", "model": "test-model"}
+        },
+        "plugins": [
+            "tests.dummy_provider.DummyProvider",
+            "tests.dummy_tool.DummyCalculator",
+        ],
+        "agents": {"default": {"provider": "primary"}},
+    }
 
-    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+    app = _make_app(tmp_path, config)
 
-    core, base_config, session = app.create_session("default")
-
-    md = dict(session.metadata or {})
-    md["plugins"] = ["dummy_calculator"]  # tool only, no providers
-    new_session = Session(session_id=session.session_id, messages=list(session.messages), metadata=md)
-    app.save_session(new_session)
+    core, _base_config, session = app.create_session("default")
+    metadata = dict(session.metadata or {})
+    metadata["plugins"] = ["dummy_calculator"]
+    providerless = Session(
+        session_id=session.session_id,
+        messages=list(session.messages),
+        metadata=metadata,
+    )
 
     with pytest.raises(RuntimeError) as exc:
-        _ = app.load_session(new_session.session_id)
+        app.save_session(providerless)
 
     assert "No provider plugins enabled" in str(exc.value)

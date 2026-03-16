@@ -189,3 +189,130 @@ The docs update should include:
 6. Any necessary cross-links to:
 - `plugins/docs/plugin-packaging-and-loading.md`
 - package README quickstarts for `gemini-tools`, `qwen-tools`, and `grok-tools`
+
+## Approved Implementation Plan Added During Completion
+
+Added on 2026-03-16 after user approval.
+
+Implementation scope for this subtask:
+
+1. Refactor `core/python/agent_app/application_future.py` so plugin package specs can be declared at three config layers:
+- top-level `plugins`
+- provider-level `plugins`
+- agent-level `plugins`
+
+2. Resolve plugin specs once per unique spec at app startup, cache those results in memory, and build:
+- an application-wide plugin catalog for discovery/listing
+- an agent-scoped effective plugin catalog used when creating/loading sessions
+
+3. Change agent-level `plugins` semantics from enabled plugin ids to plugin package specs, and add config-level `disabled_plugins` support at:
+- top level
+- provider level
+- agent level
+
+4. Use this merge model:
+- plugin package loading order: global -> provider -> agent
+- duplicate plugin ids: first registration wins
+- default enabled ids: all plugin ids from the resolved agent catalog minus the merged `disabled_plugins` union
+- session metadata `plugins`: remains the explicit enabled-id override
+
+5. Make session/plugin listing agent-aware so sessions only expose the resolved catalog for their own agent/provider stack, updating the terminal/server code paths as needed.
+
+6. Update `docs/plugins/application-config.md` to document:
+- the different `plugins` semantics by config layer
+- `disabled_plugins`
+- precedence and duplicate-id behavior
+- the migration note that old agent-level enabled-id semantics are no longer supported
+
+7. Add tests in the same change:
+- core application-layer tests for global/provider/agent merging, `disabled_plugins`, session overrides, and duplicate precedence
+- fixture-based OpenRouter application integration coverage using actual config files rather than inline JSON
+
+8. Add two application-level OpenRouter integration tests using four agents with separate tool families:
+- `codex-agent` using `plugins/codex-tools`
+- `gemini-agent` using `plugins/gemini-tools`
+- `qwen-agent` using `plugins/qwen-tools`
+- `grok-agent` using `plugins/grok-tools`
+
+9. Split the end-to-end integration coverage across two config fixtures and two tests:
+- one fixture/test where the vendor tool package specs are declared on provider configs
+- one fixture/test where the vendor tool package specs are declared on agent configs
+
+10. In both end-to-end tests, assert that the effective behavior is the same:
+- each agent resolves only its intended tool family
+- unrelated tool families are absent from that agent's resolved catalog
+- requests complete successfully against cheap OpenRouter models and exercise the corresponding tool surface
+
+## Completion Notes Added During Completion
+
+Added on 2026-03-16 after implementation and verification.
+
+What changed:
+
+1. Application-layer plugin package loading now supports `plugins` at three config layers:
+- top-level global config
+- provider config
+- agent config
+
+2. Agent/provider `plugins` now mean plugin package specs rather than enabled plugin ids.
+
+3. Config-level `disabled_plugins` is now supported at the top level, provider level, and agent level.
+
+4. Session metadata `plugins` still behaves as the explicit enabled-plugin-id override and was not repurposed for package specs.
+
+5. Effective plugin catalogs are now resolved per agent with deterministic merge rules:
+- package load order: global -> provider -> agent
+- duplicate plugin ids: first registration wins
+- default enabled ids: merged catalog minus merged `disabled_plugins`
+
+6. Terminal/server session plugin listing now uses the resolved agent-specific catalog instead of the app-wide plugin union.
+
+7. Runtime base configs no longer leak config-only `plugins` or `disabled_plugins` keys into provider/tool runtime config.
+
+8. Documentation was updated in `docs/plugins/application-config.md` to explain the new config model, precedence, migration note, and related references.
+
+9. Added unit coverage for:
+- provider-level additive package loading
+- agent-level additive package loading
+- `disabled_plugins`
+- session-level plugin-id overrides
+- duplicate plugin-id precedence
+
+10. Added two fixture-based OpenRouter application integration tests using actual config files:
+- provider-level package specs fixture
+- agent-level package specs fixture
+
+11. The end-to-end integration tests cover four agents with distinct tool families:
+- `codex-agent`
+- `gemini-agent`
+- `qwen-agent`
+- `grok-agent`
+
+Files touched:
+
+- `core/python/agent_app/application_future.py`
+- `core/python/agent_app/config.py`
+- `application/python/agent_terminal_app/terminal_app.py`
+- `application/python/agent_terminal_app/server.py`
+- `core/python/tests/test_application_layer_plugins.py`
+- `core/python/tests/dummy_tool_same_id.py`
+- `core/python/tests/test_application_layer_openrouter_multi_agent_tool_packages.py`
+- `core/python/tests/fixtures/configs/openrouter_multi_agent_provider_plugins.json`
+- `core/python/tests/fixtures/configs/openrouter_multi_agent_agent_plugins.json`
+- `docs/plugins/application-config.md`
+
+Tests run:
+
+- `python -m pytest core/python/tests/test_application_layer_plugins.py -q`
+- `python -m pytest core/python/tests/test_application_layer_openrouter_multi_agent_tool_packages.py -q -m 'integration and openrouter'`
+- `python -m pytest application/python/tests/test_terminal_application.py -q -k 'list_plugins_for_session_implicit_defaults or set_session_plugins_persists_and_reloads_core or clear_session_plugins_reverts_to_implicit_defaults'`
+- `python -m pytest application/python/tests/test_agent_terminal_app_server.py -q -k 'session_plugins_endpoints_roundtrip'`
+
+Outcomes:
+
+- All listed tests passed.
+- The two new OpenRouter application-level tests passed against real models and validated both provider-level and agent-level plugin package declarations.
+
+Open issues / notes:
+
+- App-wide `list_plugins()` now reflects the deduplicated union of all configured plugin packages, while session/agent views use agent-scoped catalogs. This matches the new layering model but means duplicate ids across different tool families only appear once in the global list.

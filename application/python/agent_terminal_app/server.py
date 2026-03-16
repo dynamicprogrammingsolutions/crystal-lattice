@@ -901,8 +901,19 @@ def _list_plugins_for_session(
     from terminal behaviour.
     """
 
-    all_plugins = app_instance.list_plugins()
     metadata = session.metadata or {}
+
+    agent_val = metadata.get("agent_id")
+    agent_id = agent_val.strip() if isinstance(agent_val, str) else ""
+    if not agent_id:
+        agents = [a for a in app_instance.list_agents() if isinstance(a, str) and a]
+        agent_id = agents[0] if agents else ""
+
+    all_plugins = (
+        app_instance.list_plugins_for_agent(agent_id)
+        if agent_id
+        else app_instance.list_plugins()
+    )
 
     plugins_from_session = metadata.get("plugins")
     enabled_ids: Optional[set[str]]
@@ -912,12 +923,6 @@ def _list_plugins_for_session(
         enabled_ids = {p for p in plugins_from_session if isinstance(p, str)}
         source = "session"
     else:
-        agent_val = metadata.get("agent_id")
-        agent_id = agent_val.strip() if isinstance(agent_val, str) else ""
-        if not agent_id:
-            agents = [a for a in app_instance.list_agents() if isinstance(a, str) and a]
-            agent_id = agents[0] if agents else ""
-
         default_ids = app_instance.get_agent_plugins(agent_id) if agent_id else None
         if default_ids is None:
             enabled_ids = None
