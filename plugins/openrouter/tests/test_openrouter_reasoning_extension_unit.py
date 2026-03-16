@@ -514,7 +514,7 @@ def test_retained_native_reasoning_details_preserved_in_pre_request():
     )
 
     provider, exts, features, tools, tags = core._resolve_plugins_for_config(config)
-    messages_out, native_out, state = core._pre_request(
+    messages_out, native_out, state, _native_history_changed = core._pre_request(
         session,
         config,
         provider,

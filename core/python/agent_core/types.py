@@ -26,7 +26,6 @@ from typing import (
     Tuple,
     Protocol,
     Iterator,
-    AsyncIterator,
     runtime_checkable,
 )
 from dataclasses import dataclass, field
@@ -310,7 +309,7 @@ class ProviderPlugin(BasePlugin, Protocol):
             Tuple of (provider-native messages for this request, updated shared state).
             Implementations MAY return the same native_messages when only state changes.
         """
-        return list(native_messages), state
+        return native_messages, state
 
     def process_chunk(
         self,
@@ -584,7 +583,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
             Tuple of (provider-native messages for this request, updated shared state).
             Implementations MAY return the same native_messages when only state changes.
         """
-        return list(native_messages), state
+        return native_messages, state
 
     def process_chunk(
         self,
@@ -832,7 +831,7 @@ class FeaturePlugin(BasePlugin, Protocol):
             Tuple of (provider-native messages for this request, updated shared state).
             Implementations MAY return the same native_messages when only state changes.
         """
-        return list(native_messages), state
+        return native_messages, state
 
     def finalize(
         self,
@@ -1101,30 +1100,6 @@ class ToolPlugin(BasePlugin, Protocol):
         operations.
         """
         return iter(())
-
-    def format_tool_call_preview(
-        self,
-        tool_name: str,
-        arguments: Dict[str, Any],
-        state: Dict[str, Any],
-    ) -> str:
-        """Generate a pre-execution one-line preview for a tool call.
-
-        This method is called when an assistant message containing tool calls
-        is finalized, before the tools are executed. It should return a brief
-        one-line summary of what the tool call will do, suitable for display
-        in collapsed/expanded tool call views.
-
-        Args:
-            tool_name: Name of the tool/function being called.
-            arguments: Structured arguments for the tool call.
-            state: Current tool state.
-
-        Returns:
-            A brief one-line string preview (e.g., "ls -la", "modify poem.txt; create readme.md").
-            If the tool doesn't provide a preview, return an empty string.
-        """
-        return ""
 
     def to_display_format(
         self,

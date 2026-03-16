@@ -53,10 +53,12 @@ def test_permanent_system_message_added_and_persisted_in_native_history() -> Non
     sys_native1 = _get_system_native(native1)
     assert len(sys_native1) == 1
     assert sys_native1[0].get("content") == "Hello {{NAME}}"
+    assert [message.role for message in session1.messages] == ["system", "user", "assistant"]
+    assert session1.messages[0].content == "Hello {{NAME}}"
 
     # Turn 2: add another user message, ensure we still have exactly one
     # permanent system template in native history (no duplication).
-    session1 = core.add_message(session1, "user", "Hi again")
+    session1 = core.add_message(session1, "user", "Hi again", config=config)
     session2, responses2 = core.send_request(session1, config)
     _ = responses2
 
@@ -64,6 +66,7 @@ def test_permanent_system_message_added_and_persisted_in_native_history() -> Non
     sys_native2 = _get_system_native(native2)
     assert len(sys_native2) == 1
     assert sys_native2[0].get("content") == "Hello {{NAME}}"
+    assert len([message for message in session2.messages if message.role == "system"]) == 1
 
 
 def test_no_permanent_system_message_when_user_system_present() -> None:

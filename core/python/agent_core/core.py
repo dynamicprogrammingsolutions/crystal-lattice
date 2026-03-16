@@ -251,9 +251,7 @@ class AgentCore:
  
         if retained_native is not None:
             self._verify_native_integrity(session)
-            base_len = len(retained_native)
         else:
-            base_len = 0
             retained_native = []
 
 
@@ -1615,7 +1613,7 @@ class AgentCore:
         provider: ProviderWrapper,
         features: List[FeatureWrapper],
         tools: List[ToolWrapper],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any], bool]:
         """Prepare shared state and inputs for a request.
 
         Integrity is verified if native history is present. When native
@@ -1631,10 +1629,12 @@ class AgentCore:
             tools: Enabled tool wrappers for this request.
 
         Returns:
-            A tuple of (messages, native_messages, state):
+            A tuple of (messages, native_messages, state, native_history_changed):
             - messages: Core message dicts for the session.
             - native_messages: Provider-native full history (either retained or reconstructed).
             - state: Shared provider state after init/update/initialize_request for features as well.
+            - native_history_changed: Whether request initialization replaced the native
+              message array object, signaling a structural native-history change.
         """
         _provider_config, state = self._init_provider_and_features_for_config(
             provider,
@@ -1677,11 +1677,23 @@ class AgentCore:
         )
 
         # Initialize request chains
-        native_messages, state = provider.initialize_request(native_messages, state)
+        native_history_changed = False
+
+        next_native_messages, state = provider.initialize_request(native_messages, state)
+        if next_native_messages == native_messages:
+            next_native_messages = native_messages
+        native_history_changed = native_history_changed or (next_native_messages is not native_messages)
+        native_messages = next_native_messages
         # Sort features by priority (lower numbers run first, default: 100)
         sorted_features = sorted(features, key=lambda feat: getattr(feat, 'priority', 100))
         for feature in sorted_features:
-            native_messages, state = feature.initialize_request(native_messages, state)
+            next_native_messages, state = feature.initialize_request(native_messages, state)
+            if next_native_messages == native_messages:
+                next_native_messages = native_messages
+            native_history_changed = native_history_changed or (
+                next_native_messages is not native_messages
+            )
+            native_messages = next_native_messages
             provider.set_state(state)
  
         try:
@@ -1697,7 +1709,7 @@ class AgentCore:
         #     native_messages=native_preview,
         # )
  
-        return messages, native_messages, state
+        return messages, native_messages, state, native_history_changed
 
 
     def send_request(
@@ -1738,7 +1750,7 @@ class AgentCore:
         )
 
         provider.set_active_extensions(enabled_extensions)
-        messages, native_messages, state = self._pre_request(
+        messages, native_messages, state, native_history_changed = self._pre_request(
             session,
             config,
             provider,
@@ -1788,12 +1800,14 @@ class AgentCore:
         )
 
         # Build new session messages by appending new Message objects
-        appended: List[Message] = [Message.from_dict(m) for m in final_core]
-
         new_metadata = dict(session.metadata)
         # Persist full provider-native history for the turn (implementation detail)
         new_metadata["native_messages"] = native_messages
-        all_messages_after = [*session.messages, *appended]
+        if native_history_changed:
+            all_messages_after = self._rebuild_core_from_native(native_messages, config)
+        else:
+            appended: List[Message] = [Message.from_dict(m) for m in final_core]
+            all_messages_after = [*session.messages, *appended]
         new_metadata["native_messages_integrity"] = self._compute_native_integrity(
             all_messages_after
         )
@@ -1847,7 +1861,7 @@ class AgentCore:
         )
 
         provider.set_active_extensions(enabled_extensions)
-        messages, native_messages, state = self._pre_request(
+        messages, native_messages, state, native_history_changed = self._pre_request(
             session,
             config,
             provider,
@@ -1911,10 +1925,13 @@ class AgentCore:
             baseline_native_len,
         )
 
-        appended: List[Message] = [Message.from_dict(m) for m in final_core]
         new_metadata = dict(session.metadata)
         new_metadata["native_messages"] = native_messages
-        all_messages_after = [*session.messages, *appended]
+        if native_history_changed:
+            all_messages_after = self._rebuild_core_from_native(native_messages, config)
+        else:
+            appended: List[Message] = [Message.from_dict(m) for m in final_core]
+            all_messages_after = [*session.messages, *appended]
         new_metadata["native_messages_integrity"] = self._compute_native_integrity(
             all_messages_after
         )
@@ -1957,7 +1974,7 @@ class AgentCore:
         )
 
         provider.set_active_extensions(enabled_extensions)
-        messages, native_messages, state = self._pre_request(
+        messages, native_messages, state, native_history_changed = self._pre_request(
             session,
             config,
             provider,
@@ -2007,10 +2024,13 @@ class AgentCore:
             baseline_native_len,
         )
 
-        appended: List[Message] = [Message.from_dict(m) for m in final_core]
         new_metadata = dict(session.metadata)
         new_metadata["native_messages"] = native_messages
-        all_messages_after = [*session.messages, *appended]
+        if native_history_changed:
+            all_messages_after = self._rebuild_core_from_native(native_messages, config)
+        else:
+            appended: List[Message] = [Message.from_dict(m) for m in final_core]
+            all_messages_after = [*session.messages, *appended]
         new_metadata["native_messages_integrity"] = self._compute_native_integrity(
             all_messages_after
         )

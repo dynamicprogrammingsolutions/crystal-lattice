@@ -103,6 +103,8 @@ def test_system_message_feature_persists_single_template_system_message(
         m for m in native1 if isinstance(m, dict) and m.get("role") == "system"
     ]
     assert sys_native1 and sys_native1[0].get("content") == system_template
+    assert [message.role for message in session1.messages] == ["system", "user", "assistant"]
+    assert session1.messages[0].content == system_template
 
     core2, base_config2, loaded1 = app.load_session(session1.session_id)
     session2 = core2.add_message(
@@ -123,6 +125,7 @@ def test_system_message_feature_persists_single_template_system_message(
     ]
     assert len(sys_native2) == 1
     assert sys_native2[0].get("content") == system_template
+    assert len([message for message in session3.messages if message.role == "system"]) == 1
 
 
 def test_system_message_feature_renders_conditional_markdown_sections_for_git_and_cwd(

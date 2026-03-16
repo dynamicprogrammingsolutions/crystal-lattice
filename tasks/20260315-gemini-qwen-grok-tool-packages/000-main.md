@@ -153,6 +153,8 @@ Key observations:
 4. `tasks/20260315-gemini-qwen-grok-tool-packages/040-agent-and-provider-plugin-package-config.md`
 5. `tasks/20260315-gemini-qwen-grok-tool-packages/050-vendor-friendly-system-messages.md`
 6. `tasks/20260315-gemini-qwen-grok-tool-packages/060-simplified-system-message-configs-and-minimal-dynamics.md`
+7. `tasks/20260315-gemini-qwen-grok-tool-packages/070-core-rebuild-after-native-initialize-changes.md`
+8. `tasks/20260315-gemini-qwen-grok-tool-packages/080-portable-default-config-and-compiled-system-message-ui.md`
 
 ## Cross-cutting decisions to preserve throughout implementation
 

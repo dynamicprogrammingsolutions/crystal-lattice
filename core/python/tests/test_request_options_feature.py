@@ -29,7 +29,7 @@ def test_request_options_merged_into_openai_request_payload():
     # Run only the pre-request path by calling the private helper
     provider, exts, features, tools, _tags = core._resolve_plugins_for_config(config)  # type: ignore[attr-defined]
     provider.set_active_extensions(exts)
-    messages, _native_messages, state = core._pre_request(
+    messages, _native_messages, state, _native_history_changed = core._pre_request(
         session,
         config,
         provider,
@@ -63,7 +63,7 @@ def test_request_options_can_override_existing_payload_keys():
 
     provider, exts, features, tools, _tags = core._resolve_plugins_for_config(config)  # type: ignore[attr-defined]
     provider.set_active_extensions(exts)
-    _messages, _native_messages, state = core._pre_request(
+    _messages, _native_messages, state, _native_history_changed = core._pre_request(
         session,
         config,
         provider,
@@ -92,7 +92,7 @@ def test_request_options_noop_when_not_dict_or_empty():
 
     provider, exts, features, tools, _tags = core._resolve_plugins_for_config(config)  # type: ignore[attr-defined]
     provider.set_active_extensions(exts)
-    _messages, _native_messages, state = core._pre_request(
+    _messages, _native_messages, state, _native_history_changed = core._pre_request(
         session,
         config,
         provider,

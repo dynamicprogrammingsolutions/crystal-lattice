@@ -175,12 +175,15 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
             out = fn(native_messages, state)
             if isinstance(out, tuple) and len(out) == 2:
                 raw_native, raw_state = out
-                natives = [m for m in self._safe_list(raw_native) if isinstance(m, dict)]
                 new_state = raw_state if isinstance(raw_state, dict) else state
-                return natives or list(native_messages), new_state
+                if isinstance(raw_native, list):
+                    if all(isinstance(m, dict) for m in raw_native):
+                        return raw_native, new_state
+                    return native_messages, new_state
+                return native_messages, new_state
             if isinstance(out, dict):
-                return list(native_messages), out
-        return list(native_messages), state
+                return native_messages, out
+        return native_messages, state
 
     # ----- Message conversion -----
 
@@ -403,12 +406,15 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
             out = fn(native_messages, state)
             if isinstance(out, tuple) and len(out) == 2:
                 raw_native, raw_state = out
-                natives = [m for m in self._safe_list(raw_native) if isinstance(m, dict)]
                 new_state = raw_state if isinstance(raw_state, dict) else state
-                return natives or list(native_messages), new_state
+                if isinstance(raw_native, list):
+                    if all(isinstance(m, dict) for m in raw_native):
+                        return raw_native, new_state
+                    return native_messages, new_state
+                return native_messages, new_state
             if isinstance(out, dict):
-                return list(native_messages), out
-        return list(native_messages), state
+                return native_messages, out
+        return native_messages, state
 
     def process_chunk(  # type: ignore[override]
         self,
@@ -567,12 +573,15 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
             out = fn(native_messages, state)
             if isinstance(out, tuple) and len(out) == 2:
                 raw_native, raw_state = out
-                natives = [m for m in self._safe_list(raw_native) if isinstance(m, dict)]
                 new_state = raw_state if isinstance(raw_state, dict) else state
-                return natives or list(native_messages), new_state
+                if isinstance(raw_native, list):
+                    if all(isinstance(m, dict) for m in raw_native):
+                        return raw_native, new_state
+                    return native_messages, new_state
+                return native_messages, new_state
             if isinstance(out, dict):
-                return list(native_messages), out
-        return list(native_messages), state
+                return native_messages, out
+        return native_messages, state
 
     def finalize(  # type: ignore[override]
         self,

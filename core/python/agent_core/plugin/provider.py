@@ -176,7 +176,7 @@ class ProviderWrapper(ProviderPlugin):
         # Start full native history at request boundary
         self._last_native_messages = list(native_messages)
         native_after_provider, new_state = self.plugin.initialize_request(
-            list(native_messages), working_state
+            native_messages, working_state
         )
         # Sort extensions by priority (lower numbers run first, default: 100)
         sorted_extensions = sorted(
@@ -191,7 +191,7 @@ class ProviderWrapper(ProviderPlugin):
         )
         self.state = new_state
         self._last_native_messages = list(native_after_exts)
-        return self._last_native_messages, self._get_state()
+        return native_after_exts, self._get_state()
 
     def to_native_messages(
         self, messages: List[Dict[str, Any]], state: Dict[str, Any]

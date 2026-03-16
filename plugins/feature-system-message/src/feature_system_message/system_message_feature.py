@@ -687,10 +687,10 @@ class SystemMessageFeature(FeaturePlugin):
         if not isinstance(native_messages, list):
             return native_messages, state
 
-        working_native = list(native_messages)
+        working_native = native_messages
 
         is_responses_items = False
-        for m in working_native:
+        for m in native_messages:
             if isinstance(m, dict):
                 is_responses_items = isinstance(m.get("type"), str) and bool(
                     m.get("type")
@@ -710,12 +710,11 @@ class SystemMessageFeature(FeaturePlugin):
                 isinstance(m, dict)
                 and m.get("type") == "message"
                 and m.get("role") == "system"
-                for m in working_native
+                for m in native_messages
             )
         else:
             has_system = any(
-                isinstance(m, dict) and m.get("role") == "system"
-                for m in working_native
+                isinstance(m, dict) and m.get("role") == "system" for m in native_messages
             )
         if not has_system:
             template = cfg.get("template", "") or ""
@@ -728,7 +727,7 @@ class SystemMessageFeature(FeaturePlugin):
                     }
                 else:
                     synthetic = {"role": "system", "content": template}
-                working_native = [synthetic, *working_native]
+                working_native = [synthetic, *native_messages]
 
         if not working_native:
             return working_native, state
