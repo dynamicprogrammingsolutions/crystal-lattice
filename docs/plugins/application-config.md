@@ -58,6 +58,81 @@ These are especially useful for portable configs:
 
 `disabled_plugins` is available at the top level, provider level, and agent level. It is always a list of plugin ids, never plugin package specs.
 
+## System Message Templates
+
+Multi-vendor agent configs can keep system-message content readable by combining markdown files with `feature-system-message`.
+
+Recommended pattern:
+
+- put large static prompt sections in markdown files under a runtime directory such as `application/python/agent_terminal_app/system_messages/`
+- load the template itself with `${file:...}`
+- define a reusable runtime namespace with `system_message.runtime_code`
+- load static sections with `files`
+- use `condition` for optional sections like git guidance
+- use `inline_code` for short runtime values like the current working directory
+- use file-backed `code` helpers only for moderately complex dynamic sections
+
+Example:
+
+```json
+{
+  "plugins": [
+    "path:${env:BUILTIN_PLUGINS}/openrouter",
+    "path:${env:BUILTIN_PLUGINS}/feature-system-message"
+  ],
+  "agents": {
+    "default": {
+      "provider": "openrouter_gemini_tools",
+      "system_message": {
+        "template": "{{BASE}}\n\n{{GIT_SECTION}}\n\n{{WORKING_DIRECTORY_LINE}}",
+        "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
+        "variables": {
+          "BASE": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/gemini/preamble.md",
+              "${env:CONFIG_DIR}/system_messages/gemini/core-mandates.md"
+            ]
+          },
+          "GIT_SECTION": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/gemini/git-section.md"
+            ],
+            "condition": {
+              "inline_code": "is_git_repo()"
+            }
+          },
+          "WORKING_DIRECTORY_LINE": {
+            "inline_code": "f'Current working directory: {cwd}'"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+`inline_code` supports two forms:
+
+- expression form: the expression result is rendered directly
+- block form: the plugin executes the code and renders `VALUE`
+
+`runtime_code` is optional. When present, the plugin executes that Python file once per request and exports all non-underscore globals into the runtime namespace used by `inline_code`, file-backed `code`, and their condition variants.
+
+Typical `runtime_code` exports include:
+
+- `cwd`
+- `is_git_repo()`
+- `git_root()`
+- `Path`
+- `os`
+
+Without `runtime_code`, dynamic snippets only see normal Python builtins unless they import what they need themselves.
+
+For a complete example, see:
+
+- [application/python/agent_terminal_app/config_v2_multi_family_tools_simplified.json](application/python/agent_terminal_app/config_v2_multi_family_tools_simplified.json)
+- [plugins/feature-system-message/README.md](plugins/feature-system-message/README.md)
+
 ### Merge Order
 
 The effective plugin catalog for a session is built in this order:

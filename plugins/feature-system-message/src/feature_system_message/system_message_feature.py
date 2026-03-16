@@ -1,23 +1,22 @@
-"""
-SystemMessageFeature plugin.
+"""SystemMessageFeature plugin.
 
-Adds or templates a system message for OpenAI-like providers without
-mutating the stored core message history.
+Adds or templates a system message for OpenAI-like providers without mutating
+the stored core message history.
 
 Behavior overview
 -----------------
-- If the user has added at least one ``system`` message to the session,
-  that message's content is treated as the template and takes
-  precedence over any configured default.
-- If there is no user ``system`` message, the feature uses the
-  configured ``system_message`` template (if non-empty) and injects a
-  synthetic provider-native ``system`` message at the beginning of the
-  native message list.
-- Templates may contain placeholders like ``{{NAME}}``. Variable
-  definitions live under a single top-level ``system_message`` key.
-- On every request, placeholders are resolved to concrete values, but
-  the original core messages (session history) remain unchanged. Only
-  the provider-native messages for that request are modified.
+- If the user has added at least one ``system`` message to the session, that
+  message's content is treated as the template and takes precedence over any
+  configured default.
+- If there is no user ``system`` message, the feature uses the configured
+  ``system_message`` template (if non-empty) and injects a synthetic
+  provider-native ``system`` message at the beginning of the native message
+  list.
+- Templates may contain placeholders like ``{{NAME}}``. Variable definitions
+  live under a single top-level ``system_message`` key.
+- On every request, placeholders are resolved to concrete values, but the
+  original core messages (session history) remain unchanged. Only the
+  provider-native messages for that request are modified.
 
 Config shape
 ------------
@@ -26,18 +25,24 @@ Top-level keys used by this feature:
 - ``system_message_enabled``: bool (default True)
 - ``system_message``: string or object
 
-If ``system_message`` is a *string*, it is treated as the template
-verbatim (no variables are defined by this feature).
+If ``system_message`` is a *string*, it is treated as the template verbatim
+(no variables are defined by this feature).
 
 If ``system_message`` is an *object*, it has the following shape::
 
     {
         "template": "You are a helper for {{PROJECT}}.",
+        "runtime_code": "path/to/runtime_context.py",
         "variables": {
             "PROJECT": "AI Agent Platform",
             "FILES": {"files": ["AGENTS.md", "docs/prompt.txt"]},
             "NOTE": {"text": "inline text"},
             "CODED": {"code": "path/to/value_generator.py"},
+            "DYNAMIC": {"inline_code": "f'Current working directory: {cwd}'"},
+            "GIT_SECTION": {
+                "files": ["git-section.md"],
+                "condition": {"inline_code": "is_git_repo()"},
+            },
         },
     }
 
@@ -45,19 +50,35 @@ Variable values:
 
 - string
     Used directly as the replacement value.
-- object with one of the following keys (mutually exclusive):
+- object with one primary source key and optional ``condition``:
     - ``files``: list[str]
         Paths to read and concatenate into a single string. Paths may be
-        absolute or relative; relative paths are resolved against the
-        current working directory.
+        absolute or relative; relative paths are resolved against the current
+        working directory.
     - ``text``: str
         Inline text value (equivalent to providing the string directly).
     - ``code``: str
-        Path to a Python file. The file is executed in a fresh namespace
-        using ``runpy.run_path`` and the feature looks for either a
+        Path to a Python file. The file is executed in a fresh namespace using
+        ``runpy.run_path`` and the feature looks for either a
         ``SYSTEM_MESSAGE_VALUE`` variable or a callable ``get_value``
-        function. If found and non-None, its value (or return value) is
-        converted to ``str`` and used as the variable value.
+        function.
+    - ``inline_code``: str
+        Inline Python. If it compiles as a single expression, the expression's
+        result is used directly. Otherwise the snippet is executed as a block
+        and the feature reads ``VALUE`` from the resulting namespace.
+    - ``condition``: object with ``code`` or ``inline_code``
+        If the condition evaluates falsey, the variable resolves to ``""`` and
+        the main value is not read or executed.
+
+Runtime code
+------------
+If ``system_message.runtime_code`` is configured, the referenced Python file is
+executed once per request and all exported non-underscore globals from that
+file become the runtime namespace for file-backed ``code``, ``inline_code``,
+and their condition variants.
+
+This keeps the feature generic while letting config authors define convenience
+helpers such as ``cwd`` or ``is_git_repo()`` entirely in configuration.
 """
 
 from __future__ import annotations
@@ -80,7 +101,7 @@ class SystemMessageFeature(FeaturePlugin):
     """
 
     name: str = "system_message"
-    version: str = "0.2.0"
+    version: str = "0.4.0"
 
     def __init__(self) -> None:  # pragma: no cover - trivial initializer
         # Per-request configuration snapshot extracted from the flat
@@ -90,11 +111,14 @@ class SystemMessageFeature(FeaturePlugin):
         self._config: Dict[str, Any] = {
             "enabled": True,
             "template": "",
+            "runtime_code": "",
             # variables: Dict[str, Dict[str, Any]] where each value is a
             # normalized spec of the form:
             #   {"kind": "text", "value": str}
             #   {"kind": "files", "files": List[str]}
             #   {"kind": "code", "path": str}
+            #   {"kind": "inline_code", "value": str}
+            # Specs may also carry an optional normalized ``condition``.
             "variables": {},
         }
 
@@ -116,7 +140,8 @@ class SystemMessageFeature(FeaturePlugin):
             "system_message": {
                 "description": (
                     "System message configuration. Either a string template "
-                    "or an object with 'template' and 'variables'."
+                    "or an object with 'template', optional 'runtime_code', "
+                    "and 'variables'."
                 ),
                 "oneOf": [
                     {"type": "string"},
@@ -131,13 +156,24 @@ class SystemMessageFeature(FeaturePlugin):
                                     "{{VAR}} placeholders."
                                 ),
                             },
+                            "runtime_code": {
+                                "type": "string",
+                                "description": (
+                                    "Optional Python file executed once per "
+                                    "request to provide runtime globals for "
+                                    "inline_code, code, and conditions."
+                                ),
+                            },
                             "variables": {
                                 "type": "object",
                                 "description": (
                                     "Mapping from placeholder name (without "
                                     "braces) to values or value descriptors. "
                                     "Values may be strings or objects with "
-                                    "one of: 'files', 'text', 'code'."
+                                    "one of: 'files', 'text', 'code', "
+                                    "'inline_code'. Variable objects may also "
+                                    "include a 'condition' with 'code' or "
+                                    "'inline_code'."
                                 ),
                                 "additionalProperties": {
                                     "oneOf": [
@@ -151,6 +187,16 @@ class SystemMessageFeature(FeaturePlugin):
                                                 },
                                                 "text": {"type": "string"},
                                                 "code": {"type": "string"},
+                                                "inline_code": {"type": "string"},
+                                                "condition": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "code": {"type": "string"},
+                                                        "inline_code": {
+                                                            "type": "string"
+                                                        },
+                                                    },
+                                                },
                                             },
                                         },
                                     ]
@@ -187,6 +233,25 @@ class SystemMessageFeature(FeaturePlugin):
 
     # ---- Internal helpers (pure-ish) ----
     @staticmethod
+    def _normalize_condition(raw: Any) -> Dict[str, Any] | None:
+        """Normalize a condition spec into ``code`` or ``inline_code`` form."""
+
+        if not isinstance(raw, dict):
+            return None
+
+        if "code" in raw:
+            code_path = raw.get("code")
+            if isinstance(code_path, str) and code_path:
+                return {"kind": "code", "path": code_path}
+
+        if "inline_code" in raw:
+            inline_code = raw.get("inline_code")
+            if isinstance(inline_code, str):
+                return {"kind": "inline_code", "value": inline_code}
+
+        return None
+
+    @staticmethod
     def _normalize_variable_value(raw: Any) -> Dict[str, Any] | None:
         """Normalize a single variable value description.
 
@@ -201,16 +266,33 @@ class SystemMessageFeature(FeaturePlugin):
             return {"kind": "text", "value": raw}
 
         if isinstance(raw, dict):
+            condition = SystemMessageFeature._normalize_condition(raw.get("condition"))
             if "files" in raw and isinstance(raw.get("files"), (list, tuple)):
                 files = [str(p) for p in raw["files"] if isinstance(p, str)]
                 if files:
-                    return {"kind": "files", "files": files}
+                    spec = {"kind": "files", "files": files}
+                    if condition is not None:
+                        spec["condition"] = condition
+                    return spec
             if "text" in raw:
-                return {"kind": "text", "value": str(raw.get("text", ""))}
+                spec = {"kind": "text", "value": str(raw.get("text", ""))}
+                if condition is not None:
+                    spec["condition"] = condition
+                return spec
             if "code" in raw:
                 code_path = raw.get("code")
                 if isinstance(code_path, str) and code_path:
-                    return {"kind": "code", "path": code_path}
+                    spec = {"kind": "code", "path": code_path}
+                    if condition is not None:
+                        spec["condition"] = condition
+                    return spec
+            if "inline_code" in raw:
+                inline_code = raw.get("inline_code")
+                if isinstance(inline_code, str):
+                    spec = {"kind": "inline_code", "value": inline_code}
+                    if condition is not None:
+                        spec["condition"] = condition
+                    return spec
 
         # Fallback: coerce to text.
         return {"kind": "text", "value": str(raw)}
@@ -227,12 +309,14 @@ class SystemMessageFeature(FeaturePlugin):
 
         raw_sm = config.get("system_message")
         template = ""
+        runtime_code = ""
         variables: Dict[str, Dict[str, Any]] = {}
 
         if isinstance(raw_sm, str):
             template = raw_sm
         elif isinstance(raw_sm, dict):
             template = str(raw_sm.get("template", "") or "")
+            runtime_code = str(raw_sm.get("runtime_code", "") or "")
             raw_vars = raw_sm.get("variables") or {}
             if isinstance(raw_vars, dict):
                 for name, value in raw_vars.items():
@@ -243,6 +327,7 @@ class SystemMessageFeature(FeaturePlugin):
         return {
             "enabled": enabled,
             "template": template,
+            "runtime_code": runtime_code,
             "variables": variables,
         }
 
@@ -282,62 +367,212 @@ class SystemMessageFeature(FeaturePlugin):
         return "\n\n".join(contents)
 
     @staticmethod
-    def _execute_code(path: str) -> str:
-        """Execute a Python file and extract a string value.
+    def _export_runtime_context(namespace: Dict[str, Any]) -> Dict[str, Any]:
+        """Return exported names from a runtime namespace.
+
+        All non-underscore globals are exported. This keeps the contract simple
+        and lets config authors decide which imports, helpers, or constants are
+        part of the runtime context.
+        """
+
+        exported: Dict[str, Any] = {}
+        for name, value in namespace.items():
+            if name == "__builtins__" or name.startswith("_"):
+                continue
+            exported[name] = value
+        return exported
+
+    @classmethod
+    def _load_runtime_context(cls, path: str | None) -> Dict[str, Any]:
+        """Load optional request-scoped runtime globals from ``runtime_code``."""
+
+        if not isinstance(path, str) or not path:
+            return {}
+
+        try:
+            namespace = runpy.run_path(os.path.expanduser(path))
+        except Exception:
+            return {}
+
+        return cls._export_runtime_context(namespace)
+
+    @staticmethod
+    def _build_exec_globals(
+        runtime_context: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
+        """Build globals for inline execution from optional runtime context."""
+
+        return {"__builtins__": __builtins__, **dict(runtime_context or {})}
+
+    @classmethod
+    def _extract_code_result(cls, namespace: Dict[str, Any]) -> Any:
+        """Extract the result value from a file-backed code namespace.
 
         The file is executed with :func:`runpy.run_path`. The resulting
         globals are inspected for either:
 
         - ``SYSTEM_MESSAGE_VALUE``: used directly if present, or
-        - ``get_value``: a callable returning the string value.
-
-        Any errors result in an empty string.
+        - ``get_value``: a callable returning the raw value.
         """
 
-        try:
-            namespace = runpy.run_path(os.path.expanduser(path))
-        except Exception:
-            return ""
-
         if "SYSTEM_MESSAGE_VALUE" in namespace:
-            value = namespace.get("SYSTEM_MESSAGE_VALUE")
-        else:
-            getter = namespace.get("get_value")
-            if callable(getter):
-                try:
-                    value = getter()
-                except Exception:
-                    value = None
-            else:
-                value = None
+            return namespace.get("SYSTEM_MESSAGE_VALUE")
 
+        getter = namespace.get("get_value")
+        if callable(getter):
+            try:
+                return getter()
+            except Exception:
+                return None
+
+        return None
+
+    @classmethod
+    def _execute_code_raw(
+        cls,
+        path: str,
+        runtime_context: Dict[str, Any] | None = None,
+    ) -> Any:
+        """Execute a Python file and return its raw extracted result."""
+
+        try:
+            namespace = runpy.run_path(
+                os.path.expanduser(path),
+                init_globals=dict(runtime_context or {}),
+            )
+        except Exception:
+            return None
+
+        return cls._extract_code_result(namespace)
+
+    @classmethod
+    def _execute_code(
+        cls,
+        path: str,
+        runtime_context: Dict[str, Any] | None = None,
+    ) -> str:
+        """Execute a Python file and extract a string value."""
+
+        value = cls._execute_code_raw(path, runtime_context=runtime_context)
         if value is None:
             return ""
         return str(value)
 
-    @staticmethod
-    def _resolve_variables(variable_specs: Dict[str, Dict[str, Any]]) -> Dict[str, str]:
+    @classmethod
+    def _execute_inline_code_raw(
+        cls,
+        source: str,
+        runtime_context: Dict[str, Any] | None = None,
+    ) -> Any:
+        """Execute inline Python as an expression or block and return the raw value."""
+
+        if not isinstance(source, str):
+            return None
+
+        try:
+            compiled = compile(source, "<system_message:inline_code>", "eval")
+        except SyntaxError:
+            try:
+                namespace = {
+                    **cls._build_exec_globals(runtime_context),
+                    "VALUE": None,
+                }
+                exec(compile(source, "<system_message:inline_code>", "exec"), namespace)
+            except Exception:
+                return None
+            return namespace.get("VALUE")
+
+        try:
+            namespace = cls._build_exec_globals(runtime_context)
+            return eval(compiled, namespace)
+        except Exception:
+            return None
+
+    @classmethod
+    def _execute_inline_code(
+        cls,
+        source: str,
+        runtime_context: Dict[str, Any] | None = None,
+    ) -> str:
+        """Execute inline Python and coerce the result to string."""
+
+        value = cls._execute_inline_code_raw(source, runtime_context=runtime_context)
+        if value is None:
+            return ""
+        return str(value)
+
+    @classmethod
+    def _evaluate_condition(
+        cls,
+        spec: Dict[str, Any] | None,
+        runtime_context: Dict[str, Any] | None = None,
+    ) -> bool:
+        """Evaluate an optional condition spec for a variable."""
+
+        if spec is None:
+            return True
+
+        kind = spec.get("kind")
+        if kind == "code":
+            code_path = spec.get("path")
+            if isinstance(code_path, str) and code_path:
+                return bool(
+                    cls._execute_code_raw(
+                        code_path,
+                        runtime_context=runtime_context,
+                    )
+                )
+            return False
+        if kind == "inline_code":
+            return bool(
+                cls._execute_inline_code_raw(
+                    str(spec.get("value", "")),
+                    runtime_context=runtime_context,
+                )
+            )
+        return False
+
+    @classmethod
+    def _resolve_variables(
+        cls,
+        variable_specs: Dict[str, Dict[str, Any]],
+        runtime_context: Dict[str, Any] | None = None,
+    ) -> Dict[str, str]:
         """Resolve normalized variable specs into concrete string values."""
 
         resolved: Dict[str, str] = {}
         for name, spec in (variable_specs or {}).items():
+            if not cls._evaluate_condition(
+                spec.get("condition"),
+                runtime_context=runtime_context,
+            ):
+                resolved[name] = ""
+                continue
+
             kind = spec.get("kind")
             if kind == "text":
-                value = spec.get("value")
-                if value is not None:
-                    resolved[name] = str(value)
+                value = spec.get("value", "")
+                resolved[name] = "" if value is None else str(value)
             elif kind == "files":
                 paths = spec.get("files") or []
                 if isinstance(paths, list):
-                    value = SystemMessageFeature._read_files(paths)
-                    if value:
-                        resolved[name] = value
+                    resolved[name] = cls._read_files(paths)
             elif kind == "code":
                 code_path = spec.get("path")
                 if isinstance(code_path, str) and code_path:
-                    value = SystemMessageFeature._execute_code(code_path)
-                    if value:
-                        resolved[name] = value
+                    resolved[name] = cls._execute_code(
+                        code_path,
+                        runtime_context=runtime_context,
+                    )
+                else:
+                    resolved[name] = ""
+            elif kind == "inline_code":
+                resolved[name] = cls._execute_inline_code(
+                    str(spec.get("value", "")),
+                    runtime_context=runtime_context,
+                )
+            else:
+                resolved[name] = ""
         return resolved
 
     # ---- Lifecycle ----
@@ -366,7 +601,6 @@ class SystemMessageFeature(FeaturePlugin):
 
         return native_messages
 
-
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
@@ -377,7 +611,6 @@ class SystemMessageFeature(FeaturePlugin):
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-
         """Insert permanent template system (when missing) and render per-request.
 
         This method mirrors the previous behavior that lived partly in
@@ -407,7 +640,9 @@ class SystemMessageFeature(FeaturePlugin):
         is_responses_items = False
         for m in working_native:
             if isinstance(m, dict):
-                is_responses_items = isinstance(m.get("type"), str) and bool(m.get("type"))
+                is_responses_items = isinstance(m.get("type"), str) and bool(
+                    m.get("type")
+                )
                 break
         if not working_native:
             req = state.get("request") if isinstance(state, dict) else None
@@ -420,11 +655,16 @@ class SystemMessageFeature(FeaturePlugin):
         # system message is present and a template is configured.
         if is_responses_items:
             has_system = any(
-                isinstance(m, dict) and m.get("type") == "message" and m.get("role") == "system"
+                isinstance(m, dict)
+                and m.get("type") == "message"
+                and m.get("role") == "system"
                 for m in working_native
             )
         else:
-            has_system = any(isinstance(m, dict) and m.get("role") == "system" for m in working_native)
+            has_system = any(
+                isinstance(m, dict) and m.get("role") == "system"
+                for m in working_native
+            )
         if not has_system:
             template = cfg.get("template", "") or ""
             if template:
@@ -441,8 +681,13 @@ class SystemMessageFeature(FeaturePlugin):
         if not working_native:
             return working_native, state
 
-        # Resolve variables for this request.
-        variables = self._resolve_variables(cfg.get("variables") or {})
+        # Resolve request-scoped runtime globals once, then use them for all
+        # dynamic value and condition evaluation in this request.
+        runtime_context = self._load_runtime_context(cfg.get("runtime_code"))
+        variables = self._resolve_variables(
+            cfg.get("variables") or {},
+            runtime_context=runtime_context,
+        )
 
         # Choose the system template to render. Prefer the *last* system
         # message in the native history so that user-supplied system
@@ -524,13 +769,15 @@ class SystemMessageFeature(FeaturePlugin):
                     *override_messages,
                 ]
             else:
-                override_messages = [{"role": "system", "content": rendered}, *override_messages]
+                override_messages = [
+                    {"role": "system", "content": rendered},
+                    *override_messages,
+                ]
 
         request = state.get("request") or {}
         new_request = {**request, "messages": override_messages}
         new_state = {**state, "request": new_request}
         return working_native, new_state
-
 
     def finalize(
         self,

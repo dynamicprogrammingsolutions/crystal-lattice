@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from typing import Dict, Any, List
 
 from feature_system_message.system_message_feature import SystemMessageFeature
@@ -11,6 +12,30 @@ def _simple_native(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Helper to build a naive provider-native list from core messages."""
 
     return [{"role": m["role"], "content": m.get("content", "")} for m in messages]
+
+
+def _write_runtime_code(tmp_path, body: str | None = None):
+    runtime_file = tmp_path / "runtime.py"
+    runtime_file.write_text(
+        body
+        or (
+            "import subprocess\n"
+            "from pathlib import Path\n\n"
+            "cwd = str(Path.cwd().resolve())\n\n"
+            "def git_root(path=None):\n"
+            "    target = Path(path or cwd)\n"
+            "    if target.is_file():\n"
+            "        target = target.parent\n"
+            '    proc = subprocess.run(["git", "-C", str(target), "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=False)\n'
+            "    if proc.returncode != 0:\n"
+            "        return None\n"
+            "    return proc.stdout.strip() or None\n\n"
+            "def is_git_repo(path=None):\n"
+            "    return git_root(path) is not None\n"
+        ),
+        encoding="utf-8",
+    )
+    return runtime_file
 
 
 def test_normalize_string_system_message() -> None:
@@ -39,6 +64,22 @@ def test_normalize_object_system_message_with_text_variable() -> None:
     assert cfg["enabled"] is True
     assert cfg["template"] == "Hello {{NAME}}"
     assert cfg["variables"]["NAME"] == {"kind": "text", "value": "Core User"}
+
+
+def test_normalize_object_system_message_with_runtime_code(tmp_path) -> None:
+    runtime_file = _write_runtime_code(tmp_path)
+
+    config = {
+        "system_message": {
+            "template": "Hello {{NAME}}",
+            "runtime_code": str(runtime_file),
+            "variables": {"NAME": "Core User"},
+        }
+    }
+
+    cfg = SystemMessageFeature._extract_plugin_config(config)
+
+    assert cfg["runtime_code"] == str(runtime_file)
 
 
 def test_resolve_variables_files_and_code(tmp_path) -> None:
@@ -124,9 +165,9 @@ def test_no_permanent_system_message_when_user_system_present() -> None:
     assert new_native == native
 
 
-def test_system_message_files_variable_loaded_relative_to_cwd(tmp_path, monkeypatch) -> None:
-    feature = SystemMessageFeature()
-
+def test_system_message_files_variable_loaded_relative_to_cwd(
+    tmp_path, monkeypatch
+) -> None:
     # Create the file in a temporary directory and use a relative path.
     file_path = tmp_path / "context.txt"
     file_path.write_text("File-based context", encoding="utf-8")
@@ -150,8 +191,6 @@ def test_system_message_files_variable_loaded_relative_to_cwd(tmp_path, monkeypa
 
 
 def test_text_variable_object_form() -> None:
-    feature = SystemMessageFeature()
-
     config = {
         "system_message_enabled": True,
         "system_message": {
@@ -167,10 +206,10 @@ def test_text_variable_object_form() -> None:
 
 
 def test_code_variable_uses_python_file(tmp_path) -> None:
-    feature = SystemMessageFeature()
-
     code_file = tmp_path / "code_val.py"
-    code_file.write_text("""\nSYSTEM_MESSAGE_VALUE = 'FROM-CODE-FEATURE'\n""", encoding="utf-8")
+    code_file.write_text(
+        """\nSYSTEM_MESSAGE_VALUE = 'FROM-CODE-FEATURE'\n""", encoding="utf-8"
+    )
 
     config = {
         "system_message_enabled": True,
@@ -186,9 +225,197 @@ def test_code_variable_uses_python_file(tmp_path) -> None:
     assert resolved["VAL"] == "FROM-CODE-FEATURE"
 
 
-def test_system_message_dynamic_variables_change_between_configs() -> None:
-    feature = SystemMessageFeature()
+def test_inline_code_expression_variable(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    runtime_file = _write_runtime_code(tmp_path)
+    runtime_context = SystemMessageFeature._load_runtime_context(str(runtime_file))
 
+    config = {
+        "system_message": {
+            "template": "{{VAL}}",
+            "runtime_code": str(runtime_file),
+            "variables": {
+                "VAL": {"inline_code": "f'Current working directory: {cwd}'"},
+            },
+        }
+    }
+
+    cfg = SystemMessageFeature._extract_plugin_config(config)
+    resolved = SystemMessageFeature._resolve_variables(
+        cfg["variables"],
+        runtime_context=runtime_context,
+    )
+
+    assert resolved["VAL"] == f"Current working directory: {tmp_path.resolve()}"
+
+
+def test_inline_code_has_no_default_helper_context_without_runtime_code() -> None:
+    config = {
+        "system_message": {
+            "template": "{{VAL}}",
+            "variables": {
+                "VAL": {"inline_code": "f'Current working directory: {cwd}'"},
+            },
+        }
+    }
+
+    cfg = SystemMessageFeature._extract_plugin_config(config)
+    resolved = SystemMessageFeature._resolve_variables(cfg["variables"])
+
+    assert resolved["VAL"] == ""
+
+
+def test_inline_code_block_uses_value_variable() -> None:
+    config = {
+        "system_message": {
+            "template": "{{VAL}}",
+            "variables": {
+                "VAL": {
+                    "inline_code": (
+                        "if True:\n"
+                        "    VALUE = 'Rendered from block'\n"
+                        "else:\n"
+                        "    VALUE = ''\n"
+                    )
+                },
+            },
+        }
+    }
+
+    cfg = SystemMessageFeature._extract_plugin_config(config)
+    resolved = SystemMessageFeature._resolve_variables(cfg["variables"])
+
+    assert resolved["VAL"] == "Rendered from block"
+
+
+def test_condition_inline_code_on_text_variable() -> None:
+    config = {
+        "system_message": {
+            "template": "Hello{{VAL}}",
+            "variables": {
+                "VAL": {
+                    "text": " world",
+                    "condition": {"inline_code": "False"},
+                },
+            },
+        }
+    }
+
+    cfg = SystemMessageFeature._extract_plugin_config(config)
+    resolved = SystemMessageFeature._resolve_variables(cfg["variables"])
+
+    assert resolved["VAL"] == ""
+    assert SystemMessageFeature._render_template(cfg["template"], resolved) == "Hello"
+
+
+def test_condition_inline_code_on_files_variable_skips_file_reads(monkeypatch) -> None:
+    def _fail_read(paths: List[str]) -> str:
+        raise AssertionError(f"_read_files should not be called: {paths}")
+
+    monkeypatch.setattr(SystemMessageFeature, "_read_files", staticmethod(_fail_read))
+
+    config = {
+        "system_message": {
+            "template": "{{VAL}}",
+            "variables": {
+                "VAL": {
+                    "files": ["should-not-be-read.md"],
+                    "condition": {"inline_code": "False"},
+                },
+            },
+        }
+    }
+
+    cfg = SystemMessageFeature._extract_plugin_config(config)
+    resolved = SystemMessageFeature._resolve_variables(cfg["variables"])
+
+    assert resolved["VAL"] == ""
+
+
+def test_condition_code_uses_external_helper_file(tmp_path) -> None:
+    condition_file = tmp_path / "condition.py"
+    condition_file.write_text("SYSTEM_MESSAGE_VALUE = True\n", encoding="utf-8")
+
+    config = {
+        "system_message": {
+            "template": "{{VAL}}",
+            "variables": {
+                "VAL": {
+                    "text": "from text",
+                    "condition": {"code": str(condition_file)},
+                },
+            },
+        }
+    }
+
+    cfg = SystemMessageFeature._extract_plugin_config(config)
+    resolved = SystemMessageFeature._resolve_variables(cfg["variables"])
+
+    assert resolved["VAL"] == "from text"
+
+
+def test_helper_runtime_available_to_inline_code_in_git_repo(
+    tmp_path, monkeypatch
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(
+        ["git", "init"], cwd=repo, check=True, capture_output=True, text=True
+    )
+    monkeypatch.chdir(repo)
+    runtime_context = SystemMessageFeature._load_runtime_context(
+        str(_write_runtime_code(tmp_path))
+    )
+
+    assert SystemMessageFeature._execute_inline_code(
+        "cwd", runtime_context=runtime_context
+    ) == str(repo.resolve())
+    assert (
+        SystemMessageFeature._execute_inline_code_raw(
+            "is_git_repo()",
+            runtime_context=runtime_context,
+        )
+        is True
+    )
+    assert SystemMessageFeature._execute_inline_code(
+        "git_root()",
+        runtime_context=runtime_context,
+    ) == str(repo.resolve())
+
+
+def test_helper_runtime_available_to_file_backed_code(tmp_path, monkeypatch) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(
+        ["git", "init"], cwd=repo, check=True, capture_output=True, text=True
+    )
+    monkeypatch.chdir(repo)
+    runtime_file = _write_runtime_code(tmp_path)
+    runtime_context = SystemMessageFeature._load_runtime_context(str(runtime_file))
+
+    code_file = tmp_path / "code_val.py"
+    code_file.write_text(
+        "SYSTEM_MESSAGE_VALUE = f'{cwd}|{is_git_repo()}|{git_root()}'\n",
+        encoding="utf-8",
+    )
+
+    config = {
+        "system_message": {
+            "template": "{{VAL}}",
+            "variables": {"VAL": {"code": str(code_file)}},
+        }
+    }
+
+    cfg = SystemMessageFeature._extract_plugin_config(config)
+    resolved = SystemMessageFeature._resolve_variables(
+        cfg["variables"],
+        runtime_context=runtime_context,
+    )
+
+    assert resolved["VAL"] == f"{repo.resolve()}|True|{repo.resolve()}"
+
+
+def test_system_message_dynamic_variables_change_between_configs() -> None:
     # First config
     config1 = {
         "system_message_enabled": True,

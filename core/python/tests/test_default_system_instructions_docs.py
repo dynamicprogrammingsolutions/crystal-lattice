@@ -5,6 +5,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DOCS_ROOT = REPO_ROOT / "docs" / "default-system-instructions"
+RUNTIME_SYSTEM_MESSAGES_ROOT = (
+    REPO_ROOT / "application" / "python" / "agent_terminal_app" / "system_messages"
+)
 
 
 def test_vendor_instruction_directories_exist() -> None:
@@ -122,3 +125,40 @@ def test_codex_archive_was_moved_under_vendor_layout() -> None:
     assert (codex / "README.md").is_file()
     assert (codex / "gpt-5.4" / "instructions_default.md").is_file()
     assert not (REPO_ROOT / "docs" / "codex-default-instructions").exists()
+
+
+def test_runtime_system_message_templates_exist() -> None:
+    assert RUNTIME_SYSTEM_MESSAGES_ROOT.is_dir()
+
+    expected_files = {
+        "gemini/template.md",
+        "gemini/preamble.md",
+        "gemini/core-mandates.md",
+        "gemini/workflow-section.md",
+        "gemini/operational-guidelines.md",
+        "gemini/git-section.md",
+        "qwen/template.md",
+        "qwen/introduction-and-core-mandates.md",
+        "qwen/primary-workflows.md",
+        "qwen/operational-guidelines.md",
+        "qwen/git-section.md",
+        "grok/template.md",
+        "grok/introduction.md",
+        "grok/available-tools-section.md",
+        "grok/tool-usage-rules.md",
+        "grok/response-guidelines.md",
+        "helpers/runtime.py",
+        "helpers/render_agents_context_section.py",
+    }
+
+    for relative_path in expected_files:
+        assert (RUNTIME_SYSTEM_MESSAGES_ROOT / relative_path).is_file(), relative_path
+
+    simplified_config = (
+        REPO_ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "config_v2_multi_family_tools_simplified.json"
+    )
+    assert simplified_config.is_file()

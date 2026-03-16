@@ -1,0 +1,197 @@
+{
+  "plugin_cache_dir": "${env:CONFIG_DIR}/.plugin_cache/plugins",
+  "providers": {
+    "openrouter_qwen_tools": {
+      "provider": "openrouter",
+      "model": "qwen/qwen3.5-flash-02-23",
+      "api_key": "${env:OPENROUTER_API_KEY}",
+      "base_url": "https://openrouter.ai/api/v1",
+      "timeout": 300,
+      "allowed_paths": [".", ".."],
+      "max_file_size": 5242880,
+      "max_output_chars": 10000,
+      "working_directory": ".",
+      "enable_reasoning": true,
+      "reasoning_effort": "medium",
+      "system_message_enabled": true,
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/codex-tools",
+        "path:${env:BUILTIN_PLUGINS}/qwen-tools"
+      ],
+      "disabled_plugins": ["apply_patch"]
+    },
+    "openrouter_gemini_tools": {
+      "provider": "openrouter",
+      "model": "google/gemini-2.5-flash-lite",
+      "api_key": "${env:OPENROUTER_API_KEY}",
+      "base_url": "https://openrouter.ai/api/v1",
+      "timeout": 300,
+      "allowed_paths": [".", ".."],
+      "max_file_size": 5242880,
+      "max_output_chars": 10000,
+      "working_directory": ".",
+      "enable_reasoning": true,
+      "reasoning_effort": "medium",
+      "system_message_enabled": true,
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/codex-tools",
+        "path:${env:BUILTIN_PLUGINS}/gemini-tools"
+      ],
+      "disabled_plugins": ["apply_patch"]
+    },
+    "openrouter_grok_tools": {
+      "provider": "openrouter",
+      "model": "x-ai/grok-4.1-fast",
+      "api_key": "${env:OPENROUTER_API_KEY}",
+      "base_url": "https://openrouter.ai/api/v1",
+      "timeout": 300,
+      "allowed_paths": [".", ".."],
+      "max_file_size": 5242880,
+      "max_output_chars": 10000,
+      "working_directory": ".",
+      "enable_reasoning": true,
+      "reasoning_effort": "medium",
+      "system_message_enabled": true,
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/codex-tools",
+        "path:${env:BUILTIN_PLUGINS}/grok-tools"
+      ],
+      "disabled_plugins": ["apply_patch"]
+    }
+  },
+  "plugins": [
+    "path:${env:BUILTIN_PLUGINS}/openrouter",
+    "path:${env:BUILTIN_PLUGINS}/feature-system-message"
+  ],
+  "application": {
+    "tool_output_line_limit": 20,
+    "tool_output_char_limit": 2000,
+    "tool_output_short_one_line": true
+  },
+  "agents": {
+    "qwen": {
+      "provider": "openrouter_qwen_tools",
+      "model": "qwen/qwen3.5-flash-02-23",
+      "system_message": {
+        "template": "${file:${env:CONFIG_DIR}/system_messages/qwen/template.md}",
+        "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
+        "variables": {
+          "INTRODUCTION_AND_CORE_MANDATES": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/qwen/introduction-and-core-mandates.md"
+            ]
+          },
+          "TASK_MANAGEMENT": "",
+          "PRIMARY_WORKFLOWS": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/qwen/primary-workflows.md"
+            ]
+          },
+          "OPERATIONAL_GUIDELINES": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/qwen/operational-guidelines.md"
+            ]
+          },
+          "SANDBOX_SECTION": "",
+          "GIT_SECTION": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/qwen/git-section.md"
+            ],
+            "condition": {
+              "inline_code": "is_git_repo()"
+            }
+          },
+          "MODEL_TOOL_CALL_EXAMPLES": "",
+          "USER_MEMORY_SUFFIX": ""
+        }
+      },
+      "enable_reasoning": true,
+      "reasoning_effort": "medium"
+    },
+    "gemini": {
+      "provider": "openrouter_gemini_tools",
+      "model": "google/gemini-2.5-flash-lite",
+      "system_message": {
+        "template": "${file:${env:CONFIG_DIR}/system_messages/gemini/template.md}",
+        "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
+        "variables": {
+          "PREAMBLE": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/gemini/preamble.md"
+            ]
+          },
+          "CORE_MANDATES": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/gemini/core-mandates.md"
+            ]
+          },
+          "AVAILABLE_SUBAGENTS_SECTION": "",
+          "AVAILABLE_SKILLS_SECTION": "",
+          "HOOK_CONTEXT_SECTION": "",
+          "WORKFLOW_SECTION": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/gemini/workflow-section.md"
+            ]
+          },
+          "OPERATIONAL_GUIDELINES": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/gemini/operational-guidelines.md"
+            ]
+          },
+          "YOLO_SECTION": "",
+          "SANDBOX_SECTION": "",
+          "GIT_SECTION": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/gemini/git-section.md"
+            ],
+            "condition": {
+              "inline_code": "is_git_repo()"
+            }
+          },
+          "CONTEXT_FILES_SECTION": {
+            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_agents_context_section.py"
+          }
+        }
+      },
+      "enable_reasoning": true,
+      "reasoning_effort": "medium"
+    },
+    "grok": {
+      "provider": "openrouter_grok_tools",
+      "model": "x-ai/grok-4.1-fast",
+      "system_message": {
+        "template": "${file:${env:CONFIG_DIR}/system_messages/grok/template.md}",
+        "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
+        "variables": {
+          "INTRODUCTION": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/grok/introduction.md"
+            ]
+          },
+          "CUSTOM_INSTRUCTIONS_SECTION": "",
+          "AVAILABLE_TOOLS_SECTION": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/grok/available-tools-section.md"
+            ]
+          },
+          "TOOL_USAGE_RULES": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/grok/tool-usage-rules.md"
+            ]
+          },
+          "WEB_AND_REALTIME_CAPABILITIES_SECTION": "",
+          "WORKFLOW_AND_RESPONSE_GUIDANCE": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/grok/response-guidelines.md"
+            ]
+          },
+          "WORKING_DIRECTORY_LINE": {
+            "inline_code": "f'Current working directory: {cwd}'"
+          }
+        }
+      },
+      "enable_reasoning": true,
+      "reasoning_effort": "medium"
+    }
+  }
+}

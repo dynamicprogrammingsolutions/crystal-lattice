@@ -152,6 +152,7 @@ Key observations:
 3. `tasks/20260315-gemini-qwen-grok-tool-packages/030-list-grep-glob-tools.md`
 4. `tasks/20260315-gemini-qwen-grok-tool-packages/040-agent-and-provider-plugin-package-config.md`
 5. `tasks/20260315-gemini-qwen-grok-tool-packages/050-vendor-friendly-system-messages.md`
+6. `tasks/20260315-gemini-qwen-grok-tool-packages/060-simplified-system-message-configs-and-minimal-dynamics.md`
 
 ## Cross-cutting decisions to preserve throughout implementation
 
@@ -180,3 +181,4 @@ Key observations:
 3. List/grep/glob third, after the shared filesystem/search helpers are in place.
 4. Agent/provider plugin package config support either before tool-package rollout or in parallel, because it enables cleaner configuration of the new vendor bundles.
 5. Vendor-friendly system messages after the vendor tool surfaces are stable enough to reference accurately.
+6. Simplified runtime system-message configs and minimal dynamic-section support after the extracted vendor instructions exist and the package-loading model is stable.

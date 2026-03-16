@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from agent_app.application_future import AgentApplication
 from agent_app.config import (
     build_config_resolution_env,
@@ -39,12 +37,8 @@ def test_resolve_placeholders_collects_errors(tmp_path, monkeypatch):
 
 def test_build_agent_config_merges_provider_and_agent():
     resolved = {
-        "providers": {
-            "dummy": {"provider": "dummy_provider", "model": "base"}
-        },
-        "agents": {
-            "default": {"provider": "dummy", "model": "override"}
-        },
+        "providers": {"dummy": {"provider": "dummy_provider", "model": "base"}},
+        "agents": {"default": {"provider": "dummy", "model": "override"}},
     }
 
     cfg = build_agent_config(resolved, "default")
@@ -158,3 +152,61 @@ def test_agent_application_accepts_env_overrides(tmp_path):
 
     assert app._config["plugin_cache_dir"] == str(config_dir / "plugin-cache")
     assert app._agent_base_configs["default"]["working_directory"] == str(workspace_dir)
+
+
+def test_agent_application_resolves_system_message_config_values(tmp_path):
+    config_dir = tmp_path / "config-dir"
+    workspace_dir = tmp_path / "workspace"
+    config_dir.mkdir()
+    workspace_dir.mkdir()
+
+    template_file = config_dir / "template.md"
+    template_file.write_text("Template {{SECTION}}", encoding="utf-8")
+
+    section_file = config_dir / "section.md"
+    section_file.write_text("Rendered section", encoding="utf-8")
+
+    runtime_file = config_dir / "runtime.py"
+    runtime_file.write_text("cwd = 'runtime-cwd'\n", encoding="utf-8")
+
+    cfg = {
+        "providers": {
+            "dummy": {
+                "provider": "dummy_provider",
+                "model": "base-model",
+                "working_directory": "${env:WORKING_DIR}",
+            }
+        },
+        "plugins": ["tests.dummy_provider.DummyProvider"],
+        "agents": {
+            "default": {
+                "provider": "dummy",
+                "system_message": {
+                    "template": "${file:${env:CONFIG_DIR}/template.md}",
+                    "runtime_code": "${env:CONFIG_DIR}/runtime.py",
+                    "variables": {
+                        "SECTION": {"text": "${file:${env:CONFIG_DIR}/section.md}"},
+                        "SECTION_FILE": {"files": ["${env:CONFIG_DIR}/section.md"]},
+                    },
+                },
+            }
+        },
+    }
+    config_path = config_dir / "config.json"
+    config_path.write_text(__import__("json").dumps(cfg), encoding="utf-8")
+
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        core_factory=AgentCore,
+        env_overrides={
+            "CONFIG_DIR": str(config_dir),
+            "WORKING_DIR": str(workspace_dir),
+        },
+    )
+
+    system_message = app._agent_base_configs["default"]["system_message"]
+    assert system_message["template"] == "Template {{SECTION}}"
+    assert system_message["runtime_code"] == str(runtime_file)
+    assert system_message["variables"]["SECTION"]["text"] == "Rendered section"
+    assert system_message["variables"]["SECTION_FILE"]["files"] == [str(section_file)]
