@@ -130,6 +130,52 @@ def glob_search(
     respect_git_ignore: bool = True,
     respect_vendor_ignore: bool = True,
 ) -> dict[str, Any]:
+    # Try ripgrep-based fast search first
+    all_matched_from_rg = []
+    ripgrep_ignored_count = 0  # This will come from filtering ignored files
+    
+    # Use ripgrep for fast file discovery if available
+    successful_ripgrep_calls = False
+    for directory in search_directories:
+        root = Path(directory).resolve()
+        if not root.exists():
+            continue
+            
+        # Try fast ripgrep-based approach first
+        rg_matches = _try_glob_with_ripgrep(pattern, directory, respect_git_ignore)
+        if rg_matches is not None:
+            successful_ripgrep_calls = True
+            
+            for path_str in rg_matches:
+                candidate = Path(path_str)
+                
+                # Validate against vendor-specific ignore rules (since ripgrep only handles git ignores)
+                ignored_kind = _path_is_ignored(
+                    str(candidate),
+                    display_root=display_root,
+                    vendor_ignore_filename=vendor_ignore_filename,
+                    respect_git_ignore=respect_git_ignore,
+                    respect_vendor_ignore=respect_vendor_ignore,
+                )
+                
+                if ignored_kind is not None:
+                    ripgrep_ignored_count += 1
+                    continue
+                
+                all_matched_from_rg.append(candidate)
+    
+    if successful_ripgrep_calls:
+        # Successfully used ripgrep, return results with deduplication and sorting
+        unique_matches = list({path: None for path in all_matched_from_rg}.keys())
+        sorted_matches = _sort_paths_by_recency(unique_matches)
+        return {
+            "ok": True,
+            "paths": [str(path) for path in sorted_matches],
+            "count": len(sorted_matches),
+            "ignored_count": ripgrep_ignored_count,
+        }
+    
+    # Fallback to original slow Python-based approach if ripgrep not available
     matched: list[Path] = []
     ignored_count = 0
     for directory in search_directories:
@@ -204,6 +250,50 @@ def _run_ripgrep(
         stderr = completed.stderr.strip() or completed.stdout.strip() or "ripgrep failed"
         return {"ok": False, "error": stderr, "code": "rg_failed"}
     return {"ok": True, "stdout": completed.stdout, "names_only": names_only, "cwd": cwd}
+
+
+def _try_glob_with_ripgrep(pattern: str, search_directory: str, respect_git_ignore: bool) -> list[str] | None:
+    """
+    Attempt to use ripgrep to find files matching a glob pattern.
+    Returns list of absolute file paths if successful, None if ripgrep unavailable or fails.
+    """
+    rg = shutil.which("rg")
+    if not rg:
+        return None
+        
+    try:
+        # Use ripgrep's --files and --glob for fast file-only search 
+        args = [rg, "--files"]
+        if not respect_git_ignore:
+            args.append("--no-ignore")
+        
+        # Add glob pattern (ripgrep format matches the standard glob format)
+        args.extend(["--glob", pattern])
+        args.append("--no-messages")
+        
+        completed = subprocess.run(
+            args, 
+            cwd=search_directory, 
+            capture_output=True, 
+            text=True, 
+            check=False
+        )
+        
+        if completed.returncode not in {0, 1}:  # 0=found, 1=found nothing
+            return None
+            
+        # Parse file paths returned by ripgrep
+        paths = []
+        for line in completed.stdout.strip().split('\n'):
+            line = line.strip()
+            if line:
+                # Construct absolute path from working directory
+                abs_path = str((Path(search_directory) / line).resolve())
+                paths.append(abs_path)
+                
+        return paths
+    except Exception:
+        return None  # Fallback to Python implementation
 
 
 def _parse_ripgrep_output(payload: dict[str, Any], *, search_path: str) -> list[dict[str, Any]]:
