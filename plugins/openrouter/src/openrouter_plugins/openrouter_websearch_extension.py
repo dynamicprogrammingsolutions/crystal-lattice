@@ -122,13 +122,13 @@ class OpenRouterWebSearchExtension(ProviderExtensionPlugin):
             return state
 
         plugin_id = config.get("web_search_plugin_id") or "web"
-        engine = config.get("web_search_engine") or "native"
+        engine = config.get("web_search_engine", None)
         return {
             **state,
             "openrouter_websearch": {
                 "enabled": True,
                 "plugin_id": str(plugin_id),
-                "engine": str(engine),
+                "engine": engine
             },
         }
 
@@ -226,7 +226,7 @@ class OpenRouterWebSearchExtension(ProviderExtensionPlugin):
         payload = dict(request.get("payload", {}))
 
         plugin_id = cfg.get("plugin_id") or "web"
-        engine = cfg.get("engine") or "native"
+        engine = cfg.get("engine", None)
 
         plugins_value = payload.get("plugins")
         if isinstance(plugins_value, list):
@@ -237,7 +237,9 @@ class OpenRouterWebSearchExtension(ProviderExtensionPlugin):
             # Non-list value should not break the request; start fresh.
             plugins = []
 
-        entry = {"id": plugin_id, "engine": engine}
+        entry = {"id": plugin_id}
+        if engine is not None:
+            entry["engine"] = engine
         if not any(
             isinstance(p, dict)
             and p.get("id") == entry["id"]
