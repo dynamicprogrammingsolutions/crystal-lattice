@@ -32,7 +32,9 @@ import type {
 import {
   attachmentDraftStatusLabel,
   deleteSessionAttachment,
+  deriveSessionListPresentationFromGroups,
   filterFooterElements,
+  groupSessionListFields,
   isAttachmentDraftBlocking,
   mergeSessionScopedActionElements,
   runApplicationAction,
@@ -55,6 +57,7 @@ import type { MessagesCacheEntry } from '../cache/types';
 import type { TabStripStyle } from '../tabs/tabStripStyle';
 import { asyncStorageKeyValueStore } from '../storage/asyncStorageKeyValueStore';
 import { desktopEventBus } from '../events/desktopEventBus';
+import { truncateByChars } from '../utils/text';
 import { DependencyFlatList } from '../ui/DependencyFlatList';
 import { DependencyVirtualizedScroll } from '../ui/DependencyVirtualizedScroll';
 import { PlaceholderFlatList } from '../ui/PlaceholderFlatList';
@@ -359,7 +362,40 @@ export const ChatPane = React.memo(function ChatPane({
     actionsById,
     sessionActions: pluginSessionActions,
     messageActions: pluginMessageActions,
+    sessionListFields,
   } = useApplicationPlugins();
+
+  const sessionListFieldGroups = useMemo(
+    () => groupSessionListFields(sessionListFields || []),
+    [sessionListFields],
+  );
+
+  const displayTitle = useMemo(() => {
+    if (sessionSummary) {
+      const presentation = deriveSessionListPresentationFromGroups(
+        sessionSummary,
+        sessionListFieldGroups,
+      );
+      return truncateByChars(presentation.title || sessionSummary.preview || sessionId, 80);
+    }
+
+    const titleSource = typeof title === 'string' && title.trim() ? title : sessionId;
+    return truncateByChars(titleSource, 80);
+  }, [sessionId, sessionListFieldGroups, sessionSummary, title]);
+
+  const displaySubtitle = useMemo(() => {
+    if (sessionSummary) {
+      const presentation = deriveSessionListPresentationFromGroups(
+        sessionSummary,
+        sessionListFieldGroups,
+      );
+      const subtitleSource = presentation.subtitle ?? sessionSummary.preview ?? '';
+      return truncateByChars(subtitleSource, 80);
+    }
+
+    const subtitleSource = typeof subtitle === 'string' && subtitle.trim() ? subtitle : '';
+    return truncateByChars(subtitleSource, 80);
+  }, [sessionListFieldGroups, sessionSummary, subtitle]);
 
   const uiSchemaElements = useMemo(
     () => sessionUiSchemaState?.elements ?? [],
@@ -2147,8 +2183,8 @@ export const ChatPane = React.memo(function ChatPane({
 	  <View style={styles.root}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.title} numberOfLines={1}>
-            {title}
+          <Text style={styles.title} numberOfLines={2}>
+            {displayTitle}
           </Text>
           <View style={styles.metaRow}>
             <Text style={styles.metaText} numberOfLines={1}>
@@ -2169,11 +2205,9 @@ export const ChatPane = React.memo(function ChatPane({
               {backend ? 'Online' : 'Offline'}
             </Text>
           </View>
-          {subtitle ? (
-            <Text style={styles.subtitle} numberOfLines={1}>
-              {subtitle}
-            </Text>
-          ) : null}
+          <Text style={styles.subtitle} numberOfLines={2}>
+            {displaySubtitle}
+          </Text>
         </View>
 
         <View style={styles.headerRight}>
@@ -2671,10 +2705,12 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       fontSize: 14,
       fontWeight: '700',
       color: theme.text,
+      flexShrink: 1,
     },
     subtitle: {
       fontSize: 12,
       color: theme.textSecondary,
+      flexShrink: 1,
     },
     metaRow: {
       flexDirection: 'row',
