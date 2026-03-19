@@ -7,6 +7,7 @@ from .reader_engine import (
     detect_bom,
     format_tool_result_text,
     format_tool_result_payload,
+    format_with_line_numbers,
     gemini_display_path,
     grok_directory_listing,
     is_binary_file,
@@ -16,9 +17,10 @@ from .reader_engine import (
     read_gemini_style_file,
     read_qwen_style_file,
     resolve_path,
+    truncate_line,
     validate_path_within_directories,
 )
-from .editor_engine import replace_literal_text, write_text_file
+from .editor_engine import apply_text_replacements, replace_literal_text, write_text_file
 from .search_engine import (
     MAX_QWEN_GLOB_RESULTS,
     format_gemini_glob_result,
@@ -37,6 +39,7 @@ __all__ = [
     "DEFAULT_QWEN_CHAR_LIMIT",
     "DEFAULT_QWEN_LINE_LIMIT",
     "SVG_MAX_SIZE_BYTES",
+    "apply_text_replacements",
     "build_qwen_truncation_wrapper",
     "detect_bom",
     "format_gemini_glob_result",
@@ -47,6 +50,7 @@ __all__ = [
     "format_qwen_glob_result",
     "format_qwen_grep_result",
     "format_qwen_list_result",
+    "format_with_line_numbers",
     "gemini_display_path",
     "glob_search",
     "grok_directory_listing",
@@ -61,6 +65,7 @@ __all__ = [
     "read_qwen_style_file",
     "replace_literal_text",
     "resolve_path",
+    "truncate_line",
     "validate_path_within_directories",
     "write_text_file",
 ]

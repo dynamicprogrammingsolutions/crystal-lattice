@@ -41,6 +41,7 @@ def write_text_file(
     content: str,
     *,
     create_only: bool = False,
+    mode: str = "overwrite",
 ) -> dict[str, Any]:
     target = Path(file_path)
     if target.exists() and target.is_dir():
@@ -60,6 +61,22 @@ def write_text_file(
 
     file_existed = target.exists()
     target.parent.mkdir(parents=True, exist_ok=True)
+
+    if mode == "append" and file_existed:
+        existing = read_file_with_encoding(target)
+        final_content = existing + content
+        _write_text_preserving_bom(target, final_content)
+        return {
+            "ok": True,
+            "code": "appended",
+            "file_path": str(target),
+            "file_existed": file_existed,
+            "created": False,
+            "content": final_content,
+            "kind": "text",
+            "llm_content": final_content,
+        }
+
     _write_text_preserving_bom(target, content)
     return {
         "ok": True,
@@ -173,3 +190,26 @@ def replace_literal_text(
         "kind": "text",
         "llm_content": new_content,
     }
+
+
+def apply_text_replacements(
+    content: str,
+    old: str,
+    new: str,
+    *,
+    replace_all: bool = False,
+) -> tuple[str, int]:
+    """Apply a single text replacement in memory.
+
+    Returns (new_content, replacement_count).
+    """
+    if not old:
+        return content, 0
+    if old == new:
+        return content, 0
+    count = content.count(old)
+    if count == 0:
+        return content, 0
+    if replace_all:
+        return content.replace(old, new), count
+    return content.replace(old, new, 1), 1

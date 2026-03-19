@@ -1,6 +1,6 @@
-# Gemini, Qwen, and Grok Tool Packages
+# Gemini, Qwen, Grok, and Kimi Tool Packages
 
-Short description: Plan a compatibility-oriented tool-plugin effort organized into separate plugin packages `gemini-tools`, `qwen-tools`, and `grok-tools`, backed by a shared non-plugin package with common filesystem/search logic, plus application changes to allow agent/provider-specific plugin package specs.
+Short description: Plan a compatibility-oriented tool-plugin effort organized into separate plugin packages `gemini-tools`, `qwen-tools`, `grok-tools`, and `kimi-tools`, backed by shared non-plugin packages with common filesystem/search/web/logic, plus application changes to allow agent/provider-specific plugin package specs.
 
 ## Goal
 
@@ -12,6 +12,7 @@ The user asked for:
 - `gemini-tools`
 - `qwen-tools`
 - `grok-tools`
+- `kimi-tools`
 2. A shared package containing reusable logic, but not itself exposed as a tool plugin package.
 3. Initial subtasks focused on:
 - reader tools
@@ -147,19 +148,210 @@ Key observations:
 
 ## Subtasks
 
-1. `tasks/20260315-gemini-qwen-grok-tool-packages/010-reader-tools.md`
-2. `tasks/20260315-gemini-qwen-grok-tool-packages/020-edit-and-write-tools.md`
-3. `tasks/20260315-gemini-qwen-grok-tool-packages/030-list-grep-glob-tools.md`
-4. `tasks/20260315-gemini-qwen-grok-tool-packages/040-agent-and-provider-plugin-package-config.md`
-5. `tasks/20260315-gemini-qwen-grok-tool-packages/050-vendor-friendly-system-messages.md`
-6. `tasks/20260315-gemini-qwen-grok-tool-packages/060-simplified-system-message-configs-and-minimal-dynamics.md`
-7. `tasks/20260315-gemini-qwen-grok-tool-packages/070-core-rebuild-after-native-initialize-changes.md`
-8. `tasks/20260315-gemini-qwen-grok-tool-packages/080-portable-default-config-and-compiled-system-message-ui.md`
+### Phase 1: Core file tools (Gemini, Qwen, Grok)
+
+1. `tasks/20260315-gemini-qwen-grok-tool-packages/010-reader-tools.md` [done]
+2. `tasks/20260315-gemini-qwen-grok-tool-packages/020-edit-and-write-tools.md` [done]
+3. `tasks/20260315-gemini-qwen-grok-tool-packages/030-list-grep-glob-tools.md` [done]
+
+### Phase 1.5: Application and config support
+
+4. `tasks/20260315-gemini-qwen-grok-tool-packages/040-agent-and-provider-plugin-package-config.md` [done]
+5. `tasks/20260315-gemini-qwen-grok-tool-packages/050-vendor-friendly-system-messages.md` [done]
+6. `tasks/20260315-gemini-qwen-grok-tool-packages/060-simplified-system-message-configs-and-minimal-dynamics.md` [done]
+7. `tasks/20260315-gemini-qwen-grok-tool-packages/070-core-rebuild-after-native-initialize-changes.md` [done]
+8. `tasks/20260315-gemini-qwen-grok-tool-packages/080-portable-default-config-and-compiled-system-message-ui.md` [done]
+
+### Phase 2: Kimi + cross-vendor tools
+
+9. `tasks/20260315-gemini-qwen-grok-tool-packages/090-kimi-tools.md` — Kimi core file tools (ReadFile, WriteFile, StrReplaceFile, Glob, Grep)
+10. `tasks/20260315-gemini-qwen-grok-tool-packages/100-shell-tools.md` — Shell tools (all four vendors)
+11. `tasks/20260315-gemini-qwen-grok-tool-packages/110-web-fetch-tools.md` — Web fetch tools (Gemini, Qwen, Kimi; Grok skipped)
+12. `tasks/20260315-gemini-qwen-grok-tool-packages/120-web-search-tools.md` — Web search tools (Gemini, Qwen, Kimi; Grok skipped)
+13. `tasks/20260315-gemini-qwen-grok-tool-packages/130-todo-tools.md` — Todo tools (all four vendors)
+
+### Phase 2 shared packages
+
+- `plugins/tool-compat-shared/` — shared filesystem, search, shell, and todo internals (stdlib-only deps)
+- `plugins/web-fetch-shared/` — shared HTTP fetch, trafilatura extraction, and LLM summarization (heavy deps: `trafilatura`, `aiohttp`)
+
+## Roadmap: Deferred tools
+
+The following tools are deferred to future subtasks. Each has prerequisites from the deferred list and from completed work. High-priority items are listed first.
+
+### High priority
+
+#### 140 — Ask User Question (all vendors)
+
+Structured question/response tool allowing the LLM to present options to the user and receive structured answers.
+
+**Vendor coverage**:
+- Gemini: `ask_user` — free-form text question.
+- Kimi: `AskUserQuestion` — structured questions (1-4) with options (2-4 each), multi-select, recommended labels.
+- Qwen: no equivalent in current codebase.
+- Grok: no equivalent in current codebase.
+
+**Why deferred**: Requires core/app-layer changes for a question/response protocol between the tool plugin and the application's UI layer. The current `ToolPlugin` protocol only supports request/response tool calls — it does not have a mechanism for the tool to pause execution and wait for user interaction mid-turn.
+
+**Prerequisites**:
+- Core: extend `ToolPlugin` protocol or application layer with a question/response interaction model (e.g., `ToolQuestion` return type that the app/terminal can render as an interactive prompt).
+- Core or app: session-level state to track pending questions and their resolutions.
+- Terminal/HTTP app: UI support for rendering structured question prompts and collecting answers.
+- 040 (agent/provider plugin config) — for per-agent tool availability.
+
+**Source references**:
+- Kimi: `../kimi-cli/src/kimi_cli/tools/ask_user/__init__.py`, `../kimi-cli/src/kimi_cli/tools/ask_user/description.md`
+- Gemini: `../gemini-cli/packages/core/src/tools/ask-user.ts`, `../gemini-cli/packages/core/src/tools/definitions/model-family-sets/default-legacy.ts` (ask_user schema)
+
+#### 150 — Task / Subagent Delegation (all vendors)
+
+Tool for delegating work to specialized subagents from within a tool call.
+
+**Vendor coverage**:
+- Gemini: `SubagentTool` — agents-as-tools pattern; built-in subagents (`codebase_investigator`, `cli_help`, `generalist`) registered as tools.
+- Qwen: `Task` — delegates to subagents with `subagent_name` + `prompt` params.
+- Kimi: `Task` — delegates to subagents with `subagent_name` + `prompt` params; `CreateSubagent` — dynamically creates new subagent configurations at runtime.
+- Grok: no equivalent in current codebase.
+
+**Why deferred**: Requires core/app-layer subagent/labor market infrastructure. The current framework has no concept of subagent isolation, subagent toolsets, or subagent context management. This is a significant architectural extension.
+
+**Prerequisites**:
+- Core: subagent isolation model (separate toolset, separate context/history, separate session scope).
+- Core: labor market / subagent registry for managing available subagents.
+- Core: tool-call-level subagent execution within the existing tool pipeline.
+- App: per-agent subagent configuration wiring.
+- 040 (agent/provider plugin config) — for per-agent subagent specs.
+- 140 (ask user question) — subagents may need to ask questions during execution.
+
+**Source references**:
+- Gemini: `../gemini-cli/packages/core/src/agents/subagent-tool.ts`, `../gemini-cli/packages/core/src/agents/codebase-investigator.ts`, `../gemini-cli/packages/core/src/agents/cli-help-agent.ts`, `../gemini-cli/packages/core/src/agents/generalist-agent.ts`
+- Qwen: `../qwen-code/packages/core/src/tools/task.ts`
+- Kimi: `../kimi-cli/src/kimi_cli/tools/multiagent/task.py`, `../kimi-cli/src/kimi_cli/tools/multiagent/create.py`, `../kimi-cli/src/kimi_cli/soul/agent.py` (LaborMarket, Agent)
+
+#### 160 — Memory / Save Memory (Gemini, Qwen, Kimi)
+
+Persistent memory tool for saving and retrieving cross-session user context, preferences, and facts.
+
+**Vendor coverage**:
+- Gemini: `save_memory` — saves global user context (preferences, facts) for use across all workspaces. Param: `fact` (string).
+- Qwen: `MemoryTool` — similar concept, with potential `scope` (`global` | `project`) support.
+- Kimi: no equivalent in current codebase (but has `Think` tool for scratchpad reasoning).
+- Grok: no equivalent in current codebase.
+
+**Why deferred**: Only 2-3 of 4 vendors have this tool. Requires a persistent storage layer (file-based or database) for cross-session memory, plus scoping rules (global vs project-level). The current framework has no memory store abstraction.
+
+**Prerequisites**:
+- Core: memory store abstraction (persistent key-value or structured storage).
+- Core: per-session or per-workspace memory scoping.
+- App: memory store configuration and lifecycle management.
+- 040 (agent/provider plugin config) — for per-agent memory availability.
+
+**Source references**:
+- Gemini: `../gemini-cli/packages/core/src/tools/memoryTool.ts`
+- Qwen: `../qwen-code/packages/core/src/tools/memoryTool.ts`
+
+### Medium priority
+
+#### 170 — Read Media File (Gemini, Kimi)
+
+Tool for reading image and video files and returning them as inline media payloads for multimodal models.
+
+**Vendor coverage**:
+- Gemini: handled within `read_file` — the same tool reads text, images, audio, video, and PDF files, returning base64 inline data for non-text types.
+- Kimi: `ReadMediaFile` — dedicated tool for reading images and videos. Returns base64 data URLs or provider-specific upload results. Conditional on model capabilities (`image_in`, `video_in`).
+- Qwen: no dedicated tool; may handle media within `read_file`.
+- Grok: no dedicated tool.
+
+**Why deferred**: Requires extending the tool result pipeline to support non-text content parts (base64 images, video uploads). The current `ToolPlugin` protocol returns text-oriented results. Multimodal payloads need a way to flow through the tool message and into the model's input without being serialized as plain text.
+
+**Prerequisites**:
+- Core: tool result pipeline extension for non-text content parts (image/video/PDF inline data).
+- Core: model capability detection (whether the current model supports `image_in`, `video_in`).
+- Provider plugins: support for multimodal content parts in tool results.
+- 090 (Kimi core file tools) — for Kimi's `ReadMediaFile` integration.
+
+**Source references**:
+- Gemini: `../gemini-cli/packages/core/src/tools/read-file.ts` (media handling within reader)
+- Kimi: `../kimi-cli/src/kimi_cli/tools/file/read_media.py`, `../kimi-cli/src/kimi_cli/tools/file/utils.py` (media type detection)
+
+#### 180 — Plan Mode (Gemini, Kimi)
+
+Tools for entering and exiting plan mode, where the agent can explore and design an approach before executing.
+
+**Vendor coverage**:
+- Gemini: `enter_plan_mode` + `exit_plan_mode` — conditional on settings. Agent restricted to read-only tools during planning.
+- Kimi: `EnterPlanMode` + `ExitPlanMode` — presents Yes/No dialog to user. Plan file written to hero-name-slug path in `~/.kimi/plans/`. Agent restricted to read-only tools during planning. `ExitPlanMode` presents Approve/Reject/Revise dialog with plan content.
+- Qwen: `exit_plan_mode` only (enters plan mode via agent-level config, not a tool).
+- Grok: no equivalent.
+
+**Why deferred**: Requires core/app-layer plan state management (plan mode flag, restricted toolset, plan file lifecycle, user approval workflow). The current framework has no plan mode concept.
+
+**Prerequisites**:
+- Core: plan mode state management (per-session flag, toolset restriction).
+- Core: plan file lifecycle (create, read, write, approve/reject workflow).
+- 140 (ask user question) — for the Approve/Reject/Revise dialog in `ExitPlanMode`.
+- 090 (Kimi core file tools) — for plan file writing via `WriteFile`.
+
+**Source references**:
+- Gemini: `../gemini-cli/packages/core/src/tools/enter-plan-mode.ts`, `../gemini-cli/packages/core/src/tools/exitPlanMode.ts`
+- Kimi: `../kimi-cli/src/kimi_cli/tools/plan/enter.py`, `../kimi-cli/src/kimi_cli/tools/plan/__init__.py`, `../kimi-cli/src/kimi_cli/tools/plan/heroes.py` (plan file slug generation)
+
+### Low priority
+
+#### 190 — Think / Scratchpad (Kimi)
+
+Tool for explicit reasoning scratchpad where the model can write out step-by-step thinking.
+
+**Vendor coverage**:
+- Kimi: `Think` — param: `thought` (string). Commented out in Kimi's own default config.
+- Gemini, Qwen, Grok: no equivalent (reasoning is handled natively by reasoning-capable models).
+
+**Why deferred**: Low-value across vendors. Only Kimi has this tool, and it's disabled by default in Kimi's own config. Reasoning models handle this natively.
+
+**Prerequisites**:
+- 090 (Kimi core file tools) — for Kimi package structure.
+
+**Source references**:
+- Kimi: `../kimi-cli/src/kimi_cli/tools/think/__init__.py`, `../kimi-cli/src/kimi_cli/tools/think/think.md`
+
+#### 200 — Create Subagent (Kimi)
+
+Tool for dynamically creating new subagent configurations at runtime with custom system prompts.
+
+**Vendor coverage**:
+- Kimi: `CreateSubagent` — params: `name`, `system_prompt`. Commented out in Kimi's default config.
+- Gemini, Qwen: no equivalent (subagents are pre-configured).
+- Grok: no equivalent.
+
+**Why deferred**: Depends on 150 (Task / Subagent Delegation) for the subagent infrastructure. Only useful once subagent isolation and management exist.
+
+**Prerequisites**:
+- 150 (Task / Subagent Delegation) — subagent infrastructure must exist first.
+- 040 (agent/provider plugin config) — for per-agent subagent specs.
+
+**Source references**:
+- Kimi: `../kimi-cli/src/kimi_cli/tools/multiagent/create.py`
+
+#### 210 — Grok Unified Search (Grok)
+
+Grok's unified `search` tool combining text search, file name search, and pattern matching in one interface.
+
+**Vendor coverage**:
+- Grok: `search` — params: `query`, `search_type` (`text`/`files`/`both`), `include_pattern`, `exclude_pattern`, `case_sensitive`, `whole_word`, `regex`, `max_results`, `file_types`, `include_hidden`.
+- Gemini, Qwen, Kimi: separate `grep_search` + `glob` + `list_directory` tools.
+
+**Why deferred**: Grok's search is structurally different from the other vendors' separate list/grep/glob tools. It deserves its own dedicated subtask with careful attention to the unified interface.
+
+**Prerequisites**:
+- 030 (list/grep/glob tools) — for comparison and shared helper reuse.
+
+**Source references**:
+- Grok: `../grok-cli/src/grok/tools.ts` (search tool schema, line ~140)
 
 ## Cross-cutting decisions to preserve throughout implementation
 
 1. Public tool classes should be vendor-specific.
-- Example: `GeminiReadFileTool`, `QwenReadFileTool`, `GrokViewFileTool`
+- Example: `GeminiReadFileTool`, `QwenReadFileTool`, `GrokViewFileTool`, `KimiReadFileTool`
 2. Shared internals should live outside the public plugin surface.
 3. No alias parameters unless a subtask explicitly decides a backward-compat alias is necessary.
 4. Tests should assert exact schema names, parameter names, and important truncation/error strings.
@@ -167,20 +359,38 @@ Key observations:
 6. At the agent/provider config level, `plugins` should mean plugin package specs rather than enabled plugin ids.
 7. No backward compatibility is required for the old agent-level `plugins` meaning.
 8. Add config-level `disabled_plugins` support as a concise alternative to an explicit enabled list.
+9. **Response formatting is a first-class requirement for every tool.** Every tool must match the original CLI's LLM-visible output as closely as practical, including truncation banners, line numbering, per-line truncation markers, content/character/byte limits, success/error message wording, and result metadata structure. Shared helpers produce vendor-neutral intermediate dicts; vendor wrappers apply vendor-specific formatting. Formatting should be verified against upstream source during implementation and captured in snapshot tests.
+10. **Heavy dependencies should be isolated.** Shared helpers that require non-stdlib dependencies (e.g., `trafilatura`, `aiohttp`) should live in dedicated shared packages (e.g., `web-fetch-shared`) rather than in `tool-compat-shared`.
 
 ## Open design questions to resolve during execution
 
-1. Where exactly should the shared internal package live?
+1. Where exactly should the shared internal packages live?
 - Options include a dedicated internal package repo under `plugins/` or shared code duplicated minimally per plugin package.
+- Resolved for Phase 1: `plugins/tool-compat-shared/` with stdlib-only deps.
+- Phase 2 adds: `plugins/web-fetch-shared/` for heavy HTTP/extraction deps.
 2. Whether vendor-specific packages should each vendor-copy a tiny compatibility layer or depend on a common installable local package.
+- Resolved: depend on a common installable local package.
 3. For the fourth subtask, whether provider-level plugin package specs should be allowed only on provider configs, only on agent configs, or on both with a documented merge order.
+- Resolved in 040.
 4. Exact precedence between session metadata `plugins`, config-level `disabled_plugins`, and implicit all-enabled behavior.
+- Resolved in 040.
+5. How to handle Gemini API key gating for web search and web fetch tools.
+- Proposed: raise `SkipThisTool` in `init()` when no API key is available. Verify feasibility during 110/120 implementation.
+6. How to provide LLM provider for web fetch summarization.
+- Proposed: configurable via plugin config, defaulting to the agent's current provider. Falls back to raw content if no provider available. Verify during 110 implementation.
 
 ## Recommended execution order
 
-1. Reader tools first, including the shared internal read engine and package structure decisions.
-2. Edit/write tools second, reusing the same shared package.
-3. List/grep/glob third, after the shared filesystem/search helpers are in place.
-4. Agent/provider plugin package config support either before tool-package rollout or in parallel, because it enables cleaner configuration of the new vendor bundles.
-5. Vendor-friendly system messages after the vendor tool surfaces are stable enough to reference accurately.
-6. Simplified runtime system-message configs and minimal dynamic-section support after the extracted vendor instructions exist and the package-loading model is stable.
+1. Reader tools first, including the shared internal read engine and package structure decisions. [done]
+2. Edit/write tools second, reusing the same shared package. [done]
+3. List/grep/glob third, after the shared filesystem/search helpers are in place. [done]
+4. Agent/provider plugin package config support either before tool-package rollout or in parallel, because it enables cleaner configuration of the new vendor bundles. [done]
+5. Vendor-friendly system messages after the vendor tool surfaces are stable enough to reference accurately. [done]
+6. Simplified runtime system-message configs and minimal dynamic-section support after the extracted vendor instructions exist and the package-loading model is stable. [done]
+7. Kimi core file tools to establish the fourth vendor package and extend shared helpers. (090)
+8. Shell tools across all vendors, using Kimi's Python-native implementation as the shared helper seed. (100)
+9. Web fetch tools with Gemini SDK integration, API key gating, and LLM summarization support. (110)
+10. Web search tools with Gemini SDK grounding, citation formatting, and multi-provider support. (120)
+11. Todo tools across all vendors, including Grok's unique two-tool create/update pattern. (130)
+12. Deferred high-priority tools: ask user question, task/subagent, memory. (140-160)
+13. Deferred medium-priority tools: read media file, plan mode. (170-180)

@@ -5,6 +5,7 @@ import fnmatch
 import json
 import mimetypes
 import os
+import re
 from pathlib import Path
 from typing import Any, Optional
 
@@ -425,6 +426,33 @@ def is_path_ignored(path_value: str, *, root: str, ignore_filename: str) -> bool
         if fnmatch.fnmatch(relative, normalized) or fnmatch.fnmatch(target.name, normalized):
             return True
     return False
+
+
+def truncate_line(line: str, max_length: int, marker: str = "...") -> str:
+    """Truncate a line if it exceeds max_length, preserving trailing line breaks.
+
+    The output may be longer than max_length if it is too short to fit the marker.
+    """
+    if len(line) <= max_length:
+        return line
+    m = re.search(r"[\r\n]+$", line)
+    linebreak = m.group(0) if m else ""
+    end = marker + linebreak
+    effective_max = max(max_length, len(end))
+    return line[: effective_max - len(end)] + end
+
+
+def format_with_line_numbers(lines: list[str], start_line: int = 1, width: int = 6) -> str:
+    """Format lines with right-aligned line numbers and a tab separator (cat -n style).
+
+    Each line is terminated with a newline character. The input lines should
+    not include their own trailing newlines.
+    """
+    parts: list[str] = []
+    for index, line in enumerate(lines):
+        line_num = start_line + index
+        parts.append(f"{line_num:{width}d}\t{line}\n")
+    return "".join(parts)
 
 
 def format_tool_result_payload(outcome: dict[str, Any]) -> dict[str, Any]:

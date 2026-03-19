@@ -120,6 +120,12 @@ def _sort_paths_by_recency(paths: list[Path]) -> list[Path]:
     return sorted(paths, key=sort_key)
 
 
+def _sort_paths(paths: list[Path], *, sort_mode: str | None = None) -> list[Path]:
+    if sort_mode == "alphabetical":
+        return sorted(paths, key=str)
+    return _sort_paths_by_recency(paths)
+
+
 def glob_search(
     pattern: str,
     *,
@@ -129,6 +135,9 @@ def glob_search(
     case_sensitive: bool = False,
     respect_git_ignore: bool = True,
     respect_vendor_ignore: bool = True,
+    sort_mode: str | None = None,
+    max_results: int | None = None,
+    include_dirs: bool | None = None,
 ) -> dict[str, Any]:
     # Try ripgrep-based fast search first
     all_matched_from_rg = []
@@ -167,7 +176,11 @@ def glob_search(
     if successful_ripgrep_calls:
         # Successfully used ripgrep, return results with deduplication and sorting
         unique_matches = list({path: None for path in all_matched_from_rg}.keys())
-        sorted_matches = _sort_paths_by_recency(unique_matches)
+        if include_dirs is False:
+            unique_matches = [p for p in unique_matches if p.is_file()]
+        sorted_matches = _sort_paths(unique_matches, sort_mode=sort_mode)
+        if max_results is not None:
+            sorted_matches = sorted_matches[:max_results]
         return {
             "ok": True,
             "paths": [str(path) for path in sorted_matches],
@@ -200,7 +213,12 @@ def glob_search(
             if _match_path(pattern, relative, case_sensitive=case_sensitive):
                 matched.append(candidate)
 
-    sorted_matches = _sort_paths_by_recency(list({path: None for path in matched}.keys()))
+    unique_matched = list({path: None for path in matched}.keys())
+    if include_dirs is False:
+        unique_matched = [p for p in unique_matched if p.is_file()]
+    sorted_matches = _sort_paths(unique_matched, sort_mode=sort_mode)
+    if max_results is not None:
+        sorted_matches = sorted_matches[:max_results]
     return {
         "ok": True,
         "paths": [str(path) for path in sorted_matches],
@@ -223,6 +241,12 @@ def _run_ripgrep(
     names_only: bool,
     max_matches_per_file: int | None,
     respect_git_ignore: bool,
+    context_before: int | None = None,
+    context_after: int | None = None,
+    count_mode: bool = False,
+    show_line_numbers: bool = False,
+    type_filter: str | None = None,
+    multiline: bool = False,
 ) -> dict[str, Any]:
     rg = shutil.which("rg")
     if not rg:
@@ -232,16 +256,28 @@ def _run_ripgrep(
     cwd = str(target if target.is_dir() else target.parent)
     target_arg = "." if target.is_dir() else target.name
     args = [rg]
-    if names_only:
+    if count_mode:
+        args.extend(["--count", "--no-messages"])
+    elif names_only:
         args.extend(["--files-with-matches", "--no-messages"])
     else:
-        args.extend(["--json", "-n", "--no-messages"])
+        args.extend(["--json", "--no-messages"])
+        if show_line_numbers:
+            args.append("-n")
     if ignore_case:
         args.append("-i")
     if not respect_git_ignore:
         args.append("--no-ignore")
-    if max_matches_per_file is not None and max_matches_per_file > 0 and not names_only:
+    if max_matches_per_file is not None and max_matches_per_file > 0 and not names_only and not count_mode:
         args.extend(["--max-count", str(max_matches_per_file)])
+    if context_before is not None and not names_only and not count_mode:
+        args.extend(["--before-context", str(context_before)])
+    if context_after is not None and not names_only and not count_mode:
+        args.extend(["--after-context", str(context_after)])
+    if type_filter:
+        args.extend(["--type", type_filter])
+    if multiline:
+        args.append("--multiline-dotall")
     if glob_pattern:
         args.extend(["--glob", glob_pattern])
     args.extend([pattern, target_arg])
@@ -249,7 +285,7 @@ def _run_ripgrep(
     if completed.returncode not in {0, 1}:
         stderr = completed.stderr.strip() or completed.stdout.strip() or "ripgrep failed"
         return {"ok": False, "error": stderr, "code": "rg_failed"}
-    return {"ok": True, "stdout": completed.stdout, "names_only": names_only, "cwd": cwd}
+    return {"ok": True, "stdout": completed.stdout, "names_only": names_only, "count_mode": count_mode, "cwd": cwd}
 
 
 def _try_glob_with_ripgrep(pattern: str, search_directory: str, respect_git_ignore: bool) -> list[str] | None:
@@ -307,13 +343,33 @@ def _parse_ripgrep_output(payload: dict[str, Any], *, search_path: str) -> list[
             results.append({"path": absolute_path})
         return results
 
+    if payload.get("count_mode"):
+        cwd = Path(payload["cwd"]).resolve()
+        for raw_line in str(payload["stdout"]).splitlines():
+            raw_line = raw_line.strip()
+            if not raw_line:
+                continue
+            # rg --count output format: "path:count" or "path:count:match_count"
+            parts = raw_line.rsplit(":", 1)
+            if len(parts) == 2:
+                text_path = parts[0]
+                count_str = parts[1].strip()
+                try:
+                    match_count = int(count_str)
+                except ValueError:
+                    continue
+                absolute_path = str((cwd / text_path).resolve())
+                results.append({"path": absolute_path, "count": match_count})
+        return results
+
     cwd = Path(payload["cwd"]).resolve()
     for raw_line in str(payload["stdout"]).splitlines():
         raw_line = raw_line.strip()
         if not raw_line:
             continue
         event = json.loads(raw_line)
-        if event.get("type") != "match":
+        event_type = event.get("type")
+        if event_type not in ("match", "context"):
             continue
         data = event.get("data") or {}
         path_data = data.get("path") or {}
@@ -327,6 +383,7 @@ def _parse_ripgrep_output(payload: dict[str, Any], *, search_path: str) -> list[
                 "path": absolute_path,
                 "line_number": int(data.get("line_number") or 0),
                 "line": line_text,
+                "_type": event_type,
             }
         )
     return results
@@ -347,6 +404,12 @@ def grep_search(
     respect_git_ignore: bool = True,
     respect_vendor_ignore: bool = True,
     use_rg: bool | None = None,
+    context_before: int | None = None,
+    context_after: int | None = None,
+    count_mode: bool = False,
+    show_line_numbers: bool = False,
+    type_filter: str | None = None,
+    multiline: bool = False,
 ) -> dict[str, Any]:
     compiled = _compile_pattern(pattern, ignore_case=ignore_case)
     excluded = re.compile(exclude_pattern) if exclude_pattern else None
@@ -362,6 +425,12 @@ def grep_search(
             names_only=names_only,
             max_matches_per_file=max_matches_per_file,
             respect_git_ignore=respect_git_ignore,
+            context_before=context_before,
+            context_after=context_after,
+            count_mode=count_mode,
+            show_line_numbers=show_line_numbers,
+            type_filter=type_filter,
+            multiline=multiline,
         )
         if rg_payload.get("ok"):
             raw_results = _parse_ripgrep_output(rg_payload, search_path=search_path)
@@ -425,12 +494,21 @@ def grep_search(
                 continue
             seen_paths.add(path_value)
             filtered_results.append({"path": path_value})
+        elif count_mode:
+            # Count mode results just have path and count
+            filtered_results.append({
+                "path": path_value,
+                "count": item.get("count", 0),
+            })
         else:
             line = str(item.get("line") or "")
-            if not compiled.search(line):
-                continue
-            if excluded and excluded.search(line):
-                continue
+            # Context lines (from --before-context/--after-context) pass through
+            # without pattern matching since they are included by ripgrep positionally.
+            if item.get("_type") != "context":
+                if not compiled.search(line):
+                    continue
+                if excluded and excluded.search(line):
+                    continue
             filtered_results.append(
                 {"path": path_value, "line_number": int(item.get("line_number") or 0), "line": line.rstrip()}
             )

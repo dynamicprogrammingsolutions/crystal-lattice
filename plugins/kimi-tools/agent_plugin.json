@@ -1,0 +1,18 @@
+{
+  "module": "kimi_tools",
+  "subdirectory": ".",
+  "entries": [
+    "kimi_tools.kimi_read_file_tool.KimiReadFileTool",
+    "kimi_tools.kimi_write_file_tool.KimiWriteFileTool",
+    "kimi_tools.kimi_str_replace_file_tool.KimiStrReplaceFileTool",
+    "kimi_tools.kimi_glob_tool.KimiGlobTool",
+    "kimi_tools.kimi_grep_tool.KimiGrepTool"
+  ],
+  "kinds": {
+    "kimi_tools.kimi_read_file_tool.KimiReadFileTool": "tools",
+    "kimi_tools.kimi_write_file_tool.KimiWriteFileTool": "tools",
+    "kimi_tools.kimi_str_replace_file_tool.KimiStrReplaceFileTool": "tools",
+    "kimi_tools.kimi_glob_tool.KimiGlobTool": "tools",
+    "kimi_tools.kimi_grep_tool.KimiGrepTool": "tools"
+  }
+}
