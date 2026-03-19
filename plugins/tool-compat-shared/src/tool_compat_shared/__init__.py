@@ -20,7 +20,7 @@ from .reader_engine import (
     truncate_line,
     validate_path_within_directories,
 )
-from .editor_engine import apply_text_replacements, replace_literal_text, write_text_file
+from .editor_engine import replace_edits, replace_literal_text, write_text_file
 from .search_engine import (
     MAX_QWEN_GLOB_RESULTS,
     format_gemini_glob_result,
@@ -39,7 +39,7 @@ __all__ = [
     "DEFAULT_QWEN_CHAR_LIMIT",
     "DEFAULT_QWEN_LINE_LIMIT",
     "SVG_MAX_SIZE_BYTES",
-    "apply_text_replacements",
+    "replace_edits",
     "build_qwen_truncation_wrapper",
     "detect_bom",
     "format_gemini_glob_result",

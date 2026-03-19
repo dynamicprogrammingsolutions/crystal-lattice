@@ -6,8 +6,7 @@ from typing import Any, Dict, List
 
 from agent_core.types import ToolPlugin
 from tool_compat_shared import (
-    apply_text_replacements,
-    read_file_with_encoding,
+    replace_edits,
     resolve_path,
     validate_path_within_directories,
 )
@@ -166,31 +165,25 @@ class KimiStrReplaceFileTool(ToolPlugin):
         if not target.is_file():
             return {"success": False, "error": f"`{raw_path}` is not a file."}
 
-        # Read current content
-        original_content = read_file_with_encoding(target)
-        content = original_content
+        # Build edits with Kimi semantics: reject_ambiguous=False
+        shared_edits = [
+            {
+                "old": edit["old"],
+                "new": edit["new"],
+                "replace_all": edit["replace_all"],
+                "reject_ambiguous": False,
+            }
+            for edit in edits
+        ]
 
-        # Apply edits sequentially
-        total_replacements = 0
-        for edit in edits:
-            content, count = apply_text_replacements(
-                content,
-                edit["old"],
-                edit["new"],
-                replace_all=edit["replace_all"],
-            )
-            total_replacements += count
-
-        # Check if any changes were made
-        if content == original_content:
+        outcome = replace_edits(resolved, edits=shared_edits)
+        if not outcome["ok"]:
             return {
                 "success": False,
                 "error": "No replacements were made. The old string was not found in the file.",
             }
 
-        # Write modified content
-        target.write_text(content, encoding="utf-8")
-
+        total_replacements = outcome["occurrences"]
         message = (
             f"File successfully edited. "
             f"Applied {len(edits)} edit(s) with {total_replacements} total replacement(s)."
