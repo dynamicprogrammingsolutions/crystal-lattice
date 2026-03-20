@@ -508,6 +508,7 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
         stream_state = self._stream_state_from_state(state)
 
         if event_type == "response.created":
+            stream_state = self._empty_stream_state()
             response = event.get("response")
             if isinstance(response, dict):
                 response_id = response.get("id")

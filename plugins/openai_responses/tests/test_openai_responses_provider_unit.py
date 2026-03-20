@@ -175,6 +175,31 @@ class _UploadStreamingFixtureClient(_FixtureStreamingClient):
         self.files = _FixtureFilesResource()
 
 
+class _SequentialStreamingResponsesResource:
+    def __init__(self, event_batches: list[list[Dict[str, Any]]]) -> None:
+        self._event_batches = event_batches
+        self._cursor = 0
+        self.calls: list[Dict[str, Any]] = []
+
+    def create(self, **kwargs: Any) -> _FixtureStream:
+        self.calls.append(kwargs)
+        if kwargs.get("stream") is not True:
+            raise AssertionError("expected stream=True")
+        index = self._cursor if self._cursor < len(self._event_batches) else len(self._event_batches) - 1
+        self._cursor += 1
+        return _FixtureStream(self._event_batches[index])
+
+
+class _SequentialStreamingClient:
+    def __init__(self, event_batches: list[list[Dict[str, Any]]]) -> None:
+        self.responses = _SequentialStreamingResponsesResource(event_batches)
+        self.option_calls: list[Dict[str, Any]] = []
+
+    def with_options(self, **kwargs: Any) -> "_SequentialStreamingClient":
+        self.option_calls.append(kwargs)
+        return self
+
+
 class _RetryOnceResponsesResource:
     def __init__(self, payload: Dict[str, Any]) -> None:
         self._payload = payload
@@ -237,6 +262,81 @@ class _StreamingFailureFixtureProvider(OpenAIResponsesProvider):
         state = super().init(config)
         state["client"] = _FixtureStreamingClient(_load_failed_stream_fixture_events())
         return state
+
+
+def _premature_stream_events(*, include_partial: bool) -> list[Dict[str, Any]]:
+    events: list[Dict[str, Any]] = [
+        {
+            "type": "response.created",
+            "sequence_number": 0,
+            "response": {"id": "resp_retry_fixture", "status": "in_progress", "output": []},
+        },
+        {
+            "type": "response.in_progress",
+            "sequence_number": 1,
+            "response": {"id": "resp_retry_fixture", "status": "in_progress", "output": []},
+        },
+    ]
+    if include_partial:
+        events.append(
+            {
+                "type": "response.output_text.delta",
+                "sequence_number": 2,
+                "delta": "partial ",
+                "item_id": "msg_retry_fixture_1",
+                "output_index": 0,
+                "content_index": 0,
+                "logprobs": [],
+            }
+        )
+    return events
+
+
+class _RecoveryProviderBase(OpenAIResponsesProvider):
+    recovery_mode = "early_only"
+    include_partial = False
+    last_client: _SequentialStreamingClient | None = None
+
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        state = super().init(config)
+        client = _SequentialStreamingClient(
+            [
+                _premature_stream_events(include_partial=self.include_partial),
+                _load_stream_fixture_events(),
+            ]
+        )
+        type(self).last_client = client
+        state["client"] = client
+        return state
+
+    def initialize_request(
+        self,
+        native_messages: list[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> tuple[list[Dict[str, Any]], Dict[str, Any]]:
+        native_after, next_state = super().initialize_request(native_messages, state)
+        request = dict(next_state.get("request") or {})
+        payload = dict(request.get("payload") or {})
+        payload["service_tier"] = "flex"
+        request["payload"] = payload
+        request["stream_recovery_mode"] = self.recovery_mode
+        request["stream_recovery_retries"] = 3
+        return native_after, {**next_state, "request": request}
+
+
+class _EarlyOnlyRecoveryProvider(_RecoveryProviderBase):
+    recovery_mode = "early_only"
+    include_partial = False
+
+
+class _EarlyOnlyVisiblePartialProvider(_RecoveryProviderBase):
+    recovery_mode = "early_only"
+    include_partial = True
+
+
+class _AggressiveRecoveryProvider(_RecoveryProviderBase):
+    recovery_mode = "aggressive"
+    include_partial = True
 
 
 def test_provider_metadata_schema_and_tags() -> None:
@@ -2303,6 +2403,83 @@ def test_send_request_stream_raises_on_failed_terminal_event() -> None:
 
     with pytest.raises(RuntimeError, match="response.failed"):
         list(core.send_request_stream(session, config))
+
+
+def test_send_request_stream_recovers_premature_flex_stream_in_early_only_mode() -> None:
+    core = AgentCore()
+    core.register_provider(_EarlyOnlyRecoveryProvider)
+
+    config = {
+        "model": "gpt-5-mini",
+        "api_key": "test_key",
+        "base_url": "https://api.openai.com/v1",
+        "timeout": 30,
+    }
+
+    session = core.create_session()
+    session = core.add_message(session, "user", "Reply with STREAM_OK")
+
+    events = list(core.send_request_stream(session, config))
+
+    finals = [event for event in events if event.get("type") == "final"]
+
+    assert len(finals) == 1
+    assert finals[0]["messages"]
+
+    client = _EarlyOnlyRecoveryProvider.last_client
+    assert client is not None
+    assert [call.get("stream") for call in client.responses.calls] == [True, True]
+
+
+def test_send_request_stream_does_not_recover_visible_partials_in_early_only_mode() -> None:
+    core = AgentCore()
+    core.register_provider(_EarlyOnlyVisiblePartialProvider)
+
+    config = {
+        "model": "gpt-5-mini",
+        "api_key": "test_key",
+        "base_url": "https://api.openai.com/v1",
+        "timeout": 30,
+    }
+
+    session = core.create_session()
+    session = core.add_message(session, "user", "Reply with STREAM_OK")
+
+    with pytest.raises(RuntimeError, match="without response.completed"):
+        list(core.send_request_stream(session, config))
+
+    client = _EarlyOnlyVisiblePartialProvider.last_client
+    assert client is not None
+    assert [call.get("stream") for call in client.responses.calls] == [True]
+
+
+def test_send_request_stream_recovers_visible_partials_in_aggressive_mode() -> None:
+    core = AgentCore()
+    core.register_provider(_AggressiveRecoveryProvider)
+
+    config = {
+        "model": "gpt-5-mini",
+        "api_key": "test_key",
+        "base_url": "https://api.openai.com/v1",
+        "timeout": 30,
+    }
+
+    session = core.create_session()
+    session = core.add_message(session, "user", "Reply with STREAM_OK")
+
+    events = list(core.send_request_stream(session, config))
+
+    partials = [event for event in events if event.get("type") == "partial"]
+    finals = [event for event in events if event.get("type") == "final"]
+
+    assert partials
+    assert any(partial["message"].get("content") == "partial " for partial in partials)
+    assert len(finals) == 1
+    assert finals[0]["messages"]
+
+    client = _AggressiveRecoveryProvider.last_client
+    assert client is not None
+    assert [call.get("stream") for call in client.responses.calls] == [True, True]
 
 
 def test_response_internal_metadata_preserves_service_tier() -> None:

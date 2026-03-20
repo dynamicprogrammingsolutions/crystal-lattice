@@ -15,13 +15,18 @@ _ENABLE_FLEX_KEY = "enable_flex_processing"
 _FLEX_TIMEOUT_KEY = "flex_timeout_seconds"
 _ENABLE_FLEX_RETRIES_KEY = "enable_flex_retries"
 _FLEX_MAX_RETRIES_KEY = "flex_max_retries"
+_FLEX_STREAM_RECOVERY_MODE_KEY = "flex_stream_recovery_mode"
+_FLEX_STREAM_RECOVERY_RETRIES_KEY = "flex_stream_recovery_retries"
 
 _DEFAULT_FLEX_TIMEOUT_SECONDS = 300.0
 _DEFAULT_FLEX_MAX_RETRIES = 2
+_DEFAULT_FLEX_STREAM_RECOVERY_MODE = "early_only"
+_DEFAULT_FLEX_STREAM_RECOVERY_RETRIES = 3
 _FLEX_STATE_KEY = "openai_responses_flex_processing"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
 _PUBLIC_SERVICE_TIER_KEY = "openai_service_tier"
 _PUBLIC_FLEX_APPLIED_KEY = "flex_processing_applied"
+_FLEX_STREAM_RECOVERY_MODES = ("disabled", "early_only", "aggressive")
 
 
 class OpenAIResponsesFlexProcessingExtension(ProviderExtensionPlugin):
@@ -62,6 +67,21 @@ class OpenAIResponsesFlexProcessingExtension(ProviderExtensionPlugin):
                 "default": _DEFAULT_FLEX_MAX_RETRIES,
                 "description": "Maximum retry count for flex processing requests.",
             },
+            _FLEX_STREAM_RECOVERY_MODE_KEY: {
+                "type": "string",
+                "required": False,
+                "default": _DEFAULT_FLEX_STREAM_RECOVERY_MODE,
+                "description": (
+                    "How to recover flex streams that end before response.completed. "
+                    "Use disabled, early_only, or aggressive."
+                ),
+            },
+            _FLEX_STREAM_RECOVERY_RETRIES_KEY: {
+                "type": "integer",
+                "required": False,
+                "default": _DEFAULT_FLEX_STREAM_RECOVERY_RETRIES,
+                "description": "Maximum replay attempts after a premature flex stream end.",
+            },
         }
 
     def get_ui_elements(
@@ -91,6 +111,20 @@ class OpenAIResponsesFlexProcessingExtension(ProviderExtensionPlugin):
                 "type": "number",
                 "key": _FLEX_MAX_RETRIES_KEY,
                 "label": "Flex max retries",
+            },
+            {
+                "type": "dropdown",
+                "key": _FLEX_STREAM_RECOVERY_MODE_KEY,
+                "label": "Flex stream recovery",
+                "options": [
+                    {"value": value, "label": value}
+                    for value in _FLEX_STREAM_RECOVERY_MODES
+                ],
+            },
+            {
+                "type": "number",
+                "key": _FLEX_STREAM_RECOVERY_RETRIES_KEY,
+                "label": "Flex stream recovery retries",
             },
         ]
 
@@ -172,6 +206,18 @@ class OpenAIResponsesFlexProcessingExtension(ProviderExtensionPlugin):
         else:
             next_request.pop("max_retries", None)
 
+        stream_recovery_mode = flex_settings.get("stream_recovery_mode")
+        if isinstance(stream_recovery_mode, str):
+            next_request["stream_recovery_mode"] = stream_recovery_mode
+        else:
+            next_request.pop("stream_recovery_mode", None)
+
+        stream_recovery_retries = flex_settings.get("stream_recovery_retries")
+        if isinstance(stream_recovery_retries, int):
+            next_request["stream_recovery_retries"] = stream_recovery_retries
+        else:
+            next_request.pop("stream_recovery_retries", None)
+
         return native_messages, {**state, "request": next_request}
 
     def _normalized_flex_settings(self, config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -184,6 +230,13 @@ class OpenAIResponsesFlexProcessingExtension(ProviderExtensionPlugin):
         settings: Dict[str, Any] = {"timeout": timeout}
         if enable_retries:
             settings["max_retries"] = self._normalized_max_retries(config.get(_FLEX_MAX_RETRIES_KEY))
+
+        settings["stream_recovery_mode"] = self._normalized_stream_recovery_mode(
+            config.get(_FLEX_STREAM_RECOVERY_MODE_KEY)
+        )
+        settings["stream_recovery_retries"] = self._normalized_stream_recovery_retries(
+            config.get(_FLEX_STREAM_RECOVERY_RETRIES_KEY)
+        )
 
         return settings
 
@@ -211,6 +264,25 @@ class OpenAIResponsesFlexProcessingExtension(ProviderExtensionPlugin):
             return _DEFAULT_FLEX_MAX_RETRIES
         if retries < 0:
             return _DEFAULT_FLEX_MAX_RETRIES
+        return retries
+
+    @staticmethod
+    def _normalized_stream_recovery_mode(raw: Any) -> str:
+        if not isinstance(raw, str):
+            return _DEFAULT_FLEX_STREAM_RECOVERY_MODE
+        normalized = raw.strip().lower()
+        if normalized not in _FLEX_STREAM_RECOVERY_MODES:
+            return _DEFAULT_FLEX_STREAM_RECOVERY_MODE
+        return normalized
+
+    @staticmethod
+    def _normalized_stream_recovery_retries(raw: Any) -> int:
+        try:
+            retries = int(raw)
+        except (TypeError, ValueError):
+            return _DEFAULT_FLEX_STREAM_RECOVERY_RETRIES
+        if retries < 0:
+            return _DEFAULT_FLEX_STREAM_RECOVERY_RETRIES
         return retries
 
     @staticmethod
