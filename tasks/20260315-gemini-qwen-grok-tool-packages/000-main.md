@@ -164,7 +164,8 @@ Key observations:
 
 ### Phase 2: Kimi + cross-vendor tools
 
-9. `tasks/20260315-gemini-qwen-grok-tool-packages/090-kimi-tools.md` — Kimi core file tools (ReadFile, WriteFile, StrReplaceFile, Glob, Grep)
+9. `tasks/20260315-gemini-qwen-grok-tool-packages/090-kimi-tools.md` — Kimi core file tools (ReadFile, WriteFile, StrReplaceFile, Glob, Grep) [done]
+9b. `tasks/20260315-gemini-qwen-grok-tool-packages/095-kimi-system-message.md` — Kimi default system message extraction and runtime template
 10. `tasks/20260315-gemini-qwen-grok-tool-packages/100-shell-tools.md` — Shell tools (all four vendors)
 11. `tasks/20260315-gemini-qwen-grok-tool-packages/110-web-fetch-tools.md` — Web fetch tools (Gemini, Qwen, Kimi; Grok skipped)
 12. `tasks/20260315-gemini-qwen-grok-tool-packages/120-web-search-tools.md` — Web search tools (Gemini, Qwen, Kimi; Grok skipped)
