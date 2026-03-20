@@ -2709,18 +2709,26 @@ class AgentCore:
                 stream_error = f"Tool error: {exc}"
 
             if iterator is not None:
-                for chunk in iterator:
-                    if not isinstance(chunk, dict):
-                        continue
-                    if "success" in chunk:
-                        last_result = chunk
-                        had_result = True
-                    elif "part" in chunk:
-                        # Partial display payload; forward as-is.
-                        yield chunk
-                    else:
-                        # Backwards-compatible: treat any other dict as a partial payload.
-                        yield {"part": chunk}
+                try:
+                    for chunk in iterator:
+                        if not isinstance(chunk, dict):
+                            continue
+                        if "success" in chunk:
+                            last_result = chunk
+                            had_result = True
+                        elif "part" in chunk:
+                            # Partial display payload; forward as-is.
+                            yield chunk
+                        else:
+                            # Backwards-compatible: treat any other dict as a partial payload.
+                            yield {"part": chunk}
+                except Exception as exc:
+                    stream_error = f"Tool error: {exc}"
+                    logger.error(
+                        "iter_tool_messages_stream_error",
+                        tool_name=str(name),
+                        error=str(exc),
+                    )
 
             if not had_result:
                 # No RESULT dict was produced; synthesize an error message.

@@ -1,6 +1,25 @@
 {
-  "fetched_at": "2026-03-14T06:10:24+00:00",
+  "fetched_at": "2026-03-20T07:44:24+00:00",
   "models": {
+    "babbage-002": {
+      "model": "babbage-002",
+      "pricing": {
+        "cached_input_per_1m": null,
+        "input_per_1m": 0.4,
+        "output_per_1m": 0.4
+      },
+      "service_tiers": {
+        "batch": {
+          "input_per_1m": 0.2,
+          "output_per_1m": 0.2
+        },
+        "standard": {
+          "input_per_1m": 0.4,
+          "output_per_1m": 0.4
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
     "chatgpt-image-latest": {
       "model": "chatgpt-image-latest",
       "pricing": {
@@ -53,6 +72,283 @@
         "standard": {
           "input_per_1m": 3.0,
           "output_per_1m": 12.0
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
+    "davinci-002": {
+      "model": "davinci-002",
+      "pricing": {
+        "cached_input_per_1m": null,
+        "input_per_1m": 2.0,
+        "output_per_1m": 2.0
+      },
+      "service_tiers": {
+        "batch": {
+          "input_per_1m": 1.0,
+          "output_per_1m": 1.0
+        },
+        "standard": {
+          "input_per_1m": 2.0,
+          "output_per_1m": 2.0
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
+    "gpt-3.5-0301": {
+      "model": "gpt-3.5-0301",
+      "pricing": {
+        "cached_input_per_1m": null,
+        "input_per_1m": 1.5,
+        "output_per_1m": 2.0
+      },
+      "service_tiers": {
+        "batch": {
+          "input_per_1m": 1.5,
+          "output_per_1m": 2.0
+        },
+        "standard": {
+          "input_per_1m": 1.5,
+          "output_per_1m": 2.0
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
+    "gpt-3.5-turbo": {
+      "model": "gpt-3.5-turbo",
+      "pricing": {
+        "cached_input_per_1m": null,
+        "input_per_1m": 0.5,
+        "output_per_1m": 1.5
+      },
+      "service_tiers": {
+        "standard": {
+          "input_per_1m": 0.5,
+          "output_per_1m": 1.5
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
+    "gpt-3.5-turbo-0125": {
+      "model": "gpt-3.5-turbo-0125",
+      "pricing": {
+        "cached_input_per_1m": null,
+        "input_per_1m": 0.5,
+        "output_per_1m": 1.5
+      },
+      "service_tiers": {
+        "batch": {
+          "input_per_1m": 0.25,
+          "output_per_1m": 0.75
+        },
+        "standard": {
+          "input_per_1m": 0.5,
+          "output_per_1m": 1.5
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
+    "gpt-3.5-turbo-0613": {
+      "model": "gpt-3.5-turbo-0613",
+      "pricing": {
+        "cached_input_per_1m": null,
+        "input_per_1m": 1.5,
+        "output_per_1m": 2.0
+      },
+      "service_tiers": {
+        "batch": {
+          "input_per_1m": 1.5,
+          "output_per_1m": 2.0
+        },
+        "standard": {
+          "input_per_1m": 1.5,
+          "output_per_1m": 2.0
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
+    "gpt-3.5-turbo-1106": {
+      "model": "gpt-3.5-turbo-1106",
+      "pricing": {
+        "cached_input_per_1m": null,
+        "input_per_1m": 1.0,
+        "output_per_1m": 2.0
+      },
+      "service_tiers": {
+        "batch": {
+          "input_per_1m": 1.0,
+          "output_per_1m": 2.0
+        },
+        "standard": {
+          "input_per_1m": 1.0,
+          "output_per_1m": 2.0
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
+    "gpt-3.5-turbo-16k-0613": {
+      "model": "gpt-3.5-turbo-16k-0613",
+      "pricing": {
+        "cached_input_per_1m": null,
+        "input_per_1m": 3.0,
+        "output_per_1m": 4.0
+      },
+      "service_tiers": {
+        "batch": {
+          "input_per_1m": 1.5,
+          "output_per_1m": 2.0
+        },
+        "standard": {
+          "input_per_1m": 3.0,
+          "output_per_1m": 4.0
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
+    "gpt-3.5-turbo-instruct": {
+      "model": "gpt-3.5-turbo-instruct",
+      "pricing": {
+        "cached_input_per_1m": null,
+        "input_per_1m": 1.5,
+        "output_per_1m": 2.0
+      },
+      "service_tiers": {
+        "standard": {
+          "input_per_1m": 1.5,
+          "output_per_1m": 2.0
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
+    "gpt-4-0125-preview": {
+      "model": "gpt-4-0125-preview",
+      "pricing": {
+        "cached_input_per_1m": null,
+        "input_per_1m": 10.0,
+        "output_per_1m": 30.0
+      },
+      "service_tiers": {
+        "batch": {
+          "input_per_1m": 5.0,
+          "output_per_1m": 15.0
+        },
+        "standard": {
+          "input_per_1m": 10.0,
+          "output_per_1m": 30.0
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
+    "gpt-4-0314": {
+      "model": "gpt-4-0314",
+      "pricing": {
+        "cached_input_per_1m": null,
+        "input_per_1m": 30.0,
+        "output_per_1m": 60.0
+      },
+      "service_tiers": {
+        "batch": {
+          "input_per_1m": 15.0,
+          "output_per_1m": 30.0
+        },
+        "standard": {
+          "input_per_1m": 30.0,
+          "output_per_1m": 60.0
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
+    "gpt-4-0613": {
+      "model": "gpt-4-0613",
+      "pricing": {
+        "cached_input_per_1m": null,
+        "input_per_1m": 30.0,
+        "output_per_1m": 60.0
+      },
+      "service_tiers": {
+        "batch": {
+          "input_per_1m": 15.0,
+          "output_per_1m": 30.0
+        },
+        "standard": {
+          "input_per_1m": 30.0,
+          "output_per_1m": 60.0
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
+    "gpt-4-1106-preview": {
+      "model": "gpt-4-1106-preview",
+      "pricing": {
+        "cached_input_per_1m": null,
+        "input_per_1m": 10.0,
+        "output_per_1m": 30.0
+      },
+      "service_tiers": {
+        "batch": {
+          "input_per_1m": 5.0,
+          "output_per_1m": 15.0
+        },
+        "standard": {
+          "input_per_1m": 10.0,
+          "output_per_1m": 30.0
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
+    "gpt-4-1106-vision-preview": {
+      "model": "gpt-4-1106-vision-preview",
+      "pricing": {
+        "cached_input_per_1m": null,
+        "input_per_1m": 10.0,
+        "output_per_1m": 30.0
+      },
+      "service_tiers": {
+        "batch": {
+          "input_per_1m": 5.0,
+          "output_per_1m": 15.0
+        },
+        "standard": {
+          "input_per_1m": 10.0,
+          "output_per_1m": 30.0
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
+    "gpt-4-32k": {
+      "model": "gpt-4-32k",
+      "pricing": {
+        "cached_input_per_1m": null,
+        "input_per_1m": 60.0,
+        "output_per_1m": 120.0
+      },
+      "service_tiers": {
+        "batch": {
+          "input_per_1m": 30.0,
+          "output_per_1m": 60.0
+        },
+        "standard": {
+          "input_per_1m": 60.0,
+          "output_per_1m": 120.0
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
+    "gpt-4-turbo": {
+      "model": "gpt-4-turbo",
+      "pricing": {
+        "cached_input_per_1m": null,
+        "input_per_1m": 10.0,
+        "output_per_1m": 30.0
+      },
+      "service_tiers": {
+        "batch": {
+          "input_per_1m": 5.0,
+          "output_per_1m": 15.0
+        },
+        "standard": {
+          "input_per_1m": 10.0,
+          "output_per_1m": 30.0
         }
       },
       "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
@@ -688,6 +984,58 @@
           "cached_input_per_1m": 0.25,
           "input_per_1m": 2.5,
           "output_per_1m": 15.0
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
+    "gpt-5.4-mini": {
+      "model": "gpt-5.4-mini",
+      "pricing": {
+        "cached_input_per_1m": 0.075,
+        "input_per_1m": 0.75,
+        "output_per_1m": 4.5
+      },
+      "service_tiers": {
+        "batch": {
+          "cached_input_per_1m": 0.0375,
+          "input_per_1m": 0.375,
+          "output_per_1m": 2.25
+        },
+        "flex": {
+          "cached_input_per_1m": 0.0375,
+          "input_per_1m": 0.375,
+          "output_per_1m": 2.25
+        },
+        "standard": {
+          "cached_input_per_1m": 0.075,
+          "input_per_1m": 0.75,
+          "output_per_1m": 4.5
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
+    "gpt-5.4-nano": {
+      "model": "gpt-5.4-nano",
+      "pricing": {
+        "cached_input_per_1m": 0.02,
+        "input_per_1m": 0.2,
+        "output_per_1m": 1.25
+      },
+      "service_tiers": {
+        "batch": {
+          "cached_input_per_1m": 0.01,
+          "input_per_1m": 0.1,
+          "output_per_1m": 0.625
+        },
+        "flex": {
+          "cached_input_per_1m": 0.01,
+          "input_per_1m": 0.1,
+          "output_per_1m": 0.625
+        },
+        "standard": {
+          "cached_input_per_1m": 0.02,
+          "input_per_1m": 0.2,
+          "output_per_1m": 1.25
         }
       },
       "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"

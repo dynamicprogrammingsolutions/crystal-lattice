@@ -436,7 +436,7 @@ def grep_search(
             raw_results = _parse_ripgrep_output(rg_payload, search_path=search_path)
             used_rg = True
 
-    if not raw_results and use_rg is not True:
+    if not raw_results and use_rg is not True and not used_rg:
         root = Path(search_path).resolve()
         files = _iter_files(root)
         per_file_counts: dict[str, int] = {}

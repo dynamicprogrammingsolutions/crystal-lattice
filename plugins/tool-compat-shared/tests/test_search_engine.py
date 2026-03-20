@@ -4,6 +4,7 @@ import os
 import time
 from pathlib import Path
 
+import tool_compat_shared.search_engine as search_engine
 from tool_compat_shared.search_engine import glob_search, grep_search, list_directory_entries
 
 
@@ -72,3 +73,20 @@ def test_grep_search_python_fallback_respects_glob_filter(tmp_path: Path) -> Non
     assert outcome["results"] == [
         {"path": str((tmp_path / "alpha.txt").resolve()), "line_number": 1, "line": "token here"}
     ]
+
+
+def test_grep_search_does_not_fallback_when_ripgrep_returns_no_matches(monkeypatch, tmp_path: Path) -> None:
+    def fake_run_ripgrep(*args, **kwargs):
+        return {"ok": True, "stdout": "", "names_only": False, "count_mode": False, "cwd": str(tmp_path)}
+
+    def fail_iter_files(*args, **kwargs):
+        raise AssertionError("fallback should not run after a successful ripgrep no-match result")
+
+    monkeypatch.setattr(search_engine, "_run_ripgrep", fake_run_ripgrep)
+    monkeypatch.setattr(search_engine, "_iter_files", fail_iter_files)
+
+    outcome = grep_search("nomatch", search_path=str(tmp_path), display_root=str(tmp_path))
+
+    assert outcome["ok"] is True
+    assert outcome["results"] == []
+    assert outcome["used_rg"] is True

@@ -7,6 +7,31 @@ from .dummy_tool import DummyCalculator
 from plugins.file_reader_tool import FileReaderTool
 
 
+class ExplodingTool:
+    name = "exploding_tool"
+    version = "1.0.0"
+
+    def init(self, config):
+        return {}
+
+    def get_tool_schemas(self, state):
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "explode",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        ]
+
+    def execute_tool(self, tool_name, arguments, state):
+        raise RuntimeError("boom")
+
+    def format_tool_result(self, result, state):
+        return "unreachable"
+
+
 def test_execute_tool_calls_with_dummy_tool():
     core = AgentCore()
     core.register_tool(DummyCalculator)
@@ -115,3 +140,28 @@ def test_iter_tool_messages_streaming_dummy_tool(tmp_path):
     text = str(display.get("content", ""))
     assert "Result: 5" in text
     assert "Result: 5" in str(msg.get("content", ""))
+
+
+def test_iter_tool_messages_turns_stream_exceptions_into_tool_errors(tmp_path):
+    core = AgentCore()
+    core.register_tool(ExplodingTool)
+
+    tool_calls = [
+        {
+            "id": "call_1",
+            "type": "function",
+            "function": {"name": "explode", "arguments": {}},
+        }
+    ]
+
+    items = list(core.iter_tool_messages(tool_calls, config={}))
+    finals = [it for it in items if isinstance(it, dict) and "part" not in it]
+
+    assert len(finals) == 1
+    msg = finals[0]
+    assert msg.get("role") == "tool"
+    assert "Tool error: boom" in str(msg.get("content", ""))
+    md = msg.get("metadata", {})
+    assert md.get("tool_call_id") == "call_1"
+    assert md.get("tool_name") == "explode"
+    assert md.get("tool_plugin") == "exploding_tool"
