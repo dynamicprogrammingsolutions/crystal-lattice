@@ -287,7 +287,7 @@ def test_simplified_vendor_system_messages_compile_in_application_requests(
         ],
         "agents": {
             agent_id: _simplified_agent_with_echo_provider(simplified_config, agent_id)
-            for agent_id in ("gemini", "qwen", "grok")
+            for agent_id in ("gemini", "qwen", "grok", "kimi")
         },
     }
 
@@ -334,6 +334,11 @@ def test_simplified_vendor_system_messages_compile_in_application_requests(
             "You are Grok CLI, an AI assistant that helps with file editing, coding tasks, and system operations.",
             "You have access to these tools:",
             f"Current working directory: {repo_dir.resolve()}",
+        ],
+        "kimi": [
+            "You are Kimi Code CLI, an interactive general AI agent running on a user's computer.",
+            "If you anticipate making multiple non-interfering tool calls, you are highly encouraged to make them in parallel to improve efficiency.",
+            "Repository policy from AGENTS.",
         ],
     }
 
@@ -507,7 +512,7 @@ def test_portable_default_config_compiles_vendor_and_codex_system_messages(
         ],
         "agents": {
             agent_id: _config_agent_with_echo_provider(portable_config, agent_id)
-            for agent_id in ("codex", "gemini", "qwen", "grok")
+            for agent_id in ("codex", "gemini", "qwen", "grok", "kimi")
         },
     }
 
@@ -553,6 +558,11 @@ def test_portable_default_config_compiles_vendor_and_codex_system_messages(
         "grok": [
             "You are Grok CLI, an AI assistant that helps with file editing, coding tasks, and system operations.",
             f"Current working directory: {repo_dir.resolve()}",
+        ],
+        "kimi": [
+            "You are Kimi Code CLI, an interactive general AI agent running on a user's computer.",
+            "If you anticipate making multiple non-interfering tool calls, you are highly encouraged to make them in parallel to improve efficiency.",
+            "Portable repository policy from AGENTS.",
         ],
     }
 

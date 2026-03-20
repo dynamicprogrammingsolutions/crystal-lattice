@@ -74,6 +74,23 @@
         "path:${env:BUILTIN_PLUGINS}/grok-tools"
       ],
       "disabled_plugins": ["apply_patch"]
+    },
+    "openrouter_kimi_tools": {
+      "provider": "openrouter",
+      "model": "moonshotai/kimi-k2.5",
+      "api_key": "${env:OPENROUTER_API_KEY}",
+      "base_url": "https://openrouter.ai/api/v1",
+      "timeout": 300,
+      "allowed_paths": [".", ".."],
+      "max_file_size": 5242880,
+      "max_output_chars": 10000,
+      "working_directory": ".",
+      "enable_reasoning": true,
+      "reasoning_effort": "medium",
+      "system_message_enabled": true,
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/kimi-tools"
+      ]
     }
   },
   "plugins": [
@@ -276,6 +293,49 @@
           },
           "WORKING_DIRECTORY_LINE": {
             "inline_code": "f'Current working directory: {cwd}'"
+          }
+        }
+      },
+      "enable_reasoning": true,
+      "reasoning_effort": "medium"
+    },
+    "kimi": {
+      "provider": "openrouter_kimi_tools",
+      "model": "moonshotai/kimi-k2.5",
+      "system_message": {
+        "template": "${file:${env:CONFIG_DIR}/system_messages/kimi/template.md}",
+        "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
+        "variables": {
+          "INTRODUCTION": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/kimi/introduction.md"
+            ]
+          },
+          "PROMPT_AND_TOOL_USE": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/kimi/prompt-and-tool-use.md"
+            ]
+          },
+          "GENERAL_GUIDELINES_FOR_CODING": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/kimi/general-guidelines-for-coding.md"
+            ]
+          },
+          "GENERAL_GUIDELINES_FOR_RESEARCH_AND_DATA_PROCESSING": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/kimi/general-guidelines-for-research-and-data-processing.md"
+            ]
+          },
+          "WORKING_ENVIRONMENT_SECTION": {
+            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_kimi_working_environment_section.py"
+          },
+          "PROJECT_INFORMATION_SECTION": {
+            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_kimi_project_information_section.py"
+          },
+          "ULTIMATE_REMINDERS": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/kimi/ultimate-reminders.md"
+            ]
           }
         }
       },
