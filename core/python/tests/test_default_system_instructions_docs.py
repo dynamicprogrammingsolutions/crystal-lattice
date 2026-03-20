@@ -193,6 +193,7 @@ def test_runtime_system_message_templates_exist() -> None:
         "kimi/general-guidelines-for-research-and-data-processing.md",
         "kimi/ultimate-reminders.md",
         "helpers/runtime.py",
+        "helpers/tasks_ui.py",
         "helpers/render_agents_context_section.py",
         "helpers/render_kimi_working_environment_section.py",
         "helpers/render_kimi_project_information_section.py",
@@ -201,17 +202,8 @@ def test_runtime_system_message_templates_exist() -> None:
     for relative_path in expected_files:
         assert (RUNTIME_SYSTEM_MESSAGES_ROOT / relative_path).is_file(), relative_path
 
-    simplified_config = (
-        REPO_ROOT
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "config_v2_multi_family_tools_simplified.json"
-    )
-    assert simplified_config.is_file()
 
-
-def test_runtime_templates_and_simplified_config_omit_deliberately_empty_placeholders() -> None:
+def test_runtime_templates_and_portable_default_config_omit_deliberately_empty_placeholders() -> None:
     runtime_templates = {
         "gemini/template.md": {
             "{{AVAILABLE_SUBAGENTS_SECTION}}",
@@ -244,14 +236,8 @@ def test_runtime_templates_and_simplified_config_omit_deliberately_empty_placeho
         for marker in removed_markers:
             assert marker not in template_text, (relative_path, marker)
 
-    simplified_config_path = (
-        REPO_ROOT
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "config_v2_multi_family_tools_simplified.json"
-    )
-    simplified_config = json.loads(simplified_config_path.read_text(encoding="utf-8"))
+    portable_config_path = DEFAULT_CONFIG_ROOT / "config.json"
+    portable_config = json.loads(portable_config_path.read_text(encoding="utf-8"))
 
     removed_variable_keys = {
         "gemini": {
@@ -279,7 +265,8 @@ def test_runtime_templates_and_simplified_config_omit_deliberately_empty_placeho
     }
 
     for agent_id, removed_keys in removed_variable_keys.items():
-        variables = simplified_config["agents"][agent_id]["system_message"]["variables"]
+        provider_id = portable_config["agents"][agent_id]["provider"]
+        variables = portable_config["providers"][provider_id]["system_message"]["variables"]
         for key in removed_keys:
             assert key not in variables, (agent_id, key)
 
@@ -291,7 +278,7 @@ def test_portable_default_config_is_self_contained() -> None:
     assert (DEFAULT_CONFIG_ROOT / "codex").is_dir()
 
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    codex_rows = config["agents"]["codex"]["codex_developer_messages"]
+    codex_rows = config["providers"]["openrouter_codex_tools"]["codex_developer_messages"]
 
     for row in codex_rows:
         text = row["text"]
@@ -303,10 +290,13 @@ def test_portable_default_config_is_self_contained() -> None:
 
     helper_paths = [
         "system_messages/helpers/runtime.py",
+        "system_messages/helpers/tasks_ui.py",
         "system_messages/helpers/render_agents_context_section.py",
         "system_messages/helpers/render_kimi_working_environment_section.py",
         "system_messages/helpers/render_kimi_project_information_section.py",
         "system_messages/helpers/select_codex_developer_message.py",
+        "TASKS_v5.md",
+        "CLAUDE_CODE_DEFAULT.md",
         "system_messages/codex/template.md",
         "system_messages/gemini/template.md",
         "system_messages/qwen/template.md",

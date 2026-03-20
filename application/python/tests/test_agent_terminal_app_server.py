@@ -243,7 +243,7 @@ def test_send_request_single_flight_blocks_while_running(tmp_path: Path) -> None
     events_store = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session({"agent_id": "codex"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
 
     server_mod.add_message(
@@ -332,7 +332,7 @@ def test_send_request_idempotency_key_replays_request_id(tmp_path: Path) -> None
     events_store = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session({"agent_id": "codex"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
 
     server_mod.add_message(
@@ -433,7 +433,7 @@ def test_send_message_endpoint_appends_and_starts_request(tmp_path: Path) -> Non
     events_store = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session({"agent_id": "codex"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
 
     started_evt = threading.Event()
@@ -521,7 +521,7 @@ def test_send_message_endpoint_rejects_when_active(tmp_path: Path) -> None:
     events_store = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session({"agent_id": "codex"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
 
     started_evt = threading.Event()
@@ -617,7 +617,7 @@ def test_send_message_endpoint_idempotency_replays_without_double_append(tmp_pat
     events_store = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session({"agent_id": "codex"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
 
     release_evt = threading.Event()
@@ -714,7 +714,7 @@ def test_send_message_endpoint_idempotency_key_reused_with_different_payload_con
     events_store = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session({"agent_id": "codex"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
 
     release_evt = threading.Event()
@@ -836,13 +836,13 @@ def test_get_session_ui_schema_includes_ui_types(tmp_path: Path) -> None:
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "default_config.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session({"agent_id": "codex"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
 
     resp = server_mod.get_session_ui_schema(session_id, app_instance=app)
@@ -871,13 +871,13 @@ def test_get_session_ui_schema_respects_session_overrides(tmp_path: Path) -> Non
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "default_config.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session({"agent_id": "codex"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
 
     # Baseline: no overrides → openrouter_usage contributes footer/status_bar elements.
@@ -990,13 +990,13 @@ def test_session_plugins_endpoints_roundtrip(tmp_path: Path) -> None:
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "default_config.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session({"agent_id": "codex"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
 
     listed = server_mod.get_session_plugins(session_id, app_instance=app)["plugins"]

@@ -82,6 +82,26 @@ def test_normalize_object_system_message_with_runtime_code(tmp_path) -> None:
     assert cfg["runtime_code"] == str(runtime_file)
 
 
+def test_normalize_variable_value_with_runtime_code(tmp_path) -> None:
+    runtime_file = _write_runtime_code(tmp_path)
+
+    config = {
+        "system_message": {
+            "template": "{{NAME}}",
+            "variables": {
+                "NAME": {
+                    "inline_code": "greeting()",
+                    "runtime_code": str(runtime_file),
+                }
+            },
+        }
+    }
+
+    cfg = SystemMessageFeature._extract_plugin_config(config)
+
+    assert cfg["variables"]["NAME"]["runtime_code"] == str(runtime_file)
+
+
 def test_resolve_variables_files_and_code(tmp_path) -> None:
     file1 = tmp_path / "a.txt"
     file2 = tmp_path / "b.txt"
@@ -534,6 +554,80 @@ def test_runtime_code_zero_arg_get_ui_elements_uses_runtime_globals(tmp_path) ->
     assert elements[0]["key"] == "codex_personality"
     assert elements[0]["type"] == "select"
     assert elements[0]["label"] == "openai/gpt-5.4|supports_tools|openai/gpt-5.4"
+
+
+def test_variable_runtime_code_augments_request_context(tmp_path) -> None:
+    runtime_file = _write_runtime_code(
+        tmp_path,
+        body=(
+            "def greeting():\n"
+            "    return f\"hello from {CONFIG['model']}\"\n"
+        ),
+    )
+
+    config = {
+        "model": "moonshotai/kimi-k2.5",
+        "system_message": {
+            "template": "{{VAL}}",
+            "variables": {
+                "VAL": {
+                    "inline_code": "greeting()",
+                    "runtime_code": str(runtime_file),
+                }
+            },
+        },
+    }
+
+    cfg = SystemMessageFeature._extract_plugin_config(config)
+    runtime_context = SystemMessageFeature._load_runtime_context(
+        None,
+        base_context=SystemMessageFeature._build_base_runtime_context(config=config),
+    )
+    resolved = SystemMessageFeature._resolve_variables(
+        cfg["variables"],
+        runtime_context=runtime_context,
+    )
+
+    assert resolved["VAL"] == "hello from moonshotai/kimi-k2.5"
+
+
+def test_variable_runtime_code_contributes_ui_schema(tmp_path) -> None:
+    runtime_file = _write_runtime_code(
+        tmp_path,
+        body=(
+            "def get_ui_elements():\n"
+            "    return [{\n"
+            "        'ui_type': 'config',\n"
+            "        'type': 'checkbox',\n"
+            "        'key': 'include_tasks',\n"
+            "        'label': f\"Include tasks for {CONFIG['model']}\",\n"
+            "        'default': False,\n"
+            "    }]\n"
+        ),
+    )
+
+    feature = SystemMessageFeature()
+    elements = feature.get_ui_elements(
+        config={
+            "model": "openai/gpt-5.4",
+            "system_message": {
+                "template": "{{TASKS}}",
+                "variables": {
+                    "TASKS": {
+                        "text": "ignored",
+                        "runtime_code": str(runtime_file),
+                    }
+                },
+            },
+        },
+        tags=[],
+        models=[{"id": "openai/gpt-5.4"}],
+    )
+
+    assert len(elements) == 1
+    assert elements[0]["key"] == "include_tasks"
+    assert elements[0]["type"] == "checkbox"
+    assert elements[0]["default"] is False
 
 
 def test_system_message_dynamic_variables_change_between_configs() -> None:
