@@ -84,6 +84,7 @@ def _config(api_key: str) -> Dict[str, Any]:
         "api_key": api_key,
         "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
         "timeout": 240,
+        "temperature": 0.0,
         "reasoning_effort": "high",
         "reasoning_summary": "detailed",
         "allowed_paths": [str(REASONING_DIR)],
@@ -97,13 +98,26 @@ def _run_tool_loop(
     session: Any,
     config: Dict[str, Any],
     *,
+    stream: bool = False,
     max_iterations: int = 6,
 ) -> Tuple[Any, List[Dict[str, Any]], bool]:
     saw_tool_call = False
     responses: List[Dict[str, Any]] = []
 
     for _ in range(max_iterations):
-        session, responses = core.send_request(session, config)
+        if stream:
+            final_session = None
+            final_messages: List[Dict[str, Any]] = []
+            for chunk in core.send_request_stream(session, config):
+                if chunk["type"] == "final":
+                    final_session = chunk.get("session")
+                    final_messages = chunk.get("messages") or []
+                    break
+            assert final_session is not None, "expected final streaming event"
+            session = final_session
+            responses = final_messages
+        else:
+            session, responses = core.send_request(session, config)
         assert responses, "expected assistant response"
 
         metadata = responses[-1].get("metadata") or {}
@@ -185,12 +199,21 @@ def _make_session(core: AgentCore, prompt: str) -> Any:
 
 @pytest.mark.integration
 @pytest.mark.openai
-def test_openai_responses_reasoning_single_turn_with_tools(ensure_openai_api_key: str) -> None:
+@pytest.mark.parametrize("stream", [False, True], ids=["non-streaming", "streaming"])
+def test_openai_responses_reasoning_single_turn_with_tools(
+    ensure_openai_api_key: str,
+    stream: bool,
+) -> None:
     core = _build_core()
     config = _config(ensure_openai_api_key)
 
     session = _make_session(core, _prompt_for_seed(DEFAULT_SEED))
-    session, responses, saw_tool_call = _run_tool_loop(core, session, config)
+    session, responses, saw_tool_call = _run_tool_loop(
+        core,
+        session,
+        config,
+        stream=stream,
+    )
 
     assert saw_tool_call, "expected the reasoning scenario to trigger a tool call"
     final_message = responses[-1]
@@ -204,12 +227,21 @@ def test_openai_responses_reasoning_single_turn_with_tools(ensure_openai_api_key
 
 @pytest.mark.integration
 @pytest.mark.openai
-def test_openai_responses_reasoning_follow_up_runs_fresh_tool_cycle(ensure_openai_api_key: str) -> None:
+@pytest.mark.parametrize("stream", [False, True], ids=["non-streaming", "streaming"])
+def test_openai_responses_reasoning_follow_up_runs_fresh_tool_cycle(
+    ensure_openai_api_key: str,
+    stream: bool,
+) -> None:
     core = _build_core()
     config = _config(ensure_openai_api_key)
 
     session = _make_session(core, _prompt_for_seed(DEFAULT_SEED))
-    session, first_responses, first_saw_tool_call = _run_tool_loop(core, session, config)
+    session, first_responses, first_saw_tool_call = _run_tool_loop(
+        core,
+        session,
+        config,
+        stream=stream,
+    )
     assert first_saw_tool_call, "expected a tool call in the initial reasoning turn"
     assert (first_responses[-1].get("content") or "").strip() == _expected_label(DEFAULT_SEED)
 
@@ -219,7 +251,12 @@ def test_openai_responses_reasoning_follow_up_runs_fresh_tool_cycle(ensure_opena
     reasoning_response_ids_before = _response_ids_with_reasoning(native_before)
 
     session = core.add_message(session, "user", _prompt_for_seed(FOLLOW_UP_SEED), config=config)
-    session, second_responses, second_saw_tool_call = _run_tool_loop(core, session, config)
+    session, second_responses, second_saw_tool_call = _run_tool_loop(
+        core,
+        session,
+        config,
+        stream=stream,
+    )
 
     assert second_saw_tool_call, "expected the follow-up reasoning turn to trigger a fresh tool call"
     final_message = second_responses[-1]
