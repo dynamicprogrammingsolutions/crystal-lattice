@@ -301,7 +301,11 @@ def test_portable_default_config_compiles_vendor_and_codex_system_messages(
     assert app.get_config_errors() == []
 
     expected_substrings = {
-        "codex": [
+        "codex-openrouter": [
+            "You are Codex, a coding agent based on GPT-5.",
+            "Repository policy from AGENTS.",
+        ],
+        "codex-openai": [
             "You are Codex, a coding agent based on GPT-5.",
             "Repository policy from AGENTS.",
         ],
@@ -371,7 +375,7 @@ def test_portable_default_codex_system_message_selection_by_model_and_personalit
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
             "feature_system_message.system_message_feature.SystemMessageFeature",
         ],
-        "agents": {"codex": dict(portable_config["agents"]["codex"])},
+        "agents": {"codex-openrouter": dict(portable_config["agents"]["codex-openrouter"])},
     }
 
     config_path = tmp_path / "config_portable_codex_system_message_echo.json"
@@ -403,7 +407,7 @@ def test_portable_default_codex_system_message_selection_by_model_and_personalit
 
     compiled_texts: list[str] = []
     for overrides, expected_substring in cases:
-        core, base_config, session = app.create_session("codex")
+        core, base_config, session = app.create_session("codex-openrouter")
         session = core.add_message(
             session,
             "user",
@@ -443,7 +447,7 @@ def test_portable_default_runtime_helpers_contribute_ui_schema(tmp_path: Path) -
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
             "feature_system_message.system_message_feature.SystemMessageFeature",
         ],
-        "agents": {"codex": dict(portable_config["agents"]["codex"])},
+        "agents": {"codex-openrouter": dict(portable_config["agents"]["codex-openrouter"])},
     }
 
     config_path = tmp_path / "config_portable_codex_ui_echo.json"
@@ -456,7 +460,7 @@ def test_portable_default_runtime_helpers_contribute_ui_schema(tmp_path: Path) -
         env_overrides={"CONFIG_DIR": str(DEFAULT_CONFIG_DIR)},
     )
 
-    core, base_config, _session = app.create_session("codex")
+    core, base_config, _session = app.create_session("codex-openrouter")
     schema = core.get_ui_schema(base_config)
 
     codex_personality = next(
@@ -505,7 +509,7 @@ def test_portable_default_tasks_toggle_includes_tasks_section_when_enabled(
         env_overrides={"CONFIG_DIR": str(DEFAULT_CONFIG_DIR)},
     )
 
-    for agent_id in ("codex", "qwen", "gemini", "grok", "kimi", "claude"):
+    for agent_id in ("codex-openrouter", "codex-openai", "qwen", "gemini", "grok", "kimi", "claude"):
         core, base_config, session = app.create_session(agent_id)
         session = core.add_message(
             session,

@@ -842,7 +842,7 @@ def test_get_session_ui_schema_includes_ui_types(tmp_path: Path) -> None:
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "codex"}, app_instance=app)
+    create_resp = server_mod.create_session({"agent_id": "codex-openrouter"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
 
     resp = server_mod.get_session_ui_schema(session_id, app_instance=app)
@@ -877,7 +877,7 @@ def test_get_session_ui_schema_respects_session_overrides(tmp_path: Path) -> Non
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "codex"}, app_instance=app)
+    create_resp = server_mod.create_session({"agent_id": "codex-openrouter"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
 
     # Baseline: no overrides → openrouter_usage contributes footer/status_bar elements.
@@ -996,7 +996,7 @@ def test_session_plugins_endpoints_roundtrip(tmp_path: Path) -> None:
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "codex"}, app_instance=app)
+    create_resp = server_mod.create_session({"agent_id": "codex-openrouter"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
 
     listed = server_mod.get_session_plugins(session_id, app_instance=app)["plugins"]

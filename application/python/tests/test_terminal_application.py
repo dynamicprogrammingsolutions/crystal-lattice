@@ -1329,7 +1329,7 @@ def test_session_ui_elements_no_duplicate_keys_default_config(tmp_path: Path) ->
         agent_app=agent_app,
     )
 
-    term_app.start_new_session(agent_id="codex")
+    term_app.start_new_session(agent_id="codex-openrouter")
 
     elements = term_app.session_ui_elements()
     keys = [el.get("key") for el in elements if isinstance(el, dict) and "key" in el]

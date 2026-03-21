@@ -87,7 +87,7 @@ def test_terminal_application_default_config_agents_make_real_tool_calls(
     )
 
     cases = {
-        "codex": {
+        "codex-openrouter": {
             "prompt": "Use the shell tool to print the first line of codex.txt and reply with exactly that line.",
             "expected_tool": "shell",
             "expected_text": "CODEX integration line",
