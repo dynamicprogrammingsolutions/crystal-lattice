@@ -7,7 +7,9 @@ from reference_openai_compatible_provider.provider import OpenAICompatibleProvid
 
 
 class _Resp:
-    def __init__(self, *, ok: bool, payload: Any = None, status_code: int = 200, text: str = ""):
+    def __init__(
+        self, *, ok: bool, payload: Any = None, status_code: int = 200, text: str = ""
+    ):
         self.ok = ok
         self._payload = payload
         self.status_code = status_code
@@ -50,7 +52,9 @@ def test_get_models_failure_returns_empty(monkeypatch):
     monkeypatch.setattr("requests.get", fake_get)
 
     provider = OpenAICompatibleProvider()
-    assert provider.get_models({"base_url": "http://example.com/v1", "timeout": 1}) == []
+    assert (
+        provider.get_models({"base_url": "http://example.com/v1", "timeout": 1}) == []
+    )
 
 
 def test_get_models_exception_returns_empty(monkeypatch):
@@ -60,7 +64,9 @@ def test_get_models_exception_returns_empty(monkeypatch):
     monkeypatch.setattr("requests.get", fake_get)
 
     provider = OpenAICompatibleProvider()
-    assert provider.get_models({"base_url": "http://example.com/v1", "timeout": 1}) == []
+    assert (
+        provider.get_models({"base_url": "http://example.com/v1", "timeout": 1}) == []
+    )
 
 
 def test_get_ui_elements_renders_text_when_no_models():
@@ -83,4 +89,13 @@ def test_get_ui_elements_renders_select_when_models_present():
     assert model_el.get("options") == [
         {"value": "m1", "label": "Model One"},
         {"value": "m2", "label": "m2"},
+    ]
+
+
+def test_get_tags_are_conservative_about_reasoning_support():
+    provider = OpenAICompatibleProvider()
+    assert provider.get_tags({}, []) == [
+        "provider:openai_compatible",
+        "supports_streaming",
+        "supports_tools",
     ]

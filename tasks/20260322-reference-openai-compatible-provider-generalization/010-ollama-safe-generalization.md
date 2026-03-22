@@ -198,3 +198,195 @@ This subtask is complete only when:
 - Avoid introducing Fireworks- or OpenRouter-specific field names as package-wide normalized fields.
 - Be careful preserving provider-native assistant message fields across tool rounds.
 - If preserving `reasoning_content` requires changes to provider message conversion, keep them minimal and generic.
+
+## Execution Plan Added During Completion
+
+Date added: 2026-03-22
+
+### Chosen approach
+
+Implement this subtask in one staged pass, keeping `AgentCore` unchanged unless a blocker appears. The current package architecture is already close to the target: the provider is mostly a generic transport layer, while the remaining Ollama coupling lives in the reasoning extension, docs, default config, and thin test coverage.
+
+Execution stages:
+
+1. Provider cleanup and usage plumbing.
+2. Reasoning extension generalization.
+3. New generic usage extension.
+4. Descriptor/export/doc/default-config updates.
+5. Unit coverage for parsing/preservation.
+6. Ollama-only integration verification.
+
+### Concrete plan
+
+#### 1. Refactor the provider surface
+
+- Update `plugins/reference-openai-compatible-provider/src/reference_openai_compatible_provider/provider.py`.
+- Remove unconditional `supports_thinking` from `get_tags()`.
+- Keep the provider as a generic OpenAI-compatible transport.
+- Add the minimum provider-side support needed for usage extraction in non-streaming mode.
+
+Important implementation note:
+
+- A usage extension alone cannot recover non-streaming usage with the current provider, because `call_api()` currently extracts only `choices[0].message` and drops the top-level completion payload, including `usage`.
+- The provider should therefore preserve raw `usage` on the returned native assistant message, likely via `_metadata["usage"]`, so extensions can normalize it consistently.
+
+#### 2. Rewrite the reasoning extension as parse/preserve logic
+
+- Update `plugins/reference-openai-compatible-provider/src/reference_openai_compatible_provider/reasoning_extension.py`.
+- Remove package-owned `think` schema, checkbox UI, init state, and request payload mutation.
+- Stop treating Ollama `think` as a first-class package concept.
+- Change dependency gating so the extension no longer requires `supports_thinking`.
+
+Target behavior:
+
+- Parse `reasoning` when present.
+- Parse `reasoning_content` when present.
+- Preserve `reasoning_details` unchanged when present.
+- Accumulate streaming reasoning fragments conservatively.
+- Preserve provider-native reasoning fields across tool rounds by writing assistant metadata fields back into native assistant messages in `to_native_messages()`.
+- Restore those fields into core metadata from native messages in `from_native_messages()`.
+
+Implementation guidance:
+
+- Follow the same preservation pattern already used by `tools_extension.py` for `tool_calls` and `tool_call_id`.
+- Keep reasoning payloads opaque and generic; do not normalize provider-specific detail schemas.
+- Add a sensible fallback for length-mismatch cases if needed, so reasoning does not disappear when final/native lists differ.
+
+#### 3. Add a minimal generic usage extension
+
+- Create `plugins/reference-openai-compatible-provider/src/reference_openai_compatible_provider/usage_extension.py`.
+- Export only a minimal shared metadata surface:
+  - `metadata.usage`
+  - `metadata.usage_prompt_tokens`
+  - `metadata.usage_completion_tokens`
+  - `metadata.usage_total_tokens`
+  - `metadata.usage_reasoning_tokens` when present
+  - formatted prompt/completion/total/reasoning token strings if straightforward and useful
+
+Normalization constraints:
+
+- Keep extra provider fields only inside raw `metadata.usage`.
+- Do not add costs, cumulative-cost fields, routing metadata, caching metadata, or provider-branded token fields.
+- For reasoning tokens, check common nested OpenAI-like shapes such as:
+  - `completion_tokens_details.reasoning_tokens`
+  - `output_tokens_details.reasoning_tokens`
+
+#### 4. Update package exports and descriptor
+
+- Update `plugins/reference-openai-compatible-provider/agent_plugin.json` to include the new usage extension entry.
+- Update `plugins/reference-openai-compatible-provider/src/reference_openai_compatible_provider/__init__.py` to export the provider and extensions explicitly.
+
+#### 5. Rewrite README to reflect the generalized package
+
+- Update `plugins/reference-openai-compatible-provider/README.md`.
+- Reframe the package as generic OpenAI-compatible chat-completions support.
+- Present Ollama only as one example backend.
+- Show reasoning enablement through `request_options`, for example `{"think": true}` for Ollama compatibility.
+- Document that reasoning, tools, and usage are model/provider dependent.
+- Document the new generic usage metadata behavior.
+
+#### 6. Update the default Ollama config safely
+
+- Update `application/python/agent_terminal_app/default_config/config.json`.
+- Remove the top-level package-owned `think: true` from the default `ollama` provider entry.
+
+Default-config recommendation:
+
+- Prefer omitting default `request_options.think` in the public config unless local verification shows it is reliably safe across the default Ollama path.
+- Rationale: `think` is model-fragile, and the public default config should not assume all Ollama models support it.
+- Keep reasoning enablement documented as an opt-in example via `request_options`.
+
+#### 7. Expand tests
+
+Add or update unit tests for:
+
+- extraction from `reasoning`
+- extraction from `reasoning_content`
+- preservation of `reasoning_details`
+- preservation of reasoning metadata through `to_native_messages()` / `from_native_messages()`
+- usage normalization from prompt/completion/total token counts
+- reasoning token extraction from nested usage detail objects
+- removal of package-owned `think` behavior
+
+Add or update Ollama integration tests for:
+
+- basic non-streaming request
+- basic streaming request
+- models/UI smoke test
+- tool-calling request and tool loop continuation
+- reasoning metadata with `request_options={"think": true}` when supported
+- usage metadata when emitted, otherwise skip cleanly
+
+If preserved reasoning through tool rounds cannot be exercised reliably on Ollama:
+
+- cover that behavior with unit tests in this subtask
+- leave stronger end-to-end verification to the hosted-provider subtasks
+
+### Research conclusions preserved for the next agent
+
+- No `AgentCore` change appears necessary for reasoning preservation. `AgentCore` already supports native-history continuity as long as provider-native fields are preserved in native messages and reconstructed in `from_native_messages()`.
+- The current code comment in `core/python/agent_core/core.py` around native-history rebuilds is an explicit confirmation of this contract.
+- The strongest internal reference for reasoning preservation is the OpenRouter reasoning extension, but only its preservation strategy should be borrowed; provider-specific request-shaping and extra metadata should not be ported.
+- The existing tools extension in this package is already the right local pattern to follow for provider-native round-tripping.
+
+## Completion Notes Added During Completion
+
+Date added: 2026-03-22
+
+### Implemented
+
+- Generalized the reference provider package away from package-owned Ollama `think` behavior.
+- Removed unconditional `supports_thinking` from `plugins/reference-openai-compatible-provider/src/reference_openai_compatible_provider/provider.py`.
+- Added minimal non-streaming usage preservation in the provider by attaching top-level response `usage` to native assistant `_metadata`, enabling the new usage extension to normalize it.
+
+- Rewrote `plugins/reference-openai-compatible-provider/src/reference_openai_compatible_provider/reasoning_extension.py` into a generic parse/preserve extension.
+  - No package-owned `think` config schema or UI.
+  - No request mutation.
+  - Parses `reasoning`, `reasoning_content`, and `reasoning_details`.
+  - Preserves reasoning metadata across tool rounds through `to_native_messages()` / `from_native_messages()`.
+  - Includes a length-mismatch fallback so reasoning survives common final/native shape differences.
+
+- Added `plugins/reference-openai-compatible-provider/src/reference_openai_compatible_provider/usage_extension.py`.
+  - Normalizes `metadata.usage`.
+  - Normalizes prompt/completion/total token counts.
+  - Extracts reasoning token counts from common nested OpenAI-like usage shapes.
+  - Captures streaming `usage` chunks into the provider partial state so final assistant messages can surface them.
+
+- Updated package exports and descriptor:
+  - `plugins/reference-openai-compatible-provider/src/reference_openai_compatible_provider/__init__.py`
+  - `plugins/reference-openai-compatible-provider/agent_plugin.json`
+
+- Rewrote `plugins/reference-openai-compatible-provider/README.md` to describe the package as generic OpenAI-compatible support, document Ollama only as an example backend, and show reasoning enablement via `request_options`.
+
+- Updated `application/python/agent_terminal_app/default_config/config.json` so the public `ollama` entry no longer depends on package-owned top-level `think` config.
+
+### Tests Added / Updated
+
+- Added reasoning unit coverage in `plugins/reference-openai-compatible-provider/tests/test_reasoning_extension_unit.py`.
+- Added usage unit coverage in `plugins/reference-openai-compatible-provider/tests/test_usage_extension_unit.py`.
+- Updated provider tag expectations in `plugins/reference-openai-compatible-provider/tests/test_models_ui_unit.py`.
+- Updated Ollama integration tests to register `RequestOptionsFeature` and use `request_options: {"think": true}` for reasoning enablement instead of package-owned `think`.
+- Added `plugins/reference-openai-compatible-provider/tests/test_ollama_integration_usage.py` with clean skip behavior when Ollama does not emit usage.
+
+### Verification Performed
+
+- Ran formatting:
+  - `python -m black plugins/reference-openai-compatible-provider/src/reference_openai_compatible_provider plugins/reference-openai-compatible-provider/tests`
+- Ran package tests:
+  - `pytest plugins/reference-openai-compatible-provider/tests -q`
+  - Result: `25 passed, 1 skipped`
+- Validated edited default config parses as JSON.
+
+### Notes For Follow-up Subtasks
+
+- This subtask keeps reasoning request enablement provider-agnostic by relying on `request_options`, but does not introduce hosted-provider-specific controls.
+- Preserved reasoning through tool rounds is now covered at the package/unit level and ready for stronger hosted-provider verification in later subtasks.
+- The new usage extension intentionally keeps the normalized surface minimal; hosted-provider subtasks should avoid expanding it with provider-specific billing metadata.
+
+### Follow-up Adjustment Added During Completion
+
+Date added: 2026-03-22
+
+- Removed `reasoning_details` from the generic reference provider package surface after follow-up review.
+- Final generic reasoning support in this package is limited to `reasoning` and `reasoning_content` only.
+- Rationale: `reasoning_details` should remain provider-specific rather than being treated as shared OpenAI-compatible metadata in this package.

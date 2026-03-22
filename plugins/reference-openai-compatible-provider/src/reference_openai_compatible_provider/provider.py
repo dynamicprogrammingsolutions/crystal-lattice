@@ -20,7 +20,9 @@ class AccumulatorStreamingMixin:
     This follows the accumulator pattern described in `plugins/docs/provider-plugins.md`.
     """
 
-    def extract_delta(self, chunk: dict[str, Any]) -> dict[str, Any]:  # pragma: no cover
+    def extract_delta(
+        self, chunk: dict[str, Any]
+    ) -> dict[str, Any]:  # pragma: no cover
         raise NotImplementedError
 
     def process_delta(
@@ -37,7 +39,9 @@ class AccumulatorStreamingMixin:
         state: dict[str, Any],
     ):
         delta = self.extract_delta(native_chunk or {})
-        accumulated = state.get("partial") if isinstance(state.get("partial"), dict) else {}
+        accumulated = (
+            state.get("partial") if isinstance(state.get("partial"), dict) else {}
+        )
         patch, new_acc = self.process_delta(delta, accumulated)
 
         partials: list[dict[str, Any]] = []
@@ -155,10 +159,20 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
             model_el["options"] = options
 
         return [
-            {"ui_type": "config", "type": "text", "key": "base_url", "label": "Base URL"},
+            {
+                "ui_type": "config",
+                "type": "text",
+                "key": "base_url",
+                "label": "Base URL",
+            },
             model_el,
             {"ui_type": "config", "type": "text", "key": "api_key", "label": "API key"},
-            {"ui_type": "config", "type": "text", "key": "timeout", "label": "Timeout (seconds)"},
+            {
+                "ui_type": "config",
+                "type": "text",
+                "key": "timeout",
+                "label": "Timeout (seconds)",
+            },
             {
                 "ui_type": "config",
                 "type": "checkbox",
@@ -172,10 +186,11 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
             "provider:openai_compatible",
             "supports_streaming",
             "supports_tools",
-            "supports_thinking",
         ]
 
-    def initialize_request(self, native_messages: list[dict[str, Any]], state: dict[str, Any]):
+    def initialize_request(
+        self, native_messages: list[dict[str, Any]], state: dict[str, Any]
+    ):
         cfg = state.get("config") or {}
         base_url = str(cfg.get("base_url") or _DEFAULT_BASE_URL).rstrip("/")
         url = f"{base_url}/chat/completions"
@@ -228,9 +243,16 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
         msg = msg if isinstance(msg, dict) else {"role": "assistant", "content": ""}
 
         msg = {"role": msg.get("role", "assistant"), **msg}
+        usage = raw.get("usage") if isinstance(raw, dict) else None
+        if isinstance(usage, dict):
+            internal_md = msg.get("_metadata")
+            base_internal_md = internal_md if isinstance(internal_md, dict) else {}
+            msg = {**msg, "_metadata": {**base_internal_md, "usage": usage}}
         return [], [msg], [*native_messages, msg], state
 
-    def stream_api(self, native_messages: list[dict[str, Any]], state: dict[str, Any]) -> Iterator[dict[str, Any]]:
+    def stream_api(
+        self, native_messages: list[dict[str, Any]], state: dict[str, Any]
+    ) -> Iterator[dict[str, Any]]:
         request = state.get("request") or {}
         payload = dict(request.get("payload") or {})
         override = request.get("messages")

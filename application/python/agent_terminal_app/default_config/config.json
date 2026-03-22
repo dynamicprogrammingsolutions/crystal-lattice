@@ -505,8 +505,7 @@
       "timeout": 180,
       "allowed_paths": ["."],
       "max_output_chars": 10000,
-      "working_directory": ".",
-      "think": true
+      "working_directory": "."
     }
   },
   "plugins": [

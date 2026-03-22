@@ -34,7 +34,9 @@ def _merge_tool_call(current: dict[str, Any], delta: dict[str, Any]) -> dict[str
     return out
 
 
-def _merge_tool_calls(existing: list[dict[str, Any]], deltas: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _merge_tool_calls(
+    existing: list[dict[str, Any]], deltas: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     merged = [dict(tc) for tc in existing]
     for d in deltas:
         if not isinstance(d, dict):
@@ -47,7 +49,9 @@ def _merge_tool_calls(existing: list[dict[str, Any]], deltas: list[dict[str, Any
     return merged
 
 
-class OpenAICompatibleToolsExtension(AccumulatorExtensionMixin, ProviderExtensionPlugin):
+class OpenAICompatibleToolsExtension(
+    AccumulatorExtensionMixin, ProviderExtensionPlugin
+):
     name = "reference_openai_tools"
     version = "0.1.0"
 
@@ -58,7 +62,9 @@ class OpenAICompatibleToolsExtension(AccumulatorExtensionMixin, ProviderExtensio
         tools = config.get("tools")
         return {**state, "_tools": tools if isinstance(tools, list) else []}
 
-    def initialize_request(self, native_messages: list[dict[str, Any]], state: dict[str, Any]):
+    def initialize_request(
+        self, native_messages: list[dict[str, Any]], state: dict[str, Any]
+    ):
         tools = state.get("_tools") or []
         if not tools:
             return native_messages, state
@@ -79,7 +85,9 @@ class OpenAICompatibleToolsExtension(AccumulatorExtensionMixin, ProviderExtensio
         if not isinstance(tool_deltas, list) or not tool_deltas:
             return None, base
 
-        existing = base.get("tool_calls") if isinstance(base.get("tool_calls"), list) else []
+        existing = (
+            base.get("tool_calls") if isinstance(base.get("tool_calls"), list) else []
+        )
         merged = _merge_tool_calls(
             existing=[tc for tc in existing if isinstance(tc, dict)],
             deltas=[tc for tc in tool_deltas if isinstance(tc, dict)],
@@ -98,7 +106,9 @@ class OpenAICompatibleToolsExtension(AccumulatorExtensionMixin, ProviderExtensio
             nm = dict(nm)
             md = msg.get("metadata") or {}
 
-            if msg.get("role") == "assistant" and isinstance(md.get("tool_calls"), list):
+            if msg.get("role") == "assistant" and isinstance(
+                md.get("tool_calls"), list
+            ):
                 nm["tool_calls"] = md["tool_calls"]
 
             if msg.get("role") == "tool" and isinstance(md.get("tool_call_id"), str):

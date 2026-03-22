@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from reference_openai_compatible_provider._extension_accumulator import _merge_delta_content
+from reference_openai_compatible_provider._extension_accumulator import (
+    _merge_delta_content,
+)
 from reference_openai_compatible_provider.provider import OpenAICompatibleProvider
 from reference_openai_compatible_provider.tools_extension import _merge_tool_calls
 
@@ -19,13 +21,13 @@ def test_merge_tool_calls_merges_by_index_and_concatenates_arguments_fragments()
             "index": 0,
             "id": "call_1",
             "type": "function",
-            "function": {"name": "read_file", "arguments": "{\"file_path\":"},
+            "function": {"name": "read_file", "arguments": '{"file_path":'},
         }
     ]
     deltas = [
         {
             "index": 0,
-            "function": {"arguments": " \"README.md\"}"},
+            "function": {"arguments": ' "README.md"}'},
         }
     ]
     merged = _merge_tool_calls(existing=existing, deltas=deltas)
