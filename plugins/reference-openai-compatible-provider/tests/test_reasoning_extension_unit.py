@@ -45,6 +45,18 @@ def test_reasoning_extension_extracts_reasoning_content_fragments():
     assert acc2["reasoning_content"] == "alpha beta"
 
 
+def test_reasoning_extension_from_native_aliases_reasoning_content_to_reasoning():
+    ext = OpenAICompatibleReasoningExtension()
+
+    rebuilt = ext.from_native_messages(
+        [{"role": "assistant", "content": "done", "reasoning_content": "alpha beta"}],
+        [{"role": "assistant", "content": "done", "metadata": {}}],
+    )
+
+    assert rebuilt[0]["metadata"]["reasoning"] == "alpha beta"
+    assert rebuilt[0]["metadata"]["reasoning_content"] == "alpha beta"
+
+
 def test_reasoning_extension_prioritizes_reasoning_for_patch_when_both_fields_exist():
     ext = OpenAICompatibleReasoningExtension()
 
@@ -101,3 +113,18 @@ def test_reasoning_extension_returns_messages_unchanged_on_length_mismatch():
 
     rebuilt = ext.from_native_messages(native_messages, messages)
     assert rebuilt == messages
+
+
+def test_reasoning_extension_process_chunk_emits_partial_without_provider_partial():
+    ext = OpenAICompatibleReasoningExtension()
+
+    partials, _finals, _native, new_state = ext.process_chunk(
+        {"choices": [{"delta": {"reasoning_content": "alpha"}}]},
+        [],
+        [],
+        [],
+        {"partial": {"role": "assistant", "content": ""}},
+    )
+
+    assert partials == [{"role": "assistant", "content": "", "reasoning": "alpha"}]
+    assert new_state["partial"]["reasoning_content"] == "alpha"

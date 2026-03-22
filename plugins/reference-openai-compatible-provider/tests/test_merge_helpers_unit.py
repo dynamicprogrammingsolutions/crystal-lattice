@@ -15,6 +15,13 @@ def test_merge_delta_content_preserves_unknown_keys_and_accumulates_strings():
     assert out["reasoning"] == "ab"
 
 
+def test_merge_delta_content_preserves_existing_override_when_new_value_is_null():
+    current = {"name": "read_file"}
+    delta = {"name": None}
+    out = _merge_delta_content(current, delta, override=("name",))
+    assert out["name"] == "read_file"
+
+
 def test_merge_tool_calls_merges_by_index_and_concatenates_arguments_fragments():
     existing = [
         {
@@ -33,6 +40,28 @@ def test_merge_tool_calls_merges_by_index_and_concatenates_arguments_fragments()
     merged = _merge_tool_calls(existing=existing, deltas=deltas)
     assert merged[0]["function"]["name"] == "read_file"
     assert "README.md" in merged[0]["function"]["arguments"]
+
+
+def test_merge_tool_calls_preserves_function_name_when_later_delta_sets_null():
+    existing = [
+        {
+            "index": 0,
+            "id": "call_1",
+            "type": "function",
+            "function": {"name": "read_file", "arguments": '{"file_path": '},
+        }
+    ]
+    deltas = [
+        {
+            "index": 0,
+            "name": None,
+            "function": {"name": None, "arguments": '"bank0.json"}'},
+        }
+    ]
+    merged = _merge_tool_calls(existing=existing, deltas=deltas)
+    assert merged[0]["function"]["name"] == "read_file"
+    assert merged[0].get("name") is None
+    assert merged[0]["function"]["arguments"] == '{"file_path": "bank0.json"}'
 
 
 def test_provider_accumulator_preserves_extension_keys():

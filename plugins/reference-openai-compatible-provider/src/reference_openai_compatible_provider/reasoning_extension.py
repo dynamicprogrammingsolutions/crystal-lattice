@@ -21,10 +21,16 @@ def _has_reasoning_payload(value: Any) -> bool:
 
 def _reasoning_metadata_from_native(native_message: dict[str, Any]) -> dict[str, Any]:
     metadata: dict[str, Any] = {}
+    generic_reasoning: str | None = None
     for key in _REASONING_TEXT_FIELDS:
         value = native_message.get(key)
         if isinstance(value, str) and value:
             metadata[key] = value
+            if generic_reasoning is None:
+                generic_reasoning = value
+
+    if isinstance(generic_reasoning, str) and generic_reasoning:
+        metadata["reasoning"] = generic_reasoning
 
     return metadata
 

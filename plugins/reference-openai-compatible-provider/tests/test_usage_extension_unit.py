@@ -72,6 +72,105 @@ def test_usage_extension_extracts_reasoning_tokens_from_nested_details():
     assert metadata["usage_reasoning_tokens_formatted"] == "4"
 
 
+def test_usage_extension_exposes_openrouter_style_ui_elements():
+    ext = OpenAICompatibleUsageExtension()
+
+    assert ext.get_ui_elements({}, [], []) == [
+        {
+            "ui_type": "message_footer",
+            "data": "metadata.usage_prompt_tokens_formatted",
+            "template": "input: {{data}}",
+        },
+        {
+            "ui_type": "message_footer",
+            "data": "metadata.usage_cached_tokens_formatted",
+            "template": "cached: {{data}}",
+        },
+        {
+            "ui_type": "message_footer",
+            "data": "metadata.usage_completion_tokens_formatted",
+            "template": "completion: {{data}}",
+        },
+        {
+            "ui_type": "message_footer",
+            "data": "metadata.usage_total_cost_formatted",
+            "template": "cost: {{data}}",
+        },
+        {
+            "ui_type": "message_footer",
+            "data": "metadata.usage_turn_cost_cumulative_formatted",
+            "template": "turn: {{data}}",
+        },
+        {
+            "ui_type": "message_footer",
+            "data": "metadata.usage_turn_reasoning_tokens_cumulative_formatted",
+            "template": "reasoning: {{data}}",
+        },
+        {
+            "ui_type": "status_bar",
+            "data": "metadata.usage_total_cost_cumulative_formatted",
+            "template": "Total: {{data}}",
+        },
+    ]
+    assert ext.get_ui_elements({"show_usage": False}, [], []) == []
+
+
+def test_usage_extension_normalizes_cached_and_cost_fields_with_turn_totals():
+    ext = OpenAICompatibleUsageExtension()
+    native_messages = [
+        {"role": "user", "content": "hi"},
+        {
+            "role": "assistant",
+            "content": "thinking",
+            "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "lookup", "arguments": "{}"}}],
+            "_metadata": {
+                "usage": {
+                    "prompt_tokens": 8,
+                    "completion_tokens": 4,
+                    "total_tokens": 12,
+                    "cost_details": {"upstream_inference_cost": 0.000123},
+                    "completion_tokens_details": {"reasoning_tokens": 3},
+                }
+            },
+        },
+        {"role": "tool", "content": "ok"},
+        {
+            "role": "assistant",
+            "content": "done",
+            "_metadata": {
+                "usage": {
+                    "prompt_tokens": 1200,
+                    "completion_tokens": 300,
+                    "total_tokens": 1500,
+                    "prompt_tokens_details": {"cached_tokens": 256},
+                    "cost": 0.000456,
+                    "completion_tokens_details": {"reasoning_tokens": 7},
+                }
+            },
+        },
+    ]
+    messages = [
+        {"role": "user", "content": "hi", "metadata": {}},
+        {"role": "assistant", "content": "thinking", "metadata": {}},
+        {"role": "tool", "content": "ok", "metadata": {}},
+        {"role": "assistant", "content": "done", "metadata": {}},
+    ]
+
+    rebuilt = ext.from_native_messages(native_messages, messages)
+    tool_metadata = rebuilt[1]["metadata"]
+    final_metadata = rebuilt[3]["metadata"]
+
+    assert tool_metadata["usage_total_cost_formatted"] == "$0.000123"
+    assert "usage_turn_cost_cumulative_formatted" not in tool_metadata
+    assert final_metadata["usage_cached_tokens"] == 256
+    assert final_metadata["usage_cached_tokens_formatted"] == "256"
+    assert final_metadata["usage_prompt_tokens_formatted"] == "1,200"
+    assert final_metadata["usage_total_cost_formatted"] == "$0.000456"
+    assert final_metadata["usage_total_cost_cumulative_formatted"] == "$0.000579"
+    assert final_metadata["usage_turn_cost_cumulative_formatted"] == "$0.000579"
+    assert final_metadata["usage_turn_reasoning_tokens_cumulative_formatted"] == "10"
+
+
 def test_usage_extension_captures_streaming_usage_into_partial_state():
     ext = OpenAICompatibleUsageExtension()
     partial_messages = [{"role": "assistant", "content": "hi"}]

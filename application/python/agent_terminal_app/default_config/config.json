@@ -506,6 +506,18 @@
       "allowed_paths": ["."],
       "max_output_chars": 10000,
       "working_directory": "."
+    },
+    "fireworks": {
+      "provider": "reference_openai_compatible",
+      "base_url": "https://api.fireworks.ai/inference/v1",
+      "api_key": "${env:FIREWORKS_API_KEY}",
+      "model": "fireworks/qwen3-8b",
+      "timeout": 180,
+      "min_request_interval_seconds": 1,
+      "rate_limit_retry_delays_seconds": [1, 2, 4],
+      "allowed_paths": ["."],
+      "max_output_chars": 10000,
+      "working_directory": "."
     }
   },
   "plugins": [
@@ -586,6 +598,10 @@
     "ollama": {
       "provider": "ollama",
       "model": "qwen3:0.6b"
+    },
+    "fireworks": {
+      "provider": "fireworks",
+      "model": "fireworks/qwen3-8b"
     }
   }
 }
