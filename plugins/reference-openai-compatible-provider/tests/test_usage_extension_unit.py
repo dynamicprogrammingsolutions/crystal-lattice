@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from reference_openai_compatible_provider.provider import OpenAICompatibleProvider
 from reference_openai_compatible_provider.usage_extension import (
     OpenAICompatibleUsageExtension,
@@ -103,8 +105,18 @@ def test_usage_extension_exposes_openrouter_style_ui_elements():
         },
         {
             "ui_type": "message_footer",
-            "data": "metadata.usage_turn_reasoning_tokens_cumulative_formatted",
-            "template": "reasoning: {{data}}",
+            "data": "metadata.usage_turn_input_tokens_cumulative_formatted",
+            "template": "turn input: {{data}}",
+        },
+        {
+            "ui_type": "message_footer",
+            "data": "metadata.usage_turn_cached_tokens_cumulative_formatted",
+            "template": "turn cached: {{data}}",
+        },
+        {
+            "ui_type": "message_footer",
+            "data": "metadata.usage_turn_output_tokens_cumulative_formatted",
+            "template": "turn output: {{data}}",
         },
         {
             "ui_type": "status_bar",
@@ -168,7 +180,11 @@ def test_usage_extension_normalizes_cached_and_cost_fields_with_turn_totals():
     assert final_metadata["usage_total_cost_formatted"] == "$0.000456"
     assert final_metadata["usage_total_cost_cumulative_formatted"] == "$0.000579"
     assert final_metadata["usage_turn_cost_cumulative_formatted"] == "$0.000579"
-    assert final_metadata["usage_turn_reasoning_tokens_cumulative_formatted"] == "10"
+    # Turn token breakdown
+    assert final_metadata["usage_turn_input_tokens_cumulative_formatted"] == "1,208"  # 8 + 1200
+    assert final_metadata["usage_turn_cached_tokens_cumulative_formatted"] == "256"  # 256
+    assert final_metadata["usage_turn_output_tokens_cumulative_formatted"] == "304"  # 4 + 300
+    assert final_metadata["usage_turn_reasoning_tokens_cumulative_formatted"] == "10"  # 3 + 7
 
 
 def test_usage_extension_captures_streaming_usage_into_partial_state():
@@ -242,3 +258,308 @@ def test_usage_extension_uses_last_native_message_as_length_mismatch_fallback():
 
     rebuilt = ext.from_native_messages(native_messages, messages)
     assert rebuilt[-1]["metadata"]["usage_total_tokens"] == 9
+
+
+def test_usage_extension_calculates_cost_from_token_rates():
+    """Test cost calculation when provider doesn't return cost but token_rates are configured."""
+    ext = OpenAICompatibleUsageExtension()
+
+    # Simulate finalize injecting calculated cost
+    final_messages = [
+        {
+            "role": "assistant",
+            "content": "hello",
+            "_metadata": {
+                "usage": {
+                    "prompt_tokens": 1000,
+                    "completion_tokens": 500,
+                    "total_tokens": 1500,
+                    # No 'cost' field - provider didn't return it
+                }
+            },
+        }
+    ]
+    native_messages = list(final_messages)
+    state = {
+        "config": {
+            "token_rates": {
+                "input": 0.10,  # $0.10 per million input tokens
+                "cached": 0.01,  # $0.01 per million cached tokens
+                "completion": 0.30,  # $0.30 per million completion tokens
+            }
+        }
+    }
+
+    new_finals, new_native, new_state = ext.finalize(
+        final_messages, native_messages, state
+    )
+
+    # Cost should be calculated and injected
+    # (1000 * 0.10/1M) + (500 * 0.30/1M) = 0.0001 + 0.00015 = 0.00025
+    assert new_finals[0]["_metadata"]["usage"]["cost"] == 0.00025
+
+
+def test_usage_extension_calculates_cost_with_cached_discount():
+    """Test cached tokens are discounted when cached_rate is configured."""
+    ext = OpenAICompatibleUsageExtension()
+
+    final_messages = [
+        {
+            "role": "assistant",
+            "content": "hello",
+            "_metadata": {
+                "usage": {
+                    "prompt_tokens": 1000,
+                    "completion_tokens": 500,
+                    "total_tokens": 1500,
+                    "prompt_tokens_details": {"cached_tokens": 200},
+                }
+            },
+        }
+    ]
+    native_messages = list(final_messages)
+    state = {
+        "config": {
+            "token_rates": {
+                "input": 0.10,  # $0.10/M
+                "cached": 0.02,  # $0.02/M (discounted)
+                "completion": 0.30,  # $0.30/M
+            }
+        }
+    }
+
+    new_finals, new_native, new_state = ext.finalize(
+        final_messages, native_messages, state
+    )
+
+    # Cost calculation:
+    # Input: 1000 tokens at $0.10/M = 0.0001
+    # Cached discount: 200 tokens * ((0.10 - 0.02) / 1M) = 0.000016 discount
+    # Adjusted input cost: 0.0001 - 0.000016 = 0.000084
+    # Completion: 500 tokens at $0.30/M = 0.00015
+    # Total: 0.000084 + 0.00015 = 0.000234
+    assert new_finals[0]["_metadata"]["usage"]["cost"] == pytest.approx(0.000234)
+
+
+def test_usage_extension_provider_cost_takes_precedence():
+    """Provider-returned cost should not be overwritten by calculated cost."""
+    ext = OpenAICompatibleUsageExtension()
+
+    final_messages = [
+        {
+            "role": "assistant",
+            "content": "hello",
+            "_metadata": {
+                "usage": {
+                    "prompt_tokens": 1000,
+                    "completion_tokens": 500,
+                    "total_tokens": 1500,
+                    "cost": 0.001,  # Provider already returned cost
+                }
+            },
+        }
+    ]
+    native_messages = list(final_messages)
+    state = {
+        "config": {
+            "token_rates": {
+                "input": 0.10,
+                "completion": 0.30,
+            }
+        }
+    }
+
+    new_finals, new_native, new_state = ext.finalize(
+        final_messages, native_messages, state
+    )
+
+    # Provider cost should remain unchanged
+    assert new_finals[0]["_metadata"]["usage"]["cost"] == 0.001
+
+
+def test_usage_extension_no_cost_when_no_token_rates():
+    """No cost should be calculated when token_rates are not configured."""
+    ext = OpenAICompatibleUsageExtension()
+
+    final_messages = [
+        {
+            "role": "assistant",
+            "content": "hello",
+            "_metadata": {
+                "usage": {
+                    "prompt_tokens": 1000,
+                    "completion_tokens": 500,
+                    "total_tokens": 1500,
+                }
+            },
+        }
+    ]
+    native_messages = list(final_messages)
+    state = {"config": {}}  # No token_rates
+
+    new_finals, new_native, new_state = ext.finalize(
+        final_messages, native_messages, state
+    )
+
+    # No cost should be injected
+    assert "cost" not in new_finals[0]["_metadata"]["usage"]
+
+
+def test_usage_extension_incomplete_token_rates():
+    """Cost should not be calculated if rates are incomplete (missing input or completion)."""
+    ext = OpenAICompatibleUsageExtension()
+
+    final_messages = [
+        {
+            "role": "assistant",
+            "content": "hello",
+            "_metadata": {
+                "usage": {
+                    "prompt_tokens": 1000,
+                    "completion_tokens": 500,
+                    "total_tokens": 1500,
+                }
+            },
+        }
+    ]
+    native_messages = list(final_messages)
+
+    # Missing completion rate
+    state = {"config": {"token_rates": {"input": 0.10}}}
+
+    new_finals, new_native, new_state = ext.finalize(
+        final_messages, native_messages, state
+    )
+
+    # No cost should be injected
+    assert "cost" not in new_finals[0]["_metadata"]["usage"]
+
+
+def test_usage_extension_full_flow_with_calculated_cost():
+    """Test full flow: finalize injects cost, from_native_messages extracts it."""
+    ext = OpenAICompatibleUsageExtension()
+
+    # After provider finalize, we have final_messages with usage but no cost
+    final_messages = [
+        {
+            "role": "assistant",
+            "content": "response",
+            "_metadata": {
+                "usage": {
+                    "prompt_tokens": 10000,
+                    "completion_tokens": 2000,
+                    "total_tokens": 12000,
+                }
+            },
+        }
+    ]
+    native_messages = list(final_messages)
+    state = {
+        "config": {
+            "token_rates": {
+                "input": 1.0,  # $1.00/M
+                "completion": 3.0,  # $3.00/M
+            }
+        }
+    }
+
+    # Extension finalize injects cost
+    new_finals, new_native, new_state = ext.finalize(
+        final_messages, native_messages, state
+    )
+
+    # Now from_native_messages should see the calculated cost
+    messages = [{"role": "assistant", "content": "response", "metadata": {}}]
+    rebuilt = ext.from_native_messages(new_native, messages)
+
+    # Cost should be: (10000 * 1.0/1M) + (2000 * 3.0/1M) = 0.01 + 0.006 = 0.016
+    assert rebuilt[0]["metadata"]["usage_total_cost"] == 0.016
+    assert rebuilt[0]["metadata"]["usage_total_cost_formatted"] == "$0.016000"
+
+
+def test_usage_extension_session_total_across_multiple_turns():
+    """Test that session total is calculated correctly across multiple turns in finalize."""
+    ext = OpenAICompatibleUsageExtension()
+
+    # Simulate full history with multiple turns
+    native_messages = [
+        {"role": "user", "content": "first turn"},
+        {
+            "role": "assistant",
+            "content": "first response",
+            "_metadata": {
+                "usage": {
+                    "prompt_tokens": 100,
+                    "completion_tokens": 50,
+                    "total_tokens": 150,
+                    "cost": 0.001,
+                }
+            },
+        },
+        {"role": "user", "content": "second turn"},
+        {
+            "role": "assistant",
+            "content": "tool call",
+            "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "test", "arguments": "{}"}}],
+            "_metadata": {
+                "usage": {
+                    "prompt_tokens": 200,
+                    "completion_tokens": 100,
+                    "total_tokens": 300,
+                    "cost": 0.002,
+                }
+            },
+        },
+        {"role": "tool", "content": "result"},
+        # This is the new message (final_messages)
+        {
+            "role": "assistant",
+            "content": "final answer",
+            "_metadata": {
+                "usage": {
+                    "prompt_tokens": 300,
+                    "completion_tokens": 150,
+                    "total_tokens": 450,
+                    "cost": 0.003,
+                }
+            },
+        },
+    ]
+
+    # final_messages only contains the new messages from this turn
+    final_messages = [
+        native_messages[3],  # tool call assistant
+        native_messages[5],  # final answer
+    ]
+
+    state = {"config": {}}
+
+    # Finalize should calculate session totals from full history
+    new_finals, new_native, new_state = ext.finalize(
+        final_messages, native_messages, state
+    )
+
+    # Check that the last message has correct session total
+    # Total: 0.001 + 0.002 + 0.003 = 0.006
+    last_msg_metadata = new_finals[-1]["_metadata"]
+    assert last_msg_metadata["usage_total_cost_cumulative"] == 0.006
+    assert last_msg_metadata["usage_total_cost_cumulative_formatted"] == "$0.006000"
+
+    # Turn cost should be 0.002 + 0.003 = 0.005 (tool call + final answer)
+    assert last_msg_metadata["usage_turn_cost_cumulative"] == 0.005
+    assert last_msg_metadata["usage_turn_cost_cumulative_formatted"] == "$0.005000"
+
+    # Turn token breakdown: tool call (200 input, 100 output) + final (300 input, 150 output)
+    assert last_msg_metadata["usage_turn_input_tokens_cumulative"] == 500
+    assert last_msg_metadata["usage_turn_output_tokens_cumulative"] == 250
+
+    # Now test from_native_messages reads the pre-computed values
+    messages = [
+        {"role": "assistant", "content": "tool call", "metadata": {}},
+        {"role": "assistant", "content": "final answer", "metadata": {}},
+    ]
+    rebuilt = ext.from_native_messages(new_native[-2:], messages)
+
+    # Last message should have session total
+    assert rebuilt[-1]["metadata"]["usage_total_cost_cumulative"] == 0.006
+    assert rebuilt[-1]["metadata"]["usage_total_cost_cumulative_formatted"] == "$0.006000"
