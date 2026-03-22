@@ -191,8 +191,6 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
     def initialize_request(
             self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Dict[str, Any]:
-        if "supports_reasoning" not in state.get("available_tags", []):
-            return state
         reasoning_config = state.get("openrouter_reasoning")
         if not reasoning_config:
             return state

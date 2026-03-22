@@ -1626,7 +1626,6 @@ class AgentCore:
             provider: Provider wrapper selected for this request.
             features: Enabled feature wrappers for this request.
             tools: Enabled tool wrappers for this request.
-            tags: Optional resolved capability tags for this request; stored in state for extensions.
 
         Returns:
             A tuple of (messages, native_messages, state, native_history_changed):
@@ -1756,7 +1755,6 @@ class AgentCore:
             provider,
             features,
             tools,
-            tags=tags,
         )
         baseline_native_len = len(native_messages)
 
@@ -1868,7 +1866,6 @@ class AgentCore:
             provider,
             features,
             tools,
-            tags=tags,
         )
         baseline_native_len = len(native_messages)
 
@@ -1982,7 +1979,6 @@ class AgentCore:
             provider,
             features,
             tools,
-            tags=tags,
         )
         baseline_native_len = len(native_messages)
 
