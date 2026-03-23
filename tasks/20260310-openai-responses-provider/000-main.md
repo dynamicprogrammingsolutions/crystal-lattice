@@ -4,32 +4,32 @@ Short description: Create a new `openai_responses` plugin bundle using the OpenA
 
 ## Subtasks
 
-1. `tasks/20260310-openai-responses-provider/010-architecture-scope-and-boundaries.md`
-2. `tasks/20260310-openai-responses-provider/020-scaffold-openai-responses-plugin-package.md`
-3. `tasks/20260310-openai-responses-provider/030-provider-core-conversion-and-nonstreaming-sdk.md`
-4. `tasks/20260310-openai-responses-provider/040-provider-streaming-event-normalization-and-finalization.md`
-5. `tasks/20260310-openai-responses-provider/041-system-message-rendering-and-developer-role-followup.md`
-6. `tasks/20260310-openai-responses-provider/042-native-compaction-instruction-message-exclusion.md`
-7. `tasks/20260310-openai-responses-provider/043-native-message-preparation-for-compaction.md`
-8. `tasks/20260310-openai-responses-provider/044-visible-rebuild-from-compacted-native-output.md`
-9. `tasks/20260310-openai-responses-provider/046-manual-range-selection-native-compaction.md`
-10. `tasks/20260310-openai-responses-provider/047-auto-compaction-after-request-complete.md`
-11. `tasks/20260310-openai-responses-provider/050-tools-extension-responses-api.md`
-12. `tasks/20260310-openai-responses-provider/060-reasoning-extension-responses-api.md`
-13. `tasks/20260310-openai-responses-provider/061-openai-responses-native-conversion-and-reasoning-followup-regressions.md`
-14. `tasks/20260310-openai-responses-provider/062-cross-provider-agent-switch-native-rebuild-regressions.md`
-15. `tasks/20260310-openai-responses-provider/070-usage-extension-responses-api.md`
-16. `tasks/20260310-openai-responses-provider/080-verbosity-extension-responses-api.md`
-17. `tasks/20260310-openai-responses-provider/090-integration-native-retention-and-regression-tests.md`
-18. `tasks/20260310-openai-responses-provider/095-native-compaction-provider-extension.md`
-19. `tasks/20260310-openai-responses-provider/100-docs-readme-and-config-examples.md`
-20. `tasks/20260310-openai-responses-provider/110-replaced-by-provider-extension-session-actions-020.md`
-21. `tasks/20260310-openai-responses-provider/120-model-discovery-provider-ui-and-doc-followup.md`
-22. `tasks/20260310-openai-responses-provider/130-prompt-caching-session-key-extension.md`
-23. `tasks/20260310-openai-responses-provider/140-openai-image-pdf-upload-and-upload-modes.md`
-24. `tasks/20260310-openai-responses-provider/141-session-asset-storage-and-action-driven-attachments.md`
-25. `tasks/20260310-openai-responses-provider/150-web-search-extension-and-citation-preservation.md`
-26. `tasks/20260310-openai-responses-provider/160-openai-flex-processing-extension-and-provider-retries.md`
+- [x] `tasks/20260310-openai-responses-provider/010-architecture-scope-and-boundaries.md`
+- [x] `tasks/20260310-openai-responses-provider/020-scaffold-openai-responses-plugin-package.md`
+- [x] `tasks/20260310-openai-responses-provider/030-provider-core-conversion-and-nonstreaming-sdk.md`
+- [x] `tasks/20260310-openai-responses-provider/040-provider-streaming-event-normalization-and-finalization.md`
+- [ ] `tasks/20260310-openai-responses-provider/041-system-message-rendering-and-developer-role-followup.md`
+- [ ] `tasks/20260310-openai-responses-provider/042-native-compaction-instruction-message-exclusion.md`
+- [ ] `tasks/20260310-openai-responses-provider/043-native-message-preparation-for-compaction.md`
+- [ ] `tasks/20260310-openai-responses-provider/044-visible-rebuild-from-compacted-native-output.md`
+- [ ] `tasks/20260310-openai-responses-provider/046-manual-range-selection-native-compaction.md`
+- [ ] `tasks/20260310-openai-responses-provider/047-auto-compaction-after-request-complete.md`
+- [x] `tasks/20260310-openai-responses-provider/050-tools-extension-responses-api.md`
+- [x] `tasks/20260310-openai-responses-provider/060-reasoning-extension-responses-api.md`
+- [x] `tasks/20260310-openai-responses-provider/061-openai-responses-native-conversion-and-reasoning-followup-regressions.md`
+- [x] `tasks/20260310-openai-responses-provider/062-cross-provider-agent-switch-native-rebuild-regressions.md`
+- [x] `tasks/20260310-openai-responses-provider/070-usage-extension-responses-api.md`
+- [x] `tasks/20260310-openai-responses-provider/080-verbosity-extension-responses-api.md`
+- [x] `tasks/20260310-openai-responses-provider/090-integration-native-retention-and-regression-tests.md`
+- [x] `tasks/20260310-openai-responses-provider/095-native-compaction-provider-extension.md`
+- [x] `tasks/20260310-openai-responses-provider/100-docs-readme-and-config-examples.md`
+- [ ] `tasks/20260310-openai-responses-provider/110-replaced-by-provider-extension-session-actions-020.md`
+- [ ] `tasks/20260310-openai-responses-provider/120-model-discovery-provider-ui-and-doc-followup.md`
+- [ ] `tasks/20260310-openai-responses-provider/130-prompt-caching-session-key-extension.md`
+- [ ] `tasks/20260310-openai-responses-provider/140-openai-image-pdf-upload-and-upload-modes.md`
+- [ ] `tasks/20260310-openai-responses-provider/141-session-asset-storage-and-action-driven-attachments.md`
+- [ ] `tasks/20260310-openai-responses-provider/150-web-search-extension-and-citation-preservation.md`
+- [ ] `tasks/20260310-openai-responses-provider/160-openai-flex-processing-extension-and-provider-retries.md`
 
 ## Status
 

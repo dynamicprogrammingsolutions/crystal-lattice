@@ -50,13 +50,13 @@ This work has seven subtasks:
 
 ## Subtasks
 
-- Template: `tasks/20260303-provider-plugin-docs/010-template-python-provider.md`
-- Doc page: `tasks/20260303-provider-plugin-docs/020-provider-plugins-doc.md`
-- Other doc changes: `tasks/20260303-provider-plugin-docs/030-other-doc-updates.md`
-- Template tests improvements: `tasks/20260303-provider-plugin-docs/040-template-provider-tests.md`
-- Provider extension docs: `tasks/20260303-provider-plugin-docs/050-provider-extensions-doc.md`
-- Reference implementation (Ollama/OpenAI-compatible): `tasks/20260303-provider-plugin-docs/060-openai-compatible-reference-implementation.md`
-- Update existing providers (OpenRouter + core Ollama/OpenAI-compatible): `tasks/20260303-provider-plugin-docs/070-update-existing-provider-implementations.md`
+- [x] `tasks/20260303-provider-plugin-docs/010-template-python-provider.md`
+- [x] `tasks/20260303-provider-plugin-docs/020-provider-plugins-doc.md`
+- [ ] `tasks/20260303-provider-plugin-docs/030-other-doc-updates.md`
+- [x] `tasks/20260303-provider-plugin-docs/040-template-provider-tests.md`
+- [x] `tasks/20260303-provider-plugin-docs/050-provider-extensions-doc.md`
+- [ ] `tasks/20260303-provider-plugin-docs/060-openai-compatible-reference-implementation.md`
+- [ ] `tasks/20260303-provider-plugin-docs/070-update-existing-provider-implementations.md`
 
 ---
 

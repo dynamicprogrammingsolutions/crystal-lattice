@@ -23,9 +23,9 @@ Follow-up to keep visible but out of current implementation scope:
 
 ## Subtasks
 
-1. `tasks/20260322-reference-openai-compatible-provider-generalization/010-ollama-safe-generalization.md`
-2. `tasks/20260322-reference-openai-compatible-provider-generalization/020-fireworks-hosted-provider-verification.md`
-3. `tasks/20260322-reference-openai-compatible-provider-generalization/030-other-provider-integration-matrix.md`
+- [x] `tasks/20260322-reference-openai-compatible-provider-generalization/010-ollama-safe-generalization.md`
+- [x] `tasks/20260322-reference-openai-compatible-provider-generalization/020-fireworks-hosted-provider-verification.md`
+- [ ] `tasks/20260322-reference-openai-compatible-provider-generalization/030-other-provider-integration-matrix.md`
 
 ## Current State Summary
 

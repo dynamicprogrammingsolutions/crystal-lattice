@@ -14,12 +14,13 @@ This directory contains the current **blueprint/spec** plus implementation subta
 - Blueprint/spec: `tasks/20260305-cross-framework-desktop-prototype/blueprint.md`
 
 ## Subtasks
-1. `tasks/20260305-cross-framework-desktop-prototype/010-electron-desktop.md`
-2. `tasks/20260305-cross-framework-desktop-prototype/020-javafx-swing-desktop.md`
-3. `tasks/20260305-cross-framework-desktop-prototype/030-qt-desktop.md`
-4. `tasks/20260305-cross-framework-desktop-prototype/040-flutter-dart-desktop.md`
-5. `tasks/20260305-cross-framework-desktop-prototype/050-vscode-extension-webview.md`
-6. `tasks/20260305-cross-framework-desktop-prototype/060-jetbrains-ide-plugin.md`
+
+- [ ] `tasks/20260305-cross-framework-desktop-prototype/010-electron-desktop.md`
+- [ ] `tasks/20260305-cross-framework-desktop-prototype/020-javafx-swing-desktop.md`
+- [ ] `tasks/20260305-cross-framework-desktop-prototype/030-qt-desktop.md`
+- [ ] `tasks/20260305-cross-framework-desktop-prototype/040-flutter-dart-desktop.md`
+- [ ] `tasks/20260305-cross-framework-desktop-prototype/050-vscode-extension-webview.md`
+- [ ] `tasks/20260305-cross-framework-desktop-prototype/060-jetbrains-ide-plugin.md`
 
 ## Shared constraints (apply to all subtasks)
 - Use **deterministic mock data** (seeded generator) so all implementations can be compared fairly.

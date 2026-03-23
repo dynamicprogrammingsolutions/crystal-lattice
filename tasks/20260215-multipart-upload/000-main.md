@@ -13,17 +13,17 @@ This task is structured as a main task + subtasks, intended as a handoff package
 
 ## Subtasks
 
-- `tasks/20260215-multipart-upload/010-core-message-multipartcontent.md`
-- `tasks/20260215-multipart-upload/020-server-append-multipartcontent.md`
-- `tasks/20260215-multipart-upload/030-frontend-sdk-types-and-payloads.md`
-- `tasks/20260215-multipart-upload/040-plugin-ui-schema-composer-attachments.md`
-- `tasks/20260215-multipart-upload/050-provider-mapping-multipartcontent.md`
-- `tasks/20260215-multipart-upload/060-mobile-composer-attachments.md`
-- `tasks/20260215-multipart-upload/070-desktop-composer-attachments.md`
-- `tasks/20260215-multipart-upload/075-desktop-composer-attachment-plus-and-metadata-window.md`
-- `tasks/20260215-multipart-upload/080-docs-and-compat.md`
-- `tasks/20260215-multipart-upload/090-asset-prepare-upload-action.md`
-- `tasks/20260215-multipart-upload/100-bridge-chunked-http-over-websocket.md`
+- [x] `tasks/20260215-multipart-upload/010-core-message-multipartcontent.md`
+- [x] `tasks/20260215-multipart-upload/020-server-append-multipartcontent.md`
+- [x] `tasks/20260215-multipart-upload/030-frontend-sdk-types-and-payloads.md`
+- [x] `tasks/20260215-multipart-upload/040-plugin-ui-schema-composer-attachments.md`
+- [x] `tasks/20260215-multipart-upload/050-provider-mapping-multipartcontent.md`
+- [x] `tasks/20260215-multipart-upload/060-mobile-composer-attachments.md`
+- [x] `tasks/20260215-multipart-upload/070-desktop-composer-attachments.md`
+- [x] `tasks/20260215-multipart-upload/075-desktop-composer-attachment-plus-and-metadata-window.md`
+- [ ] `tasks/20260215-multipart-upload/080-docs-and-compat.md`
+- [ ] `tasks/20260215-multipart-upload/090-asset-prepare-upload-action.md`
+- [x] `tasks/20260215-multipart-upload/100-bridge-chunked-http-over-websocket.md`
 
 ## Requirements (Locked)
 

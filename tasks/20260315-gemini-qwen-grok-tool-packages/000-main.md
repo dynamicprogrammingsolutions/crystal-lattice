@@ -150,26 +150,26 @@ Key observations:
 
 ### Phase 1: Core file tools (Gemini, Qwen, Grok)
 
-1. `tasks/20260315-gemini-qwen-grok-tool-packages/010-reader-tools.md` [done]
-2. `tasks/20260315-gemini-qwen-grok-tool-packages/020-edit-and-write-tools.md` [done]
-3. `tasks/20260315-gemini-qwen-grok-tool-packages/030-list-grep-glob-tools.md` [done]
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/010-reader-tools.md`
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/020-edit-and-write-tools.md`
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/030-list-grep-glob-tools.md`
 
 ### Phase 1.5: Application and config support
 
-4. `tasks/20260315-gemini-qwen-grok-tool-packages/040-agent-and-provider-plugin-package-config.md` [done]
-5. `tasks/20260315-gemini-qwen-grok-tool-packages/050-vendor-friendly-system-messages.md` [done]
-6. `tasks/20260315-gemini-qwen-grok-tool-packages/060-simplified-system-message-configs-and-minimal-dynamics.md` [done]
-7. `tasks/20260315-gemini-qwen-grok-tool-packages/070-core-rebuild-after-native-initialize-changes.md` [done]
-8. `tasks/20260315-gemini-qwen-grok-tool-packages/080-portable-default-config-and-compiled-system-message-ui.md` [done]
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/040-agent-and-provider-plugin-package-config.md`
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/050-vendor-friendly-system-messages.md`
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/060-simplified-system-message-configs-and-minimal-dynamics.md`
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/070-core-rebuild-after-native-initialize-changes.md`
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/080-portable-default-config-and-compiled-system-message-ui.md`
 
 ### Phase 2: Kimi + cross-vendor tools
 
-9. `tasks/20260315-gemini-qwen-grok-tool-packages/090-kimi-tools.md` — Kimi core file tools (ReadFile, WriteFile, StrReplaceFile, Glob, Grep) [done]
-9b. `tasks/20260315-gemini-qwen-grok-tool-packages/095-kimi-system-message.md` — Kimi default system message extraction and runtime template
-10. `tasks/20260315-gemini-qwen-grok-tool-packages/100-shell-tools.md` — Shell tools (all four vendors)
-11. `tasks/20260315-gemini-qwen-grok-tool-packages/110-web-fetch-tools.md` — Web fetch tools (Gemini, Qwen, Kimi; Grok skipped)
-12. `tasks/20260315-gemini-qwen-grok-tool-packages/120-web-search-tools.md` — Web search tools (Gemini, Qwen, Kimi; Grok skipped)
-13. `tasks/20260315-gemini-qwen-grok-tool-packages/130-todo-tools.md` — Todo tools (all four vendors)
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/090-kimi-tools.md` — Kimi core file tools
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/095-kimi-system-message.md` — Kimi default system message extraction
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/100-shell-tools.md` — Shell tools (all four vendors)
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/110-web-fetch-tools.md` — Web fetch tools
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/120-web-search-tools.md` — Web search tools
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/130-todo-tools.md` — Todo tools (all four vendors)
 
 ### Phase 2 shared packages
 

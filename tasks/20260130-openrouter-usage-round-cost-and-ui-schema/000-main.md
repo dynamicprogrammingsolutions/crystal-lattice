@@ -27,8 +27,8 @@ This task set is intentionally **separate** from the sandboxing prerequisites wo
 
 ## Subtasks
 
-- `tasks/20260130-openrouter-usage-round-cost-and-ui-schema/010-config-aware-ui-schema-and-conditions.md`
-- `tasks/20260130-openrouter-usage-round-cost-and-ui-schema/020-openrouter-round-cost.md`
-- `tasks/20260130-openrouter-usage-round-cost-and-ui-schema/030-openrouter-cumulative-and-deleted-history-cost.md`
-- `tasks/20260130-openrouter-usage-round-cost-and-ui-schema/040-openrouter-token-breakdown-and-ui-toggles.md`
-- `tasks/20260130-openrouter-usage-round-cost-and-ui-schema/050-tests-and-fixtures.md`
+- [ ] `tasks/20260130-openrouter-usage-round-cost-and-ui-schema/010-config-aware-ui-schema-and-conditions.md`
+- [ ] `tasks/20260130-openrouter-usage-round-cost-and-ui-schema/020-openrouter-round-cost.md`
+- [ ] `tasks/20260130-openrouter-usage-round-cost-and-ui-schema/030-openrouter-cumulative-and-deleted-history-cost.md`
+- [ ] `tasks/20260130-openrouter-usage-round-cost-and-ui-schema/040-openrouter-token-breakdown-and-ui-toggles.md`
+- [ ] `tasks/20260130-openrouter-usage-round-cost-and-ui-schema/050-tests-and-fixtures.md`

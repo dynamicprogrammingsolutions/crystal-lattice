@@ -4,9 +4,9 @@ Short description: Extract the generic provider-extension session-action capabil
 
 ## Subtasks
 
-1. `tasks/20260312-provider-extension-session-actions/010-core-capability-and-contract.md`
-2. `tasks/20260312-provider-extension-session-actions/020-frontend-wiring-provider-extension-actions.md`
-3. `tasks/20260312-provider-extension-session-actions/030-docs-provider-extension-session-actions.md`
+- [x] `tasks/20260312-provider-extension-session-actions/010-core-capability-and-contract.md`
+- [x] `tasks/20260312-provider-extension-session-actions/020-frontend-wiring-provider-extension-actions.md`
+- [ ] `tasks/20260312-provider-extension-session-actions/030-docs-provider-extension-session-actions.md`
 
 ## Why this task bundle exists
 

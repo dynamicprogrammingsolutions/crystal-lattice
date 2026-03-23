@@ -27,10 +27,10 @@ Create a minimal native module wrapping NSTableView that:
 
 ## Subtasks
 
-1. **010-research.md** - Research current message list implementation and NSTableView integration patterns
-2. **020-native-module.md** - Create basic RCTViewManager subclass for NSTableView
-3. **030-variable-height.md** - Implement dynamic row height measurement strategy
-4. **040-integration.md** - Wire up to ChatPane with mock data for testing
+- [ ] `tasks/20260323-native-macos-tableview-poc/010-research.md` — Research current message list implementation and NSTableView integration patterns
+- [ ] `tasks/20260323-native-macos-tableview-poc/020-native-module.md` — Create basic RCTViewManager subclass for NSTableView
+- [ ] `tasks/20260323-native-macos-tableview-poc/030-variable-height.md` — Implement dynamic row height measurement strategy
+- [ ] `tasks/20260323-native-macos-tableview-poc/040-integration.md` — Wire up to ChatPane with mock data for testing
 
 ## Files to Examine
 
