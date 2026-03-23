@@ -117,7 +117,7 @@ def test_resolve_variables_files_and_code(tmp_path) -> None:
         "CODE": {"kind": "code", "path": str(code_file)},
     }
 
-    resolved = SystemMessageFeature._resolve_variables(specs)
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(specs)
 
     assert resolved["TEXT"] == "plain"
     assert resolved["FILES"] == "ALPHA\n\nBETA"
@@ -240,7 +240,7 @@ def test_system_message_files_variable_loaded_relative_to_cwd(
     }
 
     cfg = SystemMessageFeature._extract_plugin_config(config)
-    resolved = SystemMessageFeature._resolve_variables(cfg["variables"])
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(cfg["variables"])
 
     assert resolved["CTX"] == "File-based context"
 
@@ -255,7 +255,7 @@ def test_text_variable_object_form() -> None:
     }
 
     cfg = SystemMessageFeature._extract_plugin_config(config)
-    resolved = SystemMessageFeature._resolve_variables(cfg["variables"])
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(cfg["variables"])
 
     assert resolved["NAME"] == "Tester"
 
@@ -275,7 +275,7 @@ def test_code_variable_uses_python_file(tmp_path) -> None:
     }
 
     cfg = SystemMessageFeature._extract_plugin_config(config)
-    resolved = SystemMessageFeature._resolve_variables(cfg["variables"])
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(cfg["variables"])
 
     assert resolved["VAL"] == "FROM-CODE-FEATURE"
 
@@ -296,7 +296,7 @@ def test_inline_code_expression_variable(tmp_path, monkeypatch) -> None:
     }
 
     cfg = SystemMessageFeature._extract_plugin_config(config)
-    resolved = SystemMessageFeature._resolve_variables(
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(
         cfg["variables"],
         runtime_context=runtime_context,
     )
@@ -327,7 +327,7 @@ def test_runtime_code_can_read_config_in_inline_code(tmp_path) -> None:
         str(runtime_file),
         base_context=SystemMessageFeature._build_base_runtime_context(config=config),
     )
-    resolved = SystemMessageFeature._resolve_variables(
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(
         cfg["variables"],
         runtime_context=runtime_context,
     )
@@ -346,7 +346,7 @@ def test_inline_code_has_no_default_helper_context_without_runtime_code() -> Non
     }
 
     cfg = SystemMessageFeature._extract_plugin_config(config)
-    resolved = SystemMessageFeature._resolve_variables(cfg["variables"])
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(cfg["variables"])
 
     assert resolved["VAL"] == ""
 
@@ -369,7 +369,7 @@ def test_inline_code_block_uses_value_variable() -> None:
     }
 
     cfg = SystemMessageFeature._extract_plugin_config(config)
-    resolved = SystemMessageFeature._resolve_variables(cfg["variables"])
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(cfg["variables"])
 
     assert resolved["VAL"] == "Rendered from block"
 
@@ -388,7 +388,7 @@ def test_condition_inline_code_on_text_variable() -> None:
     }
 
     cfg = SystemMessageFeature._extract_plugin_config(config)
-    resolved = SystemMessageFeature._resolve_variables(cfg["variables"])
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(cfg["variables"])
 
     assert resolved["VAL"] == ""
     assert SystemMessageFeature._render_template(cfg["template"], resolved) == "Hello"
@@ -413,7 +413,7 @@ def test_condition_inline_code_on_files_variable_skips_file_reads(monkeypatch) -
     }
 
     cfg = SystemMessageFeature._extract_plugin_config(config)
-    resolved = SystemMessageFeature._resolve_variables(cfg["variables"])
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(cfg["variables"])
 
     assert resolved["VAL"] == ""
 
@@ -435,7 +435,7 @@ def test_condition_code_uses_external_helper_file(tmp_path) -> None:
     }
 
     cfg = SystemMessageFeature._extract_plugin_config(config)
-    resolved = SystemMessageFeature._resolve_variables(cfg["variables"])
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(cfg["variables"])
 
     assert resolved["VAL"] == "from text"
 
@@ -493,7 +493,7 @@ def test_helper_runtime_available_to_file_backed_code(tmp_path, monkeypatch) -> 
     }
 
     cfg = SystemMessageFeature._extract_plugin_config(config)
-    resolved = SystemMessageFeature._resolve_variables(
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(
         cfg["variables"],
         runtime_context=runtime_context,
     )
@@ -518,7 +518,7 @@ def test_file_backed_code_can_read_config_without_custom_runtime_file(tmp_path) 
         None,
         base_context=SystemMessageFeature._build_base_runtime_context(config=config),
     )
-    resolved = SystemMessageFeature._resolve_variables(
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(
         cfg["variables"],
         runtime_context=runtime_context,
     )
@@ -583,7 +583,7 @@ def test_variable_runtime_code_augments_request_context(tmp_path) -> None:
         None,
         base_context=SystemMessageFeature._build_base_runtime_context(config=config),
     )
-    resolved = SystemMessageFeature._resolve_variables(
+    resolved, _metadata_updates = SystemMessageFeature._resolve_variables(
         cfg["variables"],
         runtime_context=runtime_context,
     )
@@ -640,7 +640,7 @@ def test_system_message_dynamic_variables_change_between_configs() -> None:
         },
     }
     cfg1 = SystemMessageFeature._extract_plugin_config(config1)
-    resolved1 = SystemMessageFeature._resolve_variables(cfg1["variables"])
+    resolved1, _metadata_updates1 = SystemMessageFeature._resolve_variables(cfg1["variables"])
     assert resolved1["VAL"] == "one"
 
     # Second config with updated value
@@ -652,7 +652,7 @@ def test_system_message_dynamic_variables_change_between_configs() -> None:
         },
     }
     cfg2 = SystemMessageFeature._extract_plugin_config(config2)
-    resolved2 = SystemMessageFeature._resolve_variables(cfg2["variables"])
+    resolved2, _metadata_updates2 = SystemMessageFeature._resolve_variables(cfg2["variables"])
     assert resolved2["VAL"] == "two"
 
 

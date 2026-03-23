@@ -479,6 +479,7 @@ class SystemMessageFeature(FeaturePlugin):
         config: Dict[str, Any] | None = None,
         tags: List[str] | None = None,
         models: List[Dict[str, Any]] | None = None,
+        previous_metadata: Dict[str, Any] | None = None,
     ) -> Dict[str, Any]:
         """Build the base runtime namespace exposed to helper code."""
 
@@ -486,6 +487,7 @@ class SystemMessageFeature(FeaturePlugin):
             "CONFIG": dict(config or {}),
             "TAGS": list(tags or []),
             "MODELS": list(models or []),
+            "PREVIOUS_METADATA": dict(previous_metadata or {}),
         }
 
     @classmethod
@@ -585,6 +587,35 @@ class SystemMessageFeature(FeaturePlugin):
         if value is None:
             return ""
         return str(value)
+
+    @classmethod
+    def _execute_code_with_metadata(
+        cls,
+        path: str,
+        runtime_context: Dict[str, Any] | None = None,
+    ) -> Tuple[str, Dict[str, Any]]:
+        """Execute a Python file and extract both value and metadata updates.
+
+        Code files can set METADATA_UPDATES dict to persist values across
+        requests via the system message _metadata.
+
+        Returns:
+            Tuple of (string value, metadata updates dict)
+        """
+        try:
+            namespace = runpy.run_path(
+                os.path.expanduser(path),
+                init_globals=cls._build_exec_globals(runtime_context),
+            )
+        except Exception:
+            return "", {}
+
+        value = cls._extract_code_result(namespace)
+        metadata_updates = namespace.get("METADATA_UPDATES")
+        return (
+            str(value) if value is not None else "",
+            dict(metadata_updates) if isinstance(metadata_updates, dict) else {},
+        )
 
     @classmethod
     def _execute_inline_code_raw(
@@ -699,10 +730,15 @@ class SystemMessageFeature(FeaturePlugin):
         cls,
         variable_specs: Dict[str, Dict[str, Any]],
         runtime_context: Dict[str, Any] | None = None,
-    ) -> Dict[str, str]:
-        """Resolve normalized variable specs into concrete string values."""
+    ) -> Tuple[Dict[str, str], Dict[str, Any]]:
+        """Resolve normalized variable specs into concrete string values.
+
+        Returns:
+            Tuple of (resolved variables dict, accumulated metadata updates dict)
+        """
 
         resolved: Dict[str, str] = {}
+        metadata_updates: Dict[str, Any] = {}
         for name, spec in (variable_specs or {}).items():
             variable_runtime = spec.get("runtime_code")
             variable_context = dict(runtime_context or {})
@@ -730,10 +766,12 @@ class SystemMessageFeature(FeaturePlugin):
             elif kind == "code":
                 code_path = spec.get("path")
                 if isinstance(code_path, str) and code_path:
-                    resolved[name] = cls._execute_code(
+                    value, updates = cls._execute_code_with_metadata(
                         code_path,
                         runtime_context=variable_context,
                     )
+                    resolved[name] = value
+                    metadata_updates.update(updates)
                 else:
                     resolved[name] = ""
             elif kind == "inline_code":
@@ -743,7 +781,7 @@ class SystemMessageFeature(FeaturePlugin):
                 )
             else:
                 resolved[name] = ""
-        return resolved
+        return resolved, metadata_updates
 
     # ---- Lifecycle ----
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
@@ -851,20 +889,7 @@ class SystemMessageFeature(FeaturePlugin):
         if not working_native:
             return working_native, state
 
-        # Resolve request-scoped runtime globals once, then use them for all
-        # dynamic value and condition evaluation in this request.
-        runtime_context = self._load_runtime_context(
-            cfg.get("runtime_code"),
-            base_context=self._build_base_runtime_context(config=self._effective_config),
-        )
-        variables = self._resolve_variables(
-            cfg.get("variables") or {},
-            runtime_context=runtime_context,
-        )
-
-        # Choose the system template to render. Prefer the *last* system
-        # message in the native history so that user-supplied system
-        # messages take precedence over any earlier, config-derived one.
+        # Determine system message index first to access previous metadata
         system_index: int | None = None
         for idx in range(len(working_native) - 1, -1, -1):
             msg = working_native[idx]
@@ -879,6 +904,32 @@ class SystemMessageFeature(FeaturePlugin):
                     system_index = idx
                     break
 
+        # Extract previous metadata from existing system message for caching
+        previous_metadata: Dict[str, Any] = {}
+        if system_index is not None:
+            sys_msg = working_native[system_index]
+            if isinstance(sys_msg, dict):
+                raw_metadata = sys_msg.get("_metadata")
+                if isinstance(raw_metadata, dict):
+                    previous_metadata = raw_metadata
+
+        # Resolve request-scoped runtime globals once, then use them for all
+        # dynamic value and condition evaluation in this request.
+        runtime_context = self._load_runtime_context(
+            cfg.get("runtime_code"),
+            base_context=self._build_base_runtime_context(
+                config=self._effective_config,
+                previous_metadata=previous_metadata,
+            ),
+        )
+        variables, metadata_updates = self._resolve_variables(
+            cfg.get("variables") or {},
+            runtime_context=runtime_context,
+        )
+
+        # Choose the system template to render. Prefer the *last* system
+        # message in the native history so that user-supplied system
+        # messages take precedence over any earlier, config-derived one.
         if system_index is not None:
             sys_msg = working_native[system_index]
             if is_responses_items:
@@ -909,6 +960,14 @@ class SystemMessageFeature(FeaturePlugin):
                 system_index,
                 rendered,
             )
+            # Apply metadata updates from code execution to system message
+            if metadata_updates:
+                sys_msg = working_native[system_index]
+                if isinstance(sys_msg, dict):
+                    existing_metadata = sys_msg.get("_metadata") or {}
+                    new_metadata = {**existing_metadata, **metadata_updates}
+                    working_native = list(working_native)
+                    working_native[system_index] = {**sys_msg, "_metadata": new_metadata}
 
         # Build override messages: same as native history, but with the
         # chosen system message rendered at the selected index.

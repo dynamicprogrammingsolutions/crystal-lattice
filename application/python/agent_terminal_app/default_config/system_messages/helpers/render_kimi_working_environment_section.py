@@ -30,13 +30,24 @@ def _format_directory_listing(root: Path, limit: int = 200) -> str:
 
 _cwd = _resolve_cwd()
 _listing = _format_directory_listing(_cwd)
-_now = datetime.now().astimezone().isoformat()
+
+# Get previous metadata from globals (provided by SystemMessageFeature)
+_previous_metadata = globals().get("PREVIOUS_METADATA", {})
+
+# Check if we already have a timestamp stored from previous request
+_current_time = _previous_metadata.get("current_time")
+
+# If no stored timestamp, generate one and mark for storage
+if not _current_time:
+    _current_time = datetime.now().astimezone().isoformat()
+    # Set METADATA_UPDATES to persist this value for next request
+    METADATA_UPDATES = {"current_time": _current_time}
 
 SYSTEM_MESSAGE_VALUE = f"""# Working Environment
 
 ## Date and Time
 
-The current date and time in ISO format is `{_now}`. This is a reference for web research, timestamps, and other time-sensitive work. If you need the exact current time, use a shell command.
+The current date and time in ISO format is `{_current_time}`. This is a reference for web research, timestamps, and other time-sensitive work. If you need the exact current time, use a shell command.
 
 ## Working Directory
 
