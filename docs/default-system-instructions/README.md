@@ -11,7 +11,7 @@ The goal is to make it easy to:
 
 ## Vendor layout
 
-The Gemini, Qwen, and Grok directories follow the same general shape:
+The Gemini, Qwen, Grok, and Kimi directories follow the same general shape:
 
 - `template.md`: top-level raw text containing section placeholders
 - section files: raw text for individual sections, sometimes with smaller placeholders inside

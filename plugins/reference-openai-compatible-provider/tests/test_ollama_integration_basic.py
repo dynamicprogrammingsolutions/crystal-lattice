@@ -6,10 +6,18 @@ import pytest
 import requests
 
 from agent_core.core import AgentCore
+from plugins.request_options_feature import RequestOptionsFeature
 
 from reference_openai_compatible_provider.provider import OpenAICompatibleProvider
-from reference_openai_compatible_provider.reasoning_extension import OpenAICompatibleReasoningExtension
-from reference_openai_compatible_provider.tools_extension import OpenAICompatibleToolsExtension
+from reference_openai_compatible_provider.reasoning_extension import (
+    OpenAICompatibleReasoningExtension,
+)
+from reference_openai_compatible_provider.tools_extension import (
+    OpenAICompatibleToolsExtension,
+)
+from reference_openai_compatible_provider.usage_extension import (
+    OpenAICompatibleUsageExtension,
+)
 
 
 def _ollama_available(base_url: str) -> bool:
@@ -22,7 +30,9 @@ def _ollama_available(base_url: str) -> bool:
 
 def _ollama_cfg() -> dict:
     return {
-        "base_url": os.environ.get("OLLAMA_OPENAI_BASE_URL", "http://localhost:11434/v1"),
+        "base_url": os.environ.get(
+            "OLLAMA_OPENAI_BASE_URL", "http://localhost:11434/v1"
+        ),
         "model": os.environ.get("OLLAMA_OPENAI_MODEL", "qwen3:0.6b"),
         "timeout": float(os.environ.get("OLLAMA_OPENAI_TIMEOUT", "60")),
     }
@@ -36,9 +46,14 @@ def test_basic_non_streaming_ollama_openai_compat():
         pytest.skip("Ollama OpenAI-compatible endpoint not reachable")
 
     core = AgentCore()
+    core.register_feature(RequestOptionsFeature)
     core.register_provider(
         OpenAICompatibleProvider,
-        extensions=[OpenAICompatibleToolsExtension, OpenAICompatibleReasoningExtension],
+        extensions=[
+            OpenAICompatibleToolsExtension,
+            OpenAICompatibleReasoningExtension,
+            OpenAICompatibleUsageExtension,
+        ],
     )
 
     session = core.create_session()
@@ -57,9 +72,14 @@ def test_basic_streaming_ollama_openai_compat():
         pytest.skip("Ollama OpenAI-compatible endpoint not reachable")
 
     core = AgentCore()
+    core.register_feature(RequestOptionsFeature)
     core.register_provider(
         OpenAICompatibleProvider,
-        extensions=[OpenAICompatibleToolsExtension, OpenAICompatibleReasoningExtension],
+        extensions=[
+            OpenAICompatibleToolsExtension,
+            OpenAICompatibleReasoningExtension,
+            OpenAICompatibleUsageExtension,
+        ],
     )
 
     session = core.create_session()
@@ -87,10 +107,13 @@ def test_models_ui_schema_lists_available_models():
         pytest.skip("Ollama OpenAI-compatible endpoint not reachable")
 
     core = AgentCore()
+    core.register_feature(RequestOptionsFeature)
     core.register_provider(OpenAICompatibleProvider)
 
     schema = core.get_ui_schema(cfg)
-    model_el = next((el for el in schema if isinstance(el, dict) and el.get("key") == "model"), None)
+    model_el = next(
+        (el for el in schema if isinstance(el, dict) and el.get("key") == "model"), None
+    )
     assert model_el is not None
     options = model_el.get("options")
     if model_el.get("type") != "select" or not isinstance(options, list) or not options:

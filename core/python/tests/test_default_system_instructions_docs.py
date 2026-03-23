@@ -18,7 +18,7 @@ def test_vendor_instruction_directories_exist() -> None:
     assert DOCS_ROOT.is_dir()
     assert (DOCS_ROOT / "README.md").is_file()
 
-    for vendor in ("codex", "gemini", "qwen", "grok"):
+    for vendor in ("codex", "gemini", "qwen", "grok", "kimi"):
         assert (DOCS_ROOT / vendor).is_dir(), vendor
 
 
@@ -124,6 +124,41 @@ def test_grok_docs_have_expected_artifacts() -> None:
     assert "{{" not in compiled
 
 
+def test_kimi_docs_have_expected_artifacts() -> None:
+    kimi = DOCS_ROOT / "kimi"
+    expected = {
+        "README.md",
+        "template.md",
+        "compiled.md",
+        "agent-notes.md",
+        "reconstruction-notes.md",
+        "dynamic-elements.md",
+        "static-introduction.md",
+        "static-prompt-and-tool-use.md",
+        "static-general-guidelines-for-coding.md",
+        "static-general-guidelines-for-research-and-data-processing.md",
+        "working-environment-section.md",
+        "project-information-section.md",
+        "skills-section.md",
+        "ultimate-reminders.md",
+    }
+    assert expected.issubset({path.name for path in kimi.iterdir() if path.is_file()})
+
+    template = (kimi / "template.md").read_text(encoding="utf-8")
+    assert template.startswith("{{INTRODUCTION}}")
+    assert "{{WORKING_ENVIRONMENT_SECTION}}" in template
+    assert "{{PROJECT_INFORMATION_SECTION}}" in template
+    assert "{{SKILLS_SECTION}}" in template
+
+    dynamic = (kimi / "dynamic-elements.md").read_text(encoding="utf-8")
+    assert "Example:" in dynamic
+    assert "${KIMI_WORK_DIR}" in dynamic
+
+    compiled = (kimi / "compiled.md").read_text(encoding="utf-8")
+    assert "You are Kimi Code CLI" in compiled
+    assert "{{" not in compiled
+
+
 def test_codex_archive_was_moved_under_vendor_layout() -> None:
     codex = DOCS_ROOT / "codex"
     assert (codex / "README.md").is_file()
@@ -151,24 +186,24 @@ def test_runtime_system_message_templates_exist() -> None:
         "grok/available-tools-section.md",
         "grok/tool-usage-rules.md",
         "grok/response-guidelines.md",
+        "kimi/template.md",
+        "kimi/introduction.md",
+        "kimi/prompt-and-tool-use.md",
+        "kimi/general-guidelines-for-coding.md",
+        "kimi/general-guidelines-for-research-and-data-processing.md",
+        "kimi/ultimate-reminders.md",
         "helpers/runtime.py",
+        "helpers/tasks_ui.py",
         "helpers/render_agents_context_section.py",
+        "helpers/render_kimi_working_environment_section.py",
+        "helpers/render_kimi_project_information_section.py",
     }
 
     for relative_path in expected_files:
         assert (RUNTIME_SYSTEM_MESSAGES_ROOT / relative_path).is_file(), relative_path
 
-    simplified_config = (
-        REPO_ROOT
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "config_v2_multi_family_tools_simplified.json"
-    )
-    assert simplified_config.is_file()
 
-
-def test_runtime_templates_and_simplified_config_omit_deliberately_empty_placeholders() -> None:
+def test_runtime_templates_and_portable_default_config_omit_deliberately_empty_placeholders() -> None:
     runtime_templates = {
         "gemini/template.md": {
             "{{AVAILABLE_SUBAGENTS_SECTION}}",
@@ -187,6 +222,11 @@ def test_runtime_templates_and_simplified_config_omit_deliberately_empty_placeho
             "{{CUSTOM_INSTRUCTIONS_SECTION}}",
             "{{WEB_AND_REALTIME_CAPABILITIES_SECTION}}",
         },
+        "kimi/template.md": {
+            "{{SKILLS_SECTION}}",
+            "{{PLAN_MODE_SECTION}}",
+            "{{ADDITIONAL_DIRECTORIES_SECTION}}",
+        },
     }
 
     for relative_path, removed_markers in runtime_templates.items():
@@ -196,14 +236,8 @@ def test_runtime_templates_and_simplified_config_omit_deliberately_empty_placeho
         for marker in removed_markers:
             assert marker not in template_text, (relative_path, marker)
 
-    simplified_config_path = (
-        REPO_ROOT
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "config_v2_multi_family_tools_simplified.json"
-    )
-    simplified_config = json.loads(simplified_config_path.read_text(encoding="utf-8"))
+    portable_config_path = DEFAULT_CONFIG_ROOT / "config.json"
+    portable_config = json.loads(portable_config_path.read_text(encoding="utf-8"))
 
     removed_variable_keys = {
         "gemini": {
@@ -223,10 +257,16 @@ def test_runtime_templates_and_simplified_config_omit_deliberately_empty_placeho
             "CUSTOM_INSTRUCTIONS_SECTION",
             "WEB_AND_REALTIME_CAPABILITIES_SECTION",
         },
+        "kimi": {
+            "SKILLS_SECTION",
+            "PLAN_MODE_SECTION",
+            "ADDITIONAL_DIRECTORIES_SECTION",
+        },
     }
 
     for agent_id, removed_keys in removed_variable_keys.items():
-        variables = simplified_config["agents"][agent_id]["system_message"]["variables"]
+        provider_id = portable_config["agents"][agent_id]["provider"]
+        variables = portable_config["providers"][provider_id]["system_message"]["variables"]
         for key in removed_keys:
             assert key not in variables, (agent_id, key)
 
@@ -238,7 +278,7 @@ def test_portable_default_config_is_self_contained() -> None:
     assert (DEFAULT_CONFIG_ROOT / "codex").is_dir()
 
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    codex_rows = config["agents"]["codex"]["codex_developer_messages"]
+    codex_rows = config["providers"]["openrouter_codex_tools"]["codex_developer_messages"]
 
     for row in codex_rows:
         text = row["text"]
@@ -250,12 +290,23 @@ def test_portable_default_config_is_self_contained() -> None:
 
     helper_paths = [
         "system_messages/helpers/runtime.py",
+        "system_messages/helpers/tasks_ui.py",
         "system_messages/helpers/render_agents_context_section.py",
+        "system_messages/helpers/render_kimi_working_environment_section.py",
+        "system_messages/helpers/render_kimi_project_information_section.py",
         "system_messages/helpers/select_codex_developer_message.py",
+        "TASKS_v5.md",
+        "CLAUDE_CODE_DEFAULT.md",
         "system_messages/codex/template.md",
         "system_messages/gemini/template.md",
         "system_messages/qwen/template.md",
         "system_messages/grok/template.md",
+        "system_messages/kimi/template.md",
+        "system_messages/kimi/introduction.md",
+        "system_messages/kimi/prompt-and-tool-use.md",
+        "system_messages/kimi/general-guidelines-for-coding.md",
+        "system_messages/kimi/general-guidelines-for-research-and-data-processing.md",
+        "system_messages/kimi/ultimate-reminders.md",
     ]
 
     for relative_path in helper_paths:

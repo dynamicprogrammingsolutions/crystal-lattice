@@ -12,7 +12,6 @@ extraction) is intentionally out of scope here.
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import io
 import json
@@ -220,6 +219,39 @@ class OpenAIResponsesProvider(ProviderPlugin):
         if callable(with_options):
             return with_options(timeout=timeout, max_retries=max_retries)
         return client
+
+    def _request_stream_recovery_mode(self, request: Dict[str, Any]) -> str:
+        mode = request.get("stream_recovery_mode")
+        if not isinstance(mode, str):
+            return "disabled"
+        normalized = mode.strip().lower()
+        if normalized not in {"disabled", "early_only", "aggressive"}:
+            return "disabled"
+        return normalized
+
+    def _request_stream_recovery_retries(self, request: Dict[str, Any]) -> int:
+        raw = request.get("stream_recovery_retries")
+        try:
+            retries = int(raw)
+        except (TypeError, ValueError):
+            return 0
+        return retries if retries > 0 else 0
+
+    def _stream_event_has_visible_output(self, event: Dict[str, Any]) -> bool:
+        event_type = event.get("type")
+        if event_type == "response.output_text.delta":
+            return isinstance(event.get("delta"), str) and bool(event.get("delta"))
+        if event_type in (
+            "response.reasoning_summary_text.delta",
+            "response.reasoning_summary.delta",
+            "response.reasoning.delta",
+        ):
+            delta = event.get("delta")
+            if isinstance(delta, str):
+                return bool(delta)
+            if isinstance(delta, dict):
+                return isinstance(delta.get("text"), str) and bool(delta.get("text"))
+        return False
 
     def _create_sdk_client_for_discovery(self, config: Dict[str, Any]) -> OpenAI:
         if not isinstance(config, dict):
@@ -1572,6 +1604,8 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
         timeout = self._coerce_timeout(request.get("timeout", _DEFAULT_TIMEOUT))
         max_retries = self._request_max_retries(request)
+        stream_recovery_mode = self._request_stream_recovery_mode(request)
+        stream_recovery_retries = self._request_stream_recovery_retries(request)
         extra_headers = dict(request.get("headers") or {})
 
         client = state.get("client")
@@ -1606,57 +1640,89 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
         input_items = [self._sanitize_input_item(item) for item in request_history]
 
-        try:
-            sdk_stream = request_client.responses.create(  # type: ignore[union-attr]
-                **{**payload, "input": input_items, "stream": True},
-                extra_headers=extra_headers,
-                timeout=timeout,
-            )
-        except Exception as exc:
-            if (
-                self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD
-                and self._is_attachment_reference_error(exc)
-            ):
-                request_history = self._prepare_uploaded_native_messages(
-                    request_history,
-                    state=state,
-                    client=client,
-                    timeout=timeout,
-                    upload_cache=upload_cache,
-                    force_reupload=True,
-                )
-                self._prepare_uploaded_native_messages(
-                    native_messages,
-                    state=state,
-                    client=client,
-                    timeout=timeout,
-                    upload_cache=upload_cache,
-                    persist_uploaded_refs=True,
-                    force_reupload=True,
-                )
-                retry_input_items = [self._sanitize_input_item(item) for item in request_history]
-                try:
-                    sdk_stream = request_client.responses.create(  # type: ignore[union-attr]
-                        **{**payload, "input": retry_input_items, "stream": True},
-                        extra_headers=extra_headers,
-                        timeout=timeout,
-                    )
-                except Exception as retry_exc:
-                    raise RuntimeError(f"OpenAI Responses stream failed: {retry_exc}") from retry_exc
-            else:
-                raise RuntimeError(f"OpenAI Responses stream failed: {exc}") from exc
+        recovery_attempts = 0
 
-        try:
-            if hasattr(sdk_stream, "__enter__") and hasattr(sdk_stream, "__exit__"):
-                with sdk_stream as stream:
-                    for event in stream:
-                        yield self._stream_event_to_dict(event)
+        while True:
+            try:
+                sdk_stream = request_client.responses.create(  # type: ignore[union-attr]
+                    **{**payload, "input": input_items, "stream": True},
+                    extra_headers=extra_headers,
+                    timeout=timeout,
+                )
+            except Exception as exc:
+                if (
+                    self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD
+                    and self._is_attachment_reference_error(exc)
+                ):
+                    request_history = self._prepare_uploaded_native_messages(
+                        request_history,
+                        state=state,
+                        client=client,
+                        timeout=timeout,
+                        upload_cache=upload_cache,
+                        force_reupload=True,
+                    )
+                    self._prepare_uploaded_native_messages(
+                        native_messages,
+                        state=state,
+                        client=client,
+                        timeout=timeout,
+                        upload_cache=upload_cache,
+                        persist_uploaded_refs=True,
+                        force_reupload=True,
+                    )
+                    input_items = [self._sanitize_input_item(item) for item in request_history]
+                    try:
+                        sdk_stream = request_client.responses.create(  # type: ignore[union-attr]
+                            **{**payload, "input": input_items, "stream": True},
+                            extra_headers=extra_headers,
+                            timeout=timeout,
+                        )
+                    except Exception as retry_exc:
+                        raise RuntimeError(f"OpenAI Responses stream failed: {retry_exc}") from retry_exc
+                else:
+                    raise RuntimeError(f"OpenAI Responses stream failed: {exc}") from exc
+
+            saw_completed = False
+            emitted_visible_output = False
+            stream_error: Exception | None = None
+
+            try:
+                if hasattr(sdk_stream, "__enter__") and hasattr(sdk_stream, "__exit__"):
+                    with sdk_stream as stream:
+                        for event in stream:
+                            event_dict = self._stream_event_to_dict(event)
+                            if event_dict.get("type") == "response.completed":
+                                saw_completed = True
+                            if self._stream_event_has_visible_output(event_dict):
+                                emitted_visible_output = True
+                            yield event_dict
+                else:
+                    for event in sdk_stream:
+                        event_dict = self._stream_event_to_dict(event)
+                        if event_dict.get("type") == "response.completed":
+                            saw_completed = True
+                        if self._stream_event_has_visible_output(event_dict):
+                            emitted_visible_output = True
+                        yield event_dict
+            except Exception as exc:
+                stream_error = exc
+
+            if saw_completed:
                 return
 
-            for event in sdk_stream:
-                yield self._stream_event_to_dict(event)
-        except Exception as exc:
-            raise RuntimeError(f"OpenAI Responses stream failed: {exc}") from exc
+            should_recover = (
+                stream_recovery_mode != "disabled"
+                and recovery_attempts < stream_recovery_retries
+                and (stream_recovery_mode == "aggressive" or not emitted_visible_output)
+            )
+            if should_recover:
+                recovery_attempts += 1
+                continue
+
+            if stream_error is not None:
+                raise RuntimeError(f"OpenAI Responses stream failed: {stream_error}") from stream_error
+            return
 
     def process_chunk(
         self,

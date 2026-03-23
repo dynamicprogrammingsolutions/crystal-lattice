@@ -291,7 +291,6 @@ Desktop.ini
 
 # Project specific
 # Configuration files with secrets
-config.json
 .env.local
 .env.*.local
 *.key

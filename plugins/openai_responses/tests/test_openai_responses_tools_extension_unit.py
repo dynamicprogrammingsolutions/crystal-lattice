@@ -76,91 +76,38 @@ def test_initialize_request_converts_tool_schemas_into_responses_payload() -> No
     ]
 
 
-def test_process_chunk_accumulates_function_call_argument_deltas_and_patches_finals() -> None:
+def test_process_chunk_trusts_provider_finals_and_leaves_state_unchanged() -> None:
     ext = OpenAIResponsesToolsExtension()
     state = ext.init({}, {})
 
     partials: list[Dict[str, Any]] = []
-    finals: list[Dict[str, Any]] = []
-    native_messages: list[Dict[str, Any]] = []
-
-    events = [
-        {
-            "type": "response.output_item.added",
-            "output_index": 0,
-            "item": {
-                "id": "fc_1",
-                "type": "function_call",
-                "call_id": "call_add_1",
-                "name": "add",
-                "arguments": "",
-            },
-        },
-        {
-            "type": "response.function_call_arguments.delta",
-            "item_id": "fc_1",
-            "delta": '{"a": 2, ',
-        },
-        {
-            "type": "response.function_call_arguments.delta",
-            "item_id": "fc_1",
-            "delta": '"b": 3}',
-        },
-    ]
-
-    for event in events:
-        partials, finals, native_messages, state = ext.process_chunk(
-            event,
-            partials,
-            finals,
-            native_messages,
-            state,
-        )
-
-    provider_finals = [
+    finals: list[Dict[str, Any]] = [
         {
             "type": "function_call",
             "call_id": "call_add_1",
             "name": "add",
-            "arguments": "",
+            "arguments": json.dumps({"a": 2, "b": 3}),
             "_metadata": {"response_id": "resp_1"},
-        },
-        {
-            "type": "message",
-            "role": "assistant",
-            "content": [{"type": "output_text", "text": "Using tool."}],
-            "_metadata": {"response_id": "resp_1"},
-        },
+        }
     ]
+    native_messages: list[Dict[str, Any]] = []
 
-    _partials, patched_finals, _native_messages, state = ext.process_chunk(
+    new_partials, new_finals, new_native_messages, new_state = ext.process_chunk(
         {
-            "type": "response.completed",
-            "response": {
-                "id": "resp_1",
-                "output": [
-                    {
-                        "id": "fc_1",
-                        "type": "function_call",
-                        "call_id": "call_add_1",
-                        "name": "add",
-                        "arguments": "",
-                    }
-                ],
-            },
+            "type": "response.function_call_arguments.delta",
+            "item_id": "fc_1",
+            "delta": '"ignored": true',
         },
         partials,
-        provider_finals,
+        finals,
         native_messages,
         state,
     )
 
-    assert patched_finals[0]["type"] == "function_call"
-    assert patched_finals[0]["call_id"] == "call_add_1"
-    assert json.loads(patched_finals[0]["arguments"]) == {"a": 2, "b": 3}
-
-    stream_state = state["_openai_responses_tools_stream"]
-    assert stream_state["entries"] == {}
+    assert new_partials == partials
+    assert new_finals == finals
+    assert new_native_messages == native_messages
+    assert new_state == state
 
 
 def test_round_trip_metadata_mapping_preserves_tool_calls_and_tool_call_ids() -> None:

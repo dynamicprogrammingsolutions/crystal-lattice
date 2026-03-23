@@ -3,7 +3,6 @@
 Extension responsibilities:
 - inject Responses-native tool schemas into request payloads
 - map assistant tool_calls <-> Responses function_call items
-- accumulate streaming function_call argument deltas and patch finals
 """
 
 from __future__ import annotations
@@ -22,7 +21,6 @@ from agent_core.types import ProviderExtensionPlugin
 
 
 _TOOLS_STATE_KEY = "_openai_responses_tools"
-_STREAM_STATE_KEY = "_openai_responses_tools_stream"
 
 
 class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
@@ -49,11 +47,7 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         tools = config.get("tools")
         stored = tools if isinstance(tools, list) else []
-        return {
-            **state,
-            _TOOLS_STATE_KEY: stored,
-            _STREAM_STATE_KEY: self._empty_stream_state(),
-        }
+        return {**state, _TOOLS_STATE_KEY: stored}
 
     def _native_internal_from_core_metadata(self, metadata: Any) -> Dict[str, Any]:
         if not isinstance(metadata, dict):
@@ -309,192 +303,6 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
             "request": {**request, "payload": payload},
         }
 
-    def _empty_stream_state(self) -> Dict[str, Any]:
-        return {
-            "entries": {},
-            "item_to_key": {},
-            "call_to_key": {},
-            "order": [],
-            "response_id": None,
-        }
-
-    def _stream_state_from_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        current = state.get(_STREAM_STATE_KEY)
-        if not isinstance(current, dict):
-            return self._empty_stream_state()
-        return {
-            "entries": {
-                str(k): dict(v)
-                for k, v in (current.get("entries") or {}).items()
-                if isinstance(v, dict)
-            },
-            "item_to_key": {
-                str(k): str(v)
-                for k, v in (current.get("item_to_key") or {}).items()
-                if isinstance(k, str) and isinstance(v, str)
-            },
-            "call_to_key": {
-                str(k): str(v)
-                for k, v in (current.get("call_to_key") or {}).items()
-                if isinstance(k, str) and isinstance(v, str)
-            },
-            "order": [str(k) for k in (current.get("order") or []) if isinstance(k, str)],
-            "response_id": current.get("response_id") if isinstance(current.get("response_id"), str) else None,
-        }
-
-    def _ensure_stream_entry(
-        self,
-        stream_state: Dict[str, Any],
-        *,
-        item_id: Optional[str],
-        call_id: Optional[str],
-        output_index: Optional[int],
-    ) -> Dict[str, Any]:
-        entries: Dict[str, Dict[str, Any]] = stream_state["entries"]
-        item_to_key: Dict[str, str] = stream_state["item_to_key"]
-        call_to_key: Dict[str, str] = stream_state["call_to_key"]
-        order: List[str] = stream_state["order"]
-
-        key: Optional[str] = None
-        if item_id and item_id in item_to_key:
-            key = item_to_key[item_id]
-        elif call_id and call_id in call_to_key:
-            key = call_to_key[call_id]
-        elif item_id:
-            key = f"item:{item_id}"
-        elif call_id:
-            key = f"call:{call_id}"
-        elif isinstance(output_index, int):
-            key = f"index:{output_index}"
-
-        if key is None:
-            key = f"anon:{len(order)}"
-
-        entry = entries.get(key)
-        if entry is None:
-            entry = {
-                "item_id": item_id,
-                "call_id": call_id,
-                "name": None,
-                "arguments": "",
-            }
-            entries[key] = entry
-            order.append(key)
-
-        if item_id:
-            entry["item_id"] = item_id
-            item_to_key[item_id] = key
-        if call_id:
-            entry["call_id"] = call_id
-            call_to_key[call_id] = key
-
-        return entry
-
-    def _merge_stream_function_call_item(
-        self,
-        stream_state: Dict[str, Any],
-        item: Dict[str, Any],
-        *,
-        output_index: Optional[int],
-        replace_arguments: bool,
-    ) -> None:
-        item_id = item.get("id")
-        call_id = item.get("call_id")
-        entry = self._ensure_stream_entry(
-            stream_state,
-            item_id=item_id if isinstance(item_id, str) and item_id else None,
-            call_id=call_id if isinstance(call_id, str) and call_id else None,
-            output_index=output_index,
-        )
-
-        name = item.get("name")
-        if isinstance(name, str) and name:
-            entry["name"] = name
-
-        arguments = self._stringify_arguments(item.get("arguments"))
-        if not arguments:
-            return
-        if replace_arguments or not isinstance(entry.get("arguments"), str) or not entry.get("arguments"):
-            entry["arguments"] = arguments
-
-    def _stitched_stream_tool_calls(
-        self,
-        stream_state: Dict[str, Any],
-    ) -> List[Dict[str, Any]]:
-        entries: Dict[str, Dict[str, Any]] = stream_state.get("entries") or {}
-        order: List[str] = stream_state.get("order") or []
-
-        out: List[Dict[str, Any]] = []
-        for key in order:
-            entry = entries.get(key)
-            if not isinstance(entry, dict):
-                continue
-            call_id = entry.get("call_id")
-            name = entry.get("name")
-            if not isinstance(call_id, str) or not call_id:
-                continue
-            if not isinstance(name, str) or not name:
-                continue
-
-            arguments = entry.get("arguments")
-            if not isinstance(arguments, str):
-                arguments = self._stringify_arguments(arguments)
-
-            out.append(
-                {
-                    "type": "function_call",
-                    "call_id": call_id,
-                    "name": name,
-                    "arguments": arguments,
-                }
-            )
-        return out
-
-    def _patch_completed_final_messages(
-        self,
-        final_messages: List[Dict[str, Any]],
-        stream_state: Dict[str, Any],
-    ) -> List[Dict[str, Any]]:
-        stitched_calls = self._stitched_stream_tool_calls(stream_state)
-        if not stitched_calls or not final_messages:
-            return list(final_messages)
-
-        by_call_id: Dict[str, Dict[str, Any]] = {}
-        for call in stitched_calls:
-            call_id = call.get("call_id")
-            if isinstance(call_id, str) and call_id:
-                by_call_id[call_id] = call
-
-        patched: List[Dict[str, Any]] = []
-        fallback_index = 0
-        for item in final_messages:
-            if not isinstance(item, dict) or item.get("type") != "function_call":
-                patched.append(item)
-                continue
-
-            replacement = None
-            call_id = item.get("call_id")
-            if isinstance(call_id, str) and call_id:
-                replacement = by_call_id.get(call_id)
-            if replacement is None and fallback_index < len(stitched_calls):
-                replacement = stitched_calls[fallback_index]
-
-            if replacement is None:
-                patched.append(item)
-                fallback_index += 1
-                continue
-
-            merged = {
-                **item,
-                "call_id": replacement.get("call_id", item.get("call_id")),
-                "name": replacement.get("name", item.get("name")),
-                "arguments": replacement.get("arguments", item.get("arguments")),
-            }
-            patched.append(merged)
-            fallback_index += 1
-
-        return patched
-
     def process_chunk(
         self,
         native_chunk: Optional[Dict[str, Any]],
@@ -503,85 +311,9 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        event = native_chunk if isinstance(native_chunk, dict) else {}
-        event_type = event.get("type")
-        stream_state = self._stream_state_from_state(state)
-
-        if event_type == "response.created":
-            response = event.get("response")
-            if isinstance(response, dict):
-                response_id = response.get("id")
-                if isinstance(response_id, str) and response_id:
-                    stream_state["response_id"] = response_id
-
-        elif event_type in ("response.output_item.added", "response.output_item.done"):
-            item = event.get("item")
-            if isinstance(item, dict) and item.get("type") == "function_call":
-                output_index = event.get("output_index")
-                self._merge_stream_function_call_item(
-                    stream_state,
-                    item,
-                    output_index=output_index if isinstance(output_index, int) else None,
-                    replace_arguments=event_type == "response.output_item.done",
-                )
-
-        elif event_type == "response.function_call_arguments.delta":
-            output_index = event.get("output_index")
-            entry = self._ensure_stream_entry(
-                stream_state,
-                item_id=event.get("item_id") if isinstance(event.get("item_id"), str) else None,
-                call_id=event.get("call_id") if isinstance(event.get("call_id"), str) else None,
-                output_index=output_index if isinstance(output_index, int) else None,
-            )
-            name = event.get("name")
-            if isinstance(name, str) and name:
-                entry["name"] = name
-            delta = event.get("delta")
-            if isinstance(delta, str) and delta:
-                current = entry.get("arguments")
-                entry["arguments"] = (current if isinstance(current, str) else "") + delta
-
-        elif event_type == "response.function_call_arguments.done":
-            output_index = event.get("output_index")
-            entry = self._ensure_stream_entry(
-                stream_state,
-                item_id=event.get("item_id") if isinstance(event.get("item_id"), str) else None,
-                call_id=event.get("call_id") if isinstance(event.get("call_id"), str) else None,
-                output_index=output_index if isinstance(output_index, int) else None,
-            )
-            name = event.get("name")
-            if isinstance(name, str) and name:
-                entry["name"] = name
-            arguments = self._stringify_arguments(event.get("arguments"))
-            if arguments:
-                entry["arguments"] = arguments
-
-        elif event_type == "response.completed":
-            response = event.get("response")
-            if isinstance(response, dict):
-                response_id = response.get("id")
-                if isinstance(response_id, str) and response_id:
-                    stream_state["response_id"] = response_id
-                output = response.get("output")
-                if isinstance(output, list):
-                    for item in output:
-                        if not isinstance(item, dict) or item.get("type") != "function_call":
-                            continue
-                        self._merge_stream_function_call_item(
-                            stream_state,
-                            item,
-                            output_index=None,
-                            replace_arguments=True,
-                        )
-            final_messages = self._patch_completed_final_messages(final_messages, stream_state)
-            stream_state = self._empty_stream_state()
-
-        elif event_type in ("response.failed", "response.cancelled", "response.incomplete"):
-            stream_state = self._empty_stream_state()
-
         return (
             list(partial_messages),
             list(final_messages),
             list(native_messages),
-            {**state, _STREAM_STATE_KEY: stream_state},
+            dict(state),
         )

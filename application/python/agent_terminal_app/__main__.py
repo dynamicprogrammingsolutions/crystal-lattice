@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import shutil
 import sys
 import threading
 from pathlib import Path
@@ -110,14 +111,17 @@ def _configure_fastapi_logging(fastapi_log_file: Optional[str]) -> None:
 
 
 def _ensure_default_config(path: Path) -> Path:
-    """Create a default echo-based config at ``path`` if missing.
+    """Create the bundled portable default config at ``path`` if missing.
 
-    The default configuration mirrors ``config_echo_app.json`` in this
-    package so that the terminal app can run without any external
-    services or environment variables.
+    The default configuration lives under ``default_config/`` alongside the
+    prompt assets it references via ``${env:CONFIG_DIR}``. Bootstrapping a
+    new config therefore copies those support files into the target config
+    directory and writes the bundled ``config.json`` content to the requested
+    path.
     """
 
-    template = Path(__file__).resolve().parent / "default_config.json"
+    template_dir = Path(__file__).resolve().parent / "default_config"
+    template = template_dir / "config.json"
 
     try:
         text = template.read_text(encoding="utf-8")
@@ -126,6 +130,20 @@ def _ensure_default_config(path: Path) -> Path:
 
     target = path.expanduser()
     target.parent.mkdir(parents=True, exist_ok=True)
+
+    for source in template_dir.iterdir():
+        if source.name == "config.json":
+            continue
+
+        destination = target.parent / source.name
+        if destination.exists():
+            continue
+
+        if source.is_dir():
+            shutil.copytree(source, destination)
+        else:
+            shutil.copy2(source, destination)
+
     target.write_text(text, encoding="utf-8")
     return target
 

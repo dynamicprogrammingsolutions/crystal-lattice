@@ -11,14 +11,6 @@ from agent_core import Session
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SIMPLIFIED_CONFIG_PATH = (
-    REPO_ROOT
-    / "application"
-    / "python"
-    / "agent_terminal_app"
-    / "config_v2_multi_family_tools_simplified.json"
-)
-SIMPLIFIED_CONFIG_DIR = SIMPLIFIED_CONFIG_PATH.parent
 DEFAULT_CONFIG_PATH = (
     REPO_ROOT
     / "application"
@@ -30,22 +22,22 @@ DEFAULT_CONFIG_PATH = (
 DEFAULT_CONFIG_DIR = DEFAULT_CONFIG_PATH.parent
 
 
-def _simplified_agent_with_echo_provider(
-    simplified_config: dict[str, Any],
-    agent_id: str,
-) -> dict[str, Any]:
-    agent_config = dict(simplified_config["agents"][agent_id])
-    agent_config["provider"] = "echo_with_system"
-    return agent_config
-
-
-def _config_agent_with_echo_provider(
+def _provider_configs_with_echo_provider(
     source_config: dict[str, Any],
-    agent_id: str,
+    provider_ids: tuple[str, ...],
 ) -> dict[str, Any]:
-    agent_config = dict(source_config["agents"][agent_id])
-    agent_config["provider"] = "echo_with_system"
-    return agent_config
+    providers: dict[str, Any] = {}
+    for provider_id in provider_ids:
+        provider_config = dict(source_config["providers"][provider_id])
+        provider_config["provider"] = "echo_openai_like"
+        provider_config["model"] = "echo-test-1"
+        provider_config["timeout"] = 60
+        provider_config.pop("api_key", None)
+        provider_config.pop("base_url", None)
+        provider_config.pop("plugins", None)
+        provider_config.pop("disabled_plugins", None)
+        providers[provider_id] = provider_config
+    return providers
 
 
 def _last_assistant_text(events: list[dict[str, Any]]) -> str:
@@ -265,33 +257,24 @@ def test_system_message_feature_renders_conditional_markdown_sections_for_git_an
     assert f"Current working directory: {non_repo.resolve()}" in non_repo_text
 
 
-def test_simplified_vendor_system_messages_compile_in_application_requests(
+def test_portable_default_config_compiles_vendor_and_codex_system_messages(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    simplified_config = json.loads(SIMPLIFIED_CONFIG_PATH.read_text(encoding="utf-8"))
+    portable_config = json.loads(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"))
+    provider_ids = tuple(portable_config["providers"].keys())
 
     config: Dict[str, Any] = {
         "plugin_cache_dir": str(tmp_path / "plugin_cache" / "plugins"),
-        "providers": {
-            "echo_with_system": {
-                "provider": "echo_openai_like",
-                "model": "echo-test-1",
-                "timeout": 60,
-                "system_message_enabled": True,
-            }
-        },
+        "providers": _provider_configs_with_echo_provider(portable_config, provider_ids),
         "plugins": [
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
             "feature_system_message.system_message_feature.SystemMessageFeature",
         ],
-        "agents": {
-            agent_id: _simplified_agent_with_echo_provider(simplified_config, agent_id)
-            for agent_id in ("gemini", "qwen", "grok")
-        },
+        "agents": dict(portable_config["agents"]),
     }
 
-    config_path = tmp_path / "config_simplified_system_message_echo.json"
+    config_path = tmp_path / "config_portable_system_message_echo.json"
     config_path.write_text(json.dumps(config), encoding="utf-8")
 
     repo_dir = tmp_path / "repo"
@@ -310,7 +293,7 @@ def test_simplified_vendor_system_messages_compile_in_application_requests(
         str(tmp_path / "sessions"),
         event_store=InMemoryEventStore(),
         env_overrides={
-            "CONFIG_DIR": str(SIMPLIFIED_CONFIG_DIR),
+            "CONFIG_DIR": str(DEFAULT_CONFIG_DIR),
             "WORKING_DIR": str(repo_dir),
         },
     )
@@ -318,6 +301,14 @@ def test_simplified_vendor_system_messages_compile_in_application_requests(
     assert app.get_config_errors() == []
 
     expected_substrings = {
+        "codex-openrouter": [
+            "You are Codex, a coding agent based on GPT-5.",
+            "Repository policy from AGENTS.",
+        ],
+        "codex-openai": [
+            "You are Codex, a coding agent based on GPT-5.",
+            "Repository policy from AGENTS.",
+        ],
         "gemini": [
             "You are Gemini CLI, an interactive CLI agent specializing in software engineering tasks.",
             "# Git Repository",
@@ -329,11 +320,22 @@ def test_simplified_vendor_system_messages_compile_in_application_requests(
             "You are Qwen Code, an interactive CLI agent developed by Alibaba Group, specializing in software engineering tasks.",
             "# Git Repository",
             "Never push changes to a remote repository without explicit user instruction.",
+            "Repository policy from AGENTS.",
         ],
         "grok": [
             "You are Grok CLI, an AI assistant that helps with file editing, coding tasks, and system operations.",
             "You have access to these tools:",
+            "Repository policy from AGENTS.",
             f"Current working directory: {repo_dir.resolve()}",
+        ],
+        "kimi": [
+            "You are Kimi Code CLI, an interactive general AI agent running on a user's computer.",
+            "If you anticipate making multiple non-interfering tool calls, you are highly encouraged to make them in parallel to improve efficiency.",
+            "Repository policy from AGENTS.",
+        ],
+        "claude": [
+            "You are Claude Code, Anthropic's official CLI for Claude.",
+            "Repository policy from AGENTS.",
         ],
     }
 
@@ -355,40 +357,35 @@ def test_simplified_vendor_system_messages_compile_in_application_requests(
         assert "{{" not in system_text
         for substring in substrings:
             assert substring in system_text
+        assert "Task Files and Subtasks" not in system_text
 
 
-def test_simplified_codex_system_message_selection_by_model_and_personality(
+def test_portable_default_codex_system_message_selection_by_model_and_personality(
     tmp_path: Path,
 ) -> None:
-    simplified_config = json.loads(SIMPLIFIED_CONFIG_PATH.read_text(encoding="utf-8"))
+    portable_config = json.loads(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"))
 
     config: Dict[str, Any] = {
         "plugin_cache_dir": str(tmp_path / "plugin_cache" / "plugins"),
-        "providers": {
-            "echo_with_system": {
-                "provider": "echo_openai_like",
-                "model": "echo-test-1",
-                "timeout": 60,
-                "system_message_enabled": True,
-            }
-        },
+        "providers": _provider_configs_with_echo_provider(
+            portable_config,
+            ("openrouter_codex_tools",),
+        ),
         "plugins": [
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
             "feature_system_message.system_message_feature.SystemMessageFeature",
         ],
-        "agents": {
-            "codex": _simplified_agent_with_echo_provider(simplified_config, "codex")
-        },
+        "agents": {"codex-openrouter": dict(portable_config["agents"]["codex-openrouter"])},
     }
 
-    config_path = tmp_path / "config_simplified_codex_system_message_echo.json"
+    config_path = tmp_path / "config_portable_codex_system_message_echo.json"
     config_path.write_text(json.dumps(config), encoding="utf-8")
 
     app = AgentApplication(
         str(config_path),
         str(tmp_path / "sessions"),
         event_store=InMemoryEventStore(),
-        env_overrides={"CONFIG_DIR": str(SIMPLIFIED_CONFIG_DIR)},
+        env_overrides={"CONFIG_DIR": str(DEFAULT_CONFIG_DIR)},
     )
 
     assert app.get_config_errors() == []
@@ -410,7 +407,7 @@ def test_simplified_codex_system_message_selection_by_model_and_personality(
 
     compiled_texts: list[str] = []
     for overrides, expected_substring in cases:
-        core, base_config, session = app.create_session("codex")
+        core, base_config, session = app.create_session("codex-openrouter")
         session = core.add_message(
             session,
             "user",
@@ -437,39 +434,33 @@ def test_simplified_codex_system_message_selection_by_model_and_personality(
     assert compiled_texts[1] != compiled_texts[2]
 
 
-def test_simplified_codex_runtime_helper_contributes_ui_schema(tmp_path: Path) -> None:
-    simplified_config = json.loads(SIMPLIFIED_CONFIG_PATH.read_text(encoding="utf-8"))
+def test_portable_default_runtime_helpers_contribute_ui_schema(tmp_path: Path) -> None:
+    portable_config = json.loads(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"))
 
     config: Dict[str, Any] = {
         "plugin_cache_dir": str(tmp_path / "plugin_cache" / "plugins"),
-        "providers": {
-            "echo_with_system": {
-                "provider": "echo_openai_like",
-                "model": "echo-test-1",
-                "timeout": 60,
-                "system_message_enabled": True,
-            }
-        },
+        "providers": _provider_configs_with_echo_provider(
+            portable_config,
+            ("openrouter_codex_tools",),
+        ),
         "plugins": [
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
             "feature_system_message.system_message_feature.SystemMessageFeature",
         ],
-        "agents": {
-            "codex": _simplified_agent_with_echo_provider(simplified_config, "codex")
-        },
+        "agents": {"codex-openrouter": dict(portable_config["agents"]["codex-openrouter"])},
     }
 
-    config_path = tmp_path / "config_simplified_codex_ui_echo.json"
+    config_path = tmp_path / "config_portable_codex_ui_echo.json"
     config_path.write_text(json.dumps(config), encoding="utf-8")
 
     app = AgentApplication(
         str(config_path),
         str(tmp_path / "sessions"),
         event_store=InMemoryEventStore(),
-        env_overrides={"CONFIG_DIR": str(SIMPLIFIED_CONFIG_DIR)},
+        env_overrides={"CONFIG_DIR": str(DEFAULT_CONFIG_DIR)},
     )
 
-    core, base_config, _session = app.create_session("codex")
+    core, base_config, _session = app.create_session("codex-openrouter")
     schema = core.get_ui_schema(base_config)
 
     codex_personality = next(
@@ -484,93 +475,59 @@ def test_simplified_codex_runtime_helper_contributes_ui_schema(tmp_path: Path) -
         {"value": "pragmatic", "label": "pragmatic"},
     ]
 
+    include_tasks = next(
+        item for item in schema if isinstance(item, dict) and item.get("key") == "include_tasks"
+    )
+    assert include_tasks["type"] == "checkbox"
+    assert include_tasks["label"] == "Include TASKS Guidance"
+    assert include_tasks["default"] is False
 
-def test_portable_default_config_compiles_vendor_and_codex_system_messages(
+
+def test_portable_default_tasks_toggle_includes_tasks_section_when_enabled(
     tmp_path: Path,
-    monkeypatch,
 ) -> None:
     portable_config = json.loads(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"))
+    provider_ids = tuple(portable_config["providers"].keys())
 
     config: Dict[str, Any] = {
         "plugin_cache_dir": str(tmp_path / "plugin_cache" / "plugins"),
-        "providers": {
-            "echo_with_system": {
-                "provider": "echo_openai_like",
-                "model": "echo-test-1",
-                "timeout": 60,
-                "system_message_enabled": True,
-            }
-        },
+        "providers": _provider_configs_with_echo_provider(portable_config, provider_ids),
         "plugins": [
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
             "feature_system_message.system_message_feature.SystemMessageFeature",
         ],
-        "agents": {
-            agent_id: _config_agent_with_echo_provider(portable_config, agent_id)
-            for agent_id in ("codex", "gemini", "qwen", "grok")
-        },
+        "agents": dict(portable_config["agents"]),
     }
 
-    config_path = tmp_path / "config_portable_system_message_echo.json"
+    config_path = tmp_path / "config_portable_tasks_toggle_echo.json"
     config_path.write_text(json.dumps(config), encoding="utf-8")
 
-    repo_dir = tmp_path / "repo"
-    repo_dir.mkdir()
-    subprocess.run(
-        ["git", "init"], cwd=repo_dir, check=True, capture_output=True, text=True
-    )
-    (repo_dir / "AGENTS.md").write_text(
-        "Portable repository policy from AGENTS.\n",
-        encoding="utf-8",
-    )
-
-    monkeypatch.chdir(repo_dir)
     app = AgentApplication(
         str(config_path),
         str(tmp_path / "sessions"),
         event_store=InMemoryEventStore(),
-        env_overrides={
-            "CONFIG_DIR": str(DEFAULT_CONFIG_DIR),
-            "WORKING_DIR": str(repo_dir),
-        },
+        env_overrides={"CONFIG_DIR": str(DEFAULT_CONFIG_DIR)},
     )
 
-    assert app.get_config_errors() == []
-
-    expected_substrings = {
-        "codex": [
-            "You are Codex, a coding agent based on GPT-5.",
-            "As an expert coding agent, your primary focus is writing code, answering questions, and helping the user complete their task in the current environment.",
-        ],
-        "gemini": [
-            "You are Gemini CLI, an interactive CLI agent specializing in software engineering tasks.",
-            "Portable repository policy from AGENTS.",
-        ],
-        "qwen": [
-            "You are Qwen Code, an interactive CLI agent developed by Alibaba Group, specializing in software engineering tasks.",
-            "# Git Repository",
-        ],
-        "grok": [
-            "You are Grok CLI, an AI assistant that helps with file editing, coding tasks, and system operations.",
-            f"Current working directory: {repo_dir.resolve()}",
-        ],
-    }
-
-    for agent_id, substrings in expected_substrings.items():
+    for agent_id in ("codex-openrouter", "codex-openai", "qwen", "gemini", "grok", "kimi", "claude"):
         core, base_config, session = app.create_session(agent_id)
         session = core.add_message(
             session,
             "user",
-            f"Inspect the compiled system message for {agent_id}.",
+            f"Inspect the compiled system message for {agent_id} with tasks enabled.",
             metadata=None,
             config=base_config,
         )
 
         events = list(
-            app.send_request(core, session, base_config, overrides=None, stream=False)
+            app.send_request(
+                core,
+                session,
+                base_config,
+                overrides={"include_tasks": True},
+                stream=False,
+            )
         )
         system_text = _compiled_system_text(events)
 
-        assert "{{" not in system_text
-        for substring in substrings:
-            assert substring in system_text
+        assert "Task Files and Subtasks (`tasks/`)" in system_text
