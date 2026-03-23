@@ -138,7 +138,7 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
       const condition = (el as any).condition;
-      if (condition != null && !evaluateCondition(condition, message as Record<string, unknown>)) return;
+      if (condition != null && !evaluateCondition(condition, message)) return;
       const rawValue = extractByPath(message, el.data);
       const valueForTemplate = formatValueForElement(el, rawValue);
       if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
@@ -245,7 +245,7 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
       const condition = (el as any).condition;
-      if (condition != null && !evaluateCondition(condition, message as Record<string, unknown>)) return;
+      if (condition != null && !evaluateCondition(condition, message)) return;
       const rawValue = extractByPath(message, el.data);
       const valueForTemplate = formatValueForElement(el, rawValue);
       if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
@@ -388,7 +388,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
       const condition = (el as any).condition;
-      if (condition != null && !evaluateCondition(condition, message as Record<string, unknown>)) return;
+      if (condition != null && !evaluateCondition(condition, message)) return;
       const rawValue = extractByPath(message, el.data);
       const valueForTemplate = formatValueForElement(el, rawValue);
       if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
@@ -538,7 +538,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
       const condition = (el as any).condition;
-      if (condition != null && !evaluateCondition(condition, message as Record<string, unknown>)) return;
+      if (condition != null && !evaluateCondition(condition, message)) return;
       const rawValue = extractByPath(message, el.data);
       const valueForTemplate = formatValueForElement(el, rawValue);
       if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;

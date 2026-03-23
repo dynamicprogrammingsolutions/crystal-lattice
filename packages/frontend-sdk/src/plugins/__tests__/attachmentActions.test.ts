@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AgentBackend } from '../../backend/backend';
+import type { ExecuteActionResponse } from '../../types/plugins';
 import {
   deleteSessionAttachment,
   selectSessionAssetId,
@@ -24,7 +25,7 @@ function buildBackend(executeAction: AgentBackend['executeAction']): AgentBacken
 
 describe('attachmentActions', () => {
   it('stores an attachment using the provider-extension action contract', async () => {
-    const executeAction = vi.fn(async () => ({
+    const response = {
       status: 'ok',
       plugin: 'openai_responses_attachments',
       action_id: 'store_attachment',
@@ -40,7 +41,8 @@ describe('attachmentActions', () => {
           mime_type: 'image/png',
         },
       },
-    }));
+    } satisfies ExecuteActionResponse;
+    const executeAction = vi.fn(async () => response);
 
     const asset = await storeSessionAttachment({
       backend: buildBackend(executeAction),
@@ -70,7 +72,7 @@ describe('attachmentActions', () => {
   });
 
   it('deletes an attachment using the provider-extension action contract', async () => {
-    const executeAction = vi.fn(async () => ({
+    const response = {
       status: 'ok',
       plugin: 'openai_responses_attachments',
       action_id: 'delete_attachment',
@@ -86,7 +88,8 @@ describe('attachmentActions', () => {
           mime_type: 'application/pdf',
         },
       },
-    }));
+    } satisfies ExecuteActionResponse;
+    const executeAction = vi.fn(async () => response);
 
     const deleted = await deleteSessionAttachment({
       backend: buildBackend(executeAction),
@@ -108,10 +111,11 @@ describe('attachmentActions', () => {
   });
 
   it('surfaces backend action errors with the server message', async () => {
-    const executeAction = vi.fn(async () => ({
+    const response = {
       status: 'error',
       message: 'asset store unavailable',
-    }));
+    } satisfies ExecuteActionResponse;
+    const executeAction = vi.fn(async () => response);
 
     await expect(
       storeSessionAttachment({

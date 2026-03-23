@@ -4,14 +4,21 @@ import { RestAgentBackend } from './restBackend';
 import type { Transport } from '../transport/transport';
 import * as idempotency from '../utils/idempotency';
 
+function createTransport(responseData: unknown, status = 200) {
+  const requestMock = vi.fn(async () => ({ status, data: responseData }));
+  const transport: Transport = {
+    request: requestMock as unknown as Transport['request'],
+  };
+  return { transport, requestMock };
+}
+
 describe('RestAgentBackend idempotency headers', () => {
   it('sendMessage calls /send_message and generates an idempotency key by default', async () => {
-    const transport: Transport = {
-      request: vi.fn(async () => ({
-        status: 200,
-        data: { status: 'started', request_id: 'r1', session_id: 's1' },
-      })),
-    };
+    const { transport, requestMock } = createTransport({
+      status: 'started',
+      request_id: 'r1',
+      session_id: 's1',
+    });
 
     const spy = vi
       .spyOn(idempotency, 'generateIdempotencyKey')
@@ -23,7 +30,7 @@ describe('RestAgentBackend idempotency headers', () => {
     });
 
     expect(spy).toHaveBeenCalledTimes(1);
-    expect(transport.request).toHaveBeenCalledWith(
+    expect(requestMock).toHaveBeenCalledWith(
       expect.objectContaining({
         method: 'POST',
         path: '/sessions/s1/send_message',
@@ -35,9 +42,7 @@ describe('RestAgentBackend idempotency headers', () => {
   });
 
   it('uses a caller-provided idempotency key for sendMessage', async () => {
-    const transport: Transport = {
-      request: vi.fn(async () => ({ status: 200, data: { status: 'started', request_id: 'r1' } })),
-    };
+    const { transport, requestMock } = createTransport({ status: 'started', request_id: 'r1' });
 
     const spy = vi.spyOn(idempotency, 'generateIdempotencyKey');
 
@@ -48,7 +53,7 @@ describe('RestAgentBackend idempotency headers', () => {
     });
 
     expect(spy).not.toHaveBeenCalled();
-    expect(transport.request).toHaveBeenCalledWith(
+    expect(requestMock).toHaveBeenCalledWith(
       expect.objectContaining({
         headers: expect.objectContaining({
           'Idempotency-Key': 'provided-key',
@@ -58,9 +63,7 @@ describe('RestAgentBackend idempotency headers', () => {
   });
 
   it('adds idempotency keys to legacy send/appendMessage/executeAction requests', async () => {
-    const transport: Transport = {
-      request: vi.fn(async () => ({ status: 200, data: {} })),
-    };
+    const { transport, requestMock } = createTransport({});
 
     vi.spyOn(idempotency, 'generateIdempotencyKey').mockReturnValue('generated-key');
 
@@ -69,7 +72,7 @@ describe('RestAgentBackend idempotency headers', () => {
     await backend.send('s1', { configOverrides: {} });
     await backend.executeAction({ pluginId: 'p1', actionId: 'a1', inputs: {} });
 
-    expect(transport.request).toHaveBeenCalledWith(
+    expect(requestMock).toHaveBeenCalledWith(
       expect.objectContaining({
         method: 'POST',
         path: '/sessions/s1/messages',
@@ -79,7 +82,7 @@ describe('RestAgentBackend idempotency headers', () => {
       }),
     );
 
-    expect(transport.request).toHaveBeenCalledWith(
+    expect(requestMock).toHaveBeenCalledWith(
       expect.objectContaining({
         method: 'POST',
         path: '/sessions/s1/send',
@@ -89,7 +92,7 @@ describe('RestAgentBackend idempotency headers', () => {
       }),
     );
 
-    expect(transport.request).toHaveBeenCalledWith(
+    expect(requestMock).toHaveBeenCalledWith(
       expect.objectContaining({
         method: 'POST',
         path: '/actions',
@@ -101,9 +104,7 @@ describe('RestAgentBackend idempotency headers', () => {
   });
 
   it('forwards action_owner in executeAction payloads', async () => {
-    const transport: Transport = {
-      request: vi.fn(async () => ({ status: 200, data: { status: 'ok', result: {} } })),
-    };
+    const { transport, requestMock } = createTransport({ status: 'ok', result: {} });
 
     const backend = new RestAgentBackend({ transport });
     await backend.executeAction({
@@ -113,7 +114,7 @@ describe('RestAgentBackend idempotency headers', () => {
       inputs: { end_index: 12 },
     });
 
-    expect(transport.request).toHaveBeenCalledWith(
+    expect(requestMock).toHaveBeenCalledWith(
       expect.objectContaining({
         method: 'POST',
         path: '/actions',
