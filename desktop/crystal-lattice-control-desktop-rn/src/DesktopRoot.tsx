@@ -430,7 +430,7 @@ export function DesktopRoot({
       }
 
       try {
-        const sessions = await backend.listSessions({ limit: 50 });
+        const sessions = await backend.listSessions();
         updateSessionsCache(record.id, sessions);
       } catch {
         // Ignore; cache remains stale.
@@ -631,7 +631,7 @@ export function DesktopRoot({
             });
 
             backend
-              .listSessions({ limit: 50 })
+              .listSessions()
               .then((sessions) => {
                 if (Array.isArray(sessions)) {
                   updateSessionsCache(pickedConnectionId, sessions);

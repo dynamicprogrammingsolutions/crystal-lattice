@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { LayoutChangeEvent } from 'react-native';
 import {
   ActivityIndicator,
   Alert,
@@ -48,6 +49,7 @@ import { DesktopWindowManager } from '../windows/desktopWindowManager';
 import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationActionDialog';
 import { truncateByChars } from '../utils/text';
 import { useSessionsPanelTabAutoSelect } from './useSessionsPanelTabAutoSelect';
+import { getMacScrollViewMetrics } from '../native/MacScrollViewMetrics';
 
 const PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_session_list_actions_v1';
 const SESSION_DOUBLE_CLICK_MS = 300;
@@ -113,7 +115,6 @@ function SessionsPanelInner({
   } = useSessionsController({
     backend,
     initialSessions: cachedSessions,
-    limit: 50,
   });
 
   const hydrateFromCache = useCallback(
@@ -146,6 +147,19 @@ function SessionsPanelInner({
 
   const [filterText, setFilterText] = useState('');
   const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null);
+
+  // Sliding window pagination for session list
+  const INITIAL_WINDOW_SIZE = 50;
+  const LOAD_MORE_INCREMENT = 50;
+  const MAX_WINDOW_SIZE = 100;
+  const [windowStart, setWindowStart] = useState(0);
+  const [windowEnd, setWindowEnd] = useState(INITIAL_WINDOW_SIZE);
+
+  // Reset window when filter changes or sessions reload
+  useEffect(() => {
+    setWindowStart(0);
+    setWindowEnd(Math.min(INITIAL_WINDOW_SIZE, filteredSessions.length));
+  }, [filterText, sessions.length]);
 
   const subtitle = useMemo(() => {
     if (!focusedConnectionName) {
@@ -366,14 +380,20 @@ function SessionsPanelInner({
     });
   }, [fieldGroups, filterText, sessions]);
 
+  // Show only visible window of filtered sessions
+  const visibleSessions = filteredSessions.slice(windowStart, windowEnd);
+  const hasMoreAtTop = windowStart > 0;
+  const hasMoreAtBottom = windowEnd < filteredSessions.length;
+
   const {
     selectedSessionId,
     onUserSelectSessionId,
     scrollViewRef,
     getRowLayoutHandler,
+    rowLayoutsRef,
   } = useSessionsPanelTabAutoSelect({
     connectionId,
-    visibleSessionIds: filteredSessions.map((session) => session.session_id),
+    visibleSessionIds: visibleSessions.map((session) => session.session_id),
     activeTab: {
       tabId: typeof activeTabId === 'string' ? activeTabId : null,
       connectionId:
@@ -382,6 +402,71 @@ function SessionsPanelInner({
     },
     enabled: followActiveTabEnabled,
   });
+
+  // Store pending scroll adjustment to apply after render
+  const pendingScrollAdjustmentRef = useRef<number | null>(null);
+
+  // Measure actual top "Load more" button height for accurate scroll adjustment
+  const topButtonHeightRef = useRef<number>(54); // Default fallback
+  const handleTopButtonLayout = useCallback((event: LayoutChangeEvent) => {
+    const height = event.nativeEvent?.layout?.height;
+    if (typeof height === 'number' && height > 0) {
+      topButtonHeightRef.current = height;
+    }
+  }, []);
+
+  // Apply scroll adjustment after render (useLayoutEffect to block paint)
+  useLayoutEffect(() => {
+    if (pendingScrollAdjustmentRef.current !== null && scrollViewRef.current) {
+      const newScrollY = pendingScrollAdjustmentRef.current;
+      pendingScrollAdjustmentRef.current = null;
+      scrollViewRef.current.scrollTo({ y: newScrollY, animated: false });
+    }
+  });
+
+  // Load more at bottom - adds items at bottom, may remove from top to maintain max window
+  const handleLoadMoreBottom = useCallback(async () => {
+    const newEnd = Math.min(windowEnd + LOAD_MORE_INCREMENT, filteredSessions.length);
+    const newStart = Math.max(0, newEnd - MAX_WINDOW_SIZE);
+
+    // If we're removing items from top, calculate scroll adjustment to apply after render
+    const itemsRemovedFromTop = newStart - windowStart;
+    if (itemsRemovedFromTop > 0 && scrollViewRef.current) {
+      // Find first row that will remain visible
+      const firstKeptSessionId = filteredSessions[newStart]?.session_id;
+      const layout = firstKeptSessionId ? rowLayoutsRef.current[firstKeptSessionId] : null;
+
+      if (layout) {
+        // This row is currently at `layout.y` pixels from the top of content
+        // After removing items, it will be near the top, so we scroll up by `layout.y`
+        const metrics = await getMacScrollViewMetrics(scrollViewRef.current);
+        if (metrics) {
+          let adjustment = metrics.offsetY - layout.y;
+          // When there are hidden items, the "Load more" button at top is visible.
+          // The row's layout.y was measured INCLUDING the button height, but the button
+          // stays visible after the shift, so we need to add back the button height
+          // to prevent the content from jumping up by that amount.
+          // Use the measured actual height of the button container.
+          if (newStart > 0) {
+            // There will still be hidden items (and button) after the shift
+            adjustment += topButtonHeightRef.current + 6;
+          }
+          pendingScrollAdjustmentRef.current = Math.max(0, adjustment);
+        }
+      }
+    }
+
+    setWindowEnd(newEnd);
+    setWindowStart(newStart);
+  }, [windowStart, windowEnd, filteredSessions, rowLayoutsRef, scrollViewRef]);
+
+  // Load more at top - adds items at top, may remove from bottom to maintain max window
+  const handleLoadMoreTop = useCallback(() => {
+    const newStart = Math.max(0, windowStart - LOAD_MORE_INCREMENT);
+    const newEnd = Math.min(filteredSessions.length, newStart + MAX_WINDOW_SIZE);
+    setWindowStart(newStart);
+    setWindowEnd(newEnd);
+  }, [windowStart, filteredSessions.length]);
 
   const lastClickRef = useRef<{ sessionId: string; atMs: number } | null>(null);
 
@@ -509,7 +594,26 @@ function SessionsPanelInner({
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator
         >
-          {filteredSessions.length === 0 ? (
+          {hasMoreAtTop && (
+            <View style={styles.loadMoreContainerTop} onLayout={handleTopButtonLayout}>
+              <Pressable
+                style={(state) => {
+                  const hovered = (state as any).hovered as boolean | undefined;
+                  return [
+                    styles.loadMoreButton,
+                    (hovered || state.pressed) && styles.loadMoreButtonHovered,
+                  ];
+                }}
+                onPress={handleLoadMoreTop}
+              >
+                <Text style={styles.loadMoreButtonText}>
+                  {windowStart} items hidden above
+                </Text>
+              </Pressable>
+            </View>
+          )}
+
+          {visibleSessions.length === 0 ? (
             <View style={styles.empty}>
               <Text style={styles.emptyText}>
                 {filterText.trim() ? 'No sessions match your search.' : 'No sessions.'}
@@ -520,7 +624,7 @@ function SessionsPanelInner({
             </View>
           ) : null}
 
-          {filteredSessions.map((session) => {
+          {visibleSessions.map((session) => {
             const hovered = hoveredSessionId === session.session_id;
             const selected = selectedSessionId === session.session_id;
             const showRowControls = hovered;
@@ -598,10 +702,7 @@ function SessionsPanelInner({
                   ) : null}
                 </View>
 
-
-
                 <View style={styles.rowRight}>
-
                   <Pressable
                     style={[
                       styles.openButton,
@@ -648,12 +749,29 @@ function SessionsPanelInner({
                       />
                     </View>
                   ) : null}
-
-
                 </View>
               </Pressable>
             );
           })}
+
+          {hasMoreAtBottom && (
+            <View style={styles.loadMoreContainer}>
+              <Pressable
+                style={(state) => {
+                  const hovered = (state as any).hovered as boolean | undefined;
+                  return [
+                    styles.loadMoreButton,
+                    (hovered || state.pressed) && styles.loadMoreButtonHovered,
+                  ];
+                }}
+                onPress={handleLoadMoreBottom}
+              >
+                <Text style={styles.loadMoreButtonText}>
+                  {filteredSessions.length - windowEnd} items hidden below
+                </Text>
+              </Pressable>
+            </View>
+          )}
         </ScrollView>
       )}
 
@@ -847,6 +965,33 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
     emptyMeta: {
       fontSize: 11,
       color: theme.textMuted,
+    },
+    loadMoreContainer: {
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      alignItems: 'center',
+    },
+    loadMoreContainerTop: {
+      paddingHorizontal: 12,
+      paddingTop: 12,
+      paddingBottom: 6,
+      alignItems: 'center',
+    },
+    loadMoreButton: {
+      borderWidth: separatorWidth,
+      borderColor: theme.border,
+      borderRadius: 10,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      backgroundColor: theme.surfaceAlt,
+    },
+    loadMoreButtonHovered: {
+      backgroundColor: theme.surface,
+    },
+    loadMoreButtonText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: theme.textSecondary,
     },
   });
 }
