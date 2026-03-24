@@ -115,7 +115,7 @@ def test_reasoning_extension_returns_messages_unchanged_on_length_mismatch():
     assert rebuilt == messages
 
 
-def test_reasoning_extension_process_chunk_emits_partial_without_provider_partial():
+def test_reasoning_extension_process_chunk_updates_accumulator_without_emitting_partial():
     ext = OpenAICompatibleReasoningExtension()
 
     partials, _finals, _native, new_state = ext.process_chunk(
@@ -126,5 +126,5 @@ def test_reasoning_extension_process_chunk_emits_partial_without_provider_partia
         {"partial": {"role": "assistant", "content": ""}},
     )
 
-    assert partials == [{"role": "assistant", "content": "", "reasoning": "alpha"}]
+    assert partials == []
     assert new_state["partial"]["reasoning_content"] == "alpha"

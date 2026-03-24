@@ -113,7 +113,7 @@ class OpenAIResponsesFlexProcessingExtension(ProviderExtensionPlugin):
                 "label": "Flex max retries",
             },
             {
-                "type": "dropdown",
+                "type": "select",
                 "key": _FLEX_STREAM_RECOVERY_MODE_KEY,
                 "label": "Flex stream recovery",
                 "options": [
