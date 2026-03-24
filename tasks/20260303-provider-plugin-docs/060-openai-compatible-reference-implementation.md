@@ -146,3 +146,45 @@ Only if blocked (do not start here):
 5) Add Ollama integration tests (skip gracefully if Ollama is unavailable)
 6) Run integration tests locally against `qwen3:0.6b`
 7) Update docs when the implementation proves a doc gap or mismatch
+
+## Completion notes (added during verification)
+
+### What was implemented
+
+The reference provider implementation exists at `plugins/reference-openai-compatible-provider/` with:
+
+1. Provider with `AccumulatorStreamingMixin` pattern in `provider.py`:
+   - Implements `process_chunk` with the accumulator streaming pattern
+   - Uses `_merge_delta_content` helper for delta accumulation
+
+2. Extension accumulator helper in `_extension_accumulator.py`:
+   - `_merge_delta_content` preserves unknown keys and accumulates strings
+   - Generic `process_chunk` that delegates to `extract_delta` + `process_delta`
+
+3. Extensions following the documented patterns:
+   - `tools_extension.py` - tool call merging by index
+   - `reasoning_extension.py` - reasoning fragment concatenation
+   - `usage_extension.py` - usage extraction
+
+4. Comprehensive test coverage:
+   - `test_merge_helpers_unit.py` - delta merge helper tests
+   - `test_ollama_integration_*.py` - Ollama integration tests
+   - `test_fireworks_integration_*.py` - Fireworks integration tests
+
+### Files created
+
+- `plugins/reference-openai-compatible-provider/pyproject.toml`
+- `plugins/reference-openai-compatible-provider/agent_plugin.json`
+- `plugins/reference-openai-compatible-provider/README.md`
+- `plugins/reference-openai-compatible-provider/src/reference_openai_compatible_provider/provider.py`
+- `plugins/reference-openai-compatible-provider/src/reference_openai_compatible_provider/tools_extension.py`
+- `plugins/reference-openai-compatible-provider/src/reference_openai_compatible_provider/reasoning_extension.py`
+- `plugins/reference-openai-compatible-provider/src/reference_openai_compatible_provider/usage_extension.py`
+- `plugins/reference-openai-compatible-provider/src/reference_openai_compatible_provider/_extension_accumulator.py`
+- `plugins/reference-openai-compatible-provider/tests/test_*.py`
+
+### Verification
+
+- Provider follows docs line-by-line
+- Integration tests pass against Ollama and Fireworks
+- Patterns match `plugins/docs/provider-plugins.md` and `plugins/docs/provider-extensions.md`

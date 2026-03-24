@@ -109,3 +109,37 @@ This keeps the interface consistent across direct HTTP and bridge.
 - Action definitions can be provided by at least one provider/extension plugin.
 - `POST /actions` can execute those provider/extension actions and returns a standard action envelope.
 - At least one `composer_attachment` element references a `prepare_action` that works end-to-end.
+
+## Overlap notes (added during verification)
+
+### Relationship with completed task 140
+
+This task has significant overlap with `tasks/20260310-openai-responses-provider/140-openai-image-pdf-upload-and-upload-modes.md` which is now completed.
+
+### What was implemented in task 140
+
+1. **Attachment upload mode config** in `openai_responses`:
+   - `attachment_upload_mode: "direct" | "upload_before_send"` in `openai_responses_attachments_extension.py`
+   - Upload-before-send via OpenAI Files API in provider
+
+2. **Provider extension actions** in `openai_responses_attachments_extension.py`:
+   - `get_actions(state)` method returning action definitions
+   - `execute_action(action_id, params, context, state)` method for upload actions
+
+3. **Attachment policy module** in `openai_responses_attachment_policy.py`:
+   - `resolve_attachment_upload_mode(state)` helper
+   - Config normalization for attachment mode
+
+### What remains from this task's scope
+
+1. **Generic action support for all plugin types** - The current implementation is specific to `openai_responses` provider extension. The generic "expand action definitions to core plugin types" (provider/extension/feature/tool) was not implemented.
+
+2. **Unified action endpoints** - `GET /actions/definitions` and unified routing for all plugin types was not implemented.
+
+3. **Cross-provider attachment actions** - The action-based upload is only available for `openai_responses`. Other providers (OpenRouter, etc.) do not have this capability.
+
+### Resolution
+
+The core functionality for asset preparation/upload actions was implemented in the `openai_responses` bundle as part of task 140. The generic cross-provider action infrastructure from this task remains undone. Consider:
+- Marking this task as "partially completed via task 140"
+- Creating a follow-up task for generic cross-provider action infrastructure if needed

@@ -165,7 +165,7 @@ Key observations:
 ### Phase 2: Kimi + cross-vendor tools
 
 - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/090-kimi-tools.md` — Kimi core file tools
-- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/095-kimi-system-message.md` — Kimi default system message extraction
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/095-kimi-system-message.md` — Kimi default system message extraction
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/100-shell-tools.md` — Shell tools (all four vendors)
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/110-web-fetch-tools.md` — Web fetch tools
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/120-web-search-tools.md` — Web search tools

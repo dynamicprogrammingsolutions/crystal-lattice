@@ -9,7 +9,8 @@ Short description: Create a new `openai_responses` plugin bundle using the OpenA
 - [x] `tasks/20260310-openai-responses-provider/030-provider-core-conversion-and-nonstreaming-sdk.md`
 - [x] `tasks/20260310-openai-responses-provider/040-provider-streaming-event-normalization-and-finalization.md`
 - [ ] `tasks/20260310-openai-responses-provider/041-system-message-rendering-and-developer-role-followup.md`
-- [ ] `tasks/20260310-openai-responses-provider/042-native-compaction-instruction-message-exclusion.md`
+- [x] `tasks/20260310-openai-responses-provider/042-native-compaction-instruction-message-exclusion.md`
+  - SPLIT INTO `tasks/20260310-openai-responses-provider/043-native-message-preparation-for-compaction.md`, `tasks/20260310-openai-responses-provider/044-visible-rebuild-from-compacted-native-output.md`, `tasks/20260310-openai-responses-provider/046-manual-range-selection-native-compaction.md`, `tasks/20260310-openai-responses-provider/047-auto-compaction-after-request-complete.md`
 - [ ] `tasks/20260310-openai-responses-provider/043-native-message-preparation-for-compaction.md`
 - [ ] `tasks/20260310-openai-responses-provider/044-visible-rebuild-from-compacted-native-output.md`
 - [ ] `tasks/20260310-openai-responses-provider/046-manual-range-selection-native-compaction.md`
@@ -23,13 +24,13 @@ Short description: Create a new `openai_responses` plugin bundle using the OpenA
 - [x] `tasks/20260310-openai-responses-provider/090-integration-native-retention-and-regression-tests.md`
 - [x] `tasks/20260310-openai-responses-provider/095-native-compaction-provider-extension.md`
 - [x] `tasks/20260310-openai-responses-provider/100-docs-readme-and-config-examples.md`
-- [ ] `tasks/20260310-openai-responses-provider/110-replaced-by-provider-extension-session-actions-020.md`
-- [ ] `tasks/20260310-openai-responses-provider/120-model-discovery-provider-ui-and-doc-followup.md`
-- [ ] `tasks/20260310-openai-responses-provider/130-prompt-caching-session-key-extension.md`
-- [ ] `tasks/20260310-openai-responses-provider/140-openai-image-pdf-upload-and-upload-modes.md`
-- [ ] `tasks/20260310-openai-responses-provider/141-session-asset-storage-and-action-driven-attachments.md`
-- [ ] `tasks/20260310-openai-responses-provider/150-web-search-extension-and-citation-preservation.md`
-- [ ] `tasks/20260310-openai-responses-provider/160-openai-flex-processing-extension-and-provider-retries.md`
+- [x] `tasks/20260310-openai-responses-provider/110-replaced-by-provider-extension-session-actions-020.md`
+- [x] `tasks/20260310-openai-responses-provider/120-model-discovery-provider-ui-and-doc-followup.md`
+- [x] `tasks/20260310-openai-responses-provider/130-prompt-caching-session-key-extension.md`
+- [x] `tasks/20260310-openai-responses-provider/140-openai-image-pdf-upload-and-upload-modes.md`
+- [x] `tasks/20260310-openai-responses-provider/141-session-asset-storage-and-action-driven-attachments.md`
+- [x] `tasks/20260310-openai-responses-provider/150-web-search-extension-and-citation-preservation.md`
+- [x] `tasks/20260310-openai-responses-provider/160-openai-flex-processing-extension-and-provider-retries.md`
 
 ## Status
 

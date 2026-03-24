@@ -23,6 +23,7 @@ This task is structured as a main task + subtasks, intended as a handoff package
 - [x] `tasks/20260215-multipart-upload/075-desktop-composer-attachment-plus-and-metadata-window.md`
 - [ ] `tasks/20260215-multipart-upload/080-docs-and-compat.md`
 - [ ] `tasks/20260215-multipart-upload/090-asset-prepare-upload-action.md`
+  - OVERLAP `tasks/20260310-openai-responses-provider/140-openai-image-pdf-upload-and-upload-modes.md` (provider-extension upload actions implemented in openai_responses bundle; generic cross-provider action infrastructure remains)
 - [x] `tasks/20260215-multipart-upload/100-bridge-chunked-http-over-websocket.md`
 
 ## Requirements (Locked)

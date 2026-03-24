@@ -9,8 +9,10 @@ Goals:
 
 ## Subtasks
 
-- [ ] `tasks/20260306-session-ui-reload/010-a1-sdk-local-invalidation.md`
+- [x] `tasks/20260306-session-ui-reload/010-a1-sdk-local-invalidation.md`
+  - COMPLETED VIA `tasks/20260306-session-ui-reload/050-session-settings-controller.md`
 - [ ] `tasks/20260306-session-ui-reload/020-a2-server-events-cross-client.md`
 - [ ] `tasks/20260306-session-ui-reload/030-c-etag-versioning.md`
-- [ ] `tasks/20260306-session-ui-reload/040-settings-ui-use-shared-schema-controller.md`
+- [x] `tasks/20260306-session-ui-reload/040-settings-ui-use-shared-schema-controller.md`
+  - COMPLETED VIA `tasks/20260306-session-ui-reload/050-session-settings-controller.md`
 - [x] `tasks/20260306-session-ui-reload/050-session-settings-controller.md`

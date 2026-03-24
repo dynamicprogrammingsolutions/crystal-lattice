@@ -86,14 +86,14 @@ This task directory is a handoff package for implementing Phase 5 of `tasks/2026
 - [x] `tasks/20260202-desktop-macos-frontend/050-desktop-shell-layout.md`
 - [x] `tasks/20260202-desktop-macos-frontend/060-desktop-connections-panel.md`
 - [x] `tasks/20260202-desktop-macos-frontend/065-desktop-tab-strip-styles-and-view-menu.md`
-- [ ] `tasks/20260202-desktop-macos-frontend/066-desktop-theming-semantic-colors.md`
+- [x] `tasks/20260202-desktop-macos-frontend/066-desktop-theming-semantic-colors.md`
 - [x] `tasks/20260202-desktop-macos-frontend/070-desktop-sessions-pane.md`
 - [x] `tasks/20260202-desktop-macos-frontend/080-desktop-chat-tabs-and-chat-pane.md`
 - [x] `tasks/20260202-desktop-macos-frontend/081-desktop-chat-header-and-session-actions.md`
 - [x] `tasks/20260202-desktop-macos-frontend/082-desktop-session-settings-ui.md`
 - [x] `tasks/20260202-desktop-macos-frontend/083-desktop-markdown-renderer.md`
 - [x] `tasks/20260202-desktop-macos-frontend/084-desktop-rich-assistant-rendering.md`
-- [ ] `tasks/20260202-desktop-macos-frontend/085-desktop-session-status-bar.md`
+- [x] `tasks/20260202-desktop-macos-frontend/085-desktop-session-status-bar.md`
 - [x] `tasks/20260202-desktop-macos-frontend/086-desktop-plugin-actions-in-chat.md`
 - [x] `tasks/20260202-desktop-macos-frontend/087-desktop-chat-state-persistence.md`
 - [ ] `tasks/20260202-desktop-macos-frontend/089-session-metadata-single-source-of-truth.md`

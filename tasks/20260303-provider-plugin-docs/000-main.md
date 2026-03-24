@@ -52,11 +52,11 @@ This work has seven subtasks:
 
 - [x] `tasks/20260303-provider-plugin-docs/010-template-python-provider.md`
 - [x] `tasks/20260303-provider-plugin-docs/020-provider-plugins-doc.md`
-- [ ] `tasks/20260303-provider-plugin-docs/030-other-doc-updates.md`
+- [x] `tasks/20260303-provider-plugin-docs/030-other-doc-updates.md`
 - [x] `tasks/20260303-provider-plugin-docs/040-template-provider-tests.md`
 - [x] `tasks/20260303-provider-plugin-docs/050-provider-extensions-doc.md`
-- [ ] `tasks/20260303-provider-plugin-docs/060-openai-compatible-reference-implementation.md`
-- [ ] `tasks/20260303-provider-plugin-docs/070-update-existing-provider-implementations.md`
+- [x] `tasks/20260303-provider-plugin-docs/060-openai-compatible-reference-implementation.md`
+- [x] `tasks/20260303-provider-plugin-docs/070-update-existing-provider-implementations.md`
 
 ---
 

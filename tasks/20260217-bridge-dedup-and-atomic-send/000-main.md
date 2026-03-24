@@ -57,8 +57,8 @@ That work adds `http_request_init/chunk/end` and chunked responses and explicitl
 
 - [x] `tasks/20260217-bridge-dedup-and-atomic-send/010-elixir-single-target-routing-and-takeover.md`
 - [x] `tasks/20260217-bridge-dedup-and-atomic-send/020-python-bridgeclient-takeover-and-local-guard.md`
-- [ ] `tasks/20260217-bridge-dedup-and-atomic-send/030-fastapi-send-singleflight-idempotency.md`
-- [ ] `tasks/20260217-bridge-dedup-and-atomic-send/040-fastapi-atomic-append-send-endpoint.md`
+- [x] `tasks/20260217-bridge-dedup-and-atomic-send/030-fastapi-send-singleflight-idempotency.md`
+- [x] `tasks/20260217-bridge-dedup-and-atomic-send/040-fastapi-atomic-append-send-endpoint.md`
 - [x] `tasks/20260217-bridge-dedup-and-atomic-send/050-frontend-sdk-use-atomic-and-idempotency.md`
 
 ## Acceptance criteria (end-to-end)
