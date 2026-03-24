@@ -296,6 +296,7 @@ def test_portable_default_config_is_self_contained() -> None:
         "system_messages/helpers/render_kimi_project_information_section.py",
         "system_messages/helpers/select_codex_developer_message.py",
         "TASKS_v5.md",
+        "TASKS_v6.md",
         "CLAUDE_CODE_DEFAULT.md",
         "system_messages/codex/template.md",
         "system_messages/gemini/template.md",

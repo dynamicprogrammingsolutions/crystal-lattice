@@ -93,7 +93,7 @@
             "inline_code": "select_codex_developer_message()"
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v5.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -152,7 +152,7 @@
             }
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v5.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -218,7 +218,7 @@
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_agents_context_section.py"
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v5.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -276,7 +276,7 @@
             ]
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v5.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -340,7 +340,7 @@
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_kimi_project_information_section.py"
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v5.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -448,7 +448,7 @@
             "inline_code": "select_codex_developer_message()"
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v5.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -486,7 +486,7 @@
             "text": "${file:${env:CONFIG_DIR}/CLAUDE_CODE_DEFAULT.md}"
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v5.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
