@@ -125,17 +125,29 @@ type TranscriptRow =
   | { kind: 'stream' }
   | IndexedMessage;
 
-type ComposerAttachmentUiElement = UiSchemaElement & {
-  ui_type: 'composer_attachment';
+type AttachmentDraftSide = 'above' | 'below' | 'left';
+
+type ComposerActionOptions = Array<{ value: string; label: string } | string>;
+
+type ComposerActionUiElementBase = UiSchemaElement & {
   key?: string;
   attachment_type: string;
-  supported_file_types?: string[];
-  display_placement: 'above' | 'below' | 'left';
   label?: string;
   title?: string;
   icon?: string;
+  options?: ComposerActionOptions;
+};
+
+type ComposerAttachmentUiElement = ComposerActionUiElementBase & {
+  ui_type: 'composer_attachment';
+  supported_file_types?: string[];
+  display_placement: AttachmentDraftSide;
   metadata_ui?: AttachmentMetadataUi;
-  options?: Array<{ value: string; label: string } | string>;
+};
+
+type ModelPickerUiElement = ComposerActionUiElementBase & {
+  ui_type: 'model_picker';
+  display_placement: 'left';
 };
 
 type MultipartPartDraft = {
@@ -201,13 +213,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     | {
       kind: 'new';
       element: ComposerAttachmentUiElement;
-      side: 'above' | 'below';
+      side: AttachmentDraftSide;
       draftId?: string | null;
       content: any;
       previewUrl?: string | null;
       pendingAssetId?: string | null;
     }
-    | { kind: 'edit'; side: 'above' | 'below'; draftId: string }
+    | { kind: 'edit'; side: AttachmentDraftSide; draftId: string }
     | null
   >(null);
   const [attachmentPickInProgress, setAttachmentPickInProgress] = useState(false);
@@ -279,7 +291,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [sessionOverrides, setSessionOverrides] = useState<Record<string, any>>({});
   const [sessionBaseConfig, setSessionBaseConfig] = useState<Record<string, any>>({});
   const [composerLeftSelectModalElement, setComposerLeftSelectModalElement] =
-    useState<ComposerAttachmentUiElement | null>(null);
+    useState<ModelPickerUiElement | null>(null);
   const [pluginActionInProgress, setPluginActionInProgress] = useState(false);
   const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
   const {
@@ -507,41 +519,53 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   //   }) as ComposerAttachmentUiElement[];
   // }, [uiSchemaElements]);
 
-  /** All composer attachments (above, below, left) for actions menu and key map. Includes model_picker. */
+  /** Attachment drafts only support above/below placement. */
   const composerAttachmentElementsAll: ComposerAttachmentUiElement[] = useMemo(() => {
     return (uiSchemaElements || []).filter((el) => {
-      if (!el || (el.ui_type !== 'composer_attachment' && el.ui_type !== 'model_picker')) return false;
+      if (!el || el.ui_type !== 'composer_attachment') return false;
       const typed = el as any;
       if (typeof typed.attachment_type !== 'string' || !typed.attachment_type.trim()) return false;
-      return (
-        typed.display_placement === 'above' ||
-        typed.display_placement === 'below' ||
-        typed.display_placement === 'left'
-      );
+      return typed.display_placement === 'above' || typed.display_placement === 'below';
     }) as ComposerAttachmentUiElement[];
   }, [uiSchemaElements]);
 
-  const composerAttachmentElementsLeft: ComposerAttachmentUiElement[] = useMemo(() => {
-    return composerAttachmentElementsAll.filter((el) => el.display_placement === 'left');
-  }, [composerAttachmentElementsAll]);
+  const modelPickerElements: ModelPickerUiElement[] = useMemo(() => {
+    return (uiSchemaElements || []).filter((el) => {
+      if (!el || el.ui_type !== 'model_picker') return false;
+      const typed = el as any;
+      if (typeof typed.attachment_type !== 'string' || !typed.attachment_type.trim()) return false;
+      return typed.display_placement === 'left';
+    }) as ModelPickerUiElement[];
+  }, [uiSchemaElements]);
 
-  const getComposerAttachmentActionKey = useCallback((el: ComposerAttachmentUiElement) => {
-    const pluginName =
-      typeof (el as any).plugin === 'string' && (el as any).plugin
-        ? String((el as any).plugin)
-        : 'unknown';
-    return typeof el.key === 'string' && el.key.trim()
-      ? el.key.trim()
-      : `composer_attachment:${pluginName}:${el.attachment_type}:${el.display_placement}`;
-  }, []);
+  const getComposerActionKey = useCallback(
+    (el: ComposerAttachmentUiElement | ModelPickerUiElement) => {
+      const pluginName =
+        typeof (el as any).plugin === 'string' && (el as any).plugin
+          ? String((el as any).plugin)
+          : 'unknown';
+      return typeof el.key === 'string' && el.key.trim()
+        ? el.key.trim()
+        : `composer_attachment:${pluginName}:${el.attachment_type}:${el.display_placement}`;
+    },
+    [],
+  );
 
   const composerAttachmentElementByActionKey = useMemo(() => {
     const map: Record<string, ComposerAttachmentUiElement> = {};
     for (const el of composerAttachmentElementsAll) {
-      map[getComposerAttachmentActionKey(el)] = el;
+      map[getComposerActionKey(el)] = el;
     }
     return map;
-  }, [composerAttachmentElementsAll, getComposerAttachmentActionKey]);
+  }, [composerAttachmentElementsAll, getComposerActionKey]);
+
+  const modelPickerElementByActionKey = useMemo(() => {
+    const map: Record<string, ModelPickerUiElement> = {};
+    for (const el of modelPickerElements) {
+      map[getComposerActionKey(el)] = el;
+    }
+    return map;
+  }, [getComposerActionKey, modelPickerElements]);
 
   const composerActions: ActionDefinition[] = useMemo(() => {
     const builtins: ActionDefinition[] = [
@@ -549,50 +573,50 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       { key: 'cancel', label: 'Cancel', iconName: 'x-circle' },
     ];
 
-    const attachmentActions: ActionDefinition[] = composerAttachmentElementsAll.map((el) => {
-      const key = getComposerAttachmentActionKey(el);
-      const label =
-        (typeof (el as any).title === 'string' && String((el as any).title).trim()) ||
-        (typeof el.label === 'string' && el.label.trim()) ||
-        el.attachment_type;
-      const iconName =
-        typeof (el as any).icon === 'string' && String((el as any).icon).trim()
-          ? String((el as any).icon).trim()
-          : el.attachment_type === 'image'
-            ? 'image'
-            : el.attachment_type === 'pdf'
-              ? 'file-text'
-              : el.attachment_type === 'dropdown' || el.attachment_type === 'select'
-                ? 'sliders'
-                : 'paperclip';
-      return {
-        key,
-        label,
-        iconName,
-      } as ActionDefinition;
-    });
+    const uiActions: ActionDefinition[] = [...composerAttachmentElementsAll, ...modelPickerElements].map(
+      (el) => {
+        const key = getComposerActionKey(el);
+        const label =
+          (typeof (el as any).title === 'string' && String((el as any).title).trim()) ||
+          (typeof el.label === 'string' && el.label.trim()) ||
+          el.attachment_type;
+        const iconName =
+          typeof (el as any).icon === 'string' && String((el as any).icon).trim()
+            ? String((el as any).icon).trim()
+            : el.attachment_type === 'image'
+              ? 'image'
+              : el.attachment_type === 'pdf'
+                ? 'file-text'
+                : el.attachment_type === 'dropdown' || el.attachment_type === 'select'
+                  ? 'sliders'
+                  : 'paperclip';
+        return {
+          key,
+          label,
+          iconName,
+        } as ActionDefinition;
+      },
+    );
 
-    return [...attachmentActions, ...builtins];
-  }, [composerAttachmentElementsAll, getComposerAttachmentActionKey]);
+    return [...uiActions, ...builtins];
+  }, [composerAttachmentElementsAll, getComposerActionKey, modelPickerElements]);
 
-  /** Left attachments (e.g. model selector) that are pinned, so they show in the inline row. */
-  const composerAttachmentElementsLeftPinned = useMemo(() => {
-    return composerAttachmentElementsLeft.filter((el) => {
-      const actionKey = getComposerAttachmentActionKey(el);
+  /** Left-side model pickers that are pinned, so they show in the inline row. */
+  const pinnedModelPickerElements = useMemo(() => {
+    return modelPickerElements.filter((el) => {
+      const actionKey = getComposerActionKey(el);
       return pinnedComposerActions.includes(actionKey);
     });
-  }, [composerAttachmentElementsLeft, getComposerAttachmentActionKey, pinnedComposerActions]);
+  }, [getComposerActionKey, modelPickerElements, pinnedComposerActions]);
 
-  /** Pinned keys that are left placement are shown in the inline row only, not as icons in the action bar. */
+  /** Pinned model picker keys are shown in the inline row only, not as icons in the action bar. */
   const pinnedComposerActionsForBar = useMemo(() => {
-    const leftKeys = new Set(
-      composerAttachmentElementsLeft.map((el) => getComposerAttachmentActionKey(el)),
-    );
+    const leftKeys = new Set(modelPickerElements.map((el) => getComposerActionKey(el)));
     return pinnedComposerActions.filter((key) => !leftKeys.has(key));
-  }, [composerAttachmentElementsLeft, getComposerAttachmentActionKey, pinnedComposerActions]);
+  }, [getComposerActionKey, modelPickerElements, pinnedComposerActions]);
 
   useEffect(() => {
-    if (!backend || !sessionId || composerAttachmentElementsLeft.length === 0) return;
+    if (!backend || !sessionId || composerAttachmentElementsAll.length === 0) return;
     // Keep inline composer selectors in sync after settings modal edits.
     if (settingsVisible) return;
     let cancelled = false;
@@ -607,10 +631,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [backend, sessionId, composerAttachmentElementsLeft.length, settingsVisible]);
+  }, [backend, sessionId, composerAttachmentElementsAll.length, settingsVisible]);
 
   const normalizeSelectOptions = useCallback(
-    (raw: ComposerAttachmentUiElement['options']): Array<{ value: string; label: string }> => {
+    (raw: ComposerActionOptions | undefined): Array<{ value: string; label: string }> => {
       if (!Array.isArray(raw)) return [];
       return raw
         .map((opt) => {
@@ -950,8 +974,26 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     [backend, sessionId],
   );
 
+  const updateAttachmentDraft = useCallback(
+    (
+      side: AttachmentDraftSide,
+      draftId: string,
+      updater: (part: MultipartPartDraft) => MultipartPartDraft,
+    ) => {
+      const update = (prev: MultipartPartDraft[]) =>
+        prev.map((part) => (part.draftId === draftId ? updater(part) : part));
+
+      if (side === 'above') {
+        setAttachmentsAbove(update);
+        return;
+      }
+      setAttachmentsBelow(update);
+    },
+    [],
+  );
+
   const removeAttachmentFromSide = useCallback(
-    async (side: 'above' | 'below', draftId: string) => {
+    async (side: AttachmentDraftSide, draftId: string) => {
       const list = side === 'above' ? attachmentsAbove : attachmentsBelow;
       const removed = list.find((p) => p.draftId === draftId);
       if (!removed) {
@@ -993,7 +1035,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   );
 
   const moveAttachmentWithinSide = useCallback(
-    (side: 'above' | 'below', draftId: string, direction: 'up' | 'down') => {
+    (side: AttachmentDraftSide, draftId: string, direction: 'up' | 'down') => {
       const update = (prev: MultipartPartDraft[]) => {
         const idx = prev.findIndex((p) => p.draftId === draftId);
         if (idx < 0) return prev;
@@ -1005,24 +1047,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         next[nextIdx] = tmp;
         return next;
       };
-
-      if (side === 'above') {
-        setAttachmentsAbove(update);
-        return;
-      }
-      setAttachmentsBelow(update);
-    },
-    [],
-  );
-
-  const updateAttachmentDraft = useCallback(
-    (
-      side: 'above' | 'below',
-      draftId: string,
-      updater: (part: MultipartPartDraft) => MultipartPartDraft,
-    ) => {
-      const update = (prev: MultipartPartDraft[]) =>
-        prev.map((part) => (part.draftId === draftId ? updater(part) : part));
 
       if (side === 'above') {
         setAttachmentsAbove(update);
@@ -1165,7 +1189,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   );
 
   const updateAttachmentMetadata = useCallback(
-    (side: 'above' | 'below', draftId: string, metadata: Record<string, any>) => {
+    (side: AttachmentDraftSide, draftId: string, metadata: Record<string, any>) => {
       const update = (prev: MultipartPartDraft[]) =>
         prev.map((part) => {
           if (part.draftId !== draftId) return part;
@@ -1631,16 +1655,24 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         return;
       }
 
+      const modelPicker = modelPickerElementByActionKey[key];
+      if (modelPicker) {
+        setComposerLeftSelectModalElement(modelPicker);
+        return;
+      }
+
       const element = composerAttachmentElementByActionKey[key];
       if (element) {
-        if (element.display_placement === 'left') {
-          setComposerLeftSelectModalElement(element);
-          return;
-        }
         handlePickAttachment(element).catch(() => { });
       }
     },
-    [composerAttachmentElementByActionKey, handleCancel, handlePickAttachment, handleResend],
+    [
+      composerAttachmentElementByActionKey,
+      handleCancel,
+      handlePickAttachment,
+      handleResend,
+      modelPickerElementByActionKey,
+    ],
   );
 
   const isComposerActionDisabled = useCallback(
@@ -1655,7 +1687,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         return sendInProgress || !activeRequestId;
       }
 
-      if (composerAttachmentElementByActionKey[key]) {
+      if (composerAttachmentElementByActionKey[key] || modelPickerElementByActionKey[key]) {
         return (
           sendInProgress ||
           !!activeRequestId ||
@@ -1672,6 +1704,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       attachmentPickInProgress,
       backend,
       composerAttachmentElementByActionKey,
+      modelPickerElementByActionKey,
       hasDraftMessage,
       sendInProgress,
     ],
@@ -2101,44 +2134,48 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           </View>
         </View>
 
-        {sessionDirty && (
-          <View style={styles.dirtyBanner}>
-            <Text style={styles.dirtyBannerText} numberOfLines={1}>
-              Out of sync — Reload to recover
-            </Text>
-            <TouchableOpacity
-              style={[styles.button, styles.secondaryButton, styles.smallButton]}
-              onPress={async () => {
-                chatController?.clearRequestState();
-                await loadMessages();
-              }}
-              disabled={!chatController || sendInProgress || loadingMessages}
-            >
-              <Text
-                style={[
-                  styles.buttonTextSecondary,
-                  (!chatController || sendInProgress || loadingMessages) &&
-                  styles.buttonTextDisabled,
-                ]}
-              >
-                Reload
+        {
+          sessionDirty && (
+            <View style={styles.dirtyBanner}>
+              <Text style={styles.dirtyBannerText} numberOfLines={1}>
+                Out of sync — Reload to recover
               </Text>
-            </TouchableOpacity>
-          </View>
-        )}
+              <TouchableOpacity
+                style={[styles.button, styles.secondaryButton, styles.smallButton]}
+                onPress={async () => {
+                  chatController?.clearRequestState();
+                  await loadMessages();
+                }}
+                disabled={!chatController || sendInProgress || loadingMessages}
+              >
+                <Text
+                  style={[
+                    styles.buttonTextSecondary,
+                    (!chatController || sendInProgress || loadingMessages) &&
+                    styles.buttonTextDisabled,
+                  ]}
+                >
+                  Reload
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )
+        }
 
-        {(loadingMessages || pluginActionInProgress || attachmentActionInProgress) && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={theme.primary} />
-            <Text style={styles.loadingText}>
-              {loadingMessages
-                ? 'Loading messages...'
-                : pluginActionInProgress
-                  ? 'Running action...'
-                  : attachmentActionText}
-            </Text>
-          </View>
-        )}
+        {
+          (loadingMessages || pluginActionInProgress || attachmentActionInProgress) && (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color={theme.primary} />
+              <Text style={styles.loadingText}>
+                {loadingMessages
+                  ? 'Loading messages...'
+                  : pluginActionInProgress
+                    ? 'Running action...'
+                    : attachmentActionText}
+              </Text>
+            </View>
+          )
+        }
 
         <DependencyFlatList
           style={styles.messagesContainer}
@@ -2268,18 +2305,20 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           }}
         />
 
-        {activeError && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorTitle}>Error</Text>
-            <Text style={styles.errorText}>{activeError.detail}</Text>
-          </View>
-        )}
+        {
+          activeError && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorTitle}>Error</Text>
+              <Text style={styles.errorText}>{activeError.detail}</Text>
+            </View>
+          )
+        }
 
         <View style={styles.composer}>
           <View style={styles.composerMainColumn}>
             <View style={styles.composerTopRow}>
               <View style={styles.composerInlineSelectRow}>
-                {composerAttachmentElementsLeftPinned.map((el) => {
+                {pinnedModelPickerElements.map((el) => {
                   const key = typeof el.key === 'string' && el.key.trim() ? el.key : '';
                   if (!key) return null;
                   const options = normalizeSelectOptions(el.options);
@@ -2469,259 +2508,267 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           onSave={handleAttachmentMetadataSave}
         />
 
-        {imageAttachVisible && (
-          <Modal
-            visible={imageAttachVisible}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setImageAttachVisible(false)}
-          >
-            <TouchableWithoutFeedback onPress={() => setImageAttachVisible(false)}>
-              <View style={styles.modalOverlay}>
-                <TouchableWithoutFeedback onPress={() => { }}>
-                  <View style={styles.modalContent}>
-                    <Text style={styles.modalTitle}>Add image</Text>
-                    <Text style={styles.modalSubtitle}>
-                      Choose a photo source or paste an image URL.
-                    </Text>
+        {
+          imageAttachVisible && (
+            <Modal
+              visible={imageAttachVisible}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setImageAttachVisible(false)}
+            >
+              <TouchableWithoutFeedback onPress={() => setImageAttachVisible(false)}>
+                <View style={styles.modalOverlay}>
+                  <TouchableWithoutFeedback onPress={() => { }}>
+                    <View style={styles.modalContent}>
+                      <Text style={styles.modalTitle}>Add image</Text>
+                      <Text style={styles.modalSubtitle}>
+                        Choose a photo source or paste an image URL.
+                      </Text>
 
-                    <View style={styles.imageSourceButtonsRow}>
-                      <TouchableOpacity
-                        style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                        onPress={() => pickImageForElement('library')}
-                        disabled={
-                          sendInProgress ||
-                          !!activeRequestId ||
-                          attachmentPickInProgress ||
-                          attachmentActionInProgress
-                        }
-                      >
-                        <Text style={styles.buttonTextSecondary}>Photo library</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                        onPress={() => pickImageForElement('camera')}
-                        disabled={
-                          sendInProgress ||
-                          !!activeRequestId ||
-                          attachmentPickInProgress ||
-                          attachmentActionInProgress
-                        }
-                      >
-                        <Text style={styles.buttonTextSecondary}>Take photo</Text>
-                      </TouchableOpacity>
+                      <View style={styles.imageSourceButtonsRow}>
+                        <TouchableOpacity
+                          style={[styles.button, styles.secondaryButton, styles.modalButton]}
+                          onPress={() => pickImageForElement('library')}
+                          disabled={
+                            sendInProgress ||
+                            !!activeRequestId ||
+                            attachmentPickInProgress ||
+                            attachmentActionInProgress
+                          }
+                        >
+                          <Text style={styles.buttonTextSecondary}>Photo library</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.button, styles.secondaryButton, styles.modalButton]}
+                          onPress={() => pickImageForElement('camera')}
+                          disabled={
+                            sendInProgress ||
+                            !!activeRequestId ||
+                            attachmentPickInProgress ||
+                            attachmentActionInProgress
+                          }
+                        >
+                          <Text style={styles.buttonTextSecondary}>Take photo</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <Text style={styles.rangeLabel}>Image URL</Text>
+                      <TextInput
+                        style={styles.modalInput}
+                        value={imageUrlText}
+                        onChangeText={setImageUrlText}
+                        placeholder="https://... or data:image/..."
+                        keyboardType="default"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                      />
+
+                      <View style={styles.modalButtonsRow}>
+                        <TouchableOpacity
+                          style={[styles.button, styles.secondaryButton, styles.modalButton]}
+                          onPress={() => setImageAttachVisible(false)}
+                        >
+                          <Text style={styles.buttonTextSecondary}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.button, styles.primaryButton, styles.modalButton]}
+                          onPress={addImageUrlForElement}
+                          disabled={!imageUrlText.trim() || attachmentActionInProgress}
+                        >
+                          <Text style={styles.buttonText}>Add URL</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
-
-                    <Text style={styles.rangeLabel}>Image URL</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      value={imageUrlText}
-                      onChangeText={setImageUrlText}
-                      placeholder="https://... or data:image/..."
-                      keyboardType="default"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-
-                    <View style={styles.modalButtonsRow}>
-                      <TouchableOpacity
-                        style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                        onPress={() => setImageAttachVisible(false)}
-                      >
-                        <Text style={styles.buttonTextSecondary}>Cancel</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.button, styles.primaryButton, styles.modalButton]}
-                        onPress={addImageUrlForElement}
-                        disabled={!imageUrlText.trim() || attachmentActionInProgress}
-                      >
-                        <Text style={styles.buttonText}>Add URL</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </TouchableWithoutFeedback>
-              </View>
-            </TouchableWithoutFeedback>
-          </Modal>
-        )}
-
-        {appendAsVisible && (
-          <Modal
-            visible={appendAsVisible}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setAppendAsVisible(false)}
-          >
-            <TouchableWithoutFeedback onPress={() => setAppendAsVisible(false)}>
-              <View style={styles.modalOverlay}>
-                <TouchableWithoutFeedback onPress={() => { }}>
-                  <View style={styles.modalContent}>
-                    <Text style={styles.modalTitle}>Append as</Text>
-                    <Text style={styles.modalSubtitle}>
-                      Choose a role for the appended message.
-                    </Text>
-
-                    <View style={styles.chipsRow}>
-                      {([
-                        { key: 'system', label: 'System' },
-                        { key: 'developer', label: 'Developer' },
-                        { key: 'user', label: 'User' },
-                        { key: 'assistant', label: 'Assistant' },
-                      ] as Array<{ key: AppendAsRole; label: string }>).map((opt) => {
-                        const selected = opt.key === appendAsRole;
-                        return (
-                          <TouchableOpacity
-                            key={opt.key}
-                            style={selected ? styles.chipSelected : styles.chip}
-                            onPress={() => setAppendAsRole(opt.key)}
-                          >
-                            <Text style={selected ? styles.chipTextSelected : styles.chipText}>
-                              {opt.label}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-
-                    <View style={styles.modalButtonsRow}>
-                      <TouchableOpacity
-                        style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                        onPress={() => setAppendAsVisible(false)}
-                      >
-                        <Text style={styles.buttonTextSecondary}>Cancel</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.button, styles.primaryButton, styles.modalButton]}
-                        onPress={() => {
-                          handleAppendAs().catch(() => { });
-                        }}
-                      >
-                        {sendInProgress ? (
-                          <ActivityIndicator size="small" color={theme.textOnPrimary} />
-                        ) : (
-                          <Text style={styles.buttonText}>Append</Text>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </TouchableWithoutFeedback>
-              </View>
-            </TouchableWithoutFeedback>
-          </Modal>
-        )}
-
-        {messageLimitVisible && (
-          <Modal
-            visible={messageLimitVisible}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setMessageLimitVisible(false)}
-          >
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Message range</Text>
-                <Text style={styles.modalSubtitle}>
-                  Python-style range (start:end). Example: -50: for last 50 messages.
-                </Text>
-                <View style={styles.rangeRow}>
-                  <View style={styles.rangeInputContainer}>
-                    <Text style={styles.rangeLabel}>Start</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      value={rangeStartText}
-                      onChangeText={setRangeStartText}
-                      placeholder="e.g. -50"
-                      keyboardType="default"
-                    />
-                  </View>
-                  <View style={styles.rangeInputContainer}>
-                    <Text style={styles.rangeLabel}>End</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      value={rangeEndText}
-                      onChangeText={setRangeEndText}
-                      placeholder="optional"
-                      keyboardType="default"
-                    />
-                  </View>
+                  </TouchableWithoutFeedback>
                 </View>
-                <View style={styles.modalButtonsRow}>
-                  <TouchableOpacity
-                    style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                    onPress={() => setMessageLimitVisible(false)}
-                  >
-                    <Text style={styles.buttonTextSecondary}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.button, styles.primaryButton, styles.modalButton]}
-                    onPress={applyMessageLimitAndReload}
-                  >
-                    <Text style={styles.buttonText}>Apply</Text>
-                  </TouchableOpacity>
+              </TouchableWithoutFeedback>
+            </Modal>
+          )
+        }
+
+        {
+          appendAsVisible && (
+            <Modal
+              visible={appendAsVisible}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setAppendAsVisible(false)}
+            >
+              <TouchableWithoutFeedback onPress={() => setAppendAsVisible(false)}>
+                <View style={styles.modalOverlay}>
+                  <TouchableWithoutFeedback onPress={() => { }}>
+                    <View style={styles.modalContent}>
+                      <Text style={styles.modalTitle}>Append as</Text>
+                      <Text style={styles.modalSubtitle}>
+                        Choose a role for the appended message.
+                      </Text>
+
+                      <View style={styles.chipsRow}>
+                        {([
+                          { key: 'system', label: 'System' },
+                          { key: 'developer', label: 'Developer' },
+                          { key: 'user', label: 'User' },
+                          { key: 'assistant', label: 'Assistant' },
+                        ] as Array<{ key: AppendAsRole; label: string }>).map((opt) => {
+                          const selected = opt.key === appendAsRole;
+                          return (
+                            <TouchableOpacity
+                              key={opt.key}
+                              style={selected ? styles.chipSelected : styles.chip}
+                              onPress={() => setAppendAsRole(opt.key)}
+                            >
+                              <Text style={selected ? styles.chipTextSelected : styles.chipText}>
+                                {opt.label}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+
+                      <View style={styles.modalButtonsRow}>
+                        <TouchableOpacity
+                          style={[styles.button, styles.secondaryButton, styles.modalButton]}
+                          onPress={() => setAppendAsVisible(false)}
+                        >
+                          <Text style={styles.buttonTextSecondary}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.button, styles.primaryButton, styles.modalButton]}
+                          onPress={() => {
+                            handleAppendAs().catch(() => { });
+                          }}
+                        >
+                          {sendInProgress ? (
+                            <ActivityIndicator size="small" color={theme.textOnPrimary} />
+                          ) : (
+                            <Text style={styles.buttonText}>Append</Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </TouchableWithoutFeedback>
                 </View>
-                {lastReloadAt && (
-                  <Text style={styles.modalHelperText}>
-                    Last reload at {lastReloadAt.toLocaleTimeString()}
+              </TouchableWithoutFeedback>
+            </Modal>
+          )
+        }
+
+        {
+          messageLimitVisible && (
+            <Modal
+              visible={messageLimitVisible}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setMessageLimitVisible(false)}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>Message range</Text>
+                  <Text style={styles.modalSubtitle}>
+                    Python-style range (start:end). Example: -50: for last 50 messages.
                   </Text>
-                )}
+                  <View style={styles.rangeRow}>
+                    <View style={styles.rangeInputContainer}>
+                      <Text style={styles.rangeLabel}>Start</Text>
+                      <TextInput
+                        style={styles.modalInput}
+                        value={rangeStartText}
+                        onChangeText={setRangeStartText}
+                        placeholder="e.g. -50"
+                        keyboardType="default"
+                      />
+                    </View>
+                    <View style={styles.rangeInputContainer}>
+                      <Text style={styles.rangeLabel}>End</Text>
+                      <TextInput
+                        style={styles.modalInput}
+                        value={rangeEndText}
+                        onChangeText={setRangeEndText}
+                        placeholder="optional"
+                        keyboardType="default"
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.modalButtonsRow}>
+                    <TouchableOpacity
+                      style={[styles.button, styles.secondaryButton, styles.modalButton]}
+                      onPress={() => setMessageLimitVisible(false)}
+                    >
+                      <Text style={styles.buttonTextSecondary}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.button, styles.primaryButton, styles.modalButton]}
+                      onPress={applyMessageLimitAndReload}
+                    >
+                      <Text style={styles.buttonText}>Apply</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {lastReloadAt && (
+                    <Text style={styles.modalHelperText}>
+                      Last reload at {lastReloadAt.toLocaleTimeString()}
+                    </Text>
+                  )}
+                </View>
               </View>
-            </View>
-          </Modal>
-        )}
+            </Modal>
+          )
+        }
 
-        {deleteRangeVisible && (
-          <Modal
-            visible={deleteRangeVisible}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setDeleteRangeVisible(false)}
-          >
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Delete range</Text>
-                <Text style={styles.modalSubtitle}>
-                  Python-style range (start:end). Messages in this range will be removed.
-                </Text>
-                <View style={styles.rangeRow}>
-                  <View style={styles.rangeInputContainer}>
-                    <Text style={styles.rangeLabel}>Start</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      value={deleteRangeStartText}
-                      onChangeText={setDeleteRangeStartText}
-                      placeholder="e.g. 0 or -10"
-                      keyboardType="default"
-                    />
+        {
+          deleteRangeVisible && (
+            <Modal
+              visible={deleteRangeVisible}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setDeleteRangeVisible(false)}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>Delete range</Text>
+                  <Text style={styles.modalSubtitle}>
+                    Python-style range (start:end). Messages in this range will be removed.
+                  </Text>
+                  <View style={styles.rangeRow}>
+                    <View style={styles.rangeInputContainer}>
+                      <Text style={styles.rangeLabel}>Start</Text>
+                      <TextInput
+                        style={styles.modalInput}
+                        value={deleteRangeStartText}
+                        onChangeText={setDeleteRangeStartText}
+                        placeholder="e.g. 0 or -10"
+                        keyboardType="default"
+                      />
+                    </View>
+                    <View style={styles.rangeInputContainer}>
+                      <Text style={styles.rangeLabel}>End</Text>
+                      <TextInput
+                        style={styles.modalInput}
+                        value={deleteRangeEndText}
+                        onChangeText={setDeleteRangeEndText}
+                        placeholder="optional"
+                        keyboardType="default"
+                      />
+                    </View>
                   </View>
-                  <View style={styles.rangeInputContainer}>
-                    <Text style={styles.rangeLabel}>End</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      value={deleteRangeEndText}
-                      onChangeText={setDeleteRangeEndText}
-                      placeholder="optional"
-                      keyboardType="default"
-                    />
+                  <View style={styles.modalButtonsRow}>
+                    <TouchableOpacity
+                      style={[styles.button, styles.secondaryButton, styles.modalButton]}
+                      onPress={() => setDeleteRangeVisible(false)}
+                    >
+                      <Text style={styles.buttonTextSecondary}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.button, styles.primaryButton, styles.modalButton]}
+                      onPress={confirmDeleteRange}
+                    >
+                      <Text style={styles.buttonText}>Delete</Text>
+                    </TouchableOpacity>
                   </View>
-                </View>
-                <View style={styles.modalButtonsRow}>
-                  <TouchableOpacity
-                    style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                    onPress={() => setDeleteRangeVisible(false)}
-                  >
-                    <Text style={styles.buttonTextSecondary}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.button, styles.primaryButton, styles.modalButton]}
-                    onPress={confirmDeleteRange}
-                  >
-                    <Text style={styles.buttonText}>Delete</Text>
-                  </TouchableOpacity>
                 </View>
               </View>
-            </View>
-          </Modal>
-        )}
+            </Modal>
+          )
+        }
         <AgentSwitchModal
           visible={agentModalVisible}
           loading={agentsLoading || agentSwitchInProgress}
@@ -2782,13 +2829,15 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           onSubmit={handleSubmitPluginDialog}
           onCancel={handleCancelPluginDialog}
         />
-        {debugVisible && (
-          <View style={styles.debugOverlay}>
-            <DebugEventsView events={debugEvents} onClose={() => setDebugVisible(false)} />
-          </View>
-        )}
-      </View>
-    </KeyboardAvoidingView>
+        {
+          debugVisible && (
+            <View style={styles.debugOverlay}>
+              <DebugEventsView events={debugEvents} onClose={() => setDebugVisible(false)} />
+            </View>
+          )
+        }
+      </View >
+    </KeyboardAvoidingView >
   );
 };
 

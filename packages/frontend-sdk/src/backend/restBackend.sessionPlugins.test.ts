@@ -3,32 +3,32 @@ import { describe, expect, it, vi } from 'vitest';
 import { RestAgentBackend } from './restBackend';
 import type { Transport } from '../transport/transport';
 
+function createTransport(responseData: unknown, status = 200) {
+  const requestMock = vi.fn(async () => ({ status, data: responseData }));
+  const transport: Transport = {
+    request: requestMock as unknown as Transport['request'],
+  };
+  return { transport, requestMock };
+}
+
 describe('RestAgentBackend session plugins', () => {
   it('lists session plugins from {plugins}', async () => {
-    const transport: Transport = {
-      request: vi.fn(async () => ({
-        status: 200,
-        data: { plugins: [{ id: 'p1', kind: 'tools', enabled: true }] },
-      })),
-    };
+    const { transport, requestMock } = createTransport({
+      plugins: [{ id: 'p1', kind: 'tools', enabled: true }],
+    });
 
     const backend = new RestAgentBackend({ transport });
     const plugins = await backend.listSessionPlugins('s1');
 
     expect(plugins).toEqual([{ id: 'p1', kind: 'tools', enabled: true }]);
-    expect(transport.request).toHaveBeenCalledWith({
+    expect(requestMock).toHaveBeenCalledWith({
       method: 'GET',
       path: '/sessions/s1/plugins',
     });
   });
 
   it('lists session plugins from raw array response', async () => {
-    const transport: Transport = {
-      request: vi.fn(async () => ({
-        status: 200,
-        data: [{ id: 'p1', kind: 'tools', enabled: true }],
-      })),
-    };
+    const { transport } = createTransport([{ id: 'p1', kind: 'tools', enabled: true }]);
 
     const backend = new RestAgentBackend({ transport });
     const plugins = await backend.listSessionPlugins('s1');
@@ -37,14 +37,12 @@ describe('RestAgentBackend session plugins', () => {
   });
 
   it('sets session plugins', async () => {
-    const transport: Transport = {
-      request: vi.fn(async () => ({ status: 200, data: {} })),
-    };
+    const { transport, requestMock } = createTransport({});
 
     const backend = new RestAgentBackend({ transport });
     await backend.setSessionPlugins('s1', ['p1', 'p2']);
 
-    expect(transport.request).toHaveBeenCalledWith(
+    expect(requestMock).toHaveBeenCalledWith(
       expect.objectContaining({
         method: 'PUT',
         path: '/sessions/s1/plugins',
@@ -57,14 +55,12 @@ describe('RestAgentBackend session plugins', () => {
   });
 
   it('clears session plugins', async () => {
-    const transport: Transport = {
-      request: vi.fn(async () => ({ status: 200, data: {} })),
-    };
+    const { transport, requestMock } = createTransport({});
 
     const backend = new RestAgentBackend({ transport });
     await backend.clearSessionPlugins('s1');
 
-    expect(transport.request).toHaveBeenCalledWith(
+    expect(requestMock).toHaveBeenCalledWith(
       expect.objectContaining({
         method: 'DELETE',
         path: '/sessions/s1/plugins',

@@ -143,7 +143,7 @@ This makes it possible to keep model- or provider-specific prompt routing in con
 
 For a complete example, see:
 
-- [application/python/agent_terminal_app/config_v2_multi_family_tools_simplified.json](application/python/agent_terminal_app/config_v2_multi_family_tools_simplified.json)
+- [application/python/agent_terminal_app/default_config/config.json](application/python/agent_terminal_app/default_config/config.json)
 - [plugins/feature-system-message/README.md](plugins/feature-system-message/README.md)
 
 ### Merge Order

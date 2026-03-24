@@ -373,7 +373,7 @@ def test_terminal_application_user_errors_for_switching(tmp_path: Path) -> None:
         term_app.switch_session("nonexistent-session-id")
 
     # Agent switching: unknown agent id should be a user error.
-    term_app.start_new_session(agent_id="default")
+    term_app.start_new_session(agent_id="codex")
     with pytest.raises(TerminalUserError):
         term_app.switch_agent("nonexistent-agent")
 
@@ -535,7 +535,7 @@ async def test_slash_command_user_error_formatting(tmp_path: Path) -> None:
 
     # Ensure there is an active session so that /agent operates
     # normally and any error is purely input-driven.
-    term_app.start_new_session(agent_id="default")
+    term_app.start_new_session(agent_id="codex")
 
     outputs: list[str] = []
     ui_state: dict = {}
@@ -1306,7 +1306,7 @@ def test_clear_session_plugins_reverts_to_implicit_defaults(tmp_path: Path) -> N
 def test_session_ui_elements_no_duplicate_keys_default_config(tmp_path: Path) -> None:
     """session_ui_elements should not contain duplicate keys.
 
-    This uses the default_config.json which wires together multiple
+    This uses the portable default_config/config.json which wires together multiple
     plugins that historically contributed overlapping UI schema entries
     (for example, "enable_reasoning" from both provider and
     extensions). After the get_ui_schema flattening change, keys must
@@ -1318,7 +1318,7 @@ def test_session_ui_elements_no_duplicate_keys_default_config(tmp_path: Path) ->
     from agent_terminal_app import terminal as term_mod
 
     base_dir = Path(term_mod.__file__).resolve().parent
-    config_path = base_dir / "default_config.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
@@ -1329,7 +1329,7 @@ def test_session_ui_elements_no_duplicate_keys_default_config(tmp_path: Path) ->
         agent_app=agent_app,
     )
 
-    term_app.start_new_session(agent_id="default")
+    term_app.start_new_session(agent_id="codex-openrouter")
 
     elements = term_app.session_ui_elements()
     keys = [el.get("key") for el in elements if isinstance(el, dict) and "key" in el]

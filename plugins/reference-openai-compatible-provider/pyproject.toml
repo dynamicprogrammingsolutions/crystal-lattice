@@ -39,5 +39,6 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 markers = [
   "integration: integration tests that may hit real services",
+  "fireworks: tests exercising hosted Fireworks integration",
   "ollama: tests exercising local Ollama integration",
 ]

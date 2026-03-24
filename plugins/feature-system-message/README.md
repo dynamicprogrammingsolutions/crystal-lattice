@@ -19,6 +19,7 @@ Any object-form variable may also include:
 
 - `{"condition": {"code": "path/to/check.py"}}`
 - `{"condition": {"inline_code": "is_git_repo()"}}`
+- `{"runtime_code": "path/to/variable_runtime.py"}`
 
 When a condition is falsey, the variable resolves to an empty string and the main value is not read or executed.
 
@@ -27,6 +28,8 @@ Optionally, the `system_message` object may also include:
 - `"runtime_code": "path/to/runtime.py"`
 
 That file is executed once per request, and all exported non-underscore globals from it become the runtime namespace for `inline_code`, file-backed `code`, and their condition variants.
+
+Individual variables may also define their own `runtime_code`. When present, that helper is loaded after the top-level runtime and augments the namespace for just that variable. This makes it possible to reuse focused helpers such as a shared `TASKS` toggle across multiple prompt templates without forcing every template to share the same top-level runtime file.
 
 The runtime namespace always includes:
 
@@ -176,6 +179,8 @@ but those names now come from your config-defined runtime file rather than from 
 
 `runtime_code` may also contribute config UI. If it exports a zero-argument `get_ui_elements()` function, the feature evaluates that helper with `CONFIG`, `TAGS`, and `MODELS` already present in the runtime namespace.
 
+Variable-level `runtime_code` helpers may also export `get_ui_elements()`. The feature merges UI entries from the top-level helper and any variable-level helpers, deduplicating exact duplicates.
+
 ## Recommended Pattern
 
 - Keep large static instruction text in markdown files.
@@ -185,4 +190,4 @@ but those names now come from your config-defined runtime file rather than from 
 - Use `inline_code` for short dynamic strings.
 - Use `code` for moderately complex dynamic sections such as optional local-instructions blocks.
 
-See [application/python/agent_terminal_app/config_v2_multi_family_tools_simplified.json](application/python/agent_terminal_app/config_v2_multi_family_tools_simplified.json) for a multi-vendor example that follows this pattern.
+See [application/python/agent_terminal_app/default_config/config.json](application/python/agent_terminal_app/default_config/config.json) for a multi-vendor example that follows this pattern.

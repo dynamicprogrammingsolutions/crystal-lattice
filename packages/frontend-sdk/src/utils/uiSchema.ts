@@ -7,7 +7,7 @@ import type { UiSchemaElement } from '../types/uiSchema';
  */
 export function evaluateCondition(
   condition: unknown,
-  context: Record<string, unknown>,
+  context: object,
 ): boolean {
   if (condition == null || typeof condition !== 'object' || Array.isArray(condition)) {
     return true;

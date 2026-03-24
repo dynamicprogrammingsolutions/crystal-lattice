@@ -201,7 +201,7 @@ describe('runApplicationAction input building', () => {
         applicationActions: true,
         applicationConfig: false,
       }),
-      executeAction: async ({ inputs }) => {
+      executeAction: async ({ inputs }: Parameters<AgentBackend['executeAction']>[0]) => {
         capturedInputs = inputs;
         return {
           status: 'ok',

@@ -280,7 +280,9 @@ class AgentCore:
         new_native_messages = [*retained_native, *suffix_native]
 
         try:
-            rebuilt_messages = self._rebuild_core_from_native(new_native_messages, config or {})
+            rebuilt_messages, post_init_native = self._rebuild_core_from_native(
+                new_native_messages, config or {}
+            )
         except Exception as e:
             raise e
 
@@ -290,9 +292,11 @@ class AgentCore:
             Message.from_dict(m.to_dict()) for m in rebuilt_messages
         ]
 
+        # Use post-initialize native_messages (after features like
+        # SystemMessageFeature may have added synthetic messages)
         new_session_metadata = {
             **base_metadata,
-            "native_messages": new_native_messages,
+            "native_messages": post_init_native,
             "native_messages_integrity": self._compute_native_integrity(new_messages),
         }
 
@@ -511,11 +515,15 @@ class AgentCore:
         new_native = [*before, *native_suffix, *after]
 
         # Rebuild core messages from the updated native history.
-        new_messages = self._rebuild_core_from_native(new_native, config or {})
+        # Use post-initialize native to ensure features like SystemMessageFeature
+        # have their structural changes reflected in stored metadata.
+        new_messages, post_init_native = self._rebuild_core_from_native(
+            new_native, config or {}
+        )
 
         new_metadata = {
             **base_metadata,
-            "native_messages": new_native,
+            "native_messages": post_init_native,
             "native_messages_integrity": self._compute_native_integrity(new_messages),
         }
 
@@ -941,12 +949,16 @@ class AgentCore:
             new_native_remove = [original_native[j] for j in sorted_remove]
 
         try:
-            new_messages_keep = self._rebuild_core_from_native(new_native_keep, config)
-            new_messages_remove = (
-                self._rebuild_core_from_native(new_native_remove, config)
-                if new_native_remove
-                else []
+            new_messages_keep, post_init_keep = self._rebuild_core_from_native(
+                new_native_keep, config
             )
+            if new_native_remove:
+                new_messages_remove, post_init_remove = self._rebuild_core_from_native(
+                    new_native_remove, config
+                )
+            else:
+                new_messages_remove = []
+                post_init_remove = []
         except Exception:
             kept = self._slice_session_core_only(session, keep_set)
             if not return_removed:
@@ -955,7 +967,7 @@ class AgentCore:
             return (kept, removed)  # type: ignore[return-value]
 
         new_metadata_keep = dict(session.metadata)
-        new_metadata_keep["native_messages"] = new_native_keep
+        new_metadata_keep["native_messages"] = post_init_keep
         new_metadata_keep["native_messages_integrity"] = self._compute_native_integrity(
             new_messages_keep
         )
@@ -970,7 +982,7 @@ class AgentCore:
             return kept_session
 
         new_metadata_remove = dict(session.metadata)
-        new_metadata_remove["native_messages"] = new_native_remove
+        new_metadata_remove["native_messages"] = post_init_remove
         new_metadata_remove["native_messages_integrity"] = self._compute_native_integrity(
             new_messages_remove
         )
@@ -1066,10 +1078,12 @@ class AgentCore:
         native_suffix = suffix.metadata.get("native_messages") or []
         new_native: List[Dict[str, Any]] = list(native_prefix) + list(native_suffix)
 
-        rebuilt_messages = self._rebuild_core_from_native(new_native, config or {})
+        rebuilt_messages, post_init_native = self._rebuild_core_from_native(
+            new_native, config or {}
+        )
 
         new_metadata = dict(prefix.metadata) if isinstance(prefix.metadata, dict) else {}
-        new_metadata["native_messages"] = new_native
+        new_metadata["native_messages"] = post_init_native
         new_metadata["native_messages_integrity"] = self._compute_native_integrity(
             rebuilt_messages
         )
@@ -1113,12 +1127,15 @@ class AgentCore:
 
         # Rebuild canonical core messages from the new native history so that
         # provider/feature transformations and native_indices are normalized.
-        rebuilt_messages = self._rebuild_core_from_native(new_native, config)
+        # Use post-initialize native to capture any structural changes from features.
+        rebuilt_messages, post_init_native = self._rebuild_core_from_native(
+            new_native, config
+        )
 
         new_metadata: Dict[str, Any] = (
             dict(session.metadata) if isinstance(session.metadata, dict) else {}
         )
-        new_metadata["native_messages"] = new_native
+        new_metadata["native_messages"] = post_init_native
         new_metadata["native_messages_integrity"] = self._compute_native_integrity(
             rebuilt_messages
         )
@@ -1550,7 +1567,7 @@ class AgentCore:
         self,
         native_messages: List[Dict[str, Any]],
         config: Dict[str, Any],
-    ) -> List[Message]:
+    ) -> Tuple[List[Message], List[Dict[str, Any]]]:
         """Rebuild full core messages from provider-native history.
 
         Uses the same provider, extensions, features, and tools that would
@@ -1561,6 +1578,12 @@ class AgentCore:
         be persisted into the provider-native message dicts under the
         ``_metadata`` key and reconstructed by the provider/extensions/
         features in ``from_native_messages``.
+
+        Returns:
+            Tuple of (core_messages, post_initialize_native_messages).
+            The native_messages returned is the state after initialize_request
+            pipeline, which may differ from input due to features like
+            SystemMessageFeature adding synthetic messages.
         """
         (
             provider,
@@ -1585,9 +1608,8 @@ class AgentCore:
         for feature in features:
             native_messages, state = feature.initialize_request(native_messages, state)
             provider.set_state(state)
- 
-        # Convert native messages back into core messages through the full
 
+        # Convert native messages back into core messages through the full
         # from-native pipeline.
         core_from_provider = provider.from_native_messages(native_messages, state)
         pipe = pipeline(native_messages)
@@ -1602,7 +1624,7 @@ class AgentCore:
             native_messages,
             baseline_offset=0,
         )
-        return [Message.from_dict(m) for m in normalized_core]
+        return [Message.from_dict(m) for m in normalized_core], native_messages
 
  
     def _pre_request(
@@ -1803,7 +1825,7 @@ class AgentCore:
         # Persist full provider-native history for the turn (implementation detail)
         new_metadata["native_messages"] = native_messages
         if native_history_changed:
-            all_messages_after = self._rebuild_core_from_native(native_messages, config)
+            all_messages_after, _ = self._rebuild_core_from_native(native_messages, config)
         else:
             appended: List[Message] = [Message.from_dict(m) for m in final_core]
             all_messages_after = [*session.messages, *appended]
@@ -1927,7 +1949,8 @@ class AgentCore:
         new_metadata = dict(session.metadata)
         new_metadata["native_messages"] = native_messages
         if native_history_changed:
-            all_messages_after = self._rebuild_core_from_native(native_messages, config)
+            # Rebuild core from the post-initialize native (after structural changes)
+            all_messages_after, _ = self._rebuild_core_from_native(native_messages, config)
         else:
             appended: List[Message] = [Message.from_dict(m) for m in final_core]
             all_messages_after = [*session.messages, *appended]
@@ -2026,7 +2049,8 @@ class AgentCore:
         new_metadata = dict(session.metadata)
         new_metadata["native_messages"] = native_messages
         if native_history_changed:
-            all_messages_after = self._rebuild_core_from_native(native_messages, config)
+            # Rebuild core from the post-initialize native (after structural changes)
+            all_messages_after, _ = self._rebuild_core_from_native(native_messages, config)
         else:
             appended: List[Message] = [Message.from_dict(m) for m in final_core]
             all_messages_after = [*session.messages, *appended]
@@ -2358,14 +2382,15 @@ class AgentCore:
             raise RuntimeError("session action must return full native_messages as a list of dicts")
         new_native_messages = [item for item in raw_native if isinstance(item, dict)]
 
-        new_messages = self._rebuild_core_from_native(new_native_messages, config)
+        # Rebuild and get post-initialize native to ensure features' structural changes are captured
+        new_messages, post_init_native = self._rebuild_core_from_native(new_native_messages, config)
 
         metadata_patch_raw = result.get("session_metadata")
         metadata_patch = metadata_patch_raw if isinstance(metadata_patch_raw, dict) else {}
 
         new_metadata = dict(session.metadata) if isinstance(session.metadata, dict) else {}
         new_metadata.update(metadata_patch)
-        new_metadata["native_messages"] = new_native_messages
+        new_metadata["native_messages"] = post_init_native
         new_metadata["native_messages_integrity"] = self._compute_native_integrity(new_messages)
 
         public_result = {

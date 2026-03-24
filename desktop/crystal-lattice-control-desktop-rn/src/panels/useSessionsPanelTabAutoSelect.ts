@@ -36,6 +36,7 @@ export function useSessionsPanelTabAutoSelect(params: {
   onUserSelectSessionId: (sessionId: string) => void;
   scrollViewRef: RefObject<any>;
   getRowLayoutHandler: (sessionId: string) => (event: LayoutChangeEvent) => void;
+  rowLayoutsRef: React.MutableRefObject<Record<string, { y: number; height: number }>>;
 } {
   const { connectionId, visibleSessionIds, activeTab, enabled } = params;
 
@@ -181,5 +182,6 @@ export function useSessionsPanelTabAutoSelect(params: {
     onUserSelectSessionId,
     scrollViewRef,
     getRowLayoutHandler,
+    rowLayoutsRef,
   };
 }

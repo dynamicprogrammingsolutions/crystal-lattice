@@ -21,6 +21,9 @@ if str(OPENAI_RESPONSES_SRC) not in sys.path:
 
 from agent_app.application_future import AgentApplication  # noqa: E402
 import pytest  # noqa: E402
+from openai_responses_plugins.openai_responses_flex_processing_extension import (  # noqa: E402
+    OpenAIResponsesFlexProcessingExtension,
+)
 from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider  # noqa: E402
 
 
@@ -74,4 +77,18 @@ def test_openai_flex_processing_ui_schema_surfaces_session_settings(
         "flex_timeout_seconds",
         "enable_flex_retries",
         "flex_max_retries",
+        "flex_stream_recovery_mode",
+        "flex_stream_recovery_retries",
     }
+
+
+def test_openai_flex_processing_defaults_stream_recovery_to_early_only() -> None:
+    ext = OpenAIResponsesFlexProcessingExtension()
+
+    state = ext.init({"enable_flex_processing": True}, {"request": {"payload": {}, "timeout": 60}})
+    _native, updated_state = ext.initialize_request([], state)
+
+    request = updated_state["request"]
+    assert request["payload"]["service_tier"] == "flex"
+    assert request["stream_recovery_mode"] == "early_only"
+    assert request["stream_recovery_retries"] == 3

@@ -636,7 +636,8 @@ def test_modify_message_shared_indices_cardinality_change_removes_first():
         ]
 
     def fake_rebuild(native_messages, config):  # type: ignore[override]
-        return [
+        # Return tuple of (core_messages, post_init_native_messages)
+        core_msgs = [
             Message(
                 role=nm["role"],
                 content=nm["content"],
@@ -644,6 +645,7 @@ def test_modify_message_shared_indices_cardinality_change_removes_first():
             )
             for i, nm in enumerate(native_messages)
         ]
+        return core_msgs, list(native_messages)
 
     try:
         core._core_messages_to_native_for_config = fake_core_to_native  # type: ignore[assignment]

@@ -240,3 +240,65 @@ Follow the same structure as the Gemini/Qwen/Grok directories from task 050:
 7. Add Kimi agent entries to both config files.
 8. Extend the docs regression test.
 9. Validate JSON configs and run tests.
+
+## Completion Plan Added During Execution
+
+Approved execution plan for this task:
+
+1. Extract and classify the upstream Kimi prompt into concrete sections.
+   Read the Kimi template, agent spec, and dynamic injection sources; map each section to `static reusable`, `placeholder-backed`, `omit/rewrite`, or `future-feature`, with explicit notes for `KIMI_NOW`, `KIMI_WORK_DIR`, `KIMI_WORK_DIR_LS`, `KIMI_AGENTS_MD`, `KIMI_SKILLS`, and `KIMI_ADDITIONAL_DIRS_INFO`.
+2. Create the Kimi documentation set under `docs/default-system-instructions/kimi/`.
+   Add a vendor folder matching the Gemini/Qwen/Grok layout with `README.md`, `template.md`, `compiled.md`, `dynamic-elements.md`, `agent-notes.md`, and Kimi-specific section files for the reusable prompt pieces. Document why skills, plan-mode injections, subagents, and approval/checkpoint behavior are omitted or deferred.
+3. Add runtime prompt assets for Kimi under the application config trees.
+   Create `application/python/agent_terminal_app/system_messages/kimi/` for the simplified config flow, and mirror the needed files under `application/python/agent_terminal_app/default_config/system_messages/kimi/` for the portable config. Add any helper renderers needed for dynamic sections such as working-environment and project-information blocks, while staying within the existing `feature-system-message` runtime model.
+4. Reconcile both config files.
+   Add the missing `kimi` agent to `application/python/agent_terminal_app/config_v2_multi_family_tools_simplified.json`, and fix the broken portable config references in `application/python/agent_terminal_app/default_config/config.json` so they point to real vendored assets. Keep the provider/plugin package wiring aligned with the existing `kimi-tools` provider entry already present there.
+5. Extend regression coverage and validate.
+   Update `core/python/tests/test_default_system_instructions_docs.py` to include Kimi docs/runtime/default-config expectations, then run focused validation: JSON parsing for both configs and the docs test module at minimum. Add an extra targeted test only if a new helper introduces logic worth pinning down.
+
+## Completion Notes Added During Execution
+
+Implemented the Kimi extraction and runtime-template work described by this task.
+
+### What was added
+
+1. New extraction docs under `docs/default-system-instructions/kimi/`:
+   - `README.md`
+   - `template.md`
+   - `compiled.md`
+   - `dynamic-elements.md`
+   - `reconstruction-notes.md`
+   - `agent-notes.md`
+   - section files for introduction, prompt/tool use, coding guidance, research guidance, working environment, project information, skills, and ultimate reminders
+2. New runtime Kimi prompt assets under `application/python/agent_terminal_app/system_messages/kimi/`.
+3. Matching self-contained portable assets under `application/python/agent_terminal_app/default_config/system_messages/kimi/`.
+4. New helper renderers in both runtime trees:
+   - `render_kimi_working_environment_section.py`
+   - `render_kimi_project_information_section.py`
+5. New `kimi` provider/agent entry in `application/python/agent_terminal_app/config_v2_multi_family_tools_simplified.json`.
+
+### Adaptation decisions implemented
+
+1. Preserved Kimi's identity, tool-use framing, parallel-call guidance, language matching, minimal-change guidance, git mutation caution, isolated-environment guidance, and ultimate reminders.
+2. Rendered working-directory and project-information blocks dynamically using the existing `feature-system-message` `code` mechanism.
+3. Intentionally omitted the runtime skills section, additional-directories block, plan-mode injections, and approval/checkpoint behavior from the runtime template.
+4. Kept those omitted items documented in the extraction package as omit/rewrite or future-feature items.
+
+### Validation performed
+
+1. Parsed both JSON configs successfully:
+   - `application/python/agent_terminal_app/config_v2_multi_family_tools_simplified.json`
+   - `application/python/agent_terminal_app/default_config/config.json`
+2. Ran `pytest core/python/tests/test_default_system_instructions_docs.py -q` successfully.
+
+### Notable follow-up consideration
+
+The simplified config now mirrors the existing portable config by using a `kimi` provider entry plus the `kimi-tools` package. This task did not add or modify a Kimi provider plugin; it only completed the prompt-extraction and config/runtime-asset side requested here.
+
+### Follow-up correction applied after review
+
+1. The Kimi provider rows were corrected to follow the same OpenRouter pattern as the other vendor families.
+2. Final provider key: `openrouter_kimi_tools`.
+3. Final provider type: `openrouter`.
+4. Final model: `moonshotai/kimi-k2.5`.
+5. Existing config-compilation integration tests in `plugins/feature-system-message/tests/test_system_message_feature_agent_application_integration.py` were extended to include `kimi` for both the simplified config and the portable default config.
