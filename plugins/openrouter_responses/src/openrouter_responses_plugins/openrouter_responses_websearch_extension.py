@@ -62,7 +62,12 @@ class OpenRouterResponsesWebSearchExtension(ProviderExtensionPlugin):
     def required_tags(self) -> List[str]:
         return ["openrouter_responses"]
 
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
         enabled = config.get("enable_web_search", False)
         if not enabled:
             return state

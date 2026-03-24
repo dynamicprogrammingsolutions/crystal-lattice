@@ -42,7 +42,12 @@ class OpenRouterResponsesToolsExtension(ProviderExtensionPlugin):
     def required_tags(self) -> List[str]:
         return ["openrouter_responses", "supports_tools"]
 
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
         tools = config.get("tools")
         return {**state, "_openrouter_responses_tools": tools if isinstance(tools, list) else []}
 

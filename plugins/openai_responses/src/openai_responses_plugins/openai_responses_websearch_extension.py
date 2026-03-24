@@ -126,7 +126,12 @@ class OpenAIResponsesWebSearchExtension(ProviderExtensionPlugin):
             },
         ]
 
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
         if not self._truthy(config.get("enable_web_search")):
             return state
 

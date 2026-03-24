@@ -5,7 +5,7 @@ Injects OpenRouter `/responses` `text.verbosity`.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from agent_core.types import ProviderExtensionPlugin
 
@@ -53,7 +53,12 @@ class OpenRouterResponsesVerbosityExtension(ProviderExtensionPlugin):
             }
         ]
 
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
         verbosity = config.get("verbosity")
         if not isinstance(verbosity, str) or verbosity not in _VERBOSITY_LEVELS:
             return state

@@ -54,7 +54,12 @@ class OpenAIResponsesVerbosityExtension(ProviderExtensionPlugin):
             }
         ]
 
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
         verbosity = config.get("verbosity")
         if isinstance(verbosity, str) and verbosity in _VERBOSITY_LEVELS:
             return {**state, "openai_responses_verbosity": {"verbosity": verbosity}}

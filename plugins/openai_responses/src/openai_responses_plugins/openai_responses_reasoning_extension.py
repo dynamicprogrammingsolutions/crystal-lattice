@@ -126,7 +126,12 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
 
         return reasoning or None
 
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
         reasoning = self._normalize_reasoning_config(config)
         if reasoning is None:
             return state

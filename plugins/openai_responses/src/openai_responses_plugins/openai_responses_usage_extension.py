@@ -106,7 +106,12 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
     def required_tags(self) -> List[str]:
         return ["openai_responses"]
 
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
         _ = config
         return state
 

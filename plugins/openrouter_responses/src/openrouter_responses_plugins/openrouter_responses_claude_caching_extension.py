@@ -136,7 +136,12 @@ input parts.
             enhanced.append({**msg, "metadata": core_md})
         return enhanced
 
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
         return {**state, "config": {**state.get("config", {}), **config}}
 
     def initialize_request(

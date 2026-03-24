@@ -46,7 +46,12 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
     def required_tags(self) -> List[str]:
         return ["openai_responses", "supports_tools"]
 
-    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def init(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
         tools = config.get("tools")
         stored = tools if isinstance(tools, list) else []
         return {
