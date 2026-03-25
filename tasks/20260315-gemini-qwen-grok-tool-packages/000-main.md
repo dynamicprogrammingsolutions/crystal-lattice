@@ -171,6 +171,13 @@ Key observations:
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/120-web-search-tools.md` — Web search tools
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/130-todo-tools.md` — Todo tools (all four vendors)
 
+### Phase 2.5: Context compaction
+
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/220-gemini-compaction-and-session-summary.md` — Implement Gemini-like live compaction and previous-session summary behavior
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/230-qwen-compaction-and-checkpoint-replay.md` — Implement Qwen-like compaction and checkpoint replay behavior
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/240-kimi-compaction-and-checkpoints.md` — Implement Kimi-like compaction, checkpoints, and D-Mail-adjacent context management behavior where applicable
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/250-shared-compaction-helpers.md` — Shared compaction helpers and cross-vendor implementation notes
+
 ### Phase 2 shared packages
 
 - `plugins/tool-compat-shared/` — shared filesystem, search, shell, and todo internals (stdlib-only deps)
