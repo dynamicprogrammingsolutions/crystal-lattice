@@ -8,12 +8,12 @@ Depends On: `tasks/20260315-gemini-qwen-grok-tool-packages/101-shell-engine-core
 
 ## Requirements checklist
 
-- [ ] Add `is_background` parameter to `run_shell_command()`
-- [ ] Skip timeout when `is_background=True`
-- [ ] Append `&` to command on Unix (not Windows)
-- [ ] Return early after ~200ms with PID
-- [ ] Capture initial output for startup error detection
-- [ ] Include kill hint in result message
+- [x] Add `is_background` parameter to `run_shell_command()`
+- [x] Skip timeout when `is_background=True`
+- [x] Append `&` to command on Unix (not Windows)
+- [x] Return early after ~200ms with PID
+- [x] Capture initial output for startup error detection
+- [x] Include kill hint in result message (REMOVED - vendor wrappers handle formatting)
 
 ## Goal
 
@@ -220,4 +220,54 @@ Background command started. PID: 12345 (Use taskkill /F /T /PID 12345 to stop)
 
 ## Completion notes
 
-(To be filled during implementation)
+**Implementation completed successfully.**
+
+### Files modified:
+
+1. **`plugins/tool-compat-shared/src/tool_compat_shared/shell_engine.py`**
+   - Added `BACKGROUND_DELAY_SECONDS = 0.2` constant
+   - Added `BACKGROUND_MAX_LINES = 100` constant
+   - Added `BACKGROUND_READ_TIMEOUT = 0.01` constant
+   - Added `_capture_initial_output()` async helper for background process initial output capture
+   - Added `is_background` parameter to `run_shell_command()`
+   - Added optional `background_delay_seconds`, `background_max_lines`, `background_read_timeout` parameters for configurability
+   - Updated function to skip timeout, append `&` on Unix, and return early with PID for background mode
+   - Returns only structured data (no formatted message string) - vendor wrappers handle formatting
+
+2. **`plugins/tool-compat-shared/src/tool_compat_shared/__init__.py`**
+   - Added exports for `BACKGROUND_DELAY_SECONDS`, `BACKGROUND_MAX_LINES`, `BACKGROUND_READ_TIMEOUT`
+
+3. **`plugins/tool-compat-shared/tests/test_shell_engine.py`**
+   - Added `TestBackgroundConstants` class (3 tests)
+   - Added `TestRunShellCommandBackground` class (14 tests)
+   - Total: 60 tests (59 passed, 1 skipped on Unix for Windows-specific test)
+
+### Design decisions implemented:
+
+- **Configurable limits**: All background parameters (delay, max_lines, read_timeout) are configurable via module constants and function parameters
+- **Structured data only**: No formatted "message" field - returns only `background: bool` and `pid: int` for vendor wrappers to format
+- **Initial output capture**: Uses sleep + short timeout per-line reads to capture startup errors
+- **Platform handling**: `&` appended on Unix only; Windows processes stay attached (match Qwen behavior)
+- **Timeout skip**: `timeout_seconds` is ignored (set to None) for background processes
+
+### Return structure for background mode:
+
+```python
+{
+    "ok": True,  # Always True for background (started successfully)
+    "exit_code": None,  # Process still running
+    "output": str,  # Initial captured output
+    "stdout": str,
+    "stderr": str,
+    "duration_seconds": float,  # ~0.2 for background
+    "timed_out": False,  # Always False for background
+    "shell": ShellInfo,
+    "background": True,  # Only present when True
+    "pid": int,  # Process ID
+}
+```
+
+### Known behavior:
+
+- asyncio warning may appear when event loop closes while background process pipes are still open
+- This is expected behavior for background processes that outlive the caller

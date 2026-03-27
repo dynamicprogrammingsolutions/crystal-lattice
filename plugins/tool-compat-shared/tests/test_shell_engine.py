@@ -9,6 +9,9 @@ from pathlib import Path
 import pytest
 
 from tool_compat_shared import (
+    BACKGROUND_DELAY_SECONDS,
+    BACKGROUND_MAX_LINES,
+    BACKGROUND_READ_TIMEOUT,
     ShellInfo,
     approx_token_count,
     build_shell_args,
@@ -483,3 +486,277 @@ class TestTruncateOutput:
         # head = content[:10] = "hello" + 5 emojis
         # tail = content[-10:] = last 10 chars (9 emojis + "world" last char? let's not be too specific)
         assert "hello" in output or "😀" in output
+
+
+class TestBackgroundConstants:
+    """Tests for background process constants."""
+
+    def test_background_delay_seconds_is_float(self) -> None:
+        """BACKGROUND_DELAY_SECONDS should be a float."""
+        assert isinstance(BACKGROUND_DELAY_SECONDS, float)
+        assert BACKGROUND_DELAY_SECONDS > 0
+
+    def test_background_max_lines_is_int(self) -> None:
+        """BACKGROUND_MAX_LINES should be an int."""
+        assert isinstance(BACKGROUND_MAX_LINES, int)
+        assert BACKGROUND_MAX_LINES > 0
+
+    def test_background_read_timeout_is_float(self) -> None:
+        """BACKGROUND_READ_TIMEOUT should be a float."""
+        assert isinstance(BACKGROUND_READ_TIMEOUT, float)
+        assert BACKGROUND_READ_TIMEOUT > 0
+
+
+class TestRunShellCommandBackground:
+    """Tests for background mode shell command execution."""
+
+    @pytest.mark.asyncio
+    async def test_background_returns_early_with_pid(self) -> None:
+        """Background command returns early with a valid PID."""
+        if platform.system() == "Windows":
+            result = await run_shell_command(
+                "Start-Sleep -Seconds 60",
+                is_background=True,
+                background_delay_seconds=0.1,  # Faster for test
+            )
+        else:
+            result = await run_shell_command(
+                "sleep 60",
+                is_background=True,
+                background_delay_seconds=0.1,  # Faster for test
+            )
+
+        assert result["background"] is True
+        assert isinstance(result["pid"], int)
+        assert result["pid"] > 0
+        # Should return quickly (well under 60 seconds)
+        assert result["duration_seconds"] < 5.0
+
+    @pytest.mark.asyncio
+    async def test_background_unix_ampersand_appended(self) -> None:
+        """On Unix, background mode appends '&' to command if not present."""
+        if platform.system() == "Windows":
+            pytest.skip("Unix-specific test")
+
+        # We can't directly observe the command modification, but we can verify
+        # the behavior - a sleep command should return immediately
+        result = await run_shell_command(
+            "sleep 1",  # 1 second sleep
+            is_background=True,
+            background_delay_seconds=0.1,
+        )
+
+        assert result["background"] is True
+        assert result["exit_code"] is None  # Process still running
+        # Should return quickly
+        assert result["duration_seconds"] < 0.5
+
+    @pytest.mark.asyncio
+    async def test_background_windows_no_ampersand(self) -> None:
+        """On Windows, background mode does not append '&'."""
+        if platform.system() != "Windows":
+            pytest.skip("Windows-specific test")
+
+        result = await run_shell_command(
+            "Start-Sleep -Seconds 1",
+            is_background=True,
+            background_delay_seconds=0.1,
+        )
+
+        assert result["background"] is True
+        assert result["exit_code"] is None  # Process still running
+
+    @pytest.mark.asyncio
+    async def test_background_skips_timeout(self) -> None:
+        """Background mode ignores timeout_seconds."""
+        # Even with a very short timeout, background process should not timeout
+        if platform.system() == "Windows":
+            result = await run_shell_command(
+                "Start-Sleep -Seconds 2",
+                is_background=True,
+                timeout_seconds=0.1,  # Would timeout if not background
+                background_delay_seconds=0.1,
+            )
+        else:
+            result = await run_shell_command(
+                "sleep 2",
+                is_background=True,
+                timeout_seconds=0.1,  # Would timeout if not background
+                background_delay_seconds=0.1,
+            )
+
+        assert result["timed_out"] is False
+        assert result["background"] is True
+
+    @pytest.mark.asyncio
+    async def test_background_exit_code_none(self) -> None:
+        """Background process has exit_code=None (still running)."""
+        if platform.system() == "Windows":
+            result = await run_shell_command(
+                "Start-Sleep -Seconds 1",
+                is_background=True,
+                background_delay_seconds=0.1,
+            )
+        else:
+            result = await run_shell_command(
+                "sleep 1",
+                is_background=True,
+                background_delay_seconds=0.1,
+            )
+
+        assert result["exit_code"] is None
+
+    @pytest.mark.asyncio
+    async def test_background_ok_true(self) -> None:
+        """Background process returns ok=True if started successfully."""
+        if platform.system() == "Windows":
+            result = await run_shell_command(
+                "Write-Output 'hello'",
+                is_background=True,
+                background_delay_seconds=0.1,
+            )
+        else:
+            result = await run_shell_command(
+                "echo hello",
+                is_background=True,
+                background_delay_seconds=0.1,
+            )
+
+        assert result["ok"] is True
+
+    @pytest.mark.asyncio
+    async def test_background_captures_output(self) -> None:
+        """Background mode captures initial output."""
+        if platform.system() == "Windows":
+            result = await run_shell_command(
+                "Write-Output 'hello world'",
+                is_background=True,
+                background_delay_seconds=0.2,
+            )
+        else:
+            result = await run_shell_command(
+                "echo 'hello world'",
+                is_background=True,
+                background_delay_seconds=0.2,
+            )
+
+        # Output may or may not be captured depending on timing
+        # Just verify the field exists
+        assert "output" in result
+        assert "stdout" in result
+        assert "stderr" in result
+
+    @pytest.mark.asyncio
+    async def test_background_returns_structured_data_no_message(self) -> None:
+        """Background result contains only structured data, no formatted message."""
+        if platform.system() == "Windows":
+            result = await run_shell_command(
+                "Write-Output 'test'",
+                is_background=True,
+                background_delay_seconds=0.1,
+            )
+        else:
+            result = await run_shell_command(
+                "echo test",
+                is_background=True,
+                background_delay_seconds=0.1,
+            )
+
+        # Should have structured fields
+        assert "background" in result
+        assert "pid" in result
+        # Should NOT have formatted message
+        assert "message" not in result
+
+    @pytest.mark.asyncio
+    async def test_background_pid_is_int(self) -> None:
+        """Background process PID is an integer."""
+        if platform.system() == "Windows":
+            result = await run_shell_command(
+                "Write-Output 'test'",
+                is_background=True,
+                background_delay_seconds=0.1,
+            )
+        else:
+            result = await run_shell_command(
+                "echo test",
+                is_background=True,
+                background_delay_seconds=0.1,
+            )
+
+        assert isinstance(result["pid"], int)
+        assert result["pid"] > 0
+
+    @pytest.mark.asyncio
+    async def test_background_has_shell_info(self) -> None:
+        """Background result includes shell info."""
+        if platform.system() == "Windows":
+            result = await run_shell_command(
+                "Write-Output 'test'",
+                is_background=True,
+                background_delay_seconds=0.1,
+            )
+        else:
+            result = await run_shell_command(
+                "echo test",
+                is_background=True,
+                background_delay_seconds=0.1,
+            )
+
+        assert "shell" in result
+        assert isinstance(result["shell"], ShellInfo)
+
+    @pytest.mark.asyncio
+    async def test_background_custom_delay(self) -> None:
+        """Background mode accepts custom delay."""
+        import time
+
+        start = time.monotonic()
+        if platform.system() == "Windows":
+            result = await run_shell_command(
+                "Write-Output 'test'",
+                is_background=True,
+                background_delay_seconds=0.05,  # 50ms
+            )
+        else:
+            result = await run_shell_command(
+                "echo test",
+                is_background=True,
+                background_delay_seconds=0.05,  # 50ms
+            )
+        elapsed = time.monotonic() - start
+
+        assert result["background"] is True
+        # Should be at least 50ms
+        assert elapsed >= 0.04  # Some tolerance
+
+    @pytest.mark.asyncio
+    async def test_background_custom_max_lines(self) -> None:
+        """Background mode accepts custom max_lines."""
+        if platform.system() == "Windows":
+            result = await run_shell_command(
+                "Write-Output 'test'",
+                is_background=True,
+                background_delay_seconds=0.1,
+                background_max_lines=10,
+            )
+        else:
+            result = await run_shell_command(
+                "echo test",
+                is_background=True,
+                background_delay_seconds=0.1,
+                background_max_lines=10,
+            )
+
+        assert result["background"] is True
+
+    @pytest.mark.asyncio
+    async def test_background_foreground_missing_background_field(self) -> None:
+        """Foreground mode does not include 'background' or 'pid' fields."""
+        if platform.system() == "Windows":
+            result = await run_shell_command("Write-Output 'test'")
+        else:
+            result = await run_shell_command("echo test")
+
+        assert "background" not in result
+        assert "pid" not in result

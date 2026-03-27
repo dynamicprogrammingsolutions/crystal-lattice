@@ -6,6 +6,10 @@ with three-buffer output accumulation (combined/interleaved, stdout, stderr).
 
 The implementation matches Kimi's approach and is more efficient than Qwen's
 child_process fallback for output interleaving.
+
+Background process support allows long-running commands (development servers,
+watchers) to continue while the agent proceeds with other work. The shared
+engine returns only structured data; vendor wrappers handle formatting.
 """
 
 from __future__ import annotations
@@ -14,10 +18,24 @@ import asyncio
 import os
 import platform
 import shutil
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
+
+# =============================================================================
+# Background Process Defaults
+# =============================================================================
+
+BACKGROUND_DELAY_SECONDS = 0.2
+"""Delay before returning from background command, to capture initial output."""
+
+BACKGROUND_MAX_LINES = 100
+"""Maximum lines to capture per stream for background process initial output."""
+
+BACKGROUND_READ_TIMEOUT = 0.01
+"""Per-line read timeout in seconds for background process initial output capture."""
 
 
 @dataclass(frozen=True)
@@ -86,6 +104,68 @@ def build_shell_args(command: str, shell: ShellInfo | None = None) -> list[str]:
     return [shell.path, *shell.args, command]
 
 
+async def _capture_initial_output(
+    process: asyncio.subprocess.Process,
+    *,
+    delay_seconds: float = BACKGROUND_DELAY_SECONDS,
+    max_lines: int = BACKGROUND_MAX_LINES,
+    read_timeout: float = BACKGROUND_READ_TIMEOUT,
+) -> dict[str, str]:
+    """Capture initial output from a background process.
+
+    Waits for a delay to let output accumulate, then reads available lines
+    with short timeouts. This allows capturing startup errors like
+    "command not found" while not blocking on long-running processes.
+
+    Args:
+        process: The subprocess to capture output from.
+        delay_seconds: Initial delay before reading. Default BACKGROUND_DELAY_SECONDS.
+        max_lines: Maximum lines to read per stream. Default BACKGROUND_MAX_LINES.
+        read_timeout: Per-line read timeout in seconds. Default BACKGROUND_READ_TIMEOUT.
+
+    Returns:
+        Dict with:
+            - stdout: captured stdout lines
+            - stderr: captured stderr lines
+            - combined: interleaved output (stdout lines followed by stderr lines)
+    """
+    stdout_chunks: list[str] = []
+    stderr_chunks: list[str] = []
+
+    # Sleep to let output accumulate
+    await asyncio.sleep(delay_seconds)
+
+    async def read_some_lines(
+        stream: asyncio.StreamReader | None,
+        chunks: list[str],
+    ) -> None:
+        """Read up to max_lines lines from stream with per-line timeout."""
+        if stream is None:
+            return
+        try:
+            for _ in range(max_lines):
+                line = await asyncio.wait_for(stream.readline(), timeout=read_timeout)
+                if not line:
+                    break
+                chunks.append(line.decode(errors="replace"))
+        except asyncio.TimeoutError:
+            # Expected - stream is still open, no more data available right now
+            pass
+
+    await asyncio.gather(
+        read_some_lines(process.stdout, stdout_chunks),
+        read_some_lines(process.stderr, stderr_chunks),
+    )
+
+    return {
+        "stdout": "".join(stdout_chunks),
+        "stderr": "".join(stderr_chunks),
+        # Combined is stdout followed by stderr (not truly interleaved due to
+        # sequential reads, but captures both for error detection)
+        "combined": "".join(stdout_chunks) + "".join(stderr_chunks),
+    }
+
+
 async def run_shell_command(
     command: str,
     *,
@@ -93,6 +173,10 @@ async def run_shell_command(
     timeout_seconds: float | None = None,
     env: dict[str, str] | None = None,
     shell: ShellInfo | None = None,
+    is_background: bool = False,
+    background_delay_seconds: float | None = None,
+    background_max_lines: int | None = None,
+    background_read_timeout: float | None = None,
 ) -> dict[str, Any]:
     """Execute a shell command with interleaved output capture.
 
@@ -102,27 +186,50 @@ async def run_shell_command(
     - stdout: separate stdout capture
     - stderr: separate stderr capture
 
+    Background mode (is_background=True):
+    - Timeout is ignored (process runs indefinitely)
+    - On Unix, '&' is appended to command for shell backgrounding
+    - On Windows, no '&' is appended (process stays attached)
+    - Returns early after capturing initial output (~200ms by default)
+    - Returns structured data only; vendor wrappers handle formatting
+
     Args:
         command: The shell command to execute.
         workdir: Working directory. None means current directory.
-        timeout_seconds: Timeout in seconds. None means no timeout.
+        timeout_seconds: Timeout in seconds. None means no timeout. Ignored for background.
         env: Environment variables. None means inherit os.environ.
         shell: Shell configuration. None means auto-detect via detect_shell().
+        is_background: If True, run in background mode and return early.
+        background_delay_seconds: Delay before returning for background. Default BACKGROUND_DELAY_SECONDS.
+        background_max_lines: Max lines to capture per stream for background. Default BACKGROUND_MAX_LINES.
+        background_read_timeout: Per-line read timeout for background. Default BACKGROUND_READ_TIMEOUT.
 
     Returns:
         Dict with:
-            - ok: bool (True if exit_code == 0 and not timed out)
-            - exit_code: int | None (None if timed out)
+            - ok: bool (True if exit_code == 0 and not timed out; True for background if started)
+            - exit_code: int | None (None if timed out or background)
             - output: str (combined interleaved output)
             - stdout: str (separate stdout)
             - stderr: str (separate stderr)
             - duration_seconds: float
-            - timed_out: bool
+            - timed_out: bool (always False for background)
             - shell: ShellInfo (shell used for execution)
+            - background: bool (True if background mode, only present when True)
+            - pid: int (process ID, only present for background mode)
     """
     shell = shell or detect_shell()
-    args = build_shell_args(command, shell)
+    is_windows = sys.platform == "win32"
 
+    # Background mode: modify command for Unix
+    if is_background:
+        # Skip timeout for background processes
+        timeout_seconds = None
+
+        # On Unix, append '&' for shell backgrounding if not already present
+        if not is_windows and not command.rstrip().endswith("&"):
+            command = command.rstrip() + " &"
+
+    args = build_shell_args(command, shell)
     start_time = time.monotonic()
 
     process = await asyncio.create_subprocess_exec(
@@ -133,7 +240,33 @@ async def run_shell_command(
         stderr=asyncio.subprocess.PIPE,
     )
 
-    # Three buffers - all accumulated in real-time
+    pid = process.pid
+
+    # Background mode: capture initial output and return early
+    if is_background:
+        initial_output = await _capture_initial_output(
+            process,
+            delay_seconds=background_delay_seconds or BACKGROUND_DELAY_SECONDS,
+            max_lines=background_max_lines or BACKGROUND_MAX_LINES,
+            read_timeout=background_read_timeout or BACKGROUND_READ_TIMEOUT,
+        )
+
+        duration = time.monotonic() - start_time
+
+        return {
+            "ok": True,  # Process started successfully
+            "exit_code": None,  # Process still running
+            "output": initial_output["combined"],
+            "stdout": initial_output["stdout"],
+            "stderr": initial_output["stderr"],
+            "duration_seconds": duration,
+            "timed_out": False,
+            "shell": shell,
+            "background": True,
+            "pid": pid,
+        }
+
+    # Foreground mode: wait for completion with three-buffer accumulation
     combined_chunks: list[str] = []  # Interleaved order
     stdout_chunks: list[str] = []  # Separate for vendor formatting
     stderr_chunks: list[str] = []  # Separate for vendor formatting
@@ -489,6 +622,9 @@ def truncate_output(
 
 
 __all__ = [
+    "BACKGROUND_DELAY_SECONDS",
+    "BACKGROUND_MAX_LINES",
+    "BACKGROUND_READ_TIMEOUT",
     "ShellInfo",
     "approx_token_count",
     "build_shell_args",

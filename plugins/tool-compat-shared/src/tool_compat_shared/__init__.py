@@ -34,6 +34,9 @@ from .search_engine import (
     list_directory_entries,
 )
 from .shell_engine import (
+    BACKGROUND_DELAY_SECONDS,
+    BACKGROUND_MAX_LINES,
+    BACKGROUND_READ_TIMEOUT,
     ShellInfo,
     approx_token_count,
     build_shell_args,
@@ -43,6 +46,9 @@ from .shell_engine import (
 )
 
 __all__ = [
+    "BACKGROUND_DELAY_SECONDS",
+    "BACKGROUND_MAX_LINES",
+    "BACKGROUND_READ_TIMEOUT",
     "DEFAULT_GEMINI_LINE_LIMIT",
     "DEFAULT_QWEN_CHAR_LIMIT",
     "DEFAULT_QWEN_LINE_LIMIT",
