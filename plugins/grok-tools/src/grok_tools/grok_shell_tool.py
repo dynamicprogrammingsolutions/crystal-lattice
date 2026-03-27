@@ -78,7 +78,7 @@ class GrokShellTool(ToolPlugin):
             },
         }]
     
-    async def execute_tool(
+    def execute_tool(
         self,
         tool_name: str,
         arguments: Dict[str, Any],
@@ -101,8 +101,26 @@ class GrokShellTool(ToolPlugin):
         if not isinstance(command, str) or not command.strip():
             return {"success": False, "error": "Command cannot be empty."}
         
+        # Get working directory from state
+        workdir = state.get("working_directory")
+        
         # Execute via shared engine (no timeout, no background)
-        result = await run_shell_command(command)
+        import asyncio
+        
+        async def _run():
+            return await run_shell_command(command, workdir=workdir)
+        
+        # Check if we're already in an async context
+        try:
+            loop = asyncio.get_running_loop()
+            # We're in an async context - need to run in a thread
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, _run())
+                result = future.result()
+        except RuntimeError:
+            # No running loop - we can use asyncio.run()
+            result = asyncio.run(_run())
         
         # Grok returns raw output - no special formatting
         success = result["exit_code"] == 0

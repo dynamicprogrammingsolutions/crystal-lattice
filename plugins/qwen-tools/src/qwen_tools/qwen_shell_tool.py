@@ -131,7 +131,7 @@ class QwenShellTool(ToolPlugin):
             },
         }]
     
-    async def execute_tool(
+    def execute_tool(
         self,
         tool_name: str,
         arguments: Dict[str, Any],
@@ -155,7 +155,7 @@ class QwenShellTool(ToolPlugin):
             return {"success": False, "error": "Command cannot be empty."}
         
         description = arguments.get("description")
-        directory = arguments.get("directory")
+        directory = arguments.get("directory") or state.get("working_directory")
         is_background = arguments.get("is_background", False)
         
         # Parse timeout (in milliseconds)
@@ -174,13 +174,28 @@ class QwenShellTool(ToolPlugin):
             timeout_ms = min(timeout_ms, max_timeout_ms)
             timeout_seconds = timeout_ms / 1000.0
         
-        # Execute via shared engine
-        result = await run_shell_command(
-            command,
-            workdir=directory,
-            timeout_seconds=timeout_seconds,
-            is_background=is_background,
-        )
+        # Execute via shared engine (sync wrapper around async)
+        import asyncio
+        
+        async def _run():
+            return await run_shell_command(
+                command,
+                workdir=directory,
+                timeout_seconds=timeout_seconds,
+                is_background=is_background,
+            )
+        
+        # Check if we're already in an async context
+        try:
+            loop = asyncio.get_running_loop()
+            # We're in an async context - need to run in a thread
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, _run())
+                result = future.result()
+        except RuntimeError:
+            # No running loop - we can use asyncio.run()
+            result = asyncio.run(_run())
         
         # Format output based on result type
         if result.get("background"):

@@ -128,7 +128,7 @@ class KimiShellTool(ToolPlugin):
             },
         }]
     
-    async def execute_tool(
+    def execute_tool(
         self,
         tool_name: str,
         arguments: Dict[str, Any],
@@ -166,15 +166,34 @@ class KimiShellTool(ToolPlugin):
         else:
             timeout = min(timeout, max_timeout)
         
+        # Get working directory from state
+        workdir = state.get("working_directory")
+        
         # Get environment (clean or inherit)
         env = get_clean_env() if state.get("clean_env", True) else None
         
-        # Execute via shared engine
-        result = await run_shell_command(
-            command,
-            timeout_seconds=timeout,
-            env=env,
-        )
+        # Execute via shared engine (sync wrapper around async)
+        import asyncio
+        
+        async def _run():
+            return await run_shell_command(
+                command,
+                workdir=workdir,
+                timeout_seconds=timeout,
+                env=env,
+            )
+        
+        # Check if we're already in an async context
+        try:
+            loop = asyncio.get_running_loop()
+            # We're in an async context - need to run in a thread
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, _run())
+                result = future.result()
+        except RuntimeError:
+            # No running loop - we can use asyncio.run()
+            result = asyncio.run(_run())
         
         # Format output based on result type
         if result.get("timed_out"):

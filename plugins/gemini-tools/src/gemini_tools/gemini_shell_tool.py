@@ -128,7 +128,7 @@ class GeminiShellTool(ToolPlugin):
             },
         }]
     
-    async def execute_tool(
+    def execute_tool(
         self,
         tool_name: str,
         arguments: Dict[str, Any],
@@ -152,19 +152,36 @@ class GeminiShellTool(ToolPlugin):
             return {"success": False, "error": "Command cannot be empty."}
         
         description = arguments.get("description")
-        dir_path = arguments.get("dir_path")
+        dir_path = arguments.get("dir_path") or state.get("working_directory")
         is_background = arguments.get("is_background", False)
         
         # Get timeout from state (config-provided or default)
         timeout_seconds = state.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)
         
-        # Execute via shared engine
-        result = await run_shell_command(
-            command,
-            workdir=dir_path,
-            timeout_seconds=timeout_seconds,
-            is_background=is_background,
-        )
+        # Execute via shared engine (sync wrapper around async)
+        import asyncio
+        import inspect
+        
+        async def _run():
+            return await run_shell_command(
+                command,
+                workdir=dir_path,
+                timeout_seconds=timeout_seconds,
+                is_background=is_background,
+            )
+        
+        # Check if we're already in an async context
+        try:
+            loop = asyncio.get_running_loop()
+            # We're in an async context - need to run in a thread
+            # since we can't nest asyncio.run()
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, _run())
+                result = future.result()
+        except RuntimeError:
+            # No running loop - we can use asyncio.run()
+            result = asyncio.run(_run())
         
         # Format output based on result type
         if result.get("background"):
