@@ -33,15 +33,23 @@ from .search_engine import (
     grep_search,
     list_directory_entries,
 )
+from .shell_engine import (
+    ShellInfo,
+    build_shell_args,
+    detect_shell,
+    run_shell_command,
+)
 
 __all__ = [
     "DEFAULT_GEMINI_LINE_LIMIT",
     "DEFAULT_QWEN_CHAR_LIMIT",
     "DEFAULT_QWEN_LINE_LIMIT",
     "SVG_MAX_SIZE_BYTES",
-    "replace_edits",
+    "ShellInfo",
     "build_qwen_truncation_wrapper",
+    "build_shell_args",
     "detect_bom",
+    "detect_shell",
     "format_gemini_glob_result",
     "format_gemini_grep_result",
     "format_gemini_list_result",
@@ -63,8 +71,10 @@ __all__ = [
     "read_file_with_encoding",
     "read_gemini_style_file",
     "read_qwen_style_file",
+    "replace_edits",
     "replace_literal_text",
     "resolve_path",
+    "run_shell_command",
     "truncate_line",
     "validate_path_within_directories",
     "write_text_file",
