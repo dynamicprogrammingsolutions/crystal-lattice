@@ -35,9 +35,11 @@ from .search_engine import (
 )
 from .shell_engine import (
     ShellInfo,
+    approx_token_count,
     build_shell_args,
     detect_shell,
     run_shell_command,
+    truncate_output,
 )
 
 __all__ = [
@@ -46,6 +48,7 @@ __all__ = [
     "DEFAULT_QWEN_LINE_LIMIT",
     "SVG_MAX_SIZE_BYTES",
     "ShellInfo",
+    "approx_token_count",
     "build_qwen_truncation_wrapper",
     "build_shell_args",
     "detect_bom",
@@ -76,6 +79,7 @@ __all__ = [
     "resolve_path",
     "run_shell_command",
     "truncate_line",
+    "truncate_output",
     "validate_path_within_directories",
     "write_text_file",
 ]

@@ -17,7 +17,7 @@ import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 
 @dataclass(frozen=True)
@@ -188,9 +188,311 @@ async def run_shell_command(
     }
 
 
+# =============================================================================
+# Truncation Support
+# =============================================================================
+
+APPROX_BYTES_PER_TOKEN = 4
+"""Approximate bytes per token for Codex-style token estimation."""
+
+
+def approx_token_count(text: str) -> int:
+    """Approximate token count using Codex's heuristic: len(text) // 4.
+
+    This matches the Codex CLI implementation in truncate.rs:
+    const APPROX_BYTES_PER_TOKEN: usize = 4;
+
+    Args:
+        text: The text to estimate token count for.
+
+    Returns:
+        Approximate number of tokens.
+    """
+    return len(text) // APPROX_BYTES_PER_TOKEN
+
+
+def _build_metadata(
+    *,
+    truncated: bool,
+    total_chars: int,
+    total_lines: int,
+    total_tokens: int,
+    omitted_chars: int,
+    omitted_lines: int,
+    omitted_tokens: int,
+    head_kept: int,
+    tail_kept: int,
+    limit_type: str,
+    limit_value: int,
+    head_ratio: float,
+) -> dict[str, Any]:
+    """Build the metadata dict returned by truncate_output."""
+    return {
+        "truncated": truncated,
+        "total_chars": total_chars,
+        "total_lines": total_lines,
+        "total_tokens": total_tokens,
+        "omitted_chars": omitted_chars,
+        "omitted_lines": omitted_lines,
+        "omitted_tokens": omitted_tokens,
+        "head_kept": head_kept,
+        "tail_kept": tail_kept,
+        "limit_type": limit_type,
+        "limit_value": limit_value,
+        "head_ratio": head_ratio,
+    }
+
+
+def _truncate_chars(
+    content: str,
+    max_chars: int,
+    head_ratio: float,
+    total_chars: int,
+    total_lines: int,
+    total_tokens: int,
+    limit_type: str,
+    limit_value: int,
+) -> tuple[str, dict[str, Any]]:
+    """Truncate by character count."""
+    head_chars = int(max_chars * head_ratio)
+    tail_chars = max_chars - head_chars
+
+    if head_ratio >= 1.0:
+        # All from beginning (Qwen-style)
+        truncated = content[:max_chars]
+        return truncated, _build_metadata(
+            truncated=True,
+            total_chars=total_chars,
+            total_lines=total_lines,
+            total_tokens=total_tokens,
+            omitted_chars=total_chars - max_chars,
+            omitted_lines=0,  # Unknown without re-counting
+            omitted_tokens=0,  # Unknown without re-counting
+            head_kept=max_chars,
+            tail_kept=0,
+            limit_type=limit_type,
+            limit_value=limit_value,
+            head_ratio=head_ratio,
+        )
+
+    # Split: head + tail
+    head = content[:head_chars]
+    tail = content[-tail_chars:] if tail_chars > 0 else ""
+    truncated = head + tail
+    return truncated, _build_metadata(
+        truncated=True,
+        total_chars=total_chars,
+        total_lines=total_lines,
+        total_tokens=total_tokens,
+        omitted_chars=total_chars - max_chars,
+        omitted_lines=0,  # Unknown without re-counting
+        omitted_tokens=0,  # Unknown without re-counting
+        head_kept=head_chars,
+        tail_kept=tail_chars,
+        limit_type=limit_type,
+        limit_value=limit_value,
+        head_ratio=head_ratio,
+    )
+
+
+def _truncate_lines(
+    content: str,
+    max_lines: int,
+    head_ratio: float,
+    total_chars: int,
+    total_lines: int,
+    total_tokens: int,
+    limit_type: str,
+    limit_value: int,
+) -> tuple[str, dict[str, Any]]:
+    """Truncate by line count, preserving line breaks."""
+    lines = content.splitlines(keepends=True)
+    head_lines = int(max_lines * head_ratio)
+    tail_lines = max_lines - head_lines
+
+    if head_ratio >= 1.0:
+        # All from beginning (Qwen-style)
+        truncated = "".join(lines[:max_lines])
+        omitted_lines = len(lines) - max_lines
+        return truncated, _build_metadata(
+            truncated=True,
+            total_chars=total_chars,
+            total_lines=total_lines,
+            total_tokens=total_tokens,
+            omitted_chars=0,  # Unknown without re-counting
+            omitted_lines=omitted_lines,
+            omitted_tokens=0,  # Unknown without re-counting
+            head_kept=max_lines,
+            tail_kept=0,
+            limit_type=limit_type,
+            limit_value=limit_value,
+            head_ratio=head_ratio,
+        )
+
+    # Split: head + tail
+    head = "".join(lines[:head_lines])
+    tail = "".join(lines[-tail_lines:]) if tail_lines > 0 else ""
+    truncated = head + tail
+    omitted_lines = len(lines) - max_lines
+    return truncated, _build_metadata(
+        truncated=True,
+        total_chars=total_chars,
+        total_lines=total_lines,
+        total_tokens=total_tokens,
+        omitted_chars=0,  # Unknown without re-counting
+        omitted_lines=omitted_lines,
+        omitted_tokens=0,  # Unknown without re-counting
+        head_kept=head_lines,
+        tail_kept=tail_lines,
+        limit_type=limit_type,
+        limit_value=limit_value,
+        head_ratio=head_ratio,
+    )
+
+
+def _truncate_tokens(
+    content: str,
+    max_tokens: int,
+    head_ratio: float,
+    total_chars: int,
+    total_lines: int,
+    total_tokens: int,
+    limit_type: str,
+    limit_value: int,
+) -> tuple[str, dict[str, Any]]:
+    """Token-aware truncation using Codex's approximation (len//4).
+
+    This converts the token budget to a character budget and delegates
+    to _truncate_chars, exactly matching Codex CLI behavior.
+    """
+    # Convert token budget to char budget
+    max_chars = max_tokens * APPROX_BYTES_PER_TOKEN
+    omitted_tokens = total_tokens - max_tokens
+
+    truncated, metadata = _truncate_chars(
+        content,
+        max_chars,
+        head_ratio,
+        total_chars,
+        total_lines,
+        total_tokens,
+        limit_type,
+        limit_value,
+    )
+    # Update the omitted_tokens which _truncate_chars can't compute
+    metadata = {**metadata, "omitted_tokens": omitted_tokens}
+    return truncated, metadata
+
+
+def truncate_output(
+    content: str,
+    *,
+    limit_type: Literal["chars"] | Literal["lines"] | Literal["tokens"],
+    limit_value: int,
+    head_ratio: float = 0.5,
+) -> tuple[str, dict[str, Any]]:
+    """Truncate content and return (truncated_content, metadata).
+
+    Truncation behavior:
+    - limit_type="chars": truncate by character count
+    - limit_type="lines": truncate by line count
+    - limit_type="tokens": truncate by token count (using Codex approximation: len//4)
+
+    head_ratio controls distribution:
+    - head_ratio=1.0: keep first N chars/lines/tokens (standard head truncation, Qwen-style)
+    - head_ratio=0.5: keep first 50% + last 50% (Codex-style split, DEFAULT)
+    - head_ratio=0.2: keep first 20% + last 80% (Gemini-style split)
+
+    Args:
+        content: The text to potentially truncate.
+        limit_type: Type of limit - "chars", "lines", or "tokens".
+        limit_value: Maximum number of units to keep.
+        head_ratio: How to split the budget between head and tail. Default 0.5 (50/50).
+
+    Returns:
+        Tuple of (truncated_content, metadata_dict) where metadata contains:
+            - truncated: bool - whether truncation was applied
+            - total_chars: int - original character count
+            - total_lines: int - original line count
+            - total_tokens: int - approximate original token count
+            - omitted_chars: int - characters removed (0 if limit_type != "chars")
+            - omitted_lines: int - lines removed (0 if limit_type != "lines")
+            - omitted_tokens: int - tokens removed (0 if limit_type != "tokens")
+            - head_kept: int - units kept from beginning
+            - tail_kept: int - units kept from end
+            - limit_type: str - the limit type used
+            - limit_value: int - the limit value used
+            - head_ratio: float - the head ratio used
+    """
+    # Calculate totals (always cheap)
+    total_chars = len(content)
+    total_lines = len(content.splitlines())
+    total_tokens = approx_token_count(content)
+
+    # Check if truncation needed
+    current_value = {
+        "chars": total_chars,
+        "lines": total_lines,
+        "tokens": total_tokens,
+    }[limit_type]
+
+    if current_value <= limit_value:
+        return content, _build_metadata(
+            truncated=False,
+            total_chars=total_chars,
+            total_lines=total_lines,
+            total_tokens=total_tokens,
+            omitted_chars=0,
+            omitted_lines=0,
+            omitted_tokens=0,
+            head_kept=current_value,
+            tail_kept=0,
+            limit_type=limit_type,
+            limit_value=limit_value,
+            head_ratio=head_ratio,
+        )
+
+    # Apply truncation based on limit_type
+    if limit_type == "tokens":
+        return _truncate_tokens(
+            content,
+            limit_value,
+            head_ratio,
+            total_chars,
+            total_lines,
+            total_tokens,
+            limit_type,
+            limit_value,
+        )
+    elif limit_type == "lines":
+        return _truncate_lines(
+            content,
+            limit_value,
+            head_ratio,
+            total_chars,
+            total_lines,
+            total_tokens,
+            limit_type,
+            limit_value,
+        )
+    else:  # chars
+        return _truncate_chars(
+            content,
+            limit_value,
+            head_ratio,
+            total_chars,
+            total_lines,
+            total_tokens,
+            limit_type,
+            limit_value,
+        )
+
+
 __all__ = [
     "ShellInfo",
+    "approx_token_count",
     "build_shell_args",
     "detect_shell",
     "run_shell_command",
+    "truncate_output",
 ]

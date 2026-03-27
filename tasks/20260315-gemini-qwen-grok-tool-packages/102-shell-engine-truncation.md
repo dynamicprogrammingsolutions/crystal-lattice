@@ -8,12 +8,12 @@ Depends On: `tasks/20260315-gemini-qwen-grok-tool-packages/101-shell-engine-core
 
 ## Requirements checklist
 
-- [ ] Add `truncate_output()` helper function with parameters: `limit_type`, `limit_value`, `head_ratio`
-- [ ] Implement `_truncate_chars()`, `_truncate_lines()`, `_truncate_tokens()`
-- [ ] Use Codex's token approximation (`len(text) // 4`), NOT tiktoken
-- [ ] Return truncation metadata in result dict
-- [ ] Default `head_ratio=0.5` (Codex-style 50/50 split)
-- [ ] Keep vendor-specific formatting OUT of shared engine
+- [x] Add `truncate_output()` helper function with parameters: `limit_type`, `limit_value`, `head_ratio`
+- [x] Implement `_truncate_chars()`, `_truncate_lines()`, `_truncate_tokens()`
+- [x] Use Codex's token approximation (`len(text) // 4`), NOT tiktoken
+- [x] Return truncation metadata in result dict
+- [x] Default `head_ratio=0.5` (Codex-style 50/50 split)
+- [x] Keep vendor-specific formatting OUT of shared engine
 
 ## Goal
 
@@ -320,4 +320,39 @@ if meta["truncated"]:
 
 ## Completion notes
 
-(To be filled during implementation)
+**Implementation completed successfully.**
+
+### Files modified:
+
+1. **`plugins/tool-compat-shared/src/tool_compat_shared/shell_engine.py`**
+   - Added `APPROX_BYTES_PER_TOKEN = 4` constant
+   - Added `approx_token_count()` - Codex-style token estimation (`len(text) // 4`)
+   - Added `_build_metadata()` - internal helper for metadata dict construction
+   - Added `_truncate_chars()` - character-based truncation with head/tail split
+   - Added `_truncate_lines()` - line-based truncation preserving line breaks
+   - Added `_truncate_tokens()` - token truncation via char delegation
+   - Added `truncate_output()` - public helper for vendor wrappers
+   - Updated `__all__` to include new exports
+
+2. **`plugins/tool-compat-shared/src/tool_compat_shared/__init__.py`**
+   - Added exports for `approx_token_count` and `truncate_output`
+
+3. **`plugins/tool-compat-shared/tests/test_shell_engine.py`**
+   - Added `TestApproxTokenCount` class (7 tests)
+   - Added `TestTruncateOutput` class (16 tests)
+   - Total: 44 tests passing
+
+### Test results:
+
+All 44 tests pass:
+- `TestApproxTokenCount`: 7 tests for token approximation
+- `TestTruncateOutput`: 16 tests covering all truncation modes and metadata
+
+### Design decisions implemented:
+
+- **Separate helper function**: `truncate_output()` is a standalone function that vendor wrappers call
+- **Codex token approximation**: Uses `len(text) // 4` instead of tiktoken
+- **Default 50/50 split**: `head_ratio=0.5` matches Codex CLI behavior
+- **Token → char delegation**: Token truncation converts budget to chars and delegates
+- **UTF-8 safe**: Uses character indices (not byte indices)
+- **No new dependencies**: Avoids tiktoken requirement
