@@ -260,3 +260,31 @@ All 21 tests passed:
 - **Return structure**: Uses `"ok": bool` consistent with other engines
 - **Process termination on timeout**: `process.kill()` then `await process.wait()`
 - **Environment**: Inherits `os.environ` by default; caller can override via `env` parameter
+
+## Future Enhancement: Array-based Commands
+
+Per task 104 research, Codex has two shell tool variants:
+
+| `shell_type` | Tool Name | Command Format |
+|--------------|-----------|----------------|
+| `"default"` | `shell` | Array: `["bash", "-lc", "echo hello"]` |
+| `"shell_command"` | `shell_command` | String: `"echo hello"` |
+
+**Current implementation** only supports string commands (shell wrapper style).
+
+**Future enhancement** to support both:
+```python
+async def run_shell_command(
+    command: str | list[str],  # Accept array or string
+    *,
+    ...
+) -> dict[str, Any]:
+    if isinstance(command, list):
+        # Direct exec: ["bash", "-lc", "echo hello"]
+        args = command
+    else:
+        # Shell wrapper: "echo hello" → [shell, "-c", "echo hello"]
+        args = build_shell_args(command, shell)
+```
+
+This allows the same shared engine to support both `shell` (array) and `shell_command` (string) tools.
