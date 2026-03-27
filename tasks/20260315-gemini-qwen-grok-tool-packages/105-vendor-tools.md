@@ -1,8 +1,8 @@
-# 150 - Vendor Shell Tools (Gemini, Qwen, Grok, Kimi)
+# 105 - Vendor Shell Tools (Gemini, Qwen, Grok, Kimi)
 
 Short description: Create vendor-specific shell tool wrappers for Gemini, Qwen, Grok, and Kimi using the shared shell engine.
 
-Parent Task: `tasks/20260315-gemini-qwen-grok-tool-packages/000-main.md`
+Parent Task: `tasks/20260315-gemini-qwen-grok-tool-packages/100-shell-tools.md`
 
 Depends On:
 - `tasks/20260315-gemini-qwen-grok-tool-packages/101-shell-engine-core.md`

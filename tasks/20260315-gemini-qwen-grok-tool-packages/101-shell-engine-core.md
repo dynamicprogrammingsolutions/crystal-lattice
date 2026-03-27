@@ -1,8 +1,8 @@
-# 110 - Shell Engine Core
+# 101 - Shell Engine Core
 
 Short description: Create the shared shell engine with asyncio subprocess execution, three-buffer output accumulation, shell detection, and basic timeout handling.
 
-Parent Task: `tasks/20260315-gemini-qwen-grok-tool-packages/000-main.md`
+Parent Task: `tasks/20260315-gemini-qwen-grok-tool-packages/100-shell-tools.md`
 
 Depends On: None (first subtask)
 

@@ -1,12 +1,19 @@
-# 140 - Codex V2 Shell Tool
+# 104 - Codex V2 Shell Tool
 
 Short description: Create the Codex V2 `shell_command` tool using the shared shell engine.
 
-Parent Task: `tasks/20260315-gemini-qwen-grok-tool-packages/000-main.md`
+Parent Task: `tasks/20260315-gemini-qwen-grok-tool-packages/100-shell-tools.md`
 
 Depends On: 
 - `tasks/20260315-gemini-qwen-grok-tool-packages/101-shell-engine-core.md`
 - `tasks/20260315-gemini-qwen-grok-tool-packages/102-shell-engine-truncation.md`
+
+## Related tasks (completion)
+
+Upon completion, mark the following tasks as completed:
+
+- `tasks/20260225-codex-tools-parity/020-bash-tool-round-1-schema.md` — COMPLETED VIA this task
+- `tasks/20260225-codex-tools-parity/030-bash-tool-round-2-output-and-limits.md` — COMPLETED VIA this task
 
 ## Requirements checklist
 
@@ -17,6 +24,8 @@ Depends On:
 - [ ] Token-based truncation with `max_output_tokens` parameter
 - [ ] Duration tracking in output
 - [ ] Non-zero exit code returned as tool error
+- [ ] Mark `tasks/20260225-codex-tools-parity/020-bash-tool-round-1-schema.md` as completed
+- [ ] Mark `tasks/20260225-codex-tools-parity/030-bash-tool-round-2-output-and-limits.md` as completed
 
 ## Goal
 
