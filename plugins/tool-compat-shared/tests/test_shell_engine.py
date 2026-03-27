@@ -239,6 +239,140 @@ class TestRunShellCommand:
         assert "\n" in result["output"] or "\r" in result["output"]
 
 
+class TestRunShellCommandArray:
+    """Tests for array-based command execution."""
+
+    @pytest.mark.asyncio
+    async def test_array_command_basic_echo(self) -> None:
+        """Array command with echo produces expected output."""
+        if platform.system() == "Windows":
+            # Windows: use cmd /c
+            result = await run_shell_command(["cmd", "/c", "echo hello"])
+        else:
+            result = await run_shell_command(["echo", "hello"])
+        assert result["ok"] is True
+        assert result["exit_code"] == 0
+        assert "hello" in result["output"]
+        assert result["timed_out"] is False
+        assert result.get("direct_exec") is True
+
+    @pytest.mark.asyncio
+    async def test_array_command_with_shell_wrapper(self) -> None:
+        """Array command with bash -lc wrapper."""
+        if platform.system() == "Windows":
+            pytest.skip("Unix-specific test")
+        result = await run_shell_command(["bash", "-lc", "echo hello from bash"])
+        assert result["ok"] is True
+        assert "hello from bash" in result["output"]
+        assert result.get("direct_exec") is True
+
+    @pytest.mark.asyncio
+    async def test_array_command_exit_code_nonzero(self) -> None:
+        """Array command with non-zero exit code returns ok=False."""
+        if platform.system() == "Windows":
+            result = await run_shell_command(["cmd", "/c", "exit 1"])
+        else:
+            result = await run_shell_command(["sh", "-c", "exit 1"])
+        assert result["ok"] is False
+        assert result["exit_code"] == 1
+        assert result["timed_out"] is False
+
+    @pytest.mark.asyncio
+    async def test_array_command_stderr_capture(self) -> None:
+        """Array command writing to stderr captures it separately."""
+        if platform.system() == "Windows":
+            pytest.skip("Unix-specific test")
+        result = await run_shell_command(["sh", "-c", "echo stderr_msg >&2"])
+        assert result["ok"] is True
+        assert "stderr_msg" in result["stderr"]
+        assert "stderr_msg" in result["output"]  # Also in combined
+
+    @pytest.mark.asyncio
+    async def test_array_command_no_shell_info(self) -> None:
+        """Array command does not include shell info in result."""
+        if platform.system() == "Windows":
+            result = await run_shell_command(["cmd", "/c", "echo test"])
+        else:
+            result = await run_shell_command(["echo", "test"])
+        # direct_exec should be True, shell should not be present
+        assert result.get("direct_exec") is True
+        assert "shell" not in result
+
+    @pytest.mark.asyncio
+    async def test_array_command_timeout(self) -> None:
+        """Array command timeout works correctly."""
+        if platform.system() == "Windows":
+            result = await run_shell_command(
+                ["cmd", "/c", "timeout 60"],
+                timeout_seconds=0.5,
+            )
+        else:
+            result = await run_shell_command(["sleep", "60"], timeout_seconds=0.5)
+        assert result["timed_out"] is True
+        assert result["exit_code"] is None
+        assert result["ok"] is False
+        assert result["duration_seconds"] < 5.0
+
+    @pytest.mark.asyncio
+    async def test_array_command_working_directory(self, tmp_path: Path) -> None:
+        """Array command runs in specified working directory."""
+        subdir = tmp_path / "subdir"
+        subdir.mkdir()
+        test_file = subdir / "test.txt"
+        test_file.write_text("content")
+
+        if platform.system() == "Windows":
+            result = await run_shell_command(["cmd", "/c", "dir"], workdir=str(subdir))
+        else:
+            result = await run_shell_command(["ls"], workdir=str(subdir))
+
+        assert result["ok"] is True
+        assert "test.txt" in result["output"]
+
+    @pytest.mark.asyncio
+    async def test_array_command_env_override(self) -> None:
+        """Array command with custom environment variables."""
+        if platform.system() == "Windows":
+            pytest.skip("Unix-specific test")
+        # Pass through PATH so commands work, plus our custom var
+        env = {"PATH": os.environ.get("PATH", ""), "TEST_VAR": "custom_value"}
+        result = await run_shell_command(["sh", "-c", "echo $TEST_VAR"], env=env)
+        assert "custom_value" in result["output"]
+
+    @pytest.mark.asyncio
+    async def test_array_command_vs_string_command(self) -> None:
+        """Both array and string commands work for simple echo."""
+        if platform.system() == "Windows":
+            # String command
+            result_str = await run_shell_command("echo hello")
+            # Array command
+            result_arr = await run_shell_command(["cmd", "/c", "echo hello"])
+        else:
+            # String command (shell-wrapped)
+            result_str = await run_shell_command("echo hello")
+            # Array command (direct exec)
+            result_arr = await run_shell_command(["echo", "hello"])
+
+        # Both should succeed and produce output
+        assert result_str["ok"] is True
+        assert result_arr["ok"] is True
+        assert "hello" in result_str["output"]
+        assert "hello" in result_arr["output"]
+
+        # String command has shell info, array doesn't
+        assert "shell" in result_str
+        assert result_str.get("direct_exec") is None
+        assert "shell" not in result_arr
+        assert result_arr.get("direct_exec") is True
+
+    @pytest.mark.asyncio
+    async def test_array_command_empty_list_errors(self) -> None:
+        """Empty array command should fail gracefully."""
+        # This will raise a TypeError because create_subprocess_exec requires at least one arg
+        with pytest.raises(TypeError, match="required positional argument"):
+            await run_shell_command([])
+
+
 class TestApproxTokenCount:
     """Tests for the token approximation function."""
 

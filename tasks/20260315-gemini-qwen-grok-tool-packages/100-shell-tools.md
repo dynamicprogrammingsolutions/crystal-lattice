@@ -11,8 +11,9 @@ Depends On: `tasks/20260315-gemini-qwen-grok-tool-packages/090-kimi-tools.md`
 - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/101-shell-engine-core.md` — Core engine with asyncio
 - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/102-shell-engine-truncation.md` — Generic truncation
 - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/103-shell-engine-background.md` — Background process support
-- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/104-codex-v2-tool.md` — Codex V2 tool
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/104-codex-v2-tool.md` — Codex shell tools (shell + shell_command)
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/105-vendor-tools.md` — Vendor wrappers
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/106-shell-tool-selection.md` — Shell tool selection based on model + legacy override
 
 ## Goal
 

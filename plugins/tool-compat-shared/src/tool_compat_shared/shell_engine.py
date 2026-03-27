@@ -167,7 +167,7 @@ async def _capture_initial_output(
 
 
 async def run_shell_command(
-    command: str,
+    command: str | list[str],
     *,
     workdir: str | None = None,
     timeout_seconds: float | None = None,
@@ -186,20 +186,28 @@ async def run_shell_command(
     - stdout: separate stdout capture
     - stderr: separate stderr capture
 
+    Command formats:
+    - String: "echo hello" → wrapped via shell (e.g., ["/bin/bash", "-c", "echo hello"])
+    - Array: ["echo", "hello"] → passed directly to execvp (no shell wrapper)
+
     Background mode (is_background=True):
+    - Only supported for string commands (shell-based execution)
     - Timeout is ignored (process runs indefinitely)
     - On Unix, '&' is appended to command for shell backgrounding
     - On Windows, no '&' is appended (process stays attached)
     - Returns early after capturing initial output (~200ms by default)
-    - Returns structured data only; vendor wrappers handle formatting
+    - For array commands, is_background is ignored
 
     Args:
-        command: The shell command to execute.
+        command: The shell command to execute. Either a string (wrapped via shell)
+                 or a list of strings (passed directly to execvp).
         workdir: Working directory. None means current directory.
         timeout_seconds: Timeout in seconds. None means no timeout. Ignored for background.
         env: Environment variables. None means inherit os.environ.
         shell: Shell configuration. None means auto-detect via detect_shell().
+               Only used when command is a string.
         is_background: If True, run in background mode and return early.
+                       Only supported for string commands.
         background_delay_seconds: Delay before returning for background. Default BACKGROUND_DELAY_SECONDS.
         background_max_lines: Max lines to capture per stream for background. Default BACKGROUND_MAX_LINES.
         background_read_timeout: Per-line read timeout for background. Default BACKGROUND_READ_TIMEOUT.
@@ -213,23 +221,37 @@ async def run_shell_command(
             - stderr: str (separate stderr)
             - duration_seconds: float
             - timed_out: bool (always False for background)
-            - shell: ShellInfo (shell used for execution)
+            - shell: ShellInfo (shell used for execution, only for string commands)
             - background: bool (True if background mode, only present when True)
             - pid: int (process ID, only present for background mode)
+            - direct_exec: bool (True if command was array/list, only present when True)
     """
-    shell = shell or detect_shell()
     is_windows = sys.platform == "win32"
+    is_array_command = isinstance(command, list)
 
-    # Background mode: modify command for Unix
-    if is_background:
-        # Skip timeout for background processes
-        timeout_seconds = None
+    # Determine execution args based on command type
+    if is_array_command:
+        # Array command: pass directly to execvp
+        args = list(command)
+        used_shell = None
+        # Background mode not supported for direct exec
+        effective_background = False
+    else:
+        # String command: wrap via shell
+        used_shell = shell or detect_shell()
 
-        # On Unix, append '&' for shell backgrounding if not already present
-        if not is_windows and not command.rstrip().endswith("&"):
-            command = command.rstrip() + " &"
+        # Background mode: modify command for Unix
+        if is_background:
+            # Skip timeout for background processes
+            timeout_seconds = None
 
-    args = build_shell_args(command, shell)
+            # On Unix, append '&' for shell backgrounding if not already present
+            if not is_windows and not command.rstrip().endswith("&"):
+                command = command.rstrip() + " &"
+
+        args = build_shell_args(command, used_shell)
+        effective_background = is_background
+
     start_time = time.monotonic()
 
     process = await asyncio.create_subprocess_exec(
@@ -243,7 +265,7 @@ async def run_shell_command(
     pid = process.pid
 
     # Background mode: capture initial output and return early
-    if is_background:
+    if effective_background:
         initial_output = await _capture_initial_output(
             process,
             delay_seconds=background_delay_seconds or BACKGROUND_DELAY_SECONDS,
@@ -253,7 +275,7 @@ async def run_shell_command(
 
         duration = time.monotonic() - start_time
 
-        return {
+        result: dict[str, Any] = {
             "ok": True,  # Process started successfully
             "exit_code": None,  # Process still running
             "output": initial_output["combined"],
@@ -261,10 +283,12 @@ async def run_shell_command(
             "stderr": initial_output["stderr"],
             "duration_seconds": duration,
             "timed_out": False,
-            "shell": shell,
             "background": True,
             "pid": pid,
         }
+        if used_shell is not None:
+            result["shell"] = used_shell
+        return result
 
     # Foreground mode: wait for completion with three-buffer accumulation
     combined_chunks: list[str] = []  # Interleaved order
@@ -309,7 +333,7 @@ async def run_shell_command(
 
     duration = time.monotonic() - start_time
 
-    return {
+    result = {
         "ok": not timed_out and exit_code == 0,
         "exit_code": exit_code,
         "output": "".join(combined_chunks),
@@ -317,8 +341,12 @@ async def run_shell_command(
         "stderr": "".join(stderr_chunks),
         "duration_seconds": duration,
         "timed_out": timed_out,
-        "shell": shell,
     }
+    if used_shell is not None:
+        result["shell"] = used_shell
+    if is_array_command:
+        result["direct_exec"] = True
+    return result
 
 
 # =============================================================================
