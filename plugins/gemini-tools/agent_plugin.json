@@ -7,7 +7,8 @@
     "gemini_tools.gemini_grep_search_tool.GeminiGrepSearchTool",
     "gemini_tools.gemini_glob_tool.GeminiGlobTool",
     "gemini_tools.gemini_write_file_tool.GeminiWriteFileTool",
-    "gemini_tools.gemini_replace_tool.GeminiReplaceTool"
+    "gemini_tools.gemini_replace_tool.GeminiReplaceTool",
+    "gemini_tools.gemini_shell_tool.GeminiShellTool"
   ],
   "kinds": {
     "gemini_tools.gemini_read_file_tool.GeminiReadFileTool": "tools",
@@ -15,6 +16,7 @@
     "gemini_tools.gemini_grep_search_tool.GeminiGrepSearchTool": "tools",
     "gemini_tools.gemini_glob_tool.GeminiGlobTool": "tools",
     "gemini_tools.gemini_write_file_tool.GeminiWriteFileTool": "tools",
-    "gemini_tools.gemini_replace_tool.GeminiReplaceTool": "tools"
+    "gemini_tools.gemini_replace_tool.GeminiReplaceTool": "tools",
+    "gemini_tools.gemini_shell_tool.GeminiShellTool": "tools"
   }
 }

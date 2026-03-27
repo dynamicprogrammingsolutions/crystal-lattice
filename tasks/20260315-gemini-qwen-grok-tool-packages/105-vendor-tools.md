@@ -11,12 +11,12 @@ Depends On:
 
 ## Requirements checklist
 
-- [ ] Create `plugins/gemini-tools/src/gemini_tools/gemini_shell_tool.py`
-- [ ] Create `plugins/qwen-tools/src/qwen_tools/qwen_shell_tool.py`
-- [ ] Create `plugins/grok-tools/src/grok_tools/grok_shell_tool.py`
-- [ ] Create `plugins/kimi-tools/src/kimi_tools/kimi_shell_tool.py`
-- [ ] All tools achieve model-facing behavior parity with original CLI implementations
-- [ ] Update package exports and READMEs
+- [x] Create `plugins/gemini-tools/src/gemini_tools/gemini_shell_tool.py`
+- [x] Create `plugins/qwen-tools/src/qwen_tools/qwen_shell_tool.py`
+- [x] Create `plugins/grok-tools/src/grok_tools/grok_shell_tool.py`
+- [x] Create `plugins/kimi-tools/src/kimi_tools/kimi_shell_tool.py`
+- [x] All tools achieve model-facing behavior parity with original CLI implementations
+- [x] Update package exports and READMEs
 
 ## Goal
 
@@ -362,4 +362,78 @@ Each vendor tool should have tests for:
 
 ## Completion notes
 
-(To be filled during implementation)
+**Implementation completed successfully.**
+
+### Files created:
+
+1. **`plugins/gemini-tools/src/gemini_tools/gemini_shell_tool.py`**
+   - Tool name: `run_shell_command`
+   - Parameters: `command`, `description`, `dir_path`, `is_background`
+   - Timeout: 120s default (configurable via `shell_timeout_seconds`)
+   - Truncation: 40k chars with 20/80 head/tail split
+   - Temp file saving for truncated output in `project_temp_dir`
+
+2. **`plugins/qwen-tools/src/qwen_tools/qwen_shell_tool.py`**
+   - Tool name: `bash`
+   - Parameters: `command`, `timeout` (ms), `description`, `directory`, `is_background`
+   - Timeout: 120s default, 600s max (configurable)
+   - Truncation: Line-first (1k lines), then char (25k chars), head-only
+   - Platform-specific kill hints for background processes
+
+3. **`plugins/grok-tools/src/grok_tools/grok_shell_tool.py`**
+   - Tool name: `bash`
+   - Minimal schema: only `command` parameter
+   - No timeout, no working directory, no background, no truncation
+   - Raw output format
+
+4. **`plugins/kimi-tools/src/kimi_tools/kimi_shell_tool.py`**
+   - Tool name: `Shell`
+   - Parameters: `command`, `timeout` (seconds)
+   - Timeout: 60s default, 300s max
+   - Clean environment via `get_clean_env()` (removes PyInstaller variables)
+   - No truncation
+
+### Files modified:
+
+1. **`plugins/gemini-tools/src/gemini_tools/__init__.py`** - Added `GeminiShellTool` export
+2. **`plugins/qwen-tools/src/qwen_tools/__init__.py`** - Added `QwenShellTool` export
+3. **`plugins/grok-tools/src/grok_tools/__init__.py`** - Added `GrokShellTool` export
+4. **`plugins/kimi-tools/src/kimi_tools/__init__.py`** - Added `KimiShellTool` export
+
+5. **`plugins/gemini-tools/README.md`** - Added shell tool documentation and config keys
+6. **`plugins/qwen-tools/README.md`** - Added shell tool documentation and config keys
+7. **`plugins/grok-tools/README.md`** - Added shell tool documentation
+8. **`plugins/kimi-tools/README.md`** - Added shell tool documentation and config keys
+
+### Test files created:
+
+1. **`plugins/gemini-tools/tests/test_gemini_shell_tool.py`** - 31 tests
+2. **`plugins/qwen-tools/tests/test_qwen_shell_tool.py`** - 32 tests
+3. **`plugins/grok-tools/tests/test_grok_shell_tool.py`** - 17 tests
+4. **`plugins/kimi-tools/tests/test_kimi_shell_tool.py`** - 27 tests
+
+### Test results:
+
+All 107 tests passed.
+
+### Config keys documented:
+
+| Config Key | Gemini | Qwen | Kimi | Description |
+|------------|--------|------|------|-------------|
+| `shell_timeout_seconds` | 120 | 120 | 60 | Default timeout |
+| `shell_max_timeout_seconds` | - | 600 | 300 | Maximum allowed timeout |
+| `shell_max_output_chars` | 40000 | 25000 | - | Character limit |
+| `shell_max_output_lines` | - | 1000 | - | Line limit |
+| `shell_truncation_head_ratio` | 0.2 | 1.0 | - | Head/tail split ratio |
+| `shell_clean_env` | - | - | true | Use clean environment |
+| `project_temp_dir` | ✓ | ✓ | ✓ | Temp file storage |
+
+### Design decisions:
+
+1. **Kimi clean environment**: Implemented `get_clean_env()` inline in the Kimi tool - removes PyInstaller/frozen-executable variables when running as frozen.
+
+2. **Qwen dual truncation**: Two-pass truncation in the Qwen tool - first checks line count (1k lines), then char count (25k chars).
+
+3. **Gemini temp file**: Truncated output saved to `project_temp_dir` with UUID-based filename.
+
+4. **Config defaults**: Each vendor tool applies its own defaults to shared config keys (e.g., `shell_timeout_seconds` = 120 for Gemini, 60 for Kimi).

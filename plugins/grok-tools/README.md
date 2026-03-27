@@ -14,6 +14,7 @@ Current public tools in this package:
 - `view_file`
 - `create_file`
 - `str_replace_editor`
+- `bash`
 
 Search/list note:
 
@@ -33,6 +34,7 @@ The plugin repo exposes these classes through `agent_plugin.json`:
 - `grok_tools.grok_view_file_tool.GrokViewFileTool`
 - `grok_tools.grok_create_file_tool.GrokCreateFileTool`
 - `grok_tools.grok_str_replace_editor_tool.GrokStrReplaceEditorTool`
+- `grok_tools.grok_shell_tool.GrokShellTool`
 
 ## Quickstart
 
@@ -184,6 +186,44 @@ Error: The 'path' parameter must be non-empty.
 Error: start_line cannot be greater than end_line
 Error: Path not in workspace: /tmp/outside.txt
 ```
+
+## Shell behavior notes
+
+The Grok-compatible shell entrypoint is `bash`.
+
+- `command` is the shell command to execute (required).
+- Grok has a **minimal schema** - no timeout, no working directory, no background mode.
+- Output is returned raw without special formatting.
+- No truncation is applied.
+
+Representative `bash` call shape:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "bash",
+    "arguments": {
+      "command": "echo hello"
+    }
+  }
+}
+```
+
+Representative outcomes:
+
+Success:
+```text
+hello
+```
+
+Failure:
+```text
+command not found: invalid_cmd
+```
+
+Note: Unlike Gemini and Qwen, Grok does not include timeout, background mode,
+or output truncation features in its shell tool.
 
 ## Compatibility contract
 
