@@ -26,10 +26,10 @@ class TestShellArrayToolSchemas:
         
         assert len(schemas) == 1
         schema = schemas[0]
-        assert schema["name"] == "shell"
+        assert schema["function"]["name"] == "shell"
         
         # Command should be array type
-        command_prop = schema["parameters"]["properties"]["command"]
+        command_prop = schema["function"]["parameters"]["properties"]["command"]
         assert command_prop["type"] == "array"
         assert "items" in command_prop
         assert command_prop["items"]["type"] == "string"
@@ -40,7 +40,7 @@ class TestShellArrayToolSchemas:
         state = wrapper.init({})
         schemas = wrapper.get_tool_schemas(state)
         
-        props = schemas[0]["parameters"]["properties"]
+        props = schemas[0]["function"]["parameters"]["properties"]
         assert "workdir" in props
         assert props["workdir"]["type"] == "string"
 
@@ -50,7 +50,7 @@ class TestShellArrayToolSchemas:
         state = wrapper.init({})
         schemas = wrapper.get_tool_schemas(state)
         
-        props = schemas[0]["parameters"]["properties"]
+        props = schemas[0]["function"]["parameters"]["properties"]
         assert "timeout_ms" in props
         assert props["timeout_ms"]["type"] == "number"
 
@@ -60,7 +60,7 @@ class TestShellArrayToolSchemas:
         state = wrapper.init({})
         schemas = wrapper.get_tool_schemas(state)
         
-        props = schemas[0]["parameters"]["properties"]
+        props = schemas[0]["function"]["parameters"]["properties"]
         assert "login" not in props
 
     def test_command_is_required(self, tmp_path: Path) -> None:
@@ -69,7 +69,7 @@ class TestShellArrayToolSchemas:
         state = wrapper.init({})
         schemas = wrapper.get_tool_schemas(state)
         
-        required = schemas[0]["parameters"]["required"]
+        required = schemas[0]["function"]["parameters"]["required"]
         assert "command" in required
 
 

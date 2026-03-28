@@ -26,10 +26,10 @@ class TestShellCommandToolSchemas:
         
         assert len(schemas) == 1
         schema = schemas[0]
-        assert schema["name"] == "shell_command"
+        assert schema["function"]["name"] == "shell_command"
         
         # Command should be string type
-        command_prop = schema["parameters"]["properties"]["command"]
+        command_prop = schema["function"]["parameters"]["properties"]["command"]
         assert command_prop["type"] == "string"
 
     def test_schema_has_workdir(self, tmp_path: Path) -> None:
@@ -38,7 +38,7 @@ class TestShellCommandToolSchemas:
         state = wrapper.init({})
         schemas = wrapper.get_tool_schemas(state)
         
-        props = schemas[0]["parameters"]["properties"]
+        props = schemas[0]["function"]["parameters"]["properties"]
         assert "workdir" in props
         assert props["workdir"]["type"] == "string"
 
@@ -48,7 +48,7 @@ class TestShellCommandToolSchemas:
         state = wrapper.init({})
         schemas = wrapper.get_tool_schemas(state)
         
-        props = schemas[0]["parameters"]["properties"]
+        props = schemas[0]["function"]["parameters"]["properties"]
         assert "timeout_ms" in props
         assert props["timeout_ms"]["type"] == "number"
 
@@ -58,7 +58,7 @@ class TestShellCommandToolSchemas:
         state = wrapper.init({})
         schemas = wrapper.get_tool_schemas(state)
         
-        props = schemas[0]["parameters"]["properties"]
+        props = schemas[0]["function"]["parameters"]["properties"]
         assert "login" in props
         assert props["login"]["type"] == "boolean"
 
@@ -68,7 +68,7 @@ class TestShellCommandToolSchemas:
         state = wrapper.init({})
         schemas = wrapper.get_tool_schemas(state)
         
-        required = schemas[0]["parameters"]["required"]
+        required = schemas[0]["function"]["parameters"]["required"]
         assert "command" in required
 
 

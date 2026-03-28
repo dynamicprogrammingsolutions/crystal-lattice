@@ -19,10 +19,17 @@ from agent_core.types import FeaturePlugin
 class CodexVariantFeature(FeaturePlugin):
     """Feature that emits codex-variant tag for Codex models.
     
-    A model is considered a Codex variant if its name ends with "-codex".
+    A model is considered a Codex variant if its name matches a codex pattern.
+    Valid codex model patterns:
+    - Ends with "-codex" (e.g., "openai/gpt-5.2-codex")
+    - Ends with "-codex-mini" (e.g., "openai/gpt-5.1-codex-mini")
+    - Ends with "-codex-max" (e.g., "openai/gpt-5.1-codex-max")
+    
     Examples:
     - "openai/gpt-5.2-codex" → codex-variant
     - "openai/gpt-5.3-codex" → codex-variant
+    - "openai/gpt-5.1-codex-mini" → codex-variant
+    - "openai/gpt-5.1-codex-max" → codex-variant
     - "openai/gpt-5" → not a codex variant
     """
     
@@ -48,9 +55,13 @@ class CodexVariantFeature(FeaturePlugin):
         config: Dict[str, Any],
         models: List[Dict[str, Any]],
     ) -> List[str]:
-        """Return codex-variant tag if model name ends with -codex."""
+        """Return codex-variant tag if model name matches codex pattern."""
         model = config.get("model", "")
-        if isinstance(model, str) and model.endswith("-codex"):
+        if not isinstance(model, str):
+            return []
+        
+        # Check for codex variant patterns
+        if model.endswith("-codex") or model.endswith("-codex-mini") or model.endswith("-codex-max"):
             return ["codex-variant"]
         return []
 

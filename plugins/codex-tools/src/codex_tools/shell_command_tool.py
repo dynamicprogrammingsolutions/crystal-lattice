@@ -77,35 +77,37 @@ class ShellCommandTool(BaseCodexShellTool):
         """Return tool schema matching Codex CLI shell_command."""
         return [{
             "type": "function",
-            "name": "shell_command",
-            "description": (
-                "Runs a shell command and returns its output.\n"
-                "- Always set the `workdir` param when using the shell_command function. "
-                "Do not use `cd` unless absolutely necessary."
-            ),
-            "strict": False,
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "command": {
-                        "type": "string",
-                        "description": "The shell script to execute in the user's default shell",
+            "function": {
+                "name": "shell_command",
+                "description": (
+                    "Runs a shell command and returns its output.\n"
+                    "- Always set the `workdir` param when using the shell_command function. "
+                    "Do not use `cd` unless absolutely necessary."
+                ),
+                "strict": False,
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "command": {
+                            "type": "string",
+                            "description": "The shell script to execute in the user's default shell",
+                        },
+                        "workdir": {
+                            "type": "string",
+                            "description": "The working directory to execute the command in",
+                        },
+                        "timeout_ms": {
+                            "type": "number",
+                            "description": "The timeout for the command in milliseconds",
+                        },
+                        "login": {
+                            "type": "boolean",
+                            "description": "Whether to run the shell with login shell semantics. Defaults to true.",
+                        },
                     },
-                    "workdir": {
-                        "type": "string",
-                        "description": "The working directory to execute the command in",
-                    },
-                    "timeout_ms": {
-                        "type": "number",
-                        "description": "The timeout for the command in milliseconds",
-                    },
-                    "login": {
-                        "type": "boolean",
-                        "description": "Whether to run the shell with login shell semantics. Defaults to true.",
-                    },
+                    "required": ["command"],
+                    "additionalProperties": False,
                 },
-                "required": ["command"],
-                "additionalProperties": False,
             },
         }]
     
@@ -145,7 +147,7 @@ class ShellCommandTool(BaseCodexShellTool):
         Args:
             tool_name: Should be "shell_command"
             arguments: Tool call arguments
-            state: Tool state (not used)
+            state: Tool state from init()
             
         Returns:
             Result dict with success, output, exit_code, etc.
@@ -158,6 +160,11 @@ class ShellCommandTool(BaseCodexShellTool):
             return {"success": False, "error": "command must be a non-empty string"}
         
         workdir = arguments.get("workdir")
+        # Fall back to configured working_directory if workdir not provided
+        if workdir is None:
+            config = state.get("config", {})
+            workdir = config.get("working_directory")
+        
         timeout_ms = arguments.get("timeout_ms")
         login = arguments.get("login", True)  # Default true
         

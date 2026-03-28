@@ -81,34 +81,36 @@ class ShellArrayTool(BaseCodexShellTool):
         """Return tool schema matching Codex CLI shell (array-based)."""
         return [{
             "type": "function",
-            "name": "shell",
-            "description": (
-                "Runs a shell command and returns its output.\n"
-                "- The arguments to `shell` will be passed to execvp(). "
-                "Most terminal commands should be prefixed with [\"bash\", \"-lc\"].\n"
-                "- Always set the `workdir` param when using the shell function. "
-                "Do not use `cd` unless absolutely necessary."
-            ),
-            "strict": False,
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "command": {
-                        "type": "array",
-                        "description": "The command to execute",
-                        "items": {"type": "string"},
+            "function": {
+                "name": "shell",
+                "description": (
+                    "Runs a shell command and returns its output.\n"
+                    "- The arguments to `shell` will be passed to execvp(). "
+                    "Most terminal commands should be prefixed with [\"bash\", \"-lc\"].\n"
+                    "- Always set the `workdir` param when using the shell function. "
+                    "Do not use `cd` unless absolutely necessary."
+                ),
+                "strict": False,
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "command": {
+                            "type": "array",
+                            "description": "The command to execute",
+                            "items": {"type": "string"},
+                        },
+                        "workdir": {
+                            "type": "string",
+                            "description": "The working directory to execute the command in",
+                        },
+                        "timeout_ms": {
+                            "type": "number",
+                            "description": "The timeout for the command in milliseconds",
+                        },
                     },
-                    "workdir": {
-                        "type": "string",
-                        "description": "The working directory to execute the command in",
-                    },
-                    "timeout_ms": {
-                        "type": "number",
-                        "description": "The timeout for the command in milliseconds",
-                    },
+                    "required": ["command"],
+                    "additionalProperties": False,
                 },
-                "required": ["command"],
-                "additionalProperties": False,
             },
         }]
     
@@ -145,6 +147,11 @@ class ShellArrayTool(BaseCodexShellTool):
             return {"success": False, "error": "command array must contain only strings"}
         
         workdir = arguments.get("workdir")
+        # Fall back to configured working_directory if workdir not provided
+        if workdir is None:
+            config = state.get("config", {})
+            workdir = config.get("working_directory")
+        
         timeout_ms = arguments.get("timeout_ms")
         
         # Convert timeout from ms to seconds

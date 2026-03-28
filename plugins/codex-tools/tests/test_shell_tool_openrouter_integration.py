@@ -205,6 +205,18 @@ class TestCodexVariantFeature:
         tags = feature.get_tags({"model": "openai/gpt-5.2-codex"}, [])
         assert tags == ["codex-variant"]
 
+    def test_feature_emits_tag_for_codex_mini_model(self):
+        """Feature should emit codex-variant tag for -codex-mini suffix."""
+        feature = CodexVariantFeature()
+        tags = feature.get_tags({"model": "openai/gpt-5.1-codex-mini"}, [])
+        assert tags == ["codex-variant"]
+
+    def test_feature_emits_tag_for_codex_max_model(self):
+        """Feature should emit codex-variant tag for -codex-max suffix."""
+        feature = CodexVariantFeature()
+        tags = feature.get_tags({"model": "openai/gpt-5.1-codex-max"}, [])
+        assert tags == ["codex-variant"]
+
     def test_feature_no_tag_for_non_codex_model(self):
         """Feature should not emit tag for non-codex model."""
         feature = CodexVariantFeature()
@@ -233,6 +245,8 @@ class TestCodexVariantFeature:
             "openai/gpt-5.2-codex",
             "openai/gpt-5.3-codex",
             "openai/gpt-5.4-codex",
+            "openai/gpt-5.1-codex-mini",
+            "openai/gpt-5.1-codex-max",
         ]
         
         for model in codex_models:

@@ -153,7 +153,8 @@ class ShellTool(ToolPlugin):
     def execute_tool(
         self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
-        if tool_name != "shell_legacy":
+        # Accept both 'shell' (schema name) and 'shell_legacy' (plugin name)
+        if tool_name not in ("shell", "shell_legacy"):
             return {"success": False, "error": f"Unknown tool: {tool_name}"}
 
         config = state.get("config", {})
@@ -389,7 +390,8 @@ class ShellTool(ToolPlugin):
         payloads and finally a RESULT dict containing the full stdout/stderr and
         exit information.
         """
-        if tool_name != "shell_legacy":
+        # Accept both 'shell' (schema name) and 'shell_legacy' (plugin name)
+        if tool_name not in ("shell", "shell_legacy"):
             return
 
         config = state.get("config", {})
