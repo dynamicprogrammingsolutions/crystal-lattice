@@ -63,12 +63,9 @@ Search for patterns in file contents using regular expressions.
 
 ```json
 {
-  "plugins": ["kimi-tools"],
-  "kimi_read_file_tool": {
-    "working_directory": "/path/to/project",
-    "allowed_paths": ["/path/to/project"],
-    "project_temp_dir": "/path/to/project/.temp"
-  },
+  "working_directory": "/path/to/project",
+  "allowed_paths": ["/path/to/project"],
+  "project_temp_dir": "/path/to/project/.temp"
   "shell_timeout_seconds": 60,
   "shell_max_timeout_seconds": 300,
   "shell_clean_env": true

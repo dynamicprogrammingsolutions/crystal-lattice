@@ -14,9 +14,9 @@ from typing import Any, Dict, List
 import pytest
 
 from agent_core import AgentCore
-from codex_tools.shell_array_tool import ShellArrayTool
+from codex_tools.shell_tool import ShellArrayTool
 from codex_tools.shell_command_tool import ShellCommandTool
-from codex_tools.shell_tool import ShellTool
+from codex_tools.shell_tool_legacy import ShellTool
 
 
 class MockProvider:

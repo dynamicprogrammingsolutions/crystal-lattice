@@ -17,9 +17,9 @@ import pytest
 
 from agent_core import AgentCore
 from openrouter_plugins.openrouter_provider import OpenRouterProvider
-from codex_tools.shell_array_tool import ShellArrayTool
+from codex_tools.shell_tool import ShellArrayTool
 from codex_tools.shell_command_tool import ShellCommandTool
-from codex_tools.shell_tool import ShellTool
+from codex_tools.shell_tool_legacy import ShellTool
 from codex_tools.codex_variant_feature import CodexVariantFeature
 
 

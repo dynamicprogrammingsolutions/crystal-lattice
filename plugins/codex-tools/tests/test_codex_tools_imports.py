@@ -6,7 +6,7 @@ from pathlib import Path
 
 def test_can_import_tools() -> None:
     from codex_tools.apply_patch_tool import ApplyPatchTool
-    from codex_tools.shell_tool import ShellTool
+    from codex_tools.shell_tool_legacy import ShellTool
 
     assert ApplyPatchTool.name
     assert ShellTool.name

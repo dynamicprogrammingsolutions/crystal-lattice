@@ -17,8 +17,8 @@ Shell tool selection is controlled by:
 
 from .base_shell_tool import BaseCodexShellTool, DEFAULT_MAX_OUTPUT_TOKENS
 from .shell_command_tool import ShellCommandTool
-from .shell_array_tool import ShellArrayTool
-from .shell_tool import ShellTool
+from .shell_tool import ShellArrayTool
+from .shell_tool_legacy import ShellTool
 from .apply_patch_tool import ApplyPatchTool
 from .codex_variant_feature import CodexVariantFeature
 

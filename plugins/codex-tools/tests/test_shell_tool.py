@@ -1,317 +1,434 @@
-"""Unit tests for ShellTool plugin."""
+"""Tests for ShellArrayTool (array-based shell command)."""
+
+from __future__ import annotations
+
+import platform
+from pathlib import Path
+
+import pytest
 
 from agent_core.plugin import ToolWrapper
-from codex_tools.shell_tool import ShellTool
+from codex_tools.shell_tool import ShellArrayTool
 
 
-def test_shell_tool_runs_basic_command(tmp_path):
-    wrapper = ToolWrapper(ShellTool)
-    state = wrapper.init({"working_directory": str(tmp_path)})
+class TestShellArrayToolSchemas:
+    """Tests for tool schema definition."""
 
-    schemas = wrapper.get_tool_schemas(state)
-    assert schemas and schemas[0]["function"]["name"] == "shell_legacy"
+    def test_tool_name(self) -> None:
+        """Tool name should be shell."""
+        assert ShellArrayTool.name == "shell"
 
-    # Run a very simple, fast command
-    result = wrapper.execute_tool(
-        "shell_legacy",
-        {"command": "echo 'hello from shell'", "workdir": str(tmp_path)},
-        state,
-    )
+    def test_schema_has_array_command(self, tmp_path: Path) -> None:
+        """Schema should define command as array type."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        schemas = wrapper.get_tool_schemas(state)
+        
+        assert len(schemas) == 1
+        schema = schemas[0]
+        assert schema["name"] == "shell"
+        
+        # Command should be array type
+        command_prop = schema["parameters"]["properties"]["command"]
+        assert command_prop["type"] == "array"
+        assert "items" in command_prop
+        assert command_prop["items"]["type"] == "string"
 
-    assert result["success"] is True
-    assert "hello from shell" in result.get("stdout", "")
+    def test_schema_has_workdir(self, tmp_path: Path) -> None:
+        """Schema should include workdir parameter."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        schemas = wrapper.get_tool_schemas(state)
+        
+        props = schemas[0]["parameters"]["properties"]
+        assert "workdir" in props
+        assert props["workdir"]["type"] == "string"
 
-    formatted = wrapper.format_tool_result(result, state)
-    # For a clean success with no stderr and no truncation,
-    # format_tool_result should return just the raw stdout.
-    assert "hello from shell" in formatted
-    assert "Command succeeded" not in formatted
-    assert "STDOUT" not in formatted
+    def test_schema_has_timeout_ms(self, tmp_path: Path) -> None:
+        """Schema should include timeout_ms parameter."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        schemas = wrapper.get_tool_schemas(state)
+        
+        props = schemas[0]["parameters"]["properties"]
+        assert "timeout_ms" in props
+        assert props["timeout_ms"]["type"] == "number"
 
-    display = wrapper.to_display_format(formatted, result, state)
-    assert display.get("type") == "text"
-    assert display.get("single_line") == "echo 'hello from shell'"
+    def test_schema_no_login_param(self, tmp_path: Path) -> None:
+        """Schema should NOT include login parameter (array commands specify shell directly)."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        schemas = wrapper.get_tool_schemas(state)
+        
+        props = schemas[0]["parameters"]["properties"]
+        assert "login" not in props
 
-
-def test_shell_tool_includes_headers_on_failure(tmp_path):
-    wrapper = ToolWrapper(ShellTool)
-    state = wrapper.init({"working_directory": str(tmp_path)})
-
-    # Command that writes to both stdout and stderr and exits non-zero.
-    result = wrapper.execute_tool(
-        "shell_legacy",
-        {
-            "command": "echo 'out'; echo 'err' 1>&2; exit 1",
-            "workdir": str(tmp_path),
-        },
-        state,
-    )
-
-    assert result["success"] is False
-
-    formatted = wrapper.format_tool_result(result, state)
-    assert "Command failed" in formatted or "Command exited with code" in formatted
-    assert "STDOUT:" in formatted
-    assert "STDERR:" in formatted
+    def test_command_is_required(self, tmp_path: Path) -> None:
+        """Command should be in required fields."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        schemas = wrapper.get_tool_schemas(state)
+        
+        required = schemas[0]["parameters"]["required"]
+        assert "command" in required
 
 
-def test_shell_tool_streams_stdout(tmp_path):
-    wrapper = ToolWrapper(ShellTool)
-    state = wrapper.init({"working_directory": str(tmp_path)})
+class TestShellArrayToolExecute:
+    """Tests for tool execution."""
 
-    chunks = list(
-        wrapper.stream_tool(
-            "shell_legacy",
-            {"command": "printf 'a\\n'", "workdir": str(tmp_path)},
+    @pytest.mark.asyncio
+    async def test_basic_echo_array(self, tmp_path: Path) -> None:
+        """Basic echo command with array should succeed."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {"command": ["echo", "hello"]},
             state,
         )
-    )
+        
+        assert result["success"] is True
+        assert result["exit_code"] == 0
+        assert "hello" in result["output"]
 
-    assert chunks, "expected at least one streamed chunk"
-    partials = [
-        p
-        for c in chunks
-        if isinstance(c, dict)
-        for p in [c.get("part")]
-        if isinstance(p, dict)
-    ]
-    assert partials, "expected at least one streamed partial payload"
-    assert any(p.get("type") == "text" for p in partials)
-    assert any("a" in str(p.get("content", "")) for p in partials)
-    # Final RESULT dict should also be present
-    assert any(isinstance(c, dict) and "success" in c for c in chunks)
-
-
-def test_shell_tool_streams_exit_code_and_stderr_at_end(tmp_path):
-    """Streaming output should end with exit code and stderr summary."""
-
-    wrapper = ToolWrapper(ShellTool)
-    state = wrapper.init({"working_directory": str(tmp_path)})
-
-    command = "echo 'out'; echo 'err' 1>&2; exit 1"
-
-    chunks = list(
-        wrapper.stream_tool(
-            "shell_legacy",
-            {"command": command, "workdir": str(tmp_path)},
+    @pytest.mark.asyncio
+    async def test_bash_lc_wrapper(self, tmp_path: Path) -> None:
+        """Command with bash -lc wrapper should work."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {"command": ["bash", "-lc", "echo hello from bash"]},
             state,
         )
-    )
+        
+        assert result["success"] is True
+        assert "hello from bash" in result["output"]
 
-    parts = [c.get("part") for c in chunks if isinstance(c, dict) and "part" in c]
-    texts = [str(p.get("content", "")) for p in parts if isinstance(p, dict)]
-
-    # There should be at least one partial containing the stderr and
-    # exit-code summary near the end of the stream.
-    combined = "\n".join(texts)
-    assert "Command exited with code 1" in combined or "Command failed" in combined
-    assert "STDERR:" in combined
-    assert "err" in combined
-
-
-def _get_final_stream_result(events):
-    results = [e for e in events if isinstance(e, dict) and "success" in e]
-    assert results, "expected a final result payload from stream_tool"
-    return results[-1]
-
-
-def test_shell_tool_stream_respects_max_output_lines_at_limit(tmp_path):
-    """Exactly max_output_lines lines should be preserved without truncation."""
-
-    wrapper = ToolWrapper(ShellTool)
-    # Configure a large line limit and a generous character cap so that
-    # truncation is governed by lines, not characters.
-    state = wrapper.init(
-        {
-            "working_directory": str(tmp_path),
-            "max_output_lines": 8000,
-        }
-    )
-
-    command = "for i in {1..8000}; do echo \"LINE $i\"; done"
-
-    events = list(
-        wrapper.stream_tool(
-            "shell_legacy",
-            {"command": command, "workdir": str(tmp_path)},
+    @pytest.mark.asyncio
+    async def test_exit_code_zero_success(self, tmp_path: Path) -> None:
+        """Exit code 0 should set success=True."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {"command": ["sh", "-c", "exit 0"]},
             state,
         )
-    )
+        
+        assert result["success"] is True
+        assert result["exit_code"] == 0
 
-    final = _get_final_stream_result(events)
-    stdout_text = str(final.get("stdout") or "")
-    lines = stdout_text.splitlines()
-
-    # All 8000 lines from the command output should be present and
-    # there should be no truncation marker.
-    assert final.get("stdout_truncated") is False
-    assert len(lines) == 8000
-    assert lines[0] == "LINE 1"
-    assert lines[-1] == "LINE 8000"
-    assert "... (truncated," not in stdout_text
-
-
-def test_shell_tool_stream_truncates_above_max_output_lines(tmp_path):
-    """More than max_output_lines lines should trigger truncation."""
-
-    wrapper = ToolWrapper(ShellTool)
-    state = wrapper.init(
-        {
-            "working_directory": str(tmp_path),
-            "max_output_lines": 8000,
-        }
-    )
-
-    command = "for i in {1..8001}; do echo \"LINE $i\"; done"
-
-    events = list(
-        wrapper.stream_tool(
-            "shell_legacy",
-            {"command": command, "workdir": str(tmp_path)},
+    @pytest.mark.asyncio
+    async def test_exit_code_nonzero_failure(self, tmp_path: Path) -> None:
+        """Non-zero exit code should set success=False."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {"command": ["sh", "-c", "exit 1"]},
             state,
         )
-    )
+        
+        assert result["success"] is False
+        assert result["exit_code"] == 1
 
-    final = _get_final_stream_result(events)
-    stdout_text = str(final.get("stdout") or "")
-    lines = stdout_text.splitlines()
-
-    # The stored stdout should be truncated: only the first 8000
-    # command-output lines are kept, followed by the truncation note.
-    assert final.get("stdout_truncated") is True
-    assert "LINE 8001" not in stdout_text
-    assert "LINE 1" == lines[0]
-    assert "LINE 8000" == lines[7999]
-    assert any("truncated" in line for line in lines[-2:])
-    assert "... (truncated," in stdout_text
-
-    # Streaming mode should also emit a summary part indicating that
-    # stdout was truncated.
-    summary_parts = [
-        e.get("part")
-        for e in events
-        if isinstance(e, dict) and e.get("part", {}).get("type") == "summary"
-    ]
-    combined_summary = "".join(
-        str(p.get("content", "")) for p in summary_parts if isinstance(p, dict)
-    )
-    assert "STDOUT was truncated" in combined_summary
-
-
-def test_shell_tool_respects_timeout_execute(tmp_path):
-    """Non-streaming execute_tool should enforce the per-call timeout."""
-
-    wrapper = ToolWrapper(ShellTool)
-    state = wrapper.init({"working_directory": str(tmp_path)})
-
-    # This command would normally sleep for 5 seconds; the timeout of 1 second
-    # should cause it to be terminated early.
-    result = wrapper.execute_tool(
-        "shell_legacy",
-        {"command": "sleep 5", "timeout_seconds": 1, "workdir": str(tmp_path)},
-        state,
-    )
-
-    assert result["success"] is False
-    assert result.get("returncode") is None
-    assert "timed out" in (result.get("error") or "")
-    assert result.get("timeout_seconds") == 1
-
-
-def test_shell_tool_respects_timeout_streaming(tmp_path):
-    """Streaming mode should stop emitting once the timeout is reached."""
-
-    wrapper = ToolWrapper(ShellTool)
-    state = wrapper.init({"working_directory": str(tmp_path)})
-
-    # This would print 10 lines over ~10 seconds. A timeout of 2 seconds
-    # should stop the command early, so we never see the later lines.
-    command = "for i in {1..10}; do echo \"Hello $i\"; sleep 1; done"
-
-    events = list(
-        wrapper.stream_tool(
-            "shell_legacy",
-            {"command": command, "timeout_seconds": 2, "workdir": str(tmp_path)},
+    @pytest.mark.asyncio
+    async def test_stderr_capture(self, tmp_path: Path) -> None:
+        """Stderr should be captured in output."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {"command": ["sh", "-c", "echo stderr_msg >&2"]},
             state,
         )
-    )
+        
+        assert result["success"] is True
+        # Stderr should appear in combined output
+        output = result["output"].lower()
+        assert "stderr_msg" in output or "stderr" in output
 
-    # Extract the final RESULT dict and the aggregated stdout it reports.
-    results = [e for e in events if isinstance(e, dict) and "success" in e]
-    assert results, "expected a final result payload from stream_tool"
-    final = results[-1]
-
-    assert final["success"] is False
-    assert final.get("returncode") is None
-    assert "timed out" in (final.get("error") or "")
-
-    stdout_text = str(final.get("stdout") or "")
-    assert "Hello 1" in stdout_text
-    # We should have timed out well before the final iteration.
-    assert "Hello 10" not in stdout_text
-
-
-def test_shell_tool_marks_truncated_output_in_format(tmp_path):
-    """When stdout is truncated, format_tool_result marks it explicitly."""
-
-    wrapper = ToolWrapper(ShellTool)
-    # Force a very small character limit so truncation is guaranteed.
-    state = wrapper.init(
-        {
-            "working_directory": str(tmp_path),
-            "max_output_chars": 16,
-            "max_output_lines": 10,
-        }
-    )
-
-    result = wrapper.execute_tool(
-        "shell_legacy",
-        {"command": "printf 'abcdefghijklmnopqrstuvwxyz'", "workdir": str(tmp_path)},
-        state,
-    )
-
-    assert result["success"] is True
-    # Confirm that truncation metadata is present.
-    assert result.get("stdout_truncated") is True
-
-    formatted = wrapper.format_tool_result(result, state)
-    assert "STDOUT (truncated):" in formatted
-    assert "... (truncated," in formatted
-
-
-def test_shell_tool_stream_truncates_long_single_line_by_char_limit(tmp_path):
-    """Streaming mode should truncate a very long single-line stdout payload."""
-
-    wrapper = ToolWrapper(ShellTool)
-    state = wrapper.init(
-        {
-            "working_directory": str(tmp_path),
-            "max_output_chars": 16,
-            "max_output_lines": 10,
-        }
-    )
-
-    events = list(
-        wrapper.stream_tool(
-            "shell_legacy",
-            {"command": "printf 'abcdefghijklmnopqrstuvwxyz'", "workdir": str(tmp_path)},
+    @pytest.mark.asyncio
+    async def test_working_directory(self, tmp_path: Path) -> None:
+        """Command should run in specified working directory."""
+        # Create a subdirectory with a test file
+        subdir = tmp_path / "subdir"
+        subdir.mkdir()
+        test_file = subdir / "test.txt"
+        test_file.write_text("content")
+        
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {"command": ["ls"], "workdir": str(subdir)},
             state,
         )
-    )
+        
+        assert result["success"] is True
+        assert "test.txt" in result["output"]
 
-    final = _get_final_stream_result(events)
+    @pytest.mark.asyncio
+    async def test_timeout(self, tmp_path: Path) -> None:
+        """Timeout should kill long-running command."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {"command": ["sleep", "60"], "timeout_ms": 500},
+            state,
+        )
+        
+        assert result["success"] is False
+        assert result["timed_out"] is True
+        assert result["exit_code"] is None
+        # Should complete much faster than 60 seconds
+        assert result["duration_seconds"] < 5.0
 
-    assert final["success"] is True
-    assert final.get("stdout_truncated") is True
-    assert final.get("stdout", "").startswith("abcdefghijklmnop")
-    assert "... (truncated," in str(final.get("stdout") or "")
+    @pytest.mark.asyncio
+    async def test_empty_array_error(self, tmp_path: Path) -> None:
+        """Empty command array should return error."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {"command": []},
+            state,
+        )
+        
+        assert result["success"] is False
+        assert "error" in result
+        assert "empty" in result["error"].lower()
 
-    summary_parts = [
-        e.get("part")
-        for e in events
-        if isinstance(e, dict) and e.get("part", {}).get("type") == "summary"
-    ]
-    combined_summary = "".join(
-        str(p.get("content", "")) for p in summary_parts if isinstance(p, dict)
-    )
-    assert "STDOUT was truncated" in combined_summary
+    @pytest.mark.asyncio
+    async def test_string_command_error(self, tmp_path: Path) -> None:
+        """String command (instead of array) should return error."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {"command": "echo hello"},  # String instead of array
+            state,
+        )
+        
+        assert result["success"] is False
+        assert "error" in result
+        assert "array" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_invalid_tool_name_error(self, tmp_path: Path) -> None:
+        """Invalid tool name should return error."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        
+        result = await wrapper.execute_tool_async(
+            "wrong_tool",
+            {"command": ["echo", "hello"]},
+            state,
+        )
+        
+        assert result["success"] is False
+        assert "Unknown tool" in result.get("error", "")
+
+    @pytest.mark.asyncio
+    async def test_command_not_found(self, tmp_path: Path) -> None:
+        """Non-existent command should fail gracefully."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        
+        # When the command doesn't exist, the subprocess should fail
+        # On Unix, this typically results in exit code 127 or similar
+        # The key thing is success should be False
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {"command": ["nonexistent_command_12345"]},
+            state,
+        )
+        
+        # Should fail (either FileNotFoundError caught or non-zero exit)
+        assert result["success"] is False
+
+
+class TestShellArrayToolFormatting:
+    """Tests for output formatting."""
+
+    @pytest.mark.asyncio
+    async def test_output_has_exit_code(self, tmp_path: Path) -> None:
+        """Output should include exit code line."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {"command": ["echo", "hello"]},
+            state,
+        )
+        
+        assert "Exit code: 0" in result["output"]
+
+    @pytest.mark.asyncio
+    async def test_output_has_wall_time(self, tmp_path: Path) -> None:
+        """Output should include wall time line."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {"command": ["echo", "hello"]},
+            state,
+        )
+        
+        assert "Wall time:" in result["output"]
+        assert "seconds" in result["output"]
+
+    @pytest.mark.asyncio
+    async def test_format_tool_result_returns_output(self, tmp_path: Path) -> None:
+        """format_tool_result should return the output field."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {"command": ["echo", "hello"]},
+            state,
+        )
+        
+        formatted = wrapper.format_tool_result(result, state)
+        assert formatted == result["output"]
+
+    @pytest.mark.asyncio
+    async def test_nonzero_exit_in_output(self, tmp_path: Path) -> None:
+        """Non-zero exit code should be in output."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {"command": ["sh", "-c", "exit 42"]},
+            state,
+        )
+        
+        assert "Exit code: 42" in result["output"]
+
+
+class TestShellArrayToolTruncation:
+    """Tests for output truncation."""
+
+    @pytest.mark.asyncio
+    async def test_short_output_not_truncated(self, tmp_path: Path) -> None:
+        """Short output should not be truncated."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {"command": ["echo", "hello"]},
+            state,
+        )
+        
+        assert result["truncated"] is False
+        assert "Total output lines" not in result["output"]
+
+    @pytest.mark.asyncio
+    async def test_long_output_truncated(self, tmp_path: Path) -> None:
+        """Long output should be truncated at 10K tokens."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        
+        # Generate a lot of output using bash
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {"command": ["bash", "-c", "for i in $(seq 1 5000); do echo \"Line $i with some padding text\"; done"]},
+            state,
+        )
+        
+        # Should be truncated
+        assert result["truncated"] is True
+        # Should have truncation info
+        assert "Total output lines" in result["output"]
+
+
+class TestShellArrayToolStreaming:
+    """Tests for streaming output."""
+
+    def test_streams_output(self, tmp_path: Path) -> None:
+        """stream_tool should yield partial output chunks."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        
+        chunks = list(wrapper.stream_tool(
+            "shell",
+            {"command": ["echo", "hello"]},
+            state,
+        ))
+        
+        # Should have at least one chunk and a final result
+        assert len(chunks) >= 1
+        
+        # Find the final result (has 'success' key)
+        final_results = [c for c in chunks if isinstance(c, dict) and "success" in c]
+        assert len(final_results) >= 1
+        
+        final = final_results[-1]
+        assert final["success"] is True
+        assert "exit_code" in final
+
+    def test_streams_exit_code(self, tmp_path: Path) -> None:
+        """Streaming should include exit code in final result."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        
+        chunks = list(wrapper.stream_tool(
+            "shell",
+            {"command": ["sh", "-c", "exit 1"]},
+            state,
+        ))
+        
+        final_results = [c for c in chunks if isinstance(c, dict) and "success" in c]
+        assert len(final_results) >= 1
+        
+        final = final_results[-1]
+        assert final["success"] is False
+        assert final["exit_code"] == 1
+
+
+class TestShellArrayToolPreview:
+    """Tests for tool call preview."""
+
+    def test_preview_shows_command(self, tmp_path: Path) -> None:
+        """Preview should show the command."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        
+        preview = wrapper.format_tool_call_preview(
+            "shell",
+            {"command": ["echo", "hello", "world"]},
+            state,
+        )
+        
+        # Should show command elements
+        assert "echo" in preview
+
+    def test_preview_long_command_truncated(self, tmp_path: Path) -> None:
+        """Preview should truncate long commands."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        
+        preview = wrapper.format_tool_call_preview(
+            "shell",
+            {"command": ["cmd1", "cmd2", "cmd3", "cmd4", "cmd5"]},
+            state,
+        )
+        
+        # Should show first few elements
+        assert "cmd1" in preview
