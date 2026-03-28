@@ -17,6 +17,7 @@
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/codex-tools"
       ],
+      "shell_tool_mode": "shell_command",
       "codex_personality": "default",
       "codex_developer_messages": [
         {
@@ -120,7 +121,6 @@
       "reasoning_effort": "medium",
       "system_message_enabled": true,
       "plugins": [
-        "path:${env:BUILTIN_PLUGINS}/codex-tools",
         "path:${env:BUILTIN_PLUGINS}/qwen-tools"
       ],
       "disabled_plugins": ["apply_patch"],
@@ -178,7 +178,6 @@
       "reasoning_effort": "medium",
       "system_message_enabled": true,
       "plugins": [
-        "path:${env:BUILTIN_PLUGINS}/codex-tools",
         "path:${env:BUILTIN_PLUGINS}/gemini-tools"
       ],
       "disabled_plugins": ["apply_patch"],
@@ -241,12 +240,10 @@
       "reasoning_effort": "medium",
       "system_message_enabled": true,
       "plugins": [
-        "path:${env:BUILTIN_PLUGINS}/codex-tools",
         "path:${env:BUILTIN_PLUGINS}/grok-tools",
         "path:${env:BUILTIN_PLUGINS}/qwen-tools"
       ],
       "disabled_plugins": [
-        "apply_patch",
         "qwen_read_file_tool",
         "qwen_write_file_tool",
         "qwen_edit_tool"
@@ -305,8 +302,7 @@
       "reasoning_effort": "medium",
       "system_message_enabled": true,
       "plugins": [
-        "path:${env:BUILTIN_PLUGINS}/kimi-tools",
-        "path:${env:BUILTIN_PLUGINS}/codex-tools"
+        "path:${env:BUILTIN_PLUGINS}/kimi-tools"
       ],
       "disabled_plugins": ["apply_patch"],
       "system_message": {
@@ -371,6 +367,7 @@
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/codex-tools"
       ],
+      "shell_tool_mode": "auto",
       "codex_personality": "default",
       "codex_developer_messages": [
         {
