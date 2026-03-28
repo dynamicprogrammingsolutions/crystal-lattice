@@ -378,6 +378,24 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
         items = self._safe_list(raw)
         return [str(t) for t in items]
 
+    def forbidden_tags(self) -> List[str]:  # type: ignore[override]
+        fn = getattr(self.impl, "forbidden_tags", None)
+        raw = fn() if callable(fn) else []
+        items = self._safe_list(raw)
+        return [str(t) for t in items]
+
+    def is_enabled(  # type: ignore[override]
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+        context: Dict[str, Any],
+    ) -> Optional[bool]:
+        fn = getattr(self.impl, "is_enabled", None)
+        if callable(fn):
+            return fn(config, tags, models, context)
+        return None
+
     def to_native_messages(  # type: ignore[override]
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
@@ -535,6 +553,24 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
         items = self._safe_list(raw)
         return [str(t) for t in items]
 
+    def forbidden_tags(self) -> List[str]:  # type: ignore[override]
+        fn = getattr(self.impl, "forbidden_tags", None)
+        raw = fn() if callable(fn) else []
+        items = self._safe_list(raw)
+        return [str(t) for t in items]
+
+    def is_enabled(  # type: ignore[override]
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+        context: Dict[str, Any],
+    ) -> Optional[bool]:
+        fn = getattr(self.impl, "is_enabled", None)
+        if callable(fn):
+            return fn(config, tags, models, context)
+        return None
+
     def get_template(self, config: Dict[str, Any]) -> str:  # type: ignore[override]
         fn = getattr(self.impl, "get_template", None)
         if callable(fn):
@@ -686,6 +722,24 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
         raw = fn() if callable(fn) else []
         items = self._safe_list(raw)
         return [str(t) for t in items]
+
+    def forbidden_tags(self) -> List[str]:  # type: ignore[override]
+        fn = getattr(self.impl, "forbidden_tags", None)
+        raw = fn() if callable(fn) else []
+        items = self._safe_list(raw)
+        return [str(t) for t in items]
+
+    def is_enabled(  # type: ignore[override]
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+        context: Dict[str, Any],
+    ) -> Optional[bool]:
+        fn = getattr(self.impl, "is_enabled", None)
+        if callable(fn):
+            return fn(config, tags, models, context)
+        return None
 
     def get_tool_schemas(  # type: ignore[override]
         self, state: Dict[str, Any]

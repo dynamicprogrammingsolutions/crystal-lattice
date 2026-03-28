@@ -521,7 +521,45 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
     def required_tags(self) -> List[str]:
         """Tags that must be present for this extension to be enabled."""
         return []
- 
+
+    def forbidden_tags(self) -> List[str]:
+        """Tags that must NOT be present for this extension to be enabled.
+
+        If any of these tags are in the available tag set, the extension is disabled.
+        This provides a negative constraint complementary to required_tags.
+        """
+        return []
+
+    def is_enabled(
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+        context: Dict[str, Any],
+    ) -> Optional[bool]:
+        """Return whether this extension should be enabled given the current context.
+
+        This method allows extensions to implement complex enablement logic that
+        goes beyond simple tag matching. It receives the full runtime context
+        including configuration, computed tags, model descriptors, and information
+        about other enabled plugins.
+
+        Args:
+            config: Effective configuration for the current request.
+            tags: Capability tags computed for this config.
+            models: Model descriptors computed for this config.
+            context: Additional context including:
+                - "enabled_plugin_ids": dict mapping plugin kind to list of enabled plugin ids
+                - "disabled_plugins": config-level disabled plugin id list
+                - "force_enabled_plugins": config-level force-enabled plugin id list
+
+        Returns:
+            True: extension is enabled (bypass required_tags/forbidden_tags check)
+            False: extension is disabled
+            None: fall back to required_tags/forbidden_tags check (default)
+        """
+        return None
+
     # Stateless transforms
     def to_native_messages(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
@@ -769,7 +807,45 @@ class FeaturePlugin(BasePlugin, Protocol):
     def required_tags(self) -> List[str]:
         """Tags that must be present for this feature to be enabled."""
         return []
- 
+
+    def forbidden_tags(self) -> List[str]:
+        """Tags that must NOT be present for this feature to be enabled.
+
+        If any of these tags are in the available tag set, the feature is disabled.
+        This provides a negative constraint complementary to required_tags.
+        """
+        return []
+
+    def is_enabled(
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+        context: Dict[str, Any],
+    ) -> Optional[bool]:
+        """Return whether this feature should be enabled given the current context.
+
+        This method allows features to implement complex enablement logic that
+        goes beyond simple tag matching. It receives the full runtime context
+        including configuration, computed tags, model descriptors, and information
+        about other enabled plugins.
+
+        Args:
+            config: Effective configuration for the current request.
+            tags: Capability tags computed for this config.
+            models: Model descriptors computed for this config.
+            context: Additional context including:
+                - "enabled_plugin_ids": dict mapping plugin kind to list of enabled plugin ids
+                - "disabled_plugins": config-level disabled plugin id list
+                - "force_enabled_plugins": config-level force-enabled plugin id list
+
+        Returns:
+            True: feature is enabled (bypass required_tags/forbidden_tags check)
+            False: feature is disabled
+            None: fall back to required_tags/forbidden_tags check (default)
+        """
+        return None
+
     # Stateless transforms
     def to_native_messages(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
@@ -1019,6 +1095,44 @@ class ToolPlugin(BasePlugin, Protocol):
     def required_tags(self) -> List[str]:
         """Tags that must be present for this tool to be exposed."""
         return []
+
+    def forbidden_tags(self) -> List[str]:
+        """Tags that must NOT be present for this tool to be exposed.
+
+        If any of these tags are in the available tag set, the tool is disabled.
+        This provides a negative constraint complementary to required_tags.
+        """
+        return []
+
+    def is_enabled(
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+        context: Dict[str, Any],
+    ) -> Optional[bool]:
+        """Return whether this tool should be enabled given the current context.
+
+        This method allows tools to implement complex enablement logic that
+        goes beyond simple tag matching. It receives the full runtime context
+        including configuration, computed tags, model descriptors, and information
+        about other enabled plugins.
+
+        Args:
+            config: Effective configuration for the current request.
+            tags: Capability tags computed for this config.
+            models: Model descriptors computed for this config.
+            context: Additional context including:
+                - "enabled_plugin_ids": dict mapping plugin kind to list of enabled plugin ids
+                - "disabled_plugins": config-level disabled plugin id list
+                - "force_enabled_plugins": config-level force-enabled plugin id list
+
+        Returns:
+            True: tool is enabled (bypass required_tags/forbidden_tags check)
+            False: tool is disabled
+            None: fall back to required_tags/forbidden_tags check (default)
+        """
+        return None
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return OpenAI-style function definitions provided by this tool.

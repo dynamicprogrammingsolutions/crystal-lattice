@@ -62,6 +62,20 @@ class ExtensionWrapper(ProviderExtensionPlugin):
         """Tags required for this extension to be enabled."""
         return self.plugin.required_tags()
 
+    def forbidden_tags(self) -> List[str]:
+        """Tags that must NOT be present for this extension to be enabled."""
+        return self.plugin.forbidden_tags()
+
+    def is_enabled(
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+        context: Dict[str, Any],
+    ) -> Optional[bool]:
+        """Return whether this extension should be enabled given the context."""
+        return self.plugin.is_enabled(config, tags, models, context)
+
     # Stateless transforms
     def to_native_messages(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]

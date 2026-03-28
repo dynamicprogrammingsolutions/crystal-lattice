@@ -63,6 +63,20 @@ class ToolWrapper(ToolPlugin):
         """Tags required for this tool to be exposed."""
         return self.plugin.required_tags()
 
+    def forbidden_tags(self) -> List[str]:
+        """Tags that must NOT be present for this tool to be exposed."""
+        return self.plugin.forbidden_tags()
+
+    def is_enabled(
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+        context: Dict[str, Any],
+    ) -> Optional[bool]:
+        """Return whether this tool should be enabled given the context."""
+        return self.plugin.is_enabled(config, tags, models, context)
+
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Get tool schemas via plugin; requires initialized state."""
         if self.state is None:

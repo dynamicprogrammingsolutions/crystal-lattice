@@ -59,6 +59,20 @@ class FeatureWrapper(FeaturePlugin):
         """Tags required for this feature to be enabled."""
         return self.plugin.required_tags()
 
+    def forbidden_tags(self) -> List[str]:
+        """Tags that must NOT be present for this feature to be enabled."""
+        return self.plugin.forbidden_tags()
+
+    def is_enabled(
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+        context: Dict[str, Any],
+    ) -> Optional[bool]:
+        """Return whether this feature should be enabled given the context."""
+        return self.plugin.is_enabled(config, tags, models, context)
+
     def get_template(self, config: Dict[str, Any]) -> str:
         """Return a feature-specific template string, if any."""
         return self.plugin.get_template(config)

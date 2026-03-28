@@ -1,10 +1,13 @@
 """
 ShellTool plugin: execute shell commands in a Codex-style sandboxed environment.
 
-This tool exposes a `shell` function that runs commands via
+This tool exposes a `shell_legacy` function that runs commands via
 `["bash", "-lc", command]` with an explicit working directory.
 It is inspired by the Codex shell tool semantics described in
 SHELL_TOOL_RESEARCH.md.
+
+This is the legacy shell tool, disabled by default. Use enabled_plugins
+config key to enable it when needed.
 """
 
 from __future__ import annotations
@@ -22,8 +25,14 @@ MAX_OUTPUT_LINES_DEFAULT = 2000
 HAD_CHAR_LIMIT_PER_LINE = 80
 
 class ShellTool(ToolPlugin):
-    name: str = "shell"
+    """Legacy shell tool - disabled by default.
+    
+    Use 'enabled_plugins' config key to enable this tool when needed.
+    For new projects, prefer ShellArrayTool (shell) or ShellCommandTool (shell_command).
+    """
+    name: str = "shell_legacy"
     version: str = "1.0.0"
+    default_enabled: bool = False  # Opt-in only
 
     def get_config_schema(self) -> Dict[str, Any]:
         return {
@@ -81,10 +90,11 @@ class ShellTool(ToolPlugin):
             {
                 "type": "function",
                 "function": {
-                    "name": "shell",
+                    "name": "shell_legacy",
                     "description": (
                         "Execute a shell command using bash -lc in a sandboxed "
-                        "working directory. Always prefer setting workdir explicitly."
+                        "working directory. Always prefer setting workdir explicitly. "
+                        "This is the legacy shell tool; prefer 'shell' or 'shell_command' for new projects."
                     ),
                     "parameters": {
                         "type": "object",
@@ -131,7 +141,7 @@ class ShellTool(ToolPlugin):
         arguments: Dict[str, Any],
         state: Dict[str, Any],
     ) -> str:
-        if tool_name != "shell":
+        if tool_name != "shell_legacy":
             return ""
         command = arguments.get("command", "")
         if isinstance(command, str) and command.strip():
@@ -142,7 +152,7 @@ class ShellTool(ToolPlugin):
     def execute_tool(
         self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
-        if tool_name != "shell":
+        if tool_name != "shell_legacy":
             return {"success": False, "error": f"Unknown tool: {tool_name}"}
 
         config = state.get("config", {})
@@ -378,7 +388,7 @@ class ShellTool(ToolPlugin):
         payloads and finally a RESULT dict containing the full stdout/stderr and
         exit information.
         """
-        if tool_name != "shell":
+        if tool_name != "shell_legacy":
             return
 
         config = state.get("config", {})

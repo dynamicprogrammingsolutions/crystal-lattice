@@ -48,6 +48,34 @@ class ShellArrayTool(BaseCodexShellTool):
     """
     
     name: str = "shell"
+    default_enabled: bool = True
+    
+    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
+        """Advertise this tool's presence for mutual awareness."""
+        return ["shell:array"]
+    
+    def is_enabled(
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+        context: Dict[str, Any],
+    ) -> bool:
+        """Determine if this tool should be enabled based on shell_tool_mode config.
+        
+        Selection logic:
+        - shell_tool_mode == "shell": Always enabled
+        - shell_tool_mode == "shell_command": Always disabled
+        - shell_tool_mode == "auto" (default): Enabled unless codex-variant tag present
+        """
+        mode = config.get("shell_tool_mode", "auto")
+        
+        if mode == "shell":
+            return True
+        if mode == "shell_command":
+            return False
+        # mode == "auto"
+        return "codex-variant" not in tags
     
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return tool schema matching Codex CLI shell (array-based)."""

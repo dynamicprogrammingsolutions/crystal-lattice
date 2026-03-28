@@ -18,8 +18,23 @@ High-level flow:
 1) Select provider for `config`.
 2) Compute `models` for the config.
 3) Compute `tags` from the provider and enabled plugins.
-4) Filter extensions/features/tools by `required_tags()`.
-5) Repeat steps (3–4) until the enabled set stops changing.
+4) Filter extensions/features/tools using `is_enabled()`, `required_tags()`, and `forbidden_tags()`.
+5) Apply `force_enabled_plugins` config override.
+6) Repeat steps (3–5) until the enabled set stops changing.
+
+### Plugin enablement methods
+
+Plugins can control their enablement through several mechanisms:
+
+- **`required_tags()`**: Tags that must ALL be present for the plugin to be enabled.
+- **`forbidden_tags()`**: Tags that must NOT be present for the plugin to be enabled.
+- **`is_enabled(config, tags, models, context)`**: Custom method returning `True`/`False`/`None`.
+  - Returns `True`: plugin is enabled (bypasses tag checks)
+  - Returns `False`: plugin is disabled
+  - Returns `None`: fall back to `required_tags()`/`forbidden_tags()` check
+
+- **`force_enabled_plugins` config**: List of plugin IDs to always enable, overriding `is_enabled()` results.
+- **`default_enabled` attribute**: Class attribute (`True`/`False`) for opt-in plugins. Set to `False` for plugins that require explicit enablement via `enabled_plugins` config.
 
 Pseudocode (simplified):
 
@@ -36,6 +51,27 @@ enabled_exts = list(provider.extensions)
 enabled_feats = list(features)
 enabled_tools = list(tools)
 
+force_enabled = set(config.get("force_enabled_plugins", []))
+
+def check_plugin_enabled(plugin, tags, models, context):
+    # force_enabled_plugins overrides everything
+    if plugin.name in force_enabled:
+        return True
+    
+    # Check is_enabled method
+    result = plugin.is_enabled(config, tags, models, context)
+    if result is True:
+        return True
+    if result is False:
+        return False
+    
+    # Fall back to tag-based check
+    if not set(plugin.required_tags()).issubset(tags):
+        return False
+    if set(plugin.forbidden_tags()).intersection(tags):
+        return False
+    return True
+
 while True:
     tags = set()
     tags |= set(provider.get_tags(config, models))
@@ -43,9 +79,19 @@ while True:
     tags |= set().union(*(feat.get_tags(config, models) for feat in enabled_feats))
     tags |= set().union(*(tool.get_tags(config, models) for tool in enabled_tools))
 
-    next_exts = [ext for ext in enabled_exts if set(ext.required_tags()).issubset(tags)]
-    next_feats = [feat for feat in enabled_feats if set(feat.required_tags()).issubset(tags)]
-    next_tools = [tool for tool in enabled_tools if set(tool.required_tags()).issubset(tags)]
+    context = {
+        "enabled_plugin_ids": {
+            "extensions": [e.name for e in enabled_exts],
+            "features": [f.name for f in enabled_feats],
+            "tools": [t.name for t in enabled_tools],
+        },
+        "disabled_plugins": config.get("disabled_plugins", []),
+        "force_enabled_plugins": list(force_enabled),
+    }
+
+    next_exts = [ext for ext in enabled_exts if check_plugin_enabled(ext, tags, models, context)]
+    next_feats = [feat for feat in enabled_feats if check_plugin_enabled(feat, tags, models, context)]
+    next_tools = [tool for tool in enabled_tools if check_plugin_enabled(tool, tags, models, context)]
 
     if next_exts == enabled_exts and next_feats == enabled_feats and next_tools == enabled_tools:
         break

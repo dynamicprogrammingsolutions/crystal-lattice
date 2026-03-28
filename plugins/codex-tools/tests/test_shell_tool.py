@@ -9,11 +9,11 @@ def test_shell_tool_runs_basic_command(tmp_path):
     state = wrapper.init({"working_directory": str(tmp_path)})
 
     schemas = wrapper.get_tool_schemas(state)
-    assert schemas and schemas[0]["function"]["name"] == "shell"
+    assert schemas and schemas[0]["function"]["name"] == "shell_legacy"
 
     # Run a very simple, fast command
     result = wrapper.execute_tool(
-        "shell",
+        "shell_legacy",
         {"command": "echo 'hello from shell'", "workdir": str(tmp_path)},
         state,
     )
@@ -39,7 +39,7 @@ def test_shell_tool_includes_headers_on_failure(tmp_path):
 
     # Command that writes to both stdout and stderr and exits non-zero.
     result = wrapper.execute_tool(
-        "shell",
+        "shell_legacy",
         {
             "command": "echo 'out'; echo 'err' 1>&2; exit 1",
             "workdir": str(tmp_path),
@@ -61,7 +61,7 @@ def test_shell_tool_streams_stdout(tmp_path):
 
     chunks = list(
         wrapper.stream_tool(
-            "shell",
+            "shell_legacy",
             {"command": "printf 'a\\n'", "workdir": str(tmp_path)},
             state,
         )
@@ -92,7 +92,7 @@ def test_shell_tool_streams_exit_code_and_stderr_at_end(tmp_path):
 
     chunks = list(
         wrapper.stream_tool(
-            "shell",
+            "shell_legacy",
             {"command": command, "workdir": str(tmp_path)},
             state,
         )
@@ -132,7 +132,7 @@ def test_shell_tool_stream_respects_max_output_lines_at_limit(tmp_path):
 
     events = list(
         wrapper.stream_tool(
-            "shell",
+            "shell_legacy",
             {"command": command, "workdir": str(tmp_path)},
             state,
         )
@@ -166,7 +166,7 @@ def test_shell_tool_stream_truncates_above_max_output_lines(tmp_path):
 
     events = list(
         wrapper.stream_tool(
-            "shell",
+            "shell_legacy",
             {"command": command, "workdir": str(tmp_path)},
             state,
         )
@@ -207,7 +207,7 @@ def test_shell_tool_respects_timeout_execute(tmp_path):
     # This command would normally sleep for 5 seconds; the timeout of 1 second
     # should cause it to be terminated early.
     result = wrapper.execute_tool(
-        "shell",
+        "shell_legacy",
         {"command": "sleep 5", "timeout_seconds": 1, "workdir": str(tmp_path)},
         state,
     )
@@ -230,7 +230,7 @@ def test_shell_tool_respects_timeout_streaming(tmp_path):
 
     events = list(
         wrapper.stream_tool(
-            "shell",
+            "shell_legacy",
             {"command": command, "timeout_seconds": 2, "workdir": str(tmp_path)},
             state,
         )
@@ -265,7 +265,7 @@ def test_shell_tool_marks_truncated_output_in_format(tmp_path):
     )
 
     result = wrapper.execute_tool(
-        "shell",
+        "shell_legacy",
         {"command": "printf 'abcdefghijklmnopqrstuvwxyz'", "workdir": str(tmp_path)},
         state,
     )
@@ -293,7 +293,7 @@ def test_shell_tool_stream_truncates_long_single_line_by_char_limit(tmp_path):
 
     events = list(
         wrapper.stream_tool(
-            "shell",
+            "shell_legacy",
             {"command": "printf 'abcdefghijklmnopqrstuvwxyz'", "workdir": str(tmp_path)},
             state,
         )

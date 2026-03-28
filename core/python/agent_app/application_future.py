@@ -293,9 +293,29 @@ class AgentApplication:
                 effective_classes_by_kind
             )
 
+            # Collect plugins with default_enabled=False (disabled by default)
+            plugins_disabled_by_default: Set[str] = set()
+            for kind in ("providers", "extensions", "features", "tools"):
+                for plugin_cls in deduped_classes.get(kind) or []:
+                    plugin_id = self._plugin_id_for_class(plugin_cls)
+                    default_enabled_attr = getattr(plugin_cls, "default_enabled", True)
+                    if default_enabled_attr is False:
+                        plugins_disabled_by_default.add(plugin_id)
+
+            # Get enabled_plugins from agent config (re-enable disabled-by-default plugins)
+            agent_enabled_plugins: Set[str] = set(
+                self._coerce_plugin_ids(
+                    agent_cfg.get("enabled_plugins"),
+                    f"agents.{agent_id}.enabled_plugins",
+                    self._config_errors,
+                )
+            )
+
             disabled_set = set(global_disabled_plugins)
             disabled_set.update(provider_disabled)
             disabled_set.update(agent_disabled_plugins.get(agent_id, []))
+            # Add plugins disabled by default, unless explicitly enabled via enabled_plugins
+            disabled_set.update(plugins_disabled_by_default - agent_enabled_plugins)
 
             all_plugin_ids = self._collect_plugin_ids(deduped_by_id)
             default_enabled_ids = [pid for pid in all_plugin_ids if pid not in disabled_set]

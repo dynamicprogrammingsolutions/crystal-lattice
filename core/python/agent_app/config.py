@@ -169,6 +169,8 @@ def build_agent_config(resolved_config: JsonMapping, agent_id: str) -> Dict[str,
     # be forwarded into the runtime provider/tool config.
     merged.pop("plugins", None)
     merged.pop("disabled_plugins", None)
+    merged.pop("enabled_plugins", None)  # Handled at application layer
+    # Note: force_enabled_plugins is intentionally preserved for core-layer resolution
     return merged
 
 

@@ -1366,10 +1366,23 @@ class AgentCore:
             enabled_tools = [tool for tool in self._tools if tool.name in tool_names]
             return provider, enabled_extensions, enabled_features, enabled_tools, tags
 
-        # Build initial candidates
-        candidate_extensions: List[ExtensionWrapper] = list(provider.extensions)
-        candidate_features: List[FeatureWrapper] = list(self._features)
-        candidate_tools: List[ToolWrapper] = list(self._tools)
+        # Get enabled_plugins from config (re-enable plugins disabled by default)
+        enabled_plugins_set: Set[str] = set(config.get("enabled_plugins") or [])
+        force_enabled_set: Set[str] = set(config.get("force_enabled_plugins") or [])
+
+        # Build initial candidates, respecting default_enabled attribute
+        def _filter_by_default_enabled(plugins: List[Any]) -> List[Any]:
+            result = []
+            for p in plugins:
+                default_enabled = getattr(p.plugin_class, "default_enabled", True)
+                if default_enabled is False and p.name not in enabled_plugins_set and p.name not in force_enabled_set:
+                    continue
+                result.append(p)
+            return result
+
+        candidate_extensions: List[ExtensionWrapper] = _filter_by_default_enabled(list(provider.extensions))
+        candidate_features: List[FeatureWrapper] = _filter_by_default_enabled(list(self._features))
+        candidate_tools: List[ToolWrapper] = _filter_by_default_enabled(list(self._tools))
 
         enabled_extensions = candidate_extensions
         enabled_features = candidate_features
@@ -1429,19 +1442,58 @@ class AgentCore:
                     self._tags_cache = {**self._tags_cache, key: tags}
                 available_tags.update(tags)
 
-            # Filter by required_tags
+            # Get force_enabled_plugins from config
+            force_enabled_set: Set[str] = set(config.get("force_enabled_plugins") or [])
+
+            # Build context for is_enabled calls
+            is_enabled_context: Dict[str, Any] = {
+                "enabled_plugin_ids": {
+                    "extensions": [ext.name for ext in enabled_extensions],
+                    "features": [feat.name for feat in enabled_features],
+                    "tools": [tool.name for tool in enabled_tools],
+                },
+                "disabled_plugins": config.get("disabled_plugins", []),
+                "force_enabled_plugins": list(force_enabled_set),
+            }
+
+            def _check_plugin_enabled(
+                plugin: Any,
+                plugin_tags: List[str],
+            ) -> bool:
+                """Check if a plugin should be enabled using is_enabled or tag-based fallback."""
+                # Check force_enabled first
+                if plugin.name in force_enabled_set:
+                    return True
+
+                # Check is_enabled
+                is_enabled_result = plugin.is_enabled(
+                    config,
+                    list(available_tags),
+                    models,
+                    is_enabled_context,
+                )
+
+                if is_enabled_result is True:
+                    return True
+                if is_enabled_result is False:
+                    return False
+
+                # Fall back to tag-based check
+                if not set(plugin.required_tags()).issubset(available_tags):
+                    return False
+                if set(plugin.forbidden_tags()).intersection(available_tags):
+                    return False
+                return True
+
+            # Filter plugins using is_enabled / required_tags / forbidden_tags
             next_enabled_extensions = [
-                ext
-                for ext in enabled_extensions
-                if set(ext.required_tags()).issubset(available_tags)
+                ext for ext in enabled_extensions if _check_plugin_enabled(ext, list(available_tags))
             ]
             next_enabled_features = [
-                feat
-                for feat in enabled_features
-                if set(feat.required_tags()).issubset(available_tags)
+                feat for feat in enabled_features if _check_plugin_enabled(feat, list(available_tags))
             ]
             next_enabled_tools = [
-                tool for tool in enabled_tools if set(tool.required_tags()).issubset(available_tags)
+                tool for tool in enabled_tools if _check_plugin_enabled(tool, list(available_tags))
             ]
 
             cur_ext_names = [ext.name for ext in enabled_extensions]
