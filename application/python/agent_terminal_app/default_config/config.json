@@ -17,7 +17,7 @@
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/codex-tools"
       ],
-      "shell_tool_mode": "shell_command",
+      "shell_tool_mode": "auto",
       "codex_personality": "default",
       "codex_developer_messages": [
         {

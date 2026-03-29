@@ -179,7 +179,9 @@ Key observations:
 
 ### Phase 2.5: Context compaction
 
-- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/220-gemini-compaction-and-session-summary.md` — Implement Gemini-like live compaction and previous-session summary behavior
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/220-gemini-compaction-plugin.md` — Stage 1: Application-level manual compaction plugin
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/221-feature-plugin-context.md` — Stage 2: Feature plugin with layered context (core/app/terminal)
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/222-lifecycle-auto-compaction.md` — Stage 3: Lifecycle-triggered auto-compaction
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/230-qwen-compaction-and-checkpoint-replay.md` — Implement Qwen-like compaction and checkpoint replay behavior
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/240-kimi-compaction-and-checkpoints.md` — Implement Kimi-like compaction, checkpoints, and D-Mail-adjacent context management behavior where applicable
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/250-shared-compaction-helpers.md` — Shared compaction helpers and cross-vendor implementation notes
