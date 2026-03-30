@@ -232,6 +232,11 @@ class ShellCommandTool(BaseCodexShellTool):
             return
         
         workdir = arguments.get("workdir")
+        # Fall back to configured working_directory if workdir not provided
+        if workdir is None:
+            config = state.get("config", {})
+            workdir = config.get("working_directory")
+        
         timeout_ms = arguments.get("timeout_ms")
         login = arguments.get("login", True)
         

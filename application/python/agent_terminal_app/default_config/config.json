@@ -515,6 +515,16 @@
       "allowed_paths": ["."],
       "max_output_chars": 10000,
       "working_directory": "."
+    },
+    "zai": {
+      "provider": "reference_openai_compatible",
+      "base_url": "https://api.z.ai/api/paas/v4",
+      "api_key": "${env:ZAI_API_KEY}",
+      "model": "glm-4.5-air",
+      "timeout": 180,
+      "allowed_paths": ["."],
+      "max_output_chars": 10000,
+      "working_directory": "."
     }
   },
   "plugins": [
@@ -598,7 +608,22 @@
     },
     "fireworks": {
       "provider": "fireworks",
-      "model": "fireworks/qwen3-8b"
+      "model": "fireworks/qwen3-8b",
+      "request_options__reasoning_history": "preserved",
+      "request_options": {
+        "reasoning_history": "preserved"
+      },
+      "request_options_ui": {
+        "reasoning_history": ["disabled", "interleaved", "preserved"]
+      }
+    },
+    "zai": {
+      "provider": "zai",
+      "model": "glm-4.5-air",
+      "thinking": {
+        "type": "enabled",
+        "clear_thinking": false
+      }
     }
   }
 }

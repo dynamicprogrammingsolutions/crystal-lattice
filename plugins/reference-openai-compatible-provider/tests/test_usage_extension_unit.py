@@ -105,6 +105,11 @@ def test_usage_extension_exposes_openrouter_style_ui_elements():
         },
         {
             "ui_type": "message_footer",
+            "data": "metadata.usage_turn_reasoning_tokens_cumulative_formatted",
+            "template": "turn reasoning: {{data}}",
+        },
+        {
+            "ui_type": "message_footer",
             "data": "metadata.usage_turn_input_tokens_cumulative_formatted",
             "template": "turn input: {{data}}",
         },
@@ -174,6 +179,7 @@ def test_usage_extension_normalizes_cached_and_cost_fields_with_turn_totals():
 
     assert tool_metadata["usage_total_cost_formatted"] == "$0.000123"
     assert "usage_turn_cost_cumulative_formatted" not in tool_metadata
+    assert tool_metadata["usage_turn_reasoning_tokens_cumulative_formatted"] == "3"
     assert final_metadata["usage_cached_tokens"] == 256
     assert final_metadata["usage_cached_tokens_formatted"] == "256"
     assert final_metadata["usage_prompt_tokens_formatted"] == "1,200"
@@ -205,6 +211,36 @@ def test_usage_extension_captures_streaming_usage_into_partial_state():
         "completion_tokens": 2,
         "total_tokens": 5,
     }
+
+
+def test_usage_extension_finalize_preserves_native_history_when_no_final_messages():
+    ext = OpenAICompatibleUsageExtension()
+    native_messages = [
+        {"role": "user", "content": "Use a tool."},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "add", "arguments": "{\"a\":2,\"b\":3}"},
+                }
+            ],
+            "_metadata": {
+                "usage": {
+                    "prompt_tokens": 7,
+                    "completion_tokens": 5,
+                    "total_tokens": 12,
+                }
+            },
+        },
+    ]
+
+    finals, rebuilt_native, _state = ext.finalize([], native_messages, {"config": {}})
+
+    assert finals == []
+    assert rebuilt_native == native_messages
 
 
 def test_provider_call_api_preserves_non_streaming_usage_for_extensions(monkeypatch):

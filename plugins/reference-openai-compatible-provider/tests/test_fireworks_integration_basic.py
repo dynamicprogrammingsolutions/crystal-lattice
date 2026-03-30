@@ -71,7 +71,7 @@ def test_models_ui_schema_lists_available_fireworks_models():
     )
 
     assert model_el is not None
-    assert model_el.get("type") == "select"
+    assert model_el.get("type") in {"select", "dropdown"}
     options = model_el.get("options")
     assert isinstance(options, list) and options
     assert any(

@@ -301,9 +301,19 @@ class ProviderWrapper(ProviderPlugin):
         partials, final_messages, native_returned, new_state = self.plugin.call_api(
             self._last_native_messages, working_state
         )
-        self.state = new_state
         # Merge to full history and track
         full_history = self._merge_history(self._last_native_messages, native_returned)
+
+        # Let extensions finalize non-streaming finals against the full history.
+        pipe = pipeline()
+        final_messages, full_history, new_state = pipe(
+            [ext.finalize for ext in self._iter_extensions()],
+            final_messages,
+            full_history,
+            new_state,
+        )
+
+        self.state = new_state
         self._last_native_messages = full_history
         return partials, final_messages, full_history, self._get_state()
 
