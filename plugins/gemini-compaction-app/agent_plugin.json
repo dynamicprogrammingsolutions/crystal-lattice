@@ -1,0 +1,10 @@
+{
+  "module": "gemini_compaction_app",
+  "subdirectory": ".",
+  "entries": [
+    "gemini_compaction_app.GeminiCompactionAppPlugin"
+  ],
+  "kinds": {
+    "gemini_compaction_app.GeminiCompactionAppPlugin": "application"
+  }
+}

@@ -452,6 +452,19 @@ export class RestAgentBackend implements AgentBackend {
     return elements;
   }
 
+  async getSessionApplicationUiSchema(
+    sessionId: string,
+    params: { pluginId?: string } = {},
+  ): Promise<ApplicationUiElement[]> {
+    const query = buildQuery({ plugin: params.pluginId });
+    const resp = await this.transport.request<{ elements?: ApplicationUiElement[] }>({
+      method: 'GET',
+      path: `/sessions/${encodeURIComponent(sessionId)}/application/ui-schema${query}`,
+    });
+    const elements = Array.isArray(resp.data?.elements) ? resp.data.elements : [];
+    return elements;
+  }
+
   async executeAction(params: {
     pluginId: string;
     actionId: string;

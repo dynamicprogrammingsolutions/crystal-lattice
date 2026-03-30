@@ -949,12 +949,16 @@ class AgentCore:
             new_native_remove = [original_native[j] for j in sorted_remove]
 
         try:
+            # Skip initialize_request for session split operations.
+            # This prevents features like SystemMessageFeature from adding
+            # synthetic messages to partial sessions during split, which
+            # would cause duplicates when the sessions are joined back.
             new_messages_keep, post_init_keep = self._rebuild_core_from_native(
-                new_native_keep, config
+                new_native_keep, config, skip_initialize=True
             )
             if new_native_remove:
                 new_messages_remove, post_init_remove = self._rebuild_core_from_native(
-                    new_native_remove, config
+                    new_native_remove, config, skip_initialize=True
                 )
             else:
                 new_messages_remove = []
@@ -1078,8 +1082,12 @@ class AgentCore:
         native_suffix = suffix.metadata.get("native_messages") or []
         new_native: List[Dict[str, Any]] = list(native_prefix) + list(native_suffix)
 
+        # Skip initialize_request for session join operations.
+        # This prevents features like SystemMessageFeature from adding
+        # synthetic messages during join, which would cause duplicates
+        # if one of the sessions already has a system message.
         rebuilt_messages, post_init_native = self._rebuild_core_from_native(
-            new_native, config or {}
+            new_native, config or {}, skip_initialize=True
         )
 
         new_metadata = dict(prefix.metadata) if isinstance(prefix.metadata, dict) else {}
@@ -1620,6 +1628,8 @@ class AgentCore:
         self,
         native_messages: List[Dict[str, Any]],
         config: Dict[str, Any],
+        *,
+        skip_initialize: bool = False,
     ) -> Tuple[List[Message], List[Dict[str, Any]]]:
         """Rebuild full core messages from provider-native history.
 
@@ -1632,11 +1642,21 @@ class AgentCore:
         ``_metadata`` key and reconstructed by the provider/extensions/
         features in ``from_native_messages``.
 
+        Args:
+            native_messages: Provider-native message dicts to rebuild from.
+            config: Configuration used to resolve provider and plugins.
+            skip_initialize: When True, skip calling ``initialize_request``
+                on provider and features. This should be used for internal
+                session operations (slice, join, insert) that should not
+                trigger request-preparation logic that might add or modify
+                messages (e.g., SystemMessageFeature adding a system message).
+                When False (default), the full request pipeline runs.
+
         Returns:
-            Tuple of (core_messages, post_initialize_native_messages).
-            The native_messages returned is the state after initialize_request
-            pipeline, which may differ from input due to features like
-            SystemMessageFeature adding synthetic messages.
+            Tuple of (core_messages, native_messages).
+            When skip_initialize=False, native_messages is the state after
+            initialize_request pipeline (may differ from input).
+            When skip_initialize=True, native_messages is unchanged from input.
         """
         (
             provider,
@@ -1657,10 +1677,13 @@ class AgentCore:
         )
 
         # Initialize request chains using the adjusted native history.
-        native_messages, state = provider.initialize_request(native_messages, state)
-        for feature in features:
-            native_messages, state = feature.initialize_request(native_messages, state)
-            provider.set_state(state)
+        # Skip this for internal session operations to avoid features like
+        # SystemMessageFeature adding synthetic messages during split/join.
+        if not skip_initialize:
+            native_messages, state = provider.initialize_request(native_messages, state)
+            for feature in features:
+                native_messages, state = feature.initialize_request(native_messages, state)
+                provider.set_state(state)
 
         # Convert native messages back into core messages through the full
         # from-native pipeline.

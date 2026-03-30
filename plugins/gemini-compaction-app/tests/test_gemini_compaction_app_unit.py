@@ -79,26 +79,47 @@ class TestGeminiCompactionAppPlugin:
         assert plugin.name == "gemini_compaction"
         assert plugin.version == "1.0.0"
 
-    def test_get_config_schema(self) -> None:
+    def test_compaction_type_constant(self) -> None:
+        plugin = GeminiCompactionAppPlugin()
+        assert plugin.COMPACTION_TYPE == "gemini"
+
+    def test_get_config_schema_returns_empty(self) -> None:
         plugin = GeminiCompactionAppPlugin()
         schema = plugin.get_config_schema()
+        assert schema == {}
 
-        assert "gemini_compaction_agent_id" in schema
-        assert "gemini_compaction_prompt" in schema
-        assert "gemini_compaction_settings_overrides" in schema
-        assert "gemini_compaction_verification_pass" in schema
+    def test_init_returns_empty_state(self) -> None:
+        plugin = GeminiCompactionAppPlugin()
+        state = plugin.init({})
+        assert state == {}
 
-        # Check verification pass default
-        verification_schema = schema["gemini_compaction_verification_pass"]
-        assert verification_schema.get("type") == "boolean"
-        assert verification_schema.get("default") is True
-
-    def test_get_ui_elements_returns_three_elements(self) -> None:
+    def test_get_ui_elements_filters_by_config_when_provided(self) -> None:
         plugin = GeminiCompactionAppPlugin()
         plugin.init({})
-        elements = plugin.get_ui_elements(plugin._state)
 
+        # When config is None (global endpoint), always return elements
+        elements = plugin.get_ui_elements(plugin._state, config=None)
         assert len(elements) == 3
+
+        # When config is provided and compaction is enabled, return elements
+        config_enabled = {"compaction": {"enabled": True, "type": "gemini"}}
+        elements = plugin.get_ui_elements(plugin._state, config=config_enabled)
+        assert len(elements) == 3
+
+        # When config is provided and compaction is disabled, return empty
+        config_disabled = {"compaction": {"enabled": False, "type": "gemini"}}
+        elements = plugin.get_ui_elements(plugin._state, config=config_disabled)
+        assert elements == []
+
+        # When config is provided but type is not gemini, return empty
+        config_wrong_type = {"compaction": {"enabled": True, "type": "qwen"}}
+        elements = plugin.get_ui_elements(plugin._state, config=config_wrong_type)
+        assert elements == []
+
+    def test_get_ui_elements_returns_correct_structure(self) -> None:
+        plugin = GeminiCompactionAppPlugin()
+        plugin.init({})
+        elements = plugin.get_ui_elements(plugin._state, config=None)
 
         # Check element types
         ui_types = [e.get("ui_type") for e in elements]
@@ -133,77 +154,131 @@ class TestGeminiCompactionAppPlugin:
         assert inputs["session_id"]["required"] is True
         assert inputs["start"]["required"] is False
 
-    def test_init_default_state(self) -> None:
+
+class TestCompactionEnablement:
+    """Tests for _is_compaction_enabled helper."""
+
+    def test_disabled_by_default(self) -> None:
         plugin = GeminiCompactionAppPlugin()
-        state = plugin.init({})
+        # Flattened config: no compaction section
+        config = {}
+        assert plugin._is_compaction_enabled(config) is False
 
-        assert state["agent_id"] is None
-        assert state["prompt"] == _GEMINI_COMPRESSION_PROMPT
-        assert state["settings_overrides"] == {}
-        assert state["verification_pass"] is True
-
-    def test_init_with_custom_agent_id(self) -> None:
+    def test_disabled_when_enabled_false(self) -> None:
         plugin = GeminiCompactionAppPlugin()
-        state = plugin.init(
-            {
-                "application": {
-                    "gemini_compaction_agent_id": "summarizer",
-                }
-            }
-        )
+        # Flattened config: compaction at root level
+        config = {"compaction": {"enabled": False}}
+        assert plugin._is_compaction_enabled(config) is False
 
-        assert state["agent_id"] == "summarizer"
+    def test_disabled_when_type_not_gemini(self) -> None:
+        plugin = GeminiCompactionAppPlugin()
+        # Flattened config: compaction at root level
+        config = {"compaction": {"enabled": True, "type": "qwen"}}
+        assert plugin._is_compaction_enabled(config) is False
 
-    def test_init_with_custom_prompt(self) -> None:
+    def test_disabled_when_type_null(self) -> None:
+        plugin = GeminiCompactionAppPlugin()
+        # Flattened config: compaction at root level
+        config = {"compaction": {"enabled": True, "type": None}}
+        assert plugin._is_compaction_enabled(config) is False
+
+    def test_disabled_when_type_missing(self) -> None:
+        plugin = GeminiCompactionAppPlugin()
+        # Flattened config: compaction at root level
+        config = {"compaction": {"enabled": True}}  # No type
+        assert plugin._is_compaction_enabled(config) is False
+
+    def test_enabled_when_type_gemini(self) -> None:
+        plugin = GeminiCompactionAppPlugin()
+        # Flattened config: compaction at root level
+        config = {"compaction": {"enabled": True, "type": "gemini"}}
+        assert plugin._is_compaction_enabled(config) is True
+
+    def test_disabled_when_compaction_not_dict(self) -> None:
+        plugin = GeminiCompactionAppPlugin()
+        # Flattened config: compaction at root level
+        config = {"compaction": "invalid"}
+        assert plugin._is_compaction_enabled(config) is False
+
+
+class TestCompactionConfig:
+    """Tests for _get_compaction_config helper."""
+
+    def test_default_values_when_missing(self) -> None:
+        plugin = GeminiCompactionAppPlugin()
+        # Flattened config: no compaction section
+        config = {}
+        result = plugin._get_compaction_config(config)
+
+        assert result["enabled"] is False
+        assert result["type"] is None
+        assert result["agent_id"] is None
+        assert result["prompt"] == _GEMINI_COMPRESSION_PROMPT
+        assert result["settings_overrides"] == {}
+        assert result["verification_pass"] is True
+
+    def test_custom_agent_id(self) -> None:
+        plugin = GeminiCompactionAppPlugin()
+        # Flattened config: compaction at root level
+        config = {"compaction": {"agent_id": "summarizer"}}
+        result = plugin._get_compaction_config(config)
+
+        assert result["agent_id"] == "summarizer"
+
+    def test_custom_prompt(self) -> None:
         plugin = GeminiCompactionAppPlugin()
         custom_prompt = "Custom compaction prompt."
-        state = plugin.init(
-            {
-                "application": {
-                    "gemini_compaction_prompt": custom_prompt,
-                }
-            }
-        )
+        # Flattened config: compaction at root level
+        config = {"compaction": {"prompt": custom_prompt}}
+        result = plugin._get_compaction_config(config)
 
-        assert state["prompt"] == custom_prompt
+        assert result["prompt"] == custom_prompt
 
-    def test_init_with_settings_overrides(self) -> None:
+    def test_settings_overrides(self) -> None:
         plugin = GeminiCompactionAppPlugin()
-        state = plugin.init(
-            {
-                "application": {
-                    "gemini_compaction_settings_overrides": {
-                        "model": "gpt-4o-mini",
-                    }
-                }
-            }
-        )
+        # Flattened config: compaction at root level
+        config = {"compaction": {"settings_overrides": {"model": "gpt-4o-mini"}}}
+        result = plugin._get_compaction_config(config)
 
-        assert state["settings_overrides"] == {"model": "gpt-4o-mini"}
+        assert result["settings_overrides"] == {"model": "gpt-4o-mini"}
 
-    def test_init_with_verification_pass_false(self) -> None:
+    def test_verification_pass_false(self) -> None:
         plugin = GeminiCompactionAppPlugin()
-        state = plugin.init(
-            {
-                "application": {
-                    "gemini_compaction_verification_pass": False,
-                }
-            }
-        )
+        # Flattened config: compaction at root level
+        config = {"compaction": {"verification_pass": False}}
+        result = plugin._get_compaction_config(config)
 
-        assert state["verification_pass"] is False
+        assert result["verification_pass"] is False
 
-    def test_init_with_verification_pass_true(self) -> None:
+    def test_verification_pass_true(self) -> None:
         plugin = GeminiCompactionAppPlugin()
-        state = plugin.init(
-            {
-                "application": {
-                    "gemini_compaction_verification_pass": True,
-                }
-            }
-        )
+        # Flattened config: compaction at root level
+        config = {"compaction": {"verification_pass": True}}
+        result = plugin._get_compaction_config(config)
 
-        assert state["verification_pass"] is True
+        assert result["verification_pass"] is True
+
+    def test_full_config(self) -> None:
+        plugin = GeminiCompactionAppPlugin()
+        # Flattened config: compaction at root level
+        config = {
+            "compaction": {
+                "enabled": True,
+                "type": "gemini",
+                "agent_id": "summarizer",
+                "prompt": "Custom prompt",
+                "settings_overrides": {"model": "gpt-4o-mini"},
+                "verification_pass": False,
+            }
+        }
+        result = plugin._get_compaction_config(config)
+
+        assert result["enabled"] is True
+        assert result["type"] == "gemini"
+        assert result["agent_id"] == "summarizer"
+        assert result["prompt"] == "Custom prompt"
+        assert result["settings_overrides"] == {"model": "gpt-4o-mini"}
+        assert result["verification_pass"] is False
 
 
 class TestPrompts:

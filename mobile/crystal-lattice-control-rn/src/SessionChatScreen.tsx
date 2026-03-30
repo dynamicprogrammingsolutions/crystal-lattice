@@ -49,6 +49,7 @@ import {
   useHydrateControllerFromCache,
   useSessionSettingsController,
   useSessionUiSchemaController,
+  useSessionApplicationUiSchemaController,
 } from '@crystal-lattice/frontend-sdk-react';
 import {
   type ApiMessage,
@@ -284,8 +285,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
   const {
     actionsById,
-    sessionActions: pluginSessionActions,
-    messageActions: pluginMessageActions,
     sessionListFields,
   } = useApplicationPlugins();
 
@@ -469,6 +468,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       sessionId,
       enabled: !!(backend && isActive),
     });
+  const { state: sessionAppUiSchemaState } = useSessionApplicationUiSchemaController({
+    backend,
+    cacheKey: connectionId ?? 'default',
+    sessionId,
+    enabled: !!(backend && isActive),
+  });
   useSessionSettingsController({
     backend,
     cacheKey: connectionId ?? 'default',
@@ -477,24 +482,35 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   });
   const uiSchemaElements = sessionUiSchemaState?.elements ?? [];
 
+  // Session-scoped application UI elements (from /sessions/{id}/application/ui-schema)
+  // These are config-aware and filter based on the session's agent config.
+  // Used ONLY for session_action and message_action in the chat context.
+  // Do NOT combine with global application UI elements from useApplicationPlugins().
+  const sessionAppUiElements = sessionAppUiSchemaState?.elements ?? [];
+
+  // Session-scoped actions for chat context (config-aware)
   const visibleSessionActions = useMemo(
     () =>
       mergeSessionScopedActionElements({
-        applicationActions: pluginSessionActions,
+        applicationActions: sessionAppUiElements.filter(
+          (el): el is ActionUiElement => (el as any).ui_type === 'session_action',
+        ),
         uiSchemaElements,
         uiType: 'session_action',
       }),
-    [pluginSessionActions, uiSchemaElements],
+    [sessionAppUiElements, uiSchemaElements],
   );
 
   const visibleMessageActions = useMemo(
     () =>
       mergeSessionScopedActionElements({
-        applicationActions: pluginMessageActions,
+        applicationActions: sessionAppUiElements.filter(
+          (el): el is ActionUiElement => (el as any).ui_type === 'message_action',
+        ),
         uiSchemaElements,
         uiType: 'message_action',
       }),
-    [pluginMessageActions, uiSchemaElements],
+    [sessionAppUiElements, uiSchemaElements],
   );
 
   // const composerAttachmentElements: ComposerAttachmentUiElement[] = useMemo(() => {

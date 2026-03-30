@@ -123,6 +123,9 @@ export { selectLastAssistantMessage, deriveChatStatusBarParts } from './chat/pre
 export type { SessionUiSchemaControllerState } from './uiSchema/sessionUiSchemaController';
 export { SessionUiSchemaController } from './uiSchema/sessionUiSchemaController';
 
+export type { SessionApplicationUiSchemaControllerState } from './uiSchema/sessionApplicationUiSchemaController';
+export { SessionApplicationUiSchemaController } from './uiSchema/sessionApplicationUiSchemaController';
+
 export type {
   SessionSettingsControllerState,
   SessionSettingsStatusTone,

@@ -7,8 +7,13 @@ This plugin provides manual context compaction using Gemini's structured XML
 compacting conversation history, with an optional verification pass that asks
 the model to self-critique and improve its summary.
 
-The implementation follows the pattern established by SummarizeRangeAppPlugin
-but uses Gemini's specific prompt structure and history injection shape.
+Configuration is agent-level with explicit enablement control. The plugin is
+only active when the agent's compaction config has:
+- enabled: true
+- type: "gemini"
+
+This allows different compaction implementations (gemini, qwen, kimi) to
+coexist, each enabled for specific agents.
 """
 
 from typing import Any, Dict, List, Optional, TYPE_CHECKING  # noqa: E402
@@ -155,10 +160,32 @@ _ACKNOWLEDGMENT_MESSAGE = "Got it. Thanks for the additional context!"
 
 
 class GeminiCompactionAppPlugin:
-    """Application-level plugin implementing Gemini-style context compaction."""
+    """Application-level plugin implementing Gemini-style context compaction.
+
+    Configuration is read from the agent config under the ``compaction`` key:
+
+    ```yaml
+    agents:
+      default:
+        compaction:
+          enabled: false          # Must be true to enable
+          type: null              # Must be "gemini" for this plugin
+          agent_id: null          # Optional dedicated summarizer agent
+          prompt: null            # Custom prompt override
+          settings_overrides: {}  # Model/params for compaction requests
+          verification_pass: true # Enable verification pass
+    ```
+
+    The plugin is only active when both ``enabled`` is true and ``type`` is
+    ``"gemini"``. When disabled, ``get_ui_elements()`` returns an empty list,
+    making the plugin invisible in the UI.
+    """
 
     name = "gemini_compaction"
     version = "1.0.0"
+
+    # Constants for type checking
+    COMPACTION_TYPE = "gemini"
 
     def __init__(self) -> None:  # pragma: no cover - trivial initializer
         self._state: Dict[str, Any] = {}
@@ -168,40 +195,9 @@ class GeminiCompactionAppPlugin:
     # ------------------------------------------------------------------
 
     def get_config_schema(self) -> Dict[str, Any]:
-        """Return config schema keys under the top-level ``application`` key."""
+        """Return empty schema - config is read from agent config, not application config."""
 
-        return {
-            "gemini_compaction_agent_id": {
-                "type": "string",
-                "description": (
-                    "Agent id to use for compaction (optional). When not "
-                    "set, the session's agent is used."
-                ),
-            },
-            "gemini_compaction_prompt": {
-                "type": "string",
-                "description": (
-                    "Custom compaction prompt. When not set, the default "
-                    "Gemini <state_snapshot> prompt is used."
-                ),
-            },
-            "gemini_compaction_settings_overrides": {
-                "type": "object",
-                "description": (
-                    "Request settings overrides (for example model or "
-                    "reasoningEffort) applied to compaction requests."
-                ),
-            },
-            "gemini_compaction_verification_pass": {
-                "type": "boolean",
-                "default": True,
-                "description": (
-                    "Whether to perform a verification pass after initial "
-                    "compaction. The verification pass asks the model to "
-                    "critique and improve its own summary."
-                ),
-            },
-        }
+        return {}
 
     def get_ui_elements(
         self,
@@ -210,7 +206,19 @@ class GeminiCompactionAppPlugin:
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
-        """Return UI schema elements for the compaction actions."""
+        """Return UI schema elements for the compaction actions.
+
+        When called via the session-scoped endpoint (GET /sessions/{id}/application/ui-schema),
+        the config parameter contains the session's effective config and we can filter
+        UI elements based on compaction.enabled and compaction.type.
+
+        When called via the global endpoint (GET /application/ui-schema), config is None
+        and we return elements unconditionally (enablement checked at execution time).
+        """
+
+        # If config is provided, filter based on enablement
+        if config is not None and not self._is_compaction_enabled(config):
+            return []
 
         return [
             # Session action: Compact range
@@ -326,48 +334,13 @@ class GeminiCompactionAppPlugin:
         ]
 
     def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:
-        application_cfg = app_config.get("application")
-        if not isinstance(application_cfg, dict):
-            application_cfg = {}
+        """Initialize plugin with application config.
 
-        agent_id_val = application_cfg.get("gemini_compaction_agent_id")
-        prompt_val = application_cfg.get("gemini_compaction_prompt")
-        overrides_val = application_cfg.get("gemini_compaction_settings_overrides")
-        verification_val = application_cfg.get("gemini_compaction_verification_pass")
+        No application-level state is needed; all config is read per-session
+        from the agent config.
+        """
 
-        # Use custom prompt if provided, otherwise use Gemini default
-        if isinstance(prompt_val, str) and prompt_val.strip():
-            prompt = prompt_val.strip()
-        else:
-            prompt = _GEMINI_COMPRESSION_PROMPT
-
-        agent_id: Optional[str]
-        if isinstance(agent_id_val, str) and agent_id_val.strip():
-            agent_id = agent_id_val.strip()
-        else:
-            agent_id = None
-
-        settings_overrides: Dict[str, Any]
-        if isinstance(overrides_val, dict):
-            settings_overrides = dict(overrides_val)
-        else:
-            settings_overrides = {}
-
-        # Default to True if not explicitly set
-        verification_pass = True
-        if isinstance(verification_val, bool):
-            verification_pass = verification_val
-        elif verification_val is not None:
-            # Coerce truthy values
-            verification_pass = bool(verification_val)
-
-        self._state = {
-            "agent_id": agent_id,
-            "prompt": prompt,
-            "settings_overrides": settings_overrides,
-            "verification_pass": verification_pass,
-        }
-        return dict(self._state)
+        return {}
 
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:  # type: ignore[override]
         return [
@@ -400,6 +373,88 @@ class GeminiCompactionAppPlugin:
         raise ValueError(
             f"Unknown action_id {action_id!r} for GeminiCompactionAppPlugin"
         )
+
+    # ------------------------------------------------------------------
+    # Configuration helpers
+    # ------------------------------------------------------------------
+
+    def _is_compaction_enabled(self, base_config: Dict[str, Any]) -> bool:
+        """Check if Gemini compaction is enabled for this agent.
+
+        Returns True only if:
+        - compaction.enabled is True
+        - compaction.type is "gemini"
+
+        Note: base_config is a flattened config from build_agent_config(),
+        so compaction config is at the root level, not nested under 'agent'.
+        """
+
+        compaction_cfg = base_config.get("compaction") or {}
+
+        if not isinstance(compaction_cfg, dict):
+            return False
+
+        enabled = compaction_cfg.get("enabled", False)
+        compaction_type = compaction_cfg.get("type")
+
+        return enabled is True and compaction_type == self.COMPACTION_TYPE
+
+    def _get_compaction_config(
+        self,
+        base_config: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Extract compaction settings from agent base config.
+
+        Returns defaults for any missing keys.
+
+        Note: base_config is a flattened config from build_agent_config(),
+        so compaction config is at the root level, not nested under 'agent'.
+        """
+
+        compaction_cfg = base_config.get("compaction") or {}
+
+        if not isinstance(compaction_cfg, dict):
+            compaction_cfg = {}
+
+        # Extract values with defaults
+        agent_id_val = compaction_cfg.get("agent_id")
+        prompt_val = compaction_cfg.get("prompt")
+        overrides_val = compaction_cfg.get("settings_overrides")
+        verification_val = compaction_cfg.get("verification_pass")
+
+        # Use custom prompt if provided, otherwise use Gemini default
+        if isinstance(prompt_val, str) and prompt_val.strip():
+            prompt = prompt_val.strip()
+        else:
+            prompt = _GEMINI_COMPRESSION_PROMPT
+
+        agent_id: Optional[str]
+        if isinstance(agent_id_val, str) and agent_id_val.strip():
+            agent_id = agent_id_val.strip()
+        else:
+            agent_id = None
+
+        settings_overrides: Dict[str, Any]
+        if isinstance(overrides_val, dict):
+            settings_overrides = dict(overrides_val)
+        else:
+            settings_overrides = {}
+
+        # Default to True if not explicitly set
+        verification_pass = True
+        if isinstance(verification_val, bool):
+            verification_pass = verification_val
+        elif verification_val is not None:
+            verification_pass = bool(verification_val)
+
+        return {
+            "enabled": compaction_cfg.get("enabled", False),
+            "type": compaction_cfg.get("type"),
+            "agent_id": agent_id,
+            "prompt": prompt,
+            "settings_overrides": settings_overrides,
+            "verification_pass": verification_pass,
+        }
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -473,6 +528,17 @@ class GeminiCompactionAppPlugin:
 
         core_orig, base_config_orig, session_orig = ctx
 
+        # Check enablement (should already be checked via UI, but verify)
+        if not self._is_compaction_enabled(base_config_orig):
+            return {
+                "status": "error",
+                "error_type": "disabled",
+                "message": "Gemini compaction is not enabled for this agent.",
+            }
+
+        # Read compaction config from agent config
+        compaction_config = self._get_compaction_config(base_config_orig)
+
         message_count = len(session_orig.messages)
         start_idx, end_idx = _normalize_slice_bounds(message_count, start_int, end_int)
 
@@ -493,10 +559,16 @@ class GeminiCompactionAppPlugin:
                 preserve_last_user = True
                 end_idx = message_count - 1
 
-        # Build the indices to keep (system prefix + range to compact)
-        keep_indices = set(range(system_prefix_end)) | set(range(start_idx, end_idx))
-        all_indices = set(range(message_count))
-        remove_indices = sorted(i for i in all_indices if i not in keep_indices)
+        # Validate that the compaction range excludes system messages
+        if start_idx < system_prefix_end:
+            # Adjust start to skip system prefix
+            start_idx = system_prefix_end
+
+        # Build the indices to REMOVE (the range to compact, excluding system prefix)
+        # We want to compact messages in [start_idx, end_idx), keeping:
+        # - System prefix [0, system_prefix_end)
+        # - Tail after compaction [end_idx, message_count)
+        remove_indices = list(range(start_idx, end_idx))
 
         if not remove_indices:
             return {
@@ -522,7 +594,7 @@ class GeminiCompactionAppPlugin:
 
         # Choose compaction agent: either a dedicated one from config or the
         # current session agent.
-        agent_id_cfg = state.get("agent_id")
+        agent_id_cfg = compaction_config.get("agent_id")
         md_sliced = (
             sliced_for_compact.metadata
             if isinstance(sliced_for_compact.metadata, dict)
@@ -557,7 +629,7 @@ class GeminiCompactionAppPlugin:
             md_overrides2_val if isinstance(md_overrides2_val, dict) else {}
         )
 
-        cfg_overrides_val = state.get("settings_overrides")
+        cfg_overrides_val = compaction_config.get("settings_overrides")
         cfg_overrides: Dict[str, Any] = (
             cfg_overrides_val if isinstance(cfg_overrides_val, dict) else {}
         )
@@ -577,8 +649,8 @@ class GeminiCompactionAppPlugin:
 
         # Run the compaction request
         # TODO: Future enhancement - inject the configured compression prompt
-        # (state.get("prompt") or _GEMINI_COMPRESSION_PROMPT) as a temporary
-        # system message override for the compaction request.
+        # (compaction_config.get("prompt") or _GEMINI_COMPRESSION_PROMPT) as a
+        # temporary system message override for the compaction request.
         # For now, we rely on the agent's configured system message.
         try:
             events = app.send_request(
@@ -616,7 +688,7 @@ class GeminiCompactionAppPlugin:
 
         # Optional verification pass
         final_snapshot = initial_snapshot
-        verification_pass = state.get("verification_pass", True)
+        verification_pass = compaction_config.get("verification_pass", True)
 
         if verification_pass:
             # Append the verification prompt and make a second request
@@ -680,6 +752,18 @@ class GeminiCompactionAppPlugin:
             if preserve_last_user and end_idx2 == message_count2:
                 end_idx2 = message_count2 - 1
 
+            # Calculate system prefix for the latest session
+            system_prefix_end2 = 0
+            for msg in session_latest.messages:
+                if msg.role == "system":
+                    system_prefix_end2 += 1
+                else:
+                    break
+
+            # Adjust start_idx2 to skip system prefix
+            if start_idx2 < system_prefix_end2:
+                start_idx2 = system_prefix_end2
+
             # Build config for editing
             md_latest = (
                 session_latest.metadata
@@ -695,7 +779,8 @@ class GeminiCompactionAppPlugin:
             edit_config = resolve_request_config(base_cfg_latest, md_overrides_latest)
 
             # Step 1: remove the compacted range using slice_session
-            # Keep system prefix and tail (after end_idx2)
+            # Keep system prefix [0, system_prefix_end2) and tail [end_idx2, message_count2)
+            # Remove only the compaction range [start_idx2, end_idx2)
             remove_indices2 = list(range(start_idx2, end_idx2))
             session_after_delete = core_latest.slice_session(
                 session_latest,
