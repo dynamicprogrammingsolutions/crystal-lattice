@@ -11,7 +11,6 @@ import pytest
 from gemini_compaction_app import (
     _normalize_slice_bounds,
     _GEMINI_COMPRESSION_PROMPT,
-    _COMPACT_INSTRUCTION,
     _VERIFICATION_PROMPT,
     _ACKNOWLEDGMENT_MESSAGE,
     GeminiCompactionAppPlugin,
@@ -305,10 +304,6 @@ class TestPrompts:
         # Check for scratchpad instruction
         assert "<scratchpad>" in prompt
 
-    def test_compact_instruction(self) -> None:
-        assert "scratchpad" in _COMPACT_INSTRUCTION
-        assert "<state_snapshot>" in _COMPACT_INSTRUCTION
-
     def test_verification_prompt(self) -> None:
         assert "Critically evaluate" in _VERIFICATION_PROMPT
         assert "state_snapshot" in _VERIFICATION_PROMPT
@@ -326,16 +321,33 @@ class TestPluginHelpers:
         plugin = GeminiCompactionAppPlugin()
         plugin.init({})
 
-        msg = plugin._build_compaction_user_message(None)
-        assert msg == _COMPACT_INSTRUCTION
+        anchor = "Generate a new <state_snapshot> based on the provided history."
+        msg = plugin._build_compaction_user_message(None, anchor)
+        assert anchor in msg
+        assert "First, reason in your scratchpad" in msg
+        assert "generate the updated <state_snapshot>" in msg
 
     def test_build_compaction_user_message_with_instructions(self) -> None:
         plugin = GeminiCompactionAppPlugin()
         plugin.init({})
 
-        msg = plugin._build_compaction_user_message("Focus on the auth module.")
+        anchor = "Generate a new <state_snapshot> based on the provided history."
+        msg = plugin._build_compaction_user_message("Focus on the auth module.", anchor)
         assert "Focus on the auth module." in msg
-        assert _COMPACT_INSTRUCTION in msg
+        assert anchor in msg
+        assert "First, reason in your scratchpad" in msg
+
+    def test_build_compaction_user_message_with_previous_snapshot(self) -> None:
+        plugin = GeminiCompactionAppPlugin()
+        plugin.init({})
+
+        anchor = (
+            "A previous <state_snapshot> exists in the history. "
+            "You MUST integrate all still-relevant information from that snapshot into the new one."
+        )
+        msg = plugin._build_compaction_user_message(None, anchor)
+        assert "previous <state_snapshot>" in msg
+        assert "integrate all still-relevant information" in msg
 
     def test_extract_snapshot_from_response_with_snapshot(self) -> None:
         plugin = GeminiCompactionAppPlugin()
@@ -357,6 +369,58 @@ class TestPluginHelpers:
         assert result is not None
         assert "<state_snapshot>" in result
         assert "</state_snapshot>" in result
+
+    def test_build_anchor_instruction_new_snapshot(self) -> None:
+        plugin = GeminiCompactionAppPlugin()
+        plugin.init({})
+
+        anchor = plugin._build_anchor_instruction(has_previous_snapshot=False)
+        assert "Generate a new <state_snapshot>" in anchor
+        assert "based on the provided history" in anchor
+
+    def test_build_anchor_instruction_previous_snapshot(self) -> None:
+        plugin = GeminiCompactionAppPlugin()
+        plugin.init({})
+
+        anchor = plugin._build_anchor_instruction(has_previous_snapshot=True)
+        assert "previous <state_snapshot>" in anchor
+        assert "integrate all still-relevant information" in anchor
+        assert "Do not lose established constraints" in anchor
+
+    def test_has_previous_snapshot_true(self) -> None:
+        plugin = GeminiCompactionAppPlugin()
+        plugin.init({})
+
+        # Create mock messages with a snapshot
+        class MockMsg:
+            def __init__(self, content: str):
+                self.content = content
+
+        messages = [
+            MockMsg("Hello"),
+            MockMsg("<state_snapshot>\n<overall_goal>Test</overall_goal>\n</state_snapshot>"),
+        ]
+        assert plugin._has_previous_snapshot(messages) is True
+
+    def test_has_previous_snapshot_false(self) -> None:
+        plugin = GeminiCompactionAppPlugin()
+        plugin.init({})
+
+        class MockMsg:
+            def __init__(self, content: str):
+                self.content = content
+
+        messages = [
+            MockMsg("Hello"),
+            MockMsg("No snapshot here"),
+        ]
+        assert plugin._has_previous_snapshot(messages) is False
+
+    def test_has_previous_snapshot_empty_messages(self) -> None:
+        plugin = GeminiCompactionAppPlugin()
+        plugin.init({})
+
+        assert plugin._has_previous_snapshot([]) is False
 
     def test_extract_snapshot_from_response_without_snapshot(self) -> None:
         plugin = GeminiCompactionAppPlugin()

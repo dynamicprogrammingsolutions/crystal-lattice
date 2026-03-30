@@ -140,10 +140,6 @@ The structure MUST be as follows:
 </state_snapshot>
 """.strip()
 
-_COMPACT_INSTRUCTION = (
-    "First, reason in your scratchpad. Then, generate the <state_snapshot>."
-)
-
 _VERIFICATION_PROMPT = (
     "Critically evaluate the <state_snapshot> you just generated. "
     "Did you omit any specific technical details, file paths, tool results, or user constraints "
@@ -463,14 +459,65 @@ class GeminiCompactionAppPlugin:
     def _build_compaction_user_message(
         self,
         instructions: Optional[str],
+        anchor_instruction: str,
     ) -> str:
-        """Build the user message that triggers compaction."""
+        """Build the user message that triggers compaction.
+
+        Args:
+            instructions: Optional custom instructions for compaction focus.
+            anchor_instruction: The anchor instruction based on whether a previous
+                <state_snapshot> exists in the history.
+
+        Returns:
+            The complete user message for compaction.
+        """
         parts = []
         if instructions and instructions.strip():
             parts.append(instructions.strip())
             parts.append("")
-        parts.append(_COMPACT_INSTRUCTION)
+        parts.append(anchor_instruction)
+        parts.append("")
+        parts.append(
+            "First, reason in your scratchpad. Then, generate the updated <state_snapshot>."
+        )
         return "\n".join(parts)
+
+    def _build_anchor_instruction(self, has_previous_snapshot: bool) -> str:
+        """Build the anchor instruction based on previous snapshot presence.
+
+        Gemini CLI uses different anchor instructions depending on whether
+        the history already contains a <state_snapshot> from a previous compaction.
+
+        Args:
+            has_previous_snapshot: Whether the history contains a previous snapshot.
+
+        Returns:
+            The appropriate anchor instruction string.
+        """
+        if has_previous_snapshot:
+            return (
+                "A previous <state_snapshot> exists in the history. "
+                "You MUST integrate all still-relevant information from that snapshot into the new one, "
+                "updating it with the more recent events. "
+                "Do not lose established constraints or critical knowledge."
+            )
+        else:
+            return "Generate a new <state_snapshot> based on the provided history."
+
+    def _has_previous_snapshot(self, messages: List[Any]) -> bool:
+        """Check if messages contain a previous <state_snapshot>.
+
+        Args:
+            messages: List of message objects with a 'content' attribute.
+
+        Returns:
+            True if any message contains <state_snapshot>, False otherwise.
+        """
+        for msg in messages:
+            content = getattr(msg, "content", None)
+            if isinstance(content, str) and "<state_snapshot>" in content:
+                return True
+        return False
 
     def _extract_snapshot_from_response(
         self,
@@ -637,10 +684,31 @@ class GeminiCompactionAppPlugin:
         combined_overrides: Dict[str, Any] = {**md_overrides2, **cfg_overrides}
         config_for_add = resolve_request_config(base_config_compact, combined_overrides)
 
-        # Append the compaction instruction as a user message
-        compaction_instruction = self._build_compaction_user_message(instructions_str)
-        session_with_prompt = core_compact.add_message(
+        # Inject the compression prompt as a system message.
+        # This overrides the agent's normal system message for the compaction request.
+        # Feature plugins that add system messages check for existing system messages
+        # in native history and respect them (they don't add a new one if one exists).
+        compression_prompt = compaction_config.get("prompt") or _GEMINI_COMPRESSION_PROMPT
+        session_with_system = core_compact.add_message(
             session_for_compact,
+            "system",
+            compression_prompt,
+            metadata={"source": "compaction"},
+            config=config_for_add,
+        )
+
+        # Check for previous <state_snapshot> in the messages being compacted.
+        # This determines the anchor instruction for the compaction request.
+        has_previous_snapshot = self._has_previous_snapshot(session_with_system.messages)
+        anchor_instruction = self._build_anchor_instruction(has_previous_snapshot)
+
+        # Build the compaction instruction with anchor instruction
+        compaction_instruction = self._build_compaction_user_message(
+            instructions_str,
+            anchor_instruction,
+        )
+        session_with_prompt = core_compact.add_message(
+            session_with_system,
             "user",
             compaction_instruction,
             metadata=None,

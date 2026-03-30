@@ -707,12 +707,6 @@ compaction_cfg = agent_cfg.get("compaction") or {}
 compaction_cfg = base_config.get("compaction") or {}
 ```
 
-### Known Limitations
-
-1. **System message injection**: The configured compression prompt (`_GEMINI_COMPRESSION_PROMPT`) is not injected as a system message override during compaction. The plugin relies on the agent's configured system message. A future enhancement should inject the compression prompt as a temporary system message override.
-
-2. **Model response format**: Without the system message override, models may not generate the expected XML `<state_snapshot>` format. The test passes as long as the compaction action completes without error.
-
 ### Files Modified
 
 | File | Changes |
@@ -720,4 +714,117 @@ compaction_cfg = base_config.get("compaction") or {}
 | `src/gemini_compaction_app/__init__.py` | Agent-level config, enablement logic, UI filtering |
 | `tests/test_gemini_compaction_app_unit.py` | 47 tests (14 new for enablement) |
 | `tests/test_gemini_compaction_app_openrouter_integration.py` | New integration tests |
+| `README.md` | Updated configuration documentation |
+
+---
+
+## Follow-Up: Fix Compaction Prompts and Anchor Instruction
+
+### Goal
+
+Align the compaction plugin with Gemini CLI's exact behavior for system message injection and anchor instructions.
+
+### Background
+
+Gemini CLI's compaction differs from our initial implementation in two key ways:
+
+1. **System message**: Uses the compression prompt (`<state_snapshot>` format) as the system instruction for the compaction request
+2. **Anchor instruction**: Dynamically adjusts the user message based on whether a previous `<state_snapshot>` exists
+
+### Implementation
+
+#### 1. System Message Injection
+
+**Gemini CLI behavior**:
+```javascript
+systemInstruction: { text: getCompressionPrompt(config) },
+```
+
+**Our fix**: Before the compaction request, add the compression prompt as a system message to the sliced session. Feature plugins that add system messages check for existing system messages in native history and respect them.
+
+```python
+compression_prompt = compaction_config.get("prompt") or _GEMINI_COMPRESSION_PROMPT
+session_with_system = core_compact.add_message(
+    session_for_compact,
+    "system",
+    compression_prompt,
+    metadata={"source": "compaction"},
+    config=config_for_add,
+)
+```
+
+#### 2. Anchor Instruction
+
+**Gemini CLI behavior**: Dynamic anchor instruction based on previous snapshot presence:
+- If previous snapshot: `"A previous <state_snapshot> exists in the history. You MUST integrate all still-relevant information..."`
+- Otherwise: `"Generate a new <state_snapshot> based on the provided history."`
+
+**Our fix**: Added helper methods:
+
+```python
+def _build_anchor_instruction(self, has_previous_snapshot: bool) -> str:
+    if has_previous_snapshot:
+        return (
+            "A previous <state_snapshot> exists in the history. "
+            "You MUST integrate all still-relevant information from that snapshot into the new one, "
+            "updating it with the more recent events. "
+            "Do not lose established constraints or critical knowledge."
+        )
+    else:
+        return "Generate a new <state_snapshot> based on the provided history."
+
+def _has_previous_snapshot(self, messages: List[Any]) -> bool:
+    for msg in messages:
+        content = getattr(msg, "content", None)
+        if isinstance(content, str) and "<state_snapshot>" in content:
+            return True
+    return False
+```
+
+#### 3. Updated User Message Builder
+
+The `_build_compaction_user_message` now accepts an `anchor_instruction` parameter:
+
+```python
+def _build_compaction_user_message(
+    self,
+    instructions: Optional[str],
+    anchor_instruction: str,
+) -> str:
+    parts = []
+    if instructions and instructions.strip():
+        parts.append(instructions.strip())
+        parts.append("")
+    parts.append(anchor_instruction)
+    parts.append("")
+    parts.append(
+        "First, reason in your scratchpad. Then, generate the updated <state_snapshot>."
+    )
+    return "\n".join(parts)
+```
+
+### Comparison with Gemini CLI
+
+| Feature | Gemini CLI | Our Plugin (After Fix) |
+|---------|-----------|------------------------|
+| **System instruction** | `getCompressionPrompt()` injected as `systemInstruction` | ✓ Compression prompt added as system message |
+| **Anchor instruction** | Dynamic based on previous snapshot | ✓ Dynamic based on `_has_previous_snapshot()` |
+| **Compaction user message** | `anchorInstruction + "\n\nFirst, reason..."` | ✓ Same format |
+| **Verification prompt** | ✓ Same | ✓ Same |
+| **Acknowledgment** | `"Got it. Thanks for the additional context!"` | ✓ Same |
+| **History injection shape** | `user(snapshot)` + `assistant(ack)` + tail | ✓ Same |
+
+### Test Results
+
+- **Unit tests**: 49 tests, all passing
+  - 6 new tests for anchor instruction and snapshot detection
+- **Integration tests**: 4 tests, all passing
+- **System message tests**: 4 tests, all passing
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `src/gemini_compaction_app/__init__.py` | Added system message injection, anchor instruction logic, `_build_anchor_instruction()`, `_has_previous_snapshot()`, removed `_COMPACT_INSTRUCTION` constant |
+| `tests/test_gemini_compaction_app_unit.py` | Added 6 tests for new helper methods, updated existing tests |
 | `README.md` | Updated configuration documentation |
