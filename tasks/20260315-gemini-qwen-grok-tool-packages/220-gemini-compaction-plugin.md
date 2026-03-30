@@ -828,3 +828,80 @@ def _build_compaction_user_message(
 | `src/gemini_compaction_app/__init__.py` | Added system message injection, anchor instruction logic, `_build_anchor_instruction()`, `_has_previous_snapshot()`, removed `_COMPACT_INSTRUCTION` constant |
 | `tests/test_gemini_compaction_app_unit.py` | Added 6 tests for new helper methods, updated existing tests |
 | `README.md` | Updated configuration documentation |
+---
+
+## Follow-Up: Fix Verification Session Structure
+
+### Problem
+
+The verification session was including the compaction instruction user message, which Gemini CLI does not include. This caused a structural mismatch:
+
+**Our verification session (before fix)**:
+```
+- System: compression prompt
+- History to compact
+- User: "Generate a new <state_snapshot>..."  <-- EXTRA
+- Assistant: initial snapshot
+- User: verification prompt
+```
+
+**Gemini CLI verification request**:
+```
+- History to compact
+- Model: initial summary
+- User: verification prompt
+(NO compaction instruction)
+```
+
+### Solution
+
+Changed the verification session to use `session_with_system` (which has system + history) instead of `session_with_prompt` (which has system + history + compaction instruction).
+
+**Our verification session (after fix)**:
+```
+- System: compression prompt
+- History to compact
+- Assistant: initial snapshot
+- User: verification prompt
+(NO compaction instruction)
+```
+
+### Code Change
+
+```python
+# BEFORE:
+session_for_verify = core_compact.add_message(
+    session_with_prompt,  # Has compaction instruction
+    "assistant",
+    initial_snapshot,
+    ...
+)
+
+# AFTER:
+session_for_verify = core_compact.add_message(
+    session_with_system,  # No compaction instruction
+    "assistant",
+    initial_snapshot,
+    ...
+)
+```
+
+### Verification Response Handling
+
+Both Gemini CLI and our implementation:
+1. Take the verification response as the final snapshot
+2. The verification scratchpad thinks about "did I miss anything?"
+3. The original compaction scratchpad is discarded
+4. The final snapshot (with verification scratchpad) becomes a user message in the session
+
+This is by design - the verification pass produces the final, best snapshot.
+
+### Test Results
+
+- All 58 tests passing
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `src/gemini_compaction_app/__init__.py` | Fixed verification session to use `session_with_system` instead of `session_with_prompt` |

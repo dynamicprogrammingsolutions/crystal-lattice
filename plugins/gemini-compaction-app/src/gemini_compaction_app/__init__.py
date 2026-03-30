@@ -759,9 +759,12 @@ class GeminiCompactionAppPlugin:
         verification_pass = compaction_config.get("verification_pass", True)
 
         if verification_pass:
-            # Append the verification prompt and make a second request
+            # Build verification session matching Gemini CLI structure:
+            # The verification request should NOT include the compaction instruction,
+            # only: system message + history + assistant(initial) + user(verification prompt)
+            # We use session_with_system which has system + history (no compaction instruction).
             session_for_verify = core_compact.add_message(
-                session_with_prompt,
+                session_with_system,
                 "assistant",
                 initial_snapshot,
                 metadata=None,
