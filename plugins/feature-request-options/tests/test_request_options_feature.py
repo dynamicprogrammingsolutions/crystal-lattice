@@ -67,6 +67,28 @@ def test_request_options_ui_number_becomes_number() -> None:
     assert elements[0]["label"] == "Max Tokens"
 
 
+def test_request_options_ui_boolean_becomes_checkbox() -> None:
+    """Boolean UI leaves become checkbox controls with defaults."""
+    config = {
+        "request_options": {"thinking": {"clear_thinking": False}},
+        "request_options_ui": {
+            "thinking": {
+                "clear_thinking": "boolean",
+            },
+        },
+    }
+
+    feature = RequestOptionsFeature()
+    elements = feature.get_ui_elements(config=config, tags=[], models=[{"id": "test"}])
+
+    assert len(elements) == 1
+    assert elements[0]["type"] == "checkbox"
+    assert elements[0]["key"] == "request_options__thinking__clear_thinking"
+    assert elements[0]["label"] == "Thinking Clear Thinking"
+    assert elements[0]["config_path"] == "request_options.thinking.clear_thinking"
+    assert elements[0]["default"] is False
+
+
 def test_request_options_ui_label_formatting() -> None:
     """Keys are converted from snake_case to Title Case labels."""
     config = {
@@ -88,6 +110,29 @@ def test_request_options_ui_label_formatting() -> None:
     assert keys_to_labels["request_options__simple"] == "Simple"
 
 
+def test_request_options_ui_nested_labels_include_parent_path() -> None:
+    """Nested UI labels include enough path context to be distinguishable."""
+    config = {
+        "request_options": {"thinking": {"type": "enabled", "clear_thinking": False}},
+        "request_options_ui": {
+            "thinking": {
+                "type": ["disabled", "enabled"],
+                "clear_thinking": "checkbox",
+            },
+        },
+    }
+
+    feature = RequestOptionsFeature()
+    elements = feature.get_ui_elements(config=config, tags=[], models=[{"id": "test"}])
+
+    by_key = {el["key"]: el for el in elements}
+    assert by_key["request_options__thinking__type"]["label"] == "Thinking Type"
+    assert by_key["request_options__thinking__type"]["default"] == "enabled"
+    assert by_key["request_options__thinking__type"]["config_path"] == "request_options.thinking.type"
+    assert by_key["request_options__thinking__clear_thinking"]["label"] == "Thinking Clear Thinking"
+    assert by_key["request_options__thinking__clear_thinking"]["default"] is False
+
+
 def test_request_options_ui_ignores_unknown_types() -> None:
     """Unknown value types in request_options_ui are silently skipped."""
     config = {
@@ -106,6 +151,25 @@ def test_request_options_ui_ignores_unknown_types() -> None:
     # Only the valid array option should be present
     assert len(elements) == 1
     assert elements[0]["key"] == "request_options__valid"
+
+
+def test_request_options_ui_nested_unknown_subtree_skipped_gracefully() -> None:
+    """Nested trees with unknown leaf types only emit valid leaves."""
+    config = {
+        "request_options": {},
+        "request_options_ui": {
+            "thinking": {
+                "clear_thinking": "boolean",
+                "invalid": {"nested": object()},
+            },
+        },
+    }
+
+    feature = RequestOptionsFeature()
+    elements = feature.get_ui_elements(config=config, tags=[], models=[{"id": "test"}])
+
+    assert len(elements) == 1
+    assert elements[0]["key"] == "request_options__thinking__clear_thinking"
 
 
 def test_request_options_ui_empty_list_skipped() -> None:
@@ -206,6 +270,32 @@ def test_generate_ui_elements_from_options_static() -> None:
     assert by_key["request_options__number_field"]["label"] == "Number Field"
 
 
+def test_generate_ui_elements_from_options_nested_paths_and_defaults() -> None:
+    """Nested request_options_ui emits flat keys plus nested source metadata."""
+    options = {
+        "thinking": {
+            "type": ["disabled", "enabled"],
+            "clear_thinking": "boolean",
+        }
+    }
+    request_options = {"thinking": {"type": "enabled", "clear_thinking": False}}
+
+    elements = RequestOptionsFeature._generate_ui_elements_from_options(
+        options,
+        key_prefix="request_options__",
+        request_options=request_options,
+    )
+
+    assert len(elements) == 2
+    by_key = {el["key"]: el for el in elements}
+    assert by_key["request_options__thinking__type"]["type"] == "select"
+    assert by_key["request_options__thinking__type"]["config_path"] == "request_options.thinking.type"
+    assert by_key["request_options__thinking__type"]["default"] == "enabled"
+    assert by_key["request_options__thinking__clear_thinking"]["type"] == "checkbox"
+    assert by_key["request_options__thinking__clear_thinking"]["config_path"] == "request_options.thinking.clear_thinking"
+    assert by_key["request_options__thinking__clear_thinking"]["default"] is False
+
+
 def test_request_options_ui_non_string_array_items_filtered() -> None:
     """Non-string items in array values are filtered out."""
     options = {
@@ -291,6 +381,51 @@ def test_init_empty_flat_key_name_ignored() -> None:
     options = new_state["config"]["request_options"]
     assert "temperature" in options
     assert "" not in options  # Empty key not added
+
+
+def test_init_nested_flat_keys_deep_merge_into_request_options() -> None:
+    """Nested flat keys merge into existing nested objects without clobbering siblings."""
+    feature = RequestOptionsFeature()
+
+    config = {
+        "request_options": {
+            "thinking": {
+                "type": "enabled",
+                "clear_thinking": True,
+            },
+            "temperature": 0.2,
+        },
+        "request_options__thinking__clear_thinking": False,
+    }
+    state: Dict[str, Any] = {}
+    new_state = feature.init(config, state)
+
+    options = new_state["config"]["request_options"]
+    assert options["thinking"]["type"] == "enabled"
+    assert options["thinking"]["clear_thinking"] is False
+    assert options["temperature"] == 0.2
+
+
+def test_init_nested_leaf_does_not_replace_parent_object() -> None:
+    """Overriding only clear_thinking must not drop thinking.type."""
+    feature = RequestOptionsFeature()
+
+    config = {
+        "request_options": {
+            "thinking": {
+                "type": "enabled",
+            }
+        },
+        "request_options__thinking__clear_thinking": False,
+    }
+    state: Dict[str, Any] = {}
+    new_state = feature.init(config, state)
+
+    options = new_state["config"]["request_options"]
+    assert options["thinking"] == {
+        "type": "enabled",
+        "clear_thinking": False,
+    }
 
 
 def test_initialize_request_merges_options() -> None:
@@ -396,3 +531,49 @@ def test_full_flow_flat_keys_to_payload() -> None:
     assert payload["temperature"] == "0.9"  # From flat key
     assert payload["max_tokens"] == 1024  # Preserved
     assert payload["top_p"] == 0.95  # From flat key
+
+
+def test_full_flow_nested_flat_keys_to_payload() -> None:
+    """Nested flat UI keys inflate back into nested request payload objects."""
+    feature = RequestOptionsFeature()
+
+    config = {
+        "model": "glm-4.5-air",
+        "request_options": {
+            "thinking": {
+                "type": "enabled",
+            }
+        },
+        "request_options_ui": {
+            "thinking": {
+                "type": ["disabled", "enabled"],
+                "clear_thinking": "boolean",
+            }
+        },
+        "request_options__thinking__clear_thinking": False,
+    }
+
+    state: Dict[str, Any] = {}
+    state = feature.init(config, state)
+
+    cfg = state["config"]
+    assert "request_options__thinking__clear_thinking" not in cfg
+    assert cfg["request_options"]["thinking"] == {
+        "type": "enabled",
+        "clear_thinking": False,
+    }
+
+    state["request"] = {
+        "url": "https://api.z.ai/api/paas/v4/chat/completions",
+        "payload": {"model": "glm-4.5-air"},
+        "headers": {"Authorization": "Bearer token"},
+    }
+
+    native_messages: list[dict] = []
+    _, new_state = feature.initialize_request(native_messages, state)
+
+    payload = new_state["request"]["payload"]
+    assert payload["thinking"] == {
+        "type": "enabled",
+        "clear_thinking": False,
+    }

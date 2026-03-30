@@ -519,6 +519,10 @@
     "zai": {
       "provider": "reference_openai_compatible",
       "base_url": "https://api.z.ai/api/paas/v4",
+      "endpoint_options": {
+        "General": "https://api.z.ai/api/paas/v4",
+        "Coding": "https://api.z.ai/api/coding/paas/v4"
+      },
       "api_key": "${env:ZAI_API_KEY}",
       "model": "glm-4.5-air",
       "timeout": 180,
@@ -609,7 +613,6 @@
     "fireworks": {
       "provider": "fireworks",
       "model": "fireworks/qwen3-8b",
-      "request_options__reasoning_history": "preserved",
       "request_options": {
         "reasoning_history": "preserved"
       },
@@ -620,9 +623,16 @@
     "zai": {
       "provider": "zai",
       "model": "glm-4.5-air",
-      "thinking": {
-        "type": "enabled",
-        "clear_thinking": false
+      "request_options": {
+        "thinking": {
+          "type": "enabled",
+          "clear_thinking": false
+        }
+      },
+      "request_options_ui": {
+        "thinking": {
+          "clear_thinking": "boolean"
+        }
       }
     }
   }
