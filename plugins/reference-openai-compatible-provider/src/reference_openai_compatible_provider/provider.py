@@ -218,7 +218,22 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
     """
 
     name = "reference_openai_compatible"
-    version = "0.1.0"
+    version = "0.2.0"
+
+    @staticmethod
+    def _endpoint_options_from_config(config: dict[str, Any]) -> list[dict[str, str]]:
+        raw_options = config.get("endpoint_options")
+        if not isinstance(raw_options, dict):
+            return []
+
+        options: list[dict[str, str]] = []
+        for label, value in raw_options.items():
+            if not isinstance(label, str) or not label:
+                continue
+            if not isinstance(value, str) or not value:
+                continue
+            options.append({"value": value, "label": label})
+        return options
 
     def get_config_schema(self) -> dict[str, Any]:
         return {
@@ -227,6 +242,12 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
                 "required": False,
                 "default": "https://api.openai.com/v1",
                 "description": "OpenAI-compatible base URL (no trailing slash required)",
+            },
+            "endpoint_options": {
+                "type": "object",
+                "required": False,
+                "default": {},
+                "description": "Optional labeled base URL choices for rendering an endpoint selector bound to base_url",
             },
             "model": {"type": "string", "required": True},
             "api_key": {"type": "string", "required": False},
@@ -314,6 +335,20 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
         tags: list[str],
         models: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
+        elements: list[dict[str, Any]] = []
+
+        endpoint_options = self._endpoint_options_from_config(config)
+        if endpoint_options:
+            elements.append(
+                {
+                    "ui_type": "config",
+                    "type": "dropdown",
+                    "key": "base_url",
+                    "label": "Endpoint",
+                    "options": endpoint_options,
+                }
+            )
+
         options: list[dict[str, str]] = []
         for m in models:
             model_id = m.get("id")
@@ -333,9 +368,8 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
         if options:
             model_el["options"] = options
 
-        return [
-            model_el
-        ]
+        elements.append(model_el)
+        return elements
 
     def get_tags(self, config: dict[str, Any], models: list[dict[str, Any]]):
         return [

@@ -70,11 +70,15 @@ These keys are read by `reference_openai_compatible_provider.provider.OpenAIComp
 - `model` (string, required): model id to send in the request payload
 - `base_url` (string): OpenAI-compatible base URL; the provider appends `/chat/completions`
   - default: `https://api.openai.com/v1`
+- `endpoint_options` (object, optional): labeled base URL choices that render an endpoint selector bound to `base_url`
+  - example: `{ "General": "https://api.z.ai/api/paas/v4", "Coding": "https://api.z.ai/api/coding/paas/v4" }`
 - `api_key` (string, optional): bearer token for hosted OpenAI-compatible APIs
 - `timeout` (number, optional): request timeout in seconds
   - default: `60`
 - `debug_stream` (boolean, optional): log decoded streaming chunks as they are received
   - default: `false`
+
+When `endpoint_options` is provided, the provider emits a config UI dropdown for `base_url`. Selecting an option updates `base_url` directly, so model discovery, request URLs, and rate-limit scoping automatically follow the selected endpoint.
 
 ### Request options
 

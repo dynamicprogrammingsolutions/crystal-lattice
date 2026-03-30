@@ -179,3 +179,20 @@ def test_stream_api_retries_429_before_stream_starts(monkeypatch):
         "hel",
         "lo",
     ]
+
+
+def test_initialize_request_uses_selected_base_url_verbatim():
+    provider = OpenAICompatibleProvider()
+    native_messages, state = provider.initialize_request(
+        [],
+        {
+            "config": {
+                "base_url": "https://api.z.ai/api/coding/paas/v4",
+                "model": "glm-4.5-air",
+            }
+        },
+    )
+
+    assert native_messages == []
+    assert state["request"]["url"] == "https://api.z.ai/api/coding/paas/v4/chat/completions"
+    assert state["rate_limit_policy"]["scope_key"] == "https://api.z.ai/api/coding/paas/v4"

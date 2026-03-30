@@ -166,12 +166,12 @@ Key observations:
 
 - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/090-kimi-tools.md` — Kimi core file tools
 - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/095-kimi-system-message.md` — Kimi default system message extraction
-- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/100-shell-tools.md` — Shell tools planning (all four vendors)
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/100-shell-tools.md` — Shell tools planning (all four vendors)
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/101-shell-engine-core.md` — Core engine with asyncio
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/102-shell-engine-truncation.md` — Generic truncation
-  - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/103-shell-engine-background.md` — Background process support
-  - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/104-codex-v2-tool.md` — Codex V2 tool
-  - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/105-vendor-tools.md` — Vendor wrappers
+  - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/103-shell-engine-background.md` — Background process support
+  - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/104-codex-v2-tool.md` — Codex V2 tool
+  - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/105-vendor-tools.md` — Vendor wrappers
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/110-web-fetch-tools.md` — Web fetch tools
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/120-web-search-tools.md` — Web search tools
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/130-todo-tools.md` — Todo tools (all four vendors)
