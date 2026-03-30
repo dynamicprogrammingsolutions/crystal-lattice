@@ -165,39 +165,50 @@ def get_context_limit(model: str, config_overrides: Optional[Dict] = None) -> in
 
 ### Phase 3: Threshold Configuration
 
-**Add to agent config schema**:
+**Add to agent config schema** (extends existing compaction config from Task 220):
 
 ```yaml
-agents:
-  default:
-    provider: openai
-    model: gpt-4o
-    compaction:
-      enabled: true              # Enable auto-compaction
-      threshold: 0.5             # Compact when >= 50% of limit
-      preserve_tail: 0.3         # Keep last 30% uncompressed
-      min_messages: 10           # Minimum messages before considering
-      agent_id: null             # Optional: use different agent for compaction
+# Agent-level config (flattened in base_config)
+compaction:
+  enabled: true              # REQUIRED for plugin to be active
+  type: gemini               # REQUIRED for this plugin (gemini | qwen | kimi)
+  threshold: 0.5             # Auto-compact when >= 50% of limit
+  preserve_tail: 0.3         # Keep last 30% uncompressed
+  min_messages: 10           # Minimum messages before considering
+  agent_id: null             # Optional: use different agent for compaction
+  prompt: null               # Optional: custom prompt override
+  settings_overrides: {}     # Optional: model/params for compaction
+  verification_pass: true    # Optional: enable verification pass (default: true)
 ```
 
-**Config schema in plugin**:
+**Important**: The `base_config` from `AgentApplication` is **flattened**, so access config via:
+```python
+compaction_cfg = base_config.get("compaction") or {}  # NOT base_config.get("agent", {}).get("compaction")
+```
+
+**Enablement Logic**:
+```python
+def _is_compaction_enabled(self, base_config: Dict[str, Any]) -> bool:
+    compaction_cfg = base_config.get("compaction") or {}
+    return compaction_cfg.get("enabled") is True and compaction_cfg.get("type") == "gemini"
+```
+
+**Config extraction helper**:
 
 ```python
-def get_config_schema(self) -> Dict[str, Any]:
+def _get_compaction_config(self, base_config: Dict[str, Any]) -> Dict[str, Any]:
+    compaction_cfg = base_config.get("compaction") or {}
     return {
-        "compaction": {
-            "type": "object",
-            "properties": {
-                "enabled": {
-                    "type": "boolean",
-                    "default": True,
-                    "description": "Enable automatic compaction",
-                },
-                "threshold": {
-                    "type": "number",
-                    "default": 0.5,
-                    "minimum": 0.1,
-                    "maximum": 0.9,
+        "enabled": compaction_cfg.get("enabled", False),
+        "type": compaction_cfg.get("type"),
+        "threshold": compaction_cfg.get("threshold", 0.5),
+        "preserve_tail": compaction_cfg.get("preserve_tail", 0.3),
+        "min_messages": compaction_cfg.get("min_messages", 10),
+        "agent_id": compaction_cfg.get("agent_id"),
+        "prompt": compaction_cfg.get("prompt") or _GEMINI_COMPRESSION_PROMPT,
+        "settings_overrides": compaction_cfg.get("settings_overrides") or {},
+        "verification_pass": compaction_cfg.get("verification_pass", True),
+    }
                     "description": "Compact when token usage >= this fraction of limit",
                 },
                 "preserve_tail": {
@@ -228,7 +239,7 @@ def get_config_schema(self) -> Dict[str, Any]:
 ```python
 def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
     return [
-        # Manual action (existing)
+        # Manual action (existing from Task 221)
         {
             "id": "compact_range",
             "label": "Compact range",
@@ -258,17 +269,20 @@ def execute_action(self, action_id, session, native_messages, params, context, s
 
 def _do_auto_compact(self, session, native_messages, context, state):
     """Check if compaction needed and execute if so."""
-    config = context.get("config", {})
-    compaction_config = config.get("compaction", {})
+    # Get base_config (flattened) - use context["base_config"] if app-level, else context["config"]
+    base_config = context.get("base_config", context.get("config", {}))
     
-    # Check if enabled
-    if not compaction_config.get("enabled", True):
+    # Check enablement using same logic as Task 220
+    if not self._is_compaction_enabled(base_config):
         return {"native_messages": native_messages}
     
+    # Get compaction config
+    compaction_cfg = self._get_compaction_config(base_config)
+    
     # Get thresholds
-    threshold = compaction_config.get("threshold", 0.5)
-    preserve_tail = compaction_config.get("preserve_tail", 0.3)
-    min_messages = compaction_config.get("min_messages", 10)
+    threshold = compaction_cfg.get("threshold", 0.5)
+    preserve_tail = compaction_cfg.get("preserve_tail", 0.3)
+    min_messages = compaction_cfg.get("min_messages", 10)
     
     # Count messages
     message_count = len(native_messages)
@@ -279,8 +293,8 @@ def _do_auto_compact(self, session, native_messages, context, state):
     token_count = estimate_native_token_count(native_messages)
     
     # Get context limit
-    model = config.get("model", "")
-    context_limit = get_context_limit(model, config)
+    model = base_config.get("model", "")
+    context_limit = get_context_limit(model, base_config)
     
     # Check threshold
     usage_ratio = token_count / context_limit
@@ -302,7 +316,7 @@ def _do_auto_compact(self, session, native_messages, context, state):
     if compact_end <= system_count:
         return {"native_messages": native_messages}
     
-    # Execute compaction
+    # Execute compaction using the same implementation as compact_range
     compact_params = {
         "start": system_count,
         "end": compact_end,
@@ -366,23 +380,23 @@ def _do_auto_compact(self, session, native_messages, context, state):
 ## Configuration Reference
 
 ```yaml
-# Agent configuration
-agents:
-  default:
-    provider: openai
-    model: gpt-4o
-    compaction:
-      enabled: true              # Enable automatic compaction
-      threshold: 0.5             # Compact when >= 50% of limit
-      preserve_tail: 0.3         # Keep last 30% uncompressed
-      min_messages: 10           # Minimum messages before considering
-      agent_id: null             # Optional: use different agent
-
-# Application-level overrides
-application:
-  gemini_compaction_agent_id: "summarizer"  # Dedicated summarizer agent
-  gemini_compaction_verification_pass: true  # Enable verification pass
+# Agent-level configuration (flattened in base_config)
+compaction:
+  enabled: true              # REQUIRED for plugin to be active
+  type: gemini               # REQUIRED for this plugin (gemini | qwen | kimi)
+  threshold: 0.5             # Auto-compact when >= 50% of limit
+  preserve_tail: 0.3         # Keep last 30% uncompressed
+  min_messages: 10           # Minimum messages before considering
+  agent_id: null             # Optional: use different agent for compaction
+  prompt: null               # Optional: custom prompt override
+  settings_overrides: {}     # Optional: model/params for compaction
+  verification_pass: true    # Optional: enable verification pass (default: true)
 ```
+
+**Important**: 
+- Config is **agent-level** (not application-level)
+- `base_config` is **flattened**, so access via `base_config.get("compaction")`
+- Both `enabled: true` AND `type: "gemini"` required for Gemini compaction
 
 ## Notes
 

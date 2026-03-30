@@ -156,6 +156,30 @@ context = {
 **Files to create**:
 - `plugins/gemini-compaction-app/src/gemini_compaction_app/feature_plugin.py` - GeminiCompactionFeaturePlugin
 
+**Configuration Structure** (from Task 220):
+```yaml
+# Agent-level config (flattened in base_config)
+compaction:
+  enabled: true           # REQUIRED for plugin to be active
+  type: gemini            # REQUIRED for this plugin (gemini | qwen | kimi)
+  agent_id: null          # Optional: dedicated summarizer agent
+  prompt: null            # Optional: custom prompt override
+  settings_overrides: {}  # Optional: model/params for compaction
+  verification_pass: true # Optional: enable verification pass (default: true)
+```
+
+**Important**: The `base_config` from `AgentApplication` is **flattened**, so access config via:
+```python
+compaction_cfg = base_config.get("compaction") or {}  # NOT base_config.get("agent", {}).get("compaction")
+```
+
+**Enablement Logic**:
+```python
+def _is_compaction_enabled(self, base_config: Dict[str, Any]) -> bool:
+    compaction_cfg = base_config.get("compaction") or {}
+    return compaction_cfg.get("enabled") is True and compaction_cfg.get("type") == "gemini"
+```
+
 **Plugin structure**:
 ```python
 class GeminiCompactionFeaturePlugin(FeaturePlugin):
@@ -172,7 +196,6 @@ class GeminiCompactionFeaturePlugin(FeaturePlugin):
                     "start": {"type": "integer", "required": False},
                     "end": {"type": "integer", "required": False},
                     "instructions": {"type": "string", "required": False},
-                    "agent_id": {"type": "string", "required": False},  # Optional: different agent
                 },
             },
         ]
@@ -183,21 +206,19 @@ class GeminiCompactionFeaturePlugin(FeaturePlugin):
         core = context["core"]
         config = context["config"]
         
-        # Build compaction messages from native_messages
-        compaction_messages = self._build_compaction_messages(native_messages, params)
+        # Check enablement
+        base_config = context.get("base_config", config)
+        if not self._is_compaction_enabled(base_config):
+            return {
+                "native_messages": native_messages,
+                "error": {"type": "disabled", "message": "Gemini compaction not enabled"},
+            }
         
-        if app:
-            # Full capability: can use different agent
-            agent_id = params.get("agent_id")
-            if agent_id:
-                # Use app to switch agent and get config
-                agent_config = context["base_config"].get("agents", {}).get(agent_id)
-                if agent_config:
-                    compaction_core, compaction_config, _ = app.update_agent(agent_id, session)
-                else:
-                    # Fall back to same agent
-                    compaction_core = core
-                    compaction_config = self._modify_config(config, params)
+        # Get compaction config
+        compaction_cfg = self._get_compaction_config(base_config)
+        
+        # Build compaction messages from native_messages
+        # ... implementation ...
             else:
                 compaction_core = core
                 compaction_config = self._modify_config(config, params)
@@ -225,7 +246,78 @@ class GeminiCompactionFeaturePlugin(FeaturePlugin):
         }
 ```
 
-### Phase 4: Layer 3 Tests (Terminal/Server)
+### Phase 4: Key Implementation Details (from Task 220)
+
+The GeminiCompactionFeaturePlugin must match the ApplicationPlugin implementation from Task 220:
+
+#### System Message Injection
+
+```python
+# Add compression prompt as system message to the compaction session
+compression_prompt = compaction_cfg.get("prompt") or _GEMINI_COMPRESSION_PROMPT
+session_with_system = core.add_message(
+    session_for_compact,
+    "system",
+    compression_prompt,
+    metadata={"source": "compaction"},
+    config=config_for_add,
+)
+```
+
+#### Anchor Instruction (Dynamic)
+
+```python
+def _build_anchor_instruction(self, has_previous_snapshot: bool) -> str:
+    if has_previous_snapshot:
+        return (
+            "A previous <state_snapshot> exists in the history. "
+            "You MUST integrate all still-relevant information from that snapshot into the new one, "
+            "updating it with the more recent events. "
+            "Do not lose established constraints or critical knowledge."
+        )
+    return "Generate a new <state_snapshot> based on the provided history."
+
+def _has_previous_snapshot(self, messages: List[Any]) -> bool:
+    for msg in messages:
+        content = getattr(msg, "content", None)
+        if isinstance(content, str) and "<state_snapshot>" in content:
+            return True
+    return False
+```
+
+#### Verification Session Structure
+
+The verification session must NOT include the compaction instruction:
+
+```python
+# CORRECT: Use session_with_system (system + history, no compaction instruction)
+session_for_verify = core.add_message(
+    session_with_system,  # NOT session_with_prompt
+    "assistant",
+    initial_snapshot,
+    metadata=None,
+    config=config_for_add,
+)
+session_for_verify = core.add_message(
+    session_for_verify,
+    "user",
+    _VERIFICATION_PROMPT,
+    metadata=None,
+    config=config_for_add,
+)
+```
+
+#### History Injection Shape
+
+After compaction succeeds:
+```
+[system messages...]
+user: <state_snapshot>...</state_snapshot>
+assistant: Got it. Thanks for the additional context!
+[preserved tail messages...]
+```
+
+### Phase 5: Layer 3 Tests (Terminal/Server)
 
 **Test approach**:
 ```python

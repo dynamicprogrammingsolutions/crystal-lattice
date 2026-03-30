@@ -272,7 +272,7 @@ class GeminiCompactionAppPlugin:
                 "icon": "archive",
                 "order": 25,
                 "action_id": "compact_range",
-                "fixed_params": {"start": 0},
+                "fixed_params": {"start": 0, "end_inclusive": True},
                 "param_map": {
                     "session_id": "$session.session_id",
                     "end": "$message.index",
@@ -351,6 +351,7 @@ class GeminiCompactionAppPlugin:
                     "session_id": {"type": "string", "required": True},
                     "start": {"type": "integer", "required": False},
                     "end": {"type": "integer", "required": False},
+                    "end_inclusive": {"type": "boolean", "required": False},
                     "instructions": {"type": "string", "required": False},
                 },
             }
@@ -563,6 +564,7 @@ class GeminiCompactionAppPlugin:
         start_raw = params.get("start")
         end_raw = params.get("end")
         instructions = params.get("instructions")
+        end_inclusive = params.get("end_inclusive", False)  # Default to exclusive (Python slice)
         start_int = start_raw if isinstance(start_raw, int) else None
         end_int = end_raw if isinstance(end_raw, int) else None
         instructions_str = (
@@ -588,6 +590,12 @@ class GeminiCompactionAppPlugin:
 
         message_count = len(session_orig.messages)
         start_idx, end_idx = _normalize_slice_bounds(message_count, start_int, end_int)
+
+        # Handle inclusive end semantics for "compact up to here"
+        # When end_inclusive=True and end was explicitly specified, the end index
+        # should include that message (Python slice semantics are exclusive)
+        if end_inclusive and end_raw is not None:
+            end_idx = min(end_idx + 1, message_count)
 
         # Preserve leading system messages as context (they should not be compacted)
         system_prefix_end = 0
@@ -819,6 +827,11 @@ class GeminiCompactionAppPlugin:
                 end_int,
             )
 
+            # Handle inclusive end semantics for "compact up to here"
+            # (must match the adjustment applied in the first part)
+            if end_inclusive and end_raw is not None:
+                end_idx2 = min(end_idx2 + 1, message_count2)
+
             # Adjust for preserved last user message
             if preserve_last_user and end_idx2 == message_count2:
                 end_idx2 = message_count2 - 1
@@ -912,6 +925,18 @@ class GeminiCompactionAppPlugin:
             except Exception:  # pragma: no cover - defensive
                 pass
 
+        # Build debug info for verification
+        compacted_messages_debug = [
+            {"index": i, "role": msg.role, "content_preview": msg.content[:100] if len(msg.content) > 100 else msg.content}
+            for i, msg in enumerate(session_orig.messages)
+            if i in remove_indices
+        ]
+        preserved_tail_debug = [
+            {"index": i, "role": msg.role, "content_preview": msg.content[:100] if len(msg.content) > 100 else msg.content}
+            for i, msg in enumerate(session_orig.messages)
+            if i >= end_idx and i < message_count
+        ]
+
         return {
             "mutations": {
                 "created_session_ids": [],
@@ -923,6 +948,16 @@ class GeminiCompactionAppPlugin:
                 f"Compacted messages [{start_idx2}:{end_idx2}] into a state snapshot."
             ),
             "verification_pass": verification_pass,
+            # Debug info for verification
+            "debug": {
+                "original_message_count": message_count,
+                "system_prefix_end": system_prefix_end,
+                "start_idx": start_idx,
+                "end_idx": end_idx,
+                "remove_indices": remove_indices,
+                "compacted_messages": compacted_messages_debug,
+                "preserved_tail": preserved_tail_debug,
+            },
         }
 
 

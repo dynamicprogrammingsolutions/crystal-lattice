@@ -905,3 +905,68 @@ This is by design - the verification pass produces the final, best snapshot.
 | File | Changes |
 |------|---------|
 | `src/gemini_compaction_app/__init__.py` | Fixed verification session to use `session_with_system` instead of `session_with_prompt` |
+
+---
+
+## Follow-Up: Fix "Compact up to here" Message Selection
+
+### Problem
+
+The user reported that "Compact messages up to here" was preserving one more message than expected. This had two root causes:
+
+1. **Missing `end_inclusive` semantics**: "Compact up to here" should include the selected message, but the implementation used Python's exclusive slice semantics.
+
+2. **Missing `end_inclusive` adjustment in session rebuild**: The `end_inclusive` adjustment was applied when calculating the compaction request, but NOT when rebuilding the final session. This caused an off-by-one error.
+
+### Solution
+
+1. **Added `end_inclusive` parameter** to `compact_range` action:
+   - Default: `False` (Python slice semantics - exclusive)
+   - Set to `True` for `compact_up_to_here` action
+
+2. **Fixed the session rebuild logic** to apply the same `end_inclusive` adjustment:
+   ```python
+   # Handle inclusive end semantics for "compact up to here"
+   # (must match the adjustment applied in the first part)
+   if end_inclusive and end_raw is not None:
+       end_idx2 = min(end_idx2 + 1, message_count2)
+   ```
+
+3. **Added debug info** to the return value:
+   - `remove_indices`: Actual indices removed
+   - `compacted_messages`: Messages that were compacted (with previews)
+   - `preserved_tail`: Messages that were preserved (with previews)
+
+### Example
+
+Session with system message + 6 regular messages:
+```
+[0] system: "You are a helpful..."
+[1] user: "Question 1 about Python."
+[2] assistant: "Answer 1 about Python."
+[3] user: "Question 2 about JavaScript."
+[4] assistant: "Answer 2 about JavaScript."
+[5] user: "Question 3 about Rust."
+[6] assistant: "Answer 3 about Rust."
+```
+
+With `compact_up_to_here` on message 4 (end=4, end_inclusive=True):
+- **Compacted**: indices 1, 2, 3, 4
+- **Preserved**: indices 0 (system), 5, 6 (tail)
+
+### Test Results
+
+- **Unit tests**: 60 tests, all passing
+  - New `TestCompactionRangeWithSystemMessage` class with 6 tests
+  - Tests verify exact indices with system message present
+- **Integration tests**: 9 tests, all passing
+  - Verifies debug info matches actual behavior
+  - Verifies correct messages preserved/compacted
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `src/gemini_compaction_app/__init__.py` | Added `end_inclusive` parameter, fixed session rebuild, added debug info |
+| `tests/test_gemini_compaction_app_unit.py` | Added `TestCompactionRangeWithSystemMessage` class |
+| `tests/test_gemini_compaction_app_system_message.py` | Updated test to verify debug info |

@@ -26,6 +26,10 @@ After Fireworks proves the generalized package works on one hosted provider, thi
 
 ## Provider-Specific Notes From Investigation
 
+### Z-ai
+
+https://docs.z.ai/api-reference/llm/chat-completion
+
 ### Together
 
 - OpenAI-compatible `/v1` setup.

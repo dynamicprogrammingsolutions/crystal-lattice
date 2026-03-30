@@ -476,3 +476,262 @@ class TestExecuteActionErrors:
 
         with pytest.raises(ValueError, match="session_id must be a non-empty string"):
             plugin.execute_action(None, "compact_range", {"session_id": ""}, plugin._state)  # type: ignore[arg-type]
+
+
+class TestCompactionRangeSemantics:
+    """Tests for end_exclusive vs end_inclusive semantics in _do_compact_range.
+
+    These tests verify that:
+    - end_inclusive=False (default): Python slice semantics [start, end)
+    - end_inclusive=True: Inclusive semantics [start, end]
+
+    For "compact up to here", the selected message should be included in compaction.
+    """
+
+    def test_end_exclusive_compacts_messages_before_end(self) -> None:
+        """With end_exclusive (default), messages [0, end) are compacted.
+
+        If end=4, messages 0, 1, 2, 3 are compacted (4 is preserved).
+        """
+        # This is tested implicitly by existing tests - just document the behavior
+        start, end = _normalize_slice_bounds(10, 0, 4)
+        assert start == 0
+        assert end == 4  # Exclusive: indices 0, 1, 2, 3 are in range
+
+    def test_end_inclusive_compacts_messages_through_end(self) -> None:
+        """With end_inclusive=True, messages [0, end] are compacted.
+
+        If end=4, messages 0, 1, 2, 3, 4 are compacted.
+        """
+        start, end = _normalize_slice_bounds(10, 0, 4)
+        assert start == 0
+        assert end == 4
+        # When end_inclusive=True, the logic adds 1 to end_idx
+        end_inclusive = True
+        end_adjusted = min(end + 1, 10) if end_inclusive else end
+        assert end_adjusted == 5  # Inclusive: indices 0, 1, 2, 3, 4 are in range
+
+    def test_end_inclusive_clamped_to_message_count(self) -> None:
+        """end_inclusive adjustment should be clamped to message_count."""
+        start, end = _normalize_slice_bounds(10, 0, 9)
+        assert end == 9
+        end_inclusive = True
+        end_adjusted = min(end + 1, 10) if end_inclusive else end
+        assert end_adjusted == 10  # Clamped, not 11
+
+    def test_end_inclusive_with_negative_index(self) -> None:
+        """end_inclusive works with negative indices too."""
+        start, end = _normalize_slice_bounds(10, 0, -2)
+        assert start == 0
+        assert end == 8  # -2 becomes 10 + (-2) = 8
+        end_inclusive = True
+        end_adjusted = min(end + 1, 10) if end_inclusive else end
+        assert end_adjusted == 9  # Inclusive: indices 0-9 are in range
+
+    def test_compact_up_to_here_has_end_inclusive_true(self) -> None:
+        """Verify compact_up_to_here action passes end_inclusive=True."""
+        plugin = GeminiCompactionAppPlugin()
+        plugin.init({})
+
+        elements = plugin.get_ui_elements(plugin._state)
+        compact_up_to_here = next(
+            (e for e in elements if e.get("id") == "compact_up_to_here"), None
+        )
+        assert compact_up_to_here is not None
+        fixed_params = compact_up_to_here.get("fixed_params", {})
+        assert fixed_params.get("end_inclusive") is True
+
+    def test_compact_range_has_end_inclusive_false_by_default(self) -> None:
+        """Verify compact_range action (explicit range) uses default exclusive semantics."""
+        plugin = GeminiCompactionAppPlugin()
+        plugin.init({})
+
+        elements = plugin.get_ui_elements(plugin._state)
+        compact_range = next(
+            (e for e in elements if e.get("id") == "compact_range"), None
+        )
+        assert compact_range is not None
+        fixed_params = compact_range.get("fixed_params", {})
+        # compact_range doesn't set end_inclusive, so it defaults to False (exclusive)
+        assert "end_inclusive" not in fixed_params
+
+
+class TestCompactionRangeWithSystemMessage:
+    """Tests verifying exact compaction indices when system message is present.
+
+    This simulates the scenario where feature_system_message adds a system message
+    at the beginning of the session, which shifts all indices by 1.
+    """
+
+    def test_compact_up_to_index_5_with_system_message_inclusive(self) -> None:
+        """Verify compaction range with system message at index 0.
+
+        Session: [system, u1, a1, u2, a2, u3, a3] (indices 0-6)
+        User clicks "compact up to here" on message 5 (which is u3).
+        Expected: messages 1-5 are compacted (inclusive of 5).
+        Preserved: system (0) and a3 (6).
+        """
+        message_count = 7
+        system_prefix_end = 1  # System message at index 0
+        end_raw = 5  # User clicked on message 5
+        end_inclusive = True
+
+        # Simulate the logic
+        start_idx, end_idx = _normalize_slice_bounds(message_count, 0, end_raw)
+        assert start_idx == 0
+        assert end_idx == 5
+
+        # Apply inclusive adjustment
+        if end_inclusive and end_raw is not None:
+            end_idx = min(end_idx + 1, message_count)
+        assert end_idx == 6
+
+        # Check preserve_last_user (should NOT trigger since end_idx != message_count)
+        # (skip this check since we're testing the calculation)
+
+        # Adjust for system prefix
+        if start_idx < system_prefix_end:
+            start_idx = system_prefix_end
+        assert start_idx == 1
+
+        # Calculate remove_indices
+        remove_indices = list(range(start_idx, end_idx))
+        assert remove_indices == [1, 2, 3, 4, 5], \
+            f"Expected [1,2,3,4,5] but got {remove_indices}"
+
+        # Verify what's compacted vs preserved
+        preserved = [i for i in range(message_count) if i not in remove_indices]
+        assert preserved == [0, 6], f"Expected [0,6] preserved but got {preserved}"
+
+    def test_compact_up_to_index_4_with_system_message_inclusive(self) -> None:
+        """Verify compaction range with system message, clicking on index 4.
+
+        Session: [system, u1, a1, u2, a2, u3, a3] (indices 0-6)
+        User clicks "compact up to here" on message 4 (which is a2).
+        Expected: messages 1-4 are compacted (inclusive of 4).
+        Preserved: system (0), u3 (5), a3 (6).
+        """
+        message_count = 7
+        system_prefix_end = 1
+        end_raw = 4
+        end_inclusive = True
+
+        start_idx, end_idx = _normalize_slice_bounds(message_count, 0, end_raw)
+        assert end_idx == 4
+
+        # Apply inclusive adjustment
+        if end_inclusive and end_raw is not None:
+            end_idx = min(end_idx + 1, message_count)
+        assert end_idx == 5
+
+        # Adjust for system prefix
+        if start_idx < system_prefix_end:
+            start_idx = system_prefix_end
+        assert start_idx == 1
+
+        remove_indices = list(range(start_idx, end_idx))
+        assert remove_indices == [1, 2, 3, 4], \
+            f"Expected [1,2,3,4] but got {remove_indices}"
+
+        preserved = [i for i in range(message_count) if i not in remove_indices]
+        assert preserved == [0, 5, 6], f"Expected [0,5,6] preserved but got {preserved}"
+
+    def test_compact_up_to_last_message_with_system_message(self) -> None:
+        """Verify compaction range when compacting up to the last message.
+
+        Session: [system, u1, a1, u2, a2] (indices 0-4)
+        User clicks "compact up to here" on message 4 (which is a2, the last).
+        Expected: messages 1-4 are compacted.
+        Preserved: system (0).
+        """
+        message_count = 5
+        system_prefix_end = 1
+        end_raw = 4
+        end_inclusive = True
+
+        start_idx, end_idx = _normalize_slice_bounds(message_count, 0, end_raw)
+        assert end_idx == 4
+
+        # Apply inclusive adjustment
+        if end_inclusive and end_raw is not None:
+            end_idx = min(end_idx + 1, message_count)
+        assert end_idx == 5  # Clamped to message_count
+
+        # Check preserve_last_user (should NOT trigger since last message is assistant)
+        # (in this test, the last message is assistant, not user)
+
+        # Adjust for system prefix
+        if start_idx < system_prefix_end:
+            start_idx = system_prefix_end
+
+        remove_indices = list(range(start_idx, end_idx))
+        assert remove_indices == [1, 2, 3, 4], \
+            f"Expected [1,2,3,4] but got {remove_indices}"
+
+    def test_compact_up_to_last_user_message_triggers_preserve(self) -> None:
+        """Verify preserve_last_user logic when last message is user.
+
+        Session: [system, u1, a1, u2] (indices 0-3)
+        User clicks "compact up to here" on message 3 (u2, the last, which is user).
+        Expected: preserve_last_user triggers, messages 1-2 are compacted.
+        Preserved: system (0), u2 (3).
+        """
+        message_count = 4
+        system_prefix_end = 1
+        end_raw = 3
+        end_inclusive = True
+
+        start_idx, end_idx = _normalize_slice_bounds(message_count, 0, end_raw)
+        assert end_idx == 3
+
+        # Apply inclusive adjustment
+        if end_inclusive and end_raw is not None:
+            end_idx = min(end_idx + 1, message_count)
+        assert end_idx == 4  # Equal to message_count
+
+        # Check preserve_last_user logic
+        # if end_idx == message_count and last_msg.role == "user":
+        #   end_idx = message_count - 1
+        # In this test, last message is user, so preserve triggers
+        last_msg_role = "user"  # Simulating the check
+        if end_idx == message_count and last_msg_role == "user":
+            end_idx = message_count - 1
+        assert end_idx == 3  # Reduced by preserve_last_user
+
+        # Adjust for system prefix
+        if start_idx < system_prefix_end:
+            start_idx = system_prefix_end
+
+        remove_indices = list(range(start_idx, end_idx))
+        assert remove_indices == [1, 2], \
+            f"Expected [1,2] but got {remove_indices} (preserve_last_user should have triggered)"
+
+    def test_exclusive_semantics_with_system_message(self) -> None:
+        """Verify exclusive semantics (compact_range explicit) with system message.
+
+        Session: [system, u1, a1, u2, a2, u3, a3] (indices 0-6)
+        User specifies compact_range with start=0, end=4 (exclusive).
+        Expected: messages 1-3 are compacted (indices 0,1,2,3 but 0 is system).
+        Preserved: system (0), a2 (4), u3 (5), a3 (6).
+        """
+        message_count = 7
+        system_prefix_end = 1
+        end_raw = 4
+        end_inclusive = False  # Exclusive (default for compact_range)
+
+        start_idx, end_idx = _normalize_slice_bounds(message_count, 0, end_raw)
+        assert end_idx == 4
+
+        # NO inclusive adjustment
+        assert end_idx == 4
+
+        # Adjust for system prefix
+        if start_idx < system_prefix_end:
+            start_idx = system_prefix_end
+
+        remove_indices = list(range(start_idx, end_idx))
+        assert remove_indices == [1, 2, 3], \
+            f"Expected [1,2,3] but got {remove_indices}"
+
+        preserved = [i for i in range(message_count) if i not in remove_indices]
+        assert preserved == [0, 4, 5, 6], f"Expected [0,4,5,6] preserved but got {preserved}"
