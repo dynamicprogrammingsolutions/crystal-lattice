@@ -195,6 +195,7 @@ class GeminiCompactionFeaturePlugin(FeaturePlugin):
                 "inputs": {
                     "start": {"type": "integer", "required": False},
                     "end": {"type": "integer", "required": False},
+                    "end_inclusive": {"type": "boolean", "required": False, "default": False},
                     "instructions": {"type": "string", "required": False},
                 },
             },
@@ -315,6 +316,39 @@ After compaction succeeds:
 user: <state_snapshot>...</state_snapshot>
 assistant: Got it. Thanks for the additional context!
 [preserved tail messages...]
+```
+
+#### End Inclusive Parameter (for "Compact up to here")
+
+The `compact_range` action must support `end_inclusive` parameter:
+
+```python
+# In action inputs:
+"end_inclusive": {"type": "boolean", "required": False, "default": False}
+
+# In _do_compact_range:
+if end_inclusive and end_raw is not None:
+    end_idx = min(end_idx + 1, message_count)
+```
+
+**Important**: The same adjustment must be applied when rebuilding the session, or there will be an off-by-one error.
+
+#### Debug Info in Return Value
+
+The action should return debug information for verification:
+
+```python
+return {
+    "native_messages": new_native,
+    "session_metadata": {
+        "last_compaction": datetime.now().isoformat(),
+    },
+    "debug_info": {
+        "remove_indices": remove_indices,  # Actual indices removed
+        "compacted_messages": [...],        # Messages compacted (with previews)
+        "preserved_tail": [...],            # Messages preserved (with previews)
+    },
+}
 ```
 
 ### Phase 5: Layer 3 Tests (Terminal/Server)
