@@ -761,6 +761,9 @@ class AgentApplication:
             "trigger_source": "application",
             "session": session.to_dict(),
             "config": config,
+            "app": self,
+            "application": self,
+            "base_config": self._config,
         }
 
     @staticmethod
@@ -1555,8 +1558,10 @@ class AgentApplication:
             effective_config = self.resolve_effective_config(base_config, session, overrides)
 
             action_context = dict(context) if isinstance(context, dict) else {}
+            action_context.setdefault("app", self)
             action_context.setdefault("application", self)
             action_context.setdefault("session_asset_store", self._session_asset_store)
+            action_context.setdefault("base_config", base_config)
 
             try:
                 new_session, result = core.execute_session_action(

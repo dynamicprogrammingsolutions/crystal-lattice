@@ -2512,6 +2512,16 @@ class AgentCore:
 
         validated_inputs = self._validate_session_action_inputs(action_def, params)
         native_messages = self._native_messages_for_session_action(session, config)
+
+        # Layer 1: Core-level context enrichment.
+        # Higher layers (application, terminal) may have already set these;
+        # use setdefault so we never overwrite a richer value.
+        enriched_context: Dict[str, Any] = dict(context) if isinstance(context, dict) else {}
+        enriched_context.setdefault("core", self)
+        enriched_context.setdefault("config", config)
+        enriched_context.setdefault("trigger_source", "core")
+        enriched_context.setdefault("session", session.to_dict())
+
         action_owner = action_def.get("action_owner")
         if action_owner == "feature":
             result: Optional[Dict[str, Any]] = None
@@ -2523,7 +2533,7 @@ class AgentCore:
                     session,
                     native_messages,
                     validated_inputs,
-                    context,
+                    enriched_context,
                     state,
                 )
                 break
@@ -2536,7 +2546,7 @@ class AgentCore:
                 session,
                 native_messages,
                 validated_inputs,
-                context,
+                enriched_context,
                 state,
             )
         if not isinstance(result, dict):
@@ -2577,6 +2587,16 @@ class AgentCore:
             validated_inputs = self._validate_session_action_inputs(action_def, {})
             native_messages = self._native_messages_for_session_action(current_session, config)
 
+            # Layer 1: Core-level context enrichment.
+            # Higher layers (application, terminal) may have already set these;
+            # use setdefault so we never overwrite a richer value.
+            enriched_context: Dict[str, Any] = dict(context) if isinstance(context, dict) else {}
+            enriched_context.setdefault("core", self)
+            enriched_context.setdefault("config", config)
+            enriched_context.setdefault("trigger_source", "core")
+            enriched_context.setdefault("lifecycle", trigger)
+            enriched_context.setdefault("session", current_session.to_dict())
+
             if action_owner == "feature":
                 result: Optional[Dict[str, Any]] = None
                 for feature in features:
@@ -2587,7 +2607,7 @@ class AgentCore:
                         current_session,
                         native_messages,
                         validated_inputs,
-                        context,
+                        enriched_context,
                         state,
                     )
                     break
@@ -2600,7 +2620,7 @@ class AgentCore:
                     current_session,
                     native_messages,
                     validated_inputs,
-                    context,
+                    enriched_context,
                     state,
                 )
 

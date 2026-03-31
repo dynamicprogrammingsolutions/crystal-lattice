@@ -528,7 +528,11 @@
       "timeout": 180,
       "allowed_paths": ["."],
       "max_output_chars": 10000,
-      "working_directory": "."
+      "working_directory": ".",
+      "retry_on_timeout": [0, 5, 30],
+      "retry_on_status": {
+        "500": [0, 5, 30]
+      }
     }
   },
   "plugins": [

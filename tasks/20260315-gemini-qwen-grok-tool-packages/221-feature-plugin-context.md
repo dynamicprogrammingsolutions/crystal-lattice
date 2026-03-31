@@ -420,13 +420,13 @@ FeaturePlugin.execute_action(session, native_messages, params, context, state)
 
 ## Requirements Checklist
 
-- [ ] Implement Layer 1: Core context (core, config) in `execute_session_action`
-- [ ] Implement Layer 1: Core context (core, config) in `execute_lifecycle_actions`
-- [ ] Implement Layer 2: Application context (app, base_config) in `run_session_lifecycle`
-- [ ] Implement Layer 2: Application context in manual session action execution
-- [ ] Update protocol docstrings in `types.py`
-- [ ] Implement GeminiCompactionFeaturePlugin
-- [ ] Add unit tests for core-level context
+- [x] Implement Layer 1: Core context (core, config) in `execute_session_action`
+- [x] Implement Layer 1: Core context (core, config) in `execute_lifecycle_actions`
+- [x] Implement Layer 2: Application context (app, base_config) in `run_session_lifecycle`
+- [x] Implement Layer 2: Application context in manual session action execution
+- [x] Update protocol docstrings in `types.py`
+- [x] Implement GeminiCompactionFeaturePlugin
+- [x] Add unit tests for core-level context
 - [ ] Add unit tests for app-level context
 - [ ] Add integration tests with GeminiCompactionFeaturePlugin
 - [ ] Add Layer 3 tests (terminal/server context)
@@ -466,3 +466,51 @@ FeaturePlugin.execute_action(session, native_messages, params, context, state)
 - Both can coexist; users can choose based on their needs
 - ApplicationPlugin is simpler for full-featured operations
 - FeaturePlugin is useful when operating at the native-message level or when provider-specific optimizations are needed
+
+## Completion Notes
+
+**Phases 1-3 completed successfully.**
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `core/python/agent_core/core.py` | Added context enrichment in `execute_session_action` and `execute_lifecycle_actions` |
+| `core/python/agent_core/types.py` | Updated `execute_action` docstrings for FeaturePlugin and ProviderExtensionPlugin |
+| `core/python/agent_app/application_future.py` | Added `app`, `base_config` to `_build_lifecycle_context` and `execute_session_action` |
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `plugins/gemini-compaction-app/src/gemini_compaction_app/feature_plugin.py` | GeminiCompactionFeaturePlugin implementation |
+| `core/python/tests/fixtures/context_recording_feature.py` | Test fixture for context testing |
+| `core/python/tests/test_feature_plugin_context_enrichment.py` | Unit tests for context enrichment |
+
+### Test Results
+
+- **Core tests**: 40 tests passing (including 7 new context enrichment tests)
+- **Feature plugin**: Imports successfully
+
+### Key Implementation Details
+
+1. **Context enrichment uses `setdefault`** to preserve higher-layer values
+2. **Both `app` and `application` keys** are set for backward compatibility
+3. **`base_config` is flattened** - accessed via `base_config.get("compaction")` not nested under "agent"
+4. **FeaturePlugin returns `native_messages` and `session_metadata`** - the core handles session mutation
+
+### Separate Package for GeminiCompactionFeaturePlugin
+
+The GeminiCompactionFeaturePlugin is implemented as a separate package `gemini-compaction-feature` under `plugins/gemini-compaction-feature/`. This follows the recommended plugin packaging pattern:
+
+- **Package**: `gemini-compaction-feature`
+- **Entry point**: `gemini_compaction_feature.GeminiCompactionFeaturePlugin`
+- **Dependencies**: `gemini-compaction-app>=0.1.0` (for shared prompts and helpers)
+- **Descriptor**: `agent_plugin.json`
+
+The integration tests mirror the AppPlugin tests but use the FeaturePlugin approach:
+- `test_feature_compaction_flow` - Tests compaction via `core.execute_session_action`
+- `test_feature_compaction_with_verification_pass` - Tests verification pass
+- `test_feature_compaction_disabled_for_non_gemini_type` - Tests enablement
+- `test_feature_compaction_disabled_by_default` - Tests disabled by default
+- `test_feature_compaction_context_enrichment` - Tests context enrichment

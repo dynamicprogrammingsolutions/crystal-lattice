@@ -961,4 +961,11 @@ class GeminiCompactionAppPlugin:
         }
 
 
-__all__ = ["GeminiCompactionAppPlugin"]
+__all__ = [
+    "GeminiCompactionAppPlugin",
+    # Public constants also exported from feature_plugin
+    "_GEMINI_COMPRESSION_PROMPT",
+    "_VERIFICATION_PROMPT",
+    "_ACKNOWLEDGMENT_MESSAGE",
+    "_normalize_slice_bounds",
+]

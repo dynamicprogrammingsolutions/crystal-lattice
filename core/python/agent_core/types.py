@@ -720,6 +720,9 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
 
         Additional keys are preserved and surfaced back to higher layers as an
         opaque result payload.
+
+        The ``context`` parameter provides layered access to runtime capabilities
+        (see FeaturePlugin.execute_action for details on context structure).
         """
         return {"native_messages": list(native_messages)}
 
@@ -950,6 +953,25 @@ class FeaturePlugin(BasePlugin, Protocol):
         The supported return contract matches provider-extension actions:
         features may return replacement ``native_messages`` and/or a
         ``session_metadata`` mapping that is merged into the session.
+
+        The ``context`` parameter provides layered access to runtime capabilities:
+
+        **Layer 1 (Core - always present):**
+            - ``core``: AgentCore instance for session/message operations
+            - ``config``: Current resolved request configuration
+            - ``trigger_source``: Where the action was triggered ("core", "application")
+            - ``session``: Serialized session dict (session.to_dict())
+            - ``lifecycle``: Lifecycle trigger name (for lifecycle-triggered actions)
+
+        **Layer 2 (Application - when called from AgentApplication):**
+            - ``app`` and ``application``: AgentApplication instance
+            - ``base_config``: Full base configuration (all agents)
+            - ``session_asset_store``: Session asset store for file attachments
+
+        **Layer 3 (Terminal/Server - implementation-specific):**
+            - Implementation-specific keys added by terminal or HTTP server
+
+        Features can check for enhanced capabilities using ``context.get("app")``.
         """
         return {"native_messages": list(native_messages)}
 
