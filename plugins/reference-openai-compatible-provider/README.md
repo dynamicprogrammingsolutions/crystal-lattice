@@ -77,8 +77,58 @@ These keys are read by `reference_openai_compatible_provider.provider.OpenAIComp
   - default: `60`
 - `debug_stream` (boolean, optional): log decoded streaming chunks as they are received
   - default: `false`
+- `min_request_interval_seconds` (number, optional): minimum spacing between requests to the same `base_url` scope
+  - default: `0.0`
+- `rate_limit_retry_delays_seconds` (list or comma-separated string, optional): retry delays used for HTTP 429 responses
+  - default: `[]`
+- `respect_retry_after_header` (boolean, optional): when retrying HTTP 429 responses, honor the response `Retry-After` header
+  - default: `true`
+- `retry_on_status` (object, optional): maps HTTP status codes to retry delay lists for pre-stream retries
+  - default: `{}`
+- `retry_on_timeout` (list or comma-separated string, optional): retry delays used for request timeout exceptions before streaming begins
+  - default: `[]`
+- `stream_recovery` (object, optional): mid-stream recovery policy for SSE connection failures
+  - default: `{ "mode": "disabled", "max_retries": 3 }`
+  - keys:
+    - `mode`: `"disabled"`, `"early_only"`, or `"aggressive"`
+    - `max_retries`: maximum number of stream recovery attempts when recovery is enabled
 
 When `endpoint_options` is provided, the provider emits a config UI dropdown for `base_url`. Selecting an option updates `base_url` directly, so model discovery, request URLs, and rate-limit scoping automatically follow the selected endpoint.
+
+### Complete provider config example
+
+This example shows all provider-owned config keys together. `request_options` is intentionally omitted here because it is provided by the separate `feature-request-options` plugin.
+
+```json
+{
+  "providers": {
+    "zai": {
+      "provider": "reference_openai_compatible",
+      "base_url": "https://api.z.ai/api/paas/v4",
+      "endpoint_options": {
+        "General": "https://api.z.ai/api/paas/v4",
+        "Coding": "https://api.z.ai/api/coding/paas/v4"
+      },
+      "api_key": "${env:ZAI_API_KEY}",
+      "model": "glm-4.5-air",
+      "timeout": 180,
+      "debug_stream": false,
+      "min_request_interval_seconds": 0.5,
+      "rate_limit_retry_delays_seconds": [1, 3, 5],
+      "respect_retry_after_header": true,
+      "retry_on_status": {
+        "500": [2, 5, 10],
+        "502": [1, 3]
+      },
+      "retry_on_timeout": [1, 3, 5],
+      "stream_recovery": {
+        "mode": "early_only",
+        "max_retries": 3
+      }
+    }
+  }
+}
+```
 
 ### Request options
 
@@ -148,6 +198,119 @@ When the provider returns `usage`, the usage extension surfaces a minimal shared
 - formatted token-count variants such as `metadata.usage_total_tokens_formatted`
 
 Provider-specific or extra usage fields stay inside raw `metadata.usage`.
+
+## Retries and error recovery
+
+The provider has three retry/recovery mechanisms. All pre-stream retries share a **global attempt counter**, so the total retry budget is bounded by the longest configured delay list across mechanisms.
+
+### Rate-limit retries (HTTP 429)
+
+Retries on HTTP 429 responses with configurable backoff and `Retry-After` header support.
+
+- `rate_limit_retry_delays_seconds` (list or comma-separated string): delay in seconds before each retry attempt. List length = maximum retries.
+  - default: `[]` (no retries)
+  - example: `[1, 3, 5]` — retry up to 3 times with 1s, 3s, 5s delays
+- `respect_retry_after_header` (boolean): when `true`, waits at least the number of seconds specified by the response's `Retry-After` header (uses the larger of the header value and the configured delay).
+  - default: `true`
+- `min_request_interval_seconds` (number): minimum time between consecutive requests to the same `base_url` scope, used for request pacing.
+  - default: `0.0` (no pacing)
+
+```json
+{
+  "rate_limit_retry_delays_seconds": [1, 3, 5],
+  "respect_retry_after_header": true,
+  "min_request_interval_seconds": 0.5
+}
+```
+
+### Status code retries (pre-stream)
+
+Retries on configurable HTTP status codes (for example 500, 502, 503) before the response body is consumed.
+
+- `retry_on_status` (object): maps HTTP status codes to delay lists. Keys are status code numbers (as strings in JSON). Values follow the same format as `rate_limit_retry_delays_seconds`. List length = maximum retries for that code.
+  - default: `{}` (no retries)
+  - example: `{"500": [2, 5, 10], "502": [1, 3]}`
+
+```json
+{
+  "retry_on_status": {
+    "500": [2, 5, 10],
+    "502": [1, 3]
+  }
+}
+```
+
+### Timeout retries (pre-stream)
+
+Retries when the HTTP request times out (`requests.exceptions.Timeout` — covers both connect and read timeouts).
+
+- `retry_on_timeout` (list or comma-separated string): delay in seconds before each retry attempt. List length = maximum retries.
+  - default: `[]` (no retries — timeout exceptions propagate immediately)
+  - example: `[1, 3, 5]`
+
+```json
+{
+  "retry_on_timeout": [1, 3, 5]
+}
+```
+
+### Stream recovery (mid-stream)
+
+Recovers from connection errors that occur *during* an active SSE stream (for example connection drops, chunked encoding errors). The provider re-issues the full HTTP request and starts a new stream.
+
+- `stream_recovery` (object):
+  - `mode` (string): recovery strategy.
+    - `"disabled"` — no recovery, connection errors propagate immediately. (default)
+    - `"early_only"` — recover only if no visible text content was emitted before the error. Safe for most cases since the consumer hasn't seen partial output yet.
+    - `"aggressive"` — recover even after partial content was already streamed. The new request replays from the beginning, so the consumer may see duplicate content.
+  - `max_retries` (integer): maximum number of recovery attempts.
+    - default: `3` (when mode is not `"disabled"`)
+
+```json
+{
+  "stream_recovery": {
+    "mode": "early_only",
+    "max_retries": 3
+  }
+}
+```
+
+### Retry and recovery example
+
+```json
+{
+  "providers": {
+    "my_provider": {
+      "provider": "reference_openai_compatible",
+      "base_url": "https://api.example.com/v1",
+      "model": "gpt-4",
+      "rate_limit_retry_delays_seconds": [1, 3, 5],
+      "retry_on_status": {
+        "500": [2, 5, 10],
+        "502": [1, 3]
+      },
+      "retry_on_timeout": [1, 3, 5],
+      "stream_recovery": {
+        "mode": "early_only",
+        "max_retries": 3
+      }
+    }
+  }
+}
+```
+
+### Global attempt counter
+
+Pre-stream retries (429, status codes, timeouts) share a single global attempt counter. For example, with `retry_on_status: {"500": [2, 5, 8]}` and `retry_on_timeout: [1, 3, 5]`:
+
+| Attempt | Error | Delay source | Delay |
+|---|---|---|---|
+| 0 | HTTP 500 | `retry_on_status[500][0]` | 2s |
+| 1 | Timeout | `retry_on_timeout[1]` | 3s |
+| 2 | HTTP 500 | `retry_on_status[500][2]` | 8s |
+| 3 | Timeout | no entry at index 3 | **raises** |
+
+Stream recovery uses its own separate counter.
 
 ## Troubleshooting
 

@@ -111,7 +111,7 @@ def test_get_ui_elements_renders_endpoint_dropdown_when_options_present():
 
     assert endpoint_el == {
         "ui_type": "config",
-        "type": "dropdown",
+        "type": "select",
         "key": "base_url",
         "label": "Endpoint",
         "options": [
