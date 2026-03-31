@@ -142,11 +142,13 @@ def test_feature_compaction_flow(
 
     # Check the result - it could be success or error
     if "error" not in result:
-        # Success - verify the native_messages was modified
-        assert "native_messages" in result
-        native_msgs = result["native_messages"]
-        # Should have fewer messages after compaction
-        assert len(native_msgs) < message_count_before + 2  # +2 for snapshot + ack
+        # Success - verify the compaction_result is present
+        assert "compaction_result" in result
+        compaction_result = result["compaction_result"]
+        assert compaction_result.get("status") == "ok"
+        # Verify the new session has fewer messages
+        # (snapshot user + ack assistant = 2 messages added, but 4 compacted = net -2)
+        assert len(new_session.messages) < message_count_before
     elif result.get("error", {}).get("type") == "disabled":
         # Disabled - this shouldn't happen with enabled=True and type=gemini
         pytest.fail("Plugin should be enabled")

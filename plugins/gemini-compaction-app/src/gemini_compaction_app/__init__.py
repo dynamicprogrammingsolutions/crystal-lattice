@@ -641,10 +641,13 @@ class GeminiCompactionAppPlugin:
         )
         slice_config = resolve_request_config(base_config_orig, md_overrides)
 
+        # IMPORTANT: Use start/end to KEEP messages in the compaction range.
+        # Using remove_indices would REMOVE them, leaving the LLM with no history to compact.
         sliced_for_compact = core_orig.slice_session(
             session_orig,
             slice_config,
-            remove_indices=remove_indices,
+            start=start_idx,
+            end=end_idx,
         )
 
         # Choose compaction agent: either a dedicated one from config or the
@@ -692,6 +695,12 @@ class GeminiCompactionAppPlugin:
         combined_overrides: Dict[str, Any] = {**md_overrides2, **cfg_overrides}
         config_for_add = resolve_request_config(base_config_compact, combined_overrides)
 
+        # Check for previous <state_snapshot> BEFORE adding compression prompt.
+        # The compression prompt template contains '<state_snapshot>' which would
+        # incorrectly trigger the detection if we checked after adding it.
+        has_previous_snapshot = self._has_previous_snapshot(session_for_compact.messages)
+        anchor_instruction = self._build_anchor_instruction(has_previous_snapshot)
+
         # Inject the compression prompt as a system message.
         # This overrides the agent's normal system message for the compaction request.
         # Feature plugins that add system messages check for existing system messages
@@ -704,11 +713,6 @@ class GeminiCompactionAppPlugin:
             metadata={"source": "compaction"},
             config=config_for_add,
         )
-
-        # Check for previous <state_snapshot> in the messages being compacted.
-        # This determines the anchor instruction for the compaction request.
-        has_previous_snapshot = self._has_previous_snapshot(session_with_system.messages)
-        anchor_instruction = self._build_anchor_instruction(has_previous_snapshot)
 
         # Build the compaction instruction with anchor instruction
         compaction_instruction = self._build_compaction_user_message(

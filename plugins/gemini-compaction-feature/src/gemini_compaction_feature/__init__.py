@@ -600,11 +600,9 @@ class GeminiCompactionFeaturePlugin:
                 break
 
         # Preserve last user message if at end (might be in-progress)
-        preserve_last_user = False
         if end_idx == message_count and message_count > 0:
             last_msg = session.messages[-1]
             if last_msg.role == "user":
-                preserve_last_user = True
                 end_idx = message_count - 1
 
         # Adjust start to skip system prefix
@@ -643,17 +641,26 @@ class GeminiCompactionFeaturePlugin:
         combined_overrides = {**settings_overrides}
 
         # Use core's slice_session to get messages for compaction
+        # IMPORTANT: Use start/end to KEEP messages in the range, not remove_indices
+        # which would REMOVE them. We need the messages TO BE COMPACTED in the session.
         from agent_app.config import resolve_request_config
         slice_config = resolve_request_config(base_config_compact, combined_overrides)
 
         sliced_session = core.slice_session(
             session,
             slice_config,
-            remove_indices=remove_indices,
+            start=start_idx,
+            end=end_idx,
         )
 
         # Inject compression prompt as system message
         compression_prompt = compaction_cfg.get("prompt") or _GEMINI_COMPRESSION_PROMPT
+        # Check for previous snapshot BEFORE adding compression prompt.
+        # The compression prompt template contains '<state_snapshot>' which would
+        # incorrectly trigger the detection if we checked after adding it.
+        has_previous_snapshot = self._has_previous_snapshot(sliced_session.messages)
+        anchor_instruction = self._build_anchor_instruction(has_previous_snapshot)
+
         session_with_system = core_compact.add_message(
             sliced_session,
             "system",
@@ -661,10 +668,6 @@ class GeminiCompactionFeaturePlugin:
             metadata={"source": "compaction"},
             config=slice_config,
         )
-
-        # Check for previous snapshot and build anchor instruction
-        has_previous_snapshot = self._has_previous_snapshot(session_with_system.messages)
-        anchor_instruction = self._build_anchor_instruction(has_previous_snapshot)
 
         # Build compaction instruction
         compaction_instruction = self._build_compaction_user_message(
