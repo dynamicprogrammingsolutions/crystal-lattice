@@ -376,6 +376,12 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
                 "default": True,
                 "description": "Honor Retry-After when retrying HTTP 429 responses",
             },
+            "reasoning_field": {
+                "type": "string",
+                "required": False,
+                "default": "",
+                "description": "Provider-specific field name for reasoning content (e.g., 'reasoning', 'reasoning_content'). If set, only this field is used for reasoning. If empty, all supported reasoning fields are used.",
+            },
         }
 
     def init(self, config: dict[str, Any]) -> dict[str, Any]:

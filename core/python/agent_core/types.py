@@ -562,10 +562,10 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
 
     # Stateless transforms
     def to_native_messages(
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
     ) -> List[Dict[str, Any]]:
 
-        """Transform provider-native messages using visibility of core messages (stateless).
+        """Transform provider-native messages using visibility of core messages.
 
         Note:
             When the core converts a single new message (e.g., via add_message), it passes a list containing only
@@ -578,6 +578,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         Args:
             messages: Core session messages for context (may be a single-element list for add_message).
             native_messages: Current provider-native messages.
+            state: Optional shared provider state (available when called via ProviderWrapper).
 
         Returns:
             Updated provider-native messages.
@@ -585,9 +586,9 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         return list(native_messages)
 
     def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
     ) -> List[Dict[str, Any]]:
-        """Transform provider-native messages back into core messages (stateless).
+        """Transform provider-native messages back into core messages.
 
         Note:
             In the default ``AgentCore`` request flow, extension transforms run
@@ -597,6 +598,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         Args:
             native_messages: Provider-native messages to transform.
             messages: Core session messages for context.
+            state: Optional shared provider state (available when called via ProviderWrapper).
 
         Returns:
             Updated core messages.
@@ -851,10 +853,10 @@ class FeaturePlugin(BasePlugin, Protocol):
 
     # Stateless transforms
     def to_native_messages(
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
     ) -> List[Dict[str, Any]]:
 
-        """Transform provider-native messages using visibility of core messages (stateless).
+        """Transform provider-native messages using visibility of core messages.
 
         Note:
             When the core converts a single new message (e.g., via add_message), it passes a list containing only
@@ -867,6 +869,7 @@ class FeaturePlugin(BasePlugin, Protocol):
         Args:
             messages: Core session messages for context (may be a single-element list for add_message).
             native_messages: Current provider-native messages.
+            state: Optional shared provider state (available when called via ProviderWrapper).
 
         Returns:
             Updated provider-native messages.
@@ -874,9 +877,9 @@ class FeaturePlugin(BasePlugin, Protocol):
         return list(native_messages)
 
     def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
     ) -> List[Dict[str, Any]]:
-        """Transform provider-native messages back into core messages (stateless).
+        """Transform provider-native messages back into core messages.
 
         Note:
             In the default ``AgentCore`` request flow, feature transforms run
@@ -886,6 +889,7 @@ class FeaturePlugin(BasePlugin, Protocol):
         Args:
             native_messages: Provider-native messages to transform.
             messages: Core session messages for context.
+            state: Optional shared provider state (available when called via ProviderWrapper).
 
         Returns:
             Updated core messages.

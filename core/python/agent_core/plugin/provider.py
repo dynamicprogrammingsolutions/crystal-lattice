@@ -245,7 +245,7 @@ class ProviderWrapper(ProviderPlugin):
     def apply_extension_transforms(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """Apply stateless extension transforms to provider-native messages.
+        """Apply extension transforms to provider-native messages.
 
         Args:
             messages: Core messages (context).
@@ -254,8 +254,11 @@ class ProviderWrapper(ProviderPlugin):
         Returns:
             Transformed provider-native messages after applying each extension.
         """
-        pipe = pipeline(messages)
-        return pipe([ext.to_native_messages for ext in self._iter_extensions()], native_messages)
+        state = self._get_state()
+        result = native_messages
+        for ext in self._iter_extensions():
+            result = ext.to_native_messages(messages, result, state)
+        return result
 
     def _merge_history(
         self, base: List[Dict[str, Any]], returned: List[Dict[str, Any]]

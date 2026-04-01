@@ -397,21 +397,33 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
         return None
 
     def to_native_messages(  # type: ignore[override]
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
     ) -> List[Dict[str, Any]]:
         fn = self._get_impl_method("to_native_messages", ProviderExtensionPlugin)
         if fn is not None:
-            out = fn(messages, native_messages)
+            # Pass state if the implementation accepts it
+            import inspect
+            sig = inspect.signature(fn)
+            if len(sig.parameters) >= 3:
+                out = fn(messages, native_messages, state)
+            else:
+                out = fn(messages, native_messages)
             items = self._safe_list(out)
             return [m for m in items if isinstance(m, dict)]
         return list(native_messages)
 
     def from_native_messages(  # type: ignore[override]
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
     ) -> List[Dict[str, Any]]:
         fn = self._get_impl_method("from_native_messages", ProviderExtensionPlugin)
         if fn is not None:
-            out = fn(native_messages, messages)
+            # Pass state if the implementation accepts it
+            import inspect
+            sig = inspect.signature(fn)
+            if len(sig.parameters) >= 3:
+                out = fn(native_messages, messages, state)
+            else:
+                out = fn(native_messages, messages)
             items = self._safe_list(out)
             return [m for m in items if isinstance(m, dict)]
         return list(messages)
@@ -582,21 +594,33 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
         return ""
 
     def to_native_messages(  # type: ignore[override]
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
     ) -> List[Dict[str, Any]]:
         fn = self._get_impl_method("to_native_messages", FeaturePlugin)
         if fn is not None:
-            out = fn(messages, native_messages)
+            # Pass state if the implementation accepts it
+            import inspect
+            sig = inspect.signature(fn)
+            if len(sig.parameters) >= 3:
+                out = fn(messages, native_messages, state)
+            else:
+                out = fn(messages, native_messages)
             items = self._safe_list(out)
             return [m for m in items if isinstance(m, dict)]
         return list(native_messages)
 
     def from_native_messages(  # type: ignore[override]
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
     ) -> List[Dict[str, Any]]:
         fn = self._get_impl_method("from_native_messages", FeaturePlugin)
         if fn is not None:
-            out = fn(native_messages, messages)
+            # Pass state if the implementation accepts it
+            import inspect
+            sig = inspect.signature(fn)
+            if len(sig.parameters) >= 3:
+                out = fn(native_messages, messages, state)
+            else:
+                out = fn(native_messages, messages)
             items = self._safe_list(out)
             return [m for m in items if isinstance(m, dict)]
         return list(messages)

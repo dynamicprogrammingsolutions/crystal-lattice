@@ -1688,15 +1688,14 @@ class AgentCore:
         # Convert native messages back into core messages through the full
         # from-native pipeline.
         core_from_provider = provider.from_native_messages(native_messages, state)
-        pipe = pipeline(native_messages)
-        core_full = pipe(
-            [ext.from_native_messages for ext in enabled_extensions]
-            + [feature.from_native_messages for feature in features],
-            core_from_provider,
-        )
+        # Apply extension and feature from-native transforms (iterate to pass state to each)
+        for ext in enabled_extensions:
+            core_from_provider = ext.from_native_messages(native_messages, core_from_provider, state)
+        for feature in features:
+            core_from_provider = feature.from_native_messages(native_messages, core_from_provider, state)
 
         normalized_core = self._normalize_final_core_with_native_indices(
-            core_full,
+            core_from_provider,
             native_messages,
             baseline_offset=0,
         )
@@ -1881,13 +1880,11 @@ class AgentCore:
 
         # Convert provider-native finals to core messages once finalization completes
         final_core = provider.from_native_messages(final_native, state)
-        # Apply extension and feature from-native transforms
-        pipe = pipeline(final_native)
-        final_core = pipe(
-            [ext.from_native_messages for ext in enabled_extensions]
-            + [feature.from_native_messages for feature in features],
-            final_core,
-        )
+        # Apply extension and feature from-native transforms (iterate to pass state to each)
+        for ext in enabled_extensions:
+            final_core = ext.from_native_messages(final_native, final_core, state)
+        for feature in features:
+            final_core = feature.from_native_messages(final_native, final_core, state)
 
         # Attach global native_indices for final core messages
         final_core = self._normalize_final_core_with_native_indices(
@@ -2007,13 +2004,11 @@ class AgentCore:
         # Convert provider-native finals to core messages
         final_core = provider.from_native_messages(combined_native_finals, state)
 
-        # Apply extension and feature from-native transforms
-        pipe = pipeline(combined_native_finals)
-        final_core = pipe(
-            [ext.from_native_messages for ext in enabled_extensions]
-            + [feature.from_native_messages for feature in features],
-            final_core,
-        )
+        # Apply extension and feature from-native transforms (iterate to pass state to each)
+        for ext in enabled_extensions:
+            final_core = ext.from_native_messages(combined_native_finals, final_core, state)
+        for feature in features:
+            final_core = feature.from_native_messages(combined_native_finals, final_core, state)
 
         # Attach global native_indices for final core messages
         final_core = self._normalize_final_core_with_native_indices(
@@ -2107,13 +2102,11 @@ class AgentCore:
         # Convert provider-native finals to core messages
         final_core = provider.from_native_messages(combined_native_finals, state)
 
-        # Apply extension and feature from-native transforms
-        pipe = pipeline(combined_native_finals)
-        final_core = pipe(
-            [ext.from_native_messages for ext in enabled_extensions]
-            + [feature.from_native_messages for feature in features],
-            final_core,
-        )
+        # Apply extension and feature from-native transforms (iterate to pass state to each)
+        for ext in enabled_extensions:
+            final_core = ext.from_native_messages(combined_native_finals, final_core, state)
+        for feature in features:
+            final_core = feature.from_native_messages(combined_native_finals, final_core, state)
 
         # Attach global native_indices for final core messages
         final_core = self._normalize_final_core_with_native_indices(
