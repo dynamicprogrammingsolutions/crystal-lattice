@@ -696,19 +696,24 @@ class ApplyPatchTool(ToolPlugin):
     def _process_patch_sandboxed(
         self, patch_text: str, working_dir: str, allowed_paths: List[str]
     ) -> Tuple[str, int, Commit]:
+        # Expand ~ in working_dir upfront
+        expanded_working_dir = os.path.abspath(os.path.expanduser(working_dir or "."))
+
         def resolve_path(rel_path: str) -> str:
             raw_path = str(rel_path).strip()
             if not raw_path:
                 raise DiffError("Empty path in patch")
 
-            if os.path.isabs(raw_path):
-                abs_path = os.path.abspath(raw_path)
+            # Expand ~ in the patch path itself (e.g., ~/.crystal/file.txt)
+            expanded_path = os.path.expanduser(raw_path)
+
+            if os.path.isabs(expanded_path):
+                abs_path = os.path.abspath(expanded_path)
             else:
-                base = working_dir or "."
-                abs_path = os.path.abspath(os.path.join(base, raw_path))
+                abs_path = os.path.abspath(os.path.join(expanded_working_dir, expanded_path))
 
             allowed = allowed_paths or ["."]
-            abs_allowed = [os.path.abspath(p) for p in allowed]
+            abs_allowed = [os.path.abspath(os.path.expanduser(p)) for p in allowed]
             if not any(
                 abs_path == root or abs_path.startswith(root + os.sep) for root in abs_allowed
             ):
