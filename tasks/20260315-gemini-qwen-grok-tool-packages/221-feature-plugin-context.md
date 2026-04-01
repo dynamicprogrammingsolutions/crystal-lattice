@@ -430,18 +430,18 @@ FeaturePlugin.execute_action(session, native_messages, params, context, state)
 - [x] Add unit tests for app-level context
 - [x] Add integration tests with GeminiCompactionFeaturePlugin
 - [x] Add Layer 3 tests (terminal/server context)
-- [ ] Create `plugins/docs/application-plugins.md`
-  - PENDING: `tasks/20260315-gemini-qwen-grok-tool-packages/221-1-documentation.md`
-- [ ] Create `plugins/docs/feature-plugins.md`
-  - PENDING: `tasks/20260315-gemini-qwen-grok-tool-packages/221-1-documentation.md`
-- [ ] Update `plugins/docs/provider-extensions.md`
-  - PENDING: `tasks/20260315-gemini-qwen-grok-tool-packages/221-1-documentation.md`
-- [ ] Update `plugins/docs/actions.md`
-  - PENDING: `tasks/20260315-gemini-qwen-grok-tool-packages/221-1-documentation.md`
-- [ ] Update `TYPES_AND_PROTOCOLS.md`
-  - PENDING: `tasks/20260315-gemini-qwen-grok-tool-packages/221-1-documentation.md`
-- [ ] Update `docs/api/core-sdk.md`
-  - PENDING: `tasks/20260315-gemini-qwen-grok-tool-packages/221-1-documentation.md`
+- [x] Create `plugins/docs/application-plugins.md`
+  - COMPLETED VIA `tasks/20260315-gemini-qwen-grok-tool-packages/221-1-documentation.md`
+- [x] Create `plugins/docs/feature-plugins.md`
+  - COMPLETED VIA `tasks/20260315-gemini-qwen-grok-tool-packages/221-1-documentation.md`
+- [x] Update `plugins/docs/provider-extensions.md`
+  - COMPLETED VIA `tasks/20260315-gemini-qwen-grok-tool-packages/221-1-documentation.md`
+- [x] Update `plugins/docs/actions.md`
+  - COMPLETED VIA `tasks/20260315-gemini-qwen-grok-tool-packages/221-1-documentation.md`
+- [x] Update `TYPES_AND_PROTOCOLS.md`
+  - COMPLETED VIA `tasks/20260315-gemini-qwen-grok-tool-packages/221-1-documentation.md`
+- [x] Update `docs/api/core-sdk.md`
+  - COMPLETED VIA `tasks/20260315-gemini-qwen-grok-tool-packages/221-1-documentation.md`
 
 ## Key Files
 

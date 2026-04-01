@@ -8,115 +8,107 @@ This subtask completes the documentation for Phase 2 of Task 221. The tasks crea
 ## Goal
 
 Create comprehensive documentation for:
-1. **ApplicationPlugin capabilities and context** - Document what ApplicationPlugin can do do2. **FeaturePlugin capabilities and context** - Document the FeaturePlugin can do access with layered context
+1. **ApplicationPlugin capabilities and context** - Document what ApplicationPlugin can do
+2. **FeaturePlugin capabilities and context** - Document the FeaturePlugin can do access with layered context
 3. **ProviderExtensionPlugin capabilities and context** - Document what ProviderExtensionPlugin can access with layered context
-4. **Session Actions API** - Document `execute_session_action` and `execute_lifecycle_actions` methods signatures,5. **Update existing documentation** - Match structure and style,6. **Create new documentation files** as described below
+4. **Session Actions API** - Document `execute_session_action` and `execute_lifecycle_actions` methods signatures
+5. **Update existing documentation** - Match structure and style
+6. **Create new documentation files** as described below
 
-## Files to Create
+## Files Created/Updated
 
-| File | Purpose |
-|------|------|
-| `plugins/docs/application-plugins.md` | Document ApplicationPlugin capabilities |
-| `plugins/docs/feature-plugins.md` | Document FeaturePlugin capabilities |
-| `plugins/docs/provider-extensions.md` |Update with context documentation |
-| `plugins/docs/actions.md` |Update with layered context section |
-| `TYPES_AND_PROTOCOLS.md` | Add session actions and context section |
-| `docs/api/core-sdk.md` |Add session actions section |
+| File | Status | Purpose |
+|------|--------|---------|
+| `plugins/docs/application-plugins.md` | ✅ Created | Document ApplicationPlugin capabilities |
+| `plugins/docs/feature-plugins.md` | ✅ Created | Document FeaturePlugin capabilities |
+| `plugins/docs/provider-extensions.md` | ✅ Updated | Added session actions and context documentation |
+| `plugins/docs/actions.md` | ✅ Updated | Added layered context section |
+| `TYPES_AND_PROTOCOLS.md` | ✅ Updated | Added session actions and context section |
+| `docs/api/core-sdk.md` | ✅ Updated | Added session actions documentation |
 
 ## Requirements Checklist
 
-- [ ] Investigate ApplicationPlugin implementation and capabilities
-- [ ] Investigate FeaturePlugin implementation and capabilities
-- [ ] Investigate ProviderExtensionPlugin implementation and capabilities
-- [ ] Document ApplicationPlugin context structure (all layers)
-- [ ] Document FeaturePlugin context structure (all layers)
-- [ ] Document ProviderExtensionPlugin context structure (all layers)
-- [ ] Document `execute_session_action` method signature
-- [ ] Document `execute_lifecycle_actions` method signature
-- [ ] Create `plugins/docs/application-plugins.md`
-- [ ] Create `plugins/docs/feature-plugins.md`
-- [ ] Update `plugins/docs/provider-extensions.md` with context documentation
-- [ ] Update `plugins/docs/actions.md` with layered context section
-- [ ] Update `TYPES_AND_PROTOCOLS.md` with session actions and context documentation
-- [ ] Update `docs/api/core-sdk.md` with session actions documentation
+- [x] Investigate ApplicationPlugin implementation and capabilities
+- [x] Investigate FeaturePlugin implementation and capabilities
+- [x] Investigate ProviderExtensionPlugin implementation and capabilities
+- [x] Document ApplicationPlugin context structure (all layers)
+- [x] Document FeaturePlugin context structure (all layers)
+- [x] Document ProviderExtensionPlugin context structure (all layers)
+- [x] Document `execute_session_action` method signature
+- [x] Document `execute_lifecycle_actions` method signature
+- [x] Create `plugins/docs/application-plugins.md`
+- [x] Create `plugins/docs/feature-plugins.md`
+- [x] Update `plugins/docs/provider-extensions.md` with context documentation
+- [x] Update `plugins/docs/actions.md` with layered context section
+- [x] Update `TYPES_AND_PROTOCOLS.md` with session actions and context documentation
+- [x] Update `docs/api/core-sdk.md` with session actions documentation
 
-## Existing Documentation to Review
+## Documentation Summary
 
-Before writing, review the existing documentation structure:
- match style, and tone with the existing docs files:
-- `plugins/docs/provider-plugins.md` - Reference for provider implementation
-- `plugins/docs/provider-extensions.md` - Documents extensions
-- `plugins/docs/actions.md` - Documents actions
-- `plugins/docs/ui-elements.md` - Documents UI elements
+### plugins/docs/application-plugins.md (New)
 
-## Features to Document
+Comprehensive documentation for ApplicationPlugin including:
+- Capabilities table (session persistence, LLM requests, event publishing, etc.)
+- Protocol definition
+- Context structure in `execute_action`
+- Action definitions and lifecycle triggers
+- Return value contract (mutations, ui_effects)
+- UI elements contribution
+- Example implementation
+- When to use ApplicationPlugin vs FeaturePlugin
 
-### ApplicationPlugin
+### plugins/docs/feature-plugins.md (New)
 
-**Capabilities to** file:
-| Capability | Method/Access |
-|------------|---------------|
-| Load sessions | `app.load_session(session_id)` |
-| Save sessions | `app.save_session(session)` |
-| LLM requests | `app.send_request(core, session, config, overrides)` |
-| Session locking | `app.acquire_session_lock(session_id)` |
-| Event publishing | `app.publish_event(event)` |
-| Switch agents | `app.update_agent(agent_id, session)` |
-| Full config access | `self._config` (all agents) |
-| Request config resolution | `resolve_request_config(base_config, overrides)` |
+Comprehensive documentation for FeaturePlugin including:
+- Core capabilities (Layer 1 - always available)
+- Application capabilities (Layer 2 - when called from AgentApplication)
+- Protocol definition
+- Layered context in `execute_action` (detailed breakdown of each layer)
+- Checking for capabilities pattern
+- Return value contract (native_messages, session_metadata)
+- Action definitions
+- Example implementation showing both core-only and app-enhanced modes
+- UI elements contribution
+- When to use FeaturePlugin vs ApplicationPlugin
 
-**Context in `execute_action` (Layer 2: Application-level)
-- `app: AgentApplication` instance
-- `application`: AgentApplication (alias)
-- `base_config: Full base config with- `session_asset_store`: Session asset store
-- `event_store`: Event store
-- `session_id`: Current session ID
-- `agent_id`: Current agent ID
-- `overrides`: Current session overrides
+### plugins/docs/provider-extensions.md (Updated)
 
-### FeaturePlugin
+Added section on:
+- Session actions for provider extensions
+- `execute_action` signature
+- Return value contract
+- Layered context structure (Layer 1 and Layer 2)
+- Checking for capabilities pattern
 
-**Capabilities (NEW in this task)**file:
-| Capability | Method/Access |
-|------------|---------------|
-| LLM requests | `core.stream_request()` or `core.send_request()` (core-only) |
-| Temp sessions | `core.slice_session()` for compaction |
-|Modify native_messages | Via `to_native_messages`/`from_native_messages` |
-| Session metadata | Return `session_metadata` patch |
+### plugins/docs/actions.md (Updated)
 
-**Context in `execute_action` (Layer 1: Core-level - always present
-- `core: AgentCore` instance
-- `config: Current resolved config
-- `trigger_source`: "core" or "application" (where triggered)
-- `session`: Serialized session dict
-- `lifecycle`: Lifecycle trigger name (for lifecycle actions)
+Added section after "Reserved context keys":
+- Layered context for feature/extension plugins
+- Layer 1: Core-level context (always present)
+- Layer 2: Application-level context (when called from AgentApplication)
+- Layer 3: Terminal/Server-level context (implementation-specific)
+- Checking for capabilities pattern
+- Context flow diagram
 
-**Layer 2: Application-level - when called from AgentApplication
-- `app` / `application`: AgentApplication instance
-- `base_config`: Full base config
-- `session_asset_store`: SessionAssetStore
+### TYPES_AND_PROTOCOLS.md (Updated)
 
-**Layer 3: Terminal/Server-level - optional,- Terminal: TerminalApplication instance
-- Server: FastAPI server
-- Custom keys passed via `context` parameter
+Added sections:
+- Session Actions (ActionDefinition, ActionContext, ActionResult)
+- Layered Context (context buildup through call stack)
+- Capability checking pattern
 
-### ProviderExtensionPlugin
+### docs/api/core-sdk.md (Updated)
 
-**Capabilities
-Same as FeaturePlugin
-**Context in `execute_action`
-Same as FeaturePlugin (Layer 1 always present)
+Added method documentation:
+- `execute_session_action` with parameters, context, returns, example
+- `execute_lifecycle_actions` with parameters, context, returns, example
+- Standard lifecycle triggers list
 
-## Implementation Notes
+## Completion Notes
 
-1. Read existing documentation to understand structure and style
-2. For each plugin type, read the implementations in:
-   - `core/python/agent_app/app_plugins.py` - ApplicationPlugin wrapper
-   - `core/python/agent_core/types.py` - Protocols
-   - `plugins/gemini-compaction-app/src/gemini_compaction_app/__init__.py` - Reference implementation
-   - `plugins/gemini-compaction-feature/src/gemini_compaction_feature/__init__.py` - FeaturePlugin reference
-
-3. Focus on behavior differences between ApplicationPlugin and FeaturePlugin
-   - ApplicationPlugin: Richer capabilities, full session persistence,   - FeaturePlugin: Lightweight, stateless, operates at native-message level
-
-4. Follow AGENTS.md guidelines for documentation structure,
+All documentation has been created/updated to match the existing documentation style:
+- Follows the same structure as `provider-plugins.md` and `provider-extensions.md`
+- Uses consistent formatting for tables, code blocks, and examples
+- Includes practical examples and usage patterns
+- Documents both the "what" and "why" for each capability
+- Provides clear guidance on when to use each plugin type

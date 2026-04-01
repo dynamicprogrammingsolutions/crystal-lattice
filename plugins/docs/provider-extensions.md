@@ -455,6 +455,139 @@ When in doubt, prefer preserving provider-native blocks unchanged via native his
 
 ---
 
+## Session actions
+
+Provider extensions can define session-scoped actions that operate on provider-native history. These actions are similar to feature plugin actions but run in the provider's context with access to shared provider state.
+
+### Action definitions
+
+```python
+def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    return [
+        {
+            "id": "compact_native_history",
+            "label": "Compact native history",
+            "description": "Compress provider-native history for this session.",
+            "inputs": {
+                "instructions": {"type": "string", "required": False},
+            },
+            # Optional: trigger on lifecycle events
+            "trigger": ["session_save_prepare"],
+        }
+    ]
+```
+
+### execute_action signature
+
+```python
+def execute_action(
+    self,
+    action_id: str,
+    session: Session,
+    native_messages: List[Dict[str, Any]],
+    params: Dict[str, Any],
+    context: Optional[Dict[str, Any]],
+    state: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Execute a session-scoped provider-native action."""
+```
+
+### Return value contract
+
+Provider extension actions return:
+
+```python
+{
+    # Required: replacement native messages
+    "native_messages": [...],  # Full provider-native history
+    
+    # Optional: session metadata patch
+    "session_metadata": {
+        "last_compaction": "2025-01-15T10:30:00",
+    },
+    
+    # Optional: error information
+    "error": {"type": "disabled", "message": "..."},
+}
+```
+
+---
+
+## Context in `execute_action`
+
+Provider extensions receive layered context that provides access to runtime capabilities.
+
+### Layer 1: Core-level context (always present)
+
+```python
+context = {
+    "core": self,              # AgentCore instance
+    "config": config,          # Current resolved config
+    "trigger_source": "core",  # Where action was triggered
+    "session": session.to_dict(),  # Serialized session
+    "lifecycle": trigger,      # Lifecycle trigger name (if applicable)
+}
+```
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `core` | `AgentCore` | Core instance for session/message operations |
+| `config` | `dict` | Current resolved request configuration |
+| `trigger_source` | `str` | Where action was triggered (`"core"`, `"application"`) |
+| `session` | `dict` | Serialized session |
+| `lifecycle` | `str` | Lifecycle trigger name (for lifecycle-triggered actions) |
+
+### Layer 2: Application-level context (when called from AgentApplication)
+
+When called from `AgentApplication.execute_session_action()` or `AgentApplication.run_session_lifecycle()`:
+
+```python
+context = {
+    # Layer 1 (from core)
+    "core": core,
+    "config": effective_config,
+    "trigger_source": "application",
+    "session": session.to_dict(),
+
+    # Layer 2 (from application)
+    "app": self,             # AgentApplication instance
+    "application": self,     # Alias
+    "base_config": self._config,  # Full base config
+}
+```
+
+### Checking for capabilities
+
+Provider extensions should check for capabilities before using them:
+
+```python
+def execute_action(
+    self,
+    action_id: str,
+    session: Session,
+    native_messages: List[Dict[str, Any]],
+    params: Dict[str, Any],
+    context: Optional[Dict[str, Any]],
+    state: Dict[str, Any],
+) -> Dict[str, Any]:
+    # Core is always available
+    core = context.get("core")
+    config = context.get("config", {})
+    
+    # Application is optional
+    app = context.get("app")
+    base_config = context.get("base_config", config)
+    
+    if app is not None:
+        # Application-level capabilities available
+        pass
+    else:
+        # Core-only mode
+        pass
+```
+
+---
+
 ## Testing strategy
 
 Recommended layers:
