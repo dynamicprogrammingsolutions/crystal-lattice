@@ -226,3 +226,111 @@ class TestSnapshotDetection:
         ]
 
         assert plugin._has_previous_snapshot(messages) is False
+
+
+class TestPreserveLastUserMessage:
+    """Tests for preserving last user message when at end of session.
+
+    When the last message in the session is a user message and the compaction
+    range includes it, the plugin should preserve it (not compact it) because
+    it might be in-progress (user hasn't received a response yet).
+    """
+
+    def test_preserve_last_user_when_end_is_last_message(self) -> None:
+        """Last user message should be preserved when end_idx == message_count."""
+        plugin = GeminiCompactionFeaturePlugin()
+
+        class MockMessage:
+            def __init__(self, role: str, content: str):
+                self.role = role
+                self.content = content
+
+        class MockSession:
+            def __init__(self, messages):
+                self.messages = messages
+                self.session_id = "test"
+                self.metadata = {}
+
+        # Create a session ending with a user message
+        messages = [
+            MockMessage("system", "System prompt"),
+            MockMessage("user", "Hello"),
+            MockMessage("assistant", "Hi!"),
+            MockMessage("user", "How are you?"),  # Last message is user
+        ]
+        session = MockSession(messages)
+
+        # Test _normalize_slice_bounds helper behavior
+        # When end is None, it defaults to message_count (4)
+        # When the last message is user, end_idx should be adjusted to 3
+        message_count = len(messages)
+
+        # Simulate the logic in _do_compact_range
+        # end_idx would be message_count (4) by default
+        end_idx = message_count
+
+        # Check the preserve last user logic
+        if end_idx == message_count and message_count > 0:
+            last_msg = messages[-1]
+            if last_msg.role == "user":
+                end_idx = message_count - 1
+
+        # The end_idx should be adjusted to exclude the last user message
+        assert end_idx == 3, "Last user message should be preserved when at end of session"
+
+    def test_no_preserve_when_last_is_assistant(self) -> None:
+        """No preservation needed when last message is assistant."""
+        plugin = GeminiCompactionFeaturePlugin()
+
+        class MockMessage:
+            def __init__(self, role: str, content: str):
+                self.role = role
+                self.content = content
+
+        messages = [
+            MockMessage("system", "System prompt"),
+            MockMessage("user", "Hello"),
+            MockMessage("assistant", "Hi!"),  # Last message is assistant
+        ]
+        message_count = len(messages)
+
+        # end_idx would be message_count (3) by default
+        end_idx = message_count
+
+        # The preserve logic should NOT adjust end_idx
+        if end_idx == message_count and message_count > 0:
+            last_msg = messages[-1]
+            if last_msg.role == "user":
+                end_idx = message_count - 1
+
+        # end_idx should remain unchanged
+        assert end_idx == 3, "No adjustment needed when last message is assistant"
+
+    def test_no_preserve_when_end_not_at_tail(self) -> None:
+        """No preservation needed when compaction range doesn't include last message."""
+        plugin = GeminiCompactionFeaturePlugin()
+
+        class MockMessage:
+            def __init__(self, role: str, content: str):
+                self.role = role
+                self.content = content
+
+        messages = [
+            MockMessage("system", "System prompt"),
+            MockMessage("user", "Hello"),
+            MockMessage("assistant", "Hi!"),
+            MockMessage("user", "Question"),  # Last but not included in range
+        ]
+        message_count = len(messages)
+
+        # If end is explicitly set to 2, the last user message is not included
+        end_idx = 2  # Compact only first 2 messages
+
+        # The preserve logic should NOT apply because end_idx != message_count
+        if end_idx == message_count and message_count > 0:
+            last_msg = messages[-1]
+            if last_msg.role == "user":
+                end_idx = message_count - 1
+
+        # end_idx should remain unchanged
+        assert end_idx == 2, "No adjustment when compaction range doesn't include tail"

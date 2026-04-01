@@ -257,6 +257,64 @@ def execute_action(
         pass
 ```
 
+### Note on config resolution
+
+The `config` key in context is the **resolved request configuration** for the current agent, passed to `execute_session_action()`. When called from `AgentApplication`, this is the result of `resolve_request_config(base_config, session_overrides)`.
+
+The `base_config` key (when present) is the **full flattened agent configuration** from `build_agent_config()`. This includes all agent-level settings like `compaction`, `reasoning`, etc.
+
+When implementing feature plugins that access agent-level configuration:
+
+```python
+# Correct: Use base_config for agent-level settings
+compaction_cfg = base_config.get("compaction") or {}
+
+# Fallback to config when base_config is not available (core-only calls)
+if not compaction_cfg and "compaction" in config:
+    compaction_cfg = config.get("compaction") or {}
+```
+
+### Error handling pattern
+
+Feature plugins should return error dictionaries rather than raising exceptions, allowing the caller to decide how to handle errors:
+
+```python
+def execute_action(
+    self,
+    action_id: str,
+    session: Session,
+    native_messages: List[Dict[str, Any]],
+    params: Dict[str, Any],
+    context: Optional[Dict[str, Any]],
+    state: Dict[str, Any],
+) -> Dict[str, Any]:
+    # Validate context
+    if not isinstance(context, dict):
+        return {
+            "native_messages": native_messages,
+            "error": {"type": "invalid_context", "message": "Context is required"},
+        }
+    
+    core = context.get("core")
+    if core is None:
+        return {
+            "native_messages": native_messages,
+            "error": {"type": "missing_core", "message": "Context must include 'core'"},
+        }
+    
+    # Check enablement
+    base_config = context.get("base_config", context.get("config", {}))
+    if not self._is_enabled(base_config):
+        return {
+            "native_messages": native_messages,
+            "error": {"type": "disabled", "message": "Feature is not enabled."},
+        }
+    
+    # ... rest of implementation
+```
+
+This pattern differs from Application plugins, which typically raise exceptions for validation errors. The difference exists because feature plugins operate at the core layer where errors should be returned as part of the result dictionary, allowing the core to properly handle native_messages updates even in error cases.
+
 ---
 
 ## Return value contract

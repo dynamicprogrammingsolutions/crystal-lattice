@@ -342,6 +342,8 @@ def execute_action(
         pass
 ```
 
+**Note on config resolution:** The `config` key is the resolved request configuration for the current agent. When called from `AgentApplication`, `base_config` contains the full flattened agent configuration (from `build_agent_config()`). For agent-level settings like `compaction`, always use `base_config` when available, falling back to `config` for core-only calls.
+
 #### Context flow diagram
 
 ```
