@@ -20,6 +20,7 @@ from typing import Any, Dict, Iterator, List
 from tool_compat_shared.shell_engine import run_shell_command
 
 from .base_shell_tool import BaseCodexShellTool
+from .workdir import resolve_tool_workdir
 
 
 class ShellArrayTool(BaseCodexShellTool):
@@ -146,11 +147,8 @@ class ShellArrayTool(BaseCodexShellTool):
         if not all(isinstance(c, str) for c in command):
             return {"success": False, "error": "command array must contain only strings"}
         
-        workdir = arguments.get("workdir")
-        # Fall back to configured working_directory if workdir not provided
-        if workdir is None:
-            config = state.get("config", {})
-            workdir = config.get("working_directory")
+        config = state.get("config", {})
+        workdir = resolve_tool_workdir(config, arguments.get("workdir"))
         
         timeout_ms = arguments.get("timeout_ms")
         
@@ -239,11 +237,8 @@ class ShellArrayTool(BaseCodexShellTool):
             yield {"success": False, "error": "command array must contain only strings"}
             return
         
-        workdir = arguments.get("workdir")
-        # Fall back to configured working_directory if workdir not provided
-        if workdir is None:
-            config = state.get("config", {})
-            workdir = config.get("working_directory")
+        config = state.get("config", {})
+        workdir = resolve_tool_workdir(config, arguments.get("workdir"))
         
         timeout_ms = arguments.get("timeout_ms")
         

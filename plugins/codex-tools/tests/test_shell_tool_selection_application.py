@@ -62,6 +62,39 @@ def _get_tags(core: AgentCore, config: Dict[str, Any]) -> List[str]:
     return tags
 
 
+def test_gpt_5_4_enables_shell_command_via_application_config(tmp_path):
+    """gpt-5.4 should auto-select shell_command through AgentApplication."""
+
+    config = {
+        "plugins": [
+            "path:${env:BUILTIN_PLUGINS}/openrouter",
+            "path:${env:BUILTIN_PLUGINS}/codex-tools",
+        ],
+        "providers": {
+            "openrouter": {
+                "provider": "openrouter",
+                "api_key": "${env:OPENROUTER_API_KEY}",
+            }
+        },
+        "agents": {
+            "codex-agent": {
+                "provider": "openrouter",
+                "model": "openai/gpt-5.4",
+            }
+        },
+    }
+
+    app = _make_app(tmp_path, config)
+    core, agent_config, _ = app.create_session("codex-agent")
+
+    tool_names = _get_tool_names(core, agent_config)
+    tags = _get_tags(core, agent_config)
+
+    assert "codex-variant" in tags
+    assert "shell_command" in tool_names
+    assert "shell" not in tool_names
+
+
 @pytest.mark.integration
 @pytest.mark.openrouter
 def test_codex_model_enables_shell_command_via_config(tmp_path):

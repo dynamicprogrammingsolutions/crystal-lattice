@@ -19,6 +19,7 @@ from tool_compat_shared.shell_engine import (
 )
 
 from .base_shell_tool import BaseCodexShellTool, DEFAULT_MAX_OUTPUT_TOKENS
+from .workdir import resolve_tool_workdir
 
 
 class ShellCommandTool(BaseCodexShellTool):
@@ -159,11 +160,8 @@ class ShellCommandTool(BaseCodexShellTool):
         if not isinstance(command, str) or not command.strip():
             return {"success": False, "error": "command must be a non-empty string"}
         
-        workdir = arguments.get("workdir")
-        # Fall back to configured working_directory if workdir not provided
-        if workdir is None:
-            config = state.get("config", {})
-            workdir = config.get("working_directory")
+        config = state.get("config", {})
+        workdir = resolve_tool_workdir(config, arguments.get("workdir"))
         
         timeout_ms = arguments.get("timeout_ms")
         login = arguments.get("login", True)  # Default true
@@ -231,11 +229,8 @@ class ShellCommandTool(BaseCodexShellTool):
             yield {"success": False, "error": "command must be a non-empty string"}
             return
         
-        workdir = arguments.get("workdir")
-        # Fall back to configured working_directory if workdir not provided
-        if workdir is None:
-            config = state.get("config", {})
-            workdir = config.get("working_directory")
+        config = state.get("config", {})
+        workdir = resolve_tool_workdir(config, arguments.get("workdir"))
         
         timeout_ms = arguments.get("timeout_ms")
         login = arguments.get("login", True)

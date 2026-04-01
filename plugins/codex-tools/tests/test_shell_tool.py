@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import platform
+import sys
 from pathlib import Path
 
 import pytest
@@ -174,6 +175,64 @@ class TestShellArrayToolExecute:
         
         assert result["success"] is True
         assert "test.txt" in result["output"]
+
+    @pytest.mark.asyncio
+    async def test_missing_workdir_uses_configured_turn_cwd(self, tmp_path: Path) -> None:
+        """Missing workdir should fall back to the configured turn cwd."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({"working_directory": str(tmp_path)})
+
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {"command": [sys.executable, "-c", "import os; print(os.getcwd())"]},
+            state,
+        )
+
+        assert result["success"] is True
+        assert str(tmp_path) in result["output"]
+        assert result["workdir"] == str(tmp_path)
+
+    @pytest.mark.asyncio
+    async def test_empty_workdir_uses_configured_turn_cwd(self, tmp_path: Path) -> None:
+        """Empty-string workdir should fall back to the configured turn cwd."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({"working_directory": str(tmp_path)})
+
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {
+                "command": [sys.executable, "-c", "import os; print(os.getcwd())"],
+                "workdir": "",
+            },
+            state,
+        )
+
+        assert result["success"] is True
+        assert str(tmp_path) in result["output"]
+        assert result["workdir"] == str(tmp_path)
+
+    @pytest.mark.asyncio
+    async def test_relative_workdir_resolves_against_turn_cwd(self, tmp_path: Path) -> None:
+        """Relative workdir should be normalized against the effective turn cwd."""
+        base_dir = tmp_path / "workspace"
+        subdir = base_dir / "nested"
+        subdir.mkdir(parents=True)
+
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({"working_directory": str(base_dir)})
+
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {
+                "command": [sys.executable, "-c", "import os; print(os.getcwd())"],
+                "workdir": "nested",
+            },
+            state,
+        )
+
+        assert result["success"] is True
+        assert str(subdir) in result["output"]
+        assert result["workdir"] == str(subdir)
 
     @pytest.mark.asyncio
     async def test_timeout(self, tmp_path: Path) -> None:

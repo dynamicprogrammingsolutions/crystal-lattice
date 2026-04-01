@@ -14,6 +14,7 @@ from typing import Any, Dict, List
 import pytest
 
 from agent_core import AgentCore
+from codex_tools.codex_variant_feature import CodexVariantFeature
 from codex_tools.shell_tool import ShellArrayTool
 from codex_tools.shell_command_tool import ShellCommandTool
 from codex_tools.shell_tool_legacy import ShellTool
@@ -81,6 +82,23 @@ class TestShellToolSelection:
 
         assert "shell" not in tool_names, "shell should be disabled in auto mode with codex-variant"
         assert "shell_command" in tool_names, "shell_command should be enabled in auto mode with codex-variant"
+
+    def test_gpt_5_4_auto_mode_enables_shell_command(self):
+        """gpt-5.4 should follow the shell_command family."""
+        core = AgentCore()
+        core.register_provider(MockProvider)
+        core.register_feature(CodexVariantFeature)
+        core.register_tool(ShellArrayTool)
+        core.register_tool(ShellCommandTool)
+
+        config = {"shell_tool_mode": "auto", "model": "openai/gpt-5.4"}
+
+        provider, exts, feats, tools, tags = core._resolve_plugins_for_config(config)
+        tool_names = [t.name for t in tools]
+
+        assert "codex-variant" in tags
+        assert "shell_command" in tool_names
+        assert "shell" not in tool_names
 
     def test_auto_mode_with_config_is_codex_model(self):
         """Config can trigger codex-variant tag via provider."""
@@ -195,6 +213,31 @@ class TestShellToolTags:
         tool = ShellCommandTool()
         tags = tool.get_tags({}, [])
         assert "shell:command" in tags
+
+
+class TestCodexVariantFeaturePatterns:
+    """Tests for Codex shell-family model detection."""
+
+    @pytest.mark.parametrize(
+        ("model", "expected"),
+        [
+            ("openai/gpt-5", False),
+            ("openai/gpt-5-mini", False),
+            ("openai/gpt-5.1", False),
+            ("openai/gpt-5.1-mini", False),
+            ("openai/gpt-5.2", False),
+            ("openai/gpt-5.2-mini", False),
+            ("openai/gpt-5.2-codex", True),
+            ("openai/gpt-5.4", True),
+            ("openai/gpt-5.4-mini", True),
+            ("openai/gpt-6", True),
+            ("openai/gpt-6.1", True),
+        ],
+    )
+    def test_codex_variant_feature_matches_expected_models(self, model: str, expected: bool):
+        feature = CodexVariantFeature()
+        tags = feature.get_tags({"model": model}, [])
+        assert ("codex-variant" in tags) is expected
 
 
 class TestShellToolIsEnabled:

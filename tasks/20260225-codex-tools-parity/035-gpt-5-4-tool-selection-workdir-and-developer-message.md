@@ -221,3 +221,9 @@ When this task is implemented, append a `## Completion Notes` section describing
 - the final selection rule used for `gpt-5.4`
 - the final source of effective cwd
 - how the Codex developer/system message now exposes cwd and AGENTS context
+
+## Completion Notes
+
+- Auto-selection now uses explicit model-family rules in `plugins/codex-tools/src/codex_tools/model_family.py`: `gpt-5`, `gpt-5.1`, `gpt-5.2`, and their `-mini` variants stay on array `shell`; any `*-codex` model and plain/minified `gpt-5.4` and later GPT families use `shell_command`.
+- The effective turn cwd now comes from provider/agent config `working_directory`, resolved relative to the Python process cwd when needed, with process cwd as the fallback when `working_directory` is missing or empty. Both shell tools then treat omitted and empty-string `workdir` as that turn cwd, and resolve relative `workdir` values against it before execution.
+- The Codex system/developer message path still uses `feature_system_message`, but now renders through the Codex template plus new dynamic helpers: `render_codex_project_instructions.py` loads `AGENTS.md` content from the effective cwd and git root, and `render_codex_environment_context.py` emits a serialized `<environment_context>` block with the same effective cwd and detected shell that the tools use.

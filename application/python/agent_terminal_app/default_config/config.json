@@ -87,11 +87,19 @@
         }
       ],
       "system_message": {
-        "template": "{{CODEX_DEVELOPER_MESSAGE}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}",
+        "template": "${file:${env:CONFIG_DIR}/system_messages/codex/template.md}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/select_codex_developer_message.py",
         "variables": {
           "CODEX_DEVELOPER_MESSAGE": {
             "inline_code": "select_codex_developer_message()"
+          },
+          "CODEX_PROJECT_INSTRUCTIONS": {
+            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_project_instructions.py",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
+          },
+          "CODEX_ENVIRONMENT_CONTEXT": {
+            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_environment_context.py",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
           },
           "TASKS": {
             "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
@@ -99,10 +107,6 @@
             "condition": {
               "inline_code": "include_tasks()"
             }
-          },
-          "AGENTS_SECTION": {
-            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_agents_context_section.py",
-            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py"
           }
         }
       }
@@ -438,11 +442,19 @@
       ],
       "system_message_enabled": true,
       "system_message": {
-        "template": "{{CODEX_DEVELOPER_MESSAGE}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}",
+        "template": "${file:${env:CONFIG_DIR}/system_messages/codex/template.md}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/select_codex_developer_message.py",
         "variables": {
           "CODEX_DEVELOPER_MESSAGE": {
             "inline_code": "select_codex_developer_message()"
+          },
+          "CODEX_PROJECT_INSTRUCTIONS": {
+            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_project_instructions.py",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
+          },
+          "CODEX_ENVIRONMENT_CONTEXT": {
+            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_environment_context.py",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
           },
           "TASKS": {
             "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
@@ -450,10 +462,6 @@
             "condition": {
               "inline_code": "include_tasks()"
             }
-          },
-          "AGENTS_SECTION": {
-            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_agents_context_section.py",
-            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py"
           }
         }
       }

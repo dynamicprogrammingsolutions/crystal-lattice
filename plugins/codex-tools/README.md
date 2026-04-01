@@ -23,7 +23,7 @@ Execute shell scripts using the user's default shell.
 - **Parameters**: `command` (string, required), `workdir` (string), `timeout_ms` (number), `login` (boolean)
 - **Command format**: String script (e.g., `"echo hello"`)
 - **Execution**: Wrapped via shell (e.g., `bash -lc "echo hello"`)
-- **Models**: Codex variants (gpt-5-codex, gpt-5.1-codex, gpt-5.2-codex, gpt-5.3-codex, gpt-5.4)
+- **Models**: Codex variants plus the shell-command GPT family (`gpt-5.4` and later)
 - **Selection**: Auto-selected when `codex-variant` tag is present
 
 ### Shell Legacy
@@ -46,10 +46,10 @@ Apply unified diff patches to files.
 ## Exposed Features
 
 ### CodexVariantFeature
-Emits the `codex-variant` tag when the model name ends with `-codex`.
+Emits the `codex-variant` tag when the model belongs to the shell-command family.
 
 - **Plugin name**: `codex_variant`
-- **Tag emitted**: `codex-variant` (when model ends with `-codex`)
+- **Tag emitted**: `codex-variant` (for `*-codex` models and `gpt-5.4` and later plain/minified GPT models)
 - **Purpose**: Enables automatic shell tool selection based on model type
 
 ## Shell Tool Selection
@@ -58,8 +58,8 @@ Tools are automatically selected based on:
 
 | Condition | Tool Enabled |
 |-----------|-------------|
-| Model ends with `-codex` (auto mode) | `shell_command` |
-| Model does NOT end with `-codex` (auto mode) | `shell` |
+| `gpt-5`, `gpt-5.1`, `gpt-5.2` and `-mini` variants (auto mode) | `shell` |
+| `*-codex`, `gpt-5.4`, and later GPT families (auto mode) | `shell_command` |
 | `shell_tool_mode: "shell"` | `shell` (forced) |
 | `shell_tool_mode: "shell_command"` | `shell_command` (forced) |
 
@@ -67,8 +67,8 @@ Tools are automatically selected based on:
 
 ```
 shell_tool_mode = "auto" (default)
-├── codex-variant tag present → shell_command enabled
-└── codex-variant tag absent → shell enabled
+├── codex-variant tag present -> shell_command enabled
+└── codex-variant tag absent -> shell enabled
 
 shell_tool_mode = "shell"
 └── shell forced on, shell_command forced off
@@ -127,10 +127,11 @@ shell_tool_mode = "shell_command"
 ## Codex-Specific Behavior Notes
 
 1. **Two shell tool variants**: Array-based (`shell`) and string-based (`shell_command`)
-2. **Automatic selection**: Based on `codex-variant` tag from model name
-3. **Model detection**: `CodexVariantFeature` checks if model ends with `-codex`
-4. **Legacy tool**: Disabled by default, enable via `enabled_plugins`
-5. **Config override**: `shell_tool_mode` forces specific tool regardless of model
+2. **Automatic selection**: Based on `codex-variant` tag from model-family detection
+3. **Model detection**: `CodexVariantFeature` keeps `gpt-5`/`5.1`/`5.2` on `shell`, and routes `*-codex`, `gpt-5.4`, and later GPT families to `shell_command`
+4. **Workdir semantics**: Missing or empty `workdir` falls back to the effective turn cwd, and relative `workdir` values are resolved against that cwd before execution
+5. **Legacy tool**: Disabled by default, enable via `enabled_plugins`
+6. **Config override**: `shell_tool_mode` forces specific tool regardless of model
 
 ## Dependencies
 

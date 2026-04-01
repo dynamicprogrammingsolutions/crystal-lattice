@@ -1,7 +1,7 @@
-"""Feature plugin that emits codex-variant tag for Codex models.
+"""Feature plugin that emits codex-variant tags for Codex shell-command models.
 
-This feature detects when the configured model is a Codex variant
-(model name ends with "-codex") and emits the "codex-variant" tag.
+This feature detects when the configured model belongs to the shell-command
+family used by Codex CLI and emits the ``codex-variant`` tag.
 
 The tag is used by shell tool selection to choose the appropriate
 shell tool:
@@ -15,23 +15,11 @@ from typing import Any, Dict, List, Tuple
 
 from agent_core.types import FeaturePlugin
 
+from .model_family import is_codex_variant_model
+
 
 class CodexVariantFeature(FeaturePlugin):
-    """Feature that emits codex-variant tag for Codex models.
-    
-    A model is considered a Codex variant if its name matches a codex pattern.
-    Valid codex model patterns:
-    - Ends with "-codex" (e.g., "openai/gpt-5.2-codex")
-    - Ends with "-codex-mini" (e.g., "openai/gpt-5.1-codex-mini")
-    - Ends with "-codex-max" (e.g., "openai/gpt-5.1-codex-max")
-    
-    Examples:
-    - "openai/gpt-5.2-codex" → codex-variant
-    - "openai/gpt-5.3-codex" → codex-variant
-    - "openai/gpt-5.1-codex-mini" → codex-variant
-    - "openai/gpt-5.1-codex-max" → codex-variant
-    - "openai/gpt-5" → not a codex variant
-    """
+    """Feature that emits ``codex-variant`` for shell-command models."""
     
     name: str = "codex_variant"
     version: str = "1.0.0"
@@ -55,13 +43,12 @@ class CodexVariantFeature(FeaturePlugin):
         config: Dict[str, Any],
         models: List[Dict[str, Any]],
     ) -> List[str]:
-        """Return codex-variant tag if model name matches codex pattern."""
+        """Return codex-variant tag if the model auto-selects shell_command."""
         model = config.get("model", "")
         if not isinstance(model, str):
             return []
-        
-        # Check for codex variant patterns
-        if model.endswith("-codex") or model.endswith("-codex-mini") or model.endswith("-codex-max"):
+
+        if is_codex_variant_model(model):
             return ["codex-variant"]
         return []
 
