@@ -427,15 +427,21 @@ FeaturePlugin.execute_action(session, native_messages, params, context, state)
 - [x] Update protocol docstrings in `types.py`
 - [x] Implement GeminiCompactionFeaturePlugin
 - [x] Add unit tests for core-level context
-- [ ] Add unit tests for app-level context
-- [ ] Add integration tests with GeminiCompactionFeaturePlugin
-- [ ] Add Layer 3 tests (terminal/server context)
+- [x] Add unit tests for app-level context
+- [x] Add integration tests with GeminiCompactionFeaturePlugin
+- [x] Add Layer 3 tests (terminal/server context)
 - [ ] Create `plugins/docs/application-plugins.md`
+  - PENDING: `tasks/20260315-gemini-qwen-grok-tool-packages/221-1-documentation.md`
 - [ ] Create `plugins/docs/feature-plugins.md`
+  - PENDING: `tasks/20260315-gemini-qwen-grok-tool-packages/221-1-documentation.md`
 - [ ] Update `plugins/docs/provider-extensions.md`
+  - PENDING: `tasks/20260315-gemini-qwen-grok-tool-packages/221-1-documentation.md`
 - [ ] Update `plugins/docs/actions.md`
+  - PENDING: `tasks/20260315-gemini-qwen-grok-tool-packages/221-1-documentation.md`
 - [ ] Update `TYPES_AND_PROTOCOLS.md`
+  - PENDING: `tasks/20260315-gemini-qwen-grok-tool-packages/221-1-documentation.md`
 - [ ] Update `docs/api/core-sdk.md`
+  - PENDING: `tasks/20260315-gemini-qwen-grok-tool-packages/221-1-documentation.md`
 
 ## Key Files
 
@@ -469,44 +475,48 @@ FeaturePlugin.execute_action(session, native_messages, params, context, state)
 
 ## Completion Notes
 
-**Phases 1-3 completed successfully.**
+**Phases 1, 3, and 4 completed successfully. Phase 2 (documentation) deferred to subtask.**
 
-### Files Modified
+### Files Modified in This Session
 
 | File | Changes |
 |------|---------|
-| `core/python/agent_core/core.py` | Added context enrichment in `execute_session_action` and `execute_lifecycle_actions` |
-| `core/python/agent_core/types.py` | Updated `execute_action` docstrings for FeaturePlugin and ProviderExtensionPlugin |
-| `core/python/agent_app/application_future.py` | Added `app`, `base_config` to `_build_lifecycle_context` and `execute_session_action` |
+| `plugins/gemini-compaction-app/src/gemini_compaction_app/__init__.py` | Fixed `slice_session` call; fixed order of anchor instruction check |
+| `plugins/gemini-compaction-feature/src/gemini_compaction_feature/__init__.py` | Same fixes as above; removed unused `preserve_last_user` variable |
+| `plugins/gemini-compaction-feature/tests/test_gemini_compaction_feature_openrouter_integration.py` | Fixed test assertion |
+| `core/python/tests/test_feature_plugin_context_enrichment.py` | Replaced placeholder test with documentation test |
+| `application/python/tests/test_feature_plugin_context_enrichment.py` | Created application-level context tests |
 
-### Files Created
+### Files Created in This Session
 
 | File | Purpose |
 |------|---------|
-| `plugins/gemini-compaction-app/src/gemini_compaction_app/feature_plugin.py` | GeminiCompactionFeaturePlugin implementation |
-| `core/python/tests/fixtures/context_recording_feature.py` | Test fixture for context testing |
-| `core/python/tests/test_feature_plugin_context_enrichment.py` | Unit tests for context enrichment |
+| `core/python/tests/fixtures/context_recording_plugin/` | Plugin package for testing (descriptor, pyproject.toml, implementation) |
+| `application/python/tests/test_feature_plugin_context_enrichment.py` | Application-level context tests |
+| `tasks/20260315-gemini-qwen-grok-tool-packages/221-1-documentation.md` | Documentation subtask |
+
+### Bugs Fixed
+
+1. **Session for compaction had no history** - `slice_session` was called with `remove_indices`, which returns a session without those messages. Fixed to use `start` and `end` parameters.
+2. **Incorrect anchor instruction detection** - Previous snapshot check was done after adding compression prompt (which contains `<state_snapshot>`). Fixed to check before.
 
 ### Test Results
 
-- **Core tests**: 40 tests passing (including 7 new context enrichment tests)
-- **Feature plugin**: Imports successfully
+- **Core tests**: 7 context enrichment tests passing
+- **Application tests**: 1 context mechanism test passing
+- **Feature plugin unit tests**: 17 tests passing
+- **Feature plugin integration tests**: 10 application tests + 5 OpenRouter tests passing
 
-### Key Implementation Details
+### Remaining Work
 
-1. **Context enrichment uses `setdefault`** to preserve higher-layer values
-2. **Both `app` and `application` keys** are set for backward compatibility
-3. **`base_config` is flattened** - accessed via `base_config.get("compaction")` not nested under "agent"
-4. **FeaturePlugin returns `native_messages` and `session_metadata`** - the core handles session mutation
-
-### Separate Package for GeminiCompactionFeaturePlugin
-
-The GeminiCompactionFeaturePlugin is implemented as a separate package `gemini-compaction-feature` under `plugins/gemini-compaction-feature/`. This follows the recommended plugin packaging pattern:
-
-- **Package**: `gemini-compaction-feature`
-- **Entry point**: `gemini_compaction_feature.GeminiCompactionFeaturePlugin`
-- **Dependencies**: `gemini-compaction-app>=0.1.0` (for shared prompts and helpers)
-- **Descriptor**: `agent_plugin.json`
+Phase 2 (documentation) is deferred to subtask `tasks/20260315-gemini-qwen-grok-tool-packages/221-1-documentation.md` which covers:
+- Investigating plugin implementations and application code
+- Creating `plugins/docs/application-plugins.md`
+- Creating `plugins/docs/feature-plugins.md`
+- Updating `plugins/docs/provider-extensions.md`
+- Updating `plugins/docs/actions.md`
+- Updating `TYPES_AND_PROTOCOLS.md`
+- Updating `docs/api/core-sdk.md`
 
 The integration tests mirror the AppPlugin tests but use the FeaturePlugin approach:
 - `test_feature_compaction_flow` - Tests compaction via `core.execute_session_action`

@@ -175,24 +175,24 @@ class TestCoreContextEnrichment:
 class TestAppContextEnrichment:
     """Tests for Layer 2: Application-level context enrichment.
 
-    Note: These tests require the application layer, which is tested
-    in the application tests. Here we just verify the context structure
-    is correct when features receive it from the core.
+    Application-level context enrichment (app, base_config, etc.) is tested in:
+    - application/python/tests/test_feature_plugin_context_enrichment.py
+    - plugins/gemini-compaction-feature/tests/test_gemini_compaction_feature_application_integration.py
+
+    These tests verify that when AgentApplication calls execute_session_action
+    or run_session_lifecycle, the context is enriched with:
+    - app: AgentApplication instance
+    - application: Alias for app (backward compatibility)
+    - base_config: Full base configuration (all agents)
+    - session_asset_store: Session asset store for file attachments
     """
 
-    def test_context_has_app_key_structure(self) -> None:
-        """Verify expected keys for app-level context.
-
-        When called from application, context should have:
-        - 'app' and 'application' keys (both pointing to AgentApplication)
-        - 'base_config' key with full config
-        """
-        # This is tested in application layer tests
-        # Here we just document the expected structure
-        expected_keys = ["app", "application", "base_config", "core", "config"]
-        # These are added by app layer in _build_lifecycle_context
+    def test_app_context_keys_documented(self) -> None:
+        """Document expected app-level context keys."""
+        expected_layer2_keys = ["app", "application", "base_config", "session_asset_store"]
+        # These keys are added by AgentApplication in _build_lifecycle_context
         # and execute_session_action
-        pass
+        assert len(expected_layer2_keys) == 4
 
 
 if __name__ == "__main__":

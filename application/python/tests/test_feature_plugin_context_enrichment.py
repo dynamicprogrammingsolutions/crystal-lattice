@@ -20,7 +20,8 @@ from agent_app.events import InMemoryEventStore
 from agent_core import AgentCore
 
 # Path to the test fixture plugin
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# From application/python/tests/ we need to go up 4 levels to reach repo root
+REPO_ROOT = Path(__file__).resolve().parents[3]
 FIXTURES_ROOT = REPO_ROOT / "core" / "python" / "tests" / "fixtures"
 PLUGIN_PATH = FIXTURES_ROOT / "context_recording_plugin"
 
@@ -62,12 +63,36 @@ def _minimal_config() -> Dict[str, Any]:
             }
         },
         "plugins": [
-            # Echo provider
-            f"path:${{env:FIXTURES_ROOT}}/echo_openai_like_provider",
-            # Context recording test plugin
-            f"path:${{env:FIXTURES_ROOT}}/context_recording_plugin",
+            # Built-in echo provider
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            # Context recording test plugin (installed in dev mode)
+            "context_recording_plugin.ContextRecordingPlugin",
         ],
     }
+
+
+def _get_plugin_class():
+    """Get the ContextRecordingPlugin class by importing the module."""
+    import sys
+    import importlib.util
+
+    plugin_src_path = str(PLUGIN_PATH / "src" / "context_recording_plugin")
+    if plugin_src_path not in sys.path:
+        sys.path.insert(0, plugin_src_path)
+
+    # Force reimport to get fresh module
+    if "context_recording_plugin" in sys.modules:
+        del sys.modules["context_recording_plugin"]
+
+    spec = importlib.util.spec_from_file_location(
+        "context_recording_plugin",
+        str(PLUGIN_PATH / "src" / "context_recording_plugin" / "__init__.py"),
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["context_recording_plugin"] = module
+    spec.loader.exec_module(module)
+
+    return module.ContextRecordingPlugin
 
 
 # ---------------------------------------------------------------------------
@@ -77,26 +102,11 @@ def _minimal_config() -> Dict[str, Any]:
 
 @pytest.fixture(autouse=True)
 def clear_captured_contexts():
-    """Clear captured contexts before and after each test.
-    
-    We and load the plugin module to get access to the class.
-    """
-    import importlib.util
-    spec = importlib.util.spec_from_file_location(
-        "context_recording_plugin",
-        str(PLUGIN_PATH / "src" / "context_recording_plugin" / "__init__.py"),
-        submodule="context_recording_plugin",
-    )
-    
-    module = importlib.module_from_spec(spec)
-    plugin_class = getattr(module, "ContextRecordingPlugin", None)
-    
-    if plugin_class is not None:
-        plugin_class.clear_captured_contexts()
-    
-    # Also clear via direct import as fallback
-    from tests.fixtures.context_recording_feature import ContextRecordingFeature
-    ContextRecordingFeature._captured_contexts = []
+    """Clear captured contexts before and after each test."""
+    plugin_class = _get_plugin_class()
+    plugin_class.clear_captured_contexts()
+    yield
+    plugin_class.clear_captured_contexts()
 
 
 # ---------------------------------------------------------------------------
@@ -114,14 +124,7 @@ class TestApplicationContextEnrichment:
 
         This verifies Layer 2 context enrichment for session actions.
         """
-        # Import the plugin module
-        import sys
-        plugin_src_path = str(PLUGIN_PATH / "src" / "context_recording_plugin")
-        if plugin_src_path not in sys.path:
-            sys.path.insert(0, plugin_src_path)
-        import context_recording_plugin
-        plugin_class = context_recording_plugin.ContextRecordingPlugin
-
+        plugin_class = _get_plugin_class()
         assert plugin_class is not None, "Could not load ContextRecordingPlugin"
 
         app = _make_app(tmp_path, _minimal_config())
@@ -165,14 +168,7 @@ class TestApplicationContextEnrichment:
 
         This verifies Layer 2 context enrichment for lifecycle-triggered actions.
         """
-        # Import the plugin module
-        import sys
-        plugin_src_path = str(PLUGIN_PATH / "src" / "context_recording_plugin")
-        if plugin_src_path not in sys.path:
-            sys.path.insert(0, plugin_src_path)
-        import context_recording_plugin
-        plugin_class = context_recording_plugin.ContextRecordingPlugin
-
+        plugin_class = _get_plugin_class()
         assert plugin_class is not None, "Could not load ContextRecordingPlugin"
 
         app = _make_app(tmp_path, _minimal_config())
@@ -189,7 +185,7 @@ class TestApplicationContextEnrichment:
 
         # Check captured context
         contexts = plugin_class.get_captured_contexts()
-        
+
         # Note: Lifecycle actions may or may not capture depending on trigger matching
         # If captured, verify Layer 2 context is present
         for ctx in contexts:
@@ -210,14 +206,7 @@ class TestApplicationContextEnrichment:
         This is the mechanism that terminal/server implementations use to add
         their own context keys.
         """
-        # Import the plugin module
-        import sys
-        plugin_src_path = str(PLUGIN_PATH / "src" / "context_recording_plugin")
-        if plugin_src_path not in sys.path:
-            sys.path.insert(0, plugin_src_path)
-        import context_recording_plugin
-        plugin_class = context_recording_plugin.ContextRecordingPlugin
-
+        plugin_class = _get_plugin_class()
         assert plugin_class is not None, "Could not load ContextRecordingPlugin"
 
         app = _make_app(tmp_path, _minimal_config())
@@ -265,14 +254,7 @@ class TestContextStructure:
         This test documents the complete context structure that feature plugins
         receive when called through the application layer.
         """
-        # Import the plugin module
-        import sys
-        plugin_src_path = str(PLUGIN_PATH / "src" / "context_recording_plugin")
-        if plugin_src_path not in sys.path:
-            sys.path.insert(0, plugin_src_path)
-        import context_recording_plugin
-        plugin_class = context_recording_plugin.ContextRecordingPlugin
-
+        plugin_class = _get_plugin_class()
         assert plugin_class is not None, "Could not load ContextRecordingPlugin"
 
         app = _make_app(tmp_path, _minimal_config())

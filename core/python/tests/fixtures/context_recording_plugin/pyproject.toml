@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "context-recording-plugin"
+version = "0.1.0"
+description = "Test plugin that records context for testing application-level context enrichment"
+requires-python = ">=3.10"
+dependencies = [
+    "agent-core",
+]
+
+[project.entry-points."agent_platform.plugins"]
+context_recording = "context_recording_plugin:ContextRecordingPlugin"
+
+[tool.setuptools.packages.find]
+where = ["src"]
