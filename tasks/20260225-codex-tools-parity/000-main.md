@@ -110,6 +110,7 @@ For now we will:
 - [ ] `tasks/20260225-codex-tools-parity/010-apply-patch-schema.md`
 - [ ] `tasks/20260225-codex-tools-parity/020-bash-tool-round-1-schema.md`
 - [ ] `tasks/20260225-codex-tools-parity/030-bash-tool-round-2-output-and-limits.md`
+- [ ] `tasks/20260225-codex-tools-parity/035-gpt-5-4-tool-selection-workdir-and-developer-message.md`
 - [ ] `tasks/20260225-codex-tools-parity/040-bash-tool-round-3-sandboxing.md`
 - [ ] `tasks/20260225-codex-tools-parity/050-update-plan-tool.md`
 - [ ] `tasks/20260225-codex-tools-parity/060-view-image-tool.md`
