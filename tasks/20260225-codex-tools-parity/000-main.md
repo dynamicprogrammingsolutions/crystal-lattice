@@ -105,9 +105,12 @@ For now we will:
 
 5) Keep the current tool bundle available as a **separate plugin bundle** so users can switch between “old” and “Codex-accurate” implementations for benchmarking.
 
-## Subtasks
+## Task checklist
 
-- [ ] `tasks/20260225-codex-tools-parity/010-apply-patch-schema.md`
+- [x] `tasks/20260225-codex-tools-parity/010-apply-patch-schema.md`
+- [ ] `tasks/20260225-codex-tools-parity/011-shell-selection-parity.md`
+- [ ] `tasks/20260225-codex-tools-parity/012-core-freeform-tool-prerequisite.md`
+- [ ] `tasks/20260225-codex-tools-parity/013-apply-patch-true-parity.md`
 - [ ] `tasks/20260225-codex-tools-parity/020-bash-tool-round-1-schema.md`
 - [ ] `tasks/20260225-codex-tools-parity/030-bash-tool-round-2-output-and-limits.md`
 - [ ] `tasks/20260225-codex-tools-parity/035-gpt-5-4-tool-selection-workdir-and-developer-message.md`
