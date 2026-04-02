@@ -2,6 +2,10 @@
 
 Parent Task: `tasks/20260129-frontend-sdk/000-main.md`
 
+## Relation
+
+SUPERSEDED BY: `tasks/20260202-desktop-macos-frontend/000-main.md` — Desktop frontend implemented as separate task directory with full React Native macOS implementation.
+
 Depends On:
 
 - `tasks/20260129-frontend-sdk/050-phase-4-headless-controllers.md`
@@ -10,7 +14,7 @@ Create a new desktop frontend under `desktop/` that reuses `@crystal-lattice/fro
 
 ## Status
 
-- [ ] Not started (tracked in a dedicated task directory)
+- [x] Completed (superseded by dedicated task directory)
 
 Implementation for Phase 5 is tracked in:
 

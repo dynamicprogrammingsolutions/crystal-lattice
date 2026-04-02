@@ -154,6 +154,10 @@ export interface AgentBackend {
   // --- Application plugins/actions ---
   listApplicationActions(params?: { pluginId?: string }): Promise<ApplicationActionDefinition[]>;
   listApplicationUiSchema(params?: { pluginId?: string }): Promise<ApplicationUiElement[]>;
+  getSessionApplicationUiSchema(
+    sessionId: string,
+    params?: { pluginId?: string },
+  ): Promise<ApplicationUiElement[]>;
   executeAction(params: {
     pluginId: string;
     actionId: string;

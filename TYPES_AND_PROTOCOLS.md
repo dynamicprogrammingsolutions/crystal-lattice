@@ -481,6 +481,81 @@ Important principles:
 - Plugins extract only the keys they need
 - Flat dictionary for simplicity; plugins validate their own config
 
+### Session Actions
+
+Feature plugins and provider extensions can define session-scoped actions that operate on provider-native message history. Actions are defined via `get_actions()` and executed via `execute_action()`.
+
+```yaml
+# Action definition (returned by get_actions)
+ActionDefinition:
+  id: string                      # Unique action identifier
+  label: string                   # Human-readable label
+  description: string             # Optional description
+  inputs: dict                    # JSON schema for inputs
+  trigger: string | list[string]  # Optional lifecycle trigger(s)
+
+# Action execution context (passed to execute_action)
+ActionContext:
+  # Layer 1: Core-level (always present)
+  core: AgentCore                 # Core instance
+  config: dict                    # Current resolved config
+  trigger_source: string         # "core" | "application"
+  session: dict                   # Serialized session
+  lifecycle: string               # Lifecycle trigger (if applicable)
+
+  # Layer 2: Application-level (when called from AgentApplication)
+  app: AgentApplication          # Application instance
+  base_config: dict              # Full application config
+  session_asset_store: Store     # File attachment store (optional)
+
+# Action return value
+ActionResult:
+  native_messages: list[dict]    # Replacement native history
+  session_metadata: dict         # Patch for session.metadata
+  error: dict                    # Optional error information
+```
+
+Session actions follow these principles:
+
+- **Single-session scope**: Actions operate on one session's native history
+- **Return values only**: Actions return modified data; they don't persist sessions directly
+- **Layered context**: Context provides core capabilities at baseline, with optional application-level enhancements
+- **Graceful degradation**: Plugins should check `context.get("app")` before using application capabilities
+
+### Layered Context
+
+Context passed to `execute_action()` is built up through the call stack:
+
+```
+TerminalApplication.execute_action()
+    ↓ adds: {"terminal": self, ...}
+AgentApplication.run_session_lifecycle()
+    ↓ adds: {"app": self, "base_config": ...}
+AgentCore.execute_lifecycle_actions()
+    ↓ adds: {"core": self, "config": config}
+FeaturePlugin.execute_action(session, native_messages, params, context, state)
+```
+
+Plugins check for capabilities:
+
+```python
+def execute_action(self, action_id, session, native_messages, params, context, state):
+    # Core is always available
+    core = context["core"]
+    config = context["config"]
+    
+    # Application is optional
+    app = context.get("app")
+    base_config = context.get("base_config", config)
+    
+    if app is not None:
+        # Application-level capabilities available
+        pass
+    else:
+        # Core-only mode
+        pass
+```
+
 ## Usage Flow Patterns
 
 ### Basic Request Flow

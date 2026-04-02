@@ -8,10 +8,18 @@ import requests
 from agent_core.core import AgentCore
 
 from plugins.math_tools import MathTools
+from plugins.request_options_feature import RequestOptionsFeature
 
 from reference_openai_compatible_provider.provider import OpenAICompatibleProvider
-from reference_openai_compatible_provider.reasoning_extension import OpenAICompatibleReasoningExtension
-from reference_openai_compatible_provider.tools_extension import OpenAICompatibleToolsExtension
+from reference_openai_compatible_provider.reasoning_extension import (
+    OpenAICompatibleReasoningExtension,
+)
+from reference_openai_compatible_provider.tools_extension import (
+    OpenAICompatibleToolsExtension,
+)
+from reference_openai_compatible_provider.usage_extension import (
+    OpenAICompatibleUsageExtension,
+)
 
 
 def _ollama_available(base_url: str) -> bool:
@@ -24,7 +32,9 @@ def _ollama_available(base_url: str) -> bool:
 
 def _ollama_cfg() -> dict:
     return {
-        "base_url": os.environ.get("OLLAMA_OPENAI_BASE_URL", "http://localhost:11434/v1"),
+        "base_url": os.environ.get(
+            "OLLAMA_OPENAI_BASE_URL", "http://localhost:11434/v1"
+        ),
         "model": os.environ.get("OLLAMA_OPENAI_MODEL", "qwen3:0.6b"),
         "timeout": float(os.environ.get("OLLAMA_OPENAI_TIMEOUT", "60")),
     }
@@ -39,9 +49,14 @@ def test_tools_tool_loop_ollama_openai_compat():
 
     core = AgentCore()
     core.register_tool(MathTools)
+    core.register_feature(RequestOptionsFeature)
     core.register_provider(
         OpenAICompatibleProvider,
-        extensions=[OpenAICompatibleToolsExtension, OpenAICompatibleReasoningExtension],
+        extensions=[
+            OpenAICompatibleToolsExtension,
+            OpenAICompatibleReasoningExtension,
+            OpenAICompatibleUsageExtension,
+        ],
     )
 
     session = core.create_session()
@@ -77,19 +92,26 @@ def test_tools_tool_loop_ollama_openai_compat():
 @pytest.mark.integration
 @pytest.mark.ollama
 def test_reasoning_metadata_ollama_openai_compat():
-    cfg = {**_ollama_cfg(), "think": True}
+    cfg = {**_ollama_cfg(), "request_options": {"think": True}}
 
     if not _ollama_available(cfg["base_url"]):
         pytest.skip("Ollama OpenAI-compatible endpoint not reachable")
 
     core = AgentCore()
+    core.register_feature(RequestOptionsFeature)
     core.register_provider(
         OpenAICompatibleProvider,
-        extensions=[OpenAICompatibleToolsExtension, OpenAICompatibleReasoningExtension],
+        extensions=[
+            OpenAICompatibleToolsExtension,
+            OpenAICompatibleReasoningExtension,
+            OpenAICompatibleUsageExtension,
+        ],
     )
 
     session = core.create_session()
-    session = core.add_message(session, "user", "Compute 12*12. Return only the number.")
+    session = core.add_message(
+        session, "user", "Compute 12*12. Return only the number."
+    )
 
     final_event = None
     try:
@@ -106,4 +128,6 @@ def test_reasoning_metadata_ollama_openai_compat():
     assistant = final_event["messages"][-1]
     reasoning = (assistant.get("metadata") or {}).get("reasoning")
     if not isinstance(reasoning, str) or not reasoning:
-        pytest.skip("No reasoning metadata produced (model/server may not support reasoning deltas)")
+        pytest.skip(
+            "No reasoning metadata produced (model/server may not support reasoning deltas)"
+        )

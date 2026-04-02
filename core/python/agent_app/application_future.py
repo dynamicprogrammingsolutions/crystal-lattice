@@ -293,9 +293,29 @@ class AgentApplication:
                 effective_classes_by_kind
             )
 
+            # Collect plugins with default_enabled=False (disabled by default)
+            plugins_disabled_by_default: Set[str] = set()
+            for kind in ("providers", "extensions", "features", "tools"):
+                for plugin_cls in deduped_classes.get(kind) or []:
+                    plugin_id = self._plugin_id_for_class(plugin_cls)
+                    default_enabled_attr = getattr(plugin_cls, "default_enabled", True)
+                    if default_enabled_attr is False:
+                        plugins_disabled_by_default.add(plugin_id)
+
+            # Get enabled_plugins from agent config (re-enable disabled-by-default plugins)
+            agent_enabled_plugins: Set[str] = set(
+                self._coerce_plugin_ids(
+                    agent_cfg.get("enabled_plugins"),
+                    f"agents.{agent_id}.enabled_plugins",
+                    self._config_errors,
+                )
+            )
+
             disabled_set = set(global_disabled_plugins)
             disabled_set.update(provider_disabled)
             disabled_set.update(agent_disabled_plugins.get(agent_id, []))
+            # Add plugins disabled by default, unless explicitly enabled via enabled_plugins
+            disabled_set.update(plugins_disabled_by_default - agent_enabled_plugins)
 
             all_plugin_ids = self._collect_plugin_ids(deduped_by_id)
             default_enabled_ids = [pid for pid in all_plugin_ids if pid not in disabled_set]
@@ -741,6 +761,9 @@ class AgentApplication:
             "trigger_source": "application",
             "session": session.to_dict(),
             "config": config,
+            "app": self,
+            "application": self,
+            "base_config": self._config,
         }
 
     @staticmethod
@@ -1535,8 +1558,10 @@ class AgentApplication:
             effective_config = self.resolve_effective_config(base_config, session, overrides)
 
             action_context = dict(context) if isinstance(context, dict) else {}
+            action_context.setdefault("app", self)
             action_context.setdefault("application", self)
             action_context.setdefault("session_asset_store", self._session_asset_store)
+            action_context.setdefault("base_config", base_config)
 
             try:
                 new_session, result = core.execute_session_action(

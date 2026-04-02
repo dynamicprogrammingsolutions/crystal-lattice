@@ -56,11 +56,11 @@ Add minimal core/app/plugin capabilities so a sandbox application plugin can:
 
 ## Subtasks
 
-- `tasks/20260128-sandboxing-prereqs/010-standardize-workspace-path-semantics.md`
-- `tasks/20260128-sandboxing-prereqs/020-expose-workspace-ui-elements.md`
-- `tasks/20260128-sandboxing-prereqs/030-add-session-override-helper-apis.md`
-- `tasks/20260128-sandboxing-prereqs/040-session-aware-app-plugin-ui-and-conditions.md`
-- `tasks/20260128-sandboxing-prereqs/050-app-plugin-lifecycle-hooks-for-cleanup.md`
+- [ ] `tasks/20260128-sandboxing-prereqs/010-standardize-workspace-path-semantics.md`
+- [ ] `tasks/20260128-sandboxing-prereqs/020-expose-workspace-ui-elements.md`
+- [ ] `tasks/20260128-sandboxing-prereqs/030-add-session-override-helper-apis.md`
+- [ ] `tasks/20260128-sandboxing-prereqs/040-session-aware-app-plugin-ui-and-conditions.md`
+- [ ] `tasks/20260128-sandboxing-prereqs/050-app-plugin-lifecycle-hooks-for-cleanup.md`
 
 ## Future Alternatives (not implemented in this task)
 

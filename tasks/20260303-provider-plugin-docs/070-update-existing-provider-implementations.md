@@ -98,3 +98,25 @@ pytest core/python/tests -m ollama -q
    - refactor only where it improves correctness and matches the docs
 4) Run OpenRouter tests and core Ollama-marked tests
 5) Update docs when a mismatch is found
+
+## Completion notes (added during verification)
+
+### What was updated
+
+1. **Core OpenAI-compatible provider** (`core/python/plugins/openai_provider.py`):
+   - Has `_merge_delta_content` method
+   - Uses accumulator pattern for streaming
+
+2. **Core Ollama thinking extension** (`core/python/plugins/ollama_thinking_extension.py`):
+   - Has `_merge_delta_content` method
+   - Uses accumulator pattern for reasoning
+
+3. **OpenRouter provider** (`plugins/openrouter/src/openrouter_plugins/openrouter_provider.py`):
+   - Has `_merge_delta_content` method
+   - Uses accumulator pattern for streaming
+
+### Verification
+
+- Existing implementations follow the same core contracts as the docs/reference implementation
+- Tests pass for OpenRouter and core Ollama-marked tests
+- `_merge_delta_content` pattern is consistent across all providers

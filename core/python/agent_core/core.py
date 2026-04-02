@@ -280,7 +280,9 @@ class AgentCore:
         new_native_messages = [*retained_native, *suffix_native]
 
         try:
-            rebuilt_messages = self._rebuild_core_from_native(new_native_messages, config or {})
+            rebuilt_messages, post_init_native = self._rebuild_core_from_native(
+                new_native_messages, config or {}
+            )
         except Exception as e:
             raise e
 
@@ -290,9 +292,11 @@ class AgentCore:
             Message.from_dict(m.to_dict()) for m in rebuilt_messages
         ]
 
+        # Use post-initialize native_messages (after features like
+        # SystemMessageFeature may have added synthetic messages)
         new_session_metadata = {
             **base_metadata,
-            "native_messages": new_native_messages,
+            "native_messages": post_init_native,
             "native_messages_integrity": self._compute_native_integrity(new_messages),
         }
 
@@ -511,11 +515,15 @@ class AgentCore:
         new_native = [*before, *native_suffix, *after]
 
         # Rebuild core messages from the updated native history.
-        new_messages = self._rebuild_core_from_native(new_native, config or {})
+        # Use post-initialize native to ensure features like SystemMessageFeature
+        # have their structural changes reflected in stored metadata.
+        new_messages, post_init_native = self._rebuild_core_from_native(
+            new_native, config or {}
+        )
 
         new_metadata = {
             **base_metadata,
-            "native_messages": new_native,
+            "native_messages": post_init_native,
             "native_messages_integrity": self._compute_native_integrity(new_messages),
         }
 
@@ -941,12 +949,20 @@ class AgentCore:
             new_native_remove = [original_native[j] for j in sorted_remove]
 
         try:
-            new_messages_keep = self._rebuild_core_from_native(new_native_keep, config)
-            new_messages_remove = (
-                self._rebuild_core_from_native(new_native_remove, config)
-                if new_native_remove
-                else []
+            # Skip initialize_request for session split operations.
+            # This prevents features like SystemMessageFeature from adding
+            # synthetic messages to partial sessions during split, which
+            # would cause duplicates when the sessions are joined back.
+            new_messages_keep, post_init_keep = self._rebuild_core_from_native(
+                new_native_keep, config, skip_initialize=True
             )
+            if new_native_remove:
+                new_messages_remove, post_init_remove = self._rebuild_core_from_native(
+                    new_native_remove, config, skip_initialize=True
+                )
+            else:
+                new_messages_remove = []
+                post_init_remove = []
         except Exception:
             kept = self._slice_session_core_only(session, keep_set)
             if not return_removed:
@@ -955,7 +971,7 @@ class AgentCore:
             return (kept, removed)  # type: ignore[return-value]
 
         new_metadata_keep = dict(session.metadata)
-        new_metadata_keep["native_messages"] = new_native_keep
+        new_metadata_keep["native_messages"] = post_init_keep
         new_metadata_keep["native_messages_integrity"] = self._compute_native_integrity(
             new_messages_keep
         )
@@ -970,7 +986,7 @@ class AgentCore:
             return kept_session
 
         new_metadata_remove = dict(session.metadata)
-        new_metadata_remove["native_messages"] = new_native_remove
+        new_metadata_remove["native_messages"] = post_init_remove
         new_metadata_remove["native_messages_integrity"] = self._compute_native_integrity(
             new_messages_remove
         )
@@ -1066,10 +1082,16 @@ class AgentCore:
         native_suffix = suffix.metadata.get("native_messages") or []
         new_native: List[Dict[str, Any]] = list(native_prefix) + list(native_suffix)
 
-        rebuilt_messages = self._rebuild_core_from_native(new_native, config or {})
+        # Skip initialize_request for session join operations.
+        # This prevents features like SystemMessageFeature from adding
+        # synthetic messages during join, which would cause duplicates
+        # if one of the sessions already has a system message.
+        rebuilt_messages, post_init_native = self._rebuild_core_from_native(
+            new_native, config or {}, skip_initialize=True
+        )
 
         new_metadata = dict(prefix.metadata) if isinstance(prefix.metadata, dict) else {}
-        new_metadata["native_messages"] = new_native
+        new_metadata["native_messages"] = post_init_native
         new_metadata["native_messages_integrity"] = self._compute_native_integrity(
             rebuilt_messages
         )
@@ -1113,12 +1135,15 @@ class AgentCore:
 
         # Rebuild canonical core messages from the new native history so that
         # provider/feature transformations and native_indices are normalized.
-        rebuilt_messages = self._rebuild_core_from_native(new_native, config)
+        # Use post-initialize native to capture any structural changes from features.
+        rebuilt_messages, post_init_native = self._rebuild_core_from_native(
+            new_native, config
+        )
 
         new_metadata: Dict[str, Any] = (
             dict(session.metadata) if isinstance(session.metadata, dict) else {}
         )
-        new_metadata["native_messages"] = new_native
+        new_metadata["native_messages"] = post_init_native
         new_metadata["native_messages_integrity"] = self._compute_native_integrity(
             rebuilt_messages
         )
@@ -1349,10 +1374,23 @@ class AgentCore:
             enabled_tools = [tool for tool in self._tools if tool.name in tool_names]
             return provider, enabled_extensions, enabled_features, enabled_tools, tags
 
-        # Build initial candidates
-        candidate_extensions: List[ExtensionWrapper] = list(provider.extensions)
-        candidate_features: List[FeatureWrapper] = list(self._features)
-        candidate_tools: List[ToolWrapper] = list(self._tools)
+        # Get enabled_plugins from config (re-enable plugins disabled by default)
+        enabled_plugins_set: Set[str] = set(config.get("enabled_plugins") or [])
+        force_enabled_set: Set[str] = set(config.get("force_enabled_plugins") or [])
+
+        # Build initial candidates, respecting default_enabled attribute
+        def _filter_by_default_enabled(plugins: List[Any]) -> List[Any]:
+            result = []
+            for p in plugins:
+                default_enabled = getattr(p.plugin_class, "default_enabled", True)
+                if default_enabled is False and p.name not in enabled_plugins_set and p.name not in force_enabled_set:
+                    continue
+                result.append(p)
+            return result
+
+        candidate_extensions: List[ExtensionWrapper] = _filter_by_default_enabled(list(provider.extensions))
+        candidate_features: List[FeatureWrapper] = _filter_by_default_enabled(list(self._features))
+        candidate_tools: List[ToolWrapper] = _filter_by_default_enabled(list(self._tools))
 
         enabled_extensions = candidate_extensions
         enabled_features = candidate_features
@@ -1412,19 +1450,58 @@ class AgentCore:
                     self._tags_cache = {**self._tags_cache, key: tags}
                 available_tags.update(tags)
 
-            # Filter by required_tags
+            # Get force_enabled_plugins from config
+            force_enabled_set: Set[str] = set(config.get("force_enabled_plugins") or [])
+
+            # Build context for is_enabled calls
+            is_enabled_context: Dict[str, Any] = {
+                "enabled_plugin_ids": {
+                    "extensions": [ext.name for ext in enabled_extensions],
+                    "features": [feat.name for feat in enabled_features],
+                    "tools": [tool.name for tool in enabled_tools],
+                },
+                "disabled_plugins": config.get("disabled_plugins", []),
+                "force_enabled_plugins": list(force_enabled_set),
+            }
+
+            def _check_plugin_enabled(
+                plugin: Any,
+                plugin_tags: List[str],
+            ) -> bool:
+                """Check if a plugin should be enabled using is_enabled or tag-based fallback."""
+                # Check force_enabled first
+                if plugin.name in force_enabled_set:
+                    return True
+
+                # Check is_enabled
+                is_enabled_result = plugin.is_enabled(
+                    config,
+                    list(available_tags),
+                    models,
+                    is_enabled_context,
+                )
+
+                if is_enabled_result is True:
+                    return True
+                if is_enabled_result is False:
+                    return False
+
+                # Fall back to tag-based check
+                if not set(plugin.required_tags()).issubset(available_tags):
+                    return False
+                if set(plugin.forbidden_tags()).intersection(available_tags):
+                    return False
+                return True
+
+            # Filter plugins using is_enabled / required_tags / forbidden_tags
             next_enabled_extensions = [
-                ext
-                for ext in enabled_extensions
-                if set(ext.required_tags()).issubset(available_tags)
+                ext for ext in enabled_extensions if _check_plugin_enabled(ext, list(available_tags))
             ]
             next_enabled_features = [
-                feat
-                for feat in enabled_features
-                if set(feat.required_tags()).issubset(available_tags)
+                feat for feat in enabled_features if _check_plugin_enabled(feat, list(available_tags))
             ]
             next_enabled_tools = [
-                tool for tool in enabled_tools if set(tool.required_tags()).issubset(available_tags)
+                tool for tool in enabled_tools if _check_plugin_enabled(tool, list(available_tags))
             ]
 
             cur_ext_names = [ext.name for ext in enabled_extensions]
@@ -1551,7 +1628,9 @@ class AgentCore:
         self,
         native_messages: List[Dict[str, Any]],
         config: Dict[str, Any],
-    ) -> List[Message]:
+        *,
+        skip_initialize: bool = False,
+    ) -> Tuple[List[Message], List[Dict[str, Any]]]:
         """Rebuild full core messages from provider-native history.
 
         Uses the same provider, extensions, features, and tools that would
@@ -1562,6 +1641,22 @@ class AgentCore:
         be persisted into the provider-native message dicts under the
         ``_metadata`` key and reconstructed by the provider/extensions/
         features in ``from_native_messages``.
+
+        Args:
+            native_messages: Provider-native message dicts to rebuild from.
+            config: Configuration used to resolve provider and plugins.
+            skip_initialize: When True, skip calling ``initialize_request``
+                on provider and features. This should be used for internal
+                session operations (slice, join, insert) that should not
+                trigger request-preparation logic that might add or modify
+                messages (e.g., SystemMessageFeature adding a system message).
+                When False (default), the full request pipeline runs.
+
+        Returns:
+            Tuple of (core_messages, native_messages).
+            When skip_initialize=False, native_messages is the state after
+            initialize_request pipeline (may differ from input).
+            When skip_initialize=True, native_messages is unchanged from input.
         """
         (
             provider,
@@ -1582,28 +1677,29 @@ class AgentCore:
         )
 
         # Initialize request chains using the adjusted native history.
-        native_messages, state = provider.initialize_request(native_messages, state)
-        for feature in features:
-            native_messages, state = feature.initialize_request(native_messages, state)
-            provider.set_state(state)
- 
-        # Convert native messages back into core messages through the full
+        # Skip this for internal session operations to avoid features like
+        # SystemMessageFeature adding synthetic messages during split/join.
+        if not skip_initialize:
+            native_messages, state = provider.initialize_request(native_messages, state)
+            for feature in features:
+                native_messages, state = feature.initialize_request(native_messages, state)
+                provider.set_state(state)
 
+        # Convert native messages back into core messages through the full
         # from-native pipeline.
         core_from_provider = provider.from_native_messages(native_messages, state)
-        pipe = pipeline(native_messages)
-        core_full = pipe(
-            [ext.from_native_messages for ext in enabled_extensions]
-            + [feature.from_native_messages for feature in features],
-            core_from_provider,
-        )
+        # Apply extension and feature from-native transforms (iterate to pass state to each)
+        for ext in enabled_extensions:
+            core_from_provider = ext.from_native_messages(native_messages, core_from_provider, state)
+        for feature in features:
+            core_from_provider = feature.from_native_messages(native_messages, core_from_provider, state)
 
         normalized_core = self._normalize_final_core_with_native_indices(
-            core_full,
+            core_from_provider,
             native_messages,
             baseline_offset=0,
         )
-        return [Message.from_dict(m) for m in normalized_core]
+        return [Message.from_dict(m) for m in normalized_core], native_messages
 
  
     def _pre_request(
@@ -1788,13 +1884,11 @@ class AgentCore:
 
         # Convert provider-native finals to core messages once finalization completes
         final_core = provider.from_native_messages(final_native, state)
-        # Apply extension and feature from-native transforms
-        pipe = pipeline(final_native)
-        final_core = pipe(
-            [ext.from_native_messages for ext in enabled_extensions]
-            + [feature.from_native_messages for feature in features],
-            final_core,
-        )
+        # Apply extension and feature from-native transforms (iterate to pass state to each)
+        for ext in enabled_extensions:
+            final_core = ext.from_native_messages(final_native, final_core, state)
+        for feature in features:
+            final_core = feature.from_native_messages(final_native, final_core, state)
 
         # Attach global native_indices for final core messages
         final_core = self._normalize_final_core_with_native_indices(
@@ -1808,7 +1902,7 @@ class AgentCore:
         # Persist full provider-native history for the turn (implementation detail)
         new_metadata["native_messages"] = native_messages
         if native_history_changed:
-            all_messages_after = self._rebuild_core_from_native(native_messages, config)
+            all_messages_after, _ = self._rebuild_core_from_native(native_messages, config)
         else:
             appended: List[Message] = [Message.from_dict(m) for m in final_core]
             all_messages_after = [*session.messages, *appended]
@@ -1915,13 +2009,11 @@ class AgentCore:
         # Convert provider-native finals to core messages
         final_core = provider.from_native_messages(combined_native_finals, state)
 
-        # Apply extension and feature from-native transforms
-        pipe = pipeline(combined_native_finals)
-        final_core = pipe(
-            [ext.from_native_messages for ext in enabled_extensions]
-            + [feature.from_native_messages for feature in features],
-            final_core,
-        )
+        # Apply extension and feature from-native transforms (iterate to pass state to each)
+        for ext in enabled_extensions:
+            final_core = ext.from_native_messages(combined_native_finals, final_core, state)
+        for feature in features:
+            final_core = feature.from_native_messages(combined_native_finals, final_core, state)
 
         # Attach global native_indices for final core messages
         final_core = self._normalize_final_core_with_native_indices(
@@ -1933,7 +2025,8 @@ class AgentCore:
         new_metadata = dict(session.metadata)
         new_metadata["native_messages"] = native_messages
         if native_history_changed:
-            all_messages_after = self._rebuild_core_from_native(native_messages, config)
+            # Rebuild core from the post-initialize native (after structural changes)
+            all_messages_after, _ = self._rebuild_core_from_native(native_messages, config)
         else:
             appended: List[Message] = [Message.from_dict(m) for m in final_core]
             all_messages_after = [*session.messages, *appended]
@@ -2015,13 +2108,11 @@ class AgentCore:
         # Convert provider-native finals to core messages
         final_core = provider.from_native_messages(combined_native_finals, state)
 
-        # Apply extension and feature from-native transforms
-        pipe = pipeline(combined_native_finals)
-        final_core = pipe(
-            [ext.from_native_messages for ext in enabled_extensions]
-            + [feature.from_native_messages for feature in features],
-            final_core,
-        )
+        # Apply extension and feature from-native transforms (iterate to pass state to each)
+        for ext in enabled_extensions:
+            final_core = ext.from_native_messages(combined_native_finals, final_core, state)
+        for feature in features:
+            final_core = feature.from_native_messages(combined_native_finals, final_core, state)
 
         # Attach global native_indices for final core messages
         final_core = self._normalize_final_core_with_native_indices(
@@ -2033,7 +2124,8 @@ class AgentCore:
         new_metadata = dict(session.metadata)
         new_metadata["native_messages"] = native_messages
         if native_history_changed:
-            all_messages_after = self._rebuild_core_from_native(native_messages, config)
+            # Rebuild core from the post-initialize native (after structural changes)
+            all_messages_after, _ = self._rebuild_core_from_native(native_messages, config)
         else:
             appended: List[Message] = [Message.from_dict(m) for m in final_core]
             all_messages_after = [*session.messages, *appended]
@@ -2365,14 +2457,15 @@ class AgentCore:
             raise RuntimeError("session action must return full native_messages as a list of dicts")
         new_native_messages = [item for item in raw_native if isinstance(item, dict)]
 
-        new_messages = self._rebuild_core_from_native(new_native_messages, config)
+        # Rebuild and get post-initialize native to ensure features' structural changes are captured
+        new_messages, post_init_native = self._rebuild_core_from_native(new_native_messages, config)
 
         metadata_patch_raw = result.get("session_metadata")
         metadata_patch = metadata_patch_raw if isinstance(metadata_patch_raw, dict) else {}
 
         new_metadata = dict(session.metadata) if isinstance(session.metadata, dict) else {}
         new_metadata.update(metadata_patch)
-        new_metadata["native_messages"] = new_native_messages
+        new_metadata["native_messages"] = post_init_native
         new_metadata["native_messages_integrity"] = self._compute_native_integrity(new_messages)
 
         public_result = {
@@ -2418,6 +2511,16 @@ class AgentCore:
 
         validated_inputs = self._validate_session_action_inputs(action_def, params)
         native_messages = self._native_messages_for_session_action(session, config)
+
+        # Layer 1: Core-level context enrichment.
+        # Higher layers (application, terminal) may have already set these;
+        # use setdefault so we never overwrite a richer value.
+        enriched_context: Dict[str, Any] = dict(context) if isinstance(context, dict) else {}
+        enriched_context.setdefault("core", self)
+        enriched_context.setdefault("config", config)
+        enriched_context.setdefault("trigger_source", "core")
+        enriched_context.setdefault("session", session.to_dict())
+
         action_owner = action_def.get("action_owner")
         if action_owner == "feature":
             result: Optional[Dict[str, Any]] = None
@@ -2429,7 +2532,7 @@ class AgentCore:
                     session,
                     native_messages,
                     validated_inputs,
-                    context,
+                    enriched_context,
                     state,
                 )
                 break
@@ -2442,7 +2545,7 @@ class AgentCore:
                 session,
                 native_messages,
                 validated_inputs,
-                context,
+                enriched_context,
                 state,
             )
         if not isinstance(result, dict):
@@ -2483,6 +2586,16 @@ class AgentCore:
             validated_inputs = self._validate_session_action_inputs(action_def, {})
             native_messages = self._native_messages_for_session_action(current_session, config)
 
+            # Layer 1: Core-level context enrichment.
+            # Higher layers (application, terminal) may have already set these;
+            # use setdefault so we never overwrite a richer value.
+            enriched_context: Dict[str, Any] = dict(context) if isinstance(context, dict) else {}
+            enriched_context.setdefault("core", self)
+            enriched_context.setdefault("config", config)
+            enriched_context.setdefault("trigger_source", "core")
+            enriched_context.setdefault("lifecycle", trigger)
+            enriched_context.setdefault("session", current_session.to_dict())
+
             if action_owner == "feature":
                 result: Optional[Dict[str, Any]] = None
                 for feature in features:
@@ -2493,7 +2606,7 @@ class AgentCore:
                         current_session,
                         native_messages,
                         validated_inputs,
-                        context,
+                        enriched_context,
                         state,
                     )
                     break
@@ -2506,7 +2619,7 @@ class AgentCore:
                     current_session,
                     native_messages,
                     validated_inputs,
-                    context,
+                    enriched_context,
                     state,
                 )
 

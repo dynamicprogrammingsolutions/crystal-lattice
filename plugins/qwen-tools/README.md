@@ -21,6 +21,7 @@ Current public tools in this package:
 - `glob`
 - `write_file`
 - `edit`
+- `bash`
 
 Write/edit surface summary:
 
@@ -36,6 +37,7 @@ The plugin repo exposes these classes through `agent_plugin.json`:
 - `qwen_tools.qwen_glob_tool.QwenGlobTool`
 - `qwen_tools.qwen_write_file_tool.QwenWriteFileTool`
 - `qwen_tools.qwen_edit_tool.QwenEditTool`
+- `qwen_tools.qwen_shell_tool.QwenShellTool`
 
 ## Quickstart
 
@@ -245,6 +247,78 @@ L4: # TODO: tighten validation
 ---
 ```
 
+## Shell behavior notes
+
+The Qwen-compatible shell entrypoint is `bash`.
+
+- `command` is the shell command to execute (required).
+- `timeout` is in milliseconds (default: 120000, max: 600000).
+- `description` is an optional brief description of the command purpose.
+- `directory` sets the working directory for execution.
+- `is_background` runs the command in background mode.
+- Output is truncated by lines first (1000 lines), then by characters (25000).
+- Background output includes platform-specific kill hint (`kill` or `taskkill`).
+
+Representative `bash` call shape:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "bash",
+    "arguments": {
+      "command": "npm run build",
+      "description": "Build the project",
+      "directory": "/workspace",
+      "timeout": 300000
+    }
+  }
+}
+```
+
+Representative outcomes:
+
+Success (no stderr):
+```text
+Build completed successfully.
+```
+
+Failure:
+```text
+Stdout: (empty)
+Stderr: Build failed
+Error: (none)
+Exit Code: 1
+Signal: (none)
+```
+
+Background (Unix):
+```text
+Background command started. PID: 12345 (Use kill 12345 to stop)
+```
+
+Background (Windows):
+```text
+Background command started. PID: 12345 (Use taskkill /F /T /PID 12345 to stop)
+```
+
+Timeout:
+```text
+Stdout: (empty)
+Stderr: (empty)
+Error: Command timed out after 2.0 seconds
+Exit Code: (none)
+Signal: (none)
+```
+
+Truncation:
+```text
+Build output line 1...
+Build output line 2...
+
+[500 lines truncated]
+```
+
 ## Compatibility contract
 
 Parity for this package means:
@@ -292,6 +366,18 @@ Shared package-level config keys used by the current Qwen tools:
 - `user_skills_dir`
   Default: `~/.qwen/skills`.
   Additional allowed location for reads and writes.
+- `shell_timeout_seconds`
+  Default: `120`.
+  Default timeout for shell command execution in seconds.
+- `shell_max_timeout_seconds`
+  Default: `600`.
+  Maximum allowed timeout for shell commands.
+- `shell_max_output_lines`
+  Default: `1000`.
+  Maximum lines to return in shell output before line truncation.
+- `shell_max_output_chars`
+  Default: `25000`.
+  Maximum characters to return in shell output before char truncation.
 - `truncate_tool_output_lines`
   Default: `500`.
   Default line window for `read_file` when `limit` is omitted.

@@ -150,26 +150,42 @@ Key observations:
 
 ### Phase 1: Core file tools (Gemini, Qwen, Grok)
 
-1. `tasks/20260315-gemini-qwen-grok-tool-packages/010-reader-tools.md` [done]
-2. `tasks/20260315-gemini-qwen-grok-tool-packages/020-edit-and-write-tools.md` [done]
-3. `tasks/20260315-gemini-qwen-grok-tool-packages/030-list-grep-glob-tools.md` [done]
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/010-reader-tools.md`
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/020-edit-and-write-tools.md`
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/030-list-grep-glob-tools.md`
 
 ### Phase 1.5: Application and config support
 
-4. `tasks/20260315-gemini-qwen-grok-tool-packages/040-agent-and-provider-plugin-package-config.md` [done]
-5. `tasks/20260315-gemini-qwen-grok-tool-packages/050-vendor-friendly-system-messages.md` [done]
-6. `tasks/20260315-gemini-qwen-grok-tool-packages/060-simplified-system-message-configs-and-minimal-dynamics.md` [done]
-7. `tasks/20260315-gemini-qwen-grok-tool-packages/070-core-rebuild-after-native-initialize-changes.md` [done]
-8. `tasks/20260315-gemini-qwen-grok-tool-packages/080-portable-default-config-and-compiled-system-message-ui.md` [done]
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/040-agent-and-provider-plugin-package-config.md`
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/050-vendor-friendly-system-messages.md`
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/060-simplified-system-message-configs-and-minimal-dynamics.md`
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/070-core-rebuild-after-native-initialize-changes.md`
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/080-portable-default-config-and-compiled-system-message-ui.md`
 
 ### Phase 2: Kimi + cross-vendor tools
 
-9. `tasks/20260315-gemini-qwen-grok-tool-packages/090-kimi-tools.md` — Kimi core file tools (ReadFile, WriteFile, StrReplaceFile, Glob, Grep) [done]
-9b. `tasks/20260315-gemini-qwen-grok-tool-packages/095-kimi-system-message.md` — Kimi default system message extraction and runtime template
-10. `tasks/20260315-gemini-qwen-grok-tool-packages/100-shell-tools.md` — Shell tools (all four vendors)
-11. `tasks/20260315-gemini-qwen-grok-tool-packages/110-web-fetch-tools.md` — Web fetch tools (Gemini, Qwen, Kimi; Grok skipped)
-12. `tasks/20260315-gemini-qwen-grok-tool-packages/120-web-search-tools.md` — Web search tools (Gemini, Qwen, Kimi; Grok skipped)
-13. `tasks/20260315-gemini-qwen-grok-tool-packages/130-todo-tools.md` — Todo tools (all four vendors)
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/090-kimi-tools.md` — Kimi core file tools
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/095-kimi-system-message.md` — Kimi default system message extraction
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/100-shell-tools.md` — Shell tools planning (all four vendors)
+  - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/101-shell-engine-core.md` — Core engine with asyncio
+  - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/102-shell-engine-truncation.md` — Generic truncation
+  - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/103-shell-engine-background.md` — Background process support
+  - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/104-codex-v2-tool.md` — Codex V2 tool
+  - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/105-vendor-tools.md` — Vendor wrappers
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/110-web-fetch-tools.md` — Web fetch tools
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/120-web-search-tools.md` — Web search tools
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/130-todo-tools.md` — Todo tools (all four vendors)
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/135-background-process-management.md` — Background process management (application layer, Tier 2)
+
+### Phase 2.5: Context compaction
+
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/220-gemini-compaction-plugin.md` — Stage 1: Application-level manual compaction plugin
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/221-feature-plugin-context.md` — Stage 2: Feature plugin with layered context (core/app/terminal)
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/222-lifecycle-auto-compaction.md` — Stage 3: Lifecycle-triggered auto-compaction
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/223-session-aware-application-plugin-ui.md` — Session-aware application plugin UI (completes tasks 20260128/040 and 20260130/010)
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/230-qwen-compaction-and-checkpoint-replay.md` — Implement Qwen-like compaction and checkpoint replay behavior
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/240-kimi-compaction-and-checkpoints.md` — Implement Kimi-like compaction, checkpoints, and D-Mail-adjacent context management behavior where applicable
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/250-shared-compaction-helpers.md` — Shared compaction helpers and cross-vendor implementation notes
 
 ### Phase 2 shared packages
 

@@ -9,6 +9,8 @@ This page explains how to configure plugins in the application. It covers the `p
 - agent-level `plugins`: additional plugin package specs for that agent only.
 - session metadata `plugins`: still means explicit enabled plugin ids, not plugin package specs.
 - `disabled_plugins`: config-level shorthand for disabling plugin ids by default after the merged catalog is built.
+- `enabled_plugins`: config-level list of plugin ids to enable. Used to re-enable plugins that are disabled by default (via `default_enabled = False` on the plugin class).
+- `force_enabled_plugins`: config-level list of plugin ids to force-enable, overriding tag-based enablement logic (`is_enabled`, `required_tags`, `forbidden_tags`).
 - `plugin_cache_dir`: enables plugin installs and caching (for both `git+...` and `path:...`).
 - `plugin_policy`: controls installation and security policy (see Policy & Security).
 
@@ -143,7 +145,7 @@ This makes it possible to keep model- or provider-specific prompt routing in con
 
 For a complete example, see:
 
-- [application/python/agent_terminal_app/config_v2_multi_family_tools_simplified.json](application/python/agent_terminal_app/config_v2_multi_family_tools_simplified.json)
+- [application/python/agent_terminal_app/default_config/config.json](application/python/agent_terminal_app/default_config/config.json)
 - [plugins/feature-system-message/README.md](plugins/feature-system-message/README.md)
 
 ### Merge Order
@@ -154,10 +156,29 @@ The effective plugin catalog for a session is built in this order:
 2. Load `plugins` from the selected provider config.
 3. Load `plugins` from the selected agent config.
 4. Deduplicate by plugin id with first registration winning.
-5. Compute the default enabled set by taking the merged catalog and removing ids listed in merged `disabled_plugins`.
-6. If session metadata contains `plugins`, use that explicit enabled-id list instead of the config-derived default.
+5. Identify plugins with `default_enabled = False` class attribute (disabled by default).
+6. Compute the default enabled set:
+   - Start with the merged catalog
+   - Remove plugins with `default_enabled = False`
+   - Re-add plugins listed in `enabled_plugins` config
+   - Remove plugins listed in merged `disabled_plugins`
+7. If session metadata contains `plugins`, use that explicit enabled-id list instead of the config-derived default.
 
 This means provider-level and agent-level packages are additive. They do not replace the global packages.
+
+### Plugin Enablement at Runtime
+
+During request processing, the core applies tag-based filtering:
+
+1. Compute tags from provider and enabled plugins.
+2. For each plugin, check `is_enabled(config, tags, models, context)`:
+   - If returns `True`: plugin is enabled
+   - If returns `False`: plugin is disabled
+   - If returns `None`: fall back to tag-based check
+3. Tag-based check:
+   - `required_tags()`: all tags must be present
+   - `forbidden_tags()`: no tag may be present
+4. Apply `force_enabled_plugins` config override (plugins listed are always enabled).
 
 ### Duplicate Plugin Ids
 

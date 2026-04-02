@@ -59,20 +59,34 @@ class FeatureWrapper(FeaturePlugin):
         """Tags required for this feature to be enabled."""
         return self.plugin.required_tags()
 
+    def forbidden_tags(self) -> List[str]:
+        """Tags that must NOT be present for this feature to be enabled."""
+        return self.plugin.forbidden_tags()
+
+    def is_enabled(
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+        context: Dict[str, Any],
+    ) -> Optional[bool]:
+        """Return whether this feature should be enabled given the context."""
+        return self.plugin.is_enabled(config, tags, models, context)
+
     def get_template(self, config: Dict[str, Any]) -> str:
         """Return a feature-specific template string, if any."""
         return self.plugin.get_template(config)
 
     # Stateless transforms
     def to_native_messages(
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
     ) -> List[Dict[str, Any]]:
-        return self.plugin.to_native_messages(messages, native_messages)
+        return self.plugin.to_native_messages(messages, native_messages, state)
 
     def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
     ) -> List[Dict[str, Any]]:
-        return self.plugin.from_native_messages(native_messages, messages)
+        return self.plugin.from_native_messages(native_messages, messages, state)
 
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]

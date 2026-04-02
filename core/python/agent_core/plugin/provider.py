@@ -245,7 +245,7 @@ class ProviderWrapper(ProviderPlugin):
     def apply_extension_transforms(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """Apply stateless extension transforms to provider-native messages.
+        """Apply extension transforms to provider-native messages.
 
         Args:
             messages: Core messages (context).
@@ -254,8 +254,11 @@ class ProviderWrapper(ProviderPlugin):
         Returns:
             Transformed provider-native messages after applying each extension.
         """
-        pipe = pipeline(messages)
-        return pipe([ext.to_native_messages for ext in self._iter_extensions()], native_messages)
+        state = self._get_state()
+        result = native_messages
+        for ext in self._iter_extensions():
+            result = ext.to_native_messages(messages, result, state)
+        return result
 
     def _merge_history(
         self, base: List[Dict[str, Any]], returned: List[Dict[str, Any]]
@@ -301,9 +304,19 @@ class ProviderWrapper(ProviderPlugin):
         partials, final_messages, native_returned, new_state = self.plugin.call_api(
             self._last_native_messages, working_state
         )
-        self.state = new_state
         # Merge to full history and track
         full_history = self._merge_history(self._last_native_messages, native_returned)
+
+        # Let extensions finalize non-streaming finals against the full history.
+        pipe = pipeline()
+        final_messages, full_history, new_state = pipe(
+            [ext.finalize for ext in self._iter_extensions()],
+            final_messages,
+            full_history,
+            new_state,
+        )
+
+        self.state = new_state
         self._last_native_messages = full_history
         return partials, final_messages, full_history, self._get_state()
 

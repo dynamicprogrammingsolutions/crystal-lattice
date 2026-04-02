@@ -4,8 +4,8 @@ Short description: Add a generic capability that lets non-application plugins in
 
 ## Subtasks
 
-1. `tasks/20260312-provider-extension-session-settings-lifecycle/010-provider-extension-session-settings-lifecycle.md`
-2. `tasks/20260312-provider-extension-session-settings-lifecycle/020-provider-extension-session-settings-lifecycle-docs.md`
+- [x] `tasks/20260312-provider-extension-session-settings-lifecycle/010-provider-extension-session-settings-lifecycle.md`
+- [ ] `tasks/20260312-provider-extension-session-settings-lifecycle/020-provider-extension-session-settings-lifecycle-docs.md`
 
 ## Motivation
 

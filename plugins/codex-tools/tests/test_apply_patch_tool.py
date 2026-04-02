@@ -189,3 +189,54 @@ def test_apply_patch_reports_changes_and_fuzz(tmp_path):
 
     content = target.read_text(encoding="utf-8")
     assert content == "alpha\nbeta-updated\n" or content.endswith("beta-updated\n")
+
+
+def test_apply_patch_expands_tilde_in_allowed_paths(tmp_path, monkeypatch):
+    """Test that ~ is expanded to home directory in allowed_paths."""
+    import os
+    from pathlib import Path
+
+    # Use a temp directory under home to test tilde expansion
+    home = Path.home()
+    # Create a unique temp dir name to avoid conflicts
+    import uuid
+
+    unique_dir = f".test_apply_patch_{uuid.uuid4().hex[:8]}"
+    test_dir = home / unique_dir
+    test_dir.mkdir(exist_ok=True)
+
+    try:
+        wrapper = ToolWrapper(ApplyPatchTool)
+        state = wrapper.init(
+            {
+                "working_directory": str(tmp_path),
+                "allowed_paths": ["~/" + unique_dir],  # Use ~ instead of absolute path
+            }
+        )
+
+        # Use an absolute path with ~ in the patch that matches allowed_paths
+        patch = dedent(
+            f"""\
+            *** Begin Patch
+            *** Add File: ~/{unique_dir}/test.txt
+            +hello from tilde
+            *** End Patch
+            """
+        )
+
+        result = wrapper.execute_tool("apply_patch", {"patch_text": patch}, state)
+
+        assert result["success"] is True, f"Expected success, got: {result}"
+        # The path in changes preserves the original ~ prefix from the patch
+        assert f"~/{unique_dir}/test.txt" in (result.get("changes") or {})
+
+        # Verify the file was created in the test_dir
+        created_file = test_dir / "test.txt"
+        assert created_file.exists()
+        assert created_file.read_text(encoding="utf-8") == "hello from tilde"
+    finally:
+        # Cleanup
+        import shutil
+
+        if test_dir.exists():
+            shutil.rmtree(test_dir)

@@ -1,712 +1,364 @@
-"""
-ShellTool plugin: execute shell commands in a Codex-style sandboxed environment.
+"""Codex shell tool - array-based command execution.
 
-This tool exposes a `shell` function that runs commands via
-`["bash", "-lc", command]` with an explicit working directory.
-It is inspired by the Codex shell tool semantics described in
-SHELL_TOOL_RESEARCH.md.
+This tool accepts an array of strings representing the command and its arguments,
+passed directly to execvp (no shell wrapper). Used by non-Codex-variant models
+(gpt-5, gpt-5.1, gpt-5.2).
+
+Schema matches docs/codex-tools/shell/schema.without_request_permissions.json
 """
 
 from __future__ import annotations
 
+import asyncio
 import os
-import queue
 import subprocess
 import threading
 import time
-from typing import Any, Dict, Iterator, List, Optional
+from queue import Queue
+from typing import Any, Dict, Iterator, List
 
-from agent_core.types import ToolPlugin
+from tool_compat_shared.shell_engine import run_shell_command
 
-MAX_OUTPUT_LINES_DEFAULT = 2000
-HAD_CHAR_LIMIT_PER_LINE = 80
+from .base_shell_tool import BaseCodexShellTool
+from .workdir import resolve_tool_workdir
 
-class ShellTool(ToolPlugin):
+
+class ShellArrayTool(BaseCodexShellTool):
+    """Codex shell tool - array-based command for non-Codex-variant models.
+    
+    Tool name: shell
+    
+    Command format: array (e.g., ["bash", "-lc", "echo hello"])
+    Execution: Direct execvp (no shell wrapper)
+    
+    Parameters:
+    - command: array of strings (required) - Command to execute
+    - workdir: string - Working directory
+    - timeout_ms: number - Timeout in milliseconds
+    
+    Note: Unlike shell_command, this tool does NOT have a 'login' parameter.
+    The caller specifies the exact command including shell flags.
+    
+    Models using this tool:
+    - gpt-5
+    - gpt-5.1
+    - gpt-5.2 (non-codex variant)
+    
+    The command is passed directly to execvp, so callers should typically
+    prefix with ["bash", "-lc", "..."] for shell-like behavior.
+    """
+    
     name: str = "shell"
-    version: str = "1.0.0"
-
-    def get_config_schema(self) -> Dict[str, Any]:
-        return {
-            "allowed_paths": {
-                "type": "array",
-                "items": {"type": "string"},
-                "default": ["."],
-                "description": "Allowed base directories for the working directory",
-            },
-            "working_directory": {
-                "type": "string",
-                "default": ".",
-                "description": "Base working directory used when a tool call omits workdir",
-            },
-            "timeout_seconds": {
-                "type": "integer",
-                "default": 60,
-                "description": "Default maximum execution time per command in seconds",
-            },
-            "max_output_chars": {
-                "type": "integer",
-                "default": MAX_OUTPUT_LINES_DEFAULT * HAD_CHAR_LIMIT_PER_LINE,
-                "description": "Maximum number of characters of stdout/stderr to retain before truncation.",
-            },
-            "max_output_lines": {
-                "type": "integer",
-                "default": 2000,
-                "description": "Maximum number of lines of stdout/stderr to retain before truncation.",
-            },
-        }
-
-    def get_ui_elements(
+    default_enabled: bool = True
+    
+    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
+        """Advertise this tool's presence for mutual awareness."""
+        return ["shell:array"]
+    
+    def is_enabled(
         self,
-        config: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None,
-        models: Optional[List[Dict[str, Any]]] = None,
-    ) -> List[Dict[str, Any]]:
-        return []
-
-    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        # Tools own their internal state; this implementation only needs configuration.
-        return {"config": config}
-
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+        context: Dict[str, Any],
+    ) -> bool:
+        """Determine if this tool should be enabled based on shell_tool_mode config.
+        
+        Selection logic:
+        - shell_tool_mode == "shell": Always enabled
+        - shell_tool_mode == "shell_command": Always disabled
+        - shell_tool_mode == "auto" (default): Enabled unless codex-variant tag present
+        """
+        mode = config.get("shell_tool_mode", "auto")
+        
+        if mode == "shell":
+            return True
+        if mode == "shell_command":
+            return False
+        # mode == "auto"
+        return "codex-variant" not in tags
+    
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
-        config = state.get("config", {})
-        base_workdir = config.get("working_directory", ".")
-        """
-        - With the newer GPT/o-models *when tools are validated in strict mode*, the `parameters` schema for a tool must:
-        - Have a `required` field, and
-        - That `required` array must include **every key in `properties`**. Optional parameters (in the classical JSON‑Schema sense) are not allowed under strict validation. ([gist.github.com](https://gist.github.com/dani139/71426968509bb45df23592690e203a81?utm_source=openai))
-        - If strict mode is **not** enabled for tools, you can still use optional fields, but OpenAI’s newer models + structured/strict modes are increasingly defaulting to this validation, so in practice you should assume “all properties must be in `required`”.
-        - If you conceptually want an “optional” argument, represent that as something like `type: ["string", "null"]` and still keep it in `required`, or accept a sentinel value (e.g. empty string) and treat that as “use default” in your tool implementation. ([gist.github.com](https://gist.github.com/dani139/71426968509bb45df23592690e203a81?utm_source=openai))
-        """
-        return [
-            {
-                "type": "function",
-                "function": {
-                    "name": "shell",
-                    "description": (
-                        "Execute a shell command using bash -lc in a sandboxed "
-                        "working directory. Always prefer setting workdir explicitly."
-                    ),
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "command": {
-                                "type": "string",
-                                "description": (
-                                    "The shell command to execute. It will be run as "
-                                    "bash -lc '<command>'."
-                                ),
-                            },
-                            "workdir": {
-                                "type": ["string","null"],
-                                "description": (
-                                    "Working directory for the command. If omitted, "
-                                    f"the tool uses the configured working_directory: {base_workdir}"
-                                ),
-                            },
-                            "timeout_seconds": {
-                                "type": ["integer","null"],
-                                "description": (
-                                    "Optional per-call timeout override in seconds. "
-                                    "Defaults to the 60s."
-                                ),
-                            },
-                            "env": {
-                                "type": ["object","null"],
-                                "description": (
-                                    "Optional additional environment variables as a "
-                                    "string-to-string map."
-                                ),
-                                "additionalProperties": {"type": "string"},
-                            },
+        """Return tool schema matching Codex CLI shell (array-based)."""
+        return [{
+            "type": "function",
+            "function": {
+                "name": "shell",
+                "description": (
+                    "Runs a shell command and returns its output.\n"
+                    "- The arguments to `shell` will be passed to execvp(). "
+                    "Most terminal commands should be prefixed with [\"bash\", \"-lc\"].\n"
+                    "- Always set the `workdir` param when using the shell function. "
+                    "Do not use `cd` unless absolutely necessary."
+                ),
+                "strict": False,
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "command": {
+                            "type": "array",
+                            "description": "The command to execute",
+                            "items": {"type": "string"},
                         },
-                        "required": ["command", "workdir", "timeout_seconds", "env"],
+                        "workdir": {
+                            "type": "string",
+                            "description": "The working directory to execute the command in",
+                        },
+                        "timeout_ms": {
+                            "type": "number",
+                            "description": "The timeout for the command in milliseconds",
+                        },
                     },
+                    "required": ["command"],
+                    "additionalProperties": False,
                 },
-            }
-        ]
-
-    def format_tool_call_preview(
+            },
+        }]
+    
+    async def execute_tool(
         self,
         tool_name: str,
         arguments: Dict[str, Any],
         state: Dict[str, Any],
-    ) -> str:
-        if tool_name != "shell":
-            return ""
-        command = arguments.get("command", "")
-        if isinstance(command, str) and command.strip():
-            cmd = command.strip()
-            return cmd.splitlines()[0] if "\n" in cmd else cmd
-        return ""
-
-    def execute_tool(
-        self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
+        """Execute the shell tool (array-based).
+        
+        Args:
+            tool_name: Should be "shell"
+            arguments: Tool call arguments
+            state: Tool state (not used)
+            
+        Returns:
+            Result dict with success, output, exit_code, etc.
+        """
         if tool_name != "shell":
             return {"success": False, "error": f"Unknown tool: {tool_name}"}
-
+        
+        command = arguments.get("command", [])
+        
+        # Validate command is a list
+        if not isinstance(command, list):
+            return {"success": False, "error": "command must be an array of strings"}
+        
+        if not command:
+            return {"success": False, "error": "command array cannot be empty"}
+        
+        # Validate all elements are strings
+        if not all(isinstance(c, str) for c in command):
+            return {"success": False, "error": "command array must contain only strings"}
+        
         config = state.get("config", {})
-        raw_command = arguments.get("command", "")
-
-        if not isinstance(raw_command, str) or not raw_command.strip():
-            return {"success": False, "error": "command must be a non-empty string"}
-
-        raw_workdir = arguments.get("workdir")
-        base_workdir = config.get("working_directory", ".")
-        workdir = (
-            str(raw_workdir).strip()
-            if isinstance(raw_workdir, str) and raw_workdir.strip()
-            else str(base_workdir)
-        )
-
+        workdir = resolve_tool_workdir(config, arguments.get("workdir"))
+        
+        timeout_ms = arguments.get("timeout_ms")
+        
+        # Convert timeout from ms to seconds
+        timeout_seconds = None
+        if timeout_ms is not None:
+            try:
+                timeout_seconds = float(timeout_ms) / 1000.0
+            except (TypeError, ValueError):
+                pass
+        
+        # Call shared engine with array command (direct exec)
         try:
-            if not os.path.isabs(workdir):
-                workdir = os.path.join(base_workdir, workdir)
-            abs_workdir = os.path.abspath(workdir)
-        except Exception:
-            return {"success": False, "error": f"Invalid workdir: {workdir}"}
-
-        if not os.path.isdir(abs_workdir):
-            return {"success": False, "error": f"Working directory does not exist: {abs_workdir}"}
-
-        base_workdir = config.get("working_directory", ".")
-        allowed_config = config.get("allowed_paths")
-        allowed = allowed_config if allowed_config is not None else [base_workdir]
-        abs_allowed = [os.path.abspath(p) for p in allowed]
-        if not any(abs_workdir.startswith(p) for p in abs_allowed):
+            result = await run_shell_command(
+                command,  # list[str] - passed directly to exec
+                workdir=workdir,
+                timeout_seconds=timeout_seconds,
+            )
+        except FileNotFoundError:
             return {
                 "success": False,
-                "error": f"Working directory {abs_workdir} is not in allowed paths",
+                "error": f"Command not found: {command[0]}",
+                "exit_code": 127,  # Standard "command not found" exit code
+                "command": command,
+                "workdir": workdir,
             }
-
-        timeout_default = config.get("timeout_seconds", 60)
-        timeout_arg = arguments.get("timeout_seconds")
-        try:
-            timeout_seconds = int(timeout_arg) if timeout_arg is not None else int(timeout_default)
-            if timeout_seconds <= 0:
-                timeout_seconds = int(timeout_default) if timeout_default else 300
-        except Exception:
-            timeout_seconds = 60
-
-        env_arg = arguments.get("env")
-        exec_env = os.environ.copy()
-        if isinstance(env_arg, dict):
-            for key, value in env_arg.items():
-                if isinstance(key, str):
-                    exec_env[key] = str(value)
-
-        max_output_lines = int(
-            config.get("max_output_lines", MAX_OUTPUT_LINES_DEFAULT)
-            or MAX_OUTPUT_LINES_DEFAULT
-        )
-        max_output_chars_cfg = config.get("max_output_chars")
-        try:
-            max_output_chars = int(max_output_chars_cfg) if max_output_chars_cfg is not None else 0
-        except Exception:
-            max_output_chars = 0
-        if max_output_chars <= 0:
-            max_output_chars = max_output_lines * HAD_CHAR_LIMIT_PER_LINE
-
-        try:
-            completed = subprocess.run(
-                ["bash", "-lc", raw_command],
-                cwd=abs_workdir,
-                env=exec_env,
-                capture_output=True,
-                text=True,
-                timeout=timeout_seconds,
-                check=False,
-            )
-        except subprocess.TimeoutExpired as exc:
-            raw_stdout = exc.stdout
-            raw_stderr = exc.stderr
-            stdout = (
-                raw_stdout.decode() if isinstance(raw_stdout, bytes) else (raw_stdout or "")
-            )
-            stderr = (
-                raw_stderr.decode() if isinstance(raw_stderr, bytes) else (raw_stderr or "")
-            )
-            truncated_stdout = self._truncate(stdout, max_output_lines, max_output_chars)
-            truncated_stderr = self._truncate(stderr, max_output_lines, max_output_chars)
+        except PermissionError:
             return {
                 "success": False,
-                "error": f"Command timed out after {timeout_seconds} seconds",
-                "returncode": None,
-                "stdout": truncated_stdout,
-                "stderr": truncated_stderr,
-                "stdout_truncated": truncated_stdout != stdout,
-                "stderr_truncated": truncated_stderr != stderr,
-                "workdir": abs_workdir,
-                "command": raw_command,
-                "timeout_seconds": timeout_seconds,
+                "error": f"Permission denied: {command[0]}",
+                "exit_code": 126,  # Standard "permission denied" exit code
+                "command": command,
+                "workdir": workdir,
             }
-        except Exception as exc:  # pragma: no cover - defensive
-            return {"success": False, "error": f"Failed to execute command: {exc}"}
-
-        raw_stdout = completed.stdout
-        raw_stderr = completed.stderr
-        stdout = (
-            raw_stdout.decode() if isinstance(raw_stdout, bytes) else (raw_stdout or "")
-        )
-        stderr = (
-            raw_stderr.decode() if isinstance(raw_stderr, bytes) else (raw_stderr or "")
-        )
-        truncated_stdout = self._truncate(stdout, max_output_lines, max_output_chars)
-        truncated_stderr = self._truncate(stderr, max_output_lines, max_output_chars)
-
-        success = completed.returncode == 0
-        result: Dict[str, Any] = {
-            "success": success,
-            "returncode": completed.returncode,
-            "stdout": truncated_stdout,
-            "stderr": truncated_stderr,
-            "stdout_truncated": truncated_stdout != stdout,
-            "stderr_truncated": truncated_stderr != stderr,
-            "workdir": abs_workdir,
-            "command": raw_command,
-            "timeout_seconds": timeout_seconds,
-            "explicit_workdir": bool(isinstance(raw_workdir, str) and raw_workdir.strip()),
-        }
-
-        if not success and "error" not in result:
-            result["error"] = f"Command exited with code {completed.returncode}"
-
-        return result
-
-    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
-        success = bool(result.get("success"))
-        returncode = result.get("returncode")
-        stdout = str(result.get("stdout", "") or "")
-        stderr = str(result.get("stderr", "") or "")
-        stdout_truncated = bool(result.get("stdout_truncated"))
-        stderr_truncated = bool(result.get("stderr_truncated"))
-
-        stdout_has = bool(stdout.strip())
-        stderr_has = bool(stderr.strip())
-        exitcode_is_zero = isinstance(returncode, int) and returncode == 0
-
-        # Simple success path: no stderr, zero exit code.
-        #
-        # - When output is not truncated, return stdout only so that
-        #   LLMs see the raw command output without extra framing.
-        # - When output is truncated, prepend a minimal header so the
-        #   truncation is visible: "STDOUT (truncated):".
-        if success and exitcode_is_zero and not stderr_has:
-            if stdout_truncated and stdout_has:
-                return f"STDOUT (truncated):\n{stdout}"
-            if stdout_has:
-                return stdout
-            # No stdout at all; fall back to a simple success prefix.
-            return "Command succeeded (exit code 0)."
-
-        # General case: non-zero exit code, stderr present, or
-        # non-success. Always include a prefix plus STDOUT/STDERR
-        # sections, marking truncated stdout when applicable.
-        if success:
-            prefix = (
-                f"Command succeeded (exit code {returncode})."
-                if returncode is not None
-                else "Command succeeded."
-            )
-        else:
-            error_msg = result.get("error") or (
-                f"Command failed with exit code {returncode}"
-                if returncode is not None
-                else "Command failed."
-            )
-            prefix = error_msg
-
-        parts: List[str] = [prefix]
-
-        if stdout_has:
-            if stdout_truncated:
-                parts.append(f"STDOUT (truncated):\n{stdout}")
-            else:
-                parts.append(f"STDOUT:\n{stdout}")
-        if stderr_has:
-            parts.append(f"STDERR:\n{stderr}")
-
-        return "\n\n".join(parts)
-
-    def to_display_format(
-        self, text: str, result: Dict[str, Any], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Add the executed command to the top of the display content.
-
-        Workdir is only shown when explicitly overridden via the
-        ``workdir`` tool argument so that default working-directory
-        behaviour remains compact.
-        Returns a display payload with type "text" containing the full content,
-        and an optional "single_line" field with just the command (first line
-        if multi-line) for use in collapsed/short views.
-        """
-
-        command = result.get("command")
-        if isinstance(command, str) and command.strip():
-            cmd = command.strip()
-            single_line_cmd = cmd.splitlines()[0] if "\n" in cmd else cmd
-            # Detect whether the caller explicitly changed workdir for
-            # this invocation. This flag is injected by execute_tool /
-            # stream_tool.
-            explicit = bool(result.get("explicit_workdir"))
-            workdir = result.get("workdir") if explicit else None
-            if isinstance(workdir, str) and workdir.strip():
-                header = self._build_header(cmd, workdir.strip())
-            else:
-                header = self._build_header(cmd, None)
-            content = f"{header}\n{text}" if text else header
-        else:
-            content = text
-
-            single_line_cmd = None
-
-        display: Dict[str, Any] = {"type": "text", "content": content}
-        if single_line_cmd:
-            display["single_line"] = single_line_cmd
-        return display
-
+        
+        # Apply truncation
+        output, trunc_meta = self._apply_truncation(result["output"])
+        
+        # Insert truncation marker if truncated
+        if trunc_meta.get("truncated"):
+            output = self._insert_truncation_marker(output, trunc_meta)
+        
+        # Build formatted result
+        formatted = self._build_result(result, output, trunc_meta)
+        
+        # Add additional metadata
+        formatted["command"] = command
+        formatted["workdir"] = workdir
+        
+        return formatted
+    
     def stream_tool(
         self,
         tool_name: str,
         arguments: Dict[str, Any],
         state: Dict[str, Any],
     ) -> Iterator[Dict[str, Any]]:
-        """Stream shell command output as partials plus a final result.
-
-        This uses the same sandboxing rules as :meth:`execute_tool` but yields
-        stdout lines incrementally as ``{"part": {"type": "text", "content": ...}}``
-        payloads and finally a RESULT dict containing the full stdout/stderr and
-        exit information.
+        """Stream shell command output in real-time.
+        
+        Yields partial output chunks followed by a final result dict.
+        
+        Args:
+            tool_name: Should be "shell"
+            arguments: Tool call arguments
+            state: Tool state
+            
+        Yields:
+            Partial dicts with {"part": {"type": "text", "content": line}}
+            Final dict with full result
         """
         if tool_name != "shell":
             return
-
+        
+        command = arguments.get("command", [])
+        
+        # Validate command is a list
+        if not isinstance(command, list):
+            yield {"success": False, "error": "command must be an array of strings"}
+            return
+        
+        if not command:
+            yield {"success": False, "error": "command array cannot be empty"}
+            return
+        
+        if not all(isinstance(c, str) for c in command):
+            yield {"success": False, "error": "command array must contain only strings"}
+            return
+        
         config = state.get("config", {})
-        raw_command = arguments.get("command", "")
-
-        if not isinstance(raw_command, str) or not raw_command.strip():
-            # Validation error: yield a final RESULT dict only.
-            yield {"success": False, "error": "command must be a non-empty string"}
-            return
-
-        raw_workdir = arguments.get("workdir")
-        base_workdir = config.get("working_directory", ".")
-        workdir = (
-            str(raw_workdir).strip()
-            if isinstance(raw_workdir, str) and raw_workdir.strip()
-            else str(base_workdir)
+        workdir = resolve_tool_workdir(config, arguments.get("workdir"))
+        
+        timeout_ms = arguments.get("timeout_ms")
+        
+        # Convert timeout
+        timeout_seconds = None
+        if timeout_ms is not None:
+            try:
+                timeout_seconds = float(timeout_ms) / 1000.0
+            except (TypeError, ValueError):
+                pass
+        
+        # Use synchronous streaming (same pattern as shell_command)
+        yield from self._sync_execute(
+            command=command,
+            workdir=workdir,
+            timeout_seconds=timeout_seconds,
         )
-
-        try:
-            if not os.path.isabs(workdir):
-                workdir = os.path.join(base_workdir, workdir)
-            abs_workdir = os.path.abspath(workdir)
-        except Exception:
-            yield {"success": False, "error": f"Invalid workdir: {workdir}"}
-            return
-
-        if not os.path.isdir(abs_workdir):
-            yield {
-                "success": False,
-                "error": f"Working directory does not exist: {abs_workdir}",
-            }
-            return
-
-        allowed_config = config.get("allowed_paths")
-        allowed = allowed_config if allowed_config is not None else [base_workdir]
-        abs_allowed = [os.path.abspath(p) for p in allowed]
-        if not any(abs_workdir.startswith(p) for p in abs_allowed):
-            yield {
-                "success": False,
-                "error": f"Working directory {abs_workdir} is not in allowed paths",
-            }
-            return
-
-        timeout_default = config.get("timeout_seconds", 60)
-        timeout_arg = arguments.get("timeout_seconds")
-        try:
-            timeout_seconds = int(timeout_arg) if timeout_arg is not None else int(timeout_default)
-            if timeout_seconds <= 0:
-                timeout_seconds = int(timeout_default) if timeout_default else 300
-        except Exception:
-            timeout_seconds = 60
-
-        env_arg = arguments.get("env")
-        exec_env = os.environ.copy()
-        if isinstance(env_arg, dict):
-            for key, value in env_arg.items():
-                if isinstance(key, str):
-                    exec_env[key] = str(value)
-
-        max_output_lines = int(
-            config.get("max_output_lines", MAX_OUTPUT_LINES_DEFAULT)
-            or MAX_OUTPUT_LINES_DEFAULT
-        )
-        max_output_chars_cfg = config.get("max_output_chars")
-        try:
-            max_output_chars = int(max_output_chars_cfg) if max_output_chars_cfg is not None else 0
-        except Exception:
-            max_output_chars = 0
-        if max_output_chars <= 0:
-            max_output_chars = max_output_lines * HAD_CHAR_LIMIT_PER_LINE
-
+    
+    def _sync_execute(
+        self,
+        command: List[str],
+        workdir: str | None,
+        timeout_seconds: float | None,
+    ) -> Iterator[Dict[str, Any]]:
+        """Synchronous execution with line-by-line streaming.
+        
+        Uses subprocess.Popen for streaming output.
+        """
+        start_time = time.monotonic()
+        
         try:
             proc = subprocess.Popen(
-                ["bash", "-lc", raw_command],
-                cwd=abs_workdir,
-                env=exec_env,
+                command,  # Direct exec (no shell wrapper)
+                cwd=workdir,
+                env=os.environ,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,
             )
+        except FileNotFoundError:
+            yield {"success": False, "error": f"Command not found: {command[0]}"}
+            return
         except Exception as exc:
             yield {"success": False, "error": f"Failed to execute command: {exc}"}
             return
-
-        stdout_chunks: List[str] = []
+        
+        stdout_queue: Queue[str] = Queue()
         stderr_chunks: List[str] = []
-        timed_out = False
-
-        # Use a background thread to read stdout so we can enforce a real
-        # wall-clock timeout even when the subprocess isn't producing output.
-        stdout_queue: "queue.Queue[str]" = queue.Queue()
-
-        def _stdout_reader() -> None:
-            try:
-                if proc.stdout is None:
-                    return
-                for line in proc.stdout:
-                    if not line:
-                        break
-                    stdout_queue.put(line)
-            finally:
-                try:
-                    if proc.stdout is not None and not proc.stdout.closed:
-                        proc.stdout.close()
-                except Exception:
-                    pass
-
-        def _stderr_reader() -> None:
-            try:
-                if proc.stderr is None:
-                    return
-                for line in proc.stderr:
-                    if not line:
-                        break
-                    stderr_chunks.append(line)
-            finally:
-                try:
-                    if proc.stderr is not None and not proc.stderr.closed:
-                        proc.stderr.close()
-                except Exception:
-                    pass
-
-        reader_thread = threading.Thread(target=_stdout_reader, daemon=True)
-        stderr_thread = threading.Thread(target=_stderr_reader, daemon=True)
-        reader_thread.start()
+        
+        def read_stdout():
+            if proc.stdout is None:
+                return
+            for line in proc.stdout:
+                stdout_queue.put(line)
+        
+        def read_stderr():
+            if proc.stderr is None:
+                return
+            for line in proc.stderr:
+                stderr_chunks.append(line)
+        
+        stdout_thread = threading.Thread(target=read_stdout, daemon=True)
+        stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+        stdout_thread.start()
         stderr_thread.start()
-
-        start_time = time.monotonic()
-        sent_header = False
-
+        
+        stdout_chunks: List[str] = []
+        timed_out = False
+        
         try:
             while True:
-                # Check for timeout first so we don't block forever on queue.get.
                 elapsed = time.monotonic() - start_time
-                if timeout_seconds and elapsed >= timeout_seconds:
+                if timeout_seconds is not None and elapsed >= timeout_seconds:
                     timed_out = True
                     proc.kill()
-                    try:
-                        proc.wait(timeout=1)
-                    except Exception:
-                        pass
                     break
-
-                # Drain any available stdout lines, but don't block too long.
+                
                 try:
                     line = stdout_queue.get(timeout=0.1)
-                except queue.Empty:
-                    # If the process has exited and there's nothing left in the
-                    # queue, we're done.
-                    if proc.poll() is not None and stdout_queue.empty():
-                        break
-                    continue
-
-                stdout_chunks.append(line)
-                if line:
-                    # Attach the executed command header at the top of
-                    # the first streamed chunk so that incremental
-                    # output matches the header used in
-                    # ``to_display_format``.
-                    if not sent_header:
-                        cmd = str(raw_command).strip()
-                        explicit = bool(isinstance(raw_workdir, str) and raw_workdir.strip())
-                        workdir_for_header = abs_workdir if explicit else None
-                        header = self._build_header(cmd, workdir_for_header) if cmd else ""
-                        content = f"{header}\n{line}" if header else line
-                        sent_header = True
-                    else:
-                        content = line
-
+                    stdout_chunks.append(line)
                     yield {
-                        "part": {"type": "text", "content": content},
-                        "command": raw_command,
-                        "workdir": abs_workdir,
+                        "part": {"type": "text", "content": line},
+                        "command": command,
+                        "workdir": workdir,
                     }
-
-            # Ensure the process has fully exited (or been killed) before
-            # collecting stderr, but don't let this hang the generator.
-            if proc.poll() is None:
-                try:
-                    proc.wait(timeout=1)
-                except Exception:
-                    pass
+                except:  # queue.Empty
+                    if proc.poll() is not None:
+                        break
         finally:
-            try:
-                reader_thread.join(timeout=1)
-            except Exception:
-                pass
-
-            try:
-                stderr_thread.join(timeout=1)
-            except Exception:
-                pass
-
-        stdout_text = "".join(stdout_chunks)
-        stderr_text = "".join(stderr_chunks)
-        truncated_stdout = self._truncate(stdout_text, max_output_lines, max_output_chars)
-        truncated_stderr = self._truncate(stderr_text, max_output_lines, max_output_chars)
-
-        if timed_out:
-            success = False
-            return_code = None
-            error_msg = f"Command timed out after {timeout_seconds} seconds"
-        else:
-            return_code = proc.returncode
-            success = return_code == 0
-            if not success:
-                error_msg = f"Command exited with code {return_code}"
-            else:
-                error_msg = ""
-
-        result: Dict[str, Any] = {
-            "success": success,
-            "returncode": return_code,
-            "stdout": truncated_stdout,
-            "stderr": truncated_stderr,
-            "stdout_truncated": truncated_stdout != stdout_text,
-            "stderr_truncated": truncated_stderr != stderr_text,
-            "workdir": abs_workdir,
-            "command": raw_command,
-            "timeout_seconds": timeout_seconds,
-            "explicit_workdir": bool(isinstance(raw_workdir, str) and raw_workdir.strip()),
-        }
-        if not success:
-            result["error"] = error_msg or result.get("error", "Command failed.")
-
-        # For streaming, append a compact summary at the end of the
-        # output so that exit codes and stderr are visible without
-        # duplicating stdout. This mirrors the semantics of
-        # ``format_tool_result``:
-        #
-        # - When there is stderr or a non-zero exit code, append an
-        #   exit-code line plus STDERR (and a STDOUT header so users
-        #   can disambiguate streams).
-        # - When stdout is truncated but the command otherwise
-        #   succeeded cleanly, append only a ``STDOUT (truncated):``
-        #   header.
-        stdout_has = bool(truncated_stdout.strip())
-        stderr_has = bool(truncated_stderr.strip())
-        stdout_truncated = truncated_stdout != stdout_text
-        exitcode_is_zero = isinstance(return_code, int) and return_code == 0
-
-        summary_lines: List[str] = []
-
-        if success and exitcode_is_zero and not stderr_has:
-            # Simple success path; only emit a marker when stdout has
-            # been truncated so callers can distinguish complete vs
-            # partial output.
-            if stdout_truncated and stdout_has:
-                summary_lines.append("STDOUT was truncated")
-        else:
-            # Non-zero exit code, stderr present, or explicit failure.
-            # Always include an exit-code/error prefix and stderr,
-            # plus a STDOUT header when any stdout was produced.
-            if success:
-                if return_code is not None:
-                    prefix = f"Command succeeded (exit code {return_code})."
-                else:
-                    prefix = "Command succeeded."
-            else:
-                if result.get("error"):
-                    prefix = str(result["error"])
-                elif return_code is not None:
-                    prefix = f"Command failed with exit code {return_code}"
-                else:
-                    prefix = "Command failed."
-
-            summary_lines.append(prefix)
-
-            if stdout_has:
-                if stdout_truncated:
-                    summary_lines.append("STDOUT was truncated")
-            if stderr_has:
-                summary_lines.append("STDERR:")
-                summary_lines.append(truncated_stderr)
-
-        if summary_lines:
-            # Emit the summary as a distinct part type so that
-            # renderers can treat it separately from the main stdout
-            # stream (for example, always showing it even when the
-            # bulk output is truncated).
-            yield {
-                "part": {"type": "summary", "content": "\n".join(summary_lines) + "\n"},
-                "command": raw_command,
-                "workdir": abs_workdir,
-            }
-
+            stdout_thread.join(timeout=1)
+            stderr_thread.join(timeout=1)
+        
+        exit_code = proc.returncode
+        duration = time.monotonic() - start_time
+        
+        # Combine output
+        output = "".join(stdout_chunks) + "".join(stderr_chunks)
+        truncated_output, trunc_meta = self._apply_truncation(output)
+        
+        if trunc_meta.get("truncated"):
+            truncated_output = self._insert_truncation_marker(truncated_output, trunc_meta)
+        
+        result = self._build_result(
+            {
+                "exit_code": exit_code,
+                "output": truncated_output,
+                "stdout": "".join(stdout_chunks),
+                "stderr": "".join(stderr_chunks),
+                "duration_seconds": duration,
+                "timed_out": timed_out,
+            },
+            truncated_output,
+            trunc_meta,
+        )
+        
+        result["command"] = command
+        result["workdir"] = workdir
+        
         yield result
 
-    @staticmethod
-    def _build_header(command: str, workdir: str | None) -> str:
-        """Return a standard multi-line header for shell output.
 
-        Format:
-
-        - Workdir: <path>      (only when ``workdir`` is not None)
-        - Command executed: ...
-        - Output:
-        """
-
-        lines: List[str] = []
-        if workdir:
-            lines.append(f"Workdir: {workdir}")
-        lines.append(f"Command executed: {command}")
-        lines.append("Output:")
-        return "\n".join(lines)
-
-    @staticmethod
-    def _truncate(text: str, max_lines: int, max_chars: int) -> str:
-        """Truncate text by line and character limits.
-
-        ``max_lines`` controls the number of newline-terminated lines
-        retained; ``max_chars`` caps total characters kept. When either
-        limit is non-positive, it is ignored.
-        """
-
-        original_len = len(text)
-
-        if max_lines > 0:
-            lines = text.splitlines(keepends=True)
-            if len(lines) > max_lines:
-                text = "".join(lines[:max_lines])
-
-        if max_chars > 0 and len(text) > max_chars:
-            text = text[:max_chars]
-
-        if len(text) == original_len:
-            return text
-
-        hidden = original_len - len(text)
-        return f"{text}\n... (truncated, {hidden} more characters)"
+__all__ = ["ShellArrayTool"]

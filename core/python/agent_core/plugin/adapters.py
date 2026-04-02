@@ -378,22 +378,52 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
         items = self._safe_list(raw)
         return [str(t) for t in items]
 
+    def forbidden_tags(self) -> List[str]:  # type: ignore[override]
+        fn = getattr(self.impl, "forbidden_tags", None)
+        raw = fn() if callable(fn) else []
+        items = self._safe_list(raw)
+        return [str(t) for t in items]
+
+    def is_enabled(  # type: ignore[override]
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+        context: Dict[str, Any],
+    ) -> Optional[bool]:
+        fn = getattr(self.impl, "is_enabled", None)
+        if callable(fn):
+            return fn(config, tags, models, context)
+        return None
+
     def to_native_messages(  # type: ignore[override]
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
     ) -> List[Dict[str, Any]]:
         fn = self._get_impl_method("to_native_messages", ProviderExtensionPlugin)
         if fn is not None:
-            out = fn(messages, native_messages)
+            # Pass state if the implementation accepts it
+            import inspect
+            sig = inspect.signature(fn)
+            if len(sig.parameters) >= 3:
+                out = fn(messages, native_messages, state)
+            else:
+                out = fn(messages, native_messages)
             items = self._safe_list(out)
             return [m for m in items if isinstance(m, dict)]
         return list(native_messages)
 
     def from_native_messages(  # type: ignore[override]
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
     ) -> List[Dict[str, Any]]:
         fn = self._get_impl_method("from_native_messages", ProviderExtensionPlugin)
         if fn is not None:
-            out = fn(native_messages, messages)
+            # Pass state if the implementation accepts it
+            import inspect
+            sig = inspect.signature(fn)
+            if len(sig.parameters) >= 3:
+                out = fn(native_messages, messages, state)
+            else:
+                out = fn(native_messages, messages)
             items = self._safe_list(out)
             return [m for m in items if isinstance(m, dict)]
         return list(messages)
@@ -535,6 +565,24 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
         items = self._safe_list(raw)
         return [str(t) for t in items]
 
+    def forbidden_tags(self) -> List[str]:  # type: ignore[override]
+        fn = getattr(self.impl, "forbidden_tags", None)
+        raw = fn() if callable(fn) else []
+        items = self._safe_list(raw)
+        return [str(t) for t in items]
+
+    def is_enabled(  # type: ignore[override]
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+        context: Dict[str, Any],
+    ) -> Optional[bool]:
+        fn = getattr(self.impl, "is_enabled", None)
+        if callable(fn):
+            return fn(config, tags, models, context)
+        return None
+
     def get_template(self, config: Dict[str, Any]) -> str:  # type: ignore[override]
         fn = getattr(self.impl, "get_template", None)
         if callable(fn):
@@ -546,21 +594,33 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
         return ""
 
     def to_native_messages(  # type: ignore[override]
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
+        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
     ) -> List[Dict[str, Any]]:
         fn = self._get_impl_method("to_native_messages", FeaturePlugin)
         if fn is not None:
-            out = fn(messages, native_messages)
+            # Pass state if the implementation accepts it
+            import inspect
+            sig = inspect.signature(fn)
+            if len(sig.parameters) >= 3:
+                out = fn(messages, native_messages, state)
+            else:
+                out = fn(messages, native_messages)
             items = self._safe_list(out)
             return [m for m in items if isinstance(m, dict)]
         return list(native_messages)
 
     def from_native_messages(  # type: ignore[override]
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
+        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
     ) -> List[Dict[str, Any]]:
         fn = self._get_impl_method("from_native_messages", FeaturePlugin)
         if fn is not None:
-            out = fn(native_messages, messages)
+            # Pass state if the implementation accepts it
+            import inspect
+            sig = inspect.signature(fn)
+            if len(sig.parameters) >= 3:
+                out = fn(native_messages, messages, state)
+            else:
+                out = fn(native_messages, messages)
             items = self._safe_list(out)
             return [m for m in items if isinstance(m, dict)]
         return list(messages)
@@ -686,6 +746,24 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
         raw = fn() if callable(fn) else []
         items = self._safe_list(raw)
         return [str(t) for t in items]
+
+    def forbidden_tags(self) -> List[str]:  # type: ignore[override]
+        fn = getattr(self.impl, "forbidden_tags", None)
+        raw = fn() if callable(fn) else []
+        items = self._safe_list(raw)
+        return [str(t) for t in items]
+
+    def is_enabled(  # type: ignore[override]
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+        context: Dict[str, Any],
+    ) -> Optional[bool]:
+        fn = getattr(self.impl, "is_enabled", None)
+        if callable(fn):
+            return fn(config, tags, models, context)
+        return None
 
     def get_tool_schemas(  # type: ignore[override]
         self, state: Dict[str, Any]

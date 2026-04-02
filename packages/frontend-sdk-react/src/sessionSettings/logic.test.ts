@@ -91,4 +91,98 @@ describe('buildSessionSettingItems', () => {
     expect(itemD.tagLabel).toBeNull();
     expect(itemD.effectiveValue).toBeUndefined();
   });
+
+  it('resolves nested base config values through config_path before defaults', () => {
+    const elements = [
+      {
+        key: 'request_options__reasoning_history',
+        type: 'select',
+        config_path: 'request_options.reasoning_history',
+        default: 'disabled',
+      },
+      {
+        key: 'request_options__thinking__clear_thinking',
+        type: 'checkbox',
+        config_path: 'request_options.thinking.clear_thinking',
+        default: true,
+      },
+    ] as UiSchemaElement[];
+
+    const items = buildSessionSettingItems({
+      elements,
+      overrides: {},
+      baseConfig: {
+        request_options: {
+          reasoning_history: 'preserved',
+          thinking: {
+            clear_thinking: false,
+          },
+        },
+      },
+      schemaByKey: {},
+    });
+
+    expect(items[0].source).toBe('config');
+    expect(items[0].tagLabel).toBe('config');
+    expect(items[0].effectiveValue).toBe('preserved');
+
+    expect(items[1].source).toBe('config');
+    expect(items[1].tagLabel).toBe('config');
+    expect(items[1].effectiveValue).toBe(false);
+  });
+
+  it('falls back to ui element default before schema default', () => {
+    const elements = [
+      {
+        key: 'request_options__reasoning_history',
+        type: 'select',
+        config_path: 'request_options.reasoning_history',
+        default: 'preserved',
+      },
+    ] as UiSchemaElement[];
+
+    const schemaByKey = buildConfigSchemaByKey([
+      { key: 'request_options__reasoning_history', default: 'disabled' },
+    ] as ConfigSchemaEntry[]);
+
+    const items = buildSessionSettingItems({
+      elements,
+      overrides: {},
+      baseConfig: {},
+      schemaByKey,
+    });
+
+    expect(items[0].source).toBe('ui_default');
+    expect(items[0].tagLabel).toBe('default');
+    expect(items[0].effectiveValue).toBe('preserved');
+    expect(items[0].schemaDefaultValue).toBe('disabled');
+  });
+
+  it('still prefers flat overrides over nested base config paths', () => {
+    const elements = [
+      {
+        key: 'request_options__thinking__type',
+        type: 'select',
+        config_path: 'request_options.thinking.type',
+        default: 'enabled',
+      },
+    ] as UiSchemaElement[];
+
+    const items = buildSessionSettingItems({
+      elements,
+      overrides: { request_options__thinking__type: 'disabled' },
+      baseConfig: {
+        request_options: {
+          thinking: {
+            type: 'enabled',
+          },
+        },
+      },
+      schemaByKey: {},
+    });
+
+    expect(items[0].source).toBe('override');
+    expect(items[0].tagLabel).toBeNull();
+    expect(items[0].effectiveValue).toBe('disabled');
+  });
 });

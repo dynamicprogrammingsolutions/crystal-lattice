@@ -63,6 +63,20 @@ class ToolWrapper(ToolPlugin):
         """Tags required for this tool to be exposed."""
         return self.plugin.required_tags()
 
+    def forbidden_tags(self) -> List[str]:
+        """Tags that must NOT be present for this tool to be exposed."""
+        return self.plugin.forbidden_tags()
+
+    def is_enabled(
+        self,
+        config: Dict[str, Any],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+        context: Dict[str, Any],
+    ) -> Optional[bool]:
+        """Return whether this tool should be enabled given the context."""
+        return self.plugin.is_enabled(config, tags, models, context)
+
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Get tool schemas via plugin; requires initialized state."""
         if self.state is None:
@@ -80,6 +94,36 @@ class ToolWrapper(ToolPlugin):
         if self.state is None:
             raise RuntimeError(f"Tool {self.name} not initialized")
         working_state = state or self.state
+        return self.plugin.execute_tool(tool_name, arguments, working_state)
+
+    async def execute_tool_async(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Execute tool via plugin asynchronously; requires initialized state.
+        
+        This method supports tools with async execute_tool implementations.
+        If the underlying tool's execute_tool is a coroutine function,
+        it will be awaited correctly.
+        """
+        if self.state is None:
+            raise RuntimeError(f"Tool {self.name} not initialized")
+        working_state = state or self.state
+        
+        # Check if the underlying implementation has an async execute_tool
+        import inspect
+        impl_fn = getattr(self.plugin.impl, "execute_tool", None)
+        if impl_fn is not None and callable(impl_fn):
+            result = impl_fn(tool_name, arguments, working_state)
+            if inspect.isawaitable(result):
+                result = await result
+            if isinstance(result, dict):
+                return result
+            return {"success": False, "error": "invalid tool result"}
+        
+        # Fall back to adapter (sync)
         return self.plugin.execute_tool(tool_name, arguments, working_state)
 
     def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:

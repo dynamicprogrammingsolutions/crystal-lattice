@@ -5,7 +5,6 @@ Short description: Add generic action lifecycles owned by `AgentApplication` tha
 Parent Task: `tasks/20260310-openai-responses-provider/000-main.md`
 
 Depends On:
-- `tasks/20260310-openai-responses-provider/041-system-message-rendering-and-developer-role-followup.md`
 - `tasks/20260310-openai-responses-provider/095-native-compaction-provider-extension.md`
 
 Related:
@@ -40,6 +39,8 @@ For `feature-system-message`, this can produce compact input based on:
 1. templated instruction content rather than rendered content
 2. instruction-role/native-request shaping that only happens during request preparation, not during session-action execution
 
+Note: Role normalization between `system` and `developer` is handled separately in task `048`. This task focuses on template rendering and request preparation only.
+
 ## Required outcome
 
 1. Add generic action lifecycles that `AgentApplication` executes automatically before and after actions.
@@ -48,6 +49,8 @@ For `feature-system-message`, this can produce compact input based on:
 4. `openai_responses` native compaction must receive prepared native messages before slicing/sanitizing compact input.
 5. `feature-system-message` must be able to participate through the generic mechanism so compaction sees rendered instruction messages.
 6. The compaction extension must not import or special-case `SystemMessageFeature` by name.
+
+Note on role handling: This task does not include `system`/`developer` role normalization. That is handled separately in task `048` and is optional.
 
 ## Approved scope
 

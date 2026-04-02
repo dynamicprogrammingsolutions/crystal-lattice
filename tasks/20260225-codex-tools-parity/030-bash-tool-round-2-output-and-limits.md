@@ -1,5 +1,7 @@
 # 030 — Shell tooling: Round 2 (Codex-like output formatting + token-aware limits)
 
+**STATUS: COMPLETED** via `tasks/20260315-gemini-qwen-grok-tool-packages/104-codex-v2-tool.md`
+
 ## Problem
 
 Codex CLI shell outputs follow conventions that matter for GPT‑5 “agentic coding” flows:

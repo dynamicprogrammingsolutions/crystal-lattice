@@ -1,5 +1,7 @@
 # 020 — Shell tooling: Round 1 (Codex-accurate schemas, keep functionality)
 
+**STATUS: COMPLETED** via `tasks/20260315-gemini-qwen-grok-tool-packages/104-codex-v2-tool.md`
+
 ## Problem
 
 The current `shell` tool works, but we want to move to **Codex-accurate tool names and schemas**.

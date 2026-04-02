@@ -1136,6 +1136,77 @@ def get_session_ui_schema(
     return {"elements": ui_schema or []}
 
 
+@app.get("/sessions/{session_id}/application/ui-schema")
+def get_session_application_ui_schema(
+    session_id: str,
+    plugin: Optional[str] = None,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return application-level UI schema for a specific session.
+
+    This endpoint computes the session's effective config (base agent config
+    merged with session overrides) and passes it to application plugins,
+    enabling config-aware UI filtering.
+
+    This completes the implementation started in:
+    - tasks/20260128-sandboxing-prereqs/040-session-aware-app-plugin-ui-and-conditions.md
+    - tasks/20260130-openrouter-usage-round-cost-and-ui-schema/010-config-aware-ui-schema-and-conditions.md
+
+    The returned list contains UI elements from all registered application
+    plugins, filtered by the optional ``plugin`` query parameter if provided.
+    Each element includes a ``plugin`` field identifying its source.
+
+    Frontends should call this endpoint when displaying session-scoped actions
+    (e.g., "Compact range") that depend on the session's configuration.
+    """
+
+    try:
+        ctx = app_instance.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+
+        core, base_config, session = ctx
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides = metadata.get("overrides")
+        if not isinstance(overrides, dict):
+            overrides = {}
+        effective_config = resolve_request_config(base_config, overrides)
+
+        # Get tags and models from the core's resolved plugins
+        # This mirrors what AgentCore.get_ui_schema does internally
+        tags: List[str] = []
+        models: List[Dict[str, Any]] = []
+
+        # Try to get tags/models from the core if it has resolved plugins
+        try:
+            if hasattr(core, "_resolve_plugins_for_config"):
+                provider, _, _, _, resolved_tags = core._resolve_plugins_for_config(effective_config)
+                tags = resolved_tags
+                if provider is not None and hasattr(core, "_get_models_for_config"):
+                    models = core._get_models_for_config(provider, effective_config)
+        except Exception:
+            pass  # Tags/models are optional, continue without them
+
+        try:
+            elements = app_instance.get_application_ui_schema(
+                config=effective_config, tags=tags, models=models
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            _log.exception("error getting application_ui_schema: %s", exc)
+            elements = []
+
+        # Filter by plugin if requested
+        if plugin:
+            elements = [e for e in elements if isinstance(e, dict) and e.get("plugin") == plugin]
+        else:
+            elements = [e for e in elements if isinstance(e, dict)]
+
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {"elements": elements}
+
+
 @app.get("/sessions/{session_id}/config/schema")
 def get_session_config_schema(
     session_id: str,

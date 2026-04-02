@@ -11,6 +11,27 @@ function hasOwn(obj: unknown, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(obj, key);
 }
 
+function resolveDottedPath(obj: unknown, path: string): { found: boolean; value: unknown } {
+  if (!obj || typeof obj !== 'object' || typeof path !== 'string' || !path) {
+    return { found: false, value: undefined };
+  }
+
+  const parts = path.split('.').filter(Boolean);
+  if (!parts.length) {
+    return { found: false, value: undefined };
+  }
+
+  let current: unknown = obj;
+  for (const part of parts) {
+    if (!current || typeof current !== 'object' || !hasOwn(current, part)) {
+      return { found: false, value: undefined };
+    }
+    current = (current as Record<string, unknown>)[part];
+  }
+
+  return { found: true, value: current };
+}
+
 export function filterConfigUiSchemaElements(elements: UiSchemaElement[]): UiSchemaElement[] {
   return (Array.isArray(elements) ? elements : []).filter((element) => {
     if (!element || typeof element !== 'object') {
@@ -49,6 +70,7 @@ export function buildConfigSchemaByKey(schema: ConfigSchemaEntry[]): ConfigSchem
 }
 
 function resolveValue(params: {
+  element: UiSchemaElement;
   key: string;
   overrides: Record<string, unknown>;
   baseConfig: Record<string, unknown>;
@@ -63,7 +85,7 @@ function resolveValue(params: {
   tagLabel: SessionSettingTagLabel;
   effectiveValue: unknown;
 } {
-  const { key, overrides, baseConfig, schemaByKey } = params;
+  const { element, key, overrides, baseConfig, schemaByKey } = params;
 
   const hasOverride = hasOwn(overrides, key);
   const overrideValue = hasOverride ? overrides[key] : undefined;
@@ -71,10 +93,15 @@ function resolveValue(params: {
   const baseHasValue = hasOwn(baseConfig, key);
   const baseValue = baseHasValue ? baseConfig[key] : undefined;
 
+  const configPath = typeof (element as any).config_path === 'string' ? ((element as any).config_path as string) : '';
+  const nestedBase = resolveDottedPath(baseConfig, configPath);
+
   const schemaEntry = schemaByKey[key];
   const schemaHasDefault =
     schemaEntry && hasOwn(schemaEntry, 'default') && (schemaEntry as any).default !== undefined;
   const schemaDefaultValue = schemaHasDefault ? (schemaEntry as any).default : undefined;
+  const uiHasDefault = hasOwn(element, 'default') && (element as any).default !== undefined;
+  const uiDefaultValue = uiHasDefault ? (element as any).default : undefined;
 
   if (hasOverride) {
     return {
@@ -99,6 +126,32 @@ function resolveValue(params: {
       source: 'config',
       tagLabel: 'config',
       effectiveValue: baseValue,
+    };
+  }
+
+  if (nestedBase.found) {
+    return {
+      hasOverride,
+      overrideValue,
+      baseHasValue: true,
+      baseValue: nestedBase.value,
+      schemaDefaultValue,
+      source: 'config',
+      tagLabel: 'config',
+      effectiveValue: nestedBase.value,
+    };
+  }
+
+  if (uiHasDefault) {
+    return {
+      hasOverride,
+      overrideValue,
+      baseHasValue,
+      baseValue,
+      schemaDefaultValue,
+      source: 'ui_default',
+      tagLabel: 'default',
+      effectiveValue: uiDefaultValue,
     };
   }
 
@@ -158,7 +211,7 @@ export function buildSessionSettingItems(params: {
       const description =
         typeof (element as any).description === 'string' ? ((element as any).description as string) : '';
 
-      const resolved = resolveValue({ key, overrides, baseConfig, schemaByKey });
+      const resolved = resolveValue({ element, key, overrides, baseConfig, schemaByKey });
       return {
         key,
         type,

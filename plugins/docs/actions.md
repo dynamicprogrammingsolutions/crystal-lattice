@@ -242,6 +242,122 @@ The runtime may populate these commonly used keys in `context`:
 Plugins may also use additional serializable context keys supplied by the
 caller.
 
+### Layered context for feature/extension plugins
+
+Feature plugins and provider extensions receive **layered context** that provides different capabilities depending on where the action is triggered. This allows plugins to access enhanced capabilities when available while gracefully degrading when running in core-only mode.
+
+#### Layer 1: Core-level context (always present)
+
+When called from `AgentCore.execute_session_action()` or `AgentCore.execute_lifecycle_actions()`:
+
+```python
+context = {
+    "core": self,              # AgentCore instance
+    "config": config,          # Current resolved config
+    "trigger_source": "core",  # Where action was triggered
+    "session": session.to_dict(),  # Serialized session
+    "lifecycle": trigger,      # Lifecycle trigger name (if applicable)
+}
+```
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `core` | `AgentCore` | Core instance for session/message operations |
+| `config` | `dict` | Current resolved request configuration |
+| `trigger_source` | `str` | Where action was triggered (`"core"`, `"application"`) |
+| `session` | `dict` | Serialized session (`session.to_dict()`) |
+| `lifecycle` | `str` | Lifecycle trigger name (for lifecycle-triggered actions) |
+
+#### Layer 2: Application-level context (when called from AgentApplication)
+
+When called from `AgentApplication.execute_session_action()` or `AgentApplication.run_session_lifecycle()`:
+
+```python
+context = {
+    # Layer 1 (from core)
+    "core": core,
+    "config": effective_config,
+    "trigger_source": "application",
+    "session": session.to_dict(),
+    "lifecycle": lifecycle,  # if applicable
+
+    # Layer 2 (from application)
+    "app": self,             # AgentApplication instance
+    "application": self,     # Alias for "app"
+    "base_config": self._config,  # Full base config (all agents)
+    "session_asset_store": self._session_asset_store,  # Optional
+}
+```
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `app` / `application` | `AgentApplication` | Application instance for enhanced capabilities |
+| `base_config` | `dict` | Full application configuration (all agents) |
+| `session_asset_store` | `SessionAssetStore` | File attachment store (optional) |
+
+#### Layer 3: Terminal/Server-level context (implementation-specific)
+
+Terminal or HTTP server implementations may add additional context keys:
+
+```python
+# TerminalApplication may add:
+context["terminal"] = self
+
+# HTTP server may add:
+context["server"] = self
+context["request_id"] = request_id
+```
+
+These keys are implementation-specific and should be documented by the respective applications.
+
+#### Checking for capabilities
+
+Feature and extension plugins should check for capabilities before using them:
+
+```python
+def execute_action(
+    self,
+    action_id: str,
+    session: Session,
+    native_messages: List[Dict[str, Any]],
+    params: Dict[str, Any],
+    context: Optional[Dict[str, Any]],
+    state: Dict[str, Any],
+) -> Dict[str, Any]:
+    # Core is always available
+    core = context["core"]
+    config = context["config"]
+    
+    # Application is optional (check before using)
+    app = context.get("app")
+    base_config = context.get("base_config", config)
+    
+    if app is not None:
+        # Application-level capabilities available
+        # Can switch agents, use full request flow
+        pass
+    else:
+        # Core-only mode
+        # Use core.send_request() for same-agent requests
+        pass
+```
+
+**Note on config resolution:** The `config` key is the resolved request configuration for the current agent. When called from `AgentApplication`, `base_config` contains the full flattened agent configuration (from `build_agent_config()`). For agent-level settings like `compaction`, always use `base_config` when available, falling back to `config` for core-only calls.
+
+#### Context flow diagram
+
+```
+TerminalApplication.execute_action()
+    ↓ adds: {"terminal": self, ...}
+AgentApplication.run_session_lifecycle()
+    ↓ adds: {"app": self, "base_config": ...}
+AgentCore.execute_lifecycle_actions()
+    ↓ adds: {"core": self, "config": config}
+FeaturePlugin.execute_action(session, native_messages, params, context, state)
+    ↓ Plugin checks: app = context.get("app")
+                    core = context["core"]
+```
+
 ## Application plugin contract
 
 Application plugins keep the current action method names and semantics.

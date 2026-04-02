@@ -21,6 +21,7 @@ Current public tools in this package:
 - `glob`
 - `write_file`
 - `replace`
+- `run_shell_command`
 
 Write/edit surface summary:
 
@@ -35,6 +36,7 @@ The plugin repo exposes these classes through `agent_plugin.json`:
 - `gemini_tools.gemini_glob_tool.GeminiGlobTool`
 - `gemini_tools.gemini_write_file_tool.GeminiWriteFileTool`
 - `gemini_tools.gemini_replace_tool.GeminiReplaceTool`
+- `gemini_tools.gemini_shell_tool.GeminiShellTool`
 
 ## Quickstart
 
@@ -240,6 +242,68 @@ File: /workspace/src/util.py
 L7: # TODO: remove debug path
 ```
 
+## Shell behavior notes
+
+The Gemini-compatible shell entrypoint is `run_shell_command`.
+
+- `command` is the shell command to execute (required).
+- `description` is an optional brief description of the command purpose.
+- `dir_path` sets the working directory for execution.
+- `is_background` runs the command in background mode (useful for dev servers).
+- Timeout defaults to 120 seconds (configurable via `shell_timeout_seconds`).
+- Output is truncated at 40,000 characters with 20% head / 80% tail split.
+- Truncated output is saved to `project_temp_dir` with a reference path.
+
+Representative `run_shell_command` call shape:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "run_shell_command",
+    "arguments": {
+      "command": "npm run build",
+      "description": "Build the project",
+      "dir_path": "/workspace"
+    }
+  }
+}
+```
+
+Representative outcomes:
+
+Success:
+```text
+Output:
+Build completed successfully.
+```
+
+Failure:
+```text
+Output:
+Error: Build failed
+Error: Command failed with exit code 1
+Exit Code: 1
+```
+
+Background:
+```text
+Command moved to background (PID: 12345). Output hidden.
+```
+
+Timeout:
+```text
+Command was automatically cancelled because it exceeded the timeout of 2.0 minutes without output.
+Below is the output before it was cancelled:
+...
+```
+
+Truncation:
+```text
+Output too large. Showing first 8,000 and last 32,000 characters. For full output see: /workspace/.temp/shell_output_abc123.txt
+...
+```
+
 ## Compatibility contract
 
 Parity for this package means:
@@ -278,7 +342,17 @@ Shared package-level config keys used by the current Gemini tools:
   Paths must resolve inside one of these directories or the project temp dir.
 - `project_temp_dir`
   Default: `<working_directory>/.temp`.
-  Additional allowed location for reads and writes.
+  Additional allowed location for reads and writes. Also used to store full
+  output from truncated shell commands.
+- `shell_timeout_seconds`
+  Default: `120`.
+  Default timeout for shell command execution in seconds.
+- `shell_max_output_chars`
+  Default: `40000`.
+  Maximum characters to return in shell output before truncation.
+- `shell_truncation_head_ratio`
+  Default: `0.2` (20% head, 80% tail).
+  Ratio for head/tail split when truncating shell output.
 - `list_directory`, `grep_search`, and `glob` also resolve relative paths from
   `working_directory` and restrict access to `allowed_paths` plus
   `project_temp_dir`.

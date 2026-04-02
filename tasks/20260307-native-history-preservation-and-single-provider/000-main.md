@@ -42,10 +42,10 @@ Two distinct but related changes are wanted:
 
 ## Suggested work split
 
-Subtasks:
+## Subtasks
 
-1. `tasks/20260307-native-history-preservation-and-single-provider/010-no-silent-native-history-stripping.md`
-2. `tasks/20260307-native-history-preservation-and-single-provider/020-application-single-provider-core-selection.md`
+- [ ] `tasks/20260307-native-history-preservation-and-single-provider/010-no-silent-native-history-stripping.md`
+- [x] `tasks/20260307-native-history-preservation-and-single-provider/020-application-single-provider-core-selection.md`
 
 These subtasks are related but can largely be researched/implemented independently. Coordinate the final behavior so they do not fight each other:
 

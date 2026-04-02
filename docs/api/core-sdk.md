@@ -497,6 +497,117 @@ results = core.execute_tool_calls(tool_calls, config)
 # [{"role": "tool", "content": "File contents...", "metadata": {"tool_call_id": "call_1", "tool_name": "read_file"}}]
 ```
 
+#### execute_session_action
+
+```python
+execute_session_action(
+    session: Session,
+    config: Dict[str, Any],
+    plugin_id: str,
+    action_id: str,
+    params: Dict[str, Any],
+    context: Optional[Dict[str, Any]] = None
+) -> Tuple[Session, Dict[str, Any]]
+```
+
+Execute a session-scoped action on a feature plugin or provider extension.
+
+This method provides the core-level entry point for plugin actions that operate on a single session's provider-native message history. Actions can modify native messages and/or patch session metadata.
+
+**Parameters:**
+- `session` (Session): Current session
+- `config` (dict): Resolved configuration for the current agent
+- `plugin_id` (str): Plugin identifier (e.g., `"my_feature"`)
+- `action_id` (str): Action identifier defined by the plugin
+- `params` (dict): Validated action parameters
+- `context` (dict, optional): Additional execution context
+
+**Returns:**
+- `Tuple[Session, dict]`: Updated session and action result dictionary
+
+**Context (Layer 1 - Core-level):**
+```python
+context = {
+    "core": self,              # AgentCore instance
+    "config": config,          # Current resolved config
+    "trigger_source": "core",  # Where action was triggered
+    "session": session.to_dict(),  # Serialized session
+    "lifecycle": trigger,      # Lifecycle trigger name (if applicable)
+}
+```
+
+**Example:**
+```python
+# Execute a compaction action
+session, result = core.execute_session_action(
+    session,
+    config,
+    "gemini_compaction_feature",
+    "compact_range",
+    {"start": 0, "end": 10},
+)
+
+# Result contains:
+# - native_messages: replacement provider-native history
+# - session_metadata: patch for session.metadata
+# - error: optional error information
+if "error" not in result:
+    print(f"Compacted {result.get('compaction_result', {}).get('message')}")
+```
+
+#### execute_lifecycle_actions
+
+```python
+execute_lifecycle_actions(
+    session: Session,
+    config: Dict[str, Any],
+    trigger: str,
+    context: Optional[Dict[str, Any]] = None
+) -> Tuple[Session, List[Dict[str, Any]]]
+```
+
+Execute all registered lifecycle actions matching a trigger.
+
+Lifecycle actions are plugin-defined actions with a `trigger` field that matches the given trigger name. This method is typically called by `AgentApplication` during session lifecycle events (create, save, request_prepare, etc.).
+
+**Parameters:**
+- `session` (Session): Current session
+- `config` (dict): Resolved configuration for the current agent
+- `trigger` (str): Lifecycle trigger name (e.g., `"session_create"`, `"request_prepare"`)
+- `context` (dict, optional): Additional execution context
+
+**Returns:**
+- `Tuple[Session, list]`: Updated session and list of action results
+
+**Context:**
+Same as `execute_session_action`, with additional `lifecycle` key set to the trigger name.
+
+**Example:**
+```python
+# Run lifecycle actions before a request
+session, results = core.execute_lifecycle_actions(
+    session,
+    config,
+    "request_prepare",
+)
+
+for result in results:
+    plugin_id = result.get("plugin")
+    action_id = result.get("action_id")
+    print(f"Ran {plugin_id}.{action_id}")
+```
+
+**Standard lifecycle triggers:**
+- `session_create`: After session creation
+- `session_save_prepare`: Before session persistence
+- `request_prepare`: Before LLM request
+- `request_complete`: After successful request
+- `request_error`: After failed request
+- `session_fork`: After session fork
+- `agent_switch_prepare`: Before agent switch
+- `agent_switch_complete`: After agent switch
+- `session_delete_prepare`: Before session deletion
+
 #### export_session
 
 ```python
