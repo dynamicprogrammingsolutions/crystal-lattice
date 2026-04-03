@@ -3105,19 +3105,24 @@ class AgentCore:
         """Immutably merge ``patch`` into `_metadata` on selected native items."""
 
         if not indices or not isinstance(patch, dict) or not patch:
-            return list(native_messages)
+            return native_messages
 
-        out = list(native_messages)
+        out: Optional[List[Dict[str, Any]]] = None
         for idx in sorted({i for i in indices if isinstance(i, int)}):
-            if idx < 0 or idx >= len(out):
+            if idx < 0 or idx >= len(native_messages):
                 continue
-            item = out[idx]
+            item = native_messages[idx]
             if not isinstance(item, dict):
                 continue
             raw_internal = item.get("_metadata")
             internal = dict(raw_internal) if isinstance(raw_internal, dict) else {}
-            out[idx] = {**item, "_metadata": {**internal, **patch}}
-        return out
+            merged_internal = {**internal, **patch}
+            if merged_internal == internal:
+                continue
+            if out is None:
+                out = list(native_messages)
+            out[idx] = {**item, "_metadata": merged_internal}
+        return out if out is not None else native_messages
 
     def _build_name_to_tool_map(
         self,

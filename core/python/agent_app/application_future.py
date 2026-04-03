@@ -475,7 +475,48 @@ class AgentApplication:
         runtime = self._agent_plugin_runtimes.get(agent_id)
         if runtime is None:
             raise KeyError(f"Unknown agent_id {agent_id!r}")
+
+        merged_classes: Dict[str, List[type[Any]]] = {
+            kind: list(classes) for kind, classes in runtime.plugin_classes.items()
+        }
+        merged_by_id: Dict[str, Dict[str, type[Any]]] = {
+            kind: dict(items) for kind, items in runtime.plugins_by_kind_and_id.items()
+        }
+        changed = False
+
+        for kind in ("providers", "extensions", "features", "tools"):
+            runtime_ids = merged_by_id.setdefault(kind, {})
+            runtime_classes = merged_classes.setdefault(kind, [])
+            for plugin_class in self._plugin_classes.get(kind) or []:
+                plugin_id = self._plugin_id_for_class(plugin_class)
+                if plugin_id in runtime_ids:
+                    continue
+                runtime_ids[plugin_id] = plugin_class
+                runtime_classes.append(plugin_class)
+                changed = True
+
+        if changed:
+            runtime = _AgentPluginRuntime(
+                plugin_classes=merged_classes,
+                plugins_by_kind_and_id=merged_by_id,
+                default_enabled_ids=runtime.default_enabled_ids,
+            )
+            self._agent_plugin_runtimes[agent_id] = runtime
         return runtime
+
+    def _configured_agent_plugin_ids(self, agent_id: str) -> Optional[List[str]]:
+        agents = self._config.get("agents") if isinstance(self._config, dict) else {}
+        agent_cfg = agents.get(agent_id) if isinstance(agents, dict) else None
+        if not isinstance(agent_cfg, dict):
+            return None
+
+        raw_plugins = agent_cfg.get("plugins")
+        if not isinstance(raw_plugins, list):
+            return None
+
+        known_ids = set(self._collect_plugin_ids(self._get_agent_plugin_runtime(agent_id).plugins_by_kind_and_id))
+        configured_ids = [item for item in raw_plugins if isinstance(item, str) and item in known_ids]
+        return configured_ids or None
 
     def _plugin_id_for_class(self, plugin_class: type[Any]) -> str:
         """Return the stable plugin id for a plugin class.
@@ -1820,7 +1861,11 @@ class AgentApplication:
         # provider-only subset that excludes the new agent's provider.
         target_plugin_ids = self._agent_plugin_ids.get(agent_id)
         if target_plugin_ids is None:
-            switched_metadata.pop("plugins", None)
+            configured_plugin_ids = self._configured_agent_plugin_ids(agent_id)
+            if configured_plugin_ids is None:
+                switched_metadata.pop("plugins", None)
+            else:
+                switched_metadata["plugins"] = list(configured_plugin_ids)
         else:
             switched_metadata["plugins"] = list(target_plugin_ids)
 

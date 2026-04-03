@@ -178,8 +178,15 @@ def test_response_finalize_adds_tool_call_previews_to_send_request() -> None:
     ]
 
     native_messages = next_session.metadata.get("native_messages") or []
-    native_internal = native_messages[-1].get("_metadata") or {}
-    assert native_internal.get("tool_call_previews") == [
+    preview_anchors = [
+        item.get("_metadata")
+        for item in native_messages
+        if isinstance(item, dict)
+        and isinstance(item.get("_metadata"), dict)
+        and "tool_call_previews" in item.get("_metadata", {})
+    ]
+    assert len(preview_anchors) == 1
+    assert preview_anchors[0].get("tool_call_previews") == [
         {"id": "call_raw_1", "preview": "preview:text:hello preview"}
     ]
 
@@ -217,3 +224,31 @@ def test_response_finalize_adds_tool_call_previews_to_streaming_final_event() ->
     assert metadata.get("tool_call_previews") == [
         {"id": "call_raw_1", "preview": "preview:text:hello preview"}
     ]
+
+
+def test_preview_restore_only_patches_first_assistant_for_shared_native_index() -> None:
+    feature = ToolCallPreviewFeature()
+    native_messages = [
+        {
+            "role": "assistant",
+            "content": "",
+            "_metadata": {
+                "tool_call_previews": [
+                    {"id": "call_raw_1", "preview": "preview:text:hello preview"}
+                ]
+            },
+        }
+    ]
+    messages = [
+        {"role": "assistant", "content": "", "metadata": {"native_indices": [0]}},
+        {"role": "tool", "content": "result", "metadata": {"native_indices": [0]}},
+        {"role": "assistant", "content": "later", "metadata": {"native_indices": [0]}},
+    ]
+
+    rebuilt = feature.from_native_messages(native_messages, messages)
+
+    assert (rebuilt[0].get("metadata") or {}).get("tool_call_previews") == [
+        {"id": "call_raw_1", "preview": "preview:text:hello preview"}
+    ]
+    assert "tool_call_previews" not in ((rebuilt[1].get("metadata") or {}))
+    assert "tool_call_previews" not in ((rebuilt[2].get("metadata") or {}))

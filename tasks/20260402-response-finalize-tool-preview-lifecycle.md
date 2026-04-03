@@ -187,8 +187,8 @@ Implemented a built-in feature plugin at `core/python/plugins/tool_call_preview_
 
 - registers an action with `trigger: "response_finalize"`
 - annotates assistant `final_messages[*].metadata.tool_call_previews`
-- persists the same preview payload into native `_metadata`
-- restores previews during rebuilds in `from_native_messages(...)`
+- persists the same preview payload into native `_metadata` on a single native anchor per assistant message
+- restores previews during rebuilds in `from_native_messages(...)` by replacing the public metadata from the first assistant-owned native anchor only
 
 Removed the transient preview mutation path from `core/python/agent_app/tool_loop.py`. The application layer now forwards preview-enriched final messages produced by core instead of generating previews ad hoc.
 
@@ -205,5 +205,13 @@ Validation performed:
 - `ruff check core/python/agent_core/core.py core/python/agent_app/tool_loop.py core/python/agent_core/types.py core/python/plugins/tool_call_preview_feature.py core/python/tests/test_core_execute_tool_calls.py core/python/tests/test_response_finalize_lifecycle.py`
 - `pytest core/python/tests/test_core_execute_tool_calls.py core/python/tests/test_response_finalize_lifecycle.py core/python/tests/test_feature_plugin_context_enrichment.py -q`
 - `pytest core/python/tests/test_application_layer_integration.py core/python/tests/test_plugin_default_adapters.py core/python/tests/test_tool_interop.py -q`
+
+Cleanup follow-up:
+
+- removed the earlier preview dedupe/merge behavior from the feature plugin
+- stopped copying unchanged `native_messages` in no-op paths
+- added package-level integration coverage in:
+  - `plugins/openai_responses/tests/test_openai_responses_tools_extension_integration.py`
+  - `plugins/openrouter_responses/tests/test_openrouter_tool_call_preview_integration.py`
 
 Note: `ruff` was intentionally run only on Python sources, not Markdown docs.
