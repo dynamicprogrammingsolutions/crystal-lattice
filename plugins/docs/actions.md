@@ -73,6 +73,9 @@ The meaning of common triggers is:
   may need repair or fallback initialization
 - `request_complete`: a request completed successfully and post-request session
   metadata may need to be updated
+- `response_finalize`: core-owned post-finalization stage where in-flight final
+  messages and retained native history may still be adjusted before the final
+  payload is emitted
 - `request_error`: a request failed and failure-related session state may need
   to be recorded
 - `session_fork`: a new forked session has been created from an existing
@@ -144,6 +147,9 @@ The standard lifecycles are triggered at these points:
   effective config resolution and before the tool loop/provider request starts
 - `request_complete`: owned by `AgentApplication.send_request(...)`, after the
   request finishes successfully and a final session exists
+- `response_finalize`: owned by `AgentCore` request execution, after provider /
+  feature native finalization and native-to-core conversion, but before final
+  messages are emitted or appended to the session
 - `request_error`: owned by `AgentApplication.send_request(...)`, when request
   execution raises or returns a terminal error path
 - `session_fork`: owned by session-fork flows in the application layer and runs
@@ -157,6 +163,12 @@ The standard lifecycles are triggered at these points:
 `AgentCore` does not decide when any of these lifecycles happen. It only
 executes matching core-side actions for the lifecycle name that
 `AgentApplication` passes in.
+
+Exception:
+
+- `response_finalize` is a core-owned lifecycle executed directly by
+  `AgentCore` during request finalization so core-side plugins can still mutate
+  the current turn's `final_messages` before they are returned.
 
 ## Dispatcher ownership
 
@@ -199,6 +211,17 @@ For the standard built-in set, the generic flow is:
 5. merge resulting session mutations
 6. continue the owning application operation such as save, request, fork, or
    agent switch
+
+For `response_finalize`, the flow is slightly different:
+
+1. `AgentCore` finishes provider / feature native `finalize(...)`
+2. `AgentCore` converts the current turn's native finals back into core
+   `final_messages`
+3. `AgentCore` runs matching core-side actions with `trigger: "response_finalize"`
+4. actions may return replacement `final_messages`, replacement
+   `native_messages`, and `session_metadata`
+5. `AgentCore` emits / returns the updated `final_messages` and stores the
+   updated native history
 
 ## Execution context
 

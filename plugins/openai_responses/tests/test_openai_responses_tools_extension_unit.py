@@ -38,6 +38,19 @@ def _chat_tool_call() -> Dict[str, Any]:
     }
 
 
+def _custom_tool_schema() -> Dict[str, Any]:
+    return {
+        "type": "custom",
+        "name": "apply_patch",
+        "description": "Apply a freeform patch",
+        "format": {
+            "type": "grammar",
+            "syntax": "lark",
+            "definition": "start: /.+/",
+        },
+    }
+
+
 def test_initialize_request_converts_tool_schemas_into_responses_payload() -> None:
     ext = OpenAIResponsesToolsExtension()
 
@@ -74,6 +87,29 @@ def test_initialize_request_converts_tool_schemas_into_responses_payload() -> No
             },
         }
     ]
+
+
+def test_initialize_request_passes_through_responses_custom_tool_schemas() -> None:
+    ext = OpenAIResponsesToolsExtension()
+
+    state = ext.init({"tools": [_custom_tool_schema()]}, {})
+    native_after, new_state = ext.initialize_request(
+        [],
+        {
+            **state,
+            "config": {"tools": [_custom_tool_schema()]},
+            "request": {
+                "payload": {
+                    "model": "gpt-5.2",
+                }
+            },
+        },
+    )
+
+    assert native_after == []
+    payload = new_state["request"]["payload"]
+    assert payload["tool_choice"] == "auto"
+    assert payload["tools"] == [_custom_tool_schema()]
 
 
 def test_process_chunk_trusts_provider_finals_and_leaves_state_unchanged() -> None:

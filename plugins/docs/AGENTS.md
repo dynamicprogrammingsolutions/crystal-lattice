@@ -103,7 +103,7 @@ When writing provider extension docs (tools/reasoning/usage/etc.):
 
 - For cross-provider docs, prefer OpenAI-compatible chunk/tool-call shapes as the reference vocabulary:
   - streaming deltas: `chunk["choices"][0]["delta"]`
-  - tool calls: OpenAI-style `[{"id", "type", "function": {"name", "arguments"}}]`
+  - tool calls: when giving a single generic example, OpenAI-style `[{"id", "type", "function": {"name", "arguments"}}]` is still a good baseline, but do not describe it as the only supported shape
 - Avoid provider-specific formats in generic pages unless the page is explicitly provider-specific.
 
 ## 7) Include trial-and-error guidance without encouraging unsafe logging

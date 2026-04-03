@@ -373,7 +373,7 @@ def test_terminal_application_user_errors_for_switching(tmp_path: Path) -> None:
         term_app.switch_session("nonexistent-session-id")
 
     # Agent switching: unknown agent id should be a user error.
-    term_app.start_new_session(agent_id="codex")
+    term_app.start_new_session(agent_id="default")
     with pytest.raises(TerminalUserError):
         term_app.switch_agent("nonexistent-agent")
 
@@ -535,7 +535,7 @@ async def test_slash_command_user_error_formatting(tmp_path: Path) -> None:
 
     # Ensure there is an active session so that /agent operates
     # normally and any error is purely input-driven.
-    term_app.start_new_session(agent_id="codex")
+    term_app.start_new_session(agent_id="default")
 
     outputs: list[str] = []
     ui_state: dict = {}

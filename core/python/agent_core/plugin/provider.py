@@ -10,6 +10,7 @@ from typing import Dict, Any, List, Iterator, AsyncIterator, Tuple, Optional
 
 from .adapters import ProviderDefaultsAdapter
 from .extension import ExtensionWrapper
+from ..tool_interop import ToolInteropContribution
 from ..types import ProviderPlugin, Session
 from ..utils import pipeline, get_logger
 
@@ -136,6 +137,30 @@ class ProviderWrapper(ProviderPlugin):
     ) -> List[str]:
         """Delegate tag computation to the underlying provider via adapter."""
         return self.plugin.get_tags(config, models)
+
+    def get_tool_interop_contribution(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> ToolInteropContribution:
+        """Return provider-contributed tool interop accessors/adapters."""
+        return self.plugin.get_tool_interop_contribution(config, state)
+
+    def accepted_tool_schema_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        """Return schema formats this provider can send directly."""
+        return self.plugin.accepted_tool_schema_formats(config, state)
+
+    def emitted_tool_call_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        """Return tool-call formats this provider may emit."""
+        return self.plugin.emitted_tool_call_formats(config, state)
 
     def get_state(self) -> Dict[str, Any]:
         """Expose the current shared state for orchestration.

@@ -243,7 +243,7 @@ def test_send_request_single_flight_blocks_while_running(tmp_path: Path) -> None
     events_store = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
 
-    create_resp = server_mod.create_session({"agent_id": "codex"}, app_instance=app)
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
 
     server_mod.add_message(
@@ -332,7 +332,7 @@ def test_send_request_idempotency_key_replays_request_id(tmp_path: Path) -> None
     events_store = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
 
-    create_resp = server_mod.create_session({"agent_id": "codex"}, app_instance=app)
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
 
     server_mod.add_message(
@@ -433,7 +433,7 @@ def test_send_message_endpoint_appends_and_starts_request(tmp_path: Path) -> Non
     events_store = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
 
-    create_resp = server_mod.create_session({"agent_id": "codex"}, app_instance=app)
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
 
     started_evt = threading.Event()
@@ -521,7 +521,7 @@ def test_send_message_endpoint_rejects_when_active(tmp_path: Path) -> None:
     events_store = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
 
-    create_resp = server_mod.create_session({"agent_id": "codex"}, app_instance=app)
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
 
     started_evt = threading.Event()
@@ -617,7 +617,7 @@ def test_send_message_endpoint_idempotency_replays_without_double_append(tmp_pat
     events_store = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
 
-    create_resp = server_mod.create_session({"agent_id": "codex"}, app_instance=app)
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
 
     release_evt = threading.Event()
@@ -714,7 +714,7 @@ def test_send_message_endpoint_idempotency_key_reused_with_different_payload_con
     events_store = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
 
-    create_resp = server_mod.create_session({"agent_id": "codex"}, app_instance=app)
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
 
     release_evt = threading.Event()

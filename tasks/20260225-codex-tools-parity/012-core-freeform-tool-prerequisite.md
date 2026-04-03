@@ -4,9 +4,9 @@ Add the core interop and execution support needed for tool plugins to originate 
 
 ## Requirements checklist
 
-- [ ] Make the generic core tool path stop assuming OpenAI chat-completions function schemas are the only source format.
-- [ ] Support a raw-input or freeform/custom tool-call shape needed by upstream Codex `apply_patch`.
-- [ ] Preserve existing chat-completions and Responses function-tool behavior while adding the new path.
+- [x] Make the generic core tool path stop assuming OpenAI chat-completions function schemas are the only source format.
+- [x] Support a raw-input or freeform/custom tool-call shape needed by upstream Codex `apply_patch`.
+- [x] Preserve existing chat-completions and Responses function-tool behavior while adding the new path.
 
 Parent Task: `tasks/20260225-codex-tools-parity/000-main.md`
 
@@ -573,3 +573,51 @@ Upstream behavior motivating this task:
 - `../codex/codex-rs/core/src/tools/handlers/apply_patch.rs:288-389`
 
 The upstream Rust design is not a one-to-one implementation target, but it is a useful proof point that a tool handler can support both structured function payloads and raw/custom payloads without forcing everything through one schema/call convention.
+
+## Completion Notes
+
+Added during implementation on 2026-04-02.
+
+- Replaced the narrow tool interop layer in `core/python/agent_core/tool_interop.py` with a richer additive registry that now supports:
+  - composed contributions from explicit config, providers/extensions, and tools
+  - richer schema/call inspection via `inspect_schema(...)` and `inspect_call(...)`
+  - payload-first call inspection (`payload`, `payload_kind`, `payload_format`, `payload_metadata`)
+  - additive adapter fallback instead of explicit-adapter replacement
+  - optional multihop adapter composition
+  - built-in OpenAI Responses custom/freeform schema and call accessors
+
+- Updated plugin protocols and wrappers so providers/extensions/tools can contribute interop artifacts and providers can declare accepted/emitted tool formats.
+  - `ToolPlugin.execute_tool(...)`, `format_tool_call_preview(...)`, and `stream_tool(...)` now support payload-first calling with optional keyword metadata.
+  - Existing dict-argument tools remain compatible through wrapper adaptation.
+  - Added optional `ToolPlugin.can_handle_tool_call(...)` and `get_tool_interop_contribution(...)`.
+
+- Refactored the generic core and application tool paths to stop hardcoding chat-completions accessors.
+  - `AgentCore.iter_tool_messages(...)`, `execute_tool_calls(...)`, and `stream_tool_call(...)` now inspect tool calls through the effective registry.
+  - Tool routing now first asks tools `can_handle_tool_call(...)`, then falls back to schema-name matching.
+  - `ToolLoopRunner` preview generation now works for raw-input/custom calls as well as legacy function calls.
+
+- Updated provider-side Responses request injection and tool-call handling.
+  - OpenAI/OpenRouter Responses tool schema injection now uses the effective registry and provider-accepted target formats instead of a fixed chat->responses adapter list.
+  - Responses custom/freeform schemas can pass through unchanged when already in an accepted format.
+  - OpenAI/OpenRouter Responses tool-call reconstruction can now surface native `custom_tool_call` items into core metadata while preserving existing chat-style handling for function calls.
+
+- Added regression tests for:
+  - built-in inspection and passthrough of Responses custom schemas/calls
+  - multihop schema adapter resolution
+  - raw-input/custom tool execution in `AgentCore.iter_tool_messages(...)`
+  - raw-input/custom preview generation in `ToolLoopRunner`
+  - OpenAI Responses request injection passthrough for custom/freeform tool schemas
+
+- Updated docs to describe the new interop model and remove chat-function-only assumptions where they were no longer valid.
+  - `TYPES_AND_PROTOCOLS.md`
+  - `docs/api/core-sdk.md`
+  - `docs/plugins/development.md`
+  - `docs/plugins/tools.md`
+  - `plugins/docs/provider-extensions.md`
+  - `docs/reference/tool-host-protocol.md`
+
+- Also fixed an unrelated but user-visible regression surfaced during testing: `AgentApplication` now only emits a `request_complete` / `request_error` lifecycle checkpoint when that lifecycle step actually changes the session, which restored the expected checkpoint counts in application-layer integration tests.
+
+- Validation run during implementation:
+  - `ruff check core/python/agent_core/tool_interop.py core/python/agent_core/core.py core/python/agent_app/tool_loop.py core/python/agent_core/types.py core/python/agent_core/plugin/adapters.py core/python/agent_core/plugin/tool.py core/python/agent_core/plugin/provider.py core/python/agent_core/plugin/extension.py core/python/tests/test_tool_interop.py core/python/tests/test_core_execute_tool_calls.py core/python/agent_app/application_future.py plugins/openai_responses/src/openai_responses_plugins/openai_responses_tools_extension.py plugins/openai_responses/tests/test_openai_responses_tools_extension_unit.py plugins/openrouter_responses/src/openrouter_responses_plugins/openrouter_responses_tools_extension.py plugins/openrouter_responses/src/openrouter_responses_plugins/openrouter_responses_provider.py`
+  - `pytest core/python/tests/test_tool_interop.py core/python/tests/test_core_execute_tool_calls.py core/python/tests/test_plugin_default_adapters.py core/python/tests/test_application_layer_integration.py plugins/openai_responses/tests/test_openai_responses_tools_extension_unit.py plugins/openrouter_responses/tests/test_openrouter_provider_unit.py -q`

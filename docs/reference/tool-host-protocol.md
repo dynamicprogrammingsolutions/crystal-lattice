@@ -60,6 +60,12 @@ The Python core maps `event.type == "part"` into partial chunks yielded as:
 - `get_tool_schemas({"state": <object>}) -> [schema]`
 - `execute_tool({"tool_name": "...", "arguments": <object>, "state": <object>}) -> result`
 
+Note: the in-process Python tool API is now payload-first and can execute raw
+text / freeform tool calls. The v1 host protocol remains object-arguments-based
+for compatibility with existing Node-hosted tools. If host-side freeform/custom
+tool execution is added later, this page should be updated as part of that
+protocol change.
+
 The `execute_tool` result is expected to be the same shape as a Python tool result:
 
 ```json

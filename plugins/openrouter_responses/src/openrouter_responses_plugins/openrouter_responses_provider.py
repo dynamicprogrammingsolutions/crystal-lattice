@@ -18,9 +18,14 @@ import requests
 
 from agent_core.tool_interop import (
     DEFAULT_TOOL_INTEROP_REGISTRY,
-    OpenAIChatToolSchemaToOpenAIResponsesToolSchema,
+    OpenAIResponsesCustomToolCallAccessor,
+    OpenAIResponsesCustomToolSchemaAccessor,
+    OpenAIResponsesFunctionCallAccessor,
+    OpenAIResponsesFunctionToolSchemaAccessor,
     OpenAIResponsesToolCallToOpenAIChatToolCall,
     ToolInteropTarget,
+    get_registry_from_config,
+    get_schema_target_formats_from_config,
 )
 from agent_core.types import ProviderPlugin
 from agent_core.utils import get_logger
@@ -63,6 +68,26 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                 "description": "Optional path to append raw SSE frames/events for debugging.",
             },
         }
+
+    def accepted_tool_schema_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        return [
+            OpenAIResponsesFunctionToolSchemaAccessor.format_id,
+            OpenAIResponsesCustomToolSchemaAccessor.format_id,
+        ]
+
+    def emitted_tool_call_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        return [
+            OpenAIResponsesFunctionCallAccessor.format_id,
+            OpenAIResponsesCustomToolCallAccessor.format_id,
+        ]
 
     def get_ui_elements(
         self,
@@ -219,10 +244,14 @@ class OpenRouterResponsesProvider(ProviderPlugin):
         # AgentCore usage without extensions still works.
         tools_value = config.get("tools")
         if isinstance(tools_value, list) and tools_value:
-            payload_tools = DEFAULT_TOOL_INTEROP_REGISTRY.convert_schemas(
+            registry = get_registry_from_config(config)
+            target_formats = get_schema_target_formats_from_config(config)
+            if not target_formats:
+                target_formats = self.accepted_tool_schema_formats(config, state)
+            payload_tools = registry.convert_schemas(
                 [t for t in tools_value if isinstance(t, dict)],
-                adapters=[OpenAIChatToolSchemaToOpenAIResponsesToolSchema()],
                 target=ToolInteropTarget("openai.responses"),
+                target_formats=target_formats,
             )
             payload["tools"] = payload_tools
             payload.setdefault("tool_choice", "auto")
@@ -352,6 +381,8 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                     converted = []
                 if converted and isinstance(converted[0], dict):
                     tool_calls.append(converted[0])
+            elif item.get("type") == "custom_tool_call":
+                tool_calls.append(self._strip_internal_metadata(item))
 
             candidate = self._assistant_candidate_from_response_item(
                 item,
@@ -480,7 +511,7 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                         tool_items: List[Dict[str, Any]] = []
                         for tc in tool_calls:
                             converted = (
-                                self._chat_tool_call_to_responses_function_call(tc)
+                                self._core_tool_call_to_responses_item(tc)
                                 if isinstance(tc, dict)
                                 else None
                             )
@@ -503,7 +534,7 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                         tool_items: List[Dict[str, Any]] = []
                         for tc in tool_calls:
                             converted = (
-                                self._chat_tool_call_to_responses_function_call(tc)
+                                self._core_tool_call_to_responses_item(tc)
                                 if isinstance(tc, dict)
                                 else None
                             )
@@ -732,31 +763,34 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                     f"[openrouter_responses_provider] invalid item at index {idx}: missing 'type' -> {json.dumps(item, ensure_ascii=False)}"
                 )
 
-    def _chat_tool_call_to_responses_function_call(self, tool_call: JsonObject) -> Optional[JsonObject]:
+    def _core_tool_call_to_responses_item(self, tool_call: JsonObject) -> Optional[JsonObject]:
         if not isinstance(tool_call, dict):
             return None
-        if tool_call.get("type") != "function":
+        try:
+            inspected = DEFAULT_TOOL_INTEROP_REGISTRY.inspect_call(tool_call)
+        except Exception:
             return None
-        call_id = tool_call.get("id")
-        fn = tool_call.get("function")
-        if not isinstance(call_id, str) or not call_id:
-            return None
-        if not isinstance(fn, dict):
-            return None
-        name = fn.get("name")
-        arguments = fn.get("arguments")
-        if not isinstance(name, str) or not name:
-            return None
-        if not isinstance(arguments, str):
-            try:
-                arguments = json.dumps(arguments, ensure_ascii=False)
-            except Exception:
-                arguments = "{}"
+
+        if inspected.format_id == OpenAIResponsesCustomToolCallAccessor.format_id:
+            item = {
+                "type": "custom_tool_call",
+                "call_id": inspected.call_id,
+                "name": inspected.tool_name,
+                "input": inspected.payload if isinstance(inspected.payload, str) else "",
+            }
+            if inspected.payload_format:
+                item["input_format"] = inspected.payload_format
+            return item
+
         return {
             "type": "function_call",
-            "call_id": call_id,
-            "name": name,
-            "arguments": arguments,
+            "call_id": inspected.call_id,
+            "name": inspected.tool_name,
+            "arguments": (
+                inspected.payload
+                if isinstance(inspected.payload, str)
+                else json.dumps(inspected.payload, ensure_ascii=False)
+            ),
         }
 
     def _build_request_body(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Dict[str, Any]:

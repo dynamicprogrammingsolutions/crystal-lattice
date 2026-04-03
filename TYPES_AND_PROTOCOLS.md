@@ -171,6 +171,15 @@ ProviderPlugin:
   initialize_request(native_messages: list, state: dict)
     → (native_messages: list, state: dict)
     # Called with provider-native messages; MUST return (native_messages, shared state)
+
+  get_tool_interop_contribution(config: dict, state?: dict) → ToolInteropContribution
+    # Optional; contribute tool schema/call accessors and adapters
+
+  accepted_tool_schema_formats(config: dict, state?: dict) → list[string]
+    # Optional; formats this provider can send directly
+
+  emitted_tool_call_formats(config: dict, state?: dict) → list[string]
+    # Optional; tool-call formats this provider may emit
   
   # Message Conversion (pure)
   to_native_messages(messages: list, state: dict) → list
@@ -231,6 +240,15 @@ Enhances provider streaming with additional processing (citations, reasoning ext
   initialize_request(native_messages: list, state: dict) (optional)
     → (native_messages: list, state: dict)
     # Prepare for a new turn; MUST return (native_messages, shared state)
+
+  get_tool_interop_contribution(config: dict, state?: dict) → ToolInteropContribution
+    # Optional; contribute tool schema/call accessors and adapters
+
+  accepted_tool_schema_formats(config: dict, state?: dict) → list[string]
+    # Optional; additional schema formats this extension can inject directly
+
+  emitted_tool_call_formats(config: dict, state?: dict) → list[string]
+    # Optional; additional tool-call formats this extension may surface
   
   # Models and capabilities
   get_models(config: dict, models: list[ModelDescriptor]) → list[ModelDescriptor]
@@ -380,11 +398,55 @@ ToolPlugin:
   
   # Tool Definition
   get_tool_schemas(state: dict) → list[dict]
-    # Returns OpenAI-style function definitions
+    # Returns tool schemas in any format understood by active interop accessors/adapters
+
+  get_tool_interop_contribution(state: dict) → ToolInteropContribution
+    # Optional; contribute tool schema/call accessors and adapters
+
+  can_handle_tool_call(
+    tool_name: string | null,
+    payload: any,
+    state: dict,
+    payload_kind?: string,
+    payload_format?: string,
+    payload_metadata?: dict,
+    tool_call?: dict,
+    tool_schema?: dict,
+  ) → bool | null
+    # Optional; return True/False for tool-side routing, or null for legacy fallback
   
   # Execution (I/O)
-  execute_tool(tool_name: string, arguments: dict, state: dict) → dict
+  execute_tool(
+    tool_name: string | null,
+    payload: any,
+    state: dict,
+    payload_kind?: string,
+    payload_format?: string,
+    payload_metadata?: dict,
+    tool_call?: dict,
+  ) → dict
     # Returns: {success: bool, result: any, error: string}
+
+  format_tool_call_preview(
+    tool_name: string | null,
+    payload: any,
+    state: dict,
+    payload_kind?: string,
+    payload_format?: string,
+    payload_metadata?: dict,
+    tool_call?: dict,
+  ) → string
+
+  stream_tool(
+    tool_name: string | null,
+    payload: any,
+    state: dict,
+    payload_kind?: string,
+    payload_format?: string,
+    payload_metadata?: dict,
+    tool_call?: dict,
+  ) → Iterator[dict]
+    # Optional; yields display partials and/or final result dicts
   
   format_tool_result(result: dict, state: dict) → string
     # Format result for LLM consumption
@@ -434,6 +496,40 @@ AgentCore:
   export_session(session: Session, format: string = "json") → string
   import_session(data: string, format: string = "json") → Session
 ```
+
+### Tool Interop Model
+
+The core does not define a single canonical external tool schema or tool-call
+format.
+
+Instead, the runtime uses:
+
+- schema accessors to inspect tool schema objects and extract semantic fields
+- call accessors to inspect tool-call objects and extract semantic fields
+- schema adapters to convert tool schemas between formats when needed
+- call adapters to convert tool calls between formats when needed
+
+Core relies on a small semantic contract rather than a fixed wire shape. For a
+tool call, the relevant semantics are:
+
+- tool name, when available
+- tool call id, when available
+- final payload value
+- payload kind (for example `object` vs `text`)
+- optional payload format and metadata
+
+Registry composition is additive:
+
+- explicit contributions/overrides are tried first
+- provider / extension / tool contributions are tried next
+- built-in defaults are used as fallback
+
+Providers and provider extensions can declare accepted schema formats and
+emitted tool-call formats so adapter selection can target real capabilities
+instead of assuming an OpenAI chat-completions function shape.
+
+Existing tools that still expect object/dict payloads remain valid through the
+Python wrapper compatibility layer.
 
 ### Stream Event Format
 

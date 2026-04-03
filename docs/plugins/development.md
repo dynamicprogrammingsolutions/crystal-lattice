@@ -515,13 +515,22 @@ Tools expose callable functions to the model and manage their own tool state.
 Key methods (subset):
 - `init(config) -> state`
 - `get_tool_schemas(state) -> list`
-- `execute_tool(tool_name, arguments, state) -> dict`
+- `get_tool_interop_contribution(state) -> ToolInteropContribution` (optional)
+- `can_handle_tool_call(tool_name, payload, state, ...) -> bool | None` (optional)
+- `execute_tool(tool_name, payload, state, ...) -> dict`
 - `format_tool_result(result, state) -> str`
- - `stream_tool(tool_name, arguments, state) -> Iterator[dict]` (optional)
+ - `format_tool_call_preview(tool_name, payload, state, ...) -> str` (optional)
+ - `stream_tool(tool_name, payload, state, ...) -> Iterator[dict]` (optional)
  - `to_display_format(text, result, state) -> dict` (optional)
 
 Request-time ordering note:
 - In the default `AgentCore` request flow, tools run `init`/`get_tool_schemas` before the provider initializes, so the provider sees the current tool schemas in its `config`.
+
+Interop note:
+- Tools are no longer limited to OpenAI chat-completions function schemas.
+- `get_tool_schemas(...)` may return any schema shape understood by the active tool interop accessors/adapters.
+- At execution time the tool receives the final payload object directly, plus optional semantic metadata such as `payload_kind` and `payload_format`.
+- Legacy dict-argument tools remain supported through the Python wrapper compatibility layer.
 
 Minimal example (calculator):
 ```python
@@ -544,7 +553,18 @@ class Calculator(ToolPlugin):
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         return [{"type": "function", "function": {"name": "add", "parameters": {"type": "object", "properties": {"a": {"type": "number"}, "b": {"type": "number"}}, "required": ["a", "b"]}}}]
 
-    def execute_tool(self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_tool(
+        self,
+        tool_name: str | None,
+        payload: Any,
+        state: Dict[str, Any],
+        *,
+        payload_kind: str | None = None,
+        payload_format: str | None = None,
+        payload_metadata: Dict[str, Any] | None = None,
+        tool_call: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
+        arguments = payload if isinstance(payload, dict) else {}
         if tool_name == "add":
             return {"success": True, "result": arguments.get("a", 0) + arguments.get("b", 0)}
         return {"success": False, "error": f"Unknown tool: {tool_name}"}
@@ -556,9 +576,14 @@ class Calculator(ToolPlugin):
     #
     # def stream_tool(
     #     self,
-    #     tool_name: str,
-    #     arguments: Dict[str, Any],
+    #     tool_name: str | None,
+    #     payload: Any,
     #     state: Dict[str, Any],
+    #     *,
+    #     payload_kind: str | None = None,
+    #     payload_format: str | None = None,
+    #     payload_metadata: Dict[str, Any] | None = None,
+    #     tool_call: Dict[str, Any] | None = None,
     # ) -> Iterator[Dict[str, Any]]:
     #     """Yield partial payloads plus a final result dict.
     #
@@ -641,6 +666,11 @@ export default {
   },
 };
 ```
+
+Today the Node tool-host protocol still uses object-shaped `arguments` for
+`execute_tool` and `format_tool_call_preview`. The in-process Python tool API is
+already payload-first; if/when the host protocol is generalized, these docs and
+the NDJSON protocol page should be updated together.
 
 See `docs/reference/tool-host-protocol.md` for the full NDJSON RPC surface.
 

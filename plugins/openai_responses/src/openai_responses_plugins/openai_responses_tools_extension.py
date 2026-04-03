@@ -12,10 +12,15 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from agent_core.tool_interop import (
     DEFAULT_TOOL_INTEROP_REGISTRY,
-    OpenAIChatToolSchemaToOpenAIResponsesToolSchema,
+    OpenAIResponsesCustomToolCallAccessor,
+    OpenAIResponsesCustomToolSchemaAccessor,
+    OpenAIResponsesFunctionCallAccessor,
+    OpenAIResponsesFunctionToolSchemaAccessor,
     OpenAIResponsesToolCallToOpenAIChatToolCall,
     ToolInteropError,
     ToolInteropTarget,
+    get_registry_from_config,
+    get_schema_target_formats_from_config,
 )
 from agent_core.types import ProviderExtensionPlugin
 
@@ -43,6 +48,26 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
 
     def required_tags(self) -> List[str]:
         return ["openai_responses", "supports_tools"]
+
+    def accepted_tool_schema_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        return [
+            OpenAIResponsesFunctionToolSchemaAccessor.format_id,
+            OpenAIResponsesCustomToolSchemaAccessor.format_id,
+        ]
+
+    def emitted_tool_call_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        return [
+            OpenAIResponsesFunctionCallAccessor.format_id,
+            OpenAIResponsesCustomToolCallAccessor.format_id,
+        ]
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         tools = config.get("tools")
@@ -79,19 +104,26 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
             if not isinstance(tool_call, dict):
                 continue
             try:
-                accessor = DEFAULT_TOOL_INTEROP_REGISTRY.get_call_accessor(tool_call)
-                call_id = accessor.get_call_id(tool_call)
-                tool_name = accessor.get_tool_name(tool_call)
-                arguments = self._stringify_arguments(accessor.get_arguments(tool_call))
+                inspected = DEFAULT_TOOL_INTEROP_REGISTRY.inspect_call(tool_call)
             except ToolInteropError:
                 continue
 
-            native_item: Dict[str, Any] = {
-                "type": "function_call",
-                "call_id": call_id,
-                "name": tool_name,
-                "arguments": arguments,
-            }
+            if inspected.format_id == OpenAIResponsesCustomToolCallAccessor.format_id:
+                native_item = {
+                    "type": "custom_tool_call",
+                    "call_id": inspected.call_id,
+                    "name": inspected.tool_name,
+                    "input": inspected.payload if isinstance(inspected.payload, str) else "",
+                }
+                if inspected.payload_format:
+                    native_item["input_format"] = inspected.payload_format
+            else:
+                native_item = {
+                    "type": "function_call",
+                    "call_id": inspected.call_id,
+                    "name": inspected.tool_name,
+                    "arguments": self._stringify_arguments(inspected.payload),
+                }
             if native_internal_md:
                 native_item["_metadata"] = dict(native_internal_md)
             out.append(native_item)
@@ -197,20 +229,31 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
         tool_call = converted[0]
         return tool_call if isinstance(tool_call, dict) else None
 
+    def _native_tool_call_to_core_tool_call(
+        self,
+        item: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        if item.get("type") == "function_call":
+            return self._native_function_call_to_chat_tool_call(item)
+        if item.get("type") == "custom_tool_call":
+            return {k: v for k, v in item.items() if k != "_metadata"}
+        return None
+
     def _dedupe_tool_calls(self, tool_calls: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         deduped: List[Dict[str, Any]] = []
-        seen: set[Tuple[str, str, str]] = set()
+        seen: set[Tuple[str, str, str, str]] = set()
         for tool_call in tool_calls:
             if not isinstance(tool_call, dict):
                 continue
-            call_id = tool_call.get("id")
-            function = tool_call.get("function")
-            tool_name = function.get("name") if isinstance(function, dict) else None
-            arguments = function.get("arguments") if isinstance(function, dict) else None
+            try:
+                inspected = DEFAULT_TOOL_INTEROP_REGISTRY.inspect_call(tool_call)
+            except ToolInteropError:
+                continue
             key = (
-                call_id if isinstance(call_id, str) else "",
-                tool_name if isinstance(tool_name, str) else "",
-                arguments if isinstance(arguments, str) else self._stringify_arguments(arguments),
+                inspected.format_id or "",
+                inspected.call_id or "",
+                inspected.tool_name or "",
+                self._stringify_arguments(inspected.payload),
             )
             if key in seen:
                 continue
@@ -227,10 +270,10 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
         calls_by_response: Dict[str, List[Dict[str, Any]]] = {}
 
         for idx, native_item in enumerate(native_messages):
-            if not isinstance(native_item, dict) or native_item.get("type") != "function_call":
+            if not isinstance(native_item, dict) or native_item.get("type") not in {"function_call", "custom_tool_call"}:
                 continue
 
-            tool_call = self._native_function_call_to_chat_tool_call(native_item)
+            tool_call = self._native_tool_call_to_core_tool_call(native_item)
             if tool_call is None:
                 continue
 
@@ -287,10 +330,14 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
 
         tools: List[Dict[str, Any]] = state.get(_TOOLS_STATE_KEY) or []
         if tools and "tools" not in payload:
-            payload_tools = DEFAULT_TOOL_INTEROP_REGISTRY.convert_schemas(
+            registry = get_registry_from_config(state.get("config") or {})
+            target_formats = get_schema_target_formats_from_config(state.get("config") or {})
+            if not target_formats:
+                target_formats = self.accepted_tool_schema_formats(state.get("config") or {}, state)
+            payload_tools = registry.convert_schemas(
                 [tool for tool in tools if isinstance(tool, dict)],
-                adapters=[OpenAIChatToolSchemaToOpenAIResponsesToolSchema()],
                 target=ToolInteropTarget("openai.responses"),
+                target_formats=target_formats,
             )
             payload = {
                 **payload,

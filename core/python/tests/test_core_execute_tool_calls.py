@@ -1,6 +1,4 @@
-"""
-Unit test for AgentCore.execute_tool_calls using DummyCalculator tool.
-"""
+"""Unit test for AgentCore.execute_tool_calls using DummyCalculator tool."""
 
 from agent_core import AgentCore
 from .dummy_tool import DummyCalculator
@@ -30,6 +28,56 @@ class ExplodingTool:
 
     def format_tool_result(self, result, state):
         return "unreachable"
+
+
+class RawEchoTool:
+    name = "raw_echo_tool"
+    version = "1.0.0"
+
+    def init(self, config):
+        return {}
+
+    def get_tool_schemas(self, state):
+        return [
+            {
+                "type": "custom",
+                "name": "raw_echo",
+                "description": "Echo a raw text payload",
+                "format": {
+                    "type": "grammar",
+                    "syntax": "lark",
+                    "definition": "start: /.+/",
+                },
+            }
+        ]
+
+    def format_tool_call_preview(
+        self,
+        tool_name,
+        payload,
+        state,
+        *,
+        payload_kind=None,
+        payload_format=None,
+        payload_metadata=None,
+        tool_call=None,
+    ):
+        return f"preview:{payload_kind}:{payload}"
+
+    def execute_tool(
+        self,
+        tool_name,
+        payload,
+        state,
+        *,
+        payload_kind=None,
+        payload_format=None,
+        payload_metadata=None,
+        tool_call=None,
+    ):
+        assert tool_name == "raw_echo"
+        assert payload_kind == "text"
+        return {"success": True, "result": str(payload).upper()}
 
 
 def test_execute_tool_calls_with_dummy_tool():
@@ -165,3 +213,48 @@ def test_iter_tool_messages_turns_stream_exceptions_into_tool_errors(tmp_path):
     assert md.get("tool_call_id") == "call_1"
     assert md.get("tool_name") == "explode"
     assert md.get("tool_plugin") == "exploding_tool"
+
+
+def test_iter_tool_messages_executes_custom_raw_input_tool() -> None:
+    core = AgentCore()
+    core.register_tool(RawEchoTool)
+
+    tool_calls = [
+        {
+            "type": "custom_tool_call",
+            "call_id": "call_raw_1",
+            "name": "raw_echo",
+            "input": "hello raw tools",
+        }
+    ]
+
+    items = list(core.iter_tool_messages(tool_calls, config={}))
+    finals = [it for it in items if isinstance(it, dict) and "part" not in it]
+
+    assert len(finals) == 1
+    msg = finals[0]
+    assert msg.get("role") == "tool"
+    assert "HELLO RAW TOOLS" in str(msg.get("content", ""))
+    md = msg.get("metadata", {})
+    assert md.get("tool_call_id") == "call_raw_1"
+    assert md.get("tool_name") == "raw_echo"
+    assert md.get("tool_plugin") == "raw_echo_tool"
+
+
+def test_tool_loop_previews_custom_raw_input_tool_calls() -> None:
+    core = AgentCore()
+    core.register_tool(RawEchoTool)
+
+    previews = core.format_tool_call_previews(
+        [
+            {
+                "type": "custom_tool_call",
+                "call_id": "call_raw_1",
+                "name": "raw_echo",
+                "input": "hello preview",
+            }
+        ],
+        {},
+    )
+
+    assert previews == [{"id": "call_raw_1", "preview": "preview:text:hello preview"}]

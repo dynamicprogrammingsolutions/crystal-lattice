@@ -462,12 +462,12 @@ Get tool schemas from all registered tool plugins.
 - `config` (dict): Tool configuration
 
 **Returns:**
-- `list`: List of OpenAI-style function definitions
+- `list`: List of tool schemas in whatever formats the active tool plugins expose
 
 **Example:**
 ```python
 schemas = core.get_tool_schemas(config)
-# [{"type": "function", "function": {...}}, ...]
+# Could be chat-function, Responses function, or another accessor-supported shape
 ```
 
 #### execute_tool_calls
@@ -478,11 +478,13 @@ execute_tool_calls(tool_calls: List[Dict[str, Any]], config: Dict[str, Any]) -> 
 
 Execute a batch of tool calls via registered tool plugins and return core "tool" messages.
 
-- Accepts OpenAI-style tool call shapes; `arguments` may be a JSON string or dict. The function normalizes inputs.
+- Tool calls are inspected through the active tool interop registry rather than one fixed wire shape.
+- Built-in support includes OpenAI chat-completions function calls, OpenAI Responses `function_call` items, and Responses `custom_tool_call` items.
+- The tool plugin receives the final payload object directly, along with optional payload metadata such as payload kind / format.
 - Formats results using each tool's `format_tool_result`.
 
 **Parameters:**
-- `tool_calls` (list): `[{"id": str, "name": str, "arguments": dict | str}, ...]` (also accepts OpenAI `{function: {name, arguments}}`)
+- `tool_calls` (list): tool-call dicts in any format supported by active call accessors
 - `config` (dict): Application config passed to initialize tool state
 
 **Returns:**
@@ -491,11 +493,48 @@ Execute a batch of tool calls via registered tool plugins and return core "tool"
 **Example:**
 ```python
 tool_calls = [
-    {"id": "call_1", "name": "read_file", "arguments": {"file_path": "README.md"}},
+    {
+        "id": "call_1",
+        "type": "function",
+        "function": {"name": "read_file", "arguments": {"file_path": "README.md"}},
+    },
 ]
 results = core.execute_tool_calls(tool_calls, config)
 # [{"role": "tool", "content": "File contents...", "metadata": {"tool_call_id": "call_1", "tool_name": "read_file"}}]
 ```
+
+Custom/freeform example:
+
+```python
+tool_calls = [
+    {
+        "type": "custom_tool_call",
+        "call_id": "call_patch_1",
+        "name": "apply_patch",
+        "input": "*** Begin Patch\n*** End Patch",
+    },
+]
+results = core.execute_tool_calls(tool_calls, config)
+```
+
+#### Tool Interop
+
+`AgentCore` does not enforce a single canonical external tool schema or tool-call format.
+
+Instead, tool interop is based on:
+
+- schema accessors: inspect a schema and extract semantic fields like tool name
+- call accessors: inspect a tool call and extract call id, tool name, payload, payload kind, and optional payload metadata
+- schema adapters: convert schema objects between formats
+- call adapters: convert tool-call objects between formats
+
+Registry composition is additive:
+
+- explicit interop contributions are tried first
+- provider / extension / tool contributions are tried next
+- built-in defaults are used as fallback
+
+Providers and provider extensions can also declare which schema formats they accept and which tool-call formats they emit, allowing adapter selection to target actual provider capabilities.
 
 #### execute_session_action
 

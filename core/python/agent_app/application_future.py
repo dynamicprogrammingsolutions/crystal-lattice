@@ -1940,6 +1940,7 @@ class AgentApplication:
                     yield event
                     if not error_seen:
                         error_seen = True
+                        before_session = latest_session
                         core, base_config, latest_session, _ = self.run_session_lifecycle(
                             "request_error",
                             latest_session,
@@ -1953,16 +1954,18 @@ class AgentApplication:
                                 },
                             },
                         )
-                        yield {
-                            "type": "session_checkpoint",
-                            "session_id": latest_session.session_id,
-                            "request_id": rid,
-                            "session": latest_session,
-                        }
+                        if latest_session != before_session:
+                            yield {
+                                "type": "session_checkpoint",
+                                "session_id": latest_session.session_id,
+                                "request_id": rid,
+                                "session": latest_session,
+                            }
                     continue
 
                 if event_type == "request_completed":
                     if not error_seen:
+                        before_session = latest_session
                         core, base_config, latest_session, _ = self.run_session_lifecycle(
                             "request_complete",
                             latest_session,
@@ -1971,12 +1974,13 @@ class AgentApplication:
                             overrides=overrides,
                             context=request_context,
                         )
-                        yield {
-                            "type": "session_checkpoint",
-                            "session_id": latest_session.session_id,
-                            "request_id": rid,
-                            "session": latest_session,
-                        }
+                        if latest_session != before_session:
+                            yield {
+                                "type": "session_checkpoint",
+                                "session_id": latest_session.session_id,
+                                "request_id": rid,
+                                "session": latest_session,
+                            }
                     yield event
                     continue
 
