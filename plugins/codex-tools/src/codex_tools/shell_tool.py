@@ -16,7 +16,7 @@ import time
 from queue import Empty, Queue
 from typing import Any, Dict, Iterator, List
 
-from tool_compat_shared.shell_engine import run_shell_command
+from tool_compat_shared.shell_engine import run_shell_command, terminate_process_tree
 
 from .base_shell_tool import BaseCodexShellTool
 from .workdir import resolve_tool_workdir
@@ -211,6 +211,8 @@ class ShellArrayTool(BaseCodexShellTool):
         tool_name: str,
         arguments: Dict[str, Any],
         state: Dict[str, Any],
+        *,
+        cancellation: Any | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Stream shell command output in real-time.
         
@@ -270,6 +272,7 @@ class ShellArrayTool(BaseCodexShellTool):
             command=command,
             workdir=workdir,
             timeout_seconds=timeout_seconds,
+            cancellation=cancellation,
         )
     
     def _sync_execute(
@@ -277,6 +280,7 @@ class ShellArrayTool(BaseCodexShellTool):
         command: List[str],
         workdir: str | None,
         timeout_seconds: float | None,
+        cancellation: Any | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Synchronous execution with line-by-line streaming.
         
@@ -285,6 +289,7 @@ class ShellArrayTool(BaseCodexShellTool):
         start_time = time.monotonic()
         
         try:
+            launch_kwargs = {"start_new_session": True} if os.name != "nt" else {}
             proc = subprocess.Popen(
                 command,  # Direct exec (no shell wrapper)
                 cwd=workdir,
@@ -293,6 +298,7 @@ class ShellArrayTool(BaseCodexShellTool):
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,
+                **launch_kwargs,
             )
         except FileNotFoundError:
             yield {"success": False, "error": f"Command not found: {command[0]}"}
@@ -323,13 +329,25 @@ class ShellArrayTool(BaseCodexShellTool):
         
         stdout_chunks: List[str] = []
         timed_out = False
+        cancel_requested = threading.Event()
+        cancel_token: int | None = None
+
+        def _request_cancel() -> None:
+            cancel_requested.set()
+            terminate_process_tree(proc)
+
+        if cancellation is not None and hasattr(cancellation, "add_callback"):
+            try:
+                cancel_token = cancellation.add_callback(_request_cancel)
+            except Exception:
+                cancel_token = None
         
         try:
             while True:
                 elapsed = time.monotonic() - start_time
                 if timeout_seconds is not None and elapsed >= timeout_seconds:
                     timed_out = True
-                    proc.kill()
+                    terminate_process_tree(proc)
                     break
                 
                 try:
@@ -346,8 +364,18 @@ class ShellArrayTool(BaseCodexShellTool):
         finally:
             stdout_thread.join(timeout=1)
             stderr_thread.join(timeout=1)
+            if (
+                cancellation is not None
+                and cancel_token is not None
+                and hasattr(cancellation, "remove_callback")
+            ):
+                try:
+                    cancellation.remove_callback(cancel_token)
+                except Exception:
+                    pass
         
-        exit_code = proc.returncode
+        cancelled = cancel_requested.is_set() and not timed_out
+        exit_code = None if timed_out or cancelled else proc.returncode
         duration = time.monotonic() - start_time
         
         # Combine output
@@ -365,6 +393,7 @@ class ShellArrayTool(BaseCodexShellTool):
                 "stderr": "".join(stderr_chunks),
                 "duration_seconds": duration,
                 "timed_out": timed_out,
+                "cancelled": cancelled,
             },
             truncated_output,
             trunc_meta,

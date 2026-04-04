@@ -129,6 +129,7 @@ class ToolWrapper(ToolPlugin):
         payload_format: Optional[str] = None,
         payload_metadata: Optional[Dict[str, Any]] = None,
         tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
     ) -> Dict[str, Any]:
         """Execute tool via plugin; requires initialized state."""
         if self.state is None:
@@ -142,6 +143,7 @@ class ToolWrapper(ToolPlugin):
             payload_format=payload_format,
             payload_metadata=payload_metadata,
             tool_call=tool_call,
+            cancellation=cancellation,
         )
 
     async def execute_tool_async(
@@ -154,6 +156,7 @@ class ToolWrapper(ToolPlugin):
         payload_format: Optional[str] = None,
         payload_metadata: Optional[Dict[str, Any]] = None,
         tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
     ) -> Dict[str, Any]:
         """Execute tool via plugin asynchronously; requires initialized state.
         
@@ -178,6 +181,7 @@ class ToolWrapper(ToolPlugin):
                 payload_format=payload_format,
                 payload_metadata=payload_metadata,
                 tool_call=tool_call,
+                cancellation=cancellation,
             )
             if inspect.isawaitable(result):
                 result = await result
@@ -194,6 +198,7 @@ class ToolWrapper(ToolPlugin):
             payload_format=payload_format,
             payload_metadata=payload_metadata,
             tool_call=tool_call,
+            cancellation=cancellation,
         )
 
     def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
@@ -239,6 +244,7 @@ class ToolWrapper(ToolPlugin):
         payload_format: Optional[str] = None,
         payload_metadata: Optional[Dict[str, Any]] = None,
         tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Stream tool results via plugin; requires initialized state.
 
@@ -257,6 +263,7 @@ class ToolWrapper(ToolPlugin):
             payload_format=payload_format,
             payload_metadata=payload_metadata,
             tool_call=tool_call,
+            cancellation=cancellation,
         )
 
     def to_display_format(

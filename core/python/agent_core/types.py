@@ -1283,6 +1283,7 @@ class ToolPlugin(BasePlugin, Protocol):
         payload_format: Optional[str] = None,
         payload_metadata: Optional[Dict[str, Any]] = None,
         tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
     ) -> Dict[str, Any]:
         """Execute a tool call using the final payload object.
 
@@ -1357,6 +1358,7 @@ class ToolPlugin(BasePlugin, Protocol):
         payload_format: Optional[str] = None,
         payload_metadata: Optional[Dict[str, Any]] = None,
         tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Optional streaming execution hook for tools.
 

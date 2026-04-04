@@ -11,12 +11,15 @@ from __future__ import annotations
 
 import asyncio
 import time
+import threading
 from typing import Any, Dict, Iterator, List
 
 from tool_compat_shared.shell_engine import (
     ShellInfo,
     detect_shell,
     run_shell_command,
+    terminate_async_process_tree,
+    terminate_process_tree,
 )
 
 from .base_shell_tool import BaseCodexShellTool
@@ -218,6 +221,8 @@ class ShellCommandTool(BaseCodexShellTool):
         tool_name: str,
         arguments: Dict[str, Any],
         state: Dict[str, Any],
+        *,
+        cancellation: Any | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Stream shell command output in real-time.
         
@@ -277,6 +282,7 @@ class ShellCommandTool(BaseCodexShellTool):
             workdir=workdir,
             timeout_seconds=timeout_seconds,
             login=login,
+            cancellation=cancellation,
         )
     
     def _stream_subprocess(
@@ -286,6 +292,7 @@ class ShellCommandTool(BaseCodexShellTool):
         workdir: str | None,
         timeout_seconds: float | None,
         login: bool,
+        cancellation: Any | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Run subprocess and stream output.
         
@@ -298,12 +305,14 @@ class ShellCommandTool(BaseCodexShellTool):
             start_time = time.monotonic()
             
             try:
+                launch_kwargs = {"start_new_session": True} if os.name != "nt" else {}
                 process = await asyncio.create_subprocess_exec(
                     *args,
                     cwd=workdir,
                     env=os.environ,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
+                    **launch_kwargs,
                 )
             except Exception as exc:
                 yield {"success": False, "error": f"Failed to execute command: {exc}"}
@@ -312,6 +321,27 @@ class ShellCommandTool(BaseCodexShellTool):
             combined_chunks: List[str] = []
             stdout_chunks: List[str] = []
             stderr_chunks: List[str] = []
+            cancel_requested = threading.Event()
+            cancel_token: int | None = None
+            loop = asyncio.get_running_loop()
+
+            def _request_cancel() -> None:
+                cancel_requested.set()
+                if process.returncode is not None:
+                    return
+                try:
+                    asyncio.run_coroutine_threadsafe(
+                        terminate_async_process_tree(process),
+                        loop,
+                    )
+                except Exception:
+                    pass
+
+            if cancellation is not None and hasattr(cancellation, "add_callback"):
+                try:
+                    cancel_token = cancellation.add_callback(_request_cancel)
+                except Exception:
+                    cancel_token = None
             
             async def read_streams():
                 """Read stdout and stderr concurrently."""
@@ -338,53 +368,65 @@ class ShellCommandTool(BaseCodexShellTool):
                             timeout=timeout_seconds,
                         )
                     except asyncio.TimeoutError:
-                        process.kill()
-                        await process.wait()
+                        await terminate_async_process_tree(process)
                         return True  # timed_out
                 else:
                     await asyncio.gather(read_stdout(), read_stderr())
                 
                 return False  # not timed_out
             
-            # Run streaming with timeout handling
-            timed_out = await read_streams()
-            exit_code = process.returncode
-            duration = time.monotonic() - start_time
-            
-            # Yield each stdout line as a partial
-            for chunk in stdout_chunks:
-                yield {
-                    "part": {"type": "text", "content": chunk},
-                    "command": command,
-                    "workdir": workdir,
-                }
-            
-            # Apply truncation to combined output
-            output = "".join(combined_chunks)
-            truncated_output, trunc_meta = self._apply_truncation(output)
-            
-            if trunc_meta.get("truncated"):
-                truncated_output = self._insert_truncation_marker(truncated_output, trunc_meta)
-            
-            # Build result
-            result = self._build_result(
-                {
-                    "exit_code": exit_code,
-                    "output": truncated_output,
-                    "stdout": "".join(stdout_chunks),
-                    "stderr": "".join(stderr_chunks),
-                    "duration_seconds": duration,
-                    "timed_out": timed_out,
-                },
-                truncated_output,
-                trunc_meta,
-            )
-            
-            result["command"] = command
-            result["workdir"] = workdir
-            result["login"] = login
-            
-            yield result
+            try:
+                # Run streaming with timeout handling
+                timed_out = await read_streams()
+                cancelled = cancel_requested.is_set() and not timed_out
+                exit_code = None if timed_out or cancelled else process.returncode
+                duration = time.monotonic() - start_time
+                
+                # Yield each stdout line as a partial
+                for chunk in stdout_chunks:
+                    yield {
+                        "part": {"type": "text", "content": chunk},
+                        "command": command,
+                        "workdir": workdir,
+                    }
+                
+                # Apply truncation to combined output
+                output = "".join(combined_chunks)
+                truncated_output, trunc_meta = self._apply_truncation(output)
+                
+                if trunc_meta.get("truncated"):
+                    truncated_output = self._insert_truncation_marker(truncated_output, trunc_meta)
+                
+                # Build result
+                result = self._build_result(
+                    {
+                        "exit_code": exit_code,
+                        "output": truncated_output,
+                        "stdout": "".join(stdout_chunks),
+                        "stderr": "".join(stderr_chunks),
+                        "duration_seconds": duration,
+                        "timed_out": timed_out,
+                        "cancelled": cancelled,
+                    },
+                    truncated_output,
+                    trunc_meta,
+                )
+                
+                result["command"] = command
+                result["workdir"] = workdir
+                result["login"] = login
+                
+                yield result
+            finally:
+                if (
+                    cancellation is not None
+                    and cancel_token is not None
+                    and hasattr(cancellation, "remove_callback")
+                ):
+                    try:
+                        cancellation.remove_callback(cancel_token)
+                    except Exception:
+                        pass
         
         # Run the async generator in an event loop
         try:
@@ -402,7 +444,13 @@ class ShellCommandTool(BaseCodexShellTool):
             
             # We can't easily yield from async in a sync generator
             # For now, fall back to synchronous execution
-            for item in self._sync_execute(command, workdir, timeout_seconds, login):
+            for item in self._sync_execute(
+                command,
+                workdir,
+                timeout_seconds,
+                login,
+                cancellation=cancellation,
+            ):
                 yield item
         else:
             # No running loop - safe to use asyncio.run
@@ -423,6 +471,7 @@ class ShellCommandTool(BaseCodexShellTool):
         workdir: str | None,
         timeout_seconds: float | None,
         login: bool,
+        cancellation: Any | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Fallback synchronous execution for streaming.
         
@@ -440,6 +489,7 @@ class ShellCommandTool(BaseCodexShellTool):
         start_time = time.monotonic()
         
         try:
+            launch_kwargs = {"start_new_session": True} if os.name != "nt" else {}
             proc = subprocess.Popen(
                 args,
                 cwd=workdir,
@@ -448,6 +498,7 @@ class ShellCommandTool(BaseCodexShellTool):
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,
+                **launch_kwargs,
             )
         except Exception as exc:
             yield {"success": False, "error": f"Failed to execute command: {exc}"}
@@ -475,13 +526,25 @@ class ShellCommandTool(BaseCodexShellTool):
         
         stdout_chunks: List[str] = []
         timed_out = False
+        cancel_requested = threading.Event()
+        cancel_token: int | None = None
+
+        def _request_cancel() -> None:
+            cancel_requested.set()
+            terminate_process_tree(proc)
+
+        if cancellation is not None and hasattr(cancellation, "add_callback"):
+            try:
+                cancel_token = cancellation.add_callback(_request_cancel)
+            except Exception:
+                cancel_token = None
         
         try:
             while True:
                 elapsed = time.monotonic() - start_time
                 if timeout_seconds is not None and elapsed >= timeout_seconds:
                     timed_out = True
-                    proc.kill()
+                    terminate_process_tree(proc)
                     break
                 
                 try:
@@ -498,8 +561,18 @@ class ShellCommandTool(BaseCodexShellTool):
         finally:
             stdout_thread.join(timeout=1)
             stderr_thread.join(timeout=1)
+            if (
+                cancellation is not None
+                and cancel_token is not None
+                and hasattr(cancellation, "remove_callback")
+            ):
+                try:
+                    cancellation.remove_callback(cancel_token)
+                except Exception:
+                    pass
         
-        exit_code = proc.returncode
+        cancelled = cancel_requested.is_set() and not timed_out
+        exit_code = None if timed_out or cancelled else proc.returncode
         duration = time.monotonic() - start_time
         
         # Combine output
@@ -517,6 +590,7 @@ class ShellCommandTool(BaseCodexShellTool):
                 "stderr": "".join(stderr_chunks),
                 "duration_seconds": duration,
                 "timed_out": timed_out,
+                "cancelled": cancelled,
             },
             truncated_output,
             trunc_meta,

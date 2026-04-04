@@ -918,6 +918,7 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
         payload_format: Optional[str] = None,
         payload_metadata: Optional[Dict[str, Any]] = None,
         tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
     ) -> Dict[str, Any]:
         fn = getattr(self.impl, "execute_tool", None)
         if callable(fn):
@@ -930,6 +931,7 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
                 payload_format=payload_format,
                 payload_metadata=payload_metadata,
                 tool_call=tool_call,
+                cancellation=cancellation,
             )
             return (
                 out
@@ -988,6 +990,7 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
         payload_format: Optional[str] = None,
         payload_metadata: Optional[Dict[str, Any]] = None,
         tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Default streaming hook.
 
@@ -1006,6 +1009,7 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
                 payload_format=payload_format,
                 payload_metadata=payload_metadata,
                 tool_call=tool_call,
+                cancellation=cancellation,
             )
             if isinstance(result, dict):
                 yield result
@@ -1019,6 +1023,7 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
             payload_format=payload_format,
             payload_metadata=payload_metadata,
             tool_call=tool_call,
+            cancellation=cancellation,
         )
         try:
             iterator = iter(out)

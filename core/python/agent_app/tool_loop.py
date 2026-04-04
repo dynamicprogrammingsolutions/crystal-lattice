@@ -1,10 +1,53 @@
 from __future__ import annotations
 
+import threading
 from typing import Any, Dict, Iterator, List
 import traceback  # Add this import at the beginning of your file
 
 
 from agent_core import AgentCore, MessageRole, Session
+
+
+class RequestCancellation:
+    """Thread-safe request cancellation controller with live callbacks."""
+
+    def __init__(self, *, cancelled: bool = False) -> None:
+        self._event = threading.Event()
+        self._lock = threading.Lock()
+        self._callbacks: Dict[int, Any] = {}
+        self._next_token = 0
+        if cancelled:
+            self._event.set()
+
+    def is_cancelled(self) -> bool:
+        return self._event.is_set()
+
+    def cancel(self) -> None:
+        self._event.set()
+        with self._lock:
+            callbacks = list(self._callbacks.values())
+        for callback in callbacks:
+            try:
+                callback()
+            except Exception:
+                continue
+
+    def add_callback(self, callback: Any) -> int:
+        with self._lock:
+            token = self._next_token
+            self._next_token += 1
+            self._callbacks[token] = callback
+            already_cancelled = self._event.is_set()
+        if already_cancelled:
+            try:
+                callback()
+            except Exception:
+                pass
+        return token
+
+    def remove_callback(self, token: int) -> None:
+        with self._lock:
+            self._callbacks.pop(token, None)
 
 
 class ToolLoopRunner:
@@ -24,12 +67,14 @@ class ToolLoopRunner:
         request_id: str,
         tool_loop_cfg: Any,
         cancel_callback: Any | None = None,
+        cancellation: RequestCancellation | None = None,
     ) -> None:
         self._core = core
         self._config = config
         self._request_id = request_id
         self._tool_loop_cfg = tool_loop_cfg
         self._cancel_callback = cancel_callback
+        self._cancellation = cancellation
 
 
     # ------------------------------------------------------------------
@@ -69,6 +114,12 @@ class ToolLoopRunner:
         return last_tc_calls
 
     def _is_cancelled(self) -> bool:
+        cancellation = getattr(self, "_cancellation", None)
+        if cancellation is not None:
+            try:
+                return bool(cancellation.is_cancelled())
+            except Exception:
+                return False
         cb = getattr(self, "_cancel_callback", None)
         if cb is None:
             return False
@@ -264,7 +315,11 @@ class ToolLoopRunner:
             last_final: Dict[str, Any] | None = None
 
             saw_partial = False
-            for item in core.iter_tool_messages([call], config):
+            for item in core.iter_tool_messages(
+                [call],
+                config,
+                cancellation=self._cancellation,
+            ):
                 if not isinstance(item, dict):
                     continue
                 if "part" in item:
@@ -281,6 +336,9 @@ class ToolLoopRunner:
                         }
                     continue
                 last_final = item
+
+            if last_final is None and self._is_cancelled():
+                break
 
             if last_final is None:
                 # iter_tool_messages already synthesizes errors for missing tools,
@@ -326,7 +384,13 @@ class ToolLoopRunner:
                 config=config,
             )
 
+            if self._is_cancelled():
+                break
+
         # Summarise final tool messages appended to the session.
+        if not tool_messages and self._is_cancelled():
+            return current_session
+
         yield {
             "type": "tool_results",
             "session_id": current_session.session_id,

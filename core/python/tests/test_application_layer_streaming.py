@@ -8,6 +8,8 @@ background-thread + event-store architecture.
 from __future__ import annotations
 
 import time
+import json
+import threading
 from pathlib import Path
 
 from agent_app.application_future import AgentApplication
@@ -76,6 +78,24 @@ def _make_failing_config(tmp_path: Path) -> Path:
     }
     path = tmp_path / "config_failing.json"
     path.write_text(__import__("json").dumps(cfg), encoding="utf-8")
+    return path
+
+
+def _make_blocking_tool_config(tmp_path: Path) -> Path:
+    cfg = {
+        "providers": {
+            "dummy": {"provider": "dummy_provider", "model": "test-model"}
+        },
+        "plugins": [
+            "tests.dummy_provider.DummyProvider",
+            "tests.dummy_tool.CancellableBlockingTool",
+        ],
+        "agents": {
+            "default": {"provider": "dummy"},
+        },
+    }
+    path = tmp_path / "config_blocking_tool.json"
+    path.write_text(json.dumps(cfg), encoding="utf-8")
     return path
 
 
@@ -153,3 +173,124 @@ def test_failure_then_resume(tmp_path: Path) -> None:
     kinds2 = {ev.get("type") for ev in events2}
     assert "final" in kinds2
     assert "request_completed" in kinds2
+
+
+def test_cancel_request_interrupts_silent_running_tool(tmp_path: Path) -> None:
+    config_path = _make_blocking_tool_config(tmp_path)
+    session_root = tmp_path / "sessions"
+
+    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+
+    core, base_config, session = app.create_session("default")
+    tool_call = {
+        "id": "call_block",
+        "type": "function",
+        "function": {"name": "block_until_cancel", "arguments": json.dumps({})},
+    }
+    session = core.add_message(session, "assistant", "", {"tool_calls": [tool_call]})
+
+    events: list[dict] = []
+    request_id = "req_tool_cancel_silent"
+
+    def _consume() -> None:
+        for ev in app.send_request(
+            core,
+            session,
+            base_config,
+            overrides=None,
+            stream=True,
+            request_id=request_id,
+        ):
+            events.append(ev)
+
+    worker = threading.Thread(target=_consume)
+    worker.start()
+
+    time.sleep(0.2)
+    app.cancel_request(request_id)
+    app.cancel_request(request_id)
+
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+
+    kinds = [ev.get("type") for ev in events]
+    assert "request_cancelled" in kinds
+    assert "request_completed" in kinds
+    assert "tool_results" in kinds
+
+    checkpoints = [ev for ev in events if ev.get("type") == "session_checkpoint"]
+    assert checkpoints
+    final_session = checkpoints[-1]["session"]
+    tool_messages = [m for m in final_session.messages if getattr(m, "role", None) == "tool"]
+    assert tool_messages
+    assert "Cancelled" in str(tool_messages[-1].content)
+
+    _core2, _base2, session2 = app.create_session("default")
+    session2 = core.add_message(session2, "user", "Hello after cancel")
+    events2 = list(
+        app.send_request(
+            core,
+            session2,
+            base_config,
+            overrides=None,
+            stream=True,
+            request_id="req_tool_cancel_followup",
+        )
+    )
+    kinds2 = {ev.get("type") for ev in events2}
+    assert "final" in kinds2
+    assert "request_completed" in kinds2
+    assert "request_cancelled" not in kinds2
+
+
+def test_cancel_request_interrupts_tool_after_partial_output(tmp_path: Path) -> None:
+    config_path = _make_blocking_tool_config(tmp_path)
+    session_root = tmp_path / "sessions"
+
+    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+
+    core, base_config, session = app.create_session("default")
+    tool_call = {
+        "id": "call_block_partial",
+        "type": "function",
+        "function": {
+            "name": "block_until_cancel",
+            "arguments": json.dumps({"emit_partial": True}),
+        },
+    }
+    session = core.add_message(session, "assistant", "", {"tool_calls": [tool_call]})
+
+    events: list[dict] = []
+    request_id = "req_tool_cancel_partial"
+
+    def _consume() -> None:
+        for ev in app.send_request(
+            core,
+            session,
+            base_config,
+            overrides=None,
+            stream=True,
+            request_id=request_id,
+        ):
+            events.append(ev)
+
+    worker = threading.Thread(target=_consume)
+    worker.start()
+
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if any(ev.get("type") == "tool_partial" for ev in events):
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("tool_partial was not emitted before cancellation")
+
+    app.cancel_request(request_id)
+
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+
+    kinds = [ev.get("type") for ev in events]
+    assert "tool_partial" in kinds
+    assert "request_cancelled" in kinds
+    assert "request_completed" in kinds

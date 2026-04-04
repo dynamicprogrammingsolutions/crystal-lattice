@@ -118,6 +118,7 @@ For now we will:
 - [ ] `tasks/20260225-codex-tools-parity/050-update-plan-tool.md`
 - [ ] `tasks/20260225-codex-tools-parity/060-view-image-tool.md`
 - [ ] `tasks/20260225-codex-tools-parity/070-exec-command-and-write-stdin-tools.md`
+- [ ] `tasks/20260225-codex-tools-parity/080-shell-apply-patch-interception-hardening.md`
 
 ## Deliverables
 

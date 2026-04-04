@@ -3231,6 +3231,8 @@ class AgentCore:
         self,
         tool_calls: List[Dict[str, Any]],
         config: Dict[str, Any],
+        *,
+        cancellation: Any | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Yield a mixed stream of partial payloads and final core ``tool`` messages.
 
@@ -3309,6 +3311,7 @@ class AgentCore:
                     payload_format=inspected_call.payload_format,
                     payload_metadata=inspected_call.payload_metadata,
                     tool_call=inspected_call.raw,
+                    cancellation=cancellation,
                 )
                 iterator = iter(iterator)
             except Exception as exc:

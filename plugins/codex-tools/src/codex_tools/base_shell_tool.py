@@ -106,6 +106,9 @@ class BaseCodexShellTool(ToolPlugin):
         # Duration (wall time)
         duration = result.get("duration_seconds", 0)
         lines.append(f"Wall time: {duration:.1f} seconds")
+
+        if result.get("cancelled", False):
+            lines.append("Cancelled: yes")
         
         # Truncation header (only when truncated)
         if trunc_meta.get("truncated"):
@@ -120,13 +123,18 @@ class BaseCodexShellTool(ToolPlugin):
         # Success determination
         # Non-zero exit code = tool error
         # Timeout = tool error
-        success = exit_code == 0 and not result.get("timed_out", False)
+        success = (
+            exit_code == 0
+            and not result.get("timed_out", False)
+            and not result.get("cancelled", False)
+        )
         
         return {
             "success": success,
             "output": output_text,
             "exit_code": exit_code,
             "timed_out": result.get("timed_out", False),
+            "cancelled": result.get("cancelled", False),
             "truncated": trunc_meta.get("truncated", False),
             "duration_seconds": duration,
         }

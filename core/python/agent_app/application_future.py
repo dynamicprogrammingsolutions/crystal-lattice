@@ -23,7 +23,7 @@ from .config import (
 from .events import EventStore, InMemoryEventStore
 from .session_assets import FilesystemSessionAssetStore
 from .sessions import FilesystemSessionStore
-from .tool_loop import ToolLoopRunner
+from .tool_loop import RequestCancellation, ToolLoopRunner
 from agent_core.utils import get_logger
 from .plugin_manager import PluginManager
 
@@ -237,6 +237,7 @@ class AgentApplication:
         )
         self._tool_loop_cfg = _ToolLoopConfig()
         self._cancelled_requests: set[str] = set()
+        self._request_cancellations: Dict[str, RequestCancellation] = {}
 
         # Event compaction controls. These are primarily intended for
         # debugging and tests; in normal operation they remain enabled
@@ -1268,6 +1269,9 @@ class AgentApplication:
             raise ValueError("request_id must be a non-empty string")
 
         self._cancelled_requests.add(request_id)
+        cancellation = self._request_cancellations.get(request_id)
+        if cancellation is not None:
+            cancellation.cancel()
 
     def list_agents(self) -> List[str]:
         """Return the configured agent identifiers.
@@ -1940,8 +1944,11 @@ class AgentApplication:
         )
         config = self.resolve_effective_config(base_config, session, overrides)
 
+        cancellation = RequestCancellation(cancelled=rid in self._cancelled_requests)
+        self._request_cancellations[rid] = cancellation
+
         def _is_cancelled() -> bool:
-            return rid in self._cancelled_requests
+            return cancellation.is_cancelled()
 
         # Initial request_started event
         yield {
@@ -1966,6 +1973,7 @@ class AgentApplication:
             request_id=rid,
             tool_loop_cfg=self._tool_loop_cfg,
             cancel_callback=_is_cancelled,
+            cancellation=cancellation,
         )
 
         error_seen = False
@@ -2032,3 +2040,4 @@ class AgentApplication:
                 yield event
         finally:
             self._cancelled_requests.discard(rid)
+            self._request_cancellations.pop(rid, None)
