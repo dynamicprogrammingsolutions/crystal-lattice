@@ -14,6 +14,9 @@ See also
 - Reference → [OpenAI-Compatible Provider](../reference/providers/openai_provider.md)
 
 Provider plugins (canonical guide): `plugins/docs/provider-plugins.md`.
+Tool plugins (canonical guide): `plugins/docs/tool-plugins.md`.
+Node tool plugins (canonical guide): `plugins/docs/node-tool-plugins.md`.
+Bash tool plugins (canonical guide): `plugins/docs/bash-tool-plugins.md`.
 
 ## Provider Plugin
 
@@ -619,60 +622,28 @@ class Calculator(ToolPlugin):
     #     return {"type": "text", "content": text}
 ```
 
-### JavaScript/TypeScript Tool Plugins (Node.js)
+### Out-of-process tool plugins
 
-Tools can also be authored in JavaScript/TypeScript and executed out-of-process by Node.js.
+Tools can also be authored out-of-process:
 
-Key points:
-- Tools are executed by a Node subprocess speaking the NDJSON tool host protocol.
-- Tool `state` is treated as per-request working state; it is round-tripped on every call.
-- JavaScript tools must not write to stdout (stdout is reserved for protocol messages); write logs to stderr.
+- Node.js / TypeScript tools via the Node host
+- shell-script-backed tools via the Bash host
 
-#### Module shape
+Canonical guides:
 
-The Node host loads an entry module and selects either:
-- the default export, or
-- a named export specified by `package.json#agent.tools[].export`.
+- `plugins/docs/node-tool-plugins.md`
+- `plugins/docs/bash-tool-plugins.md`
 
-The selected export can be either:
-- a plain object implementing the tool methods (existing semantics), or
-- a class / constructor (the host instantiates it with `new` and then calls instance methods).
+Important current limitation:
 
-Example (single tool, default export):
+- the in-process Python tool API is payload-first
+- the current Node and Bash host contracts remain centered on classic
+  object/function-style tool calls
 
-```js
-export default {
-  name: "echo_tool",
-  version: "0.1.0",
-  init(config) {
-    return { config };
-  },
-  getToolSchemas() {
-    return [{
-      type: "function",
-      function: {
-        name: "echo",
-        parameters: {
-          type: "object",
-          properties: { value: { type: "string" } },
-          required: ["value"],
-        },
-      },
-    }];
-  },
-  async executeTool(toolName, args, state, emit) {
-    emit({ type: "part", payload: { message: "working..." } });
-    return { success: true, result: String(args?.value ?? "") };
-  },
-};
-```
+So if you need advanced custom/freeform payload handling today, prefer an
+in-process Python tool.
 
-Today the Node tool-host protocol still uses object-shaped `arguments` for
-`execute_tool` and `format_tool_call_preview`. The in-process Python tool API is
-already payload-first; if/when the host protocol is generalized, these docs and
-the NDJSON protocol page should be updated together.
-
-See `docs/reference/tool-host-protocol.md` for the full NDJSON RPC surface.
+For the full Node host wire protocol, see `docs/reference/tool-host-protocol.md`.
 
 ## Packaging & Layout
 
