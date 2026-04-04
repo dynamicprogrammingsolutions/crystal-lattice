@@ -476,33 +476,6 @@ class AgentApplication:
         runtime = self._agent_plugin_runtimes.get(agent_id)
         if runtime is None:
             raise KeyError(f"Unknown agent_id {agent_id!r}")
-
-        merged_classes: Dict[str, List[type[Any]]] = {
-            kind: list(classes) for kind, classes in runtime.plugin_classes.items()
-        }
-        merged_by_id: Dict[str, Dict[str, type[Any]]] = {
-            kind: dict(items) for kind, items in runtime.plugins_by_kind_and_id.items()
-        }
-        changed = False
-
-        for kind in ("providers", "extensions", "features", "tools"):
-            runtime_ids = merged_by_id.setdefault(kind, {})
-            runtime_classes = merged_classes.setdefault(kind, [])
-            for plugin_class in self._plugin_classes.get(kind) or []:
-                plugin_id = self._plugin_id_for_class(plugin_class)
-                if plugin_id in runtime_ids:
-                    continue
-                runtime_ids[plugin_id] = plugin_class
-                runtime_classes.append(plugin_class)
-                changed = True
-
-        if changed:
-            runtime = _AgentPluginRuntime(
-                plugin_classes=merged_classes,
-                plugins_by_kind_and_id=merged_by_id,
-                default_enabled_ids=runtime.default_enabled_ids,
-            )
-            self._agent_plugin_runtimes[agent_id] = runtime
         return runtime
 
     def _configured_agent_plugin_ids(self, agent_id: str) -> Optional[List[str]]:
