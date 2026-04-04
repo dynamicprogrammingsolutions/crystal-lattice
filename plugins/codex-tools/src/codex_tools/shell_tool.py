@@ -16,7 +16,11 @@ import time
 from queue import Empty, Queue
 from typing import Any, Dict, Iterator, List
 
-from tool_compat_shared.shell_engine import run_shell_command, terminate_process_tree
+from tool_compat_shared.shell_engine import (
+    build_sync_subprocess_kwargs,
+    run_shell_command,
+    terminate_process_tree,
+)
 
 from .base_shell_tool import BaseCodexShellTool
 from .workdir import resolve_tool_workdir
@@ -289,7 +293,6 @@ class ShellArrayTool(BaseCodexShellTool):
         start_time = time.monotonic()
         
         try:
-            launch_kwargs = {"start_new_session": True} if os.name != "nt" else {}
             proc = subprocess.Popen(
                 command,  # Direct exec (no shell wrapper)
                 cwd=workdir,
@@ -298,7 +301,7 @@ class ShellArrayTool(BaseCodexShellTool):
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,
-                **launch_kwargs,
+                **build_sync_subprocess_kwargs(),
             )
         except FileNotFoundError:
             yield {"success": False, "error": f"Command not found: {command[0]}"}

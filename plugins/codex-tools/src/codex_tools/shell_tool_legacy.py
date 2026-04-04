@@ -20,6 +20,7 @@ import time
 from typing import Any, Dict, Iterator, List, Optional
 
 from agent_core.types import ToolPlugin
+from tool_compat_shared.shell_engine import build_sync_subprocess_kwargs
 
 MAX_OUTPUT_LINES_DEFAULT = 2000
 HAD_CHAR_LIMIT_PER_LINE = 80
@@ -228,6 +229,7 @@ class ShellTool(ToolPlugin):
                 text=True,
                 timeout=timeout_seconds,
                 check=False,
+                **build_sync_subprocess_kwargs(),
             )
         except subprocess.TimeoutExpired as exc:
             raw_stdout = exc.stdout
@@ -472,6 +474,7 @@ class ShellTool(ToolPlugin):
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,
+                **build_sync_subprocess_kwargs(),
             )
         except Exception as exc:
             yield {"success": False, "error": f"Failed to execute command: {exc}"}

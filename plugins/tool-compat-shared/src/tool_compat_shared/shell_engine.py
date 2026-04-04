@@ -116,6 +116,20 @@ def _launch_process_kwargs() -> dict[str, Any]:
     return {"start_new_session": True}
 
 
+def build_async_subprocess_kwargs() -> dict[str, Any]:
+    """Return standard async subprocess kwargs for noninteractive shell execution."""
+    launch_kwargs = dict(_launch_process_kwargs())
+    launch_kwargs["stdin"] = asyncio.subprocess.DEVNULL
+    return launch_kwargs
+
+
+def build_sync_subprocess_kwargs() -> dict[str, Any]:
+    """Return standard sync subprocess kwargs for noninteractive shell execution."""
+    launch_kwargs = dict(_launch_process_kwargs())
+    launch_kwargs["stdin"] = subprocess.DEVNULL
+    return launch_kwargs
+
+
 def _get_process_group_id(pid: int | None) -> int | None:
     if pid is None or os.name == "nt":
         return None
@@ -361,7 +375,7 @@ async def run_shell_command(
         env=env if env is not None else os.environ,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        **_launch_process_kwargs(),
+        **build_async_subprocess_kwargs(),
     )
 
     pid = process.pid

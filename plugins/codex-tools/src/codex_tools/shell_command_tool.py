@@ -16,8 +16,10 @@ from typing import Any, Dict, Iterator, List
 
 from tool_compat_shared.shell_engine import (
     ShellInfo,
+    build_async_subprocess_kwargs,
     detect_shell,
     run_shell_command,
+    build_sync_subprocess_kwargs,
     terminate_async_process_tree,
     terminate_process_tree,
 )
@@ -305,14 +307,13 @@ class ShellCommandTool(BaseCodexShellTool):
             start_time = time.monotonic()
             
             try:
-                launch_kwargs = {"start_new_session": True} if os.name != "nt" else {}
                 process = await asyncio.create_subprocess_exec(
                     *args,
                     cwd=workdir,
                     env=os.environ,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
-                    **launch_kwargs,
+                    **build_async_subprocess_kwargs(),
                 )
             except Exception as exc:
                 yield {"success": False, "error": f"Failed to execute command: {exc}"}
@@ -489,7 +490,6 @@ class ShellCommandTool(BaseCodexShellTool):
         start_time = time.monotonic()
         
         try:
-            launch_kwargs = {"start_new_session": True} if os.name != "nt" else {}
             proc = subprocess.Popen(
                 args,
                 cwd=workdir,
@@ -498,7 +498,7 @@ class ShellCommandTool(BaseCodexShellTool):
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,
-                **launch_kwargs,
+                **build_sync_subprocess_kwargs(),
             )
         except Exception as exc:
             yield {"success": False, "error": f"Failed to execute command: {exc}"}

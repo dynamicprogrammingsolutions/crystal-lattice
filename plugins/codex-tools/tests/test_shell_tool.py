@@ -155,6 +155,28 @@ class TestShellArrayToolExecute:
         assert "hello" in result["output"]
 
     @pytest.mark.asyncio
+    async def test_execute_stdin_reader_receives_eof(self, tmp_path: Path) -> None:
+        """Non-streaming direct exec should not inherit interactive stdin."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {
+                "command": [
+                    sys.executable,
+                    "-c",
+                    "import sys; data = sys.stdin.read(); print('stdin-bytes', len(data))",
+                ]
+            },
+            state,
+        )
+
+        assert result["success"] is True
+        assert result["exit_code"] == 0
+        assert "stdin-bytes 0" in result["output"]
+
+    @pytest.mark.asyncio
     async def test_bash_lc_wrapper(self, tmp_path: Path) -> None:
         """Command with bash -lc wrapper should work."""
         wrapper = ToolWrapper(ShellArrayTool)
@@ -559,6 +581,32 @@ class TestShellArrayToolStreaming:
         final = final_results[-1]
         assert final["success"] is True
         assert "exit_code" in final
+
+    def test_stream_stdin_reader_receives_eof(self, tmp_path: Path) -> None:
+        """Streaming direct exec should not inherit interactive stdin."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+
+        chunks = list(
+            wrapper.stream_tool(
+                "shell",
+                {
+                    "command": [
+                        sys.executable,
+                        "-c",
+                        "import sys; data = sys.stdin.read(); print('stdin-bytes', len(data))",
+                    ]
+                },
+                state,
+            )
+        )
+
+        final_results = [c for c in chunks if isinstance(c, dict) and "success" in c]
+        assert final_results
+        final = final_results[-1]
+        assert final["success"] is True
+        assert final["exit_code"] == 0
+        assert "stdin-bytes 0" in final["output"]
 
     def test_streams_exit_code(self, tmp_path: Path) -> None:
         """Streaming should include exit code in final result."""

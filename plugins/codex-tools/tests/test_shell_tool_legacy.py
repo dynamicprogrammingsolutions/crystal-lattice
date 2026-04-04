@@ -4,6 +4,9 @@ This is the legacy shell tool with schema name "shell" but plugin name "shell_le
 It is disabled by default (default_enabled = False).
 """
 
+import shlex
+import sys
+
 from agent_core.plugin import ToolWrapper
 from codex_tools.shell_tool_legacy import ShellTool
 
@@ -59,6 +62,24 @@ def test_shell_tool_includes_headers_on_failure(tmp_path):
     assert "STDERR:" in formatted
 
 
+def test_shell_tool_execute_stdin_reader_receives_eof(tmp_path):
+    wrapper = ToolWrapper(ShellTool)
+    state = wrapper.init({"working_directory": str(tmp_path)})
+    command = (
+        f"{shlex.quote(sys.executable)} -c "
+        "\"import sys; data = sys.stdin.read(); print('stdin-bytes', len(data))\""
+    )
+
+    result = wrapper.execute_tool(
+        "shell_legacy",
+        {"command": command, "workdir": str(tmp_path)},
+        state,
+    )
+
+    assert result["success"] is True
+    assert "stdin-bytes 0" in result.get("stdout", "")
+
+
 def test_shell_tool_streams_stdout(tmp_path):
     wrapper = ToolWrapper(ShellTool)
     state = wrapper.init({"working_directory": str(tmp_path)})
@@ -111,6 +132,27 @@ def test_shell_tool_streams_exit_code_and_stderr_at_end(tmp_path):
     assert "Command exited with code 1" in combined or "Command failed" in combined
     assert "STDERR:" in combined
     assert "err" in combined
+
+
+def test_shell_tool_stream_stdin_reader_receives_eof(tmp_path):
+    wrapper = ToolWrapper(ShellTool)
+    state = wrapper.init({"working_directory": str(tmp_path)})
+    command = (
+        f"{shlex.quote(sys.executable)} -c "
+        "\"import sys; data = sys.stdin.read(); print('stdin-bytes', len(data))\""
+    )
+
+    events = list(
+        wrapper.stream_tool(
+            "shell_legacy",
+            {"command": command, "workdir": str(tmp_path)},
+            state,
+        )
+    )
+
+    final = _get_final_stream_result(events)
+    assert final["success"] is True
+    assert "stdin-bytes 0" in str(final.get("stdout") or "")
 
 
 def _get_final_stream_result(events):
