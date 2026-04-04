@@ -85,6 +85,19 @@ class TestShellToolSelectionWithOpenRouter:
         assert "shell" in tool_names, "shell should be enabled for non-codex model"
         assert "shell_command" not in tool_names, "shell_command should be disabled for non-codex model"
 
+    @pytest.mark.parametrize("model", ["openai/gpt-5.1", "openai/gpt-5.2", "openai/gpt-5.4"])
+    def test_shell_command_family_plain_models_enable_shell_command(self, model):
+        """Plain GPT-5 shell-command-family models should use shell_command."""
+        core = self._create_core_with_plugins()
+        config = self._make_config(model=model)
+
+        provider, exts, feats, tools, tags = core._resolve_plugins_for_config(config)
+        tool_names = [t.name for t in tools]
+
+        assert "codex-variant" in tags
+        assert "shell_command" in tool_names
+        assert "shell" not in tool_names
+
     def test_gpt_5_1_codex_enables_shell_command(self):
         """gpt-5.1-codex should enable shell_command."""
         core = self._create_core_with_plugins()
@@ -218,10 +231,16 @@ class TestCodexVariantFeature:
         assert tags == ["codex-variant"]
 
     def test_feature_no_tag_for_non_codex_model(self):
-        """Feature should not emit tag for non-codex model."""
+        """Feature should not emit tag for gpt-5 shell-family baseline model."""
         feature = CodexVariantFeature()
         tags = feature.get_tags({"model": "openai/gpt-5"}, [])
         assert tags == []
+
+    def test_feature_emits_tag_for_plain_shell_command_family_model(self):
+        """Feature should emit tag for plain GPT-5 shell-command-family model."""
+        feature = CodexVariantFeature()
+        tags = feature.get_tags({"model": "openai/gpt-5.1"}, [])
+        assert tags == ["codex-variant"]
 
     def test_feature_no_tag_for_empty_model(self):
         """Feature should handle empty model gracefully."""

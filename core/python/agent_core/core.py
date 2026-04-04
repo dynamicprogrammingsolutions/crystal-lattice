@@ -1581,12 +1581,16 @@ class AgentCore:
         """
         base_config: Dict[str, Any] = dict(config) if isinstance(config, dict) else {}
 
-        base_config: Dict[str, Any] = dict(config) if isinstance(config, dict) else {}
+        tool_init_config = self._build_tool_init_config(
+            base_config,
+            provider=provider,
+            extensions=provider._iter_extensions(),
+        )
 
         tool_states: List[Tuple[ToolWrapper, Dict[str, Any]]] = []
         tool_schemas: List[Dict[str, Any]] = []
         for tool in tools:
-            tool_state = tool.init(base_config)
+            tool_state = tool.init(tool_init_config)
             tool_states.append((tool, tool_state))
             tool_schemas.extend(tool.get_tool_schemas(tool_state))
         tool_interop_registry = self._get_tool_interop_registry_for_config(
@@ -2925,9 +2929,10 @@ class AgentCore:
                 schemas.extend(tool.get_tool_schemas(state))
             return schemas
 
-        _provider, _exts, _features, tools, _tags = self._resolve_plugins_for_config(config)
+        provider, exts, _features, tools, _tags = self._resolve_plugins_for_config(config)
+        tool_init_config = self._build_tool_init_config(config, provider=provider, extensions=exts)
         for tool in tools:
-            state = tool.init(config)
+            state = tool.init(tool_init_config)
             schemas.extend(tool.get_tool_schemas(state))
         return schemas
 
@@ -2950,7 +2955,50 @@ class AgentCore:
         config: Dict[str, Any],
     ) -> Tuple[Optional[ProviderWrapper], List[ExtensionWrapper], List[Tuple[ToolWrapper, Dict[str, Any]]]]:
         provider, extensions, enabled_tools = self._resolve_tool_participants_for_config(config)
-        return provider, extensions, [(tool, tool.init(config)) for tool in enabled_tools]
+        tool_init_config = self._build_tool_init_config(
+            config,
+            provider=provider,
+            extensions=extensions,
+        )
+        return provider, extensions, [(tool, tool.init(tool_init_config)) for tool in enabled_tools]
+
+    def _build_tool_init_config(
+        self,
+        config: Dict[str, Any],
+        *,
+        provider: Optional[ProviderWrapper] = None,
+        extensions: Optional[List[ExtensionWrapper]] = None,
+    ) -> Dict[str, Any]:
+        base_config = dict(config) if isinstance(config, dict) else {}
+        local_provider = provider
+        local_extensions = list(extensions or [])
+
+        if local_provider is None and extensions is None and self._providers:
+            try:
+                local_provider, local_extensions, _tools = self._resolve_tool_participants_for_config(
+                    base_config
+                )
+            except Exception:
+                local_provider, local_extensions = None, []
+
+        if local_provider is None and not local_extensions:
+            return base_config
+
+        tool_interop_registry = self._get_tool_interop_registry_for_config(
+            base_config,
+            provider=local_provider,
+            extensions=local_extensions,
+            tool_states=[],
+        )
+        tool_schema_target_formats = self._get_tool_schema_target_formats_for_config(
+            base_config,
+            provider=local_provider,
+            extensions=local_extensions,
+        )
+        tool_config = {**base_config, "_tool_interop_registry": tool_interop_registry}
+        if tool_schema_target_formats:
+            tool_config["_tool_schema_target_formats"] = tool_schema_target_formats
+        return tool_config
 
     def _get_explicit_tool_interop_contributions(
         self,

@@ -4,9 +4,9 @@ Align `plugins/codex-tools` shell auto-selection with current upstream Codex CLI
 
 ## Requirements checklist
 
-- [ ] Match current Codex CLI shell-family selection for the GPT-5 models we expose through `plugins/codex-tools`.
-- [ ] Stop relying on stale regex assumptions that keep plain `gpt-5.1` and `gpt-5.2` on array-shell.
-- [ ] Update tests and docs so they describe the current upstream model behavior.
+- [x] Match current Codex CLI shell-family selection for the GPT-5 models we expose through `plugins/codex-tools`.
+- [x] Stop relying on stale regex assumptions that keep plain `gpt-5.1` and `gpt-5.2` on array-shell.
+- [x] Update tests and docs so they describe the current upstream model behavior.
 
 Parent Task: `tasks/20260225-codex-tools-parity/000-main.md`
 
@@ -99,3 +99,79 @@ If a local metadata table is introduced, keep it narrow and focused on shell/too
 - Add focused tests for `uses_shell_command_model(...)` or the equivalent replacement.
 - Add plugin-level enablement tests proving which tool is visible in `auto` mode for representative model names.
 - Update docs/tests that still describe `gpt-5.1` and `gpt-5.2` as array-shell models.
+
+## Execution plan
+
+Added during completion.
+
+1. Keep the implementation change deliberately small in `plugins/codex-tools/src/codex_tools/model_family.py`.
+   The existing structure already has three buckets:
+   - explicit array-shell models
+   - codex-suffixed shell-command models
+   - future plain GPT families that default to `shell_command`
+
+   This task should only correct the stale `gpt-5.1` and `gpt-5.2` behavior while preserving the current future-facing default:
+   - `gpt-5` and `gpt-5-mini` stay on `shell`
+   - `gpt-5.1` and `gpt-5.2` move to `shell_command`
+   - `*-codex*` stays on `shell_command`
+   - future `gpt-5.x` and `gpt-(highernumber)` families continue to default to `shell_command`
+
+   The simplest implementation is to remove `gpt-5.1` and `gpt-5.2` from the array-shell regex, letting them fall through to the existing future-model rule.
+
+2. Clarify helper naming to avoid the old “codex only” confusion.
+   The current helper name `is_codex_variant_model(...)` is misleading because it also covers plain shell-command families like `gpt-5.4`.
+   This task should introduce a better-named helper such as `is_shell_command_family_model(...)`, update call sites to use it, and keep any legacy alias only if needed for compatibility inside the plugin bundle.
+
+3. Update the shell-selection comments and README so the docs match the actual behavior.
+   Revise:
+   - `plugins/codex-tools/src/codex_tools/codex_variant_feature.py`
+   - `plugins/codex-tools/src/codex_tools/shell_tool.py`
+   - `plugins/codex-tools/src/codex_tools/shell_command_tool.py`
+   - `plugins/codex-tools/README.md`
+
+   The docs should say:
+   - `gpt-5` / `gpt-5-mini` use `shell`
+   - `gpt-5.1`, `gpt-5.2`, `gpt-5.4`, codex-suffixed models, and future plain GPT families use `shell_command`
+
+4. Update focused tests for helper behavior and auto-selection.
+   Touch:
+   - `plugins/codex-tools/tests/test_shell_tool_selection.py`
+   - `plugins/codex-tools/tests/test_shell_tool_selection_application.py`
+   - `plugins/codex-tools/tests/test_shell_tool_openrouter_integration.py`
+
+   Lock down at least these cases:
+   - `openai/gpt-5` -> `shell`
+   - `openai/gpt-5-mini` -> `shell`
+   - `openai/gpt-5.1` -> `shell_command`
+   - `openai/gpt-5.2` -> `shell_command`
+   - `openai/gpt-5.4` -> `shell_command`
+   - `openai/gpt-5.1-codex` / `-mini` / `-max` -> `shell_command`
+   - forced `shell` and forced `shell_command` still override auto mode
+
+   Do not add assertions for non-existent `gpt-5.1-mini` or `gpt-5.2-mini` names.
+
+5. Validate with a narrow test run.
+   Run targeted `pytest` coverage for the shell-selection tests and `ruff check` on the touched model/docs/test files. Keep this task isolated from the `apply_patch`, shell interception, and workdir changes already handled elsewhere.
+
+## Completion Notes
+
+Added during completion.
+
+- Updated `plugins/codex-tools/src/codex_tools/model_family.py` so only `gpt-5` / `gpt-5-mini` stay in the array-shell bucket. Plain `gpt-5.1` and `gpt-5.2` now fall through to the existing shell-command-family rule, and future `gpt-5.x` / higher GPT families still default to `shell_command`.
+- Added `is_shell_command_family_model(...)` as the clearer helper name and kept `is_codex_variant_model(...)` as a backward-compatible alias.
+- Updated `plugins/codex-tools/src/codex_tools/codex_variant_feature.py`, `plugins/codex-tools/src/codex_tools/shell_tool.py`, `plugins/codex-tools/src/codex_tools/shell_command_tool.py`, `plugins/codex-tools/src/codex_tools/__init__.py`, and `plugins/codex-tools/README.md` so the naming and model lists match the new shell-selection behavior.
+- Updated shell-selection tests in:
+  - `plugins/codex-tools/tests/test_shell_tool_selection.py`
+  - `plugins/codex-tools/tests/test_shell_tool_selection_application.py`
+  - `plugins/codex-tools/tests/test_shell_tool_openrouter_integration.py`
+- Explicitly locked down:
+  - `openai/gpt-5` -> `shell`
+  - `openai/gpt-5-mini` -> `shell`
+  - `openai/gpt-5.1` -> `shell_command`
+  - `openai/gpt-5.2` -> `shell_command`
+  - `openai/gpt-5.4` -> `shell_command`
+  - codex-suffixed variants -> `shell_command`
+- Validation run:
+  - `ruff check plugins/codex-tools/src/codex_tools/model_family.py plugins/codex-tools/src/codex_tools/codex_variant_feature.py plugins/codex-tools/src/codex_tools/shell_tool.py plugins/codex-tools/src/codex_tools/shell_command_tool.py plugins/codex-tools/src/codex_tools/__init__.py plugins/codex-tools/tests/test_shell_tool_selection.py plugins/codex-tools/tests/test_shell_tool_selection_application.py plugins/codex-tools/tests/test_shell_tool_openrouter_integration.py`
+  - `pytest plugins/codex-tools/tests/test_shell_tool_selection.py plugins/codex-tools/tests/test_shell_tool_selection_application.py plugins/codex-tools/tests/test_shell_tool_openrouter_integration.py -q`
+- The pytest run passed. It still emitted existing `PytestUnknownMarkWarning` warnings for unregistered `integration` / `openrouter` marks in `test_shell_tool_selection_application.py`; this task did not change mark registration.

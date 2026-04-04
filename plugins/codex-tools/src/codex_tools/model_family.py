@@ -5,12 +5,10 @@ from __future__ import annotations
 import re
 
 
-SHELL_ARRAY_MODEL_RE = re.compile(
-    r"^(?:openai/)?gpt-(?:5(?:\.0)?|5\.1|5\.2)(?:-mini)?$"
-)
+SHELL_ARRAY_MODEL_RE = re.compile(r"^(?:openai/)?gpt-(?:5(?:\.0)?)(?:-mini)?$")
 
 FUTURE_SHELL_COMMAND_MODEL_RE = re.compile(
-    r"^(?:openai/)?gpt-(?:5\.(?:4|[5-9]|[1-9]\d+)|[6-9](?:\.\d+)?|\d{2,}(?:\.\d+)?)(?:-mini)?$"
+    r"^(?:openai/)?gpt-(?:5\.(?:[1-9]\d*)|[6-9](?:\.\d+)?|\d{2,}(?:\.\d+)?)(?:-mini)?$"
 )
 
 CODEX_SUFFIX_MODEL_RE = re.compile(r".*-codex(?:-(?:mini|max))?$")
@@ -29,10 +27,16 @@ def uses_shell_command_model(model: str) -> bool:
     )
 
 
-def is_codex_variant_model(model: str) -> bool:
-    """Return whether the model belongs to the Codex shell-command family."""
+def is_shell_command_family_model(model: str) -> bool:
+    """Return whether the model belongs to the shell-command family."""
 
     return uses_shell_command_model(model)
+
+
+def is_codex_variant_model(model: str) -> bool:
+    """Backward-compatible alias for the shell-command family helper."""
+
+    return is_shell_command_family_model(model)
 
 
 __all__ = [
@@ -40,5 +44,6 @@ __all__ = [
     "FUTURE_SHELL_COMMAND_MODEL_RE",
     "SHELL_ARRAY_MODEL_RE",
     "is_codex_variant_model",
+    "is_shell_command_family_model",
     "uses_shell_command_model",
 ]

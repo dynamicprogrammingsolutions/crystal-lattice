@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import shlex
-import platform
 import sys
 from pathlib import Path
 
@@ -216,6 +215,40 @@ class TestShellCommandToolExecute:
         assert result["success"] is True
         assert str(subdir) in result["output"]
         assert result["workdir"] == str(subdir)
+
+    @pytest.mark.asyncio
+    async def test_intercepts_apply_patch_command_when_enabled(self, tmp_path: Path) -> None:
+        """Shell command can route apply_patch heredocs to the internal patch runtime."""
+        target = tmp_path / "hello.txt"
+        target.write_text("before\n", encoding="utf-8")
+
+        wrapper = ToolWrapper(ShellCommandTool)
+        state = wrapper.init(
+            {
+                "working_directory": str(tmp_path),
+                "allowed_paths": [str(tmp_path)],
+                "intercept_apply_patch": True,
+            }
+        )
+
+        patch_script = """apply_patch <<'PATCH'
+*** Begin Patch
+*** Update File: hello.txt
+@@
+-before
++after
+*** End Patch
+PATCH"""
+
+        result = await wrapper.execute_tool_async(
+            "shell_command",
+            {"command": patch_script, "workdir": str(tmp_path)},
+            state,
+        )
+
+        assert result["success"] is True
+        assert result.get("intercepted_tool") == "apply_patch"
+        assert target.read_text(encoding="utf-8") == "after\n"
 
     @pytest.mark.asyncio
     async def test_timeout(self, tmp_path: Path) -> None:

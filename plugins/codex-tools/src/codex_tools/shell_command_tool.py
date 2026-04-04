@@ -1,7 +1,8 @@
 """Codex shell_command tool - string-based command execution.
 
 This tool accepts a string command which is executed via the user's default
-shell. Used by Codex-variant models (gpt-5.2-codex, gpt-5.3-codex, gpt-5.4).
+shell. Used by the shell-command model family, including codex variants and
+newer GPT-5 releases such as gpt-5.1, gpt-5.2, and gpt-5.4.
 
 Schema matches docs/codex-tools/shell_command/schema.without_request_permissions.json
 """
@@ -18,12 +19,12 @@ from tool_compat_shared.shell_engine import (
     run_shell_command,
 )
 
-from .base_shell_tool import BaseCodexShellTool, DEFAULT_MAX_OUTPUT_TOKENS
+from .base_shell_tool import BaseCodexShellTool
 from .workdir import resolve_tool_workdir
 
 
 class ShellCommandTool(BaseCodexShellTool):
-    """Codex shell_command tool - string-based command for Codex-variant models.
+    """Codex shell_command tool - string-based command for shell-command models.
     
     Tool name: shell_command
     
@@ -37,10 +38,12 @@ class ShellCommandTool(BaseCodexShellTool):
     - login: boolean - Use login shell semantics (default: true)
     
     Models using this tool:
-    - gpt-5.2-codex
-    - gpt-5.3-codex
+    - gpt-5.1
+    - gpt-5.2
     - gpt-5.4
     - gpt-5.1-codex
+    - gpt-5.2-codex
+    - gpt-5.3-codex
     - gpt-5-codex
     """
     
@@ -162,6 +165,14 @@ class ShellCommandTool(BaseCodexShellTool):
         
         config = state.get("config", {})
         workdir = resolve_tool_workdir(config, arguments.get("workdir"))
+
+        intercepted = self._maybe_intercept_apply_patch(
+            command=command,
+            workdir=workdir,
+            state=state,
+        )
+        if intercepted is not None:
+            return intercepted
         
         timeout_ms = arguments.get("timeout_ms")
         login = arguments.get("login", True)  # Default true
@@ -231,6 +242,15 @@ class ShellCommandTool(BaseCodexShellTool):
         
         config = state.get("config", {})
         workdir = resolve_tool_workdir(config, arguments.get("workdir"))
+
+        intercepted = self._maybe_intercept_apply_patch(
+            command=command,
+            workdir=workdir,
+            state=state,
+        )
+        if intercepted is not None:
+            yield intercepted
+            return
         
         timeout_ms = arguments.get("timeout_ms")
         login = arguments.get("login", True)
@@ -273,7 +293,6 @@ class ShellCommandTool(BaseCodexShellTool):
         Uses asyncio.run() to create a new event loop.
         """
         import os
-        import sys
         
         async def _async_stream() -> Iterator[Dict[str, Any]]:
             start_time = time.monotonic()
@@ -375,8 +394,6 @@ class ShellCommandTool(BaseCodexShellTool):
         
         if loop is not None:
             # Already in async context - create task
-            from collections.abc import AsyncIterator
-            
             async def collect():
                 results = []
                 async for item in _async_stream():
@@ -460,7 +477,6 @@ class ShellCommandTool(BaseCodexShellTool):
         timed_out = False
         
         try:
-            import time
             while True:
                 elapsed = time.monotonic() - start_time
                 if timeout_seconds is not None and elapsed >= timeout_seconds:

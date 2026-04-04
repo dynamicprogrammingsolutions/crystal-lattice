@@ -588,6 +588,20 @@
       "provider": "openai",
       "model": "gpt-5.4"
     },
+    "gpt-5-openrouter": {
+      "provider": "openrouter_codex_tools",
+      "model": "openai/gpt-5",
+      "shell_tool_mode": "shell",
+      "intercept_apply_patch": true,
+      "disabled_plugins": ["apply_patch"]
+    },
+    "gpt-5-openai": {
+      "provider": "openai",
+      "model": "gpt-5",
+      "shell_tool_mode": "shell",
+      "intercept_apply_patch": true,
+      "disabled_plugins": ["apply_patch"]
+    },
     "qwen": {
       "provider": "openrouter_qwen_tools",
       "model": "qwen/qwen3.5-flash-02-23"

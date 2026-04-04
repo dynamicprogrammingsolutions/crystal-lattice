@@ -6,14 +6,16 @@ the same output formatting and truncation behavior, implemented here.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, List
 
 from agent_core.types import ToolPlugin
-from tool_compat_shared.shell_engine import (
-    ShellInfo,
-    detect_shell,
-    run_shell_command,
-    truncate_output,
+from tool_compat_shared.shell_engine import truncate_output
+
+from .apply_patch_runtime import (
+    apply_patch_display,
+    execute_apply_patch_text,
+    format_apply_patch_result,
+    maybe_extract_patch_from_shell_command,
 )
 
 DEFAULT_MAX_OUTPUT_TOKENS = 10_000  # From Codex models.json truncation_policy
@@ -34,6 +36,34 @@ class BaseCodexShellTool(ToolPlugin):
     """
     
     version: str = "1.0.0"
+
+    def _maybe_intercept_apply_patch(
+        self,
+        *,
+        command: Any,
+        workdir: str,
+        state: Dict[str, Any],
+    ) -> Dict[str, Any] | None:
+        config = state.get("config", {})
+        if not config.get("intercept_apply_patch"):
+            return None
+
+        patch_text = maybe_extract_patch_from_shell_command(command)
+        if patch_text is None:
+            return None
+
+        result = execute_apply_patch_text(
+            patch_text,
+            config=config,
+            working_dir=workdir,
+        )
+        return {
+            **result,
+            "command": command,
+            "workdir": workdir,
+            "output": format_apply_patch_result(result),
+            "intercepted_tool": "apply_patch",
+        }
     
     def _build_result(
         self,
@@ -208,6 +238,9 @@ class BaseCodexShellTool(ToolPlugin):
         
         Adds command and workdir header to output.
         """
+        if result.get("intercepted_tool") == "apply_patch":
+            return apply_patch_display(text, result)
+
         command = result.get("command")
         workdir = result.get("workdir")
         
