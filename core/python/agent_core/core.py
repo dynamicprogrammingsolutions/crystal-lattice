@@ -1735,6 +1735,8 @@ class AgentCore:
         provider: ProviderWrapper,
         features: List[FeatureWrapper],
         tools: List[ToolWrapper],
+        *,
+        request_id: str | None = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any], bool]:
         """Prepare shared state and inputs for a request.
 
@@ -1801,7 +1803,11 @@ class AgentCore:
         # Initialize request chains
         native_history_changed = False
 
-        next_native_messages, state = provider.initialize_request(native_messages, state)
+        next_native_messages, state = provider.initialize_request(
+            native_messages,
+            state,
+            request_id=request_id,
+        )
         if next_native_messages == native_messages:
             next_native_messages = native_messages
         native_history_changed = native_history_changed or (next_native_messages is not native_messages)
@@ -1835,7 +1841,12 @@ class AgentCore:
 
 
     def send_request(
-        self, session: Session, config: Dict[str, Any]
+        self,
+        session: Session,
+        config: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+        cancellation: Any | None = None,
     ) -> Tuple[Session, List[Dict[str, Any]]]:
         """Send request and return a new session with the response.
 
@@ -1872,25 +1883,43 @@ class AgentCore:
         )
 
         provider.set_active_extensions(enabled_extensions)
-        messages, native_messages, state, native_history_changed = self._pre_request(
-            session,
-            config,
-            provider,
-            features,
-            tools,
-        )
-        baseline_native_len = len(native_messages)
+        cancel_token: Any | None = None
+        if request_id and cancellation is not None:
+            try:
+                cancel_token = cancellation.add_callback(
+                    lambda: provider.cancel_request(request_id)
+                )
+            except Exception:
+                cancel_token = None
 
+        try:
+            messages, native_messages, state, native_history_changed = self._pre_request(
+                session,
+                config,
+                provider,
+                features,
+                tools,
+                request_id=request_id,
+            )
+            baseline_native_len = len(native_messages)
 
-        logger.debug(
-            "sending request",
-            native_messages=str(native_messages)[:1000],
-            request=str(state.get("request"))[:1000],
-        )
+            logger.debug(
+                "sending request",
+                native_messages=str(native_messages)[:1000],
+                request=str(state.get("request"))[:1000],
+            )
 
-        _partials, final_native_1, native_messages, state = provider.call_api(
-            native_messages, state
-        )
+            _partials, final_native_1, native_messages, state = provider.call_api(
+                native_messages,
+                state,
+                request_id=request_id,
+            )
+        finally:
+            if cancellation is not None and cancel_token is not None:
+                try:
+                    cancellation.remove_callback(cancel_token)
+                except Exception:
+                    pass
 
         # Provider finalize returns provider-native finals and full native history
         final_native_2, native_messages, state = provider.finalize(native_messages, state)
@@ -1961,7 +1990,12 @@ class AgentCore:
 
 
     def send_request_stream(
-        self, session: Session, config: Dict[str, Any]
+        self,
+        session: Session,
+        config: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+        cancellation: Any | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Stream request and yield partial events, then the final session.
 
@@ -1999,36 +2033,53 @@ class AgentCore:
         )
 
         provider.set_active_extensions(enabled_extensions)
-        messages, native_messages, state, native_history_changed = self._pre_request(
-            session,
-            config,
-            provider,
-            features,
-            tools,
-        )
-        baseline_native_len = len(native_messages)
+        cancel_token: Any | None = None
+        if request_id and cancellation is not None:
+            try:
+                cancel_token = cancellation.add_callback(
+                    lambda: provider.cancel_request(request_id)
+                )
+            except Exception:
+                cancel_token = None
+
+        try:
+            messages, native_messages, state, native_history_changed = self._pre_request(
+                session,
+                config,
+                provider,
+                features,
+                tools,
+                request_id=request_id,
+            )
+            baseline_native_len = len(native_messages)
 
 
-        logger.debug(
-            "start streaming request",
-            native_messages=str(native_messages)[:1000],
-            requrest=str(state.get("request", None))[:1000],
-        )
+            logger.debug(
+                "start streaming request",
+                native_messages=str(native_messages)[:1000],
+                requrest=str(state.get("request", None))[:1000],
+            )
 
-        aggregated_native_finals: List[Dict[str, Any]] = []
+            aggregated_native_finals: List[Dict[str, Any]] = []
 
-        # Stream from provider using optimized streaming
-        partial_count = 0
-        for event in provider.stream_messages(native_messages, state):
-            #logger.debug("streaming event received", _event=event) # the first positional argument is also named 'event', we cannot use that name
-            if event["type"] == "partial":
-                partial_count += 1
-                log_chunk_processing.debug("partial message received", partial=event["message"])
-                yield {"type": "partial", "message": event["message"]}
-            elif event["type"] == "final_messages":
-                # These are provider-native finals
-                log_chunk_processing.debug("final message received", final=event.get("messages"))
-                aggregated_native_finals.extend(event["messages"])
+            # Stream from provider using optimized streaming
+            partial_count = 0
+            for event in provider.stream_messages(native_messages, state, request_id=request_id):
+                #logger.debug("streaming event received", _event=event) # the first positional argument is also named 'event', we cannot use that name
+                if event["type"] == "partial":
+                    partial_count += 1
+                    log_chunk_processing.debug("partial message received", partial=event["message"])
+                    yield {"type": "partial", "message": event["message"]}
+                elif event["type"] == "final_messages":
+                    # These are provider-native finals
+                    log_chunk_processing.debug("final message received", final=event.get("messages"))
+                    aggregated_native_finals.extend(event["messages"])
+        finally:
+            if cancellation is not None and cancel_token is not None:
+                try:
+                    cancellation.remove_callback(cancel_token)
+                except Exception:
+                    pass
 
         # Finalize using the last accumulated native messages
         final_native, native_messages, state = provider.finalize(
@@ -2097,7 +2148,12 @@ class AgentCore:
         yield {"type": "final", "session": new_session, "messages": final_core}
 
     async def send_request_stream_async(
-        self, session: Session, config: Dict[str, Any]
+        self,
+        session: Session,
+        config: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+        cancellation: Any | None = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """Async version of send_request_stream.
 
@@ -2129,25 +2185,46 @@ class AgentCore:
         )
 
         provider.set_active_extensions(enabled_extensions)
-        messages, native_messages, state, native_history_changed = self._pre_request(
-            session,
-            config,
-            provider,
-            features,
-            tools,
-        )
-        baseline_native_len = len(native_messages)
+        cancel_token: Any | None = None
+        if request_id and cancellation is not None:
+            try:
+                cancel_token = cancellation.add_callback(
+                    lambda: provider.cancel_request(request_id)
+                )
+            except Exception:
+                cancel_token = None
+
+        try:
+            messages, native_messages, state, native_history_changed = self._pre_request(
+                session,
+                config,
+                provider,
+                features,
+                tools,
+                request_id=request_id,
+            )
+            baseline_native_len = len(native_messages)
 
 
-        aggregated_native_finals: List[Dict[str, Any]] = []
+            aggregated_native_finals: List[Dict[str, Any]] = []
 
 
-        # Stream from provider (async) using optimized streaming
-        async for event in provider.stream_messages_async(native_messages, state):
-            if event["type"] == "partial":
-                yield {"type": "partial", "message": event["message"]}
-            elif event["type"] == "final_messages":
-                aggregated_native_finals.extend(event["messages"])  # native finals
+            # Stream from provider (async) using optimized streaming
+            async for event in provider.stream_messages_async(
+                native_messages,
+                state,
+                request_id=request_id,
+            ):
+                if event["type"] == "partial":
+                    yield {"type": "partial", "message": event["message"]}
+                elif event["type"] == "final_messages":
+                    aggregated_native_finals.extend(event["messages"])  # native finals
+        finally:
+            if cancellation is not None and cancel_token is not None:
+                try:
+                    cancellation.remove_callback(cancel_token)
+                except Exception:
+                    pass
 
         final_native, native_messages, state = provider.finalize(
             provider.get_last_native_messages(), provider.get_state()

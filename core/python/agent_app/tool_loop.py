@@ -6,6 +6,7 @@ import traceback  # Add this import at the beginning of your file
 
 
 from agent_core import AgentCore, MessageRole, Session
+from agent_core.types import ProviderRequestCancelled
 
 
 class RequestCancellation:
@@ -163,7 +164,20 @@ class ToolLoopRunner:
                 }
                 return session, []
 
-            next_session, final_messages = core.send_request(session, config)
+            try:
+                next_session, final_messages = core.send_request(
+                    session,
+                    config,
+                    request_id=rid,
+                    cancellation=self._cancellation,
+                )
+            except ProviderRequestCancelled:
+                yield {
+                    "type": "request_cancelled",
+                    "session_id": session.session_id,
+                    "request_id": rid,
+                }
+                return session, []
 
             # Emit the public final event first so that external
             # consumers see the completed assistant reply before any
@@ -195,79 +209,92 @@ class ToolLoopRunner:
         final_messages: List[Dict[str, Any]] = []
         started = False
 
-        for chunk in core.send_request_stream(session, config):
-            if self._is_cancelled():
-                yield {
-                    "type": "request_cancelled",
-                    "session_id": current_session.session_id,
-                    "request_id": rid,
-                }
-                return current_session, []
-
-            ctype = chunk.get("type")
-
-            if ctype == "partial":
-                if not started:
-                    started = True
-                    # Signal the beginning of a streamed assistant message
-                    # so renderers can emit headers before reasoning/content.
+        try:
+            for chunk in core.send_request_stream(
+                session,
+                config,
+                request_id=rid,
+                cancellation=self._cancellation,
+            ):
+                if self._is_cancelled():
                     yield {
-                        "type": "assistant_message",
+                        "type": "request_cancelled",
                         "session_id": current_session.session_id,
                         "request_id": rid,
-                        "phase": "start",
                     }
-                yield {
-                    "type": "partial",
-                    "session_id": current_session.session_id,
-                    "request_id": rid,
-                    "message": chunk["message"],
-                }
-            elif ctype == "final":
-                final_session = chunk["session"]
-                final_messages = chunk.get("messages") or []
+                    return current_session, []
 
-                # If no partials were seen, still emit a synthetic
-                # assistant_message start so UIs can treat this as a
-                # regular assistant reply.
-                if final_messages and not started:
-                    started = True
+                ctype = chunk.get("type")
+
+                if ctype == "partial":
+                    if not started:
+                        started = True
+                        # Signal the beginning of a streamed assistant message
+                        # so renderers can emit headers before reasoning/content.
+                        yield {
+                            "type": "assistant_message",
+                            "session_id": current_session.session_id,
+                            "request_id": rid,
+                            "phase": "start",
+                        }
                     yield {
-                        "type": "assistant_message",
+                        "type": "partial",
                         "session_id": current_session.session_id,
                         "request_id": rid,
-                        "phase": "start",
+                        "message": chunk["message"],
                     }
+                elif ctype == "final":
+                    final_session = chunk["session"]
+                    final_messages = chunk.get("messages") or []
 
-                # Emit the public final event describing the completed
-                # assistant reply.
-                yield {
-                    "type": "final",
-                    "session_id": final_session.session_id,
-                    "request_id": rid,
-                    "start_index": start_index,
-                    "messages": final_messages,
-                }
+                    # If no partials were seen, still emit a synthetic
+                    # assistant_message start so UIs can treat this as a
+                    # regular assistant reply.
+                    if final_messages and not started:
+                        started = True
+                        yield {
+                            "type": "assistant_message",
+                            "session_id": current_session.session_id,
+                            "request_id": rid,
+                            "phase": "start",
+                        }
 
-                if started:
-                    # Signal end-of-message so renderers can close any
-                    # open streaming state before footers are printed.
+                    # Emit the public final event describing the completed
+                    # assistant reply.
                     yield {
-                        "type": "assistant_message",
+                        "type": "final",
                         "session_id": final_session.session_id,
                         "request_id": rid,
-                        "phase": "end",
+                        "start_index": start_index,
+                        "messages": final_messages,
                     }
 
-                # Internal checkpoint is emitted *after* the final
-                # event so that persistence and checkpoint cursors align
-                # with the visible assistant messages.
-                yield {
-                    "type": "session_checkpoint",
-                    "session_id": final_session.session_id,
-                    "request_id": rid,
-                    "session": final_session,
-                }
+                    if started:
+                        # Signal end-of-message so renderers can close any
+                        # open streaming state before footers are printed.
+                        yield {
+                            "type": "assistant_message",
+                            "session_id": final_session.session_id,
+                            "request_id": rid,
+                            "phase": "end",
+                        }
+
+                    # Internal checkpoint is emitted *after* the final
+                    # event so that persistence and checkpoint cursors align
+                    # with the visible assistant messages.
+                    yield {
+                        "type": "session_checkpoint",
+                        "session_id": final_session.session_id,
+                        "request_id": rid,
+                        "session": final_session,
+                    }
+        except ProviderRequestCancelled:
+            yield {
+                "type": "request_cancelled",
+                "session_id": current_session.session_id,
+                "request_id": rid,
+            }
+            return current_session, []
 
         return final_session, final_messages
 

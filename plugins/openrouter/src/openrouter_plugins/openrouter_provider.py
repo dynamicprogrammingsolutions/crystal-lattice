@@ -7,18 +7,78 @@ Compatible with OpenAI Chat Completions API format.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterator, List, Tuple, Optional
+from typing import Any, Callable, Dict, Iterator, List, Tuple, Optional
+from dataclasses import dataclass, field
 import json
+import queue
+import threading
 
 import requests
 
-from agent_core.types import ProviderPlugin
+from agent_core.types import ProviderPlugin, ProviderRequestCancelled
 from agent_core.utils import get_logger
+
+
+@dataclass
+class _InflightRequest:
+    cancelled: threading.Event = field(default_factory=threading.Event)
+    done: threading.Event = field(default_factory=threading.Event)
+    lock: threading.Lock = field(default_factory=threading.Lock)
+    closers: List[Callable[[], None]] = field(default_factory=list)
+
+    def add_closer(self, closer: Callable[[], None]) -> None:
+        with self.lock:
+            self.closers.append(closer)
+            already_cancelled = self.cancelled.is_set()
+        if already_cancelled:
+            try:
+                closer()
+            except Exception:
+                pass
+
+    def cancel(self) -> None:
+        self.cancelled.set()
+        with self.lock:
+            closers = list(self.closers)
+        for closer in closers:
+            try:
+                closer()
+            except Exception:
+                continue
 
 
 class OpenRouterProvider(ProviderPlugin):
     name: str = "openrouter"
     version: str = "0.1.0"
+
+    def __init__(self) -> None:
+        self._inflight_lock = threading.Lock()
+        self._inflight_requests: Dict[str, _InflightRequest] = {}
+
+    def _register_inflight(self, request_id: str | None) -> _InflightRequest:
+        runtime = _InflightRequest()
+        if isinstance(request_id, str) and request_id:
+            with self._inflight_lock:
+                self._inflight_requests[request_id] = runtime
+        return runtime
+
+    def _clear_inflight(self, request_id: str | None, runtime: _InflightRequest) -> None:
+        runtime.done.set()
+        if isinstance(request_id, str) and request_id:
+            with self._inflight_lock:
+                current = self._inflight_requests.get(request_id)
+                if current is runtime:
+                    self._inflight_requests.pop(request_id, None)
+
+    def cancel_request(self, request_id: str) -> bool:
+        if not isinstance(request_id, str) or not request_id:
+            return False
+        with self._inflight_lock:
+            runtime = self._inflight_requests.get(request_id)
+        if runtime is None:
+            return False
+        runtime.cancel()
+        return True
 
     def _native_internal_from_core_metadata(self, metadata: Any) -> Dict[str, Any]:
         if not isinstance(metadata, dict):
@@ -198,8 +258,13 @@ class OpenRouterProvider(ProviderPlugin):
         return {"config": config}
 
     def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        _ = request_id
 
         config = state["config"]
 
@@ -400,57 +465,92 @@ class OpenRouterProvider(ProviderPlugin):
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         request = state["request"]
         payload: Dict[str, Any] = {}
-        try:
-            logger = get_logger("openrouter_provider")
-            self._validate_message_list(native_messages)
-            override = request.get("messages")
-            messages = override if isinstance(override, list) else native_messages
-            payload = {**request["payload"], "messages": messages, "stream": False}
-            logger.info(
-                "sending request",
-                payload=str({**payload, "messages": "stripped", "tools": "stripped"}),
-            )
-            logger.debug("full payload for non-streaming request", payload=payload)
-            r = requests.post(
-                request["url"],
-                json=payload,
-                headers=request["headers"],
-                timeout=request["timeout"],
-            )
-            # OpenRouter responses are JSON and should always be UTF-8. Some
-            # environments mis-detect the charset (for example defaulting to
-            # ISO-8859-1), which corrupts non-ASCII characters like en/em
-            # dashes inside tool arguments. Force UTF-8 before JSON parsing
-            # so that we never depend on the response headers for encoding.
-            r.encoding = "utf-8"
-            obj = r.json()
-            # Debug log full non-streaming response for investigation
-            try:  # pragma: no cover - debug aid
-                get_logger("openrouter_provider").info(
-                    "received response",
-                    response=obj,
+        logger = get_logger("openrouter_provider")
+        self._validate_message_list(native_messages)
+        override = request.get("messages")
+        messages = override if isinstance(override, list) else native_messages
+        payload = {**request["payload"], "messages": messages, "stream": False}
+        logger.info(
+            "sending request",
+            payload=str({**payload, "messages": "stripped", "tools": "stripped"}),
+        )
+        logger.debug("full payload for non-streaming request", payload=payload)
+
+        runtime = self._register_inflight(request_id)
+        results: queue.Queue[Tuple[str, Any]] = queue.Queue()
+
+        def _worker() -> None:
+            session = requests.Session()
+            response: requests.Response | None = None
+            runtime.add_closer(session.close)
+            try:
+                if runtime.cancelled.is_set():
+                    raise ProviderRequestCancelled(request_id)
+                response = session.post(
+                    request["url"],
+                    json=payload,
+                    headers=request["headers"],
+                    timeout=request["timeout"],
+                    stream=True,
                 )
-            except Exception:
-                # Logging must never break the provider
-                pass
-        except requests.RequestException as e:
-            # Debug payload and error details for investigation (no auth headers included)
-            try:  # pragma: no cover - debug aid
-                debug_payload = json.dumps(payload, ensure_ascii=False)[:2000]
-                print("[openrouter_provider] call_api error payload:", debug_payload)
-            except Exception:
-                print("[openrouter_provider] call_api error payload: <unserializable>")
-            resp = getattr(e, "response", None)
-            if resp is not None:
+                runtime.add_closer(response.close)
+                response.encoding = "utf-8"
+                obj = response.json()
+                results.put(("result", obj))
+            except Exception as exc:
+                results.put(("error", exc))
+            finally:
                 try:
-                    err_detail = resp.json()
-                except Exception:
-                    err_detail = resp.text
-                print("[openrouter_provider] call_api error response:", err_detail)
-            raise RuntimeError(f"OpenRouter API call failed: {e}") from e
+                    if response is not None:
+                        response.close()
+                finally:
+                    session.close()
+                    runtime.done.set()
+
+        worker = threading.Thread(target=_worker, daemon=True)
+        worker.start()
+
+        try:
+            while True:
+                try:
+                    kind, value = results.get(timeout=0.1)
+                except queue.Empty:
+                    if runtime.cancelled.is_set():
+                        raise ProviderRequestCancelled(request_id)
+                    if runtime.done.is_set() and results.empty():
+                        raise RuntimeError("OpenRouter API call failed: request ended without result")
+                    continue
+                if kind == "result":
+                    obj = value
+                    break
+                exc = value
+                if runtime.cancelled.is_set():
+                    raise ProviderRequestCancelled(request_id) from exc
+                if isinstance(exc, ProviderRequestCancelled):
+                    raise exc
+                if isinstance(exc, requests.RequestException):
+                    try:  # pragma: no cover - debug aid
+                        debug_payload = json.dumps(payload, ensure_ascii=False)[:2000]
+                        print("[openrouter_provider] call_api error payload:", debug_payload)
+                    except Exception:
+                        print("[openrouter_provider] call_api error payload: <unserializable>")
+                    resp = getattr(exc, "response", None)
+                    if resp is not None:
+                        try:
+                            err_detail = resp.json()
+                        except Exception:
+                            err_detail = resp.text
+                        print("[openrouter_provider] call_api error response:", err_detail)
+                    raise RuntimeError(f"OpenRouter API call failed: {exc}") from exc
+                raise RuntimeError(f"OpenRouter API call failed: {exc}") from exc
+        finally:
+            self._clear_inflight(request_id, runtime)
+            worker.join(timeout=1.0)
 
         message = obj.get("choices", [{}])[0].get("message", {})
 
@@ -478,42 +578,53 @@ class OpenRouterProvider(ProviderPlugin):
 
 
     def stream_api(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Iterator[Dict[str, Any]]:
         request = state["request"]
         payload: Dict[str, Any] = {}
-        try:
-            logger = get_logger("openrouter_provider")
-            self._validate_message_list(native_messages)
-            override = request.get("messages")
-            messages = override if isinstance(override, list) else native_messages
-            payload = {**request["payload"], "messages": messages, "stream": True}
-            logger.info("sending request", payload=str({**payload, "messages": "stripped", "tools": "stripped"}))
-            logger.debug("full payload for streaming request", payload=payload)
-            with requests.post(
-                request["url"],
-                json=payload,
-                headers=request["headers"],
-                timeout=request["timeout"],
-                stream=True,
-            ) as r:
-                # See call_api above: OpenRouter uses UTF-8 JSON for
-                # streaming chunks as well. Force UTF-8 so that
-                # iter_lines(decode_unicode=True) does not incorrectly
-                # decode bytes as ISO-8859-1 and garble characters like
-                # em dashes in tool_call.function.arguments.
-                r.encoding = "utf-8"
-                if r.status_code != 200:
-                    # Get error details before raising
+        logger = get_logger("openrouter_provider")
+        self._validate_message_list(native_messages)
+        override = request.get("messages")
+        messages = override if isinstance(override, list) else native_messages
+        payload = {**request["payload"], "messages": messages, "stream": True}
+        logger.info("sending request", payload=str({**payload, "messages": "stripped", "tools": "stripped"}))
+        logger.debug("full payload for streaming request", payload=payload)
+
+        runtime = self._register_inflight(request_id)
+        results: queue.Queue[Tuple[str, Any]] = queue.Queue()
+
+        def _worker() -> None:
+            session = requests.Session()
+            response: requests.Response | None = None
+            runtime.add_closer(session.close)
+            try:
+                if runtime.cancelled.is_set():
+                    raise ProviderRequestCancelled(request_id)
+                response = session.post(
+                    request["url"],
+                    json=payload,
+                    headers=request["headers"],
+                    timeout=request["timeout"],
+                    stream=True,
+                )
+                runtime.add_closer(response.close)
+                response.encoding = "utf-8"
+                if response.status_code != 200:
                     try:
-                        error_detail = r.json()
+                        error_detail = response.json()
                     except Exception:
-                        error_detail = r.text
+                        error_detail = response.text
                     raise RuntimeError(
-                        f"OpenRouter stream failed: {r.status_code} {r.reason}. "
+                        f"OpenRouter stream failed: {response.status_code} {response.reason}. "
                         f"Error: {error_detail}"
                     )
-                for line in r.iter_lines(decode_unicode=True):
+                for line in response.iter_lines(decode_unicode=True):
+                    if runtime.cancelled.is_set():
+                        raise ProviderRequestCancelled(request_id)
                     if not line:
                         continue
                     data_str = line
@@ -527,9 +638,47 @@ class OpenRouterProvider(ProviderPlugin):
                         obj = json.loads(data_str)
                     except json.JSONDecodeError:
                         continue
-                    yield obj
-        except requests.RequestException as e:
-            raise RuntimeError(f"OpenRouter stream failed: {e}") from e
+                    results.put(("chunk", obj))
+                results.put(("done", None))
+            except Exception as exc:
+                results.put(("error", exc))
+            finally:
+                try:
+                    if response is not None:
+                        response.close()
+                finally:
+                    session.close()
+                    runtime.done.set()
+
+        worker = threading.Thread(target=_worker, daemon=True)
+        worker.start()
+
+        try:
+            while True:
+                try:
+                    kind, value = results.get(timeout=0.1)
+                except queue.Empty:
+                    if runtime.cancelled.is_set():
+                        raise ProviderRequestCancelled(request_id)
+                    if runtime.done.is_set() and results.empty():
+                        break
+                    continue
+                if kind == "chunk":
+                    yield value
+                    continue
+                if kind == "done":
+                    break
+                exc = value
+                if runtime.cancelled.is_set():
+                    raise ProviderRequestCancelled(request_id) from exc
+                if isinstance(exc, ProviderRequestCancelled):
+                    raise exc
+                if isinstance(exc, requests.RequestException):
+                    raise RuntimeError(f"OpenRouter stream failed: {exc}") from exc
+                raise RuntimeError(f"OpenRouter stream failed: {exc}") from exc
+        finally:
+            self._clear_inflight(request_id, runtime)
+            worker.join(timeout=1.0)
 
 
     # ---------- Helpers (default/general implementations) ----------

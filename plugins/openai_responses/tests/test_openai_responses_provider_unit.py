@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import base64
 import json
+import threading
+import time
 from pathlib import Path
 from typing import Any, Dict
 
@@ -9,6 +11,7 @@ import pytest
 
 from agent_app.session_assets import FilesystemSessionAssetStore
 from agent_core import AgentCore
+from agent_core.types import ProviderRequestCancelled
 import openai_responses_plugins.openai_responses_provider as provider_module
 from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider
 from openai_responses_plugins.openai_responses_tools_extension import (
@@ -228,6 +231,75 @@ class _ErrorResponsesResource:
 
 class _ErrorClient:
     responses = _ErrorResponsesResource()
+
+
+class _BlockingResponsesResource:
+    def __init__(self, gate: threading.Event) -> None:
+        self._gate = gate
+        self.calls: list[Dict[str, Any]] = []
+
+    def create(self, **kwargs: Any) -> Any:
+        self.calls.append(kwargs)
+        while not self._gate.wait(0.05):
+            continue
+        raise RuntimeError("closed")
+
+
+class _BlockingClient:
+    def __init__(self) -> None:
+        self._gate = threading.Event()
+        self.responses = _BlockingResponsesResource(self._gate)
+        self.option_calls: list[Dict[str, Any]] = []
+
+    def with_options(self, **kwargs: Any) -> "_BlockingClient":
+        self.option_calls.append(kwargs)
+        return self
+
+    def close(self) -> None:
+        self._gate.set()
+
+
+class _BlockingStream:
+    def __init__(self) -> None:
+        self.closed = threading.Event()
+
+    def __enter__(self) -> "_BlockingStream":
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        _ = (exc_type, exc, tb)
+
+    def close(self) -> None:
+        self.closed.set()
+
+    def __iter__(self):
+        while not self.closed.wait(0.05):
+            continue
+        raise RuntimeError("stream closed")
+
+
+class _BlockingStreamingResponsesResource:
+    def __init__(self, stream: _BlockingStream) -> None:
+        self._stream = stream
+        self.calls: list[Dict[str, Any]] = []
+
+    def create(self, **kwargs: Any) -> _BlockingStream:
+        self.calls.append(kwargs)
+        return self._stream
+
+
+class _BlockingStreamingClient:
+    def __init__(self) -> None:
+        self.stream = _BlockingStream()
+        self.responses = _BlockingStreamingResponsesResource(self.stream)
+        self.option_calls: list[Dict[str, Any]] = []
+
+    def with_options(self, **kwargs: Any) -> "_BlockingStreamingClient":
+        self.option_calls.append(kwargs)
+        return self
+
+    def close(self) -> None:
+        self.stream.close()
 
 
 def _load_fixture() -> Dict[str, Any]:
@@ -2488,3 +2560,86 @@ def test_response_internal_metadata_preserves_service_tier() -> None:
     response_md = provider._response_internal_metadata({"id": "resp_1", "service_tier": "flex"})
 
     assert response_md["_openai_responses_service_tier"] == "flex"
+
+
+def test_cancel_request_returns_false_for_unknown_request() -> None:
+    provider = OpenAIResponsesProvider()
+    assert provider.cancel_request("missing-request") is False
+
+
+def test_stream_api_can_be_cancelled_by_request_id() -> None:
+    provider = OpenAIResponsesProvider()
+    client = _BlockingStreamingClient()
+    state = provider.init({"model": "gpt-5-mini", "api_key": "test_key"})
+    state = {
+        **state,
+        "client": client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "timeout": 30,
+            "headers": {},
+        },
+    }
+
+    outcome: dict[str, object] = {}
+
+    def _consume() -> None:
+        try:
+            list(
+                provider.stream_api(
+                    [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hello"}]}],
+                    state,
+                    request_id="req_openai_stream_cancel",
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            outcome["error"] = exc
+
+    worker = threading.Thread(target=_consume)
+    worker.start()
+
+    time.sleep(0.2)
+    assert provider.cancel_request("req_openai_stream_cancel") is True
+
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert isinstance(outcome.get("error"), ProviderRequestCancelled)
+    assert provider.cancel_request("req_openai_stream_cancel") is False
+
+
+def test_call_api_can_be_cancelled_by_request_id() -> None:
+    provider = OpenAIResponsesProvider()
+    client = _BlockingClient()
+    state = provider.init({"model": "gpt-5-mini", "api_key": "test_key"})
+    state = {
+        **state,
+        "client": client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "timeout": 30,
+            "headers": {},
+        },
+    }
+
+    outcome: dict[str, object] = {}
+
+    def _consume() -> None:
+        try:
+            provider.call_api(
+                [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hello"}]}],
+                state,
+                request_id="req_openai_call_cancel",
+            )
+        except Exception as exc:  # noqa: BLE001
+            outcome["error"] = exc
+
+    worker = threading.Thread(target=_consume)
+    worker.start()
+
+    time.sleep(0.2)
+    assert provider.cancel_request("req_openai_call_cancel") is True
+
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert isinstance(outcome.get("error"), ProviderRequestCancelled)
+    assert provider.cancel_request("req_openai_call_cancel") is False

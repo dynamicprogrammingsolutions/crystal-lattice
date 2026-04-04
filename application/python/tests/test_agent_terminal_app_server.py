@@ -39,7 +39,7 @@ from agent_core import Message, Session
 
 # Make dotted-path test plugins available to the application plugin loader.
 from plugins.echo_openai_like_provider import EchoOpenAILikeProvider  # noqa: F401
-from tests.dummy_provider import DummyProvider  # noqa: F401
+from tests.dummy_provider import CancellableBlockingProvider, DummyProvider  # noqa: F401
 
 
 def _make_multi_provider_echo_config(tmp_path: Path) -> Path:
@@ -59,6 +59,37 @@ def _make_multi_provider_echo_config(tmp_path: Path) -> Path:
     }
 
     path = tmp_path / "config_multi_provider_echo.json"
+    path.write_text(json.dumps(cfg), encoding="utf-8")
+    return path
+
+
+def _make_blocking_provider_config(
+    tmp_path: Path,
+    *,
+    emit_partial_before_cancel: bool = False,
+) -> Path:
+    cfg: Dict[str, Any] = {
+        "plugin_cache_dir": str(tmp_path / ".plugin_cache"),
+        "providers": {
+            "dummy": {
+                "provider": "cancellable_blocking_provider",
+                "model": "dummy-model",
+                "emit_partial_before_cancel": emit_partial_before_cancel,
+            }
+        },
+        "plugins": [
+            "tests.dummy_provider.CancellableBlockingProvider",
+        ],
+        "agents": {
+            "default": {"provider": "dummy"},
+        },
+    }
+
+    path = tmp_path / (
+        "config_blocking_provider_partial.json"
+        if emit_partial_before_cancel
+        else "config_blocking_provider.json"
+    )
     path.write_text(json.dumps(cfg), encoding="utf-8")
     return path
 
@@ -2389,6 +2420,73 @@ def test_cancel_request_endpoint_triggers_cancellation(tmp_path: Path) -> None:
     assert "request_started" in kinds
     assert "request_cancelled" in kinds
     assert "final" not in kinds
+
+
+def test_cancel_request_endpoint_cancels_active_provider_request(tmp_path: Path) -> None:
+    """POST /requests/{request_id}/cancel interrupts an already-active request."""
+
+    from agent_terminal_app import server as server_mod
+
+    config_path = _make_blocking_provider_config(tmp_path)
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    core, base_config, session = app.create_session("default")
+    session = core.add_message(session, "user", "cancel active provider request", metadata=None)
+    app.save_session(session)
+    session_id = session.session_id
+
+    send_resp = server_mod.send_request(
+        session_id,
+        {"config_overrides": {}, "request_id": "req_server_provider_cancel"},
+        app_instance=app,
+    )
+    request_id = send_resp["request_id"]
+
+    deadline = time.time() + 5.0
+    saw_started = False
+    saw_active = False
+    while time.time() < deadline:
+        current_events = app.get_event_store().list(session_id=session_id, limit=100)
+        kinds = {ev.get("type") for ev in current_events}
+        if "request_started" in kinds:
+            saw_started = True
+        if server_mod._get_active_send_request_id(session_id) == request_id:
+            saw_active = True
+        if saw_started and saw_active:
+            break
+        time.sleep(0.05)
+    assert saw_started
+    assert saw_active
+
+    cancel_resp = server_mod.cancel_request(request_id, app_instance=app)
+    assert cancel_resp["status"] == "cancelled"
+
+    deadline = time.time() + 5.0
+    final_events: list[dict] = []
+    while time.time() < deadline:
+        final_events = app.get_event_store().list(session_id=session_id, limit=100)
+        kinds = {ev.get("type") for ev in final_events}
+        if "request_completed" in kinds:
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("timed out waiting for request_completed after cancellation")
+
+    final_kinds = {ev.get("type") for ev in final_events}
+    assert "request_cancelled" in final_kinds
+    assert "request_completed" in final_kinds
+    assert "final" not in final_kinds
+
+    deadline = time.time() + 5.0
+    while time.time() < deadline:
+        messages_resp = server_mod.list_session_messages(session_id, app_instance=app)
+        if messages_resp.get("active_request_id") is None:
+            break
+        time.sleep(0.05)
+    assert messages_resp.get("active_request_id") is None
 
 
 def test_get_api_data_returns_initial_state() -> None:

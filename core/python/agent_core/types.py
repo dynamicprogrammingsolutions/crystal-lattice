@@ -40,6 +40,14 @@ if TYPE_CHECKING:
 # Plugin Protocol Types
 
 
+class ProviderRequestCancelled(RuntimeError):
+    """Raised when a provider request is cancelled by request id."""
+
+    def __init__(self, request_id: str | None = None):
+        super().__init__("Provider request cancelled")
+        self.request_id = request_id
+
+
 @runtime_checkable
 class BasePlugin(Protocol):
     """Common instance-level protocol for non-tool plugins.
@@ -294,7 +302,11 @@ class ProviderPlugin(BasePlugin, Protocol):
 
     # New request lifecycle
     def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Prepare for a new request with provider-native messages.
 
@@ -435,7 +447,10 @@ class ProviderPlugin(BasePlugin, Protocol):
     # I/O entry points now take native messages
     def call_api(
         self,
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
     ]:
@@ -453,7 +468,11 @@ class ProviderPlugin(BasePlugin, Protocol):
     # Returns: (partial_messages, final_messages, native_messages, new_state)
 
     def stream_api(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Make a streaming API call; yields provider-native chunks.
 
@@ -465,6 +484,17 @@ class ProviderPlugin(BasePlugin, Protocol):
             Provider-native streaming chunks.
         """
         return iter([])
+
+    def cancel_request(self, request_id: str) -> bool:
+        """Best-effort cancellation for an in-flight request.
+
+        Providers that track active runtime requests by ``request_id`` should
+        attempt to cancel the matching request and return ``True`` when a
+        matching in-flight request was found. Returning ``False`` indicates the
+        provider did not recognize the request id or had nothing active to
+        cancel.
+        """
+        return False
 
 
 

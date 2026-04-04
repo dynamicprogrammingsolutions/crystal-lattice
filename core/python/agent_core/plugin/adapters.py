@@ -193,11 +193,20 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
         return {"config": config}
 
     def initialize_request(  # type: ignore[override]
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         fn = getattr(self.impl, "initialize_request", None)
         if callable(fn):
-            out = fn(native_messages, state)
+            out = self._call_with_optional_kwargs(
+                fn,
+                native_messages,
+                state,
+                request_id=request_id,
+            )
             if isinstance(out, tuple) and len(out) == 2:
                 raw_native, raw_state = out
                 new_state = raw_state if isinstance(raw_state, dict) else state
@@ -323,14 +332,19 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Tuple[
         List[Dict[str, Any]],
         List[Dict[str, Any]],
         List[Dict[str, Any]],
         Dict[str, Any],
     ]:
-        partials, finals, natives, new_state = self.impl.call_api(  # type: ignore[attr-defined]
-            native_messages, state
+        partials, finals, natives, new_state = self._call_with_optional_kwargs(
+            self.impl.call_api,  # type: ignore[attr-defined]
+            native_messages,
+            state,
+            request_id=request_id,
         )
         return (
             [m for m in self._safe_list(partials) if isinstance(m, dict)],
@@ -340,23 +354,52 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
         )
 
     def stream_api(  # type: ignore[override]
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Iterator[Dict[str, Any]]:
-        for chunk in self.impl.stream_api(native_messages, state):  # type: ignore[attr-defined]
+        stream = self._call_with_optional_kwargs(
+            self.impl.stream_api,  # type: ignore[attr-defined]
+            native_messages,
+            state,
+            request_id=request_id,
+        )
+        for chunk in stream:
             if isinstance(chunk, dict):
                 yield chunk
 
     async def stream_api_async(  # type: ignore[override]
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         impl_async = getattr(self.impl, "stream_api_async", None)
         if callable(impl_async):
-            async for chunk in impl_async(native_messages, state):  # type: ignore[misc]
+            async_iter = self._call_with_optional_kwargs(
+                impl_async,
+                native_messages,
+                state,
+                request_id=request_id,
+            )
+            async for chunk in async_iter:  # type: ignore[misc]
                 if isinstance(chunk, dict):
                     yield chunk
             return
-        for chunk in self.stream_api(native_messages, state):
+        for chunk in self.stream_api(native_messages, state, request_id=request_id):
             yield chunk
+
+    def cancel_request(self, request_id: str) -> bool:  # type: ignore[override]
+        fn = getattr(self.impl, "cancel_request", None)
+        if callable(fn):
+            try:
+                return bool(fn(request_id))
+            except Exception:
+                return False
+        return False
 
     def process_chunk(  # type: ignore[override]
         self,

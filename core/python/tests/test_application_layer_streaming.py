@@ -99,6 +99,33 @@ def _make_blocking_tool_config(tmp_path: Path) -> Path:
     return path
 
 
+def _make_blocking_provider_config(
+    tmp_path: Path,
+    *,
+    emit_partial_before_cancel: bool = False,
+) -> Path:
+    cfg = {
+        "providers": {
+            "dummy": {
+                "provider": "cancellable_blocking_provider",
+                "model": "test-model",
+                "emit_partial_before_cancel": emit_partial_before_cancel,
+            }
+        },
+        "plugins": ["tests.dummy_provider.CancellableBlockingProvider"],
+        "agents": {
+            "default": {"provider": "dummy"},
+        },
+    }
+    path = tmp_path / (
+        "config_blocking_provider_partial.json"
+        if emit_partial_before_cancel
+        else "config_blocking_provider.json"
+    )
+    path.write_text(json.dumps(cfg), encoding="utf-8")
+    return path
+
+
 def test_cancel_request_and_resume(tmp_path: Path) -> None:
     import threading
     import time
@@ -294,3 +321,244 @@ def test_cancel_request_interrupts_tool_after_partial_output(tmp_path: Path) -> 
     assert "tool_partial" in kinds
     assert "request_cancelled" in kinds
     assert "request_completed" in kinds
+
+
+def test_cancel_request_interrupts_silent_running_provider(tmp_path: Path) -> None:
+    from tests.dummy_provider import (
+        get_cancellable_blocking_provider_state,
+        reset_cancellable_blocking_provider_state,
+    )
+
+    reset_cancellable_blocking_provider_state()
+    config_path = _make_blocking_provider_config(tmp_path)
+    session_root = tmp_path / "sessions"
+
+    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+
+    core, base_config, session = app.create_session("default")
+    session = core.add_message(session, "user", "Cancel provider call")
+
+    request_id = "req_provider_cancel_silent"
+    events: list[dict] = []
+
+    def _consume() -> None:
+        for ev in app.send_request(
+            core,
+            session,
+            base_config,
+            overrides=None,
+            stream=True,
+            request_id=request_id,
+        ):
+            events.append(ev)
+
+    worker = threading.Thread(target=_consume)
+    worker.start()
+
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if any(ev.get("type") == "request_started" for ev in events):
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("request_started was not emitted before cancellation")
+
+    app.cancel_request(request_id)
+
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+
+    kinds = [ev.get("type") for ev in events]
+    assert "request_cancelled" in kinds
+    assert "request_completed" in kinds
+    assert "final" not in kinds
+
+    provider_state = get_cancellable_blocking_provider_state()
+    assert request_id in provider_state["stream_request_ids"]
+    assert request_id in provider_state["cancel_request_ids"]
+    assert request_id not in provider_state["active"]
+
+
+def test_cancel_request_interrupts_provider_after_partial_output(tmp_path: Path) -> None:
+    from tests.dummy_provider import (
+        get_cancellable_blocking_provider_state,
+        reset_cancellable_blocking_provider_state,
+    )
+
+    reset_cancellable_blocking_provider_state()
+    config_path = _make_blocking_provider_config(
+        tmp_path,
+        emit_partial_before_cancel=True,
+    )
+    session_root = tmp_path / "sessions"
+
+    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+
+    core, base_config, session = app.create_session("default")
+    session = core.add_message(session, "user", "Cancel provider stream after partial")
+
+    request_id = "req_provider_cancel_partial"
+    events: list[dict] = []
+
+    def _consume() -> None:
+        for ev in app.send_request(
+            core,
+            session,
+            base_config,
+            overrides=None,
+            stream=True,
+            request_id=request_id,
+        ):
+            events.append(ev)
+
+    worker = threading.Thread(target=_consume)
+    worker.start()
+
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if any(ev.get("type") == "partial" for ev in events):
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("provider partial was not emitted before cancellation")
+
+    app.cancel_request(request_id)
+
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+
+    kinds = [ev.get("type") for ev in events]
+    assert "partial" in kinds
+    assert "request_cancelled" in kinds
+    assert "request_completed" in kinds
+    assert "final" not in kinds
+
+    provider_state = get_cancellable_blocking_provider_state()
+    assert request_id in provider_state["stream_request_ids"]
+    assert request_id in provider_state["cancel_request_ids"]
+    assert request_id not in provider_state["active"]
+
+
+def test_cancel_request_interrupts_non_streaming_provider_call(tmp_path: Path) -> None:
+    from tests.dummy_provider import (
+        get_cancellable_blocking_provider_state,
+        reset_cancellable_blocking_provider_state,
+    )
+
+    reset_cancellable_blocking_provider_state()
+    config_path = _make_blocking_provider_config(tmp_path)
+    session_root = tmp_path / "sessions"
+
+    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+
+    core, base_config, session = app.create_session("default")
+    session = core.add_message(session, "user", "Cancel blocking non-stream provider")
+
+    request_id = "req_provider_cancel_nonstream"
+    events: list[dict] = []
+
+    def _consume() -> None:
+        for ev in app.send_request(
+            core,
+            session,
+            base_config,
+            overrides=None,
+            stream=False,
+            request_id=request_id,
+        ):
+            events.append(ev)
+
+    worker = threading.Thread(target=_consume)
+    worker.start()
+
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if any(ev.get("type") == "request_started" for ev in events):
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("request_started was not emitted before cancellation")
+
+    app.cancel_request(request_id)
+
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+
+    kinds = [ev.get("type") for ev in events]
+    assert "request_cancelled" in kinds
+    assert "request_completed" in kinds
+    assert "final" not in kinds
+
+    provider_state = get_cancellable_blocking_provider_state()
+    assert request_id in provider_state["call_request_ids"]
+    assert request_id in provider_state["cancel_request_ids"]
+    assert request_id not in provider_state["active"]
+
+
+def test_provider_cancellation_is_request_scoped(tmp_path: Path) -> None:
+    from tests.dummy_provider import (
+        get_cancellable_blocking_provider_state,
+        reset_cancellable_blocking_provider_state,
+    )
+
+    reset_cancellable_blocking_provider_state()
+    config_path = _make_blocking_provider_config(tmp_path)
+    session_root = tmp_path / "sessions"
+
+    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+
+    core, base_config, session1 = app.create_session("default")
+    session1 = core.add_message(session1, "user", "first request")
+    _core2, _base2, session2 = app.create_session("default")
+    session2 = core.add_message(session2, "user", "second request")
+
+    events1: list[dict] = []
+    events2: list[dict] = []
+
+    def _consume(session, rid, sink) -> None:
+        for ev in app.send_request(
+            core,
+            session,
+            base_config,
+            overrides=None,
+            stream=False,
+            request_id=rid,
+        ):
+            sink.append(ev)
+
+    worker1 = threading.Thread(target=_consume, args=(session1, "req_provider_one", events1))
+    worker2 = threading.Thread(target=_consume, args=(session2, "req_provider_two", events2))
+    worker1.start()
+    worker2.start()
+
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        started1 = any(ev.get("type") == "request_started" for ev in events1)
+        started2 = any(ev.get("type") == "request_started" for ev in events2)
+        if started1 and started2:
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("both requests did not start before cancellation")
+
+    app.cancel_request("req_provider_one")
+
+    worker1.join(timeout=5)
+    assert not worker1.is_alive()
+    time.sleep(0.2)
+    assert worker2.is_alive()
+
+    app.cancel_request("req_provider_two")
+    worker2.join(timeout=5)
+    assert not worker2.is_alive()
+
+    kinds1 = {ev.get("type") for ev in events1}
+    kinds2 = {ev.get("type") for ev in events2}
+    assert "request_cancelled" in kinds1
+    assert "request_cancelled" in kinds2
+
+    provider_state = get_cancellable_blocking_provider_state()
+    assert provider_state["call_request_ids"].count("req_provider_one") == 1
+    assert provider_state["call_request_ids"].count("req_provider_two") == 1
+    assert provider_state["cancel_request_ids"].count("req_provider_one") >= 1
+    assert provider_state["cancel_request_ids"].count("req_provider_two") >= 1

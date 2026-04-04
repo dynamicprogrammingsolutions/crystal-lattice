@@ -2,9 +2,53 @@
 
 from __future__ import annotations
 
+import threading
+import time
+
 import pytest
 
+from agent_core.types import ProviderRequestCancelled
 from openrouter_plugins.openrouter_provider import OpenRouterProvider
+
+
+class _BlockingResponse:
+    def __init__(self, *, stream: bool) -> None:
+        self.stream = stream
+        self.closed = threading.Event()
+        self.status_code = 200
+        self.reason = "OK"
+        self.encoding = "utf-8"
+
+    def close(self) -> None:
+        self.closed.set()
+
+    def json(self):
+        while not self.closed.wait(0.05):
+            continue
+        raise RuntimeError("response closed")
+
+    def iter_lines(self, decode_unicode: bool = True):
+        _ = decode_unicode
+        while not self.closed.wait(0.05):
+            continue
+        raise RuntimeError("response closed")
+
+
+class _BlockingSession:
+    def __init__(self) -> None:
+        self.response: _BlockingResponse | None = None
+        self.stream_calls: list[bool] = []
+
+    def post(self, *args, **kwargs):
+        _ = args
+        stream = bool(kwargs.get("stream"))
+        self.stream_calls.append(stream)
+        self.response = _BlockingResponse(stream=stream)
+        return self.response
+
+    def close(self) -> None:
+        if self.response is not None:
+            self.response.close()
 
 
 def test_provider_name_and_version():
@@ -375,3 +419,82 @@ def test_to_display_format():
     display = provider.to_display_format(message, state)
 
     assert display == message
+
+
+def test_cancel_request_returns_false_for_unknown_request() -> None:
+    provider = OpenRouterProvider()
+    assert provider.cancel_request("missing-request") is False
+
+
+def test_stream_api_can_be_cancelled_by_request_id(monkeypatch) -> None:
+    provider = OpenRouterProvider()
+    session = _BlockingSession()
+    monkeypatch.setattr("openrouter_plugins.openrouter_provider.requests.Session", lambda: session)
+
+    state = provider.init({"model": "test-model", "api_key": "test-key"})
+    _native, state = provider.initialize_request(
+        [{"role": "user", "content": "hello"}],
+        state,
+        request_id="req_stream_cancel",
+    )
+
+    outcome: dict[str, object] = {}
+
+    def _consume() -> None:
+        try:
+            list(
+                provider.stream_api(
+                    [{"role": "user", "content": "hello"}],
+                    state,
+                    request_id="req_stream_cancel",
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            outcome["error"] = exc
+
+    worker = threading.Thread(target=_consume)
+    worker.start()
+
+    time.sleep(0.2)
+    assert provider.cancel_request("req_stream_cancel") is True
+
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert isinstance(outcome.get("error"), ProviderRequestCancelled)
+    assert provider.cancel_request("req_stream_cancel") is False
+
+
+def test_call_api_can_be_cancelled_by_request_id(monkeypatch) -> None:
+    provider = OpenRouterProvider()
+    session = _BlockingSession()
+    monkeypatch.setattr("openrouter_plugins.openrouter_provider.requests.Session", lambda: session)
+
+    state = provider.init({"model": "test-model", "api_key": "test-key"})
+    _native, state = provider.initialize_request(
+        [{"role": "user", "content": "hello"}],
+        state,
+        request_id="req_call_cancel",
+    )
+
+    outcome: dict[str, object] = {}
+
+    def _consume() -> None:
+        try:
+            provider.call_api(
+                [{"role": "user", "content": "hello"}],
+                state,
+                request_id="req_call_cancel",
+            )
+        except Exception as exc:  # noqa: BLE001
+            outcome["error"] = exc
+
+    worker = threading.Thread(target=_consume)
+    worker.start()
+
+    time.sleep(0.2)
+    assert provider.cancel_request("req_call_cancel") is True
+
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert isinstance(outcome.get("error"), ProviderRequestCancelled)
+    assert provider.cancel_request("req_call_cancel") is False
