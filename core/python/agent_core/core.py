@@ -3310,6 +3310,7 @@ class AgentCore:
         config: Dict[str, Any],
         *,
         cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Iterator[Dict[str, Any]]:
         """Yield a mixed stream of partial payloads and final core ``tool`` messages.
 
@@ -3317,6 +3318,14 @@ class AgentCore:
         yielded as-is when they contain a ``"part"`` key. Result dictionaries are
         detected via the presence of a ``"success"`` key and transformed into final
         core ``tool`` messages at the end of each tool call.
+
+        Args:
+            tool_calls: List of tool call dictionaries to execute.
+            config: Current resolved request configuration.
+            cancellation: Optional cancellation token.
+            context: Optional context for tool execution. Layer 1 context (core,
+                config, trigger_source) is enriched by this method if not already
+                present.
         """
         if not tool_calls:
             return
@@ -3379,6 +3388,14 @@ class AgentCore:
             had_result = False
             stream_error: str | None = None
 
+            # Layer 1: Core-level context enrichment.
+            # Higher layers (application, terminal) may have already set these;
+            # use setdefault so we never overwrite a richer value.
+            tool_context: Dict[str, Any] = dict(context) if isinstance(context, dict) else {}
+            tool_context.setdefault("core", self)
+            tool_context.setdefault("config", config)
+            tool_context.setdefault("trigger_source", "core")
+
             try:
                 iterator = tool.stream_tool(
                     name,
@@ -3389,6 +3406,7 @@ class AgentCore:
                     payload_metadata=inspected_call.payload_metadata,
                     tool_call=inspected_call.raw,
                     cancellation=cancellation,
+                    context=tool_context,
                 )
                 iterator = iter(iterator)
             except Exception as exc:
@@ -3474,6 +3492,8 @@ class AgentCore:
         self,
         tool_calls: List[Dict[str, Any]],
         config: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Return only the final core ``tool`` message per tool call.
 
@@ -3481,6 +3501,12 @@ class AgentCore:
         that ignores partial payloads and keeps only the last final tool
         message for each call. When a streaming tool yields no items for a
         call, a synthetic error message is returned.
+
+        Args:
+            tool_calls: List of tool call dictionaries to execute.
+            config: Current resolved request configuration.
+            context: Optional context for tool execution. Passed through to
+                :meth:`iter_tool_messages` which enriches with Layer 1 context.
         """
         results: List[Dict[str, Any]] = []
         if not tool_calls:
@@ -3495,7 +3521,7 @@ class AgentCore:
             last_final: Dict[str, Any] | None = None
             executed = False
 
-            for item in self.iter_tool_messages([call], config):
+            for item in self.iter_tool_messages([call], config, context=context):
                 if not isinstance(item, dict):
                     continue
                 if "part" in item:
@@ -3538,6 +3564,8 @@ class AgentCore:
         self,
         tool_call: Dict[str, Any],
         config: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Iterator[Dict[str, Any]]:
         """Stream partial results for a single tool call.
 
@@ -3545,6 +3573,13 @@ class AgentCore:
         invokes the optional :meth:`ToolPlugin.stream_tool` hook instead of the
         synchronous execute/format path. If no tool provides streaming for the
         given call, yields nothing.
+
+        Args:
+            tool_call: Tool call dictionary to execute.
+            config: Current resolved request configuration.
+            context: Optional context for tool execution. Layer 1 context (core,
+                config, trigger_source) is enriched by this method if not already
+                present.
         """
         if not self._tools:
             return
@@ -3569,6 +3604,12 @@ class AgentCore:
         if tool is None or state is None:
             return
 
+        # Layer 1: Core-level context enrichment.
+        tool_context: Dict[str, Any] = dict(context) if isinstance(context, dict) else {}
+        tool_context.setdefault("core", self)
+        tool_context.setdefault("config", config)
+        tool_context.setdefault("trigger_source", "core")
+
         try:
             iterator = tool.stream_tool(
                 inspected_call.tool_name,
@@ -3578,6 +3619,7 @@ class AgentCore:
                 payload_format=inspected_call.payload_format,
                 payload_metadata=inspected_call.payload_metadata,
                 tool_call=inspected_call.raw,
+                context=tool_context,
             )
             iterator = iter(iterator)
         except Exception:

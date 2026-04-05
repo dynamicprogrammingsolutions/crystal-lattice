@@ -173,6 +173,11 @@ Key observations:
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/104-codex-v2-tool.md` — Codex V2 tool
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/105-vendor-tools.md` — Vendor wrappers
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/110-web-fetch-tools.md` — Web fetch tools
+  - SPLIT INTO `tasks/20260315-gemini-qwen-grok-tool-packages/111-tool-plugin-context.md`
+  - SPLIT INTO `tasks/20260315-gemini-qwen-grok-tool-packages/112-web-fetch-shared.md`
+  - SPLIT INTO `tasks/20260315-gemini-qwen-grok-tool-packages/113-gemini-web-fetch.md`
+  - SPLIT INTO `tasks/20260315-gemini-qwen-grok-tool-packages/114-qwen-web-fetch.md`
+  - SPLIT INTO `tasks/20260315-gemini-qwen-grok-tool-packages/115-kimi-fetch-url.md`
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/120-web-search-tools.md` — Web search tools
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/130-todo-tools.md` — Todo tools (all four vendors)
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/135-background-process-management.md` — Background process management (application layer, Tier 2)
@@ -180,9 +185,9 @@ Key observations:
 ### Phase 2.5: Context compaction
 
 - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/220-gemini-compaction-plugin.md` — Stage 1: Application-level manual compaction plugin
-- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/221-feature-plugin-context.md` — Stage 2: Feature plugin with layered context (core/app/terminal)
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/221-feature-plugin-context.md` — Stage 2: Feature plugin with layered context (core/app/terminal)
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/222-lifecycle-auto-compaction.md` — Stage 3: Lifecycle-triggered auto-compaction
-- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/223-session-aware-application-plugin-ui.md` — Session-aware application plugin UI (completes tasks 20260128/040 and 20260130/010)
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/223-session-aware-application-plugin-ui.md` — Session-aware application plugin UI (completes tasks 20260128/040 and 20260130/010)
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/230-qwen-compaction-and-checkpoint-replay.md` — Implement Qwen-like compaction and checkpoint replay behavior
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/240-kimi-compaction-and-checkpoints.md` — Implement Kimi-like compaction, checkpoints, and D-Mail-adjacent context management behavior where applicable
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/250-shared-compaction-helpers.md` — Shared compaction helpers and cross-vendor implementation notes
@@ -190,7 +195,7 @@ Key observations:
 ### Phase 2 shared packages
 
 - `plugins/tool-compat-shared/` — shared filesystem, search, shell, and todo internals (stdlib-only deps)
-- `plugins/web-fetch-shared/` — shared HTTP fetch, trafilatura extraction, and LLM summarization (heavy deps: `trafilatura`, `aiohttp`)
+- `plugins/web-fetch-shared/` — shared HTTP fetch and trafilatura extraction (heavy deps: `trafilatura`, `aiohttp`); LLM summarization handled via tool context access to core/app
 
 ## Roadmap: Deferred tools
 

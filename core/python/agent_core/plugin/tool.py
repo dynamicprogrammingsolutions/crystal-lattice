@@ -130,6 +130,7 @@ class ToolWrapper(ToolPlugin):
         payload_metadata: Optional[Dict[str, Any]] = None,
         tool_call: Optional[Dict[str, Any]] = None,
         cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Execute tool via plugin; requires initialized state."""
         if self.state is None:
@@ -144,6 +145,7 @@ class ToolWrapper(ToolPlugin):
             payload_metadata=payload_metadata,
             tool_call=tool_call,
             cancellation=cancellation,
+            context=context,
         )
 
     async def execute_tool_async(
@@ -157,6 +159,7 @@ class ToolWrapper(ToolPlugin):
         payload_metadata: Optional[Dict[str, Any]] = None,
         tool_call: Optional[Dict[str, Any]] = None,
         cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Execute tool via plugin asynchronously; requires initialized state.
         
@@ -182,6 +185,7 @@ class ToolWrapper(ToolPlugin):
                 payload_metadata=payload_metadata,
                 tool_call=tool_call,
                 cancellation=cancellation,
+                context=context,
             )
             if inspect.isawaitable(result):
                 result = await result
@@ -199,6 +203,7 @@ class ToolWrapper(ToolPlugin):
             payload_metadata=payload_metadata,
             tool_call=tool_call,
             cancellation=cancellation,
+            context=context,
         )
 
     def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
@@ -245,6 +250,7 @@ class ToolWrapper(ToolPlugin):
         payload_metadata: Optional[Dict[str, Any]] = None,
         tool_call: Optional[Dict[str, Any]] = None,
         cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Iterator[Dict[str, Any]]:
         """Stream tool results via plugin; requires initialized state.
 
@@ -264,6 +270,7 @@ class ToolWrapper(ToolPlugin):
             payload_metadata=payload_metadata,
             tool_call=tool_call,
             cancellation=cancellation,
+            context=context,
         )
 
     def to_display_format(

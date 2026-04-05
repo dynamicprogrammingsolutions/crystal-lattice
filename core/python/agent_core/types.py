@@ -1314,6 +1314,7 @@ class ToolPlugin(BasePlugin, Protocol):
         payload_metadata: Optional[Dict[str, Any]] = None,
         tool_call: Optional[Dict[str, Any]] = None,
         cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Execute a tool call using the final payload object.
 
@@ -1326,6 +1327,27 @@ class ToolPlugin(BasePlugin, Protocol):
             payload_format: Optional format identifier for the payload itself.
             payload_metadata: Optional extra payload metadata from the accessor.
             tool_call: Optional original tool-call dict.
+            context: Optional layered context providing access to runtime capabilities.
+
+        The ``context`` parameter provides layered access to runtime capabilities:
+
+        **Layer 1 (Core - always present when called from AgentCore):**
+            - ``core``: AgentCore instance for session/message operations and LLM calls
+            - ``config``: Current resolved request configuration
+            - ``trigger_source``: Where the tool was triggered ("core")
+            - ``session``: Serialized session dict (session.to_dict()) when available
+
+        **Layer 2 (Application - when called from AgentApplication):**
+            - ``app`` and ``application``: AgentApplication instance
+            - ``base_config``: Full base configuration (all agents)
+            - ``session_asset_store``: Session asset store for file attachments
+
+        Tools can use context to make LLM calls::
+
+            core = (context or {}).get("core")
+            if core:
+                temp_session = core.create_session()
+                events = core.stream_request(temp_session, config)
 
         Returns:
             Result dictionary, e.g., {"success": bool, "result": any, "error": str}.
@@ -1389,12 +1411,29 @@ class ToolPlugin(BasePlugin, Protocol):
         payload_metadata: Optional[Dict[str, Any]] = None,
         tool_call: Optional[Dict[str, Any]] = None,
         cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Iterator[Dict[str, Any]]:
         """Optional streaming execution hook for tools.
 
         Default implementation yields nothing. Concrete tools may override this
         to provide incremental, display-oriented results for long-running
         operations.
+
+        Args:
+            tool_name: Name of the tool/function when available.
+            payload: Final payload for the tool call.
+            state: Current tool state.
+            payload_kind: Optional semantic payload kind.
+            payload_format: Optional format identifier for the payload.
+            payload_metadata: Optional extra payload metadata.
+            tool_call: Optional original tool-call dict.
+            cancellation: Optional cancellation token.
+            context: Optional layered context providing access to runtime capabilities.
+                See :meth:`execute_tool` for context structure documentation.
+
+        Yields:
+            Dictionary chunks with partial results ({"part": ...}) or final
+            result ({"success": bool, ...}).
         """
         return iter(())
 

@@ -69,6 +69,7 @@ class ToolLoopRunner:
         tool_loop_cfg: Any,
         cancel_callback: Any | None = None,
         cancellation: RequestCancellation | None = None,
+        context: Dict[str, Any] | None = None,
     ) -> None:
         self._core = core
         self._config = config
@@ -76,6 +77,7 @@ class ToolLoopRunner:
         self._tool_loop_cfg = tool_loop_cfg
         self._cancel_callback = cancel_callback
         self._cancellation = cancellation
+        self._context = context
 
 
     # ------------------------------------------------------------------
@@ -346,6 +348,7 @@ class ToolLoopRunner:
                 [call],
                 config,
                 cancellation=self._cancellation,
+                context=self._context,
             ):
                 if not isinstance(item, dict):
                     continue

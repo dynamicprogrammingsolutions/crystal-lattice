@@ -424,8 +424,13 @@ ToolPlugin:
     payload_format?: string,
     payload_metadata?: dict,
     tool_call?: dict,
+    cancellation?: any,
+    context?: dict,  # Layered context (core, config, app, base_config, etc.)
   ) → dict
     # Returns: {success: bool, result: any, error: string}
+    # context provides layered access to runtime capabilities:
+    #   Layer 1 (Core): core, config, trigger_source
+    #   Layer 2 (App): app, application, base_config, session_asset_store
 
   format_tool_call_preview(
     tool_name: string | null,
@@ -445,6 +450,8 @@ ToolPlugin:
     payload_format?: string,
     payload_metadata?: dict,
     tool_call?: dict,
+    cancellation?: any,
+    context?: dict,  # Layered context (same as execute_tool)
   ) → Iterator[dict]
     # Optional; yields display partials and/or final result dicts
   

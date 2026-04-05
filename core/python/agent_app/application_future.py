@@ -1947,6 +1947,13 @@ class AgentApplication:
             tool_loop_cfg=self._tool_loop_cfg,
             cancel_callback=_is_cancelled,
             cancellation=cancellation,
+            context={
+                "app": self,
+                "application": self,
+                "base_config": self._config,
+                "session_asset_store": self._session_asset_store,
+                "trigger_source": "application",
+            },
         )
 
         error_seen = False

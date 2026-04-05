@@ -735,6 +735,131 @@ Use this for:
 
 ---
 
+## Tool execution context
+
+Tools receive an optional `context` parameter that provides access to runtime
+capabilities. This enables tools to make LLM calls, access configuration, and
+interact with the application layer.
+
+### Context structure
+
+The context is layered, with each layer adding capabilities:
+
+**Layer 1 (Core - always present when called from AgentCore):**
+
+```python
+context = {
+    "core": AgentCore,           # Core instance for session/message operations
+    "config": Dict[str, Any],    # Current resolved request configuration
+    "trigger_source": "core",    # Where the tool was triggered
+}
+```
+
+**Layer 2 (Application - when called from AgentApplication):**
+
+```python
+context = {
+    **layer1_context,
+    "app": AgentApplication,      # Application instance
+    "application": AgentApplication,  # Alias for backward compatibility
+    "base_config": Dict[str, Any], # Full base configuration (all agents)
+    "session_asset_store": SessionAssetStore,  # For file attachments
+    "trigger_source": "application",
+}
+```
+
+### Using context to make LLM calls
+
+Tools can use `context["core"]` to access `AgentCore` methods for making
+additional LLM requests:
+
+```python
+def execute_tool(
+    self,
+    tool_name: str | None,
+    payload: Any,
+    state: dict[str, Any],
+    *,
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    core = (context or {}).get("core")
+    
+    if core is None:
+        # No LLM access - return simple result
+        return {"success": True, "result": "processed locally"}
+    
+    # Use core to make an LLM call
+    temp_session = core.create_session()
+    temp_session = core.add_message(temp_session, "user", "Summarize: " + str(payload), None, {})
+    
+    # Stream response
+    events = list(core.send_request_stream(temp_session, context.get("config", {})))
+    
+    # Extract summary from events
+    summary = self._extract_summary(events)
+    return {"success": True, "result": summary}
+```
+
+### Using application context for enhanced features
+
+When called from `AgentApplication`, tools can access the full application
+instance for features like agent switching:
+
+```python
+def execute_tool(
+    self,
+    tool_name: str | None,
+    payload: Any,
+    state: dict[str, Any],
+    *,
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    app = (context or {}).get("app")
+    core = (context or {}).get("core")
+    
+    if app is not None:
+        # Full application context - can switch agents, access session store
+        base_config = context.get("base_config", {})
+        # Use a dedicated summarizer agent if configured
+        summarizer_agent = base_config.get("summarizer_agent")
+        if summarizer_agent:
+            # Create session for the summarizer agent
+            return self._delegate_to_agent(app, core, summarizer_agent, payload, context)
+    
+    # Fall back to core-only processing
+    return self._process_with_core(core, payload, context)
+```
+
+### Backward compatibility
+
+The `context` parameter is optional with default `None`. Existing tools that
+don't accept the parameter continue to work without modification:
+
+```python
+# Legacy tool without context parameter - still works
+class LegacyTool:
+    def execute_tool(self, tool_name: str, payload: Any, state: dict[str, Any]) -> dict[str, Any]:
+        return {"success": True, "result": "done"}
+
+# New tool with context parameter
+class ModernTool:
+    def execute_tool(
+        self,
+        tool_name: str,
+        payload: Any,
+        state: dict[str, Any],
+        *,
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        # Can use context if available
+        return {"success": True, "result": "done"}
+```
+
+The adapter layer uses inspection to determine whether the underlying tool
+implementation accepts the `context` parameter.
+
+---
+
 ## Testing tool plugins
 
 Recommended test layers:
