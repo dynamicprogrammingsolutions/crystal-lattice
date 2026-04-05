@@ -479,7 +479,7 @@ def test_portable_default_gpt5_agents_select_apply_patch_shell_instructions(
     ]
 
     expected_marker = (
-        'Use the `apply_patch` tool to edit files '
+        'Use the `apply_patch` shell command to edit files '
         '(NEVER try `applypatch` or `apply-patch`, only `apply_patch`): '
         '{"command":["apply_patch","*** Begin Patch'
     )

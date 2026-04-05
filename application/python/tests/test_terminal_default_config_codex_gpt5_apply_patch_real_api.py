@@ -34,7 +34,7 @@ CONFIG_PATH = (
     / "config.json"
 )
 EXPECTED_GPT5_APPLY_PATCH_MARKER = (
-    'Use the `apply_patch` tool to edit files '
+    'Use the `apply_patch` shell command to edit files '
     '(NEVER try `applypatch` or `apply-patch`, only `apply_patch`): '
     '{"command":["apply_patch","*** Begin Patch'
 )
@@ -158,9 +158,8 @@ def test_default_config_gpt5_openrouter_agent_selects_gpt5_prompt_and_uses_apply
         session,
         "user",
         (
-            "Follow the system instructions exactly. Update note.txt so it contains exactly "
-            "'beta' followed by a newline. Use the documented apply_patch command form exactly "
-            f"as shown in the system instructions and set workdir to {workspace}."
+            "Update note.txt so it contains exactly 'beta' followed by a newline. "
+            f"Set workdir to {workspace}."
         ),
         metadata=None,
         config=base_config,
@@ -206,9 +205,8 @@ def test_default_config_gpt5_openai_agent_selects_gpt5_prompt_and_uses_apply_pat
         session,
         "user",
         (
-            "Follow the system instructions exactly. Update note.txt so it contains exactly "
-            "'beta' followed by a newline. Use the documented apply_patch command form exactly "
-            f"as shown in the system instructions and set workdir to {workspace}."
+            "Update note.txt so it contains exactly 'beta' followed by a newline. "
+            f"Set workdir to {workspace}."
         ),
         metadata=None,
         config=base_config,
