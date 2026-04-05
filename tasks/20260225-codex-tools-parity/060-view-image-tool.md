@@ -1,5 +1,7 @@
 # 060 — Add `view_image` tool plugin
 
+**STATUS: PENDING**
+
 ## Problem
 
 Codex CLI exposes a `view_image` tool that attaches a local image file into the model context as an image input.

@@ -2,11 +2,13 @@
 
 Follow up on the non-sandbox Codex parity gaps found after shell output/limits work. This task focuses on matching Codex CLI behavior for `gpt-5.4` tool exposure, `workdir` handling, and the model-visible Codex prompt/developer-context shape.
 
+**STATUS: COMPLETED**
+
 ## Requirements checklist
 
-- [ ] Align `gpt-5.4` auto-selection with current Codex CLI so the model gets `shell_command`, not the array `shell` tool.
-- [ ] Align `workdir` defaulting and relative-path resolution with Codex CLI turn-cwd behavior, excluding sandboxing and approval/escalation work.
-- [ ] Align the model-visible Codex developer/system message and cwd/AGENTS context more closely to Codex CLI, reusing the existing dynamic system-message architecture already used for other vendors.
+- [x] Align `gpt-5.4` auto-selection with current Codex CLI so the model gets `shell_command`, not the array `shell` tool.
+- [x] Align `workdir` defaulting and relative-path resolution with Codex CLI turn-cwd behavior, excluding sandboxing and approval/escalation work.
+- [x] Align the model-visible Codex developer/system message and cwd/AGENTS context more closely to Codex CLI, reusing the existing dynamic system-message architecture already used for other vendors.
 
 Parent Task: `tasks/20260225-codex-tools-parity/000-main.md`
 Depends On: `tasks/20260225-codex-tools-parity/030-bash-tool-round-2-output-and-limits.md`

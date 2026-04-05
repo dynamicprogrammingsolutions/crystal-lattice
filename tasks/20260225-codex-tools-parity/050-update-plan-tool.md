@@ -1,5 +1,7 @@
 # 050 — Add `update_plan` tool plugin
 
+**STATUS: PENDING**
+
 ## Problem
 
 Codex CLI exposes an `update_plan` tool that lets the model maintain a structured task plan (pending / in_progress / completed). Our platform currently has no equivalent tool.
