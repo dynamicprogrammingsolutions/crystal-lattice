@@ -11,6 +11,7 @@ Add provider-level cancellation using a serializable contract: request execution
 - [x] Map provider-side cancellation back to normal application cancellation flow (`request_cancelled`, not generic error).
 - [x] Implement first-class provider cancellation for `openrouter` and `openai_responses`.
 - [x] Add unit/integration coverage at application/core/provider levels, including real API integration tests for OpenRouter and OpenAI Responses.
+- [x] Extend the same request-id cancellation support to the reference `openai_compatible` provider, with unit tests and real Ollama streaming-cancel coverage.
 
 ## Background
 
@@ -447,3 +448,23 @@ Notes:
 
 - The provider/application contract remains serializable: request execution takes a caller-owned `request_id`, and cancellation uses a separate `cancel_request(request_id)` method.
 - Runtime-only transport handles remain internal to the provider implementation and are not stored in serialized provider state.
+
+Added during completion on 2026-04-05:
+
+- Extended the same request-id cancellation model to the reference `openai_compatible` provider in `core/python/plugins/openai_provider.py`.
+- Added focused unit coverage in `core/python/tests/test_openai_provider_unit.py` for unknown-id, streaming, and non-streaming cancellation.
+- Extended the real Ollama integration coverage in `core/python/tests/test_openai_compat_ollama.py` with:
+  - cancellation shortly after request start, before visible streaming output
+  - cancellation after the first streamed partial
+- Extended the packaged reference provider in `plugins/reference-openai-compatible-provider/src/reference_openai_compatible_provider/provider.py` with the same request-id cancellation model so hosted-provider integration suites exercise live cancellation too.
+- Added hosted Fireworks cancellation coverage in `plugins/reference-openai-compatible-provider/tests/test_fireworks_integration_cancellation.py` for:
+  - cancellation shortly after request start
+  - cancellation after the first streamed partial
+
+Verification run for the reference provider follow-up:
+
+- `python -m compileall core/python/plugins/openai_provider.py core/python/tests/test_openai_provider_unit.py core/python/tests/test_openai_compat_ollama.py`
+- `pytest core/python/tests/test_openai_provider_unit.py -q`
+- `pytest core/python/tests/test_openai_compat_ollama.py -q`
+- `python -m compileall plugins/reference-openai-compatible-provider/src/reference_openai_compatible_provider/provider.py plugins/reference-openai-compatible-provider/tests/test_fireworks_integration_cancellation.py`
+- `pytest plugins/reference-openai-compatible-provider/tests/test_fireworks_integration_cancellation.py -q`
