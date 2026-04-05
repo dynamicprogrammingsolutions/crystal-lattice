@@ -177,6 +177,45 @@ def test_streaming_usage_marks_tool_call_turns_and_attaches_to_assistant_item() 
     assert assistant_md.get("usage_turn_reasoning_tokens_cumulative_formatted") == "2"
 
 
+def test_streaming_usage_marks_custom_tool_call_turns_correctly() -> None:
+    """Ensure custom_tool_call items set has_tool_calls=True, not False.
+
+    This prevents the turn separator logic from incorrectly resetting turn cost
+    when responses contain custom_tool_call items (e.g., apply_patch tool).
+    """
+    ext = OpenAIResponsesUsageExtension()
+
+    usage = {
+        "input_tokens": 30,
+        "output_tokens": 15,
+        "output_tokens_details": {"reasoning_tokens": 3},
+    }
+    final_messages: List[Dict[str, Any]] = [
+        {
+            "type": "custom_tool_call",
+            "call_id": "call_custom_1",
+            "name": "apply_patch",
+            "arguments": "{}",
+            "_metadata": {"response_id": "resp_custom"},
+        },
+        _assistant_output_item("applying patch", response_id="resp_custom"),
+    ]
+    native_messages: List[Dict[str, Any]] = list(final_messages)
+
+    _partials, finals, _new_native, _state = ext.process_chunk(
+        native_chunk={"type": "response.completed", "response": {"id": "resp_custom", "usage": usage}},
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=native_messages,
+        state={"config": {"model": "gpt-5-mini"}},
+    )
+
+    assistant_md = finals[1].get("_metadata") or {}
+    assert assistant_md.get("usage") == usage
+    assert assistant_md.get("has_tool_calls") is True  # Should be True for custom_tool_call
+    assert assistant_md.get("usage_total_cost") == pytest.approx(0.0000375, rel=1e-9)
+
+
 def test_nonstreaming_finalize_extracts_raw_usage_and_computes_cumulative_totals() -> None:
     ext = OpenAIResponsesUsageExtension()
 

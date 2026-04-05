@@ -361,7 +361,8 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         usage_turn_reasoning_cumulative = base_total_turn_reasoning + current_reasoning
 
         has_tool_calls = any(
-            isinstance(it, dict) and it.get("type") == "function_call" for it in current_items
+            isinstance(it, dict) and it.get("type") in ("function_call", "custom_tool_call")
+            for it in current_items
         )
 
         extra_md: Dict[str, Any] = {
