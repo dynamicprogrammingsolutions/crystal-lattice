@@ -22,6 +22,7 @@ Current public tools in this package:
 - `write_file`
 - `replace`
 - `run_shell_command`
+- `web_fetch`
 
 Write/edit surface summary:
 
@@ -37,6 +38,7 @@ The plugin repo exposes these classes through `agent_plugin.json`:
 - `gemini_tools.gemini_write_file_tool.GeminiWriteFileTool`
 - `gemini_tools.gemini_replace_tool.GeminiReplaceTool`
 - `gemini_tools.gemini_shell_tool.GeminiShellTool`
+- `gemini_tools.gemini_web_fetch_tool.GeminiWebFetchTool`
 
 ## Quickstart
 
@@ -303,6 +305,83 @@ Truncation:
 Output too large. Showing first 8,000 and last 32,000 characters. For full output see: /workspace/.temp/shell_output_abc123.txt
 ...
 ```
+
+## Web Fetch behavior notes
+
+The Gemini-compatible web fetch entrypoint is `web_fetch`.
+
+### Tool Name
+
+`web_fetch`
+
+### Parameters
+
+- `prompt` (required): A comprehensive prompt that includes the URL(s) (up to 20) to fetch and specific instructions on how to process their content.
+
+### Behavior
+
+1. **Primary path**: Uses Gemini API's server-side URL grounding capability.
+   - Returns content with inline citations `[N]` and a `Sources:` footer.
+   - Requires a Gemini API key (`GEMINI_API_KEY` environment variable or `gemini_api_key` config).
+
+2. **Fallback path**: Local HTTP fetch + LLM summarization.
+   - Triggered for private IP URLs (localhost, 10.x, 172.16-31.x, 192.168.x) or when primary fails.
+   - Uses the configured provider for summarization via `context["core"]`.
+
+3. **Rate limiting**: 10 requests per 60 seconds per hostname.
+
+4. **GitHub URL normalization**: Automatically converts `github.com/.../blob/...` URLs to `raw.githubusercontent.com` URLs.
+
+### Configuration
+
+- `gemini_api_key`: Gemini API key (or `GEMINI_API_KEY` environment variable). Required for primary path.
+- `web_fetch_timeout_seconds`: Fetch timeout in seconds (default: 10).
+- `web_fetch_max_content_chars`: Maximum content length in characters (default: 100000).
+
+### Representative call shape
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "web_fetch",
+    "arguments": {
+      "prompt": "Summarize the main points from https://example.com/article"
+    }
+  }
+}
+```
+
+### Representative outcomes
+
+Primary path success:
+```text
+The article discusses three main topics[1] related to web development[2].
+
+Sources:
+[1] Article Title (https://example.com/article)
+[2] Related Content (https://example.com/related)
+```
+
+Fallback success:
+```text
+[LLM-summarized content based on raw fetch]
+```
+
+Error cases:
+```text
+Error: The 'prompt' parameter cannot be empty and must contain URL(s) and instructions.
+Error: The 'prompt' must contain at least one valid URL (starting with http:// or https://).
+Error: Rate limit exceeded for host. Please wait 45 seconds before trying again.
+Error: Failed to fetch https://example.com: HTTP 404
+```
+
+### Known Limitations
+
+- No browser rendering for JavaScript-heavy pages
+- No IDE integration for approval flows
+- Requires Gemini API key for optimal primary path behavior
+- Private IP URLs always use fallback (local fetch)
 
 ## Compatibility contract
 

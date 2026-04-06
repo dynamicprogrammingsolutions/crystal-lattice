@@ -133,4 +133,6 @@ def test_plugin_manager_loads_all_gemini_tools(tmp_path: Path) -> None:
         "GeminiGlobTool",
         "GeminiWriteFileTool",
         "GeminiReplaceTool",
+        "GeminiShellTool",
+        "GeminiWebFetchTool",
     ]

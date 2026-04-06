@@ -175,7 +175,7 @@ Key observations:
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/110-web-fetch-tools.md` — Web fetch tools
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/111-tool-plugin-context.md`
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/112-web-fetch-shared.md`
-  - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/113-gemini-web-fetch.md`
+  - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/113-gemini-web-fetch.md`
   - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/114-qwen-web-fetch.md`
   - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/115-kimi-fetch-url.md`
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/120-web-search-tools.md` — Web search tools
