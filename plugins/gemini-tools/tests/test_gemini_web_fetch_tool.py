@@ -1,13 +1,14 @@
 """Unit tests for GeminiWebFetchTool.
 
 Tests cover schema validation, API key gating, rate limiting,
-citation formatting, URL parsing, and error handling.
+citation formatting, URL parsing, configuration, and error handling.
 """
 
 from __future__ import annotations
 
 import os
 import time
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -18,6 +19,7 @@ from agent_core import AgentCore
 from agent_core.plugin import ToolWrapper
 
 from gemini_tools import GeminiWebFetchTool
+from gemini_tools.gemini_web_fetch_tool import LRUCache, _rate_limit_cache
 
 
 def _make_wrapper(
@@ -25,6 +27,9 @@ def _make_wrapper(
     api_key: str = "test-key",
 ) -> tuple[ToolWrapper, Dict[str, Any]]:
     """Create a configured tool wrapper for testing."""
+    # Reset rate limit cache for each test
+    _rate_limit_cache.clear()
+    
     wrapper = ToolWrapper(GeminiWebFetchTool)
     cfg = config or {}
     if api_key:
@@ -99,32 +104,96 @@ class TestAPIKeyGating:
             assert state["api_key"] == "env-key"
 
 
+class TestLRUCache:
+    """Tests for LRU cache implementation."""
+
+    def test_get_returns_empty_for_missing_key(self) -> None:
+        """Missing key should return empty list."""
+        cache = LRUCache(max_size=3)
+        assert cache.get("missing") == []
+
+    def test_set_and_get(self) -> None:
+        """Set and get should work correctly."""
+        cache = LRUCache(max_size=3)
+        cache.set("key1", [1.0, 2.0])
+        assert cache.get("key1") == [1.0, 2.0]
+
+    def test_moves_to_end_on_get(self) -> None:
+        """Getting a key should move it to end (most recently used)."""
+        cache = LRUCache(max_size=3)
+        cache.set("a", [1.0])
+        cache.set("b", [2.0])
+        cache.set("c", [3.0])
+
+        # Access 'a' to make it most recently used
+        cache.get("a")
+
+        # Add 'd' which should evict 'b' (not 'a')
+        cache.set("d", [4.0])
+
+        assert cache.get("a") == [1.0]  # 'a' should still exist
+        assert cache.get("b") == []      # 'b' should be evicted
+        assert cache.get("c") == [3.0]   # 'c' should still exist
+        assert cache.get("d") == [4.0]   # 'd' should exist
+
+    def test_evicts_oldest_at_capacity(self) -> None:
+        """Should evict oldest entry when at capacity."""
+        cache = LRUCache(max_size=3)
+        cache.set("a", [1.0])
+        cache.set("b", [2.0])
+        cache.set("c", [3.0])
+        cache.set("d", [4.0])  # Should evict 'a'
+
+        assert cache.get("a") == []   # 'a' evicted
+        assert cache.get("b") == [2.0]
+        assert cache.get("c") == [3.0]
+        assert cache.get("d") == [4.0]
+
+    def test_update_existing_moves_to_end(self) -> None:
+        """Updating existing key should move it to end."""
+        cache = LRUCache(max_size=3)
+        cache.set("a", [1.0])
+        cache.set("b", [2.0])
+        cache.set("c", [3.0])
+
+        # Update 'a' to make it most recently used
+        cache.set("a", [1.5])
+
+        # Add 'd' which should evict 'b' (not 'a')
+        cache.set("d", [4.0])
+
+        assert cache.get("a") == [1.5]  # 'a' should still exist with new value
+        assert cache.get("b") == []     # 'b' should be evicted
+
+
 class TestRateLimiting:
     """Tests for per-host rate limiting."""
 
     def setup_method(self) -> None:
-        """Clear rate limit history before each test."""
-        GeminiWebFetchTool._host_history.clear()
+        """Clear rate limit cache before each test."""
+        _rate_limit_cache.clear()
 
     def test_first_requests_allowed(self, tmp_path: Path) -> None:
         """First 10 requests to a host should be allowed."""
         tool = GeminiWebFetchTool()
+        state = tool.init({})
 
         for i in range(10):
-            allowed, wait = tool._check_rate_limit("https://example.com/page")
+            allowed, wait = tool._check_rate_limit("https://example.com/page", state)
             assert allowed is True
             assert wait is None
 
     def test_eleventh_request_blocked(self, tmp_path: Path) -> None:
         """11th request should be blocked with wait time."""
         tool = GeminiWebFetchTool()
+        state = tool.init({})
 
         # Make 10 allowed requests
         for i in range(10):
-            tool._check_rate_limit("https://example.com/page")
+            tool._check_rate_limit("https://example.com/page", state)
 
         # 11th should be blocked
-        allowed, wait = tool._check_rate_limit("https://example.com/page")
+        allowed, wait = tool._check_rate_limit("https://example.com/page", state)
         assert allowed is False
         assert wait is not None
         assert wait > 0
@@ -132,26 +201,258 @@ class TestRateLimiting:
     def test_different_hosts_tracked_separately(self, tmp_path: Path) -> None:
         """Rate limits should be tracked per-host."""
         tool = GeminiWebFetchTool()
+        state = tool.init({})
 
         # Make 10 requests to example.com
         for i in range(10):
-            tool._check_rate_limit("https://example.com/page")
+            tool._check_rate_limit("https://example.com/page", state)
 
         # Should still allow requests to other hosts
-        allowed, wait = tool._check_rate_limit("https://other.com/page")
+        allowed, wait = tool._check_rate_limit("https://other.com/page", state)
         assert allowed is True
 
     def test_rate_limit_expires(self, tmp_path: Path) -> None:
         """Rate limit should expire after window."""
         tool = GeminiWebFetchTool()
+        state = tool.init({})
 
-        # Manually add old timestamp
+        # Manually add old timestamp to cache
         old_time = time.time() - 61  # 61 seconds ago
-        GeminiWebFetchTool._host_history["example.com"] = [old_time] * 10
+        _rate_limit_cache.set("example.com", [old_time] * 10)
 
         # Should now be allowed (window expired)
-        allowed, wait = tool._check_rate_limit("https://example.com/page")
+        allowed, wait = tool._check_rate_limit("https://example.com/page", state)
         assert allowed is True
+
+    def test_configurable_rate_limits(self, tmp_path: Path) -> None:
+        """Rate limits should be configurable."""
+        tool = GeminiWebFetchTool()
+        # Configure 5 requests per 30 seconds
+        state = tool.init({
+            "web_fetch_rate_limit_requests": 5,
+            "web_fetch_rate_limit_window": 30,
+        })
+
+        # Make 5 allowed requests
+        for i in range(5):
+            allowed, _ = tool._check_rate_limit("https://example.com/page", state)
+            assert allowed is True
+
+        # 6th should be blocked
+        allowed, wait = tool._check_rate_limit("https://example.com/page", state)
+        assert allowed is False
+
+
+class TestConfigSchema:
+    """Tests for configuration schema."""
+
+    def test_config_schema_returns_expected_keys(self) -> None:
+        """Config schema should return all expected keys."""
+        tool = GeminiWebFetchTool()
+        schema = tool.get_config_schema()
+
+        expected_keys = [
+            "web_fetch_enabled",
+            "web_fetch_use_gemini_api",
+            "web_fetch_direct_mode",
+            "web_fetch_primary_model",
+            "web_fetch_fallback_agent_id",
+            "web_fetch_fallback_settings_overrides",
+            "web_fetch_timeout_seconds",
+            "web_fetch_max_content_chars",
+            "web_fetch_rate_limit_requests",
+            "web_fetch_rate_limit_window",
+        ]
+
+        for key in expected_keys:
+            assert key in schema, f"Missing key: {key}"
+
+    def test_config_schema_has_defaults(self) -> None:
+        """Config schema should have default values."""
+        tool = GeminiWebFetchTool()
+        schema = tool.get_config_schema()
+
+        assert schema["web_fetch_enabled"]["default"] is True
+        assert schema["web_fetch_direct_mode"]["default"] is False
+        assert schema["web_fetch_primary_model"]["default"] == "web-fetch"
+        assert schema["web_fetch_timeout_seconds"]["default"] == 10
+        assert schema["web_fetch_rate_limit_requests"]["default"] == 10
+
+    def test_get_web_fetch_config_extracts_values(self) -> None:
+        """_get_web_fetch_config should extract values with defaults."""
+        tool = GeminiWebFetchTool()
+        config = {
+            "web_fetch_enabled": False,
+            "web_fetch_direct_mode": True,
+            "web_fetch_primary_model": "custom-model",
+            "web_fetch_timeout_seconds": 30,
+        }
+
+        result = tool._get_web_fetch_config(config)
+
+        assert result["enabled"] is False
+        assert result["direct_mode"] is True
+        assert result["primary_model"] == "custom-model"
+        assert result["timeout_seconds"] == 30
+        # Defaults should be applied for missing keys
+        assert result["rate_limit_requests"] == 10
+        assert result["rate_limit_window"] == 60
+
+
+class TestUIElements:
+    """Tests for UI elements."""
+
+    def test_ui_elements_returns_expected_elements(self) -> None:
+        """UI elements should include expected keys."""
+        tool = GeminiWebFetchTool()
+        elements = tool.get_ui_elements({})
+
+        keys = [e["key"] for e in elements]
+        assert "web_fetch_enabled" in keys
+        assert "web_fetch_direct_mode" in keys
+
+    def test_ui_elements_has_correct_types(self) -> None:
+        """UI elements should have correct types."""
+        tool = GeminiWebFetchTool()
+        elements = tool.get_ui_elements({})
+
+        by_key = {e["key"]: e for e in elements}
+
+        assert by_key["web_fetch_enabled"]["type"] == "checkbox"
+        assert by_key["web_fetch_direct_mode"]["type"] == "checkbox"
+        assert by_key["web_fetch_primary_model"]["type"] == "text"
+        assert by_key["web_fetch_timeout_seconds"]["type"] == "number"
+
+
+class TestDirectModeSchema:
+    """Tests for direct mode schema."""
+
+    def test_prompt_mode_schema_by_default(self, tmp_path: Path) -> None:
+        """Default schema should be prompt mode."""
+        wrapper, state = _make_wrapper()
+        schemas = wrapper.get_tool_schemas(state)
+
+        assert len(schemas) == 1
+        assert "prompt" in schemas[0]["function"]["parameters"]["properties"]
+        assert schemas[0]["function"]["parameters"]["required"] == ["prompt"]
+
+    def test_direct_mode_schema_when_configured(self, tmp_path: Path) -> None:
+        """Direct mode config should return url schema."""
+        config = {
+            "gemini_api_key": "test-key",
+            "web_fetch_direct_mode": True,
+        }
+        wrapper = ToolWrapper(GeminiWebFetchTool)
+        state = wrapper.init(config)
+
+        schemas = wrapper.get_tool_schemas(state)
+
+        assert len(schemas) == 1
+        assert "url" in schemas[0]["function"]["parameters"]["properties"]
+        assert schemas[0]["function"]["parameters"]["required"] == ["url"]
+
+    def test_direct_mode_description_mentions_multiple_requests(self, tmp_path: Path) -> None:
+        """Direct mode description should mention multiple requests."""
+        config = {
+            "gemini_api_key": "test-key",
+            "web_fetch_direct_mode": True,
+        }
+        wrapper = ToolWrapper(GeminiWebFetchTool)
+        state = wrapper.init(config)
+
+        schemas = wrapper.get_tool_schemas(state)
+        desc = schemas[0]["function"]["description"]
+
+        assert "multiple requests" in desc.lower() or "single" in desc.lower()
+
+
+class TestConfigurableModels:
+    """Tests for configurable primary and fallback models."""
+
+    def test_primary_model_default(self) -> None:
+        """Primary model should default to web-fetch."""
+        tool = GeminiWebFetchTool()
+        config = tool._get_web_fetch_config({})
+
+        assert config["primary_model"] == "web-fetch"
+
+    def test_primary_model_from_config(self) -> None:
+        """Primary model should be configurable."""
+        tool = GeminiWebFetchTool()
+        config = tool._get_web_fetch_config({
+            "web_fetch_primary_model": "gemini-2.5-flash",
+        })
+
+        assert config["primary_model"] == "gemini-2.5-flash"
+
+    def test_fallback_agent_id_default(self) -> None:
+        """Fallback agent ID should default to None."""
+        tool = GeminiWebFetchTool()
+        config = tool._get_web_fetch_config({})
+
+        assert config["fallback_agent_id"] is None
+
+    def test_fallback_agent_id_from_config(self) -> None:
+        """Fallback agent ID should be configurable."""
+        tool = GeminiWebFetchTool()
+        config = tool._get_web_fetch_config({
+            "web_fetch_fallback_agent_id": "summarizer",
+        })
+
+        assert config["fallback_agent_id"] == "summarizer"
+
+    # Removed: fallback_model replaced by fallback_settings_overrides
+
+
+class TestDirectModeExecution:
+    """Tests for direct mode execution."""
+
+    def setup_method(self) -> None:
+        """Clear rate limit cache before each test."""
+        _rate_limit_cache.clear()
+
+    def test_direct_mode_validates_url(self, tmp_path: Path) -> None:
+        """Direct mode should validate URL parameter."""
+        tool = GeminiWebFetchTool()
+        state = tool.init({"web_fetch_direct_mode": True})
+
+        result = tool.execute_tool("web_fetch", {"url": ""}, state)
+        assert result["success"] is False
+        assert "required" in result["error"].lower()
+
+    def test_direct_mode_validates_url_scheme(self, tmp_path: Path) -> None:
+        """Direct mode should validate URL scheme."""
+        tool = GeminiWebFetchTool()
+        state = tool.init({"web_fetch_direct_mode": True})
+
+        result = tool.execute_tool("web_fetch", {"url": "ftp://example.com"}, state)
+        assert result["success"] is False
+        assert "unsupported" in result["error"].lower()
+
+    def test_direct_mode_uses_fallback_path(self, tmp_path: Path) -> None:
+        """Direct mode should always use fallback (local fetch)."""
+        from web_fetch_shared import FetchResult
+
+        mock_result = FetchResult(
+            content="Direct fetch content",
+            content_type="text/plain",
+            status_code=200,
+            headers={},
+            url="https://example.com",
+        )
+
+        with patch("gemini_tools.gemini_web_fetch_tool.fetch_url", return_value=mock_result):
+            tool = GeminiWebFetchTool()
+            state = tool.init({"web_fetch_direct_mode": True})
+
+            result = tool.execute_tool(
+                "web_fetch",
+                {"url": "https://example.com"},
+                state,
+            )
+
+        assert result["success"] is True
+        assert "Direct fetch content" in result["result"]
 
 
 class TestURLParsing:
@@ -356,8 +657,8 @@ class TestPrimaryPathMocked:
     """Tests for primary path with mocked Gemini API."""
 
     def setup_method(self) -> None:
-        """Clear rate limit history before each test."""
-        GeminiWebFetchTool._host_history.clear()
+        """Clear rate limit cache before each test."""
+        _rate_limit_cache.clear()
 
     def test_primary_path_success(self, tmp_path: Path) -> None:
         """Primary path should return content from Gemini API."""
@@ -409,8 +710,8 @@ class TestFallbackPathMocked:
     """Tests for fallback path with mocked HTTP fetch."""
 
     def setup_method(self) -> None:
-        """Clear rate limit history before each test."""
-        GeminiWebFetchTool._host_history.clear()
+        """Clear rate limit cache before each test."""
+        _rate_limit_cache.clear()
 
     def test_fallback_fetches_url(self, tmp_path: Path) -> None:
         """Fallback should fetch URL content."""
@@ -469,8 +770,8 @@ class TestToolPipeline:
     """Tests for tool pipeline integration."""
 
     def setup_method(self) -> None:
-        """Clear rate limit history before each test."""
-        GeminiWebFetchTool._host_history.clear()
+        """Clear rate limit cache before each test."""
+        _rate_limit_cache.clear()
 
     def test_execute_tool_returns_tool_message(self, tmp_path: Path) -> None:
         """Tool should produce valid tool message format."""
@@ -501,3 +802,193 @@ class TestToolPipeline:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestUseGeminiAPI:
+    """Tests for use_gemini_api configuration."""
+
+    def test_use_gemini_api_default_true(self) -> None:
+        """use_gemini_api should default to True."""
+        tool = GeminiWebFetchTool()
+        config = tool._get_web_fetch_config({})
+
+        assert config["use_gemini_api"] is True
+
+    def test_use_gemini_api_from_config(self) -> None:
+        """use_gemini_api should be configurable."""
+        tool = GeminiWebFetchTool()
+        config = tool._get_web_fetch_config({
+            "web_fetch_use_gemini_api": False,
+        })
+
+        assert config["use_gemini_api"] is False
+
+    def test_tool_enabled_without_api_key_when_gemini_disabled(self, tmp_path: Path) -> None:
+        """Tool should be enabled without API key when use_gemini_api=False."""
+        wrapper = ToolWrapper(GeminiWebFetchTool)
+        with patch.dict(os.environ, {}, clear=True):
+            config = {"web_fetch_use_gemini_api": False}
+            state = wrapper.init(config)
+            result = wrapper.is_enabled(config, [], [], {})
+        # Should return None (fall through to tag checks) when Gemini is disabled
+        assert result is None
+
+    def test_tool_disabled_without_api_key_when_gemini_enabled(self, tmp_path: Path) -> None:
+        """Tool should be disabled without API key when use_gemini_api=True."""
+        wrapper = ToolWrapper(GeminiWebFetchTool)
+        with patch.dict(os.environ, {}, clear=True):
+            config = {"web_fetch_use_gemini_api": True}
+            state = wrapper.init(config)
+            result = wrapper.is_enabled(config, [], [], {})
+        assert result is False
+
+
+class TestFallbackSettingsOverrides:
+    """Tests for fallback settings overrides."""
+
+    def test_fallback_settings_overrides_default_empty(self) -> None:
+        """Fallback settings overrides should default to empty dict."""
+        tool = GeminiWebFetchTool()
+        config = tool._get_web_fetch_config({})
+
+        assert config["fallback_settings_overrides"] == {}
+
+    def test_fallback_settings_overrides_from_config(self) -> None:
+        """Fallback settings overrides should be configurable."""
+        tool = GeminiWebFetchTool()
+        config = tool._get_web_fetch_config({
+            "web_fetch_fallback_settings_overrides": {"model": "gpt-4", "temperature": 0.3},
+        })
+
+        assert config["fallback_settings_overrides"] == {"model": "gpt-4", "temperature": 0.3}
+
+
+class TestUIConditionalVisibility:
+    """Tests for UI elements conditional visibility."""
+
+    def test_use_gemini_api_visible_with_api_key(self) -> None:
+        """use_gemini_api should be visible when API key is present."""
+        tool = GeminiWebFetchTool()
+        config = {"gemini_api_key": "test-key"}
+        elements = tool.get_ui_elements(config)
+
+        keys = [e["key"] for e in elements]
+        assert "web_fetch_use_gemini_api" in keys
+
+    def test_use_gemini_api_hidden_without_api_key(self) -> None:
+        """use_gemini_api should be hidden when no API key."""
+        tool = GeminiWebFetchTool()
+        with patch.dict(os.environ, {}, clear=True):
+            config = {}
+            elements = tool.get_ui_elements(config)
+
+        keys = [e["key"] for e in elements]
+        assert "web_fetch_use_gemini_api" not in keys
+
+    def test_primary_model_visible_with_api_key_and_gemini_enabled(self) -> None:
+        """Primary model should be visible when API key present and use_gemini_api=True."""
+        tool = GeminiWebFetchTool()
+        config = {"gemini_api_key": "test-key", "web_fetch_use_gemini_api": True}
+        elements = tool.get_ui_elements(config)
+
+        keys = [e["key"] for e in elements]
+        assert "web_fetch_primary_model" in keys
+
+    def test_primary_model_hidden_when_gemini_disabled(self) -> None:
+        """Primary model should be hidden when use_gemini_api=False."""
+        tool = GeminiWebFetchTool()
+        config = {"gemini_api_key": "test-key", "web_fetch_use_gemini_api": False}
+        elements = tool.get_ui_elements(config)
+
+        keys = [e["key"] for e in elements]
+        assert "web_fetch_primary_model" not in keys
+
+    def test_primary_model_hidden_without_api_key(self) -> None:
+        """Primary model should be hidden when no API key."""
+        tool = GeminiWebFetchTool()
+        with patch.dict(os.environ, {}, clear=True):
+            config = {"web_fetch_use_gemini_api": True}
+            elements = tool.get_ui_elements(config)
+
+        keys = [e["key"] for e in elements]
+        assert "web_fetch_primary_model" not in keys
+
+    def test_direct_mode_always_visible(self) -> None:
+        """Direct mode should always be visible."""
+        tool = GeminiWebFetchTool()
+        config = {}
+        elements = tool.get_ui_elements(config)
+
+        keys = [e["key"] for e in elements]
+        assert "web_fetch_direct_mode" in keys
+
+    def test_timeout_always_visible(self) -> None:
+        """Timeout should always be visible."""
+        tool = GeminiWebFetchTool()
+        config = {}
+        elements = tool.get_ui_elements(config)
+
+        keys = [e["key"] for e in elements]
+        assert "web_fetch_timeout_seconds" in keys
+
+
+class TestPromptModeFallbackOnly:
+    """Tests for prompt mode fallback-only path."""
+
+    def setup_method(self) -> None:
+        """Clear rate limit cache before each test."""
+        _rate_limit_cache.clear()
+
+    def test_fallback_only_when_gemini_disabled(self, tmp_path: Path) -> None:
+        """Should use fallback directly when use_gemini_api=False."""
+        from web_fetch_shared import FetchResult
+
+        mock_result = FetchResult(
+            content="Fallback content",
+            content_type="text/plain",
+            status_code=200,
+            headers={},
+            url="https://example.com",
+        )
+
+        with patch("gemini_tools.gemini_web_fetch_tool.fetch_url", return_value=mock_result):
+            tool = GeminiWebFetchTool()
+            state = tool.init({
+                "gemini_api_key": "test-key",
+                "web_fetch_use_gemini_api": False,
+            })
+
+            result = tool.execute_tool(
+                "web_fetch",
+                {"prompt": "Summarize https://example.com"},
+                state,
+            )
+
+        assert result["success"] is True
+        assert "Fallback content" in result["result"]
+
+    def test_fallback_only_without_api_key(self, tmp_path: Path) -> None:
+        """Should use fallback directly when no API key."""
+        from web_fetch_shared import FetchResult
+
+        mock_result = FetchResult(
+            content="Fallback content",
+            content_type="text/plain",
+            status_code=200,
+            headers={},
+            url="https://example.com",
+        )
+
+        with patch.dict(os.environ, {}, clear=True):
+            with patch("gemini_tools.gemini_web_fetch_tool.fetch_url", return_value=mock_result):
+                tool = GeminiWebFetchTool()
+                state = tool.init({})
+
+                result = tool.execute_tool(
+                    "web_fetch",
+                    {"prompt": "Summarize https://example.com"},
+                    state,
+                )
+
+        assert result["success"] is True
+        assert "Fallback content" in result["result"]

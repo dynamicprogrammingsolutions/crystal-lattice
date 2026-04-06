@@ -112,6 +112,38 @@ def test_replace_allow_multiple_updates_all_matches(tmp_path: Path) -> None:
     assert target.read_text(encoding="utf-8") == "ONE\ntwo\nONE\n"
 
 
+def test_replace_allows_empty_or_missing_instruction(tmp_path: Path) -> None:
+    target = tmp_path / "note.txt"
+    target.write_text("alpha\n", encoding="utf-8")
+    wrapper, state = _replace_wrapper(tmp_path)
+
+    empty_instruction = wrapper.execute_tool(
+        "replace",
+        {
+            "file_path": "note.txt",
+            "instruction": "",
+            "old_string": "alpha",
+            "new_string": "beta",
+        },
+        state,
+    )
+    assert empty_instruction["success"] is True
+    assert target.read_text(encoding="utf-8") == "beta\n"
+
+    target.write_text("alpha\n", encoding="utf-8")
+    missing_instruction = wrapper.execute_tool(
+        "replace",
+        {
+            "file_path": "note.txt",
+            "old_string": "alpha",
+            "new_string": "beta",
+        },
+        state,
+    )
+    assert missing_instruction["success"] is True
+    assert target.read_text(encoding="utf-8") == "beta\n"
+
+
 def test_pipeline_returns_final_tool_message_for_replace(tmp_path: Path) -> None:
     target = tmp_path / "note.txt"
     target.write_text("alpha\n", encoding="utf-8")

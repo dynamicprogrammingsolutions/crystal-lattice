@@ -12,6 +12,7 @@ import pytest
 from agent_core import AgentCore, Session
 
 from gemini_tools import GeminiWebFetchTool
+from gemini_tools.gemini_web_fetch_tool import _rate_limit_cache
 
 
 # ============================================================================
@@ -31,7 +32,7 @@ def test_gemini_primary_path_real_api():
         pytest.skip("GEMINI_API_KEY not set")
 
     # Clear rate limit history
-    GeminiWebFetchTool._host_history.clear()
+    _rate_limit_cache.clear()
 
     from agent_core.plugin import ToolWrapper
 
@@ -60,7 +61,7 @@ def test_gemini_primary_path_with_citations():
     if not api_key:
         pytest.skip("GEMINI_API_KEY not set")
 
-    GeminiWebFetchTool._host_history.clear()
+    _rate_limit_cache.clear()
 
     from agent_core.plugin import ToolWrapper
 
@@ -109,7 +110,7 @@ def test_gemini_web_fetch_via_openrouter():
     except ImportError as exc:
         pytest.skip(f"OpenRouter test dependencies not installed: {exc}")
 
-    GeminiWebFetchTool._host_history.clear()
+    _rate_limit_cache.clear()
 
     core = AgentCore()
     core.register_provider(OpenRouterProvider, extensions=[OpenRouterToolsExtension])
@@ -183,7 +184,7 @@ def test_gemini_web_fetch_private_url_fallback():
     except ImportError as exc:
         pytest.skip(f"OpenRouter test dependencies not installed: {exc}")
 
-    GeminiWebFetchTool._host_history.clear()
+    _rate_limit_cache.clear()
 
     core = AgentCore()
     core.register_provider(OpenRouterProvider, extensions=[OpenRouterToolsExtension])
@@ -247,7 +248,7 @@ def test_web_fetch_e2e_tool_loop(tmp_path):
     except ImportError as exc:
         pytest.skip(f"OpenRouter test dependencies not installed: {exc}")
 
-    GeminiWebFetchTool._host_history.clear()
+    _rate_limit_cache.clear()
 
     core = AgentCore()
     core.register_provider(OpenRouterProvider, extensions=[OpenRouterToolsExtension])
@@ -318,7 +319,7 @@ def test_web_fetch_e2e_ollama_api_docs():
     except ImportError as exc:
         pytest.skip(f"OpenRouter test dependencies not installed: {exc}")
 
-    GeminiWebFetchTool._host_history.clear()
+    _rate_limit_cache.clear()
 
     core = AgentCore()
     core.register_provider(OpenRouterProvider, extensions=[OpenRouterToolsExtension])
@@ -418,7 +419,7 @@ def test_web_fetch_e2e_user_request_for_documentation():
     except ImportError as exc:
         pytest.skip(f"OpenRouter test dependencies not installed: {exc}")
 
-    GeminiWebFetchTool._host_history.clear()
+    _rate_limit_cache.clear()
 
     core = AgentCore()
     core.register_provider(OpenRouterProvider, extensions=[OpenRouterToolsExtension])

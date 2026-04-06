@@ -310,36 +310,81 @@ Output too large. Showing first 8,000 and last 32,000 characters. For full outpu
 
 The Gemini-compatible web fetch entrypoint is `web_fetch`.
 
-### Tool Name
+### Modes
 
-`web_fetch`
+The tool supports two modes controlled by configuration:
+
+1. **Prompt mode (default)**: URLs embedded in a prompt, processed via Gemini API server-side grounding. Returns content with inline citations `[N]` and a `Sources:` footer.
+
+2. **Direct mode**: Single URL per call, fetched directly without Gemini API. Useful when Gemini API is unavailable or for private network URLs.
 
 ### Parameters
 
+**Prompt mode:**
 - `prompt` (required): A comprehensive prompt that includes the URL(s) (up to 20) to fetch and specific instructions on how to process their content.
+
+**Direct mode:**
+- `url` (required): The URL to fetch. Must be a valid http or https URL.
 
 ### Behavior
 
-1. **Primary path**: Uses Gemini API's server-side URL grounding capability.
+1. **Primary path (prompt mode with Gemini API)**: Uses Gemini API's server-side URL grounding capability.
    - Returns content with inline citations `[N]` and a `Sources:` footer.
-   - Requires a Gemini API key (`GEMINI_API_KEY` environment variable or `gemini_api_key` config).
+   - Requires a Gemini API key and `web_fetch_use_gemini_api=true`.
 
 2. **Fallback path**: Local HTTP fetch + LLM summarization.
-   - Triggered for private IP URLs (localhost, 10.x, 172.16-31.x, 192.168.x) or when primary fails.
-   - Uses the configured provider for summarization via `context["core"]`.
+   - Triggered when:
+     - `web_fetch_use_gemini_api=false` (explicitly disabled)
+     - No Gemini API key available
+     - Private IP URLs (localhost, 10.x, 172.16-31.x, 192.168.x)
+     - Primary path fails
+   - Uses the current agent for summarization, or a dedicated fallback agent if configured.
+   - Settings can be overridden via `web_fetch_fallback_settings_overrides`.
 
-3. **Rate limiting**: 10 requests per 60 seconds per hostname.
+3. **Rate limiting**: 10 requests per 60 seconds per hostname (configurable).
 
 4. **GitHub URL normalization**: Automatically converts `github.com/.../blob/...` URLs to `raw.githubusercontent.com` URLs.
 
 ### Configuration
 
-- `gemini_api_key`: Gemini API key (or `GEMINI_API_KEY` environment variable). Required for primary path.
-- `web_fetch_timeout_seconds`: Fetch timeout in seconds (default: 10).
-- `web_fetch_max_content_chars`: Maximum content length in characters (default: 100000).
+All configuration keys are flat with `web_fetch_` prefix:
 
-### Representative call shape
+| Key | Type | Default | UI | Description |
+|-----|------|---------|----|-------------|
+| `web_fetch_enabled` | boolean | true | Yes | Enable the web_fetch tool |
+| `web_fetch_use_gemini_api` | boolean | true | Yes* | Use Gemini API for primary path |
+| `web_fetch_direct_mode` | boolean | false | Yes | Use direct URL mode instead of prompt mode |
+| `web_fetch_primary_model` | string | "web-fetch" | Yes** | Gemini model for primary path |
+| `web_fetch_fallback_agent_id` | string | null | No | Optional dedicated agent for fallback |
+| `web_fetch_fallback_settings_overrides` | object | {} | No | Settings to override for fallback (e.g., model, temperature) |
+| `web_fetch_timeout_seconds` | integer | 10 | Yes | Fetch timeout in seconds |
+| `web_fetch_max_content_chars` | integer | 100000 | No | Maximum content length in characters |
+| `web_fetch_rate_limit_requests` | integer | 10 | No | Max requests per window per host |
+| `web_fetch_rate_limit_window` | integer | 60 | No | Rate limit window in seconds |
 
+\* Only visible when Gemini API key is available.
+\** Only visible when API key available AND `web_fetch_use_gemini_api=true`.
+
+Additional configuration:
+- `gemini_api_key`: Gemini API key (or `GEMINI_API_KEY` environment variable). Required for primary path when `use_gemini_api=true`.
+
+### Fallback Settings Overrides
+
+The `web_fetch_fallback_settings_overrides` config allows overriding settings for the fallback path. This works similar to the compaction plugin's settings overrides:
+
+```yaml
+web_fetch_fallback_settings_overrides:
+  model: "gpt-4"
+  temperature: 0.3
+```
+
+When fallback is triggered:
+1. If `fallback_agent_id` is set: switch to that agent, apply settings overrides
+2. If `fallback_agent_id` is null: apply settings overrides to current agent
+
+### Representative call shapes
+
+Prompt mode:
 ```json
 {
   "type": "function",
@@ -347,6 +392,19 @@ The Gemini-compatible web fetch entrypoint is `web_fetch`.
     "name": "web_fetch",
     "arguments": {
       "prompt": "Summarize the main points from https://example.com/article"
+    }
+  }
+}
+```
+
+Direct mode (when `web_fetch_direct_mode: true`):
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "web_fetch",
+    "arguments": {
+      "url": "https://example.com/article"
     }
   }
 }
@@ -380,8 +438,9 @@ Error: Failed to fetch https://example.com: HTTP 404
 
 - No browser rendering for JavaScript-heavy pages
 - No IDE integration for approval flows
-- Requires Gemini API key for optimal primary path behavior
+- Requires Gemini API key for primary path when `use_gemini_api=true`
 - Private IP URLs always use fallback (local fetch)
+- Direct mode does not use Gemini API for URL processing
 
 ## Compatibility contract
 

@@ -3,6 +3,18 @@
 This tool uses the Gemini API's server-side URL grounding capability
 as the primary path, falling back to local HTTP fetch + LLM summarization
 when the primary fails or for private IP URLs.
+
+Configuration keys (all flat, prefixed with web_fetch_):
+- web_fetch_enabled: Enable the tool (default: True)
+- web_fetch_use_gemini_api: Use Gemini API for primary path (default: True, requires API key)
+- web_fetch_direct_mode: Use direct URL mode instead of prompt mode (default: False)
+- web_fetch_primary_model: Gemini model for primary path (default: "web-fetch")
+- web_fetch_fallback_agent_id: Optional dedicated agent for fallback summarization
+- web_fetch_fallback_settings_overrides: Settings to override for fallback path
+- web_fetch_timeout_seconds: Fetch timeout in seconds (default: 10)
+- web_fetch_max_content_chars: Max content length in chars (default: 100000)
+- web_fetch_rate_limit_requests: Max requests per window per host (default: 10)
+- web_fetch_rate_limit_window: Rate limit window in seconds (default: 60)
 """
 
 from __future__ import annotations
@@ -10,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import os
 import time
+from collections import OrderedDict
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from agent_core.types import ToolPlugin
@@ -29,10 +42,44 @@ from web_fetch_shared import (
 genai = None
 
 
+class LRUCache:
+    """Simple LRU cache for rate limiting.
+
+    Matches Gemini CLI's use of mnemonist LRU cache with max 1000 entries.
+    """
+
+    def __init__(self, max_size: int = 1000):
+        self._max_size = max_size
+        self._cache: OrderedDict[str, List[float]] = OrderedDict()
+
+    def get(self, key: str) -> List[float]:
+        """Get cached value, moving to end if found."""
+        if key in self._cache:
+            self._cache.move_to_end(key)
+            return self._cache[key]
+        return []
+
+    def set(self, key: str, value: List[float]) -> None:
+        """Set cached value, evicting oldest if at capacity."""
+        if key in self._cache:
+            self._cache.move_to_end(key)
+        self._cache[key] = value
+        if len(self._cache) > self._max_size:
+            self._cache.popitem(last=False)
+
+    def clear(self) -> None:
+        """Clear all cached entries."""
+        self._cache.clear()
+
+
 # Constants
 MAX_URLS = 20
-RATE_LIMIT_WINDOW_SECONDS = 60
-MAX_REQUESTS_PER_WINDOW = 10
+DEFAULT_RATE_LIMIT_REQUESTS = 10
+DEFAULT_RATE_LIMIT_WINDOW = 60
+DEFAULT_PRIMARY_MODEL = "web-fetch"
+
+# Module-level LRU cache for rate limiting (shared across instances)
+_rate_limit_cache = LRUCache(max_size=1000)
 
 
 class GeminiWebFetchTool(ToolPlugin):
@@ -40,27 +87,169 @@ class GeminiWebFetchTool(ToolPlugin):
 
     Uses Gemini API server-side URL grounding as primary path,
     with fallback to local fetch + LLM summarization.
+
+    Supports two modes:
+    - Prompt mode (default): URLs embedded in prompt, processed via Gemini API
+    - Direct mode: Single URL per call, fetched directly without Gemini API
     """
 
     name = "gemini_web_fetch_tool"
-    version = "0.1.0"
+    version = "0.3.0"
 
-    # Module-level rate limit state (shared across instances)
-    _host_history: Dict[str, List[float]] = {}
+    def _get_web_fetch_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract web_fetch settings from config with defaults.
+
+        All config keys are flat with 'web_fetch_' prefix.
+        """
+        return {
+            "enabled": config.get("web_fetch_enabled", True),
+            "use_gemini_api": config.get("web_fetch_use_gemini_api", True),
+            "direct_mode": config.get("web_fetch_direct_mode", False),
+            "primary_model": config.get("web_fetch_primary_model", DEFAULT_PRIMARY_MODEL),
+            "fallback_agent_id": config.get("web_fetch_fallback_agent_id"),
+            "fallback_settings_overrides": config.get("web_fetch_fallback_settings_overrides", {}),
+            "timeout_seconds": config.get("web_fetch_timeout_seconds", DEFAULT_TIMEOUT_SECONDS),
+            "max_content_chars": config.get("web_fetch_max_content_chars", DEFAULT_MAX_CHARS),
+            "rate_limit_requests": config.get("web_fetch_rate_limit_requests", DEFAULT_RATE_LIMIT_REQUESTS),
+            "rate_limit_window": config.get("web_fetch_rate_limit_window", DEFAULT_RATE_LIMIT_WINDOW),
+        }
+
+    # ------------------------------------------------------------------
+    # ToolPlugin protocol methods
+    # ------------------------------------------------------------------
+
+    def get_config_schema(self) -> Dict[str, Any]:
+        """Return config schema for web_fetch tool settings."""
+        return {
+            "web_fetch_enabled": {
+                "type": "boolean",
+                "default": True,
+                "description": "Enable the web_fetch tool",
+            },
+            "web_fetch_use_gemini_api": {
+                "type": "boolean",
+                "default": True,
+                "description": "Use Gemini API for server-side URL grounding (requires API key)",
+            },
+            "web_fetch_direct_mode": {
+                "type": "boolean",
+                "default": False,
+                "description": "Use direct URL fetch mode instead of prompt mode",
+            },
+            "web_fetch_primary_model": {
+                "type": "string",
+                "default": DEFAULT_PRIMARY_MODEL,
+                "description": "Gemini model for primary path (server-side URL grounding)",
+            },
+            "web_fetch_fallback_agent_id": {
+                "type": "string",
+                "default": None,
+                "description": "Optional dedicated agent for fallback summarization",
+            },
+            "web_fetch_fallback_settings_overrides": {
+                "type": "object",
+                "default": {},
+                "description": "Settings to override for fallback path (e.g., model, temperature)",
+            },
+            "web_fetch_timeout_seconds": {
+                "type": "integer",
+                "default": DEFAULT_TIMEOUT_SECONDS,
+                "description": "Fetch timeout in seconds",
+            },
+            "web_fetch_max_content_chars": {
+                "type": "integer",
+                "default": DEFAULT_MAX_CHARS,
+                "description": "Maximum content length in characters",
+            },
+            "web_fetch_rate_limit_requests": {
+                "type": "integer",
+                "default": DEFAULT_RATE_LIMIT_REQUESTS,
+                "description": "Max requests per rate limit window per host",
+            },
+            "web_fetch_rate_limit_window": {
+                "type": "integer",
+                "default": DEFAULT_RATE_LIMIT_WINDOW,
+                "description": "Rate limit window in seconds",
+            },
+        }
+
+    def get_ui_elements(
+        self,
+        config: Dict[str, Any],
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Return UI schema elements for web_fetch tool settings.
+
+        Elements are conditionally visible based on API key availability
+        and use_gemini_api setting.
+        """
+        api_key = config.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY")
+        use_gemini = config.get("web_fetch_use_gemini_api", True)
+
+        elements = [
+            {
+                "type": "checkbox",
+                "key": "web_fetch_enabled",
+                "label": "Enable web fetch",
+            },
+            {
+                "type": "checkbox",
+                "key": "web_fetch_direct_mode",
+                "label": "Direct URL mode",
+                "description": "Fetch single URLs directly without prompt processing",
+            },
+        ]
+
+        # Only show Gemini API option when API key is available
+        if api_key:
+            elements.append({
+                "type": "checkbox",
+                "key": "web_fetch_use_gemini_api",
+                "label": "Use Gemini API",
+                "description": "Server-side URL grounding via Gemini (requires API key)",
+            })
+
+            # Only show primary model when using Gemini API
+            if use_gemini:
+                elements.append({
+                    "type": "text",
+                    "key": "web_fetch_primary_model",
+                    "label": "Primary model",
+                    "description": "Gemini model for URL grounding",
+                    "placeholder": "web-fetch",
+                })
+
+        elements.append({
+            "type": "number",
+            "key": "web_fetch_timeout_seconds",
+            "label": "Timeout (seconds)",
+        })
+
+        return elements
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize tool state with API key and configuration.
 
         Checks for Gemini API key in config or environment.
-        Tool is disabled if no key is available.
+        Tool behavior depends on use_gemini_api setting.
         """
         api_key = config.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY")
+        web_fetch_cfg = self._get_web_fetch_config(config)
+        use_gemini = web_fetch_cfg.get("use_gemini_api", True)
+        direct_mode = web_fetch_cfg.get("direct_mode", False)
+
+        # Tool is disabled if:
+        # - Explicitly disabled via enabled=False
+        # - Not in direct mode AND not using Gemini AND no API key
+        # In direct mode, we don't need Gemini API at all
+        disabled = not web_fetch_cfg.get("enabled", True)
+
         return {
             "config": config,
             "api_key": api_key,
-            "disabled": api_key is None,
-            "timeout_seconds": config.get("web_fetch_timeout_seconds", DEFAULT_TIMEOUT_SECONDS),
-            "max_content_chars": config.get("web_fetch_max_content_chars", DEFAULT_MAX_CHARS),
+            "disabled": disabled,
+            "web_fetch_config": web_fetch_cfg,
         }
 
     def is_enabled(
@@ -70,51 +259,104 @@ class GeminiWebFetchTool(ToolPlugin):
         models: Optional[List[str]],
         context: Optional[Dict[str, Any]],
     ) -> Optional[bool]:
-        """Check if tool is enabled based on API key availability.
+        """Check if tool is enabled based on configuration and API key availability.
 
-        Returns False if disabled (no API key), None to fall back to tag checks.
+        Returns False if disabled, None to fall back to tag checks.
         """
-        # Check config parameter for API key (passed from wrapper)
+        web_fetch_cfg = self._get_web_fetch_config(config)
+
+        # Check explicit enable/disable
+        if not web_fetch_cfg.get("enabled", True):
+            return False
+
+        # In direct mode, we don't need a Gemini API key
+        if web_fetch_cfg.get("direct_mode"):
+            return None
+
+        # Check if using Gemini API
+        use_gemini = web_fetch_cfg.get("use_gemini_api", True)
+
+        # If not using Gemini API, we don't need an API key (fallback only)
+        if not use_gemini:
+            return None
+
+        # In prompt mode with Gemini, we need a Gemini API key
         api_key = config.get("gemini_api_key") if config else None
         if not api_key:
             api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
             return False
+
         return None
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Return the web_fetch tool schema matching Gemini CLI."""
-        return [
-            {
-                "type": "function",
-                "function": {
-                    "name": "web_fetch",
-                    "description": (
-                        "Processes content from URL(s), including local and private network addresses "
-                        "(e.g., localhost), embedded in a prompt. Include up to 20 URLs and instructions "
-                        "(e.g., summarize, extract specific data) directly in the 'prompt' parameter."
-                    ),
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "prompt": {
-                                "type": "string",
-                                "description": (
-                                    "A comprehensive prompt that includes the URL(s) (up to 20) to fetch "
-                                    "and specific instructions on how to process their content "
-                                    '(e.g., "Summarize https://example.com/article and extract key points '
-                                    'from https://another.com/data"). All URLs to be fetched must be valid '
-                                    'and complete, starting with "http://" or "https://", and be fully-formed '
-                                    'with a valid hostname (e.g., a domain name like "example.com" or an IP '
-                                    'address). For example, "https://example.com" is valid, but "example.com" is not.'
-                                ),
-                            }
-                        },
-                        "required": ["prompt"],
+        """Return the web_fetch tool schema based on mode.
+
+        In direct mode, returns a schema with 'url' parameter.
+        In prompt mode (default), returns a schema with 'prompt' parameter.
+        """
+        config = state.get("config", {})
+        web_fetch_cfg = self._get_web_fetch_config(config)
+        direct_mode = web_fetch_cfg.get("direct_mode", False)
+
+        if direct_mode:
+            return [self._get_direct_mode_schema()]
+        return [self._get_prompt_mode_schema()]
+
+    def _get_prompt_mode_schema(self) -> Dict[str, Any]:
+        """Return the prompt mode schema (default)."""
+        return {
+            "type": "function",
+            "function": {
+                "name": "web_fetch",
+                "description": (
+                    "Processes content from URL(s), including local and private network addresses "
+                    "(e.g., localhost), embedded in a prompt. Include up to 20 URLs and instructions "
+                    "(e.g., summarize, extract specific data) directly in the 'prompt' parameter."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "prompt": {
+                            "type": "string",
+                            "description": (
+                                "A comprehensive prompt that includes the URL(s) (up to 20) to fetch "
+                                "and specific instructions on how to process their content "
+                                '(e.g., "Summarize https://example.com/article and extract key points '
+                                'from https://another.com/data"). All URLs to be fetched must be valid '
+                                'and complete, starting with "http://" or "https://", and be fully-formed '
+                                'with a valid hostname (e.g., a domain name like "example.com" or an IP '
+                                'address). For example, "https://example.com" is valid, but "example.com" is not.'
+                            ),
+                        }
                     },
+                    "required": ["prompt"],
                 },
-            }
-        ]
+            },
+        }
+
+    def _get_direct_mode_schema(self) -> Dict[str, Any]:
+        """Return the direct mode schema (experimental)."""
+        return {
+            "type": "function",
+            "function": {
+                "name": "web_fetch",
+                "description": (
+                    "Fetch content from a URL directly. Send multiple requests "
+                    "for this tool if multiple URL fetches are needed."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "url": {
+                            "type": "string",
+                            "description": "The URL to fetch. Must be a valid http or https URL.",
+                        }
+                    },
+                    "required": ["url"],
+                },
+            },
+        }
 
     def execute_tool(
         self,
@@ -165,7 +407,71 @@ class GeminiWebFetchTool(ToolPlugin):
         state: Dict[str, Any],
         context: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        """Main async execution logic."""
+        """Main async execution logic.
+
+        Dispatches to prompt mode or direct mode based on configuration.
+        """
+        config = state.get("config", {})
+        web_fetch_cfg = self._get_web_fetch_config(config)
+        direct_mode = web_fetch_cfg.get("direct_mode", False)
+
+        if direct_mode:
+            return await self._execute_direct_mode(arguments, state, context)
+        return await self._execute_prompt_mode(arguments, state, context)
+
+    async def _execute_direct_mode(
+        self,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Execute in direct URL mode.
+
+        Always uses fallback path (local fetch + optional LLM summarization).
+        """
+        url = arguments.get("url")
+        if not url or not isinstance(url, str):
+            return {"success": False, "error": "The 'url' parameter is required."}
+
+        # Validate URL
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            if parsed.scheme not in ("http", "https"):
+                return {"success": False, "error": f"Unsupported protocol: {parsed.scheme}"}
+            if not parsed.hostname:
+                return {"success": False, "error": "URL must have a valid hostname."}
+        except Exception as e:
+            return {"success": False, "error": f"Invalid URL: {e}"}
+
+        # Normalize GitHub URL
+        url = normalize_github_url(url)
+
+        # Check rate limit
+        allowed, wait_seconds = self._check_rate_limit(url, state)
+        if not allowed:
+            return {
+                "success": False,
+                "error": f"Rate limit exceeded. Please wait {wait_seconds} seconds.",
+            }
+
+        # Build a simple prompt for summarization context
+        prompt = f"Fetch content from {url}"
+
+        # Always use fallback path in direct mode
+        return await self._execute_fallback(prompt, url, state, context)
+
+    async def _execute_prompt_mode(
+        self,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Execute in prompt mode.
+
+        Uses Gemini API for primary path when enabled and API key available,
+        otherwise uses fallback path directly.
+        """
         # Validate prompt parameter
         prompt = arguments.get("prompt")
         if not prompt or not isinstance(prompt, str) or not prompt.strip():
@@ -180,7 +486,7 @@ class GeminiWebFetchTool(ToolPlugin):
         if url_errors:
             return {
                 "success": False,
-                "error": f"Error(s) in prompt URLs:\n- " + "\n- ".join(url_errors),
+                "error": "Error(s) in prompt URLs:\n- " + "\n- ".join(url_errors),
             }
 
         if not valid_urls:
@@ -200,16 +506,25 @@ class GeminiWebFetchTool(ToolPlugin):
 
         # Check rate limiting for first URL (primary rate limit target)
         first_url = normalized_urls[0]
-        allowed, wait_seconds = self._check_rate_limit(first_url)
+        allowed, wait_seconds = self._check_rate_limit(first_url, state)
         if not allowed:
             return {
                 "success": False,
                 "error": f"Rate limit exceeded for host. Please wait {wait_seconds} seconds before trying again.",
             }
 
-        # Check if URL is private (triggers fallback)
+        # Check if URL is private (always triggers fallback)
         if is_private_url(first_url):
-            return await self._execute_fallback(prompt, normalized_urls[0], state, context)
+            return await self._execute_fallback(prompt, first_url, state, context)
+
+        # Determine execution path based on use_gemini_api and API key availability
+        web_fetch_cfg = state.get("web_fetch_config", {})
+        use_gemini = web_fetch_cfg.get("use_gemini_api", True)
+        api_key = state.get("api_key")
+
+        # Skip primary path if: use_gemini_api is False OR no API key
+        if not use_gemini or not api_key:
+            return await self._execute_fallback(prompt, first_url, state, context)
 
         # Try primary path (Gemini API)
         result = await self._execute_primary(prompt, state)
@@ -218,12 +533,12 @@ class GeminiWebFetchTool(ToolPlugin):
         if not result.get("success") or result.get("_needs_fallback"):
             # Clean up internal flag
             result.pop("_needs_fallback", None)
-            return await self._execute_fallback(prompt, normalized_urls[0], state, context)
+            return await self._execute_fallback(prompt, first_url, state, context)
 
         return result
 
-    def _check_rate_limit(self, url: str) -> Tuple[bool, Optional[int]]:
-        """Check rate limit for a URL.
+    def _check_rate_limit(self, url: str, state: Dict[str, Any]) -> Tuple[bool, Optional[int]]:
+        """Check rate limit for a URL using LRU cache.
 
         Returns (allowed, wait_seconds) tuple.
         """
@@ -234,25 +549,54 @@ class GeminiWebFetchTool(ToolPlugin):
             if not hostname:
                 return True, None
 
-            now = time.time()
-            window_start = now - RATE_LIMIT_WINDOW_SECONDS
+            # Get configurable limits
+            web_fetch_cfg = state.get("web_fetch_config", {})
+            max_requests = web_fetch_cfg.get("rate_limit_requests", DEFAULT_RATE_LIMIT_REQUESTS)
+            window_seconds = web_fetch_cfg.get("rate_limit_window", DEFAULT_RATE_LIMIT_WINDOW)
 
-            # Get and clean history
-            history = GeminiWebFetchTool._host_history.get(hostname, [])
+            now = time.time()
+            window_start = now - window_seconds
+
+            # Get and clean history from LRU cache
+            history = _rate_limit_cache.get(hostname)
             history = [t for t in history if t > window_start]
 
-            if len(history) >= MAX_REQUESTS_PER_WINDOW:
-                wait = int(history[0] + RATE_LIMIT_WINDOW_SECONDS - now)
-                GeminiWebFetchTool._host_history[hostname] = history
+            if len(history) >= max_requests:
+                wait = int(history[0] + window_seconds - now)
+                _rate_limit_cache.set(hostname, history)
                 return False, max(1, wait)
 
             history.append(now)
-            GeminiWebFetchTool._host_history[hostname] = history
+            _rate_limit_cache.set(hostname, history)
             return True, None
 
         except Exception:
             # If parsing fails, allow the request
             return True, None
+
+    def _collect_fallback_summary(
+        self,
+        core: Any,
+        session: Any,
+        config: Dict[str, Any],
+    ) -> str:
+        """Run a one-shot summarization turn through AgentCore and return assistant text."""
+        request_options = config.get("request_options")
+        merged_request_options = dict(request_options) if isinstance(request_options, dict) else {}
+        merged_request_options["tool_choice"] = "none"
+        runtime_config = {**config, "request_options": merged_request_options}
+
+        _next_session, final_messages = core.send_request(session, runtime_config)
+
+        assistant_texts: List[str] = []
+        for message in final_messages:
+            if message.get("role") != "assistant":
+                continue
+            content = message.get("content")
+            if isinstance(content, str) and content.strip():
+                assistant_texts.append(content.strip())
+
+        return "\n\n".join(assistant_texts).strip()
 
     async def _execute_primary(
         self,
@@ -271,6 +615,10 @@ class GeminiWebFetchTool(ToolPlugin):
                 "_needs_fallback": True,
             }
 
+        # Get configurable model
+        web_fetch_cfg = state.get("web_fetch_config", {})
+        primary_model = web_fetch_cfg.get("primary_model", DEFAULT_PRIMARY_MODEL)
+
         try:
             # Lazy import google-genai
             from google import genai
@@ -278,10 +626,9 @@ class GeminiWebFetchTool(ToolPlugin):
             # Create client
             client = genai.Client(api_key=api_key)
 
-            # Call Gemini API with the prompt
-            # The Gemini API will process URLs in the prompt using server-side grounding
+            # Call Gemini API with the prompt using configurable model
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
+                model=primary_model,
                 contents=prompt,
             )
 
@@ -376,13 +723,16 @@ class GeminiWebFetchTool(ToolPlugin):
     ) -> Dict[str, Any]:
         """Execute fallback path: local fetch + LLM summarization.
 
-        Uses web_fetch_shared for fetching and context["core"] for LLM calls.
+        Uses web_fetch_shared for fetching and context for LLM calls.
+        Supports optional fallback agent and settings overrides.
         """
+        web_fetch_cfg = state.get("web_fetch_config", {})
+
         try:
             # Fetch URL content
             fetch_result = await fetch_url(
                 url,
-                timeout_seconds=state.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS),
+                timeout_seconds=web_fetch_cfg.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS),
             )
 
             if fetch_result.is_error:
@@ -404,36 +754,73 @@ class GeminiWebFetchTool(ToolPlugin):
                 }
 
             # Truncate content
-            max_chars = state.get("max_content_chars", DEFAULT_MAX_CHARS)
+            max_chars = web_fetch_cfg.get("max_content_chars", DEFAULT_MAX_CHARS)
             content = truncate_content(content, max_chars=max_chars)
 
-            # Use LLM for summarization if context provides core
+            # Build summarization prompt
+            summarization_prompt = (
+                f'The user requested: "{prompt}"\n\n'
+                f"I was unable to access the URL directly via the Gemini API. "
+                f"Instead, I have fetched the raw content. Please use the following content "
+                f"to answer the request. Do not attempt to access the URL again.\n\n"
+                f"---\n{content}\n---"
+            )
+
+            # Get fallback configuration
+            fallback_agent_id = web_fetch_cfg.get("fallback_agent_id")
+            settings_overrides = web_fetch_cfg.get("fallback_settings_overrides", {})
+
+            # Try agent switching if configured and app context available
+            if fallback_agent_id and context and context.get("app"):
+                app = context["app"]
+                core = context.get("core")
+
+                if app and core:
+                    from agent_core import Session
+
+                    # Create temp session and switch agent
+                    temp_session = Session(session_id="web_fetch_fallback", messages=[])
+                    temp_session = core.add_message(temp_session, "user", summarization_prompt)
+
+                    try:
+                        # Switch to fallback agent
+                        fallback_core, fallback_config, fallback_session = app.update_agent(
+                            fallback_agent_id, temp_session
+                        )
+
+                        # Apply settings overrides
+                        if settings_overrides:
+                            fallback_config = {**fallback_config, **settings_overrides}
+
+                        result_text = self._collect_fallback_summary(
+                            fallback_core,
+                            fallback_session,
+                            fallback_config,
+                        )
+
+                        return {
+                            "success": True,
+                            "result": result_text.strip() or content,
+                        }
+                    except Exception:
+                        # Fall through to default core usage
+                        pass
+
+            # Use current agent/core for summarization
             if context and context.get("core"):
                 core = context["core"]
                 config = context.get("config", {})
 
-                # Build summarization prompt
-                summarization_prompt = (
-                    f'The user requested: "{prompt}"\n\n'
-                    f"I was unable to access the URL directly via the Gemini API. "
-                    f"Instead, I have fetched the raw content. Please use the following content "
-                    f"to answer the request. Do not attempt to access the URL again.\n\n"
-                    f"---\n{content}\n---"
-                )
+                # Apply settings overrides
+                if settings_overrides:
+                    config = {**config, **settings_overrides}
 
-                # Create temporary session and call LLM
                 from agent_core import Session
 
                 temp_session = Session(session_id="web_fetch_fallback", messages=[])
                 temp_session = core.add_message(temp_session, "user", summarization_prompt)
 
-                # Stream response and collect
-                result_text = ""
-                for event in core.stream_request(temp_session, config):
-                    if event.get("kind") == "response_chunk":
-                        result_text += event.get("content", "")
-                    elif event.get("kind") == "response_complete":
-                        result_text = event.get("content", result_text)
+                result_text = self._collect_fallback_summary(core, temp_session, config)
 
                 return {
                     "success": True,
