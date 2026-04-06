@@ -62,8 +62,11 @@ def _get_tags(core: AgentCore, config: Dict[str, Any]) -> List[str]:
     return tags
 
 
-def test_gpt_5_4_enables_shell_command_via_application_config(tmp_path):
-    """gpt-5.4 should auto-select shell_command through AgentApplication."""
+@pytest.mark.parametrize("model", ["openai/gpt-5.1", "openai/gpt-5.2", "openai/gpt-5.4"])
+def test_shell_command_family_enables_shell_command_via_application_config(
+    tmp_path, model
+):
+    """Shell-command-family GPT-5 models should auto-select shell_command."""
 
     config = {
         "plugins": [
@@ -79,7 +82,7 @@ def test_gpt_5_4_enables_shell_command_via_application_config(tmp_path):
         "agents": {
             "codex-agent": {
                 "provider": "openrouter",
-                "model": "openai/gpt-5.4",
+                "model": model,
             }
         },
     }
@@ -135,7 +138,7 @@ def test_codex_model_enables_shell_command_via_config(tmp_path):
 @pytest.mark.integration
 @pytest.mark.openrouter
 def test_non_codex_model_enables_shell_via_config(tmp_path):
-    """Test that non-codex model enables shell (array-based)."""
+    """Test that plain gpt-5 stays on shell (array-based)."""
     if not OPENROUTER_API_KEY:
         pytest.skip("OPENROUTER_API_KEY not set")
 
@@ -153,7 +156,7 @@ def test_non_codex_model_enables_shell_via_config(tmp_path):
         "agents": {
             "standard-agent": {
                 "provider": "openrouter",
-                "model": "openai/gpt-4o-mini",
+                "model": "openai/gpt-5",
             }
         }
     }
@@ -164,9 +167,9 @@ def test_non_codex_model_enables_shell_via_config(tmp_path):
     tool_names = _get_tool_names(core, agent_config)
     tags = _get_tags(core, agent_config)
 
-    assert "codex-variant" not in tags, "codex-variant tag should not be emitted for non-codex model"
-    assert "shell" in tool_names, "shell should be enabled for non-codex model"
-    assert "shell_command" not in tool_names, "shell_command should be disabled for non-codex model"
+    assert "codex-variant" not in tags, "codex-variant tag should not be emitted for gpt-5"
+    assert "shell" in tool_names, "shell should be enabled for gpt-5"
+    assert "shell_command" not in tool_names, "shell_command should be disabled for gpt-5"
 
 
 @pytest.mark.integration

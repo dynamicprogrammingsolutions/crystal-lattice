@@ -1,30 +1,33 @@
 """Codex shell tool - array-based command execution.
 
 This tool accepts an array of strings representing the command and its arguments,
-passed directly to execvp (no shell wrapper). Used by non-Codex-variant models
-(gpt-5, gpt-5.1, gpt-5.2).
+passed directly to execvp (no shell wrapper). Used by the non-shell-command
+family such as gpt-5 and gpt-5-mini.
 
 Schema matches docs/codex-tools/shell/schema.without_request_permissions.json
 """
 
 from __future__ import annotations
 
-import asyncio
 import os
 import subprocess
 import threading
 import time
-from queue import Queue
+from queue import Empty, Queue
 from typing import Any, Dict, Iterator, List
 
-from tool_compat_shared.shell_engine import run_shell_command
+from tool_compat_shared.shell_engine import (
+    build_sync_subprocess_kwargs,
+    run_shell_command,
+    terminate_process_tree,
+)
 
 from .base_shell_tool import BaseCodexShellTool
 from .workdir import resolve_tool_workdir
 
 
 class ShellArrayTool(BaseCodexShellTool):
-    """Codex shell tool - array-based command for non-Codex-variant models.
+    """Codex shell tool - array-based command for non-shell-command-family models.
     
     Tool name: shell
     
@@ -41,8 +44,7 @@ class ShellArrayTool(BaseCodexShellTool):
     
     Models using this tool:
     - gpt-5
-    - gpt-5.1
-    - gpt-5.2 (non-codex variant)
+    - gpt-5-mini
     
     The command is passed directly to execvp, so callers should typically
     prefix with ["bash", "-lc", "..."] for shell-like behavior.
@@ -149,6 +151,14 @@ class ShellArrayTool(BaseCodexShellTool):
         
         config = state.get("config", {})
         workdir = resolve_tool_workdir(config, arguments.get("workdir"))
+
+        intercepted = self._maybe_intercept_apply_patch(
+            command=command,
+            workdir=workdir,
+            state=state,
+        )
+        if intercepted is not None:
+            return intercepted
         
         timeout_ms = arguments.get("timeout_ms")
         
@@ -205,6 +215,8 @@ class ShellArrayTool(BaseCodexShellTool):
         tool_name: str,
         arguments: Dict[str, Any],
         state: Dict[str, Any],
+        *,
+        cancellation: Any | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Stream shell command output in real-time.
         
@@ -239,6 +251,15 @@ class ShellArrayTool(BaseCodexShellTool):
         
         config = state.get("config", {})
         workdir = resolve_tool_workdir(config, arguments.get("workdir"))
+
+        intercepted = self._maybe_intercept_apply_patch(
+            command=command,
+            workdir=workdir,
+            state=state,
+        )
+        if intercepted is not None:
+            yield intercepted
+            return
         
         timeout_ms = arguments.get("timeout_ms")
         
@@ -255,6 +276,7 @@ class ShellArrayTool(BaseCodexShellTool):
             command=command,
             workdir=workdir,
             timeout_seconds=timeout_seconds,
+            cancellation=cancellation,
         )
     
     def _sync_execute(
@@ -262,6 +284,7 @@ class ShellArrayTool(BaseCodexShellTool):
         command: List[str],
         workdir: str | None,
         timeout_seconds: float | None,
+        cancellation: Any | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Synchronous execution with line-by-line streaming.
         
@@ -278,6 +301,7 @@ class ShellArrayTool(BaseCodexShellTool):
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,
+                **build_sync_subprocess_kwargs(),
             )
         except FileNotFoundError:
             yield {"success": False, "error": f"Command not found: {command[0]}"}
@@ -308,13 +332,25 @@ class ShellArrayTool(BaseCodexShellTool):
         
         stdout_chunks: List[str] = []
         timed_out = False
+        cancel_requested = threading.Event()
+        cancel_token: int | None = None
+
+        def _request_cancel() -> None:
+            cancel_requested.set()
+            terminate_process_tree(proc)
+
+        if cancellation is not None and hasattr(cancellation, "add_callback"):
+            try:
+                cancel_token = cancellation.add_callback(_request_cancel)
+            except Exception:
+                cancel_token = None
         
         try:
             while True:
                 elapsed = time.monotonic() - start_time
                 if timeout_seconds is not None and elapsed >= timeout_seconds:
                     timed_out = True
-                    proc.kill()
+                    terminate_process_tree(proc)
                     break
                 
                 try:
@@ -325,14 +361,24 @@ class ShellArrayTool(BaseCodexShellTool):
                         "command": command,
                         "workdir": workdir,
                     }
-                except:  # queue.Empty
+                except Empty:
                     if proc.poll() is not None:
                         break
         finally:
             stdout_thread.join(timeout=1)
             stderr_thread.join(timeout=1)
+            if (
+                cancellation is not None
+                and cancel_token is not None
+                and hasattr(cancellation, "remove_callback")
+            ):
+                try:
+                    cancellation.remove_callback(cancel_token)
+                except Exception:
+                    pass
         
-        exit_code = proc.returncode
+        cancelled = cancel_requested.is_set() and not timed_out
+        exit_code = None if timed_out or cancelled else proc.returncode
         duration = time.monotonic() - start_time
         
         # Combine output
@@ -350,6 +396,7 @@ class ShellArrayTool(BaseCodexShellTool):
                 "stderr": "".join(stderr_chunks),
                 "duration_seconds": duration,
                 "timed_out": timed_out,
+                "cancelled": cancelled,
             },
             truncated_output,
             trunc_meta,

@@ -23,7 +23,7 @@ from .config import (
 from .events import EventStore, InMemoryEventStore
 from .session_assets import FilesystemSessionAssetStore
 from .sessions import FilesystemSessionStore
-from .tool_loop import ToolLoopRunner
+from .tool_loop import RequestCancellation, ToolLoopRunner
 from agent_core.utils import get_logger
 from .plugin_manager import PluginManager
 
@@ -237,6 +237,7 @@ class AgentApplication:
         )
         self._tool_loop_cfg = _ToolLoopConfig()
         self._cancelled_requests: set[str] = set()
+        self._request_cancellations: Dict[str, RequestCancellation] = {}
 
         # Event compaction controls. These are primarily intended for
         # debugging and tests; in normal operation they remain enabled
@@ -476,6 +477,20 @@ class AgentApplication:
         if runtime is None:
             raise KeyError(f"Unknown agent_id {agent_id!r}")
         return runtime
+
+    def _configured_agent_plugin_ids(self, agent_id: str) -> Optional[List[str]]:
+        agents = self._config.get("agents") if isinstance(self._config, dict) else {}
+        agent_cfg = agents.get(agent_id) if isinstance(agents, dict) else None
+        if not isinstance(agent_cfg, dict):
+            return None
+
+        raw_plugins = agent_cfg.get("plugins")
+        if not isinstance(raw_plugins, list):
+            return None
+
+        known_ids = set(self._collect_plugin_ids(self._get_agent_plugin_runtime(agent_id).plugins_by_kind_and_id))
+        configured_ids = [item for item in raw_plugins if isinstance(item, str) and item in known_ids]
+        return configured_ids or None
 
     def _plugin_id_for_class(self, plugin_class: type[Any]) -> str:
         """Return the stable plugin id for a plugin class.
@@ -1227,6 +1242,9 @@ class AgentApplication:
             raise ValueError("request_id must be a non-empty string")
 
         self._cancelled_requests.add(request_id)
+        cancellation = self._request_cancellations.get(request_id)
+        if cancellation is not None:
+            cancellation.cancel()
 
     def list_agents(self) -> List[str]:
         """Return the configured agent identifiers.
@@ -1820,7 +1838,11 @@ class AgentApplication:
         # provider-only subset that excludes the new agent's provider.
         target_plugin_ids = self._agent_plugin_ids.get(agent_id)
         if target_plugin_ids is None:
-            switched_metadata.pop("plugins", None)
+            configured_plugin_ids = self._configured_agent_plugin_ids(agent_id)
+            if configured_plugin_ids is None:
+                switched_metadata.pop("plugins", None)
+            else:
+                switched_metadata["plugins"] = list(configured_plugin_ids)
         else:
             switched_metadata["plugins"] = list(target_plugin_ids)
 
@@ -1895,8 +1917,11 @@ class AgentApplication:
         )
         config = self.resolve_effective_config(base_config, session, overrides)
 
+        cancellation = RequestCancellation(cancelled=rid in self._cancelled_requests)
+        self._request_cancellations[rid] = cancellation
+
         def _is_cancelled() -> bool:
-            return rid in self._cancelled_requests
+            return cancellation.is_cancelled()
 
         # Initial request_started event
         yield {
@@ -1921,6 +1946,14 @@ class AgentApplication:
             request_id=rid,
             tool_loop_cfg=self._tool_loop_cfg,
             cancel_callback=_is_cancelled,
+            cancellation=cancellation,
+            context={
+                "app": self,
+                "application": self,
+                "base_config": self._config,
+                "session_asset_store": self._session_asset_store,
+                "trigger_source": "application",
+            },
         )
 
         error_seen = False
@@ -1940,6 +1973,7 @@ class AgentApplication:
                     yield event
                     if not error_seen:
                         error_seen = True
+                        before_session = latest_session
                         core, base_config, latest_session, _ = self.run_session_lifecycle(
                             "request_error",
                             latest_session,
@@ -1953,16 +1987,18 @@ class AgentApplication:
                                 },
                             },
                         )
-                        yield {
-                            "type": "session_checkpoint",
-                            "session_id": latest_session.session_id,
-                            "request_id": rid,
-                            "session": latest_session,
-                        }
+                        if latest_session != before_session:
+                            yield {
+                                "type": "session_checkpoint",
+                                "session_id": latest_session.session_id,
+                                "request_id": rid,
+                                "session": latest_session,
+                            }
                     continue
 
                 if event_type == "request_completed":
                     if not error_seen:
+                        before_session = latest_session
                         core, base_config, latest_session, _ = self.run_session_lifecycle(
                             "request_complete",
                             latest_session,
@@ -1971,15 +2007,17 @@ class AgentApplication:
                             overrides=overrides,
                             context=request_context,
                         )
-                        yield {
-                            "type": "session_checkpoint",
-                            "session_id": latest_session.session_id,
-                            "request_id": rid,
-                            "session": latest_session,
-                        }
+                        if latest_session != before_session:
+                            yield {
+                                "type": "session_checkpoint",
+                                "session_id": latest_session.session_id,
+                                "request_id": rid,
+                                "session": latest_session,
+                            }
                     yield event
                     continue
 
                 yield event
         finally:
             self._cancelled_requests.discard(rid)
+            self._request_cancellations.pop(rid, None)

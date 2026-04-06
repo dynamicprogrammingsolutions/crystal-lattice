@@ -1581,13 +1581,39 @@ class AgentCore:
         """
         base_config: Dict[str, Any] = dict(config) if isinstance(config, dict) else {}
 
-        base_config: Dict[str, Any] = dict(config) if isinstance(config, dict) else {}
+        tool_init_config = self._build_tool_init_config(
+            base_config,
+            provider=provider,
+            extensions=provider._iter_extensions(),
+        )
 
+        tool_states: List[Tuple[ToolWrapper, Dict[str, Any]]] = []
         tool_schemas: List[Dict[str, Any]] = []
         for tool in tools:
-            tool_state = tool.init(base_config)
+            tool_state = tool.init(tool_init_config)
+            tool_states.append((tool, tool_state))
             tool_schemas.extend(tool.get_tool_schemas(tool_state))
-        provider_config = {**base_config, **({"tools": tool_schemas} if tool_schemas else {})}
+        tool_interop_registry = self._get_tool_interop_registry_for_config(
+            base_config,
+            provider=provider,
+            extensions=provider._iter_extensions(),
+            tool_states=tool_states,
+        )
+        tool_schema_target_formats = self._get_tool_schema_target_formats_for_config(
+            base_config,
+            provider=provider,
+            extensions=provider._iter_extensions(),
+        )
+        provider_config = {
+            **base_config,
+            **({"tools": tool_schemas} if tool_schemas else {}),
+            "_tool_interop_registry": tool_interop_registry,
+            **(
+                {"_tool_schema_target_formats": tool_schema_target_formats}
+                if tool_schema_target_formats
+                else {}
+            ),
+        }
 
         state = provider.init(provider_config)
         sorted_features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
@@ -1709,6 +1735,8 @@ class AgentCore:
         provider: ProviderWrapper,
         features: List[FeatureWrapper],
         tools: List[ToolWrapper],
+        *,
+        request_id: str | None = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any], bool]:
         """Prepare shared state and inputs for a request.
 
@@ -1778,7 +1806,11 @@ class AgentCore:
         # Initialize request chains
         native_history_changed = False
 
-        next_native_messages, state = provider.initialize_request(native_messages, state)
+        next_native_messages, state = provider.initialize_request(
+            native_messages,
+            state,
+            request_id=request_id,
+        )
         if next_native_messages == native_messages:
             next_native_messages = native_messages
         native_history_changed = native_history_changed or (next_native_messages is not native_messages)
@@ -1812,7 +1844,12 @@ class AgentCore:
 
 
     def send_request(
-        self, session: Session, config: Dict[str, Any]
+        self,
+        session: Session,
+        config: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+        cancellation: Any | None = None,
     ) -> Tuple[Session, List[Dict[str, Any]]]:
         """Send request and return a new session with the response.
 
@@ -1849,26 +1886,43 @@ class AgentCore:
         )
 
         provider.set_active_extensions(enabled_extensions)
-        messages, native_messages, state, native_history_changed = self._pre_request(
-            session,
-            config,
-            provider,
-            features,
-            tools,
-            tags=tags,
-        )
-        baseline_native_len = len(native_messages)
+        cancel_token: Any | None = None
+        if request_id and cancellation is not None:
+            try:
+                cancel_token = cancellation.add_callback(
+                    lambda: provider.cancel_request(request_id)
+                )
+            except Exception:
+                cancel_token = None
 
+        try:
+            messages, native_messages, state, native_history_changed = self._pre_request(
+                session,
+                config,
+                provider,
+                features,
+                tools,
+                request_id=request_id,
+            )
+            baseline_native_len = len(native_messages)
 
-        logger.debug(
-            "sending request",
-            native_messages=str(native_messages)[:1000],
-            request=str(state.get("request"))[:1000],
-        )
+            logger.debug(
+                "sending request",
+                native_messages=str(native_messages)[:1000],
+                request=str(state.get("request"))[:1000],
+            )
 
-        _partials, final_native_1, native_messages, state = provider.call_api(
-            native_messages, state
-        )
+            _partials, final_native_1, native_messages, state = provider.call_api(
+                native_messages,
+                state,
+                request_id=request_id,
+            )
+        finally:
+            if cancellation is not None and cancel_token is not None:
+                try:
+                    cancellation.remove_callback(cancel_token)
+                except Exception:
+                    pass
 
         # Provider finalize returns provider-native finals and full native history
         final_native_2, native_messages, state = provider.finalize(native_messages, state)
@@ -1897,8 +1951,26 @@ class AgentCore:
             baseline_native_len,
         )
 
+        final_core, native_messages, response_metadata_patch, _response_results = (
+            self.execute_response_lifecycle_actions(
+                session,
+                config,
+                "response_finalize",
+                provider=provider,
+                features=features,
+                state=state,
+                final_messages=final_core,
+                native_messages=native_messages,
+                native_final_messages=final_native,
+                stream=False,
+                turn_native_start_index=baseline_native_len,
+            )
+        )
+
         # Build new session messages by appending new Message objects
         new_metadata = dict(session.metadata)
+        if response_metadata_patch:
+            new_metadata.update(response_metadata_patch)
         # Persist full provider-native history for the turn (implementation detail)
         new_metadata["native_messages"] = native_messages
         if native_history_changed:
@@ -1921,7 +1993,12 @@ class AgentCore:
 
 
     def send_request_stream(
-        self, session: Session, config: Dict[str, Any]
+        self,
+        session: Session,
+        config: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+        cancellation: Any | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Stream request and yield partial events, then the final session.
 
@@ -1959,37 +2036,53 @@ class AgentCore:
         )
 
         provider.set_active_extensions(enabled_extensions)
-        messages, native_messages, state, native_history_changed = self._pre_request(
-            session,
-            config,
-            provider,
-            features,
-            tools,
-            tags=tags,
-        )
-        baseline_native_len = len(native_messages)
+        cancel_token: Any | None = None
+        if request_id and cancellation is not None:
+            try:
+                cancel_token = cancellation.add_callback(
+                    lambda: provider.cancel_request(request_id)
+                )
+            except Exception:
+                cancel_token = None
+
+        try:
+            messages, native_messages, state, native_history_changed = self._pre_request(
+                session,
+                config,
+                provider,
+                features,
+                tools,
+                request_id=request_id,
+            )
+            baseline_native_len = len(native_messages)
 
 
-        logger.debug(
-            "start streaming request",
-            native_messages=str(native_messages)[:1000],
-            requrest=str(state.get("request", None))[:1000],
-        )
+            logger.debug(
+                "start streaming request",
+                native_messages=str(native_messages)[:1000],
+                requrest=str(state.get("request", None))[:1000],
+            )
 
-        aggregated_native_finals: List[Dict[str, Any]] = []
+            aggregated_native_finals: List[Dict[str, Any]] = []
 
-        # Stream from provider using optimized streaming
-        partial_count = 0
-        for event in provider.stream_messages(native_messages, state):
-            #logger.debug("streaming event received", _event=event) # the first positional argument is also named 'event', we cannot use that name
-            if event["type"] == "partial":
-                partial_count += 1
-                log_chunk_processing.debug("partial message received", partial=event["message"])
-                yield {"type": "partial", "message": event["message"]}
-            elif event["type"] == "final_messages":
-                # These are provider-native finals
-                log_chunk_processing.debug("final message received", final=event.get("messages"))
-                aggregated_native_finals.extend(event["messages"])
+            # Stream from provider using optimized streaming
+            partial_count = 0
+            for event in provider.stream_messages(native_messages, state, request_id=request_id):
+                #logger.debug("streaming event received", _event=event) # the first positional argument is also named 'event', we cannot use that name
+                if event["type"] == "partial":
+                    partial_count += 1
+                    log_chunk_processing.debug("partial message received", partial=event["message"])
+                    yield {"type": "partial", "message": event["message"]}
+                elif event["type"] == "final_messages":
+                    # These are provider-native finals
+                    log_chunk_processing.debug("final message received", final=event.get("messages"))
+                    aggregated_native_finals.extend(event["messages"])
+        finally:
+            if cancellation is not None and cancel_token is not None:
+                try:
+                    cancellation.remove_callback(cancel_token)
+                except Exception:
+                    pass
 
         # Finalize using the last accumulated native messages
         final_native, native_messages, state = provider.finalize(
@@ -2022,7 +2115,25 @@ class AgentCore:
             baseline_native_len,
         )
 
+        final_core, native_messages, response_metadata_patch, _response_results = (
+            self.execute_response_lifecycle_actions(
+                session,
+                config,
+                "response_finalize",
+                provider=provider,
+                features=features,
+                state=state,
+                final_messages=final_core,
+                native_messages=native_messages,
+                native_final_messages=combined_native_finals,
+                stream=True,
+                turn_native_start_index=baseline_native_len,
+            )
+        )
+
         new_metadata = dict(session.metadata)
+        if response_metadata_patch:
+            new_metadata.update(response_metadata_patch)
         new_metadata["native_messages"] = native_messages
         if native_history_changed:
             # Rebuild core from the post-initialize native (after structural changes)
@@ -2040,7 +2151,12 @@ class AgentCore:
         yield {"type": "final", "session": new_session, "messages": final_core}
 
     async def send_request_stream_async(
-        self, session: Session, config: Dict[str, Any]
+        self,
+        session: Session,
+        config: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+        cancellation: Any | None = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """Async version of send_request_stream.
 
@@ -2072,26 +2188,46 @@ class AgentCore:
         )
 
         provider.set_active_extensions(enabled_extensions)
-        messages, native_messages, state, native_history_changed = self._pre_request(
-            session,
-            config,
-            provider,
-            features,
-            tools,
-            tags=tags,
-        )
-        baseline_native_len = len(native_messages)
+        cancel_token: Any | None = None
+        if request_id and cancellation is not None:
+            try:
+                cancel_token = cancellation.add_callback(
+                    lambda: provider.cancel_request(request_id)
+                )
+            except Exception:
+                cancel_token = None
+
+        try:
+            messages, native_messages, state, native_history_changed = self._pre_request(
+                session,
+                config,
+                provider,
+                features,
+                tools,
+                request_id=request_id,
+            )
+            baseline_native_len = len(native_messages)
 
 
-        aggregated_native_finals: List[Dict[str, Any]] = []
+            aggregated_native_finals: List[Dict[str, Any]] = []
 
 
-        # Stream from provider (async) using optimized streaming
-        async for event in provider.stream_messages_async(native_messages, state):
-            if event["type"] == "partial":
-                yield {"type": "partial", "message": event["message"]}
-            elif event["type"] == "final_messages":
-                aggregated_native_finals.extend(event["messages"])  # native finals
+            # Stream from provider (async) using optimized streaming
+            async for event in provider.stream_messages_async(
+                native_messages,
+                state,
+                request_id=request_id,
+            ):
+                if event["type"] == "partial":
+                    yield {"type": "partial", "message": event["message"]}
+                elif event["type"] == "final_messages":
+                    aggregated_native_finals.extend(event["messages"])  # native finals
+        finally:
+            if cancellation is not None and cancel_token is not None:
+                try:
+                    cancellation.remove_callback(cancel_token)
+                except Exception:
+                    pass
 
         final_native, native_messages, state = provider.finalize(
             provider.get_last_native_messages(), provider.get_state()
@@ -2121,7 +2257,25 @@ class AgentCore:
             baseline_native_len,
         )
 
+        final_core, native_messages, response_metadata_patch, _response_results = (
+            self.execute_response_lifecycle_actions(
+                session,
+                config,
+                "response_finalize",
+                provider=provider,
+                features=features,
+                state=state,
+                final_messages=final_core,
+                native_messages=native_messages,
+                native_final_messages=combined_native_finals,
+                stream=True,
+                turn_native_start_index=baseline_native_len,
+            )
+        )
+
         new_metadata = dict(session.metadata)
+        if response_metadata_patch:
+            new_metadata.update(response_metadata_patch)
         new_metadata["native_messages"] = native_messages
         if native_history_changed:
             # Rebuild core from the post-initialize native (after structural changes)
@@ -2425,7 +2579,18 @@ class AgentCore:
             config,
         )
 
+        actions = self._collect_core_session_actions(provider, features, state)
+
+        return provider, features, state, actions
+
+    def _collect_core_session_actions(
+        self,
+        provider: Any,
+        features: List[Any],
+        state: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
         actions: List[Dict[str, Any]] = []
+
         for plugin_id, raw_actions in provider.get_extension_actions(state).items():
             for raw_action in raw_actions:
                 if not isinstance(raw_action, dict):
@@ -2444,7 +2609,7 @@ class AgentCore:
                 action.setdefault("action_owner", "feature")
                 actions.append(action)
 
-        return provider, features, state, actions
+        return actions
 
     def _apply_session_action_result(
         self,
@@ -2641,6 +2806,127 @@ class AgentCore:
 
         return current_session, results
 
+    def execute_response_lifecycle_actions(
+        self,
+        session: Session,
+        config: Dict[str, Any],
+        trigger: str,
+        *,
+        provider: Any,
+        features: List[Any],
+        state: Dict[str, Any],
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        native_final_messages: List[Dict[str, Any]],
+        stream: bool,
+        turn_native_start_index: int,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any], List[Dict[str, Any]]]:
+        """Execute core-owned response lifecycles before finals are emitted."""
+
+        if not isinstance(config, dict):
+            raise TypeError("config must be a dict")
+        if not isinstance(trigger, str) or not trigger:
+            raise ValueError("trigger must be a non-empty string")
+
+        current_final_messages = [msg for msg in final_messages if isinstance(msg, dict)]
+        current_native_messages = [msg for msg in native_messages if isinstance(msg, dict)]
+        metadata_patch: Dict[str, Any] = {}
+        results: List[Dict[str, Any]] = []
+
+        available_actions = self._collect_core_session_actions(provider, features, state)
+
+        for action_def in available_actions:
+            if not self._action_matches_trigger(action_def, trigger):
+                continue
+
+            plugin_id = action_def.get("plugin")
+            action_id = action_def.get("id")
+            action_owner = action_def.get("action_owner")
+            if not isinstance(plugin_id, str) or not isinstance(action_id, str):
+                continue
+
+            validated_inputs = self._validate_session_action_inputs(action_def, {})
+            enriched_context: Dict[str, Any] = dict(context) if isinstance(context, dict) else {}
+            enriched_context["core"] = self
+            enriched_context["config"] = config
+            enriched_context["trigger_source"] = "core"
+            enriched_context["lifecycle"] = trigger
+            enriched_context["session"] = session.to_dict()
+            enriched_context["final_messages"] = current_final_messages
+            enriched_context["native_final_messages"] = [
+                msg for msg in native_final_messages if isinstance(msg, dict)
+            ]
+            enriched_context["native_messages"] = current_native_messages
+            enriched_context["stream"] = bool(stream)
+            enriched_context["turn_native_start_index"] = turn_native_start_index
+
+            if action_owner == "feature":
+                result: Optional[Dict[str, Any]] = None
+                for feature in features:
+                    if feature.name != plugin_id:
+                        continue
+                    result = feature.execute_action(
+                        action_id,
+                        session,
+                        current_native_messages,
+                        validated_inputs,
+                        enriched_context,
+                        state,
+                    )
+                    break
+                if result is None:
+                    continue
+            else:
+                result = provider.execute_extension_action(
+                    plugin_id,
+                    action_id,
+                    session,
+                    current_native_messages,
+                    validated_inputs,
+                    enriched_context,
+                    state,
+                )
+
+            if not isinstance(result, dict):
+                raise RuntimeError("response lifecycle action must return a dict")
+
+            if "final_messages" in result:
+                raw_finals = result.get("final_messages")
+                if not isinstance(raw_finals, list) or not all(isinstance(item, dict) for item in raw_finals):
+                    raise RuntimeError(
+                        "response lifecycle action final_messages must be a list of dicts"
+                    )
+                current_final_messages = [item for item in raw_finals if isinstance(item, dict)]
+
+            if "native_messages" in result:
+                raw_native = result.get("native_messages")
+                if not isinstance(raw_native, list) or not all(isinstance(item, dict) for item in raw_native):
+                    raise RuntimeError(
+                        "response lifecycle action native_messages must be a list of dicts"
+                    )
+                current_native_messages = [item for item in raw_native if isinstance(item, dict)]
+
+            metadata_patch_raw = result.get("session_metadata")
+            if isinstance(metadata_patch_raw, dict):
+                metadata_patch.update(metadata_patch_raw)
+
+            public_result = {
+                key: value
+                for key, value in result.items()
+                if key not in {"final_messages", "native_messages", "session_metadata"}
+            }
+            results.append(
+                {
+                    "plugin": plugin_id,
+                    "action_id": action_id,
+                    "action_owner": action_owner,
+                    "result": public_result,
+                }
+            )
+
+        return current_final_messages, current_native_messages, metadata_patch, results
+
     def get_completions(self, config: Dict[str, Any], text: str) -> List[Dict[str, Any]]:
         """Collect completion suggestions from registered feature plugins.
 
@@ -2723,16 +3009,311 @@ class AgentCore:
                 schemas.extend(tool.get_tool_schemas(state))
             return schemas
 
-        _provider, _exts, _features, tools, _tags = self._resolve_plugins_for_config(config)
+        provider, exts, _features, tools, _tags = self._resolve_plugins_for_config(config)
+        tool_init_config = self._build_tool_init_config(config, provider=provider, extensions=exts)
         for tool in tools:
-            state = tool.init(config)
+            state = tool.init(tool_init_config)
             schemas.extend(tool.get_tool_schemas(state))
         return schemas
+
+    def _resolve_tool_participants_for_config(
+        self,
+        config: Dict[str, Any],
+    ) -> Tuple[Optional[ProviderWrapper], List[ExtensionWrapper], List[ToolWrapper]]:
+        if not self._tools:
+            return None, [], []
+        if not self._providers:
+            return None, [], list(self._tools)
+        try:
+            provider, exts, _features, tools, _tags = self._resolve_plugins_for_config(config)
+            return provider, list(exts), list(tools)
+        except Exception:
+            return None, [], list(self._tools)
+
+    def _get_enabled_tool_states_for_config(
+        self,
+        config: Dict[str, Any],
+    ) -> Tuple[Optional[ProviderWrapper], List[ExtensionWrapper], List[Tuple[ToolWrapper, Dict[str, Any]]]]:
+        provider, extensions, enabled_tools = self._resolve_tool_participants_for_config(config)
+        tool_init_config = self._build_tool_init_config(
+            config,
+            provider=provider,
+            extensions=extensions,
+        )
+        return provider, extensions, [(tool, tool.init(tool_init_config)) for tool in enabled_tools]
+
+    def _build_tool_init_config(
+        self,
+        config: Dict[str, Any],
+        *,
+        provider: Optional[ProviderWrapper] = None,
+        extensions: Optional[List[ExtensionWrapper]] = None,
+    ) -> Dict[str, Any]:
+        base_config = dict(config) if isinstance(config, dict) else {}
+        local_provider = provider
+        local_extensions = list(extensions or [])
+
+        if local_provider is None and extensions is None and self._providers:
+            try:
+                local_provider, local_extensions, _tools = self._resolve_tool_participants_for_config(
+                    base_config
+                )
+            except Exception:
+                local_provider, local_extensions = None, []
+
+        if local_provider is None and not local_extensions:
+            return base_config
+
+        tool_interop_registry = self._get_tool_interop_registry_for_config(
+            base_config,
+            provider=local_provider,
+            extensions=local_extensions,
+            tool_states=[],
+        )
+        tool_schema_target_formats = self._get_tool_schema_target_formats_for_config(
+            base_config,
+            provider=local_provider,
+            extensions=local_extensions,
+        )
+        tool_config = {**base_config, "_tool_interop_registry": tool_interop_registry}
+        if tool_schema_target_formats:
+            tool_config["_tool_schema_target_formats"] = tool_schema_target_formats
+        return tool_config
+
+    def _get_explicit_tool_interop_contributions(
+        self,
+        config: Dict[str, Any],
+    ) -> List[Any]:
+        from .tool_interop import ToolInteropContribution
+
+        raw_single = config.get("tool_interop")
+        raw_many = config.get("tool_interop_contributions")
+        contributions: List[Any] = []
+        if raw_single is not None:
+            contributions.append(raw_single)
+        if isinstance(raw_many, list):
+            contributions.extend(raw_many)
+        return [item for item in contributions if isinstance(item, ToolInteropContribution)]
+
+    def _get_tool_interop_registry_for_config(
+        self,
+        config: Dict[str, Any],
+        *,
+        provider: Optional[ProviderWrapper] = None,
+        extensions: Optional[List[ExtensionWrapper]] = None,
+        tool_states: Optional[List[Tuple[ToolWrapper, Dict[str, Any]]]] = None,
+    ) -> Any:
+        from .tool_interop import compose_tool_interop_registry
+
+        local_provider = provider
+        local_extensions = extensions or []
+        local_tool_states = tool_states or []
+        if local_provider is None and not local_extensions and not local_tool_states:
+            local_provider, local_extensions, local_tool_states = self._get_enabled_tool_states_for_config(
+                config
+            )
+
+        contributions: List[Any] = []
+        if local_provider is not None:
+            contributions.append(local_provider.get_tool_interop_contribution(config, None))
+        for extension in local_extensions:
+            contributions.append(extension.get_tool_interop_contribution(config, None))
+        for tool, state in local_tool_states:
+            contributions.append(tool.get_tool_interop_contribution(state))
+
+        return compose_tool_interop_registry(
+            explicit=self._get_explicit_tool_interop_contributions(config),
+            contributed=contributions,
+        )
+
+    def _get_tool_schema_target_formats_for_config(
+        self,
+        config: Dict[str, Any],
+        *,
+        provider: Optional[ProviderWrapper] = None,
+        extensions: Optional[List[ExtensionWrapper]] = None,
+    ) -> List[str]:
+        local_provider = provider
+        local_extensions = extensions
+        if local_provider is None and local_extensions is None:
+            local_provider, local_extensions, _tool_states = self._get_enabled_tool_states_for_config(
+                config
+            )
+        formats: List[str] = []
+        if local_provider is not None:
+            formats.extend(local_provider.accepted_tool_schema_formats(config, None))
+        for extension in local_extensions or []:
+            formats.extend(extension.accepted_tool_schema_formats(config, None))
+        return [fmt for fmt in formats if isinstance(fmt, str) and fmt]
+
+    def extract_tool_calls_from_messages(
+        self,
+        messages: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Extract tool-call dictionaries from assistant message metadata."""
+
+        tool_calls: List[Dict[str, Any]] = []
+        for msg in messages:
+            if not isinstance(msg, dict) or msg.get("role") != "assistant":
+                continue
+            metadata = msg.get("metadata") or {}
+            calls = metadata.get("tool_calls") or []
+            if isinstance(calls, list):
+                tool_calls.extend([call for call in calls if isinstance(call, dict)])
+        return tool_calls
+
+    def format_tool_call_preview(
+        self,
+        tool_call: Dict[str, Any],
+        config: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Return a preview record for a single tool call."""
+
+        provider, extensions, tool_states = self._get_enabled_tool_states_for_config(config)
+        registry = self._get_tool_interop_registry_for_config(
+            config,
+            provider=provider,
+            extensions=extensions,
+            tool_states=tool_states,
+        )
+
+        try:
+            inspected_call = registry.inspect_call(tool_call)
+        except Exception:
+            inspected_call = None
+
+        if inspected_call is None:
+            return {"id": None, "preview": ""}
+
+        tool, state, _matched_schema = self._resolve_tool_handler_for_call(
+            inspected_call,
+            tool_states,
+            registry,
+        )
+        if tool is None or state is None:
+            return {"id": inspected_call.call_id, "preview": ""}
+
+        try:
+            preview = tool.format_tool_call_preview(
+                inspected_call.tool_name,
+                inspected_call.payload,
+                state,
+                payload_kind=inspected_call.payload_kind,
+                payload_format=inspected_call.payload_format,
+                payload_metadata=inspected_call.payload_metadata,
+                tool_call=inspected_call.raw,
+            )
+        except Exception:
+            preview = ""
+
+        return {
+            "id": inspected_call.call_id,
+            "preview": preview if isinstance(preview, str) else "",
+        }
+
+    def format_tool_call_previews(
+        self,
+        tool_calls: List[Dict[str, Any]],
+        config: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        """Return preview records for all supplied tool calls."""
+
+        return [
+            self.format_tool_call_preview(tool_call, config)
+            for tool_call in tool_calls
+            if isinstance(tool_call, dict)
+        ]
+
+    def patch_native_internal_metadata(
+        self,
+        native_messages: List[Dict[str, Any]],
+        indices: List[int],
+        patch: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        """Immutably merge ``patch`` into `_metadata` on selected native items."""
+
+        if not indices or not isinstance(patch, dict) or not patch:
+            return native_messages
+
+        out: Optional[List[Dict[str, Any]]] = None
+        for idx in sorted({i for i in indices if isinstance(i, int)}):
+            if idx < 0 or idx >= len(native_messages):
+                continue
+            item = native_messages[idx]
+            if not isinstance(item, dict):
+                continue
+            raw_internal = item.get("_metadata")
+            internal = dict(raw_internal) if isinstance(raw_internal, dict) else {}
+            merged_internal = {**internal, **patch}
+            if merged_internal == internal:
+                continue
+            if out is None:
+                out = list(native_messages)
+            out[idx] = {**item, "_metadata": merged_internal}
+        return out if out is not None else native_messages
+
+    def _build_name_to_tool_map(
+        self,
+        registry: Any,
+        tool_states: List[Tuple[ToolWrapper, Dict[str, Any]]],
+    ) -> Dict[str, Tuple[ToolWrapper, Dict[str, Any], Dict[str, Any]]]:
+        name_to_tool: Dict[str, Tuple[ToolWrapper, Dict[str, Any], Dict[str, Any]]] = {}
+        for tool, state in tool_states:
+            try:
+                schemas = tool.get_tool_schemas(state)
+            except Exception:
+                schemas = []
+            for schema in schemas or []:
+                if not isinstance(schema, dict):
+                    continue
+                try:
+                    inspected_schema = registry.inspect_schema(schema)
+                except Exception:
+                    continue
+                name = inspected_schema.tool_name
+                if isinstance(name, str) and name and name not in name_to_tool:
+                    name_to_tool[name] = (tool, state, schema)
+        return name_to_tool
+
+    def _resolve_tool_handler_for_call(
+        self,
+        inspected_call: Any,
+        tool_states: List[Tuple[ToolWrapper, Dict[str, Any]]],
+        registry: Any,
+    ) -> Tuple[Optional[ToolWrapper], Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        for tool, state in tool_states:
+            try:
+                decision = tool.can_handle_tool_call(
+                    inspected_call.tool_name,
+                    inspected_call.payload,
+                    state,
+                    payload_kind=inspected_call.payload_kind,
+                    payload_format=inspected_call.payload_format,
+                    payload_metadata=inspected_call.payload_metadata,
+                    tool_call=inspected_call.raw,
+                    tool_schema=None,
+                )
+            except Exception:
+                decision = None
+            if decision is True:
+                return tool, state, None
+
+        if isinstance(inspected_call.tool_name, str) and inspected_call.tool_name:
+            by_name = self._build_name_to_tool_map(registry, tool_states)
+            matched = by_name.get(inspected_call.tool_name)
+            if matched is not None:
+                tool, state, schema = matched
+                return tool, state, schema
+
+        return None, None, None
 
     def iter_tool_messages(
         self,
         tool_calls: List[Dict[str, Any]],
         config: Dict[str, Any],
+        *,
+        cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Iterator[Dict[str, Any]]:
         """Yield a mixed stream of partial payloads and final core ``tool`` messages.
 
@@ -2740,6 +3321,14 @@ class AgentCore:
         yielded as-is when they contain a ``"part"`` key. Result dictionaries are
         detected via the presence of a ``"success"`` key and transformed into final
         core ``tool`` messages at the end of each tool call.
+
+        Args:
+            tool_calls: List of tool call dictionaries to execute.
+            config: Current resolved request configuration.
+            cancellation: Optional cancellation token.
+            context: Optional context for tool execution. Layer 1 context (core,
+                config, trigger_source) is enriched by this method if not already
+                present.
         """
         if not tool_calls:
             return
@@ -2749,60 +3338,23 @@ class AgentCore:
             count=len(tool_calls),
         )
 
-        # Resolve enabled tools for this config and build a mapping from
-        # function name -> (tool_wrapper, state).
-        from .tool_interop import OpenAIChatToolCallAccessor, OpenAIChatToolSchemaAccessor, ToolInteropError
-
-        schema_accessor = OpenAIChatToolSchemaAccessor()
-        call_accessor = OpenAIChatToolCallAccessor()
-
-        if not self._tools:
-            enabled_tools: List[ToolWrapper] = []
-        elif not self._providers:
-            enabled_tools = list(self._tools)
-        else:
-            try:
-                _provider, _exts, _features, tools, _tags = self._resolve_plugins_for_config(
-                    config
-                )
-                enabled_tools = list(tools)
-            except Exception:
-                enabled_tools = list(self._tools)
-
-        name_to_tool: Dict[str, Tuple[ToolWrapper, Dict[str, Any]]] = {}
-
-        for tool in enabled_tools:
-            state = tool.init(config)
-            try:
-                schemas = tool.get_tool_schemas(state)
-            except Exception:
-                schemas = []
-            for schema in schemas or []:
-                if not isinstance(schema, dict):
-                    continue
-                if not schema_accessor.can_handle(schema):
-                    continue
-                name = schema_accessor.get_tool_name(schema)
-                if name and name not in name_to_tool:
-                    name_to_tool[name] = (tool, state)
+        provider, extensions, tool_states = self._get_enabled_tool_states_for_config(config)
+        registry = self._get_tool_interop_registry_for_config(
+            config,
+            provider=provider,
+            extensions=extensions,
+            tool_states=tool_states,
+        )
 
         for call in tool_calls:
             try:
-                call_id = call_accessor.get_call_id(call)
-                name = call_accessor.get_tool_name(call)
-                args = call_accessor.get_arguments(call)
-            except ToolInteropError:
+                inspected_call = registry.inspect_call(call)
+            except Exception:
+                inspected_call = None
+
+            if inspected_call is None:
                 call_id = None
                 name = None
-                args = {}
-            # Accept OpenAI-style string arguments; parse JSON when needed.
-            if isinstance(args, str):
-                try:
-                    args = json.loads(args)
-                except Exception:
-                    args = {}
-
-            if not isinstance(name, str) or not name or name not in name_to_tool:
                 # No matching tool found; synthesize an error message.
                 metadata: Dict[str, Any] = {
                     "tool_call_id": call_id,
@@ -2815,13 +3367,50 @@ class AgentCore:
                 }
                 continue
 
-            tool, state = name_to_tool[name]
+            call_id = inspected_call.call_id
+            name = inspected_call.tool_name
+
+            tool, state, matched_schema = self._resolve_tool_handler_for_call(
+                inspected_call,
+                tool_states,
+                registry,
+            )
+
+            if tool is None or state is None:
+                metadata = {
+                    "tool_call_id": call_id,
+                    "tool_name": name,
+                }
+                yield {
+                    "role": "tool",
+                    "content": f"Error: no tool handled '{name}'",
+                    "metadata": metadata,
+                }
+                continue
             last_result: Dict[str, Any] | None = None
             had_result = False
             stream_error: str | None = None
 
+            # Layer 1: Core-level context enrichment.
+            # Higher layers (application, terminal) may have already set these;
+            # use setdefault so we never overwrite a richer value.
+            tool_context: Dict[str, Any] = dict(context) if isinstance(context, dict) else {}
+            tool_context.setdefault("core", self)
+            tool_context.setdefault("config", config)
+            tool_context.setdefault("trigger_source", "core")
+
             try:
-                iterator = tool.stream_tool(str(name), args, state)
+                iterator = tool.stream_tool(
+                    name,
+                    inspected_call.payload,
+                    state,
+                    payload_kind=inspected_call.payload_kind,
+                    payload_format=inspected_call.payload_format,
+                    payload_metadata=inspected_call.payload_metadata,
+                    tool_call=inspected_call.raw,
+                    cancellation=cancellation,
+                    context=tool_context,
+                )
                 iterator = iter(iterator)
             except Exception as exc:
                 iterator = None
@@ -2888,6 +3477,8 @@ class AgentCore:
                 "tool_call_id": call_id,
                 "tool_name": name,
             }
+            if matched_schema is not None:
+                metadata["tool_schema"] = matched_schema
             plugin_name = getattr(tool, "name", None)
             if isinstance(plugin_name, str) and plugin_name:
                 metadata["tool_plugin"] = plugin_name
@@ -2904,6 +3495,8 @@ class AgentCore:
         self,
         tool_calls: List[Dict[str, Any]],
         config: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Return only the final core ``tool`` message per tool call.
 
@@ -2911,6 +3504,12 @@ class AgentCore:
         that ignores partial payloads and keeps only the last final tool
         message for each call. When a streaming tool yields no items for a
         call, a synthetic error message is returned.
+
+        Args:
+            tool_calls: List of tool call dictionaries to execute.
+            config: Current resolved request configuration.
+            context: Optional context for tool execution. Passed through to
+                :meth:`iter_tool_messages` which enriches with Layer 1 context.
         """
         results: List[Dict[str, Any]] = []
         if not tool_calls:
@@ -2925,7 +3524,7 @@ class AgentCore:
             last_final: Dict[str, Any] | None = None
             executed = False
 
-            for item in self.iter_tool_messages([call], config):
+            for item in self.iter_tool_messages([call], config, context=context):
                 if not isinstance(item, dict):
                     continue
                 if "part" in item:
@@ -2935,13 +3534,12 @@ class AgentCore:
                 executed = True
 
             if last_final is None:
-                from .tool_interop import OpenAIChatToolCallAccessor, ToolInteropError
-
-                call_accessor = OpenAIChatToolCallAccessor()
                 try:
-                    call_id = call_accessor.get_call_id(call)
-                    name = call_accessor.get_tool_name(call)
-                except ToolInteropError:
+                    registry = self._get_tool_interop_registry_for_config(config)
+                    inspected_call = registry.inspect_call(call)
+                    call_id = inspected_call.call_id
+                    name = inspected_call.tool_name
+                except Exception:
                     call_id = None
                     name = None
                 metadata: Dict[str, Any] = {
@@ -2969,6 +3567,8 @@ class AgentCore:
         self,
         tool_call: Dict[str, Any],
         config: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Iterator[Dict[str, Any]]:
         """Stream partial results for a single tool call.
 
@@ -2976,43 +3576,60 @@ class AgentCore:
         invokes the optional :meth:`ToolPlugin.stream_tool` hook instead of the
         synchronous execute/format path. If no tool provides streaming for the
         given call, yields nothing.
+
+        Args:
+            tool_call: Tool call dictionary to execute.
+            config: Current resolved request configuration.
+            context: Optional context for tool execution. Layer 1 context (core,
+                config, trigger_source) is enriched by this method if not already
+                present.
         """
         if not self._tools:
             return
 
-        # Initialize tool states for this call
-        tool_states = [(tool, tool.init(config)) for tool in self._tools]
-
-        from .tool_interop import OpenAIChatToolCallAccessor, ToolInteropError
-
-        call_accessor = OpenAIChatToolCallAccessor()
+        provider, extensions, tool_states = self._get_enabled_tool_states_for_config(config)
+        registry = self._get_tool_interop_registry_for_config(
+            config,
+            provider=provider,
+            extensions=extensions,
+            tool_states=tool_states,
+        )
         try:
-            name = call_accessor.get_tool_name(tool_call)
-            args = call_accessor.get_arguments(tool_call)
-        except ToolInteropError:
+            inspected_call = registry.inspect_call(tool_call)
+        except Exception:
             return
-        if isinstance(args, str):
-            try:
-                args = json.loads(args)
-            except Exception:
-                args = {}
 
-        handled = False
-        for tool, state in tool_states:
-            try:
-                iterator = tool.stream_tool(str(name), args, state)
-            except Exception:
-                continue
-            try:
-                iterator = iter(iterator)
-            except TypeError:
-                continue
-            for chunk in iterator:
-                handled = True
-                if isinstance(chunk, dict):
-                    yield chunk
-            if handled:
-                break
+        tool, state, _schema = self._resolve_tool_handler_for_call(
+            inspected_call,
+            tool_states,
+            registry,
+        )
+        if tool is None or state is None:
+            return
+
+        # Layer 1: Core-level context enrichment.
+        tool_context: Dict[str, Any] = dict(context) if isinstance(context, dict) else {}
+        tool_context.setdefault("core", self)
+        tool_context.setdefault("config", config)
+        tool_context.setdefault("trigger_source", "core")
+
+        try:
+            iterator = tool.stream_tool(
+                inspected_call.tool_name,
+                inspected_call.payload,
+                state,
+                payload_kind=inspected_call.payload_kind,
+                payload_format=inspected_call.payload_format,
+                payload_metadata=inspected_call.payload_metadata,
+                tool_call=inspected_call.raw,
+                context=tool_context,
+            )
+            iterator = iter(iterator)
+        except Exception:
+            return
+        for chunk in iterator:
+            if isinstance(chunk, dict):
+                yield chunk
 
     def export_session(self, session: Session, format: str = "json") -> str:
         """Export session to a serialized string.

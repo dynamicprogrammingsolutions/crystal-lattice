@@ -16,6 +16,7 @@ from __future__ import annotations
 import inspect
 from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Tuple, cast
 
+from ..tool_interop import ToolInteropContribution
 from ..types import FeaturePlugin, ProviderExtensionPlugin, ProviderPlugin, Session, ToolPlugin
 
 
@@ -96,6 +97,30 @@ class _BasePluginDefaults:
                 return None
         return fn
 
+    @staticmethod
+    def _call_with_optional_kwargs(fn: Any, *args: Any, **kwargs: Any) -> Any:
+        """Call ``fn`` with only the keyword arguments it accepts.
+
+        This preserves backward compatibility for implementations that still
+        use the older positional-only tool hook signatures.
+        """
+
+        try:
+            sig = inspect.signature(fn)
+        except (TypeError, ValueError):
+            return fn(*args, **kwargs)
+
+        params = list(sig.parameters.values())
+        if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params):
+            return fn(*args, **kwargs)
+
+        accepted = {
+            name: value
+            for name, value in kwargs.items()
+            if name in sig.parameters
+        }
+        return fn(*args, **accepted)
+
     # ----- BasePlugin config / UI -----
 
     def get_config_schema(self) -> Dict[str, Any]:  # type: ignore[override]
@@ -168,11 +193,20 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
         return {"config": config}
 
     def initialize_request(  # type: ignore[override]
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         fn = getattr(self.impl, "initialize_request", None)
         if callable(fn):
-            out = fn(native_messages, state)
+            out = self._call_with_optional_kwargs(
+                fn,
+                native_messages,
+                state,
+                request_id=request_id,
+            )
             if isinstance(out, tuple) and len(out) == 2:
                 raw_native, raw_state = out
                 new_state = raw_state if isinstance(raw_state, dict) else state
@@ -184,6 +218,41 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
             if isinstance(out, dict):
                 return native_messages, out
         return native_messages, state
+
+    def get_tool_interop_contribution(  # type: ignore[override]
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> ToolInteropContribution:
+        fn = self._get_impl_method("get_tool_interop_contribution", ProviderPlugin)
+        if fn is None:
+            return ToolInteropContribution()
+        out = self._call_with_optional_kwargs(fn, config, state)
+        return out if isinstance(out, ToolInteropContribution) else ToolInteropContribution()
+
+    def accepted_tool_schema_formats(  # type: ignore[override]
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        fn = self._get_impl_method("accepted_tool_schema_formats", ProviderPlugin)
+        if fn is None:
+            return []
+        out = self._call_with_optional_kwargs(fn, config, state)
+        items = self._safe_list(out)
+        return [item for item in items if isinstance(item, str) and item]
+
+    def emitted_tool_call_formats(  # type: ignore[override]
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        fn = self._get_impl_method("emitted_tool_call_formats", ProviderPlugin)
+        if fn is None:
+            return []
+        out = self._call_with_optional_kwargs(fn, config, state)
+        items = self._safe_list(out)
+        return [item for item in items if isinstance(item, str) and item]
 
     # ----- Message conversion -----
 
@@ -263,14 +332,19 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Tuple[
         List[Dict[str, Any]],
         List[Dict[str, Any]],
         List[Dict[str, Any]],
         Dict[str, Any],
     ]:
-        partials, finals, natives, new_state = self.impl.call_api(  # type: ignore[attr-defined]
-            native_messages, state
+        partials, finals, natives, new_state = self._call_with_optional_kwargs(
+            self.impl.call_api,  # type: ignore[attr-defined]
+            native_messages,
+            state,
+            request_id=request_id,
         )
         return (
             [m for m in self._safe_list(partials) if isinstance(m, dict)],
@@ -280,23 +354,52 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
         )
 
     def stream_api(  # type: ignore[override]
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Iterator[Dict[str, Any]]:
-        for chunk in self.impl.stream_api(native_messages, state):  # type: ignore[attr-defined]
+        stream = self._call_with_optional_kwargs(
+            self.impl.stream_api,  # type: ignore[attr-defined]
+            native_messages,
+            state,
+            request_id=request_id,
+        )
+        for chunk in stream:
             if isinstance(chunk, dict):
                 yield chunk
 
     async def stream_api_async(  # type: ignore[override]
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         impl_async = getattr(self.impl, "stream_api_async", None)
         if callable(impl_async):
-            async for chunk in impl_async(native_messages, state):  # type: ignore[misc]
+            async_iter = self._call_with_optional_kwargs(
+                impl_async,
+                native_messages,
+                state,
+                request_id=request_id,
+            )
+            async for chunk in async_iter:  # type: ignore[misc]
                 if isinstance(chunk, dict):
                     yield chunk
             return
-        for chunk in self.stream_api(native_messages, state):
+        for chunk in self.stream_api(native_messages, state, request_id=request_id):
             yield chunk
+
+    def cancel_request(self, request_id: str) -> bool:  # type: ignore[override]
+        fn = getattr(self.impl, "cancel_request", None)
+        if callable(fn):
+            try:
+                return bool(fn(request_id))
+            except Exception:
+                return False
+        return False
 
     def process_chunk(  # type: ignore[override]
         self,
@@ -445,6 +548,41 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
             if isinstance(out, dict):
                 return native_messages, out
         return native_messages, state
+
+    def get_tool_interop_contribution(  # type: ignore[override]
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> ToolInteropContribution:
+        fn = self._get_impl_method("get_tool_interop_contribution", ProviderExtensionPlugin)
+        if fn is None:
+            return ToolInteropContribution()
+        out = self._call_with_optional_kwargs(fn, config, state)
+        return out if isinstance(out, ToolInteropContribution) else ToolInteropContribution()
+
+    def accepted_tool_schema_formats(  # type: ignore[override]
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        fn = self._get_impl_method("accepted_tool_schema_formats", ProviderExtensionPlugin)
+        if fn is None:
+            return []
+        out = self._call_with_optional_kwargs(fn, config, state)
+        items = self._safe_list(out)
+        return [item for item in items if isinstance(item, str) and item]
+
+    def emitted_tool_call_formats(  # type: ignore[override]
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        fn = self._get_impl_method("emitted_tool_call_formats", ProviderExtensionPlugin)
+        if fn is None:
+            return []
+        out = self._call_with_optional_kwargs(fn, config, state)
+        items = self._safe_list(out)
+        return [item for item in items if isinstance(item, str) and item]
 
     def process_chunk(  # type: ignore[override]
         self,
@@ -775,12 +913,71 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
             return [s for s in items if isinstance(s, dict)]
         return []
 
+    def get_tool_interop_contribution(  # type: ignore[override]
+        self,
+        state: Dict[str, Any],
+    ) -> ToolInteropContribution:
+        fn = self._get_impl_method("get_tool_interop_contribution", ToolPlugin)
+        if fn is None:
+            return ToolInteropContribution()
+        out = fn(state)
+        return out if isinstance(out, ToolInteropContribution) else ToolInteropContribution()
+
+    def can_handle_tool_call(  # type: ignore[override]
+        self,
+        tool_name: Optional[str],
+        payload: Any,
+        state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
+        tool_schema: Optional[Dict[str, Any]] = None,
+    ) -> Optional[bool]:
+        fn = self._get_impl_method("can_handle_tool_call", ToolPlugin)
+        if fn is None:
+            return None
+        out = self._call_with_optional_kwargs(
+            fn,
+            tool_name,
+            payload,
+            state,
+            payload_kind=payload_kind,
+            payload_format=payload_format,
+            payload_metadata=payload_metadata,
+            tool_call=tool_call,
+            tool_schema=tool_schema,
+        )
+        return out if isinstance(out, bool) else None
+
     def execute_tool(  # type: ignore[override]
-        self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
+        self,
+        tool_name: Optional[str],
+        payload: Any,
+        state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         fn = getattr(self.impl, "execute_tool", None)
         if callable(fn):
-            out = fn(tool_name, arguments, state)
+            out = self._call_with_optional_kwargs(
+                fn,
+                tool_name,
+                payload,
+                state,
+                payload_kind=payload_kind,
+                payload_format=payload_format,
+                payload_metadata=payload_metadata,
+                tool_call=tool_call,
+                cancellation=cancellation,
+                context=context,
+            )
             return (
                 out
                 if isinstance(out, dict)
@@ -804,21 +1001,42 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
 
     def format_tool_call_preview(  # type: ignore[override]
         self,
-        tool_name: str,
-        arguments: Dict[str, Any],
+        tool_name: Optional[str],
+        payload: Any,
         state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
     ) -> str:
         fn = getattr(self.impl, "format_tool_call_preview", None)
         if callable(fn):
-            out = fn(tool_name, arguments, state)
+            out = self._call_with_optional_kwargs(
+                fn,
+                tool_name,
+                payload,
+                state,
+                payload_kind=payload_kind,
+                payload_format=payload_format,
+                payload_metadata=payload_metadata,
+                tool_call=tool_call,
+            )
             return str(out) if out else ""
         return ""
 
     def stream_tool(  # type: ignore[override]
         self,
-        tool_name: str,
-        arguments: Dict[str, Any],
+        tool_name: Optional[str],
+        payload: Any,
         state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Iterator[Dict[str, Any]]:
         """Default streaming hook.
 
@@ -829,11 +1047,32 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
         fn = self._get_impl_method("stream_tool", ToolPlugin)
         if fn is None:
             # No partials; yield only the final result dict.
-            result = self.execute_tool(tool_name, arguments, state)
+            result = self.execute_tool(
+                tool_name,
+                payload,
+                state,
+                payload_kind=payload_kind,
+                payload_format=payload_format,
+                payload_metadata=payload_metadata,
+                tool_call=tool_call,
+                cancellation=cancellation,
+                context=context,
+            )
             if isinstance(result, dict):
                 yield result
             return
-        out = fn(tool_name, arguments, state)
+        out = self._call_with_optional_kwargs(
+            fn,
+            tool_name,
+            payload,
+            state,
+            payload_kind=payload_kind,
+            payload_format=payload_format,
+            payload_metadata=payload_metadata,
+            tool_call=tool_call,
+            cancellation=cancellation,
+            context=context,
+        )
         try:
             iterator = iter(out)
         except TypeError:

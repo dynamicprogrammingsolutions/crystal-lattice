@@ -14,6 +14,9 @@ See also
 - Reference → [OpenAI-Compatible Provider](../reference/providers/openai_provider.md)
 
 Provider plugins (canonical guide): `plugins/docs/provider-plugins.md`.
+Tool plugins (canonical guide): `plugins/docs/tool-plugins.md`.
+Node tool plugins (canonical guide): `plugins/docs/node-tool-plugins.md`.
+Bash tool plugins (canonical guide): `plugins/docs/bash-tool-plugins.md`.
 
 ## Provider Plugin
 
@@ -515,13 +518,22 @@ Tools expose callable functions to the model and manage their own tool state.
 Key methods (subset):
 - `init(config) -> state`
 - `get_tool_schemas(state) -> list`
-- `execute_tool(tool_name, arguments, state) -> dict`
+- `get_tool_interop_contribution(state) -> ToolInteropContribution` (optional)
+- `can_handle_tool_call(tool_name, payload, state, ...) -> bool | None` (optional)
+- `execute_tool(tool_name, payload, state, ...) -> dict`
 - `format_tool_result(result, state) -> str`
- - `stream_tool(tool_name, arguments, state) -> Iterator[dict]` (optional)
+ - `format_tool_call_preview(tool_name, payload, state, ...) -> str` (optional)
+ - `stream_tool(tool_name, payload, state, ...) -> Iterator[dict]` (optional)
  - `to_display_format(text, result, state) -> dict` (optional)
 
 Request-time ordering note:
 - In the default `AgentCore` request flow, tools run `init`/`get_tool_schemas` before the provider initializes, so the provider sees the current tool schemas in its `config`.
+
+Interop note:
+- Tools are no longer limited to OpenAI chat-completions function schemas.
+- `get_tool_schemas(...)` may return any schema shape understood by the active tool interop accessors/adapters.
+- At execution time the tool receives the final payload object directly, plus optional semantic metadata such as `payload_kind` and `payload_format`.
+- Legacy dict-argument tools remain supported through the Python wrapper compatibility layer.
 
 Minimal example (calculator):
 ```python
@@ -544,7 +556,18 @@ class Calculator(ToolPlugin):
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         return [{"type": "function", "function": {"name": "add", "parameters": {"type": "object", "properties": {"a": {"type": "number"}, "b": {"type": "number"}}, "required": ["a", "b"]}}}]
 
-    def execute_tool(self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_tool(
+        self,
+        tool_name: str | None,
+        payload: Any,
+        state: Dict[str, Any],
+        *,
+        payload_kind: str | None = None,
+        payload_format: str | None = None,
+        payload_metadata: Dict[str, Any] | None = None,
+        tool_call: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
+        arguments = payload if isinstance(payload, dict) else {}
         if tool_name == "add":
             return {"success": True, "result": arguments.get("a", 0) + arguments.get("b", 0)}
         return {"success": False, "error": f"Unknown tool: {tool_name}"}
@@ -556,9 +579,14 @@ class Calculator(ToolPlugin):
     #
     # def stream_tool(
     #     self,
-    #     tool_name: str,
-    #     arguments: Dict[str, Any],
+    #     tool_name: str | None,
+    #     payload: Any,
     #     state: Dict[str, Any],
+    #     *,
+    #     payload_kind: str | None = None,
+    #     payload_format: str | None = None,
+    #     payload_metadata: Dict[str, Any] | None = None,
+    #     tool_call: Dict[str, Any] | None = None,
     # ) -> Iterator[Dict[str, Any]]:
     #     """Yield partial payloads plus a final result dict.
     #
@@ -594,55 +622,28 @@ class Calculator(ToolPlugin):
     #     return {"type": "text", "content": text}
 ```
 
-### JavaScript/TypeScript Tool Plugins (Node.js)
+### Out-of-process tool plugins
 
-Tools can also be authored in JavaScript/TypeScript and executed out-of-process by Node.js.
+Tools can also be authored out-of-process:
 
-Key points:
-- Tools are executed by a Node subprocess speaking the NDJSON tool host protocol.
-- Tool `state` is treated as per-request working state; it is round-tripped on every call.
-- JavaScript tools must not write to stdout (stdout is reserved for protocol messages); write logs to stderr.
+- Node.js / TypeScript tools via the Node host
+- shell-script-backed tools via the Bash host
 
-#### Module shape
+Canonical guides:
 
-The Node host loads an entry module and selects either:
-- the default export, or
-- a named export specified by `package.json#agent.tools[].export`.
+- `plugins/docs/node-tool-plugins.md`
+- `plugins/docs/bash-tool-plugins.md`
 
-The selected export can be either:
-- a plain object implementing the tool methods (existing semantics), or
-- a class / constructor (the host instantiates it with `new` and then calls instance methods).
+Important current limitation:
 
-Example (single tool, default export):
+- the in-process Python tool API is payload-first
+- the current Node and Bash host contracts remain centered on classic
+  object/function-style tool calls
 
-```js
-export default {
-  name: "echo_tool",
-  version: "0.1.0",
-  init(config) {
-    return { config };
-  },
-  getToolSchemas() {
-    return [{
-      type: "function",
-      function: {
-        name: "echo",
-        parameters: {
-          type: "object",
-          properties: { value: { type: "string" } },
-          required: ["value"],
-        },
-      },
-    }];
-  },
-  async executeTool(toolName, args, state, emit) {
-    emit({ type: "part", payload: { message: "working..." } });
-    return { success: true, result: String(args?.value ?? "") };
-  },
-};
-```
+So if you need advanced custom/freeform payload handling today, prefer an
+in-process Python tool.
 
-See `docs/reference/tool-host-protocol.md` for the full NDJSON RPC surface.
+For the full Node host wire protocol, see `docs/reference/tool-host-protocol.md`.
 
 ## Packaging & Layout
 

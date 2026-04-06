@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Dict, Any, List, Optional, Iterator
 
 from ..types import ToolPlugin
+from ..tool_interop import ToolInteropContribution
 from .adapters import ToolDefaultsAdapter
 
 
@@ -84,23 +85,81 @@ class ToolWrapper(ToolPlugin):
         working_state = state or self.state
         return self.plugin.get_tool_schemas(working_state)
 
+    def get_tool_interop_contribution(self, state: Dict[str, Any]) -> ToolInteropContribution:
+        """Return tool-contributed interop accessors/adapters."""
+        if self.state is None:
+            raise RuntimeError(f"Tool {self.name} not initialized")
+        working_state = state or self.state
+        return self.plugin.get_tool_interop_contribution(working_state)
+
+    def can_handle_tool_call(
+        self,
+        tool_name: Optional[str],
+        payload: Any,
+        state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
+        tool_schema: Optional[Dict[str, Any]] = None,
+    ) -> Optional[bool]:
+        """Return whether this tool can handle the inspected tool call."""
+        if self.state is None:
+            raise RuntimeError(f"Tool {self.name} not initialized")
+        working_state = state or self.state
+        return self.plugin.can_handle_tool_call(
+            tool_name,
+            payload,
+            working_state,
+            payload_kind=payload_kind,
+            payload_format=payload_format,
+            payload_metadata=payload_metadata,
+            tool_call=tool_call,
+            tool_schema=tool_schema,
+        )
+
     def execute_tool(
         self,
-        tool_name: str,
-        arguments: Dict[str, Any],
+        tool_name: Optional[str],
+        payload: Any,
         state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Execute tool via plugin; requires initialized state."""
         if self.state is None:
             raise RuntimeError(f"Tool {self.name} not initialized")
         working_state = state or self.state
-        return self.plugin.execute_tool(tool_name, arguments, working_state)
+        return self.plugin.execute_tool(
+            tool_name,
+            payload,
+            working_state,
+            payload_kind=payload_kind,
+            payload_format=payload_format,
+            payload_metadata=payload_metadata,
+            tool_call=tool_call,
+            cancellation=cancellation,
+            context=context,
+        )
 
     async def execute_tool_async(
         self,
-        tool_name: str,
-        arguments: Dict[str, Any],
+        tool_name: Optional[str],
+        payload: Any,
         state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Execute tool via plugin asynchronously; requires initialized state.
         
@@ -116,7 +175,18 @@ class ToolWrapper(ToolPlugin):
         import inspect
         impl_fn = getattr(self.plugin.impl, "execute_tool", None)
         if impl_fn is not None and callable(impl_fn):
-            result = impl_fn(tool_name, arguments, working_state)
+            result = self.plugin._call_with_optional_kwargs(
+                impl_fn,
+                tool_name,
+                payload,
+                working_state,
+                payload_kind=payload_kind,
+                payload_format=payload_format,
+                payload_metadata=payload_metadata,
+                tool_call=tool_call,
+                cancellation=cancellation,
+                context=context,
+            )
             if inspect.isawaitable(result):
                 result = await result
             if isinstance(result, dict):
@@ -124,7 +194,17 @@ class ToolWrapper(ToolPlugin):
             return {"success": False, "error": "invalid tool result"}
         
         # Fall back to adapter (sync)
-        return self.plugin.execute_tool(tool_name, arguments, working_state)
+        return self.plugin.execute_tool(
+            tool_name,
+            payload,
+            working_state,
+            payload_kind=payload_kind,
+            payload_format=payload_format,
+            payload_metadata=payload_metadata,
+            tool_call=tool_call,
+            cancellation=cancellation,
+            context=context,
+        )
 
     def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
         """Format tool result via plugin; requires initialized state."""
@@ -135,22 +215,42 @@ class ToolWrapper(ToolPlugin):
 
     def format_tool_call_preview(
         self,
-        tool_name: str,
-        arguments: Dict[str, Any],
+        tool_name: Optional[str],
+        payload: Any,
         state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Generate pre-execution preview via plugin; requires initialized state."""
 
         if self.state is None:
             raise RuntimeError(f"Tool {self.name} not initialized")
         working_state = state or self.state
-        return self.plugin.format_tool_call_preview(tool_name, arguments, working_state)
+        return self.plugin.format_tool_call_preview(
+            tool_name,
+            payload,
+            working_state,
+            payload_kind=payload_kind,
+            payload_format=payload_format,
+            payload_metadata=payload_metadata,
+            tool_call=tool_call,
+        )
 
     def stream_tool(
         self,
-        tool_name: str,
-        arguments: Dict[str, Any],
+        tool_name: Optional[str],
+        payload: Any,
         state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Iterator[Dict[str, Any]]:
         """Stream tool results via plugin; requires initialized state.
 
@@ -161,7 +261,17 @@ class ToolWrapper(ToolPlugin):
         if self.state is None:
             raise RuntimeError(f"Tool {self.name} not initialized")
         working_state = state or self.state
-        return self.plugin.stream_tool(tool_name, arguments, working_state)
+        return self.plugin.stream_tool(
+            tool_name,
+            payload,
+            working_state,
+            payload_kind=payload_kind,
+            payload_format=payload_format,
+            payload_metadata=payload_metadata,
+            tool_call=tool_call,
+            cancellation=cancellation,
+            context=context,
+        )
 
     def to_display_format(
         self,

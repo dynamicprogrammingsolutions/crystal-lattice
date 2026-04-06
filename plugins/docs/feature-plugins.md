@@ -349,6 +349,16 @@ Feature plugin `execute_action()` returns a dictionary with:
 
 The `native_messages` field is required and should contain the full provider-native message history after the action is applied. The `session_metadata` field is merged into `session.metadata`.
 
+For the core-owned `response_finalize` lifecycle, actions may also return:
+
+```python
+{
+    "final_messages": [...],  # replacement core final messages for the current turn
+}
+```
+
+This lifecycle runs after provider/features finish native finalization and after native-to-core conversion, but before the final payload is emitted.
+
 ---
 
 ## Action definitions

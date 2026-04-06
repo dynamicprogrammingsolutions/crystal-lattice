@@ -1,4 +1,4 @@
-"""Feature plugin that emits codex-variant tags for Codex shell-command models.
+"""Feature plugin that emits codex-variant tags for shell-command-family models.
 
 This feature detects when the configured model belongs to the shell-command
 family used by Codex CLI and emits the ``codex-variant`` tag.
@@ -15,11 +15,11 @@ from typing import Any, Dict, List, Tuple
 
 from agent_core.types import FeaturePlugin
 
-from .model_family import is_codex_variant_model
+from .model_family import is_shell_command_family_model
 
 
 class CodexVariantFeature(FeaturePlugin):
-    """Feature that emits ``codex-variant`` for shell-command models."""
+    """Feature that emits ``codex-variant`` for shell-command-family models."""
     
     name: str = "codex_variant"
     version: str = "1.0.0"
@@ -48,7 +48,7 @@ class CodexVariantFeature(FeaturePlugin):
         if not isinstance(model, str):
             return []
 
-        if is_codex_variant_model(model):
+        if is_shell_command_family_model(model):
             return ["codex-variant"]
         return []
 

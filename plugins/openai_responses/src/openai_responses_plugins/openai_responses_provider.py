@@ -16,11 +16,14 @@ import hashlib
 import io
 import json
 import os
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+import queue
+import threading
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 from openai import OpenAI
 
-from agent_core.types import ProviderPlugin
+from agent_core.types import ProviderPlugin, ProviderRequestCancelled
 from agent_core.utils import get_logger
 from .openai_responses_attachment_assets import (
     build_openai_provider_ref,
@@ -59,9 +62,66 @@ _IMAGE_ATTACHMENT_TYPES = ["png", "jpg", "jpeg", "webp", "gif"]
 _PDF_ATTACHMENT_TYPES = ["pdf"]
 
 
+@dataclass
+class _InflightRequest:
+    cancelled: threading.Event = field(default_factory=threading.Event)
+    done: threading.Event = field(default_factory=threading.Event)
+    lock: threading.Lock = field(default_factory=threading.Lock)
+    closers: List[Callable[[], None]] = field(default_factory=list)
+
+    def add_closer(self, closer: Callable[[], None]) -> None:
+        with self.lock:
+            self.closers.append(closer)
+            already_cancelled = self.cancelled.is_set()
+        if already_cancelled:
+            try:
+                closer()
+            except Exception:
+                pass
+
+    def cancel(self) -> None:
+        self.cancelled.set()
+        with self.lock:
+            closers = list(self.closers)
+        for closer in closers:
+            try:
+                closer()
+            except Exception:
+                continue
+
+
 class OpenAIResponsesProvider(ProviderPlugin):
     name: str = "openai_responses"
     version: str = "0.1.0"
+
+    def __init__(self) -> None:
+        self._inflight_lock = threading.Lock()
+        self._inflight_requests: Dict[str, _InflightRequest] = {}
+
+    def _register_inflight(self, request_id: str | None) -> _InflightRequest:
+        runtime = _InflightRequest()
+        if isinstance(request_id, str) and request_id:
+            with self._inflight_lock:
+                self._inflight_requests[request_id] = runtime
+        return runtime
+
+    def _clear_inflight(self, request_id: str | None, runtime: _InflightRequest) -> None:
+        runtime.done.set()
+        if isinstance(request_id, str) and request_id:
+            with self._inflight_lock:
+                current = self._inflight_requests.get(request_id)
+                if current is runtime:
+                    self._inflight_requests.pop(request_id, None)
+
+    def cancel_request(self, request_id: str) -> bool:
+        if not isinstance(request_id, str) or not request_id:
+            return False
+        with self._inflight_lock:
+            runtime = self._inflight_requests.get(request_id)
+        if runtime is None:
+            return False
+        runtime.cancel()
+        return True
 
     def get_config_schema(self) -> Dict[str, Any]:
         return {
@@ -309,7 +369,10 @@ class OpenAIResponsesProvider(ProviderPlugin):
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        _ = request_id
         cfg = state.get("config") or {}
 
         model = self._resolve_model(cfg)
@@ -1483,6 +1546,8 @@ class OpenAIResponsesProvider(ProviderPlugin):
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         request = state.get("request")
         if not isinstance(request, dict):
@@ -1530,48 +1595,88 @@ class OpenAIResponsesProvider(ProviderPlugin):
             )
 
         input_items = [self._sanitize_input_item(item) for item in request_history]
+        runtime = self._register_inflight(request_id)
+        results: queue.Queue[Tuple[str, Any]] = queue.Queue()
 
-        try:
-            sdk_response = request_client.responses.create(  # type: ignore[union-attr]
-                **{**payload, "input": input_items, "stream": False},
-                extra_headers=extra_headers,
-                timeout=timeout,
-            )
-        except Exception as exc:
-            if (
-                self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD
-                and self._is_attachment_reference_error(exc)
-            ):
-                request_history = self._prepare_uploaded_native_messages(
-                    request_history,
-                    state=state,
-                    client=client,
-                    timeout=timeout,
-                    upload_cache=upload_cache,
-                    force_reupload=True,
-                )
-                self._prepare_uploaded_native_messages(
-                    native_messages,
-                    state=state,
-                    client=client,
-                    timeout=timeout,
-                    upload_cache=upload_cache,
-                    persist_uploaded_refs=True,
-                    force_reupload=True,
-                )
-                retry_input_items = [self._sanitize_input_item(item) for item in request_history]
+        def _close_client(candidate: Any) -> None:
+            close = getattr(candidate, "close", None)
+            if callable(close):
+                close()
+
+        def _worker() -> None:
+            local_request_client = request_client
+            runtime.add_closer(lambda: _close_client(local_request_client))
+            try:
+                if runtime.cancelled.is_set():
+                    raise ProviderRequestCancelled(request_id)
                 try:
-                    sdk_response = request_client.responses.create(  # type: ignore[union-attr]
-                        **{**payload, "input": retry_input_items, "stream": False},
+                    sdk_response = local_request_client.responses.create(  # type: ignore[union-attr]
+                        **{**payload, "input": input_items, "stream": False},
                         extra_headers=extra_headers,
                         timeout=timeout,
                     )
-                except Exception as retry_exc:
-                    raise RuntimeError(f"OpenAI Responses call failed: {retry_exc}") from retry_exc
-            else:
-                raise RuntimeError(f"OpenAI Responses call failed: {exc}") from exc
+                except Exception as exc:
+                    if (
+                        self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD
+                        and self._is_attachment_reference_error(exc)
+                    ):
+                        retry_history = self._prepare_uploaded_native_messages(
+                            request_history,
+                            state=state,
+                            client=client,
+                            timeout=timeout,
+                            upload_cache=upload_cache,
+                            force_reupload=True,
+                        )
+                        self._prepare_uploaded_native_messages(
+                            native_messages,
+                            state=state,
+                            client=client,
+                            timeout=timeout,
+                            upload_cache=upload_cache,
+                            persist_uploaded_refs=True,
+                            force_reupload=True,
+                        )
+                        retry_input_items = [
+                            self._sanitize_input_item(item) for item in retry_history
+                        ]
+                        sdk_response = local_request_client.responses.create(  # type: ignore[union-attr]
+                            **{**payload, "input": retry_input_items, "stream": False},
+                            extra_headers=extra_headers,
+                            timeout=timeout,
+                        )
+                    else:
+                        raise
+                results.put(("result", self._response_to_dict(sdk_response)))
+            except Exception as exc:
+                results.put(("error", exc))
+            finally:
+                runtime.done.set()
 
-        response_obj = self._response_to_dict(sdk_response)
+        worker = threading.Thread(target=_worker, daemon=True)
+        worker.start()
+
+        try:
+            while True:
+                try:
+                    kind, value = results.get(timeout=0.1)
+                except queue.Empty:
+                    if runtime.cancelled.is_set():
+                        raise ProviderRequestCancelled(request_id)
+                    if runtime.done.is_set() and results.empty():
+                        raise RuntimeError("OpenAI Responses call failed: request ended without result")
+                    continue
+                if kind == "result":
+                    response_obj = value
+                    break
+                exc = value
+                if runtime.cancelled.is_set():
+                    raise ProviderRequestCancelled(request_id) from exc
+                raise RuntimeError(f"OpenAI Responses call failed: {exc}") from exc
+        finally:
+            self._clear_inflight(request_id, runtime)
+            worker.join(timeout=1.0)
+
 
         output = response_obj.get("output")
         if not isinstance(output, list):
@@ -1589,6 +1694,8 @@ class OpenAIResponsesProvider(ProviderPlugin):
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Iterator[Dict[str, Any]]:
         request = state.get("request")
         if not isinstance(request, dict):
@@ -1639,90 +1746,139 @@ class OpenAIResponsesProvider(ProviderPlugin):
             state = {**state, "_openai_responses_upload_cache": upload_cache}
 
         input_items = [self._sanitize_input_item(item) for item in request_history]
+        runtime = self._register_inflight(request_id)
+        results: queue.Queue[Tuple[str, Any]] = queue.Queue()
 
-        recovery_attempts = 0
+        def _close_candidate(candidate: Any) -> None:
+            close = getattr(candidate, "close", None)
+            if callable(close):
+                close()
 
-        while True:
+        def _worker() -> None:
+            local_request_client = request_client
+            runtime.add_closer(lambda: _close_candidate(local_request_client))
+            recovery_attempts = 0
             try:
-                sdk_stream = request_client.responses.create(  # type: ignore[union-attr]
-                    **{**payload, "input": input_items, "stream": True},
-                    extra_headers=extra_headers,
-                    timeout=timeout,
-                )
-            except Exception as exc:
-                if (
-                    self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD
-                    and self._is_attachment_reference_error(exc)
-                ):
-                    request_history = self._prepare_uploaded_native_messages(
-                        request_history,
-                        state=state,
-                        client=client,
-                        timeout=timeout,
-                        upload_cache=upload_cache,
-                        force_reupload=True,
-                    )
-                    self._prepare_uploaded_native_messages(
-                        native_messages,
-                        state=state,
-                        client=client,
-                        timeout=timeout,
-                        upload_cache=upload_cache,
-                        persist_uploaded_refs=True,
-                        force_reupload=True,
-                    )
-                    input_items = [self._sanitize_input_item(item) for item in request_history]
+                while True:
+                    if runtime.cancelled.is_set():
+                        raise ProviderRequestCancelled(request_id)
                     try:
-                        sdk_stream = request_client.responses.create(  # type: ignore[union-attr]
+                        sdk_stream = local_request_client.responses.create(  # type: ignore[union-attr]
                             **{**payload, "input": input_items, "stream": True},
                             extra_headers=extra_headers,
                             timeout=timeout,
                         )
-                    except Exception as retry_exc:
-                        raise RuntimeError(f"OpenAI Responses stream failed: {retry_exc}") from retry_exc
-                else:
-                    raise RuntimeError(f"OpenAI Responses stream failed: {exc}") from exc
+                    except Exception as exc:
+                        if (
+                            self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD
+                            and self._is_attachment_reference_error(exc)
+                        ):
+                            retry_history = self._prepare_uploaded_native_messages(
+                                request_history,
+                                state=state,
+                                client=client,
+                                timeout=timeout,
+                                upload_cache=upload_cache,
+                                force_reupload=True,
+                            )
+                            self._prepare_uploaded_native_messages(
+                                native_messages,
+                                state=state,
+                                client=client,
+                                timeout=timeout,
+                                upload_cache=upload_cache,
+                                persist_uploaded_refs=True,
+                                force_reupload=True,
+                            )
+                            retry_input_items = [
+                                self._sanitize_input_item(item) for item in retry_history
+                            ]
+                            sdk_stream = local_request_client.responses.create(  # type: ignore[union-attr]
+                                **{**payload, "input": retry_input_items, "stream": True},
+                                extra_headers=extra_headers,
+                                timeout=timeout,
+                            )
+                        else:
+                            raise
 
-            saw_completed = False
-            emitted_visible_output = False
-            stream_error: Exception | None = None
+                    runtime.add_closer(lambda stream=sdk_stream: _close_candidate(stream))
+                    saw_completed = False
+                    emitted_visible_output = False
+                    stream_error: Exception | None = None
 
-            try:
-                if hasattr(sdk_stream, "__enter__") and hasattr(sdk_stream, "__exit__"):
-                    with sdk_stream as stream:
-                        for event in stream:
-                            event_dict = self._stream_event_to_dict(event)
-                            if event_dict.get("type") == "response.completed":
-                                saw_completed = True
-                            if self._stream_event_has_visible_output(event_dict):
-                                emitted_visible_output = True
-                            yield event_dict
-                else:
-                    for event in sdk_stream:
-                        event_dict = self._stream_event_to_dict(event)
-                        if event_dict.get("type") == "response.completed":
-                            saw_completed = True
-                        if self._stream_event_has_visible_output(event_dict):
-                            emitted_visible_output = True
-                        yield event_dict
+                    try:
+                        if hasattr(sdk_stream, "__enter__") and hasattr(sdk_stream, "__exit__"):
+                            with sdk_stream as stream:
+                                runtime.add_closer(lambda active_stream=stream: _close_candidate(active_stream))
+                                for event in stream:
+                                    if runtime.cancelled.is_set():
+                                        raise ProviderRequestCancelled(request_id)
+                                    event_dict = self._stream_event_to_dict(event)
+                                    if event_dict.get("type") == "response.completed":
+                                        saw_completed = True
+                                    if self._stream_event_has_visible_output(event_dict):
+                                        emitted_visible_output = True
+                                    results.put(("chunk", event_dict))
+                        else:
+                            for event in sdk_stream:
+                                if runtime.cancelled.is_set():
+                                    raise ProviderRequestCancelled(request_id)
+                                event_dict = self._stream_event_to_dict(event)
+                                if event_dict.get("type") == "response.completed":
+                                    saw_completed = True
+                                if self._stream_event_has_visible_output(event_dict):
+                                    emitted_visible_output = True
+                                results.put(("chunk", event_dict))
+                    except Exception as exc:
+                        stream_error = exc
+
+                    if saw_completed:
+                        results.put(("done", None))
+                        return
+
+                    should_recover = (
+                        stream_recovery_mode != "disabled"
+                        and recovery_attempts < stream_recovery_retries
+                        and (stream_recovery_mode == "aggressive" or not emitted_visible_output)
+                    )
+                    if should_recover:
+                        recovery_attempts += 1
+                        continue
+
+                    if stream_error is not None:
+                        raise stream_error
+                    results.put(("done", None))
+                    return
             except Exception as exc:
-                stream_error = exc
+                results.put(("error", exc))
+            finally:
+                runtime.done.set()
 
-            if saw_completed:
-                return
+        worker = threading.Thread(target=_worker, daemon=True)
+        worker.start()
 
-            should_recover = (
-                stream_recovery_mode != "disabled"
-                and recovery_attempts < stream_recovery_retries
-                and (stream_recovery_mode == "aggressive" or not emitted_visible_output)
-            )
-            if should_recover:
-                recovery_attempts += 1
-                continue
-
-            if stream_error is not None:
-                raise RuntimeError(f"OpenAI Responses stream failed: {stream_error}") from stream_error
-            return
+        try:
+            while True:
+                try:
+                    kind, value = results.get(timeout=0.1)
+                except queue.Empty:
+                    if runtime.cancelled.is_set():
+                        raise ProviderRequestCancelled(request_id)
+                    if runtime.done.is_set() and results.empty():
+                        return
+                    continue
+                if kind == "chunk":
+                    yield value
+                    continue
+                if kind == "done":
+                    return
+                exc = value
+                if runtime.cancelled.is_set():
+                    raise ProviderRequestCancelled(request_id) from exc
+                raise RuntimeError(f"OpenAI Responses stream failed: {exc}") from exc
+        finally:
+            self._clear_inflight(request_id, runtime)
+            worker.join(timeout=1.0)
 
     def process_chunk(
         self,

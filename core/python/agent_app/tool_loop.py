@@ -1,11 +1,54 @@
 from __future__ import annotations
 
-import json
+import threading
 from typing import Any, Dict, Iterator, List
 import traceback  # Add this import at the beginning of your file
 
 
 from agent_core import AgentCore, MessageRole, Session
+from agent_core.types import ProviderRequestCancelled
+
+
+class RequestCancellation:
+    """Thread-safe request cancellation controller with live callbacks."""
+
+    def __init__(self, *, cancelled: bool = False) -> None:
+        self._event = threading.Event()
+        self._lock = threading.Lock()
+        self._callbacks: Dict[int, Any] = {}
+        self._next_token = 0
+        if cancelled:
+            self._event.set()
+
+    def is_cancelled(self) -> bool:
+        return self._event.is_set()
+
+    def cancel(self) -> None:
+        self._event.set()
+        with self._lock:
+            callbacks = list(self._callbacks.values())
+        for callback in callbacks:
+            try:
+                callback()
+            except Exception:
+                continue
+
+    def add_callback(self, callback: Any) -> int:
+        with self._lock:
+            token = self._next_token
+            self._next_token += 1
+            self._callbacks[token] = callback
+            already_cancelled = self._event.is_set()
+        if already_cancelled:
+            try:
+                callback()
+            except Exception:
+                pass
+        return token
+
+    def remove_callback(self, token: int) -> None:
+        with self._lock:
+            self._callbacks.pop(token, None)
 
 
 class ToolLoopRunner:
@@ -25,12 +68,16 @@ class ToolLoopRunner:
         request_id: str,
         tool_loop_cfg: Any,
         cancel_callback: Any | None = None,
+        cancellation: RequestCancellation | None = None,
+        context: Dict[str, Any] | None = None,
     ) -> None:
         self._core = core
         self._config = config
         self._request_id = request_id
         self._tool_loop_cfg = tool_loop_cfg
         self._cancel_callback = cancel_callback
+        self._cancellation = cancellation
+        self._context = context
 
 
     # ------------------------------------------------------------------
@@ -38,15 +85,7 @@ class ToolLoopRunner:
     # ------------------------------------------------------------------
 
     def _extract_tool_calls(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        tool_calls: List[Dict[str, Any]] = []
-        for msg in messages:
-            if msg.get("role") != "assistant":
-                continue
-            metadata = msg.get("metadata") or {}
-            calls = metadata.get("tool_calls") or []
-            if isinstance(calls, list):
-                tool_calls.extend([c for c in calls if isinstance(c, dict)])
-        return tool_calls
+        return self._core.extract_tool_calls_from_messages(messages)
 
     def _extract_pending_tool_calls_from_session(self, session: Session) -> List[Dict[str, Any]]:
         """Return tool_calls from the last assistant message, if not yet answered.
@@ -78,6 +117,12 @@ class ToolLoopRunner:
         return last_tc_calls
 
     def _is_cancelled(self) -> bool:
+        cancellation = getattr(self, "_cancellation", None)
+        if cancellation is not None:
+            try:
+                return bool(cancellation.is_cancelled())
+            except Exception:
+                return False
         cb = getattr(self, "_cancel_callback", None)
         if cb is None:
             return False
@@ -85,91 +130,6 @@ class ToolLoopRunner:
             return bool(cb())
         except Exception:
             return False
-
-    def _get_tool_for_name(
-        self,
-        name: str,
-        config: Dict[str, Any],
-    ) -> tuple[Any, Dict[str, Any]] | None:
-        """Return the enabled tool wrapper + initialized state for a schema name."""
-
-        from agent_core.tool_interop import OpenAIChatToolSchemaAccessor
-
-        schema_accessor = OpenAIChatToolSchemaAccessor()
-
-        core = self._core
-
-        enabled_tools: List[Any]
-        if not getattr(core, "_tools", None):
-            enabled_tools = []
-        elif not getattr(core, "_providers", None):
-            enabled_tools = list(core._tools)
-        else:
-            try:
-                _provider, _exts, _features, tools, _tags = core._resolve_plugins_for_config(
-                    config
-                )
-                enabled_tools = list(tools)
-            except Exception:
-                enabled_tools = list(core._tools)
-
-        for tool in enabled_tools:
-            tool_state = tool.init(config)
-            try:
-                schemas = tool.get_tool_schemas(tool_state)
-            except Exception:
-                schemas = []
-            for schema in schemas or []:
-                if not isinstance(schema, dict):
-                    continue
-                if not schema_accessor.can_handle(schema):
-                    continue
-                schema_name = schema_accessor.get_tool_name(schema)
-                if schema_name == name:
-                    return (tool, tool_state)
-
-        return None
-
-    def _generate_tool_call_previews(
-        self,
-        tool_calls: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
-        if not tool_calls:
-            return []
-
-        from agent_core.tool_interop import OpenAIChatToolCallAccessor, ToolInteropError
-
-        call_accessor = OpenAIChatToolCallAccessor()
-
-        previews: List[Dict[str, Any]] = []
-        for call in tool_calls:
-            try:
-                call_id = call_accessor.get_call_id(call)
-                name = call_accessor.get_tool_name(call)
-                args = call_accessor.get_arguments(call)
-            except ToolInteropError:
-                call_id = None
-                name = None
-                args = {}
-            if isinstance(args, str):
-                try:
-                    args = json.loads(args)
-                except Exception:
-                    args = {}
-
-            preview = ""
-            if isinstance(name, str) and name:
-                tool_result = self._get_tool_for_name(name, self._config)
-                if tool_result is not None:
-                    tool, tool_state = tool_result
-                    try:
-                        preview = tool.format_tool_call_preview(name, args, tool_state)
-                    except Exception:
-                        preview = ""
-
-            previews.append({"id": call_id, "preview": preview})
-
-        return previews
 
     def _run_llm_phase(
         self,
@@ -206,18 +166,20 @@ class ToolLoopRunner:
                 }
                 return session, []
 
-            next_session, final_messages = core.send_request(session, config)
-
-            tool_calls = self._extract_tool_calls(final_messages)
-            if tool_calls:
-                tool_call_previews = self._generate_tool_call_previews(tool_calls)
-                for msg in final_messages:
-                    if msg.get("role") != "assistant":
-                        continue
-                    metadata = dict(msg.get("metadata") or {})
-                    metadata["tool_call_previews"] = tool_call_previews
-                    msg["metadata"] = metadata
-                    break
+            try:
+                next_session, final_messages = core.send_request(
+                    session,
+                    config,
+                    request_id=rid,
+                    cancellation=self._cancellation,
+                )
+            except ProviderRequestCancelled:
+                yield {
+                    "type": "request_cancelled",
+                    "session_id": session.session_id,
+                    "request_id": rid,
+                }
+                return session, []
 
             # Emit the public final event first so that external
             # consumers see the completed assistant reply before any
@@ -249,90 +211,92 @@ class ToolLoopRunner:
         final_messages: List[Dict[str, Any]] = []
         started = False
 
-        for chunk in core.send_request_stream(session, config):
-            if self._is_cancelled():
-                yield {
-                    "type": "request_cancelled",
-                    "session_id": current_session.session_id,
-                    "request_id": rid,
-                }
-                return current_session, []
-
-            ctype = chunk.get("type")
-
-            if ctype == "partial":
-                if not started:
-                    started = True
-                    # Signal the beginning of a streamed assistant message
-                    # so renderers can emit headers before reasoning/content.
+        try:
+            for chunk in core.send_request_stream(
+                session,
+                config,
+                request_id=rid,
+                cancellation=self._cancellation,
+            ):
+                if self._is_cancelled():
                     yield {
-                        "type": "assistant_message",
+                        "type": "request_cancelled",
                         "session_id": current_session.session_id,
                         "request_id": rid,
-                        "phase": "start",
                     }
-                yield {
-                    "type": "partial",
-                    "session_id": current_session.session_id,
-                    "request_id": rid,
-                    "message": chunk["message"],
-                }
-            elif ctype == "final":
-                final_session = chunk["session"]
-                final_messages = chunk.get("messages") or []
+                    return current_session, []
 
-                tool_calls = self._extract_tool_calls(final_messages)
-                if tool_calls:
-                    tool_call_previews = self._generate_tool_call_previews(tool_calls)
-                    for msg in final_messages:
-                        if msg.get("role") != "assistant":
-                            continue
-                        metadata = dict(msg.get("metadata") or {})
-                        metadata["tool_call_previews"] = tool_call_previews
-                        msg["metadata"] = metadata
-                        break
+                ctype = chunk.get("type")
 
-                # If no partials were seen, still emit a synthetic
-                # assistant_message start so UIs can treat this as a
-                # regular assistant reply.
-                if final_messages and not started:
-                    started = True
+                if ctype == "partial":
+                    if not started:
+                        started = True
+                        # Signal the beginning of a streamed assistant message
+                        # so renderers can emit headers before reasoning/content.
+                        yield {
+                            "type": "assistant_message",
+                            "session_id": current_session.session_id,
+                            "request_id": rid,
+                            "phase": "start",
+                        }
                     yield {
-                        "type": "assistant_message",
+                        "type": "partial",
                         "session_id": current_session.session_id,
                         "request_id": rid,
-                        "phase": "start",
+                        "message": chunk["message"],
                     }
+                elif ctype == "final":
+                    final_session = chunk["session"]
+                    final_messages = chunk.get("messages") or []
 
-                # Emit the public final event describing the completed
-                # assistant reply.
-                yield {
-                    "type": "final",
-                    "session_id": final_session.session_id,
-                    "request_id": rid,
-                    "start_index": start_index,
-                    "messages": final_messages,
-                }
+                    # If no partials were seen, still emit a synthetic
+                    # assistant_message start so UIs can treat this as a
+                    # regular assistant reply.
+                    if final_messages and not started:
+                        started = True
+                        yield {
+                            "type": "assistant_message",
+                            "session_id": current_session.session_id,
+                            "request_id": rid,
+                            "phase": "start",
+                        }
 
-                if started:
-                    # Signal end-of-message so renderers can close any
-                    # open streaming state before footers are printed.
+                    # Emit the public final event describing the completed
+                    # assistant reply.
                     yield {
-                        "type": "assistant_message",
+                        "type": "final",
                         "session_id": final_session.session_id,
                         "request_id": rid,
-                        "phase": "end",
+                        "start_index": start_index,
+                        "messages": final_messages,
                     }
 
-                # Internal checkpoint is emitted *after* the final
-                # event so that persistence and checkpoint cursors align
-                # with the visible assistant messages.
-                yield {
-                    "type": "session_checkpoint",
-                    "session_id": final_session.session_id,
-                    "request_id": rid,
-                    "session": final_session,
-                }
+                    if started:
+                        # Signal end-of-message so renderers can close any
+                        # open streaming state before footers are printed.
+                        yield {
+                            "type": "assistant_message",
+                            "session_id": final_session.session_id,
+                            "request_id": rid,
+                            "phase": "end",
+                        }
+
+                    # Internal checkpoint is emitted *after* the final
+                    # event so that persistence and checkpoint cursors align
+                    # with the visible assistant messages.
+                    yield {
+                        "type": "session_checkpoint",
+                        "session_id": final_session.session_id,
+                        "request_id": rid,
+                        "session": final_session,
+                    }
+        except ProviderRequestCancelled:
+            yield {
+                "type": "request_cancelled",
+                "session_id": current_session.session_id,
+                "request_id": rid,
+            }
+            return current_session, []
 
         return final_session, final_messages
 
@@ -356,9 +320,7 @@ class ToolLoopRunner:
         rid = self._request_id
         start_index = len(session.messages)
 
-        from agent_core.tool_interop import OpenAIChatToolCallAccessor, ToolInteropError
-
-        call_accessor = OpenAIChatToolCallAccessor()
+        registry = core._get_tool_interop_registry_for_config(config)
 
         current_session = session
 
@@ -374,13 +336,20 @@ class ToolLoopRunner:
 
         for call in tool_calls:
             try:
-                call_id = call_accessor.get_call_id(call)
-            except ToolInteropError:
+                inspected_call = registry.inspect_call(call)
+                call_id = inspected_call.call_id
+            except Exception:
+                inspected_call = None
                 call_id = None
             last_final: Dict[str, Any] | None = None
 
             saw_partial = False
-            for item in core.iter_tool_messages([call], config):
+            for item in core.iter_tool_messages(
+                [call],
+                config,
+                cancellation=self._cancellation,
+                context=self._context,
+            ):
                 if not isinstance(item, dict):
                     continue
                 if "part" in item:
@@ -398,13 +367,13 @@ class ToolLoopRunner:
                     continue
                 last_final = item
 
+            if last_final is None and self._is_cancelled():
+                break
+
             if last_final is None:
                 # iter_tool_messages already synthesizes errors for missing tools,
                 # but guard defensively in case it yields nothing.
-                try:
-                    name = call_accessor.get_tool_name(call)
-                except ToolInteropError:
-                    name = None
+                name = inspected_call.tool_name if inspected_call is not None else None
                 metadata: Dict[str, Any] = {
                     "tool_call_id": call_id,
                     "tool_name": name,
@@ -445,7 +414,13 @@ class ToolLoopRunner:
                 config=config,
             )
 
+            if self._is_cancelled():
+                break
+
         # Summarise final tool messages appended to the session.
+        if not tool_messages and self._is_cancelled():
+            return current_session
+
         yield {
             "type": "tool_results",
             "session_id": current_session.session_id,

@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import json
+import queue
 import threading
 import time
 from typing import Any, Iterator
+from dataclasses import dataclass, field
 
 import requests
 
-from agent_core.types import ProviderPlugin
+from agent_core.types import ProviderPlugin, ProviderRequestCancelled
 from agent_core.utils import get_logger
 
 log = get_logger("reference_openai_compatible_provider")
@@ -21,6 +23,36 @@ _DEFAULT_STREAM_RECOVERY_MAX_RETRIES = 3
 
 _request_pacing_lock = threading.Lock()
 _next_request_time_by_scope: dict[str, float] = {}
+
+
+@dataclass
+class _InflightRequest:
+    cancelled: threading.Event = field(default_factory=threading.Event)
+    done: threading.Event = field(default_factory=threading.Event)
+    lock: threading.Lock = field(default_factory=threading.Lock)
+    closers: list[Any] = field(default_factory=list)
+
+    def add_closer(self, closer: Any) -> None:
+        if not callable(closer):
+            return
+        with self.lock:
+            self.closers.append(closer)
+            already_cancelled = self.cancelled.is_set()
+        if already_cancelled:
+            try:
+                closer()
+            except Exception:
+                pass
+
+    def cancel(self) -> None:
+        self.cancelled.set()
+        with self.lock:
+            closers = list(self.closers)
+        for closer in closers:
+            try:
+                closer()
+            except Exception:
+                continue
 
 
 def _parse_non_negative_float(value: Any, *, default: float) -> float:
@@ -328,6 +360,35 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
     name = "reference_openai_compatible"
     version = "0.2.0"
 
+    def __init__(self) -> None:
+        self._inflight_lock = threading.Lock()
+        self._inflight_requests: dict[str, _InflightRequest] = {}
+
+    def _register_inflight(self, request_id: str | None) -> _InflightRequest:
+        runtime = _InflightRequest()
+        if isinstance(request_id, str) and request_id:
+            with self._inflight_lock:
+                self._inflight_requests[request_id] = runtime
+        return runtime
+
+    def _clear_inflight(self, request_id: str | None, runtime: _InflightRequest) -> None:
+        runtime.done.set()
+        if isinstance(request_id, str) and request_id:
+            with self._inflight_lock:
+                current = self._inflight_requests.get(request_id)
+                if current is runtime:
+                    self._inflight_requests.pop(request_id, None)
+
+    def cancel_request(self, request_id: str) -> bool:
+        if not isinstance(request_id, str) or not request_id:
+            return False
+        with self._inflight_lock:
+            runtime = self._inflight_requests.get(request_id)
+        if runtime is None:
+            return False
+        runtime.cancel()
+        return True
+
     @staticmethod
     def _endpoint_options_from_config(config: dict[str, Any]) -> list[dict[str, str]]:
         raw_options = config.get("endpoint_options")
@@ -493,8 +554,13 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
         ]
 
     def initialize_request(
-            self, native_messages: list[dict[str, Any]], state: dict[str, Any]
+            self,
+            native_messages: list[dict[str, Any]],
+            state: dict[str, Any],
+            *,
+            request_id: str | None = None,
     ):
+        _ = request_id
         cfg = state.get("config") or {}
         base_url = str(cfg.get("base_url") or _DEFAULT_BASE_URL).rstrip("/")
         url = f"{base_url}/chat/completions"
@@ -518,7 +584,13 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
             "debug_stream": bool(cfg.get("debug_stream", False)),
         }
 
-    def call_api(self, native_messages: list[dict[str, Any]], state: dict[str, Any]):
+    def call_api(
+            self,
+            native_messages: list[dict[str, Any]],
+            state: dict[str, Any],
+            *,
+            request_id: str | None = None,
+    ):
         request = state.get("request") or {}
         rate_limit_policy = state.get("rate_limit_policy") or {}
         payload = dict(request.get("payload") or {})
@@ -530,24 +602,74 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
             if isinstance(m, dict)
         ]
         payload |= {"messages": messages_to_send, "stream": False}
+        runtime = self._register_inflight(request_id)
+        results: queue.Queue[tuple[str, Any]] = queue.Queue()
 
-        resp = _request_with_rate_limit_retry(
-            request_fn=lambda: requests.post(
-                str(request.get("url")),
-                headers=dict(request.get("headers") or {}),
-                json=payload,
-                timeout=float(request.get("timeout", 60)),
-            ),
-            rate_limit_policy=rate_limit_policy,
-            action="call_api",
-        )
-        resp.encoding = "utf-8"
-        if not resp.ok:
-            raise RuntimeError(
-                f"OpenAI-compatible call failed: {resp.status_code} {resp.text[:2000]}"
-            )
+        def _worker() -> None:
+            session = requests.Session()
+            response: requests.Response | None = None
+            runtime.add_closer(session.close)
+            try:
+                if runtime.cancelled.is_set():
+                    raise ProviderRequestCancelled(request_id)
+                response = _request_with_rate_limit_retry(
+                    request_fn=lambda: session.post(
+                        str(request.get("url")),
+                        headers=dict(request.get("headers") or {}),
+                        json=payload,
+                        timeout=float(request.get("timeout", 60)),
+                        stream=True,
+                    ),
+                    rate_limit_policy=rate_limit_policy,
+                    action="call_api",
+                )
+                runtime.add_closer(response.close)
+                response.encoding = "utf-8"
+                if not response.ok:
+                    raise RuntimeError(
+                        f"OpenAI-compatible call failed: {response.status_code} {response.text[:2000]}"
+                    )
+                results.put(("result", response.json()))
+            except Exception as exc:
+                results.put(("error", exc))
+            finally:
+                try:
+                    if response is not None:
+                        response.close()
+                finally:
+                    session.close()
+                    runtime.done.set()
 
-        raw = resp.json()
+        worker = threading.Thread(target=_worker, daemon=True)
+        worker.start()
+
+        try:
+            while True:
+                try:
+                    kind, value = results.get(timeout=0.1)
+                except queue.Empty:
+                    if runtime.cancelled.is_set():
+                        raise ProviderRequestCancelled(request_id)
+                    if runtime.done.is_set() and results.empty():
+                        raise RuntimeError(
+                            "OpenAI-compatible call failed: request ended without result"
+                        )
+                    continue
+                if kind == "result":
+                    raw = value
+                    break
+                exc = value
+                if runtime.cancelled.is_set():
+                    raise ProviderRequestCancelled(request_id) from exc
+                if isinstance(exc, ProviderRequestCancelled):
+                    raise exc
+                if isinstance(exc, requests.RequestException):
+                    raise RuntimeError(f"OpenAI-compatible call failed: {exc}") from exc
+                raise RuntimeError(f"OpenAI-compatible call failed: {exc}") from exc
+        finally:
+            self._clear_inflight(request_id, runtime)
+            worker.join(timeout=1.0)
+
         choice0 = (raw.get("choices") or [{}])[0]
         msg = choice0.get("message") if isinstance(choice0, dict) else None
         msg = msg if isinstance(msg, dict) else {"role": "assistant", "content": ""}
@@ -562,6 +684,7 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
 
     def stream_api(
             self, native_messages: list[dict[str, Any]], state: dict[str, Any]
+            , *, request_id: str | None = None
     ) -> Iterator[dict[str, Any]]:
         request = state.get("request") or {}
         rate_limit_policy = state.get("rate_limit_policy") or {}
@@ -580,82 +703,135 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
 
         recovery_mode = stream_recovery.get("mode", "disabled")
         recovery_max_retries = stream_recovery.get("max_retries", 0)
-        recovery_attempts = 0
+        runtime = self._register_inflight(request_id)
+        results: queue.Queue[tuple[str, Any]] = queue.Queue()
 
-        while True:
-            resp = _request_with_rate_limit_retry(
-                request_fn=lambda: requests.post(
-                    str(request.get("url")),
-                    headers=dict(request.get("headers") or {}),
-                    json=payload,
-                    timeout=float(request.get("timeout", 60)),
-                    stream=True,
-                ),
-                rate_limit_policy=rate_limit_policy,
-                action="stream_api",
-            )
-            resp.encoding = "utf-8"
-            if not resp.ok:
-                raise RuntimeError(
-                    f"OpenAI-compatible stream failed: {resp.status_code} {resp.text[:2000]}"
-                )
-
-            stream_error: Exception | None = None
-            saw_done = False
-            emitted_content = False
-
+        def _worker() -> None:
+            session = requests.Session()
+            runtime.add_closer(session.close)
+            recovery_attempts = 0
             try:
-                for raw_line in resp.iter_lines(decode_unicode=True):
-                    if not raw_line:
-                        continue
+                while True:
+                    if runtime.cancelled.is_set():
+                        raise ProviderRequestCancelled(request_id)
+                    response = _request_with_rate_limit_retry(
+                        request_fn=lambda: session.post(
+                            str(request.get("url")),
+                            headers=dict(request.get("headers") or {}),
+                            json=payload,
+                            timeout=float(request.get("timeout", 60)),
+                            stream=True,
+                        ),
+                        rate_limit_policy=rate_limit_policy,
+                        action="stream_api",
+                    )
+                    runtime.add_closer(response.close)
+                    response.encoding = "utf-8"
+                    if not response.ok:
+                        raise RuntimeError(
+                            f"OpenAI-compatible stream failed: {response.status_code} {response.text[:2000]}"
+                        )
 
-                    line = raw_line.strip()
-                    data = line
-                    if data.startswith("data:"):
-                        data = data[len("data:"):].strip()
-
-                    if data == "[DONE]":
-                        saw_done = True
-                        break
+                    stream_error: Exception | None = None
+                    saw_done = False
+                    emitted_content = False
 
                     try:
-                        chunk = json.loads(data)
-                    except Exception:
+                        for raw_line in response.iter_lines(decode_unicode=True):
+                            if runtime.cancelled.is_set():
+                                raise ProviderRequestCancelled(request_id)
+                            if not raw_line:
+                                continue
+
+                            line = raw_line.strip()
+                            data = line
+                            if data.startswith("data:"):
+                                data = data[len("data:"):].strip()
+
+                            if data == "[DONE]":
+                                saw_done = True
+                                break
+
+                            try:
+                                chunk = json.loads(data)
+                            except Exception:
+                                continue
+
+                            if _chunk_has_content(chunk):
+                                emitted_content = True
+
+                            if state.get("debug_stream"):
+                                log.info("chunk", chunk=str(chunk)[:2000])
+                            results.put(("chunk", chunk))
+                    except (
+                            requests.exceptions.ConnectionError,
+                            requests.exceptions.ChunkedEncodingError,
+                    ) as exc:
+                        stream_error = exc
+                    finally:
+                        response.close()
+
+                    if saw_done:
+                        results.put(("done", None))
+                        return
+
+                    should_recover = (
+                            recovery_mode != "disabled"
+                            and recovery_attempts < recovery_max_retries
+                            and (recovery_mode == "aggressive" or not emitted_content)
+                    )
+                    if should_recover:
+                        recovery_attempts += 1
+                        log.warning(
+                            "stream_recovering",
+                            recovery_mode=recovery_mode,
+                            recovery_attempt=recovery_attempts,
+                            emitted_content=emitted_content,
+                            error=str(stream_error)[:500] if stream_error else None,
+                        )
                         continue
 
-                    if _chunk_has_content(chunk):
-                        emitted_content = True
+                    if stream_error is not None:
+                        raise RuntimeError(
+                            f"OpenAI-compatible stream failed: {stream_error}"
+                        ) from stream_error
+                    results.put(("done", None))
+                    return
+            except Exception as exc:
+                results.put(("error", exc))
+            finally:
+                session.close()
+                runtime.done.set()
 
-                    if state.get("debug_stream"):
-                        log.info("chunk", chunk=str(chunk)[:2000])
-                    yield chunk
-            except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as exc:
-                stream_error = exc
+        worker = threading.Thread(target=_worker, daemon=True)
+        worker.start()
 
-            if saw_done:
-                return
-
-            should_recover = (
-                recovery_mode != "disabled"
-                and recovery_attempts < recovery_max_retries
-                and (recovery_mode == "aggressive" or not emitted_content)
-            )
-            if should_recover:
-                recovery_attempts += 1
-                log.warning(
-                    "stream_recovering",
-                    recovery_mode=recovery_mode,
-                    recovery_attempt=recovery_attempts,
-                    emitted_content=emitted_content,
-                    error=str(stream_error)[:500] if stream_error else None,
-                )
-                continue
-
-            if stream_error is not None:
-                raise RuntimeError(
-                    f"OpenAI-compatible stream failed: {stream_error}"
-                ) from stream_error
-            return
+        try:
+            while True:
+                try:
+                    kind, value = results.get(timeout=0.1)
+                except queue.Empty:
+                    if runtime.cancelled.is_set():
+                        raise ProviderRequestCancelled(request_id)
+                    if runtime.done.is_set() and results.empty():
+                        break
+                    continue
+                if kind == "chunk":
+                    yield value
+                    continue
+                if kind == "done":
+                    return
+                exc = value
+                if runtime.cancelled.is_set():
+                    raise ProviderRequestCancelled(request_id) from exc
+                if isinstance(exc, ProviderRequestCancelled):
+                    raise exc
+                if isinstance(exc, requests.RequestException):
+                    raise RuntimeError(f"OpenAI-compatible stream failed: {exc}") from exc
+                raise RuntimeError(f"OpenAI-compatible stream failed: {exc}") from exc
+        finally:
+            self._clear_inflight(request_id, runtime)
+            worker.join(timeout=1.0)
 
     def extract_delta(self, chunk: dict[str, Any]) -> dict[str, Any]:
         choice0 = (chunk.get("choices") or [{}])[0]

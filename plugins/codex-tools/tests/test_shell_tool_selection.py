@@ -223,10 +223,8 @@ class TestCodexVariantFeaturePatterns:
         [
             ("openai/gpt-5", False),
             ("openai/gpt-5-mini", False),
-            ("openai/gpt-5.1", False),
-            ("openai/gpt-5.1-mini", False),
-            ("openai/gpt-5.2", False),
-            ("openai/gpt-5.2-mini", False),
+            ("openai/gpt-5.1", True),
+            ("openai/gpt-5.2", True),
             ("openai/gpt-5.2-codex", True),
             ("openai/gpt-5.4", True),
             ("openai/gpt-5.4-mini", True),
@@ -234,7 +232,9 @@ class TestCodexVariantFeaturePatterns:
             ("openai/gpt-6.1", True),
         ],
     )
-    def test_codex_variant_feature_matches_expected_models(self, model: str, expected: bool):
+    def test_codex_variant_feature_matches_expected_models(
+        self, model: str, expected: bool
+    ):
         feature = CodexVariantFeature()
         tags = feature.get_tags({"model": model}, [])
         assert ("codex-variant" in tags) is expected

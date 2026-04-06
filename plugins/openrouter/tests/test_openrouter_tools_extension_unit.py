@@ -12,6 +12,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
+from agent_core.tool_interop import OpenAIChatToolCallAccessor, OpenAIChatToolSchemaAccessor  # noqa: E402
 from openrouter_plugins.openrouter_tools_extension import OpenRouterToolsExtension as Ext  # noqa: E402
 
 
@@ -23,6 +24,12 @@ def test_extension_metadata():
     assert "ext:openrouter_tools" in ext.get_tags({}, [])
     assert "openrouter" in ext.required_tags()
     assert "supports_tools" in ext.required_tags()
+
+
+def test_extension_declares_chat_tool_formats():
+    ext = Ext()
+    assert ext.accepted_tool_schema_formats({}, None) == [OpenAIChatToolSchemaAccessor.format_id]
+    assert ext.emitted_tool_call_formats({}, None) == [OpenAIChatToolCallAccessor.format_id]
 
 
 def test_init_stores_tools_in_state():

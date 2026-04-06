@@ -10,6 +10,7 @@ from typing import Dict, Any, List, Iterator, AsyncIterator, Tuple, Optional
 
 from .adapters import ProviderDefaultsAdapter
 from .extension import ExtensionWrapper
+from ..tool_interop import ToolInteropContribution
 from ..types import ProviderPlugin, Session
 from ..utils import pipeline, get_logger
 
@@ -137,6 +138,30 @@ class ProviderWrapper(ProviderPlugin):
         """Delegate tag computation to the underlying provider via adapter."""
         return self.plugin.get_tags(config, models)
 
+    def get_tool_interop_contribution(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> ToolInteropContribution:
+        """Return provider-contributed tool interop accessors/adapters."""
+        return self.plugin.get_tool_interop_contribution(config, state)
+
+    def accepted_tool_schema_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        """Return schema formats this provider can send directly."""
+        return self.plugin.accepted_tool_schema_formats(config, state)
+
+    def emitted_tool_call_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        """Return tool-call formats this provider may emit."""
+        return self.plugin.emitted_tool_call_formats(config, state)
+
     def get_state(self) -> Dict[str, Any]:
         """Expose the current shared state for orchestration.
 
@@ -159,7 +184,11 @@ class ProviderWrapper(ProviderPlugin):
         self.state = state
 
     def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Run provider and extensions initialize_request with native messages for a new turn.
 
@@ -176,7 +205,9 @@ class ProviderWrapper(ProviderPlugin):
         # Start full native history at request boundary
         self._last_native_messages = list(native_messages)
         native_after_provider, new_state = self.plugin.initialize_request(
-            native_messages, working_state
+            native_messages,
+            working_state,
+            request_id=request_id,
         )
         # Sort extensions by priority (lower numbers run first, default: 100)
         sorted_extensions = sorted(
@@ -278,7 +309,13 @@ class ProviderWrapper(ProviderPlugin):
             return returned
         return [*base, *returned]
 
-    def call_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[
+    def call_api(
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+    ) -> Tuple[
         List[Dict[str, Any]],
         List[Dict[str, Any]],
         List[Dict[str, Any]],
@@ -302,7 +339,9 @@ class ProviderWrapper(ProviderPlugin):
         # Initialize history baseline
         self._last_native_messages = list(native_messages)
         partials, final_messages, native_returned, new_state = self.plugin.call_api(
-            self._last_native_messages, working_state
+            self._last_native_messages,
+            working_state,
+            request_id=request_id,
         )
         # Merge to full history and track
         full_history = self._merge_history(self._last_native_messages, native_returned)
@@ -321,7 +360,11 @@ class ProviderWrapper(ProviderPlugin):
         return partials, final_messages, full_history, self._get_state()
 
     def stream_api(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Make streaming API call (state-validated).
 
@@ -335,10 +378,14 @@ class ProviderWrapper(ProviderPlugin):
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
         working_state = state or self.state
-        yield from self.plugin.stream_api(native_messages, working_state)
+        yield from self.plugin.stream_api(native_messages, working_state, request_id=request_id)
 
     async def stream_api_async(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """Make async streaming API call, preferring native async if available.
 
@@ -354,13 +401,18 @@ class ProviderWrapper(ProviderPlugin):
         working_state = state or self.state
         if hasattr(self.plugin, "stream_api_async"):
             async for chunk in self.plugin.stream_api_async(  # type: ignore[attr-defined]
-                native_messages, working_state
+                native_messages,
+                working_state,
+                request_id=request_id,
             ):
                 yield chunk
             return
         # Fallback to sync stream
-        for chunk in self.plugin.stream_api(native_messages, working_state):
+        for chunk in self.plugin.stream_api(native_messages, working_state, request_id=request_id):
             yield chunk
+
+    def cancel_request(self, request_id: str) -> bool:
+        return bool(self.plugin.cancel_request(request_id))
 
     def process_chunk(
         self,
@@ -527,7 +579,11 @@ class ProviderWrapper(ProviderPlugin):
     _last_native_messages: List[Dict[str, Any]]
 
     def stream_messages(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Stream provider results while processing chunks internally.
 
@@ -555,7 +611,11 @@ class ProviderWrapper(ProviderPlugin):
         self._last_native_messages = list(native_messages)  # type: ignore[attr-defined]
         current_native = self._last_native_messages
         chunk_count = 0
-        for native_chunk in self.plugin.stream_api(current_native, working_state):  # type: ignore[attr-defined]
+        for native_chunk in self.plugin.stream_api(
+            current_native,
+            working_state,
+            request_id=request_id,
+        ):  # type: ignore[attr-defined]
             chunk_count += 1
             partials, finals, current_native, working_state = self.process_chunk(  # type: ignore[misc]
                 native_chunk, current_native, working_state
@@ -571,7 +631,11 @@ class ProviderWrapper(ProviderPlugin):
         logger.debug("stream_messages complete")
 
     async def stream_messages_async(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """Async variant of stream_messages.
 
@@ -597,7 +661,9 @@ class ProviderWrapper(ProviderPlugin):
 
         if hasattr(self.plugin, "stream_api_async"):  # type: ignore[attr-defined]
             async for native_chunk in self.plugin.stream_api_async(  # type: ignore[attr-defined]
-                current_native, working_state
+                current_native,
+                working_state,
+                request_id=request_id,
             ):
                 partials, finals, current_native, working_state = self.process_chunk(  # type: ignore[misc]
                     native_chunk, current_native, working_state
@@ -610,7 +676,11 @@ class ProviderWrapper(ProviderPlugin):
             return
 
         # Fallback to sync stream
-        for native_chunk in self.plugin.stream_api(current_native, working_state):  # type: ignore[attr-defined]
+        for native_chunk in self.plugin.stream_api(
+            current_native,
+            working_state,
+            request_id=request_id,
+        ):  # type: ignore[attr-defined]
             partials, finals, current_native, working_state = self.process_chunk(  # type: ignore[misc]
                 native_chunk, current_native, working_state
             )

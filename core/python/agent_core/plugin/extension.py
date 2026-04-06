@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple, Optional
 
+from ..tool_interop import ToolInteropContribution
 from ..types import ProviderExtensionPlugin, Session
 from .adapters import ProviderExtensionDefaultsAdapter
 
@@ -75,6 +76,30 @@ class ExtensionWrapper(ProviderExtensionPlugin):
     ) -> Optional[bool]:
         """Return whether this extension should be enabled given the context."""
         return self.plugin.is_enabled(config, tags, models, context)
+
+    def get_tool_interop_contribution(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> ToolInteropContribution:
+        """Return extension-contributed tool interop accessors/adapters."""
+        return self.plugin.get_tool_interop_contribution(config, state)
+
+    def accepted_tool_schema_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        """Return tool schema formats this extension can inject directly."""
+        return self.plugin.accepted_tool_schema_formats(config, state)
+
+    def emitted_tool_call_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        """Return tool-call formats this extension may surface."""
+        return self.plugin.emitted_tool_call_formats(config, state)
 
     # Stateless transforms
     def to_native_messages(

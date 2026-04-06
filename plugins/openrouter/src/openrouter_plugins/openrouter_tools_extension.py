@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
+from agent_core.tool_interop import (
+    OpenAIChatToolCallAccessor,
+    OpenAIChatToolSchemaAccessor,
+)
 from agent_core.types import ProviderExtensionPlugin
 
 
@@ -49,6 +53,20 @@ class OpenRouterToolsExtension(ProviderExtensionPlugin):
     def required_tags(self) -> List[str]:
         """Require OpenRouter provider and tool-calling support."""
         return ["openrouter", "supports_tools"]
+
+    def accepted_tool_schema_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        return [OpenAIChatToolSchemaAccessor.format_id]
+
+    def emitted_tool_call_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        return [OpenAIChatToolCallAccessor.format_id]
 
     # ---- Init/State ----
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:

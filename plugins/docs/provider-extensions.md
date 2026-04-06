@@ -85,7 +85,8 @@ Apps and the application-layer tool loop rely on these keys on **core messages**
 
 Assistant messages:
 
-- `metadata["tool_calls"]`: list of tool calls (OpenAI-style is recommended)
+- `metadata["tool_calls"]`: list of tool calls in any format supported by the
+  active tool interop accessors
 - `metadata["reasoning"]`: reasoning/thinking text (optional)
 - `metadata["reasoning_details"]`: provider-native detail blocks (optional; may be large)
 
@@ -97,7 +98,18 @@ Tool messages:
 
 ### Tool call shape
 
-The tool loop accepts multiple shapes, but OpenAI-style tool calls are the best-supported across UIs:
+The generic tool loop no longer assumes a single canonical tool-call shape.
+Core inspects tool calls via the active tool interop registry and extracts a
+semantic view consisting of:
+
+- tool name, when available
+- tool call id, when available
+- final payload value
+- payload kind (for example `object` or `text`)
+- optional payload format and metadata
+
+OpenAI-style chat-completions function calls remain a common and well-supported
+shape:
 
 ```python
 tool_calls = [
@@ -109,11 +121,23 @@ tool_calls = [
 ]
 ```
 
-`AgentCore.execute_tool_calls(...)` also accepts the simplified form:
+Responses-native custom/freeform calls are also valid when the active accessors
+support them:
 
 ```python
-tool_calls = [{"id": "call_1", "name": "read_file", "arguments": {"file_path": "README.md"}}]
+tool_calls = [
+    {
+        "type": "custom_tool_call",
+        "call_id": "call_patch_1",
+        "name": "apply_patch",
+        "input": "*** Begin Patch\n*** End Patch",
+    }
+]
 ```
+
+Provider/extension authors should preserve whichever tool-call shape they
+actually receive or emit rather than forcing everything into OpenAI chat format
+unless a concrete target API requires that conversion.
 
 ---
 
@@ -369,6 +393,14 @@ class OpenAICompatibleToolsExtension(AccumulatorExtensionMixin, ProviderExtensio
             out.append({**msg, "metadata": md})
         return out
 ```
+
+For providers that accept multiple tool schema formats, prefer using the active
+tool interop registry plus the provider / extension `accepted_tool_schema_formats(...)`
+hooks rather than hardcoding one source schema format. That allows:
+
+- already-native schemas to pass through unchanged
+- explicit adapters to be additive rather than exclusive
+- custom/freeform tool schemas to coexist with legacy function schemas
 
 ---
 

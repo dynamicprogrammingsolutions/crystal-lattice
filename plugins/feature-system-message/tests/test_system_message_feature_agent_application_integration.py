@@ -434,6 +434,83 @@ def test_portable_default_codex_system_message_selection_by_model_and_personalit
     assert compiled_texts[1] != compiled_texts[2]
 
 
+def test_portable_default_gpt5_agents_select_apply_patch_shell_instructions(
+    tmp_path: Path,
+) -> None:
+    portable_config = json.loads(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"))
+
+    config: Dict[str, Any] = {
+        "plugin_cache_dir": str(tmp_path / "plugin_cache" / "plugins"),
+        "providers": _provider_configs_with_echo_provider(
+            portable_config,
+            ("openrouter_codex_tools", "openai"),
+        ),
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "feature_system_message.system_message_feature.SystemMessageFeature",
+        ],
+        "agents": {
+            "gpt-5-openrouter": dict(portable_config["agents"]["gpt-5-openrouter"]),
+            "gpt-5-openai": dict(portable_config["agents"]["gpt-5-openai"]),
+        },
+    }
+
+    config_path = tmp_path / "config_portable_codex_gpt5_message_echo.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        event_store=InMemoryEventStore(),
+        env_overrides={"CONFIG_DIR": str(DEFAULT_CONFIG_DIR)},
+    )
+
+    assert app.get_config_errors() == []
+
+    cases = [
+        ("gpt-5-openrouter", "openai/gpt-5"),
+        ("gpt-5-openrouter", "gpt-5"),
+        ("gpt-5-openrouter", "openai/gpt-5-mini"),
+        ("gpt-5-openrouter", "gpt-5-mini"),
+        ("gpt-5-openai", "gpt-5"),
+        ("gpt-5-openai", "openai/gpt-5"),
+        ("gpt-5-openai", "gpt-5-mini"),
+        ("gpt-5-openai", "openai/gpt-5-mini"),
+    ]
+
+    expected_marker = (
+        'Use the `apply_patch` shell command to edit files '
+        '(NEVER try `applypatch` or `apply-patch`, only `apply_patch`): '
+        '{"command":["apply_patch","*** Begin Patch'
+    )
+    gpt54_marker = "Always use apply_patch for manual code edits."
+
+    for agent_id, model_override in cases:
+        core, base_config, session = app.create_session(agent_id)
+        session = core.add_message(
+            session,
+            "user",
+            "Inspect the compiled Codex system message.",
+            metadata=None,
+            config=base_config,
+        )
+
+        events = list(
+            app.send_request(
+                core,
+                session,
+                base_config,
+                overrides={"model": model_override},
+                stream=False,
+            )
+        )
+        system_text = _compiled_system_text(events)
+
+        assert expected_marker in system_text, (agent_id, model_override, system_text)
+        assert gpt54_marker not in system_text, (agent_id, model_override, system_text)
+        assert "{{" not in system_text
+
+
 def test_portable_default_runtime_helpers_contribute_ui_schema(tmp_path: Path) -> None:
     portable_config = json.loads(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"))
 

@@ -26,6 +26,7 @@ from typing import (
     Tuple,
     Protocol,
     Iterator,
+    TYPE_CHECKING,
     runtime_checkable,
 )
 from dataclasses import dataclass, field
@@ -33,7 +34,18 @@ from copy import deepcopy
 
 MessageRole = Literal["system", "user", "assistant", "tool"]
 
+if TYPE_CHECKING:
+    from .tool_interop import ToolInteropContribution
+
 # Plugin Protocol Types
+
+
+class ProviderRequestCancelled(RuntimeError):
+    """Raised when a provider request is cancelled by request id."""
+
+    def __init__(self, request_id: str | None = None):
+        super().__init__("Provider request cancelled")
+        self.request_id = request_id
 
 
 @runtime_checkable
@@ -290,7 +302,11 @@ class ProviderPlugin(BasePlugin, Protocol):
 
     # New request lifecycle
     def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Prepare for a new request with provider-native messages.
 
@@ -310,6 +326,32 @@ class ProviderPlugin(BasePlugin, Protocol):
             Implementations MAY return the same native_messages when only state changes.
         """
         return native_messages, state
+
+    def get_tool_interop_contribution(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> "ToolInteropContribution":
+        """Return provider-contributed tool interop accessors/adapters."""
+        from .tool_interop import ToolInteropContribution
+
+        return ToolInteropContribution()
+
+    def accepted_tool_schema_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        """Return schema formats this provider can send without further adaptation."""
+        return []
+
+    def emitted_tool_call_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        """Return tool-call formats this provider may emit in responses."""
+        return []
 
     def process_chunk(
         self,
@@ -405,7 +447,10 @@ class ProviderPlugin(BasePlugin, Protocol):
     # I/O entry points now take native messages
     def call_api(
         self,
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
     ]:
@@ -423,7 +468,11 @@ class ProviderPlugin(BasePlugin, Protocol):
     # Returns: (partial_messages, final_messages, native_messages, new_state)
 
     def stream_api(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Make a streaming API call; yields provider-native chunks.
 
@@ -435,6 +484,17 @@ class ProviderPlugin(BasePlugin, Protocol):
             Provider-native streaming chunks.
         """
         return iter([])
+
+    def cancel_request(self, request_id: str) -> bool:
+        """Best-effort cancellation for an in-flight request.
+
+        Providers that track active runtime requests by ``request_id`` should
+        attempt to cancel the matching request and return ``True`` when a
+        matching in-flight request was found. Returning ``False`` indicates the
+        provider did not recognize the request id or had nothing active to
+        cancel.
+        """
+        return False
 
 
 
@@ -625,6 +685,32 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         """
         return native_messages, state
 
+    def get_tool_interop_contribution(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> "ToolInteropContribution":
+        """Return extension-contributed tool interop accessors/adapters."""
+        from .tool_interop import ToolInteropContribution
+
+        return ToolInteropContribution()
+
+    def accepted_tool_schema_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        """Return additional tool schema formats this extension can inject."""
+        return []
+
+    def emitted_tool_call_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        """Return additional tool-call formats this extension can surface."""
+        return []
+
     def process_chunk(
         self,
         native_chunk: Optional[Dict[str, Any]],
@@ -719,6 +805,10 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         the core include:
 
         - ``session_metadata``: mapping merged into ``session.metadata``
+
+        For the core-owned ``response_finalize`` lifecycle, actions may also
+        return ``final_messages`` to replace the current turn's in-flight final
+        core messages before they are emitted or appended to the session.
 
         Additional keys are preserved and surfaced back to higher layers as an
         opaque result payload.
@@ -958,6 +1048,10 @@ class FeaturePlugin(BasePlugin, Protocol):
         features may return replacement ``native_messages`` and/or a
         ``session_metadata`` mapping that is merged into the session.
 
+        For the core-owned ``response_finalize`` lifecycle, features may also
+        return ``final_messages`` to replace the current turn's final core
+        messages before they are emitted or appended to the session.
+
         The ``context`` parameter provides layered access to runtime capabilities:
 
         **Layer 1 (Core - always present):**
@@ -966,6 +1060,16 @@ class FeaturePlugin(BasePlugin, Protocol):
             - ``trigger_source``: Where the action was triggered ("core", "application")
             - ``session``: Serialized session dict (session.to_dict())
             - ``lifecycle``: Lifecycle trigger name (for lifecycle-triggered actions)
+            - ``final_messages``: Current turn final core messages for
+              ``response_finalize``
+            - ``native_final_messages``: Provider-native finals for the current
+              turn for ``response_finalize``
+            - ``native_messages``: Full provider-native history for
+              ``response_finalize``
+            - ``stream``: Whether the request is streaming for
+              ``response_finalize``
+            - ``turn_native_start_index``: Native-history starting offset for
+              the current turn for ``response_finalize``
 
         **Layer 2 (Application - when called from AgentApplication):**
             - ``app`` and ``application``: AgentApplication instance
@@ -1161,25 +1265,89 @@ class ToolPlugin(BasePlugin, Protocol):
         return None
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Return OpenAI-style function definitions provided by this tool.
+        """Return tool schemas provided by this tool.
 
         Args:
             state: Current tool state (if needed by the tool).
 
         Returns:
-            List of tool/function definition dictionaries.
+            List of tool definition dictionaries in any format understood by the
+            active interop accessors/adapters.
         """
         return []
 
+    def get_tool_interop_contribution(
+        self,
+        state: Dict[str, Any],
+    ) -> "ToolInteropContribution":
+        """Return tool-contributed tool interop accessors/adapters."""
+        from .tool_interop import ToolInteropContribution
+
+        return ToolInteropContribution()
+
+    def can_handle_tool_call(
+        self,
+        tool_name: Optional[str],
+        payload: Any,
+        state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
+        tool_schema: Optional[Dict[str, Any]] = None,
+    ) -> Optional[bool]:
+        """Return whether this tool can handle the inspected tool call.
+
+        ``None`` means no opinion and allows legacy name-based fallback.
+        """
+        return None
+
     def execute_tool(
-        self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
+        self,
+        tool_name: Optional[str],
+        payload: Any,
+        state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Execute a tool function by name with structured arguments.
+        """Execute a tool call using the final payload object.
 
         Args:
-            tool_name: Name of the tool/function to execute.
-            arguments: Structured arguments for the tool.
+            tool_name: Name of the tool/function when available.
+            payload: Final payload for the tool call, such as a dict or raw text.
             state: Current tool state.
+            payload_kind: Optional semantic payload kind such as ``"object"`` or
+                ``"text"``.
+            payload_format: Optional format identifier for the payload itself.
+            payload_metadata: Optional extra payload metadata from the accessor.
+            tool_call: Optional original tool-call dict.
+            context: Optional layered context providing access to runtime capabilities.
+
+        The ``context`` parameter provides layered access to runtime capabilities:
+
+        **Layer 1 (Core - always present when called from AgentCore):**
+            - ``core``: AgentCore instance for session/message operations and LLM calls
+            - ``config``: Current resolved request configuration
+            - ``trigger_source``: Where the tool was triggered ("core")
+            - ``session``: Serialized session dict (session.to_dict()) when available
+
+        **Layer 2 (Application - when called from AgentApplication):**
+            - ``app`` and ``application``: AgentApplication instance
+            - ``base_config``: Full base configuration (all agents)
+            - ``session_asset_store``: Session asset store for file attachments
+
+        Tools can use context to make LLM calls::
+
+            core = (context or {}).get("core")
+            if core:
+                temp_session = core.create_session()
+                events = core.stream_request(temp_session, config)
 
         Returns:
             Result dictionary, e.g., {"success": bool, "result": any, "error": str}.
@@ -1202,9 +1370,14 @@ class ToolPlugin(BasePlugin, Protocol):
 
     def format_tool_call_preview(
         self,
-        tool_name: str,
-        arguments: Dict[str, Any],
+        tool_name: Optional[str],
+        payload: Any,
         state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Generate a pre-execution preview for a tool call.
 
@@ -1216,8 +1389,8 @@ class ToolPlugin(BasePlugin, Protocol):
         tool calls) and should not be used for model-facing tool output.
 
         Args:
-            tool_name: Name of the tool/function being called.
-            arguments: Structured arguments for the tool call.
+            tool_name: Name of the tool/function when available.
+            payload: Final payload for the tool call.
             state: Current tool state.
 
         Returns:
@@ -1229,15 +1402,38 @@ class ToolPlugin(BasePlugin, Protocol):
 
     def stream_tool(
         self,
-        tool_name: str,
-        arguments: Dict[str, Any],
+        tool_name: Optional[str],
+        payload: Any,
         state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Iterator[Dict[str, Any]]:
         """Optional streaming execution hook for tools.
 
         Default implementation yields nothing. Concrete tools may override this
         to provide incremental, display-oriented results for long-running
         operations.
+
+        Args:
+            tool_name: Name of the tool/function when available.
+            payload: Final payload for the tool call.
+            state: Current tool state.
+            payload_kind: Optional semantic payload kind.
+            payload_format: Optional format identifier for the payload.
+            payload_metadata: Optional extra payload metadata.
+            tool_call: Optional original tool-call dict.
+            cancellation: Optional cancellation token.
+            context: Optional layered context providing access to runtime capabilities.
+                See :meth:`execute_tool` for context structure documentation.
+
+        Yields:
+            Dictionary chunks with partial results ({"part": ...}) or final
+            result ({"success": bool, ...}).
         """
         return iter(())
 
