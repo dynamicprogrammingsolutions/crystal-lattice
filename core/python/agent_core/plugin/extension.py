@@ -38,10 +38,9 @@ class ExtensionWrapper(ProviderExtensionPlugin):
     def get_ui_elements(
         self,
         config: Dict[str, Any],
-        tags: List[str],
-        models: List[Dict[str, Any]],
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        return self.plugin.get_ui_elements(config, tags, models)
+        return self.plugin.get_ui_elements(config, context)
 
     def get_models(
         self,
@@ -103,20 +102,34 @@ class ExtensionWrapper(ProviderExtensionPlugin):
 
     # Stateless transforms
     def to_native_messages(
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
+        self,
+        messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any] | None = None,
     ) -> List[Dict[str, Any]]:
         return self.plugin.to_native_messages(messages, native_messages, state)
 
     def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
+        self,
+        native_messages: List[Dict[str, Any]],
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any] | None = None,
     ) -> List[Dict[str, Any]]:
         return self.plugin.from_native_messages(native_messages, messages, state)
 
     def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Prepare for a new turn; MUST return (native_messages, shared state)."""
-        return self.plugin.initialize_request(native_messages, state)
+        return self.plugin.initialize_request(
+            native_messages,
+            state,
+            context=context,
+        )
 
     def process_chunk(
         self,
@@ -166,4 +179,6 @@ class ExtensionWrapper(ProviderExtensionPlugin):
         state: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Execute a session-scoped action from the extension."""
-        return self.plugin.execute_action(action_id, session, native_messages, params, context, state)
+        return self.plugin.execute_action(
+            action_id, session, native_messages, params, context, state
+        )

@@ -4,12 +4,12 @@ Add first-class tool catalog and request-time tool gating support so plugin-cont
 
 ## Requirements checklist
 
-- [ ] Add a core-level `get_available_tools(config)` API that returns normalized tool descriptors, not only raw schemas.
-- [ ] Extend plugin-contributed UI schema generation so plugins can inspect the available tool catalog when building UI elements.
-- [ ] Add a request-time `prepare_tools(...)` hook that can filter or transform the available tool catalog before provider tool extensions inject tools into the request payload.
-- [ ] Implement a simple generic feature plugin that supports a config key such as `disable_all_tools`.
-- [ ] Use that feature for the first concrete rollout in Gemini `web_fetch`, so its internal fallback summarization request sends no tools even if the outer agent config normally has tools enabled.
-- [ ] Add tests covering the new core/tool-gating flow and the Gemini `web_fetch` integration path.
+- [x] Add a core-level `get_available_tools(config)` API that returns normalized tool descriptors, not only raw schemas.
+- [x] Extend plugin-contributed UI schema generation so plugins can inspect the available tool catalog when building UI elements.
+- [x] Add a request-time `prepare_tools(...)` hook that can filter or transform the available tool catalog before provider tool extensions inject tools into the request payload.
+- [x] Implement a simple generic feature plugin that supports a config key such as `disable_all_tools`.
+- [x] Use that feature for the first concrete rollout in Gemini `web_fetch`, so its internal fallback summarization request sends no tools even if the outer agent config normally has tools enabled.
+- [x] Add tests covering the new core/tool-gating flow and the Gemini `web_fetch` integration path.
 
 ## Goal
 
@@ -245,6 +245,15 @@ Add tests for each layer changed.
   - confirm the fallback succeeds without exposing tools
   - confirm the request no longer relies only on `tool_choice: none`
 
+## Execution plan
+
+Added during completion:
+
+1. Add the core `ToolDescriptor` type plus `FeaturePlugin.prepare_tools(...)`, and update adapters/wrappers so legacy plugins still work.
+2. Refactor `AgentCore` tool assembly into "available tools" and "prepared tools", use prepared tools during requests, and pass `available_tools` into plugin UI context.
+3. Add a minimal built-in feature plugin for `disable_all_tools`, then use it from Gemini `web_fetch` internal fallback requests.
+4. Add focused core tests for available tools, UI context, and request-time tool suppression, then update Gemini tests to cover the new internal no-tools behavior.
+
 ## Notes for the implementing agent
 
 - Preserve backward compatibility for existing plugins that define `get_ui_elements(self, config, tags, models)` with no `context`.
@@ -258,3 +267,13 @@ Added during task creation:
 - Captured the agreed naming (`get_available_tools`) and the desired high-level flow: available tool catalog -> plugin-contributed UI -> resolved config -> request-time `prepare_tools(...)`.
 - Recorded the current architectural constraint that feature `initialize_request(...)` is too late for tool suppression because payload tools are injected earlier.
 - Included the first concrete rollout requirement for Gemini `web_fetch`: use a simple generic `disable_all_tools` feature to suppress tools for its internal summarization request.
+
+Added during completion:
+- Implemented `ToolDescriptor`, `AgentCore.get_available_tools(...)`, request-time feature `prepare_tools(...)`, and UI-context propagation of both `available_tools` and effective `tools`.
+- Refined the final architecture so `prepare_tools(...)` runs before provider/extension init, with the prepared schemas written into `config["tools"]` as the core-owned compatibility shim for older implementations.
+- Updated the plugin API direction so canonical UI hooks are `get_ui_elements(config, context=None)`, while adapters still accept legacy `get_ui_elements(self)`, `get_ui_elements(self, config)`, and `get_ui_elements(self, config, tags, models)` implementations.
+- Added optional `context` support to provider/extension/feature `initialize_request(...)` so new implementations can inspect `tools` and `available_tools` without reading them from `state["config"]`.
+- Added a built-in `ToolGatingFeature` with `disable_all_tools` and registered it in the portable default terminal app config.
+- Updated Gemini `web_fetch` fallback summarization to set `disable_all_tools=True` for its internal request while keeping `tool_choice: "none"` as a provider hint.
+- Kept provider tool extensions serialization-only in the final version by removing the temporary `state["config"]` fallback and relying on the pre-init `config["tools"]` shim instead.
+- Added focused core tests for available tools, UI context, effective tool filtering, and payload suppression, plus a Gemini unit regression for the internal fallback config and updated real app integration coverage.

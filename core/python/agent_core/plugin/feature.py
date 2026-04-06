@@ -34,10 +34,9 @@ class FeatureWrapper(FeaturePlugin):
     def get_ui_elements(
         self,
         config: Dict[str, Any],
-        tags: List[str],
-        models: List[Dict[str, Any]],
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        return self.plugin.get_ui_elements(config, tags, models)
+        return self.plugin.get_ui_elements(config, context)
 
     def get_models(
         self,
@@ -79,19 +78,42 @@ class FeatureWrapper(FeaturePlugin):
 
     # Stateless transforms
     def to_native_messages(
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
+        self,
+        messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any] | None = None,
     ) -> List[Dict[str, Any]]:
         return self.plugin.to_native_messages(messages, native_messages, state)
 
     def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
+        self,
+        native_messages: List[Dict[str, Any]],
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any] | None = None,
     ) -> List[Dict[str, Any]]:
         return self.plugin.from_native_messages(native_messages, messages, state)
 
     def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-        return self.plugin.initialize_request(native_messages, state)
+        return self.plugin.initialize_request(
+            native_messages,
+            state,
+            context=context,
+        )
+
+    def prepare_tools(
+        self,
+        config: Dict[str, Any],
+        tools: List[Any],
+        context: Optional[Dict[str, Any]] = None,
+    ) -> List[Any]:
+        """Allow the feature to filter or transform available tools."""
+        return self.plugin.prepare_tools(config, tools, context)
 
     def finalize(
         self,
@@ -116,7 +138,9 @@ class FeatureWrapper(FeaturePlugin):
         state: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Execute a session-scoped action from the feature."""
-        return self.plugin.execute_action(action_id, session, native_messages, params, context, state)
+        return self.plugin.execute_action(
+            action_id, session, native_messages, params, context, state
+        )
 
     def get_completions(
         self,

@@ -17,7 +17,14 @@ import inspect
 from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Tuple, cast
 
 from ..tool_interop import ToolInteropContribution
-from ..types import FeaturePlugin, ProviderExtensionPlugin, ProviderPlugin, Session, ToolPlugin
+from ..types import (
+    FeaturePlugin,
+    ProviderExtensionPlugin,
+    ProviderPlugin,
+    Session,
+    ToolDescriptor,
+    ToolPlugin,
+)
 
 
 class _BasePluginDefaults:
@@ -44,6 +51,18 @@ class _BasePluginDefaults:
             return list(value)
         except Exception:
             return []
+
+    @staticmethod
+    def _ensure_state_config(
+        config: Dict[str, Any],
+        state: Any,
+    ) -> Dict[str, Any]:
+        if not isinstance(state, dict):
+            return {"config": config}
+        existing = state.get("config")
+        if isinstance(existing, dict):
+            return state
+        return {**state, "config": config}
 
     @staticmethod
     def _call_with_optional_context(
@@ -74,14 +93,19 @@ class _BasePluginDefaults:
             p
             for p in params
             if p.kind
-            in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+            in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
         ]
 
         if len(positional) >= len(args_before_context) + len(args_after_context) + 1:
             return fn(*args_before_context, context, *args_after_context)
         return fn(*args_before_context, *args_after_context)
 
-    def _get_impl_method(self, name: str, protocol_cls: Optional[type] = None) -> Optional[Any]:
+    def _get_impl_method(
+        self, name: str, protocol_cls: Optional[type] = None
+    ) -> Optional[Any]:
         """Return a concrete implementation for an optional hook.
 
         Treats Protocol stub methods (from the given protocol_cls) as "missing"
@@ -115,9 +139,7 @@ class _BasePluginDefaults:
             return fn(*args, **kwargs)
 
         accepted = {
-            name: value
-            for name, value in kwargs.items()
-            if name in sig.parameters
+            name: value for name, value in kwargs.items() if name in sig.parameters
         }
         return fn(*args, **accepted)
 
@@ -129,42 +151,48 @@ class _BasePluginDefaults:
             return self._safe_dict(fn())
         return {}
 
-    @staticmethod
-    def _ui_elements_accepts_context(fn: Any) -> bool:
-        """Return True when `fn` appears to accept (config, tags, models).
-
-        This provides backward compatibility for legacy plugin
-        implementations that define `get_ui_elements(self)` with no args.
-        """
-
-        try:
-            sig = inspect.signature(fn)
-        except (TypeError, ValueError):
-            return True
-
-        params = list(sig.parameters.values())
-        if any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in params):
-            return True
-
-        positional = [
-            p
-            for p in params
-            if p.kind
-            in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
-        ]
-        return len(positional) >= 3
-
     def get_ui_elements(  # type: ignore[override]
         self,
         config: Dict[str, Any],
-        tags: List[str],
-        models: List[Dict[str, Any]],
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         fn = getattr(self.impl, "get_ui_elements", None)
         if not callable(fn):
             return []
-
-        raw = fn(config, tags, models) if self._ui_elements_accepts_context(fn) else fn()
+        try:
+            sig = inspect.signature(fn)
+        except (TypeError, ValueError):
+            raw = fn(config, context)
+        else:
+            params = list(sig.parameters.values())
+            has_variadic = any(
+                p.kind
+                in (
+                    inspect.Parameter.VAR_POSITIONAL,
+                    inspect.Parameter.VAR_KEYWORD,
+                )
+                for p in params
+            )
+            positional = [
+                p
+                for p in params
+                if p.kind
+                in (
+                    inspect.Parameter.POSITIONAL_ONLY,
+                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                )
+            ]
+            if not positional and not has_variadic:
+                raw = fn()
+            else:
+                ui_context = context if isinstance(context, dict) else {}
+                raw = self._call_with_optional_kwargs(
+                    fn,
+                    config,
+                    tags=ui_context.get("tags", []),
+                    models=ui_context.get("models", []),
+                    context=context,
+                )
         items = self._safe_list(raw)
         return [i for i in items if isinstance(i, dict)]
 
@@ -189,7 +217,7 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
         fn = getattr(self.impl, "init", None)
         if callable(fn):
             state = fn(config)
-            return state if isinstance(state, dict) else {"config": config}
+            return self._ensure_state_config(config, state)
         return {"config": config}
 
     def initialize_request(  # type: ignore[override]
@@ -198,6 +226,7 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
         state: Dict[str, Any],
         *,
         request_id: str | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         fn = getattr(self.impl, "initialize_request", None)
         if callable(fn):
@@ -206,6 +235,7 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
                 native_messages,
                 state,
                 request_id=request_id,
+                context=context,
             )
             if isinstance(out, tuple) and len(out) == 2:
                 raw_native, raw_state = out
@@ -228,7 +258,11 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
         if fn is None:
             return ToolInteropContribution()
         out = self._call_with_optional_kwargs(fn, config, state)
-        return out if isinstance(out, ToolInteropContribution) else ToolInteropContribution()
+        return (
+            out
+            if isinstance(out, ToolInteropContribution)
+            else ToolInteropContribution()
+        )
 
     def accepted_tool_schema_formats(  # type: ignore[override]
         self,
@@ -449,8 +483,10 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
         fn = getattr(self.impl, "init", None)
         if callable(fn):
             new_state = fn(config, state)
-            return new_state if isinstance(new_state, dict) else state
-        return state
+            return self._ensure_state_config(
+                config, new_state if isinstance(new_state, dict) else state
+            )
+        return self._ensure_state_config(config, state)
 
     def get_models(  # type: ignore[override]
         self,
@@ -500,12 +536,16 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
         return None
 
     def to_native_messages(  # type: ignore[override]
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
+        self,
+        messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any] | None = None,
     ) -> List[Dict[str, Any]]:
         fn = self._get_impl_method("to_native_messages", ProviderExtensionPlugin)
         if fn is not None:
             # Pass state if the implementation accepts it
             import inspect
+
             sig = inspect.signature(fn)
             if len(sig.parameters) >= 3:
                 out = fn(messages, native_messages, state)
@@ -516,12 +556,16 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
         return list(native_messages)
 
     def from_native_messages(  # type: ignore[override]
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
+        self,
+        native_messages: List[Dict[str, Any]],
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any] | None = None,
     ) -> List[Dict[str, Any]]:
         fn = self._get_impl_method("from_native_messages", ProviderExtensionPlugin)
         if fn is not None:
             # Pass state if the implementation accepts it
             import inspect
+
             sig = inspect.signature(fn)
             if len(sig.parameters) >= 3:
                 out = fn(native_messages, messages, state)
@@ -532,11 +576,20 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
         return list(messages)
 
     def initialize_request(  # type: ignore[override]
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         fn = getattr(self.impl, "initialize_request", None)
         if callable(fn):
-            out = fn(native_messages, state)
+            out = self._call_with_optional_kwargs(
+                fn,
+                native_messages,
+                state,
+                context=context,
+            )
             if isinstance(out, tuple) and len(out) == 2:
                 raw_native, raw_state = out
                 new_state = raw_state if isinstance(raw_state, dict) else state
@@ -554,18 +607,26 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
         config: Dict[str, Any],
         state: Dict[str, Any] | None = None,
     ) -> ToolInteropContribution:
-        fn = self._get_impl_method("get_tool_interop_contribution", ProviderExtensionPlugin)
+        fn = self._get_impl_method(
+            "get_tool_interop_contribution", ProviderExtensionPlugin
+        )
         if fn is None:
             return ToolInteropContribution()
         out = self._call_with_optional_kwargs(fn, config, state)
-        return out if isinstance(out, ToolInteropContribution) else ToolInteropContribution()
+        return (
+            out
+            if isinstance(out, ToolInteropContribution)
+            else ToolInteropContribution()
+        )
 
     def accepted_tool_schema_formats(  # type: ignore[override]
         self,
         config: Dict[str, Any],
         state: Dict[str, Any] | None = None,
     ) -> List[str]:
-        fn = self._get_impl_method("accepted_tool_schema_formats", ProviderExtensionPlugin)
+        fn = self._get_impl_method(
+            "accepted_tool_schema_formats", ProviderExtensionPlugin
+        )
         if fn is None:
             return []
         out = self._call_with_optional_kwargs(fn, config, state)
@@ -655,7 +716,11 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
                 context,
                 (state,),
             )
-            return out if isinstance(out, dict) else {"native_messages": list(native_messages)}
+            return (
+                out
+                if isinstance(out, dict)
+                else {"native_messages": list(native_messages)}
+            )
         return {"native_messages": list(native_messages)}
 
 
@@ -671,8 +736,10 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
         fn = getattr(self.impl, "init", None)
         if callable(fn):
             new_state = fn(config, state)
-            return new_state if isinstance(new_state, dict) else state
-        return state
+            return self._ensure_state_config(
+                config, new_state if isinstance(new_state, dict) else state
+            )
+        return self._ensure_state_config(config, state)
 
     def get_models(  # type: ignore[override]
         self,
@@ -732,12 +799,16 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
         return ""
 
     def to_native_messages(  # type: ignore[override]
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
+        self,
+        messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any] | None = None,
     ) -> List[Dict[str, Any]]:
         fn = self._get_impl_method("to_native_messages", FeaturePlugin)
         if fn is not None:
             # Pass state if the implementation accepts it
             import inspect
+
             sig = inspect.signature(fn)
             if len(sig.parameters) >= 3:
                 out = fn(messages, native_messages, state)
@@ -748,12 +819,16 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
         return list(native_messages)
 
     def from_native_messages(  # type: ignore[override]
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
+        self,
+        native_messages: List[Dict[str, Any]],
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any] | None = None,
     ) -> List[Dict[str, Any]]:
         fn = self._get_impl_method("from_native_messages", FeaturePlugin)
         if fn is not None:
             # Pass state if the implementation accepts it
             import inspect
+
             sig = inspect.signature(fn)
             if len(sig.parameters) >= 3:
                 out = fn(native_messages, messages, state)
@@ -764,11 +839,20 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
         return list(messages)
 
     def initialize_request(  # type: ignore[override]
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         fn = getattr(self.impl, "initialize_request", None)
         if callable(fn):
-            out = fn(native_messages, state)
+            out = self._call_with_optional_kwargs(
+                fn,
+                native_messages,
+                state,
+                context=context,
+            )
             if isinstance(out, tuple) and len(out) == 2:
                 raw_native, raw_state = out
                 new_state = raw_state if isinstance(raw_state, dict) else state
@@ -780,6 +864,46 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
             if isinstance(out, dict):
                 return native_messages, out
         return native_messages, state
+
+    def prepare_tools(  # type: ignore[override]
+        self,
+        config: Dict[str, Any],
+        tools: List[ToolDescriptor],
+        context: Optional[Dict[str, Any]] = None,
+    ) -> List[ToolDescriptor]:
+        fn = self._get_impl_method("prepare_tools", FeaturePlugin)
+        if fn is not None:
+            try:
+                sig = inspect.signature(fn)
+            except (TypeError, ValueError):
+                out = fn(config, tools, context)
+            else:
+                params = list(sig.parameters.values())
+                positional = [
+                    p
+                    for p in params
+                    if p.kind
+                    in (
+                        inspect.Parameter.POSITIONAL_ONLY,
+                        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                    )
+                ]
+                if positional and positional[0].name == "tools":
+                    out = self._call_with_optional_kwargs(
+                        fn,
+                        tools,
+                        context=context,
+                    )
+                else:
+                    out = self._call_with_optional_kwargs(
+                        fn,
+                        config,
+                        tools,
+                        context=context,
+                    )
+            items = self._safe_list(out)
+            return [item for item in items if isinstance(item, ToolDescriptor)]
+        return list(tools)
 
     def finalize(  # type: ignore[override]
         self,
@@ -820,7 +944,11 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
                 context,
                 (state,),
             )
-            return out if isinstance(out, dict) else {"native_messages": list(native_messages)}
+            return (
+                out
+                if isinstance(out, dict)
+                else {"native_messages": list(native_messages)}
+            )
         return {"native_messages": list(native_messages)}
 
     def get_completions(  # type: ignore[override]
@@ -921,7 +1049,11 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
         if fn is None:
             return ToolInteropContribution()
         out = fn(state)
-        return out if isinstance(out, ToolInteropContribution) else ToolInteropContribution()
+        return (
+            out
+            if isinstance(out, ToolInteropContribution)
+            else ToolInteropContribution()
+        )
 
     def can_handle_tool_call(  # type: ignore[override]
         self,

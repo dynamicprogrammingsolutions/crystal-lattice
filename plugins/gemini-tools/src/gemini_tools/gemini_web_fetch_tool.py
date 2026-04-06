@@ -105,13 +105,25 @@ class GeminiWebFetchTool(ToolPlugin):
             "enabled": config.get("web_fetch_enabled", True),
             "use_gemini_api": config.get("web_fetch_use_gemini_api", True),
             "direct_mode": config.get("web_fetch_direct_mode", False),
-            "primary_model": config.get("web_fetch_primary_model", DEFAULT_PRIMARY_MODEL),
+            "primary_model": config.get(
+                "web_fetch_primary_model", DEFAULT_PRIMARY_MODEL
+            ),
             "fallback_agent_id": config.get("web_fetch_fallback_agent_id"),
-            "fallback_settings_overrides": config.get("web_fetch_fallback_settings_overrides", {}),
-            "timeout_seconds": config.get("web_fetch_timeout_seconds", DEFAULT_TIMEOUT_SECONDS),
-            "max_content_chars": config.get("web_fetch_max_content_chars", DEFAULT_MAX_CHARS),
-            "rate_limit_requests": config.get("web_fetch_rate_limit_requests", DEFAULT_RATE_LIMIT_REQUESTS),
-            "rate_limit_window": config.get("web_fetch_rate_limit_window", DEFAULT_RATE_LIMIT_WINDOW),
+            "fallback_settings_overrides": config.get(
+                "web_fetch_fallback_settings_overrides", {}
+            ),
+            "timeout_seconds": config.get(
+                "web_fetch_timeout_seconds", DEFAULT_TIMEOUT_SECONDS
+            ),
+            "max_content_chars": config.get(
+                "web_fetch_max_content_chars", DEFAULT_MAX_CHARS
+            ),
+            "rate_limit_requests": config.get(
+                "web_fetch_rate_limit_requests", DEFAULT_RATE_LIMIT_REQUESTS
+            ),
+            "rate_limit_window": config.get(
+                "web_fetch_rate_limit_window", DEFAULT_RATE_LIMIT_WINDOW
+            ),
         }
 
     # ------------------------------------------------------------------
@@ -203,28 +215,35 @@ class GeminiWebFetchTool(ToolPlugin):
 
         # Only show Gemini API option when API key is available
         if api_key:
-            elements.append({
-                "type": "checkbox",
-                "key": "web_fetch_use_gemini_api",
-                "label": "Use Gemini API",
-                "description": "Server-side URL grounding via Gemini (requires API key)",
-            })
+            elements.append(
+                {
+                    "type": "checkbox",
+                    "key": "web_fetch_use_gemini_api",
+                    "label": "Use Gemini API",
+                    "description": "Server-side URL grounding via Gemini (requires API key)",
+                }
+            )
 
             # Only show primary model when using Gemini API
             if use_gemini:
-                elements.append({
-                    "type": "text",
-                    "key": "web_fetch_primary_model",
-                    "label": "Primary model",
-                    "description": "Gemini model for URL grounding",
-                    "placeholder": "web-fetch",
-                })
+                elements.append(
+                    {
+                        "type": "text",
+                        "key": "web_fetch_primary_model",
+                        "label": "Primary model",
+                        "description": "Gemini model for URL grounding",
+                        "placeholder": "web-fetch",
+                    }
+                )
 
-        elements.append({
-            "type": "number",
-            "key": "web_fetch_timeout_seconds",
-            "label": "Timeout (seconds)",
-        })
+        elements.append(
+            {
+                "type": "number",
+                "key": "web_fetch_timeout_seconds",
+                "label": "URL fetch timeout",
+                "description": "Seconds to wait for URL response",
+            }
+        )
 
         return elements
 
@@ -236,19 +255,10 @@ class GeminiWebFetchTool(ToolPlugin):
         """
         api_key = config.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY")
         web_fetch_cfg = self._get_web_fetch_config(config)
-        use_gemini = web_fetch_cfg.get("use_gemini_api", True)
-        direct_mode = web_fetch_cfg.get("direct_mode", False)
-
-        # Tool is disabled if:
-        # - Explicitly disabled via enabled=False
-        # - Not in direct mode AND not using Gemini AND no API key
-        # In direct mode, we don't need Gemini API at all
-        disabled = not web_fetch_cfg.get("enabled", True)
 
         return {
             "config": config,
             "api_key": api_key,
-            "disabled": disabled,
             "web_fetch_config": web_fetch_cfg,
         }
 
@@ -259,21 +269,35 @@ class GeminiWebFetchTool(ToolPlugin):
         models: Optional[List[str]],
         context: Optional[Dict[str, Any]],
     ) -> Optional[bool]:
-        """Check if tool is enabled based on configuration and API key availability.
+        """Check if tool is enabled based on API key availability.
 
-        Returns False if disabled, None to fall back to tag checks.
+        Note: The web_fetch_enabled config is handled at execution time, not here.
+        This ensures the "Enable web fetch" UI toggle is always visible.
+
+        Returns False only when there's a hard requirement not met (missing API key).
+        Returns None to fall back to tag checks otherwise.
         """
         web_fetch_cfg = self._get_web_fetch_config(config)
-
-        # Check explicit enable/disable
-        if not web_fetch_cfg.get("enabled", True):
-            return False
 
         # In direct mode, we don't need a Gemini API key
         if web_fetch_cfg.get("direct_mode"):
             return None
 
         # Check if using Gemini API
+        use_gemini = web_fetch_cfg.get("use_gemini_api", True)
+
+        # If not using Gemini API, we don't need an API key (fallback only)
+        if not use_gemini:
+            return None
+
+        # In prompt mode with Gemini, we need a Gemini API key
+        api_key = config.get("gemini_api_key") if config else None
+        if not api_key:
+            api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            return False
+
+        return None
         use_gemini = web_fetch_cfg.get("use_gemini_api", True)
 
         # If not using Gemini API, we don't need an API key (fallback only)
@@ -413,6 +437,14 @@ class GeminiWebFetchTool(ToolPlugin):
         """
         config = state.get("config", {})
         web_fetch_cfg = self._get_web_fetch_config(config)
+
+        # Check if explicitly disabled
+        if not web_fetch_cfg.get("enabled", True):
+            return {
+                "success": False,
+                "error": "Web fetch is disabled. Enable it via web_fetch_enabled configuration.",
+            }
+
         direct_mode = web_fetch_cfg.get("direct_mode", False)
 
         if direct_mode:
@@ -436,9 +468,13 @@ class GeminiWebFetchTool(ToolPlugin):
         # Validate URL
         try:
             from urllib.parse import urlparse
+
             parsed = urlparse(url)
             if parsed.scheme not in ("http", "https"):
-                return {"success": False, "error": f"Unsupported protocol: {parsed.scheme}"}
+                return {
+                    "success": False,
+                    "error": f"Unsupported protocol: {parsed.scheme}",
+                }
             if not parsed.hostname:
                 return {"success": False, "error": "URL must have a valid hostname."}
         except Exception as e:
@@ -537,7 +573,9 @@ class GeminiWebFetchTool(ToolPlugin):
 
         return result
 
-    def _check_rate_limit(self, url: str, state: Dict[str, Any]) -> Tuple[bool, Optional[int]]:
+    def _check_rate_limit(
+        self, url: str, state: Dict[str, Any]
+    ) -> Tuple[bool, Optional[int]]:
         """Check rate limit for a URL using LRU cache.
 
         Returns (allowed, wait_seconds) tuple.
@@ -551,8 +589,12 @@ class GeminiWebFetchTool(ToolPlugin):
 
             # Get configurable limits
             web_fetch_cfg = state.get("web_fetch_config", {})
-            max_requests = web_fetch_cfg.get("rate_limit_requests", DEFAULT_RATE_LIMIT_REQUESTS)
-            window_seconds = web_fetch_cfg.get("rate_limit_window", DEFAULT_RATE_LIMIT_WINDOW)
+            max_requests = web_fetch_cfg.get(
+                "rate_limit_requests", DEFAULT_RATE_LIMIT_REQUESTS
+            )
+            window_seconds = web_fetch_cfg.get(
+                "rate_limit_window", DEFAULT_RATE_LIMIT_WINDOW
+            )
 
             now = time.time()
             window_start = now - window_seconds
@@ -582,9 +624,15 @@ class GeminiWebFetchTool(ToolPlugin):
     ) -> str:
         """Run a one-shot summarization turn through AgentCore and return assistant text."""
         request_options = config.get("request_options")
-        merged_request_options = dict(request_options) if isinstance(request_options, dict) else {}
+        merged_request_options = (
+            dict(request_options) if isinstance(request_options, dict) else {}
+        )
         merged_request_options["tool_choice"] = "none"
-        runtime_config = {**config, "request_options": merged_request_options}
+        runtime_config = {
+            **config,
+            "disable_all_tools": True,
+            "request_options": merged_request_options,
+        }
 
         _next_session, final_messages = core.send_request(session, runtime_config)
 
@@ -648,7 +696,10 @@ class GeminiWebFetchTool(ToolPlugin):
                 candidate = response.candidates[0]
 
                 # Check for grounding metadata
-                if hasattr(candidate, "grounding_metadata") and candidate.grounding_metadata:
+                if (
+                    hasattr(candidate, "grounding_metadata")
+                    and candidate.grounding_metadata
+                ):
                     gm = candidate.grounding_metadata
                     if hasattr(gm, "grounding_chunks"):
                         grounding_chunks = [
@@ -663,16 +714,21 @@ class GeminiWebFetchTool(ToolPlugin):
                                     "startIndex": s.segment.start_index,
                                     "endIndex": s.segment.end_index,
                                 },
-                                "groundingChunkIndices": list(s.grounding_chunk_indices),
+                                "groundingChunkIndices": list(
+                                    s.grounding_chunk_indices
+                                ),
                             }
                             for s in gm.grounding_supports
-                            if hasattr(s, "segment") and hasattr(s, "grounding_chunk_indices")
+                            if hasattr(s, "segment")
+                            and hasattr(s, "grounding_chunk_indices")
                         ]
 
                 # Check for URL context metadata (indicates fetch status)
                 url_context_meta = getattr(candidate, "url_context_metadata", None)
                 if url_context_meta and hasattr(url_context_meta, "url_metadata"):
-                    all_statuses = [m.url_retrieval_status for m in url_context_meta.url_metadata]
+                    all_statuses = [
+                        m.url_retrieval_status for m in url_context_meta.url_metadata
+                    ]
                     if all(s != "URL_RETRIEVAL_STATUS_SUCCESS" for s in all_statuses):
                         return {
                             "success": False,
@@ -732,7 +788,9 @@ class GeminiWebFetchTool(ToolPlugin):
             # Fetch URL content
             fetch_result = await fetch_url(
                 url,
-                timeout_seconds=web_fetch_cfg.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS),
+                timeout_seconds=web_fetch_cfg.get(
+                    "timeout_seconds", DEFAULT_TIMEOUT_SECONDS
+                ),
             )
 
             if fetch_result.is_error:
@@ -780,12 +838,14 @@ class GeminiWebFetchTool(ToolPlugin):
 
                     # Create temp session and switch agent
                     temp_session = Session(session_id="web_fetch_fallback", messages=[])
-                    temp_session = core.add_message(temp_session, "user", summarization_prompt)
+                    temp_session = core.add_message(
+                        temp_session, "user", summarization_prompt
+                    )
 
                     try:
                         # Switch to fallback agent
-                        fallback_core, fallback_config, fallback_session = app.update_agent(
-                            fallback_agent_id, temp_session
+                        fallback_core, fallback_config, fallback_session = (
+                            app.update_agent(fallback_agent_id, temp_session)
                         )
 
                         # Apply settings overrides
@@ -818,7 +878,9 @@ class GeminiWebFetchTool(ToolPlugin):
                 from agent_core import Session
 
                 temp_session = Session(session_id="web_fetch_fallback", messages=[])
-                temp_session = core.add_message(temp_session, "user", summarization_prompt)
+                temp_session = core.add_message(
+                    temp_session, "user", summarization_prompt
+                )
 
                 result_text = self._collect_fallback_summary(core, temp_session, config)
 

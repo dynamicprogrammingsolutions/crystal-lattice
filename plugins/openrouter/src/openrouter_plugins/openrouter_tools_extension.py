@@ -107,7 +107,9 @@ class OpenRouterToolsExtension(ProviderExtensionPlugin):
                     extra["display"] = display
                 if extra:
                     base_meta = nm.get("_metadata") or {}
-                    merged = {**base_meta, **extra} if isinstance(base_meta, dict) else extra
+                    merged = (
+                        {**base_meta, **extra} if isinstance(base_meta, dict) else extra
+                    )
                     nm["_metadata"] = merged
             elif role == "assistant":
                 tcs = md.get("tool_calls")
@@ -204,7 +206,8 @@ class OpenRouterToolsExtension(ProviderExtensionPlugin):
                     if "arguments" in func_delta:
                         # Accumulate arguments (they're sent as string fragments)
                         existing["function"]["arguments"] = (
-                            existing["function"].get("arguments", "") + func_delta["arguments"]
+                            existing["function"].get("arguments", "")
+                            + func_delta["arguments"]
                         )
                 acc_tc[index] = existing
 
@@ -214,7 +217,6 @@ class OpenRouterToolsExtension(ProviderExtensionPlugin):
 
         return current_partial, accumulated
 
-
     def process_chunk(
         self,
         native_chunk: Optional[Dict[str, Any]],
@@ -222,14 +224,18 @@ class OpenRouterToolsExtension(ProviderExtensionPlugin):
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         delta = self.extract_delta(native_chunk or {})
 
         new_partial_messages = partial_messages
         accumulated = state.get("partial", {})
 
         new_partial_message, accumulated = self.process_delta(
-            delta=delta, current_partial=partial_messages[-1] if len(partial_messages) > 0 else None, accumulated=accumulated
+            delta=delta,
+            current_partial=partial_messages[-1] if len(partial_messages) > 0 else None,
+            accumulated=accumulated,
         )
 
         return (

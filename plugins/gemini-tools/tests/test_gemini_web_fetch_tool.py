@@ -29,7 +29,7 @@ def _make_wrapper(
     """Create a configured tool wrapper for testing."""
     # Reset rate limit cache for each test
     _rate_limit_cache.clear()
-    
+
     wrapper = ToolWrapper(GeminiWebFetchTool)
     cfg = config or {}
     if api_key:
@@ -132,9 +132,9 @@ class TestLRUCache:
         cache.set("d", [4.0])
 
         assert cache.get("a") == [1.0]  # 'a' should still exist
-        assert cache.get("b") == []      # 'b' should be evicted
-        assert cache.get("c") == [3.0]   # 'c' should still exist
-        assert cache.get("d") == [4.0]   # 'd' should exist
+        assert cache.get("b") == []  # 'b' should be evicted
+        assert cache.get("c") == [3.0]  # 'c' should still exist
+        assert cache.get("d") == [4.0]  # 'd' should exist
 
     def test_evicts_oldest_at_capacity(self) -> None:
         """Should evict oldest entry when at capacity."""
@@ -144,7 +144,7 @@ class TestLRUCache:
         cache.set("c", [3.0])
         cache.set("d", [4.0])  # Should evict 'a'
 
-        assert cache.get("a") == []   # 'a' evicted
+        assert cache.get("a") == []  # 'a' evicted
         assert cache.get("b") == [2.0]
         assert cache.get("c") == [3.0]
         assert cache.get("d") == [4.0]
@@ -163,7 +163,7 @@ class TestLRUCache:
         cache.set("d", [4.0])
 
         assert cache.get("a") == [1.5]  # 'a' should still exist with new value
-        assert cache.get("b") == []     # 'b' should be evicted
+        assert cache.get("b") == []  # 'b' should be evicted
 
 
 class TestRateLimiting:
@@ -228,10 +228,12 @@ class TestRateLimiting:
         """Rate limits should be configurable."""
         tool = GeminiWebFetchTool()
         # Configure 5 requests per 30 seconds
-        state = tool.init({
-            "web_fetch_rate_limit_requests": 5,
-            "web_fetch_rate_limit_window": 30,
-        })
+        state = tool.init(
+            {
+                "web_fetch_rate_limit_requests": 5,
+                "web_fetch_rate_limit_window": 30,
+            }
+        )
 
         # Make 5 allowed requests
         for i in range(5):
@@ -351,7 +353,9 @@ class TestDirectModeSchema:
         assert "url" in schemas[0]["function"]["parameters"]["properties"]
         assert schemas[0]["function"]["parameters"]["required"] == ["url"]
 
-    def test_direct_mode_description_mentions_multiple_requests(self, tmp_path: Path) -> None:
+    def test_direct_mode_description_mentions_multiple_requests(
+        self, tmp_path: Path
+    ) -> None:
         """Direct mode description should mention multiple requests."""
         config = {
             "gemini_api_key": "test-key",
@@ -379,9 +383,11 @@ class TestConfigurableModels:
     def test_primary_model_from_config(self) -> None:
         """Primary model should be configurable."""
         tool = GeminiWebFetchTool()
-        config = tool._get_web_fetch_config({
-            "web_fetch_primary_model": "gemini-2.5-flash",
-        })
+        config = tool._get_web_fetch_config(
+            {
+                "web_fetch_primary_model": "gemini-2.5-flash",
+            }
+        )
 
         assert config["primary_model"] == "gemini-2.5-flash"
 
@@ -395,9 +401,11 @@ class TestConfigurableModels:
     def test_fallback_agent_id_from_config(self) -> None:
         """Fallback agent ID should be configurable."""
         tool = GeminiWebFetchTool()
-        config = tool._get_web_fetch_config({
-            "web_fetch_fallback_agent_id": "summarizer",
-        })
+        config = tool._get_web_fetch_config(
+            {
+                "web_fetch_fallback_agent_id": "summarizer",
+            }
+        )
 
         assert config["fallback_agent_id"] == "summarizer"
 
@@ -441,7 +449,9 @@ class TestDirectModeExecution:
             url="https://example.com",
         )
 
-        with patch("gemini_tools.gemini_web_fetch_tool.fetch_url", return_value=mock_result):
+        with patch(
+            "gemini_tools.gemini_web_fetch_tool.fetch_url", return_value=mock_result
+        ):
             tool = GeminiWebFetchTool()
             state = tool.init({"web_fetch_direct_mode": True})
 
@@ -526,8 +536,14 @@ class TestCitationFormatting:
             {"web": {"uri": "https://other.com", "title": "Other"}},
         ]
         supports = [
-            {"segment": {"startIndex": 0, "endIndex": 22}, "groundingChunkIndices": [0]},
-            {"segment": {"startIndex": 23, "endIndex": 34}, "groundingChunkIndices": [1]},
+            {
+                "segment": {"startIndex": 0, "endIndex": 22},
+                "groundingChunkIndices": [0],
+            },
+            {
+                "segment": {"startIndex": 23, "endIndex": 34},
+                "groundingChunkIndices": [1],
+            },
         ]
 
         result = format_gemini_citations(text, chunks, supports)
@@ -673,11 +689,13 @@ class TestPrimaryPathMocked:
             state = wrapper.init({"gemini_api_key": "test-key"})
 
             # Execute by directly calling the async method
-            result = asyncio.run(tool._execute_async(
-                {"prompt": "Summarize https://example.com"},
-                state,
-                None,
-            ))
+            result = asyncio.run(
+                tool._execute_async(
+                    {"prompt": "Summarize https://example.com"},
+                    state,
+                    None,
+                )
+            )
             # The test verifies the logic, but we mock the primary path
             # For full integration, use the real API key test
 
@@ -696,7 +714,10 @@ class TestPrimaryPathMocked:
             {"web": {"uri": "https://example.com", "title": "Example"}},
         ]
         supports = [
-            {"segment": {"startIndex": 0, "endIndex": 21}, "groundingChunkIndices": [0]},
+            {
+                "segment": {"startIndex": 0, "endIndex": 21},
+                "groundingChunkIndices": [0],
+            },
         ]
 
         result = format_gemini_citations(text, chunks, supports)
@@ -725,8 +746,12 @@ class TestFallbackPathMocked:
             url="https://example.com",
         )
 
-        with patch("gemini_tools.gemini_web_fetch_tool.fetch_url", return_value=mock_result):
-            with patch("gemini_tools.gemini_web_fetch_tool.is_private_url", return_value=True):
+        with patch(
+            "gemini_tools.gemini_web_fetch_tool.fetch_url", return_value=mock_result
+        ):
+            with patch(
+                "gemini_tools.gemini_web_fetch_tool.is_private_url", return_value=True
+            ):
                 wrapper, state = _make_wrapper()
 
                 result = wrapper.execute_tool(
@@ -752,8 +777,12 @@ class TestFallbackPathMocked:
             error_message="HTTP 404",
         )
 
-        with patch("gemini_tools.gemini_web_fetch_tool.fetch_url", return_value=mock_result):
-            with patch("gemini_tools.gemini_web_fetch_tool.is_private_url", return_value=True):
+        with patch(
+            "gemini_tools.gemini_web_fetch_tool.fetch_url", return_value=mock_result
+        ):
+            with patch(
+                "gemini_tools.gemini_web_fetch_tool.is_private_url", return_value=True
+            ):
                 wrapper, state = _make_wrapper()
 
                 result = wrapper.execute_tool(
@@ -817,13 +846,17 @@ class TestUseGeminiAPI:
     def test_use_gemini_api_from_config(self) -> None:
         """use_gemini_api should be configurable."""
         tool = GeminiWebFetchTool()
-        config = tool._get_web_fetch_config({
-            "web_fetch_use_gemini_api": False,
-        })
+        config = tool._get_web_fetch_config(
+            {
+                "web_fetch_use_gemini_api": False,
+            }
+        )
 
         assert config["use_gemini_api"] is False
 
-    def test_tool_enabled_without_api_key_when_gemini_disabled(self, tmp_path: Path) -> None:
+    def test_tool_enabled_without_api_key_when_gemini_disabled(
+        self, tmp_path: Path
+    ) -> None:
         """Tool should be enabled without API key when use_gemini_api=False."""
         wrapper = ToolWrapper(GeminiWebFetchTool)
         with patch.dict(os.environ, {}, clear=True):
@@ -833,7 +866,9 @@ class TestUseGeminiAPI:
         # Should return None (fall through to tag checks) when Gemini is disabled
         assert result is None
 
-    def test_tool_disabled_without_api_key_when_gemini_enabled(self, tmp_path: Path) -> None:
+    def test_tool_disabled_without_api_key_when_gemini_enabled(
+        self, tmp_path: Path
+    ) -> None:
         """Tool should be disabled without API key when use_gemini_api=True."""
         wrapper = ToolWrapper(GeminiWebFetchTool)
         with patch.dict(os.environ, {}, clear=True):
@@ -856,11 +891,19 @@ class TestFallbackSettingsOverrides:
     def test_fallback_settings_overrides_from_config(self) -> None:
         """Fallback settings overrides should be configurable."""
         tool = GeminiWebFetchTool()
-        config = tool._get_web_fetch_config({
-            "web_fetch_fallback_settings_overrides": {"model": "gpt-4", "temperature": 0.3},
-        })
+        config = tool._get_web_fetch_config(
+            {
+                "web_fetch_fallback_settings_overrides": {
+                    "model": "gpt-4",
+                    "temperature": 0.3,
+                },
+            }
+        )
 
-        assert config["fallback_settings_overrides"] == {"model": "gpt-4", "temperature": 0.3}
+        assert config["fallback_settings_overrides"] == {
+            "model": "gpt-4",
+            "temperature": 0.3,
+        }
 
 
 class TestUIConditionalVisibility:
@@ -951,12 +994,16 @@ class TestPromptModeFallbackOnly:
             url="https://example.com",
         )
 
-        with patch("gemini_tools.gemini_web_fetch_tool.fetch_url", return_value=mock_result):
+        with patch(
+            "gemini_tools.gemini_web_fetch_tool.fetch_url", return_value=mock_result
+        ):
             tool = GeminiWebFetchTool()
-            state = tool.init({
-                "gemini_api_key": "test-key",
-                "web_fetch_use_gemini_api": False,
-            })
+            state = tool.init(
+                {
+                    "gemini_api_key": "test-key",
+                    "web_fetch_use_gemini_api": False,
+                }
+            )
 
             result = tool.execute_tool(
                 "web_fetch",
@@ -966,6 +1013,30 @@ class TestPromptModeFallbackOnly:
 
         assert result["success"] is True
         assert "Fallback content" in result["result"]
+
+
+class TestFallbackSummaryRequestConfig:
+    """Tests for the internal fallback summarization request config."""
+
+    def test_collect_fallback_summary_disables_tools_for_internal_request(self) -> None:
+        tool = GeminiWebFetchTool()
+        captured: Dict[str, Any] = {}
+
+        class _FakeCore:
+            def send_request(self, session: Any, config: Dict[str, Any]):
+                captured["config"] = dict(config)
+                return session, [{"role": "assistant", "content": "summary"}]
+
+        result = tool._collect_fallback_summary(
+            _FakeCore(),
+            session=object(),
+            config={"request_options": {"temperature": 0.0}},
+        )
+
+        assert result == "summary"
+        assert captured["config"]["disable_all_tools"] is True
+        assert captured["config"]["request_options"]["tool_choice"] == "none"
+        assert captured["config"]["request_options"]["temperature"] == 0.0
 
     def test_fallback_only_without_api_key(self, tmp_path: Path) -> None:
         """Should use fallback directly when no API key."""
@@ -980,7 +1051,9 @@ class TestPromptModeFallbackOnly:
         )
 
         with patch.dict(os.environ, {}, clear=True):
-            with patch("gemini_tools.gemini_web_fetch_tool.fetch_url", return_value=mock_result):
+            with patch(
+                "gemini_tools.gemini_web_fetch_tool.fetch_url", return_value=mock_result
+            ):
                 tool = GeminiWebFetchTool()
                 state = tool.init({})
 
@@ -992,3 +1065,54 @@ class TestPromptModeFallbackOnly:
 
         assert result["success"] is True
         assert "Fallback content" in result["result"]
+
+
+class TestEnabledConfigHandling:
+    """Tests for web_fetch_enabled configuration handling."""
+
+    def test_is_enabled_does_not_check_enabled_flag(self) -> None:
+        """is_enabled() should NOT return False when enabled=False (UI must be visible)."""
+        tool = GeminiWebFetchTool()
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
+            config = {"web_fetch_enabled": False}
+            result = tool.is_enabled(config, [], [], {})
+        # Should return None (fall through to tag checks), not False
+        assert result is None
+
+    def test_execution_fails_when_disabled(self, tmp_path: Path) -> None:
+        """Tool should return error when executed with enabled=False."""
+        from web_fetch_shared import FetchResult
+
+        mock_result = FetchResult(
+            content="Should not be used",
+            content_type="text/plain",
+            status_code=200,
+            headers={},
+            url="https://example.com",
+        )
+
+        with patch("gemini_tools.gemini_web_fetch_tool.fetch_url", return_value=mock_result):
+            tool = GeminiWebFetchTool()
+            state = tool.init({
+                "gemini_api_key": "test-key",
+                "web_fetch_enabled": False,
+            })
+
+            result = tool.execute_tool(
+                "web_fetch",
+                {"prompt": "Summarize https://example.com"},
+                state,
+            )
+
+        assert result["success"] is False
+        assert "disabled" in result["error"].lower()
+
+    def test_ui_elements_visible_when_disabled(self) -> None:
+        """UI elements should be visible even when enabled=False."""
+        tool = GeminiWebFetchTool()
+        config = {"gemini_api_key": "test-key", "web_fetch_enabled": False}
+        elements = tool.get_ui_elements(config)
+
+        keys = [e["key"] for e in elements]
+        assert "web_fetch_enabled" in keys
+        assert "web_fetch_direct_mode" in keys

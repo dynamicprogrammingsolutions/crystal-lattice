@@ -547,6 +547,7 @@
   },
   "plugins": [
     "path:${env:BUILTIN_PLUGINS}/openrouter",
+    "plugins.tool_gating_feature.ToolGatingFeature",
     "path:${env:BUILTIN_PLUGINS}/feature-request-options",
     "path:${env:BUILTIN_PLUGINS}/feature-system-message",
     "path:${env:BUILTIN_PLUGINS}/timestamp-extension",

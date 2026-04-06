@@ -46,11 +46,10 @@ class ToolWrapper(ToolPlugin):
     def get_ui_elements(
         self,
         config: Dict[str, Any],
-        tags: List[str],
-        models: List[Dict[str, Any]],
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Get tool UI elements."""
-        return self.plugin.get_ui_elements(config, tags, models)
+        return self.plugin.get_ui_elements(config, context)
 
     def get_tags(
         self,
@@ -85,7 +84,9 @@ class ToolWrapper(ToolPlugin):
         working_state = state or self.state
         return self.plugin.get_tool_schemas(working_state)
 
-    def get_tool_interop_contribution(self, state: Dict[str, Any]) -> ToolInteropContribution:
+    def get_tool_interop_contribution(
+        self, state: Dict[str, Any]
+    ) -> ToolInteropContribution:
         """Return tool-contributed interop accessors/adapters."""
         if self.state is None:
             raise RuntimeError(f"Tool {self.name} not initialized")
@@ -162,7 +163,7 @@ class ToolWrapper(ToolPlugin):
         context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Execute tool via plugin asynchronously; requires initialized state.
-        
+
         This method supports tools with async execute_tool implementations.
         If the underlying tool's execute_tool is a coroutine function,
         it will be awaited correctly.
@@ -170,9 +171,10 @@ class ToolWrapper(ToolPlugin):
         if self.state is None:
             raise RuntimeError(f"Tool {self.name} not initialized")
         working_state = state or self.state
-        
+
         # Check if the underlying implementation has an async execute_tool
         import inspect
+
         impl_fn = getattr(self.plugin.impl, "execute_tool", None)
         if impl_fn is not None and callable(impl_fn):
             result = self.plugin._call_with_optional_kwargs(
@@ -192,7 +194,7 @@ class ToolWrapper(ToolPlugin):
             if isinstance(result, dict):
                 return result
             return {"success": False, "error": "invalid tool result"}
-        
+
         # Fall back to adapter (sync)
         return self.plugin.execute_tool(
             tool_name,

@@ -50,7 +50,7 @@ Examples:
 """
 
 from typing import Any, Dict, List, Optional, Iterator, AsyncIterator, Tuple, Set
-from .types import Message, Session, MessageRole
+from .types import Message, Session, MessageRole, ToolDescriptor
 from .plugin import (
     ProviderWrapper,
     ExtensionWrapper,
@@ -60,9 +60,11 @@ from .plugin import (
 from .utils import pipeline, get_logger
 import uuid
 import json
+import re
 
 logger = None
 log_chunk_processing = None
+
 
 class AgentCore:
     """Stateless processing pipeline for AI Agent Platform.
@@ -147,10 +149,14 @@ class AgentCore:
             md = dict(raw_md) if isinstance(raw_md, dict) else {}
             native_indices = md.get("native_indices")
 
-            if isinstance(native_indices, list) and all(isinstance(i, int) for i in native_indices):
+            if isinstance(native_indices, list) and all(
+                isinstance(i, int) for i in native_indices
+            ):
                 local_indices = [i for i in native_indices if 0 <= i < local_count]
             elif default_local_indices is not None:
-                local_indices = [i for i in default_local_indices if 0 <= i < local_count]
+                local_indices = [
+                    i for i in default_local_indices if 0 <= i < local_count
+                ]
             else:
                 raise RuntimeError(
                     "from_native_messages changed message count without providing native_indices mapping"
@@ -180,7 +186,9 @@ class AgentCore:
         message_dict,
         config,
     ):
-        base_metadata = dict(session.metadata) if isinstance(session.metadata, dict) else {}
+        base_metadata = (
+            dict(session.metadata) if isinstance(session.metadata, dict) else {}
+        )
 
         role_value = message_dict.get("role", "user")
         role = role_value
@@ -224,14 +232,14 @@ class AgentCore:
             )
 
         retained_native = None
- 
+
         if isinstance(session.metadata, dict):
             rn = session.metadata.get("native_messages")
             if isinstance(rn, list):
                 retained_native = rn
- 
+
         message_count = len(session.messages)
- 
+
         # When there is no retained native history, we treat add_message as
         # a core-only operation unless we have both an explicit config and a
         # session with no prior messages. This allows applications to call
@@ -248,12 +256,11 @@ class AgentCore:
             # config is provided.
             if message_count > 0:
                 return _core_only_session(md), None
- 
+
         if retained_native is not None:
             self._verify_native_integrity(session)
         else:
             retained_native = []
-
 
         try:
             core_suffix = [
@@ -265,7 +272,9 @@ class AgentCore:
             ]
             if multipart_content:
                 core_suffix[0]["multipartContent"] = multipart_content
-            suffix_native = self._core_messages_to_native_for_config(core_suffix, config or {})
+            suffix_native = self._core_messages_to_native_for_config(
+                core_suffix, config or {}
+            )
         except Exception as e:
             raise e
 
@@ -322,7 +331,9 @@ class AgentCore:
         insert_at: int,
         config,
     ):
-        base_metadata = dict(session.metadata) if isinstance(session.metadata, dict) else {}
+        base_metadata = (
+            dict(session.metadata) if isinstance(session.metadata, dict) else {}
+        )
 
         role_value = message_dict.get("role", "user")
         role = role_value
@@ -428,7 +439,9 @@ class AgentCore:
                 "modify_message only supports system, user, and assistant roles"
             )
 
-        base_metadata = dict(session.metadata) if isinstance(session.metadata, dict) else {}
+        base_metadata = (
+            dict(session.metadata) if isinstance(session.metadata, dict) else {}
+        )
 
         # Core-only path: drop native history and indices, update content only.
         def _core_only_session() -> Session:
@@ -486,7 +499,9 @@ class AgentCore:
         target_md = target.metadata if isinstance(target.metadata, dict) else {}
         native_indices = target_md.get("native_indices")
         if not native_indices:
-            raise RuntimeError("modify_message requires non-empty native_indices for target message")
+            raise RuntimeError(
+                "modify_message requires non-empty native_indices for target message"
+            )
 
         # Use a set to de-duplicate indices; order is irrelevant for the slice
         # bounds, so we sort after collecting unique values.
@@ -494,7 +509,6 @@ class AgentCore:
 
         start_idx = min(indices)
         end_idx = max(indices)
-
 
         # Convert the modified core message to native using the provider pipeline.
         target_dict = target.to_dict()
@@ -534,8 +548,6 @@ class AgentCore:
         )
 
     def __init__(self):
-
-
         """Initialize core with empty plugin pipeline.
 
         Loggers are initialized lazily so that structlog configuration can
@@ -722,10 +734,11 @@ class AgentCore:
         Returns:
             New Session with the modified message (immutable update).
         """
-        return self._modify_single_message_with_native(session, index, content, config or {})
+        return self._modify_single_message_with_native(
+            session, index, content, config or {}
+        )
 
     def _slice_session_core_only(
-
         self,
         session: Session,
         keep_indices: Set[int],
@@ -845,7 +858,11 @@ class AgentCore:
             empty = self._slice_session_core_only(session, set())
             return (session, empty)  # type: ignore[return-value]
 
-        if config is None or not isinstance(session.metadata, dict) or len(self._providers) != 1:
+        if (
+            config is None
+            or not isinstance(session.metadata, dict)
+            or len(self._providers) != 1
+        ):
             kept = self._slice_session_core_only(session, keep_set)
             if not return_removed:
                 return kept
@@ -987,8 +1004,8 @@ class AgentCore:
 
         new_metadata_remove = dict(session.metadata)
         new_metadata_remove["native_messages"] = post_init_remove
-        new_metadata_remove["native_messages_integrity"] = self._compute_native_integrity(
-            new_messages_remove
+        new_metadata_remove["native_messages_integrity"] = (
+            self._compute_native_integrity(new_messages_remove)
         )
 
         removed_session = Session(
@@ -1090,7 +1107,9 @@ class AgentCore:
             new_native, config or {}, skip_initialize=True
         )
 
-        new_metadata = dict(prefix.metadata) if isinstance(prefix.metadata, dict) else {}
+        new_metadata = (
+            dict(prefix.metadata) if isinstance(prefix.metadata, dict) else {}
+        )
         new_metadata["native_messages"] = post_init_native
         new_metadata["native_messages_integrity"] = self._compute_native_integrity(
             rebuilt_messages
@@ -1210,7 +1229,11 @@ class AgentCore:
             if isinstance(value, str) and value:
                 names.append(value)
 
-        module = getattr(plugin_class, "__module__", None) if plugin_class is not None else None
+        module = (
+            getattr(plugin_class, "__module__", None)
+            if plugin_class is not None
+            else None
+        )
         if isinstance(module, str) and module:
             class_names: List[str] = []
             if plugin_class is not None:
@@ -1221,7 +1244,11 @@ class AgentCore:
                 if cls_name and cls_name not in class_names:
                     class_names.append(cls_name)
                 cfg_name = getattr(plugin_class, "name", None)
-                if isinstance(cfg_name, str) and cfg_name and cfg_name not in class_names:
+                if (
+                    isinstance(cfg_name, str)
+                    and cfg_name
+                    and cfg_name not in class_names
+                ):
                     class_names.append(cfg_name)
             for cls_name in class_names:
                 names.append(f"{module}.{cls_name}")
@@ -1369,8 +1396,12 @@ class AgentCore:
         cached = self._dependency_cache.get(dep_key)
         if cached is not None:
             ext_names, feature_names, tool_names, tags = cached
-            enabled_extensions = [ext for ext in provider.extensions if ext.name in ext_names]
-            enabled_features = [feat for feat in self._features if feat.name in feature_names]
+            enabled_extensions = [
+                ext for ext in provider.extensions if ext.name in ext_names
+            ]
+            enabled_features = [
+                feat for feat in self._features if feat.name in feature_names
+            ]
             enabled_tools = [tool for tool in self._tools if tool.name in tool_names]
             return provider, enabled_extensions, enabled_features, enabled_tools, tags
 
@@ -1383,14 +1414,24 @@ class AgentCore:
             result = []
             for p in plugins:
                 default_enabled = getattr(p.plugin_class, "default_enabled", True)
-                if default_enabled is False and p.name not in enabled_plugins_set and p.name not in force_enabled_set:
+                if (
+                    default_enabled is False
+                    and p.name not in enabled_plugins_set
+                    and p.name not in force_enabled_set
+                ):
                     continue
                 result.append(p)
             return result
 
-        candidate_extensions: List[ExtensionWrapper] = _filter_by_default_enabled(list(provider.extensions))
-        candidate_features: List[FeatureWrapper] = _filter_by_default_enabled(list(self._features))
-        candidate_tools: List[ToolWrapper] = _filter_by_default_enabled(list(self._tools))
+        candidate_extensions: List[ExtensionWrapper] = _filter_by_default_enabled(
+            list(provider.extensions)
+        )
+        candidate_features: List[FeatureWrapper] = _filter_by_default_enabled(
+            list(self._features)
+        )
+        candidate_tools: List[ToolWrapper] = _filter_by_default_enabled(
+            list(self._tools)
+        )
 
         enabled_extensions = candidate_extensions
         enabled_features = candidate_features
@@ -1495,13 +1536,19 @@ class AgentCore:
 
             # Filter plugins using is_enabled / required_tags / forbidden_tags
             next_enabled_extensions = [
-                ext for ext in enabled_extensions if _check_plugin_enabled(ext, list(available_tags))
+                ext
+                for ext in enabled_extensions
+                if _check_plugin_enabled(ext, list(available_tags))
             ]
             next_enabled_features = [
-                feat for feat in enabled_features if _check_plugin_enabled(feat, list(available_tags))
+                feat
+                for feat in enabled_features
+                if _check_plugin_enabled(feat, list(available_tags))
             ]
             next_enabled_tools = [
-                tool for tool in enabled_tools if _check_plugin_enabled(tool, list(available_tags))
+                tool
+                for tool in enabled_tools
+                if _check_plugin_enabled(tool, list(available_tags))
             ]
 
             cur_ext_names = [ext.name for ext in enabled_extensions]
@@ -1566,62 +1613,107 @@ class AgentCore:
             "tools": [tool.name for tool in enabled_tools],
         }
 
+    def _build_plugin_context(
+        self,
+        *,
+        config: Dict[str, Any],
+        provider: Optional[ProviderWrapper],
+        enabled_extensions: List[ExtensionWrapper],
+        enabled_features: List[FeatureWrapper],
+        enabled_tools: List[ToolWrapper],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+        available_tools: Optional[List[ToolDescriptor]] = None,
+        tools: Optional[List[ToolDescriptor]] = None,
+        request_id: str | None = None,
+    ) -> Dict[str, Any]:
+        catalog = list(available_tools or [])
+        effective = list(tools if tools is not None else catalog)
+        return {
+            "config": dict(config),
+            "request_id": request_id,
+            "tags": list(tags),
+            "models": list(models),
+            "provider": provider.name if provider is not None else None,
+            "enabled_plugins": {
+                "providers": [provider.name] if provider is not None else [],
+                "extensions": [ext.name for ext in enabled_extensions],
+                "features": [feature.name for feature in enabled_features],
+                "tools": [tool.name for tool in enabled_tools],
+            },
+            "available_tools": catalog,
+            "tools": effective,
+        }
+
     def _init_provider_and_features_for_config(
         self,
         provider: ProviderWrapper,
         features: List[FeatureWrapper],
         tools: List[ToolWrapper],
         config: Optional[Dict[str, Any]] = None,
+        *,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+        request_id: str | None = None,
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """Initialize provider and features for the given config.
 
-        Treats a missing config as an empty dict. Builds a provider_config
-        including tool schemas, runs provider.init and feature.init, and
-        returns (provider_config, state).
+        Treats a missing config as an empty dict. Builds a provider config
+        with tool interop metadata and the effective ``config["tools"]``
+        compatibility shim, then runs provider.init and feature.init.
         """
         base_config: Dict[str, Any] = dict(config) if isinstance(config, dict) else {}
+        current_tags = list(tags or [])
+        current_models = list(models or [])
 
         tool_init_config = self._build_tool_init_config(
             base_config,
             provider=provider,
             extensions=provider._iter_extensions(),
         )
-
-        tool_states: List[Tuple[ToolWrapper, Dict[str, Any]]] = []
-        tool_schemas: List[Dict[str, Any]] = []
-        for tool in tools:
-            tool_state = tool.init(tool_init_config)
-            tool_states.append((tool, tool_state))
-            tool_schemas.extend(tool.get_tool_schemas(tool_state))
-        tool_interop_registry = self._get_tool_interop_registry_for_config(
-            base_config,
+        (
+            available_tools,
+            _provider,
+            _extensions,
+            _tool_states,
+            tool_interop_registry,
+            tool_schema_target_formats,
+        ) = self._get_available_tools_for_config(tool_init_config)
+        include_tools_key = (
+            "tools" in base_config or bool(available_tools) or bool(tools)
+        )
+        prepared_tools = self._prepare_tools_for_request(
+            config=base_config,
             provider=provider,
             extensions=provider._iter_extensions(),
-            tool_states=tool_states,
+            features=features,
+            tools=tools,
+            tags=current_tags,
+            models=current_models,
+            available_tools=available_tools,
+            request_id=request_id,
         )
-        tool_schema_target_formats = self._get_tool_schema_target_formats_for_config(
-            base_config,
-            provider=provider,
-            extensions=provider._iter_extensions(),
-        )
+        prepared_schemas = [descriptor.schema for descriptor in prepared_tools]
         provider_config = {
             **base_config,
-            **({"tools": tool_schemas} if tool_schemas else {}),
             "_tool_interop_registry": tool_interop_registry,
             **(
                 {"_tool_schema_target_formats": tool_schema_target_formats}
                 if tool_schema_target_formats
                 else {}
             ),
+            **({"tools": prepared_schemas} if include_tools_key else {}),
         }
 
         state = provider.init(provider_config)
-        sorted_features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
+        sorted_features = sorted(
+            features, key=lambda feat: getattr(feat, "priority", 100)
+        )
         for feature in sorted_features:
             state = feature.init(provider_config, state)
             provider.set_state(state)
+        provider.set_state(state)
         return provider_config, state
-
 
     def _core_messages_to_native_for_config(
         self,
@@ -1629,8 +1721,8 @@ class AgentCore:
         config: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         """Convert core messages to provider-native messages for this config."""
-        provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
-            config
+        provider, enabled_extensions, features, tools, _tags = (
+            self._resolve_plugins_for_config(config)
         )
         features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
         provider.set_active_extensions(enabled_extensions)
@@ -1642,7 +1734,9 @@ class AgentCore:
         )
 
         native_messages = provider.to_native_messages(core_messages, state)
-        native_messages = provider.apply_extension_transforms(core_messages, native_messages)
+        native_messages = provider.apply_extension_transforms(
+            core_messages, native_messages
+        )
         pipe = pipeline(core_messages)
         native_messages = pipe(
             [feature.to_native_messages for feature in features],
@@ -1701,14 +1795,33 @@ class AgentCore:
             tools,
             config,
         )
+        request_context = self._build_plugin_context(
+            config=_provider_config,
+            provider=provider,
+            enabled_extensions=enabled_extensions,
+            enabled_features=features,
+            enabled_tools=tools,
+            tags=_tags,
+            models=self._get_models_for_config(provider, config),
+            available_tools=self.get_available_tools(config),
+            tools=self._get_prepared_tools_for_config(config),
+        )
 
         # Initialize request chains using the adjusted native history.
         # Skip this for internal session operations to avoid features like
         # SystemMessageFeature adding synthetic messages during split/join.
         if not skip_initialize:
-            native_messages, state = provider.initialize_request(native_messages, state)
+            native_messages, state = provider.initialize_request(
+                native_messages,
+                state,
+                context=request_context,
+            )
             for feature in features:
-                native_messages, state = feature.initialize_request(native_messages, state)
+                native_messages, state = feature.initialize_request(
+                    native_messages,
+                    state,
+                    context=request_context,
+                )
                 provider.set_state(state)
 
         # Convert native messages back into core messages through the full
@@ -1716,9 +1829,13 @@ class AgentCore:
         core_from_provider = provider.from_native_messages(native_messages, state)
         # Apply extension and feature from-native transforms (iterate to pass state to each)
         for ext in enabled_extensions:
-            core_from_provider = ext.from_native_messages(native_messages, core_from_provider, state)
+            core_from_provider = ext.from_native_messages(
+                native_messages, core_from_provider, state
+            )
         for feature in features:
-            core_from_provider = feature.from_native_messages(native_messages, core_from_provider, state)
+            core_from_provider = feature.from_native_messages(
+                native_messages, core_from_provider, state
+            )
 
         normalized_core = self._normalize_final_core_with_native_indices(
             core_from_provider,
@@ -1727,7 +1844,6 @@ class AgentCore:
         )
         return [Message.from_dict(m) for m in normalized_core], native_messages
 
- 
     def _pre_request(
         self,
         session: Session,
@@ -1737,6 +1853,8 @@ class AgentCore:
         tools: List[ToolWrapper],
         *,
         request_id: str | None = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any], bool]:
         """Prepare shared state and inputs for a request.
 
@@ -1765,8 +1883,25 @@ class AgentCore:
             features,
             tools,
             config,
+            tags=tags,
+            models=models,
+            request_id=request_id,
         )
         features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
+        available_tools = self.get_available_tools(config)
+        effective_tools = self._get_prepared_tools_for_config(config)
+        request_context = self._build_plugin_context(
+            config=_provider_config,
+            provider=provider,
+            enabled_extensions=provider._iter_extensions(),
+            enabled_features=features,
+            enabled_tools=tools,
+            tags=list(tags or []),
+            models=list(models or []),
+            available_tools=available_tools,
+            tools=effective_tools,
+            request_id=request_id,
+        )
         # Build messages (core shape)
         messages = [msg.to_dict() for msg in session.messages]
 
@@ -1788,7 +1923,9 @@ class AgentCore:
             # Provider-first conversion (native_base for stateless transforms)
             native_messages = provider.to_native_messages(messages, state)
             # Apply stateless transforms from provider extensions.
-            native_messages = provider.apply_extension_transforms(messages, native_messages)
+            native_messages = provider.apply_extension_transforms(
+                messages, native_messages
+            )
 
         # In both cases, apply feature-level stateless transforms so that
         # structural features (such as SystemMessageFeature) can ensure that
@@ -1807,15 +1944,24 @@ class AgentCore:
             native_messages,
             state,
             request_id=request_id,
+            context=request_context,
         )
         if next_native_messages == native_messages:
             next_native_messages = native_messages
-        native_history_changed = native_history_changed or (next_native_messages is not native_messages)
+        native_history_changed = native_history_changed or (
+            next_native_messages is not native_messages
+        )
         native_messages = next_native_messages
         # Sort features by priority (lower numbers run first, default: 100)
-        sorted_features = sorted(features, key=lambda feat: getattr(feat, 'priority', 100))
+        sorted_features = sorted(
+            features, key=lambda feat: getattr(feat, "priority", 100)
+        )
         for feature in sorted_features:
-            next_native_messages, state = feature.initialize_request(native_messages, state)
+            next_native_messages, state = feature.initialize_request(
+                native_messages,
+                state,
+                context=request_context,
+            )
             if next_native_messages == native_messages:
                 next_native_messages = native_messages
             native_history_changed = native_history_changed or (
@@ -1823,7 +1969,7 @@ class AgentCore:
             )
             native_messages = next_native_messages
             provider.set_state(state)
- 
+
         try:
             native_preview = str(native_messages)
             if len(native_preview) > 2000:
@@ -1836,9 +1982,8 @@ class AgentCore:
         #     request=state.get("request"),
         #     native_messages=native_preview,
         # )
- 
-        return messages, native_messages, state, native_history_changed
 
+        return messages, native_messages, state, native_history_changed
 
     def send_request(
         self,
@@ -1867,8 +2012,8 @@ class AgentCore:
         if not self._providers:
             raise RuntimeError("No provider registered")
 
-        provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
-            config
+        provider, enabled_extensions, features, tools, _tags = (
+            self._resolve_plugins_for_config(config)
         )
 
         features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
@@ -1893,13 +2038,17 @@ class AgentCore:
                 cancel_token = None
 
         try:
-            messages, native_messages, state, native_history_changed = self._pre_request(
-                session,
-                config,
-                provider,
-                features,
-                tools,
-                request_id=request_id,
+            messages, native_messages, state, native_history_changed = (
+                self._pre_request(
+                    session,
+                    config,
+                    provider,
+                    features,
+                    tools,
+                    request_id=request_id,
+                    tags=_tags,
+                    models=self._get_models_for_config(provider, config),
+                )
             )
             baseline_native_len = len(native_messages)
 
@@ -1922,7 +2071,9 @@ class AgentCore:
                     pass
 
         # Provider finalize returns provider-native finals and full native history
-        final_native_2, native_messages, state = provider.finalize(native_messages, state)
+        final_native_2, native_messages, state = provider.finalize(
+            native_messages, state
+        )
 
         # Combine provider-native finals from call_api and provider.finalize
         final_native = final_native_1 + final_native_2
@@ -1930,7 +2081,10 @@ class AgentCore:
         # Feature finalize chain over provider-native finals (native cold path)
         pipe = pipeline()
         final_native, native_messages, state = pipe(
-            [feature.finalize for feature in features], final_native, native_messages, state
+            [feature.finalize for feature in features],
+            final_native,
+            native_messages,
+            state,
         )
 
         # Convert provider-native finals to core messages once finalization completes
@@ -1971,7 +2125,9 @@ class AgentCore:
         # Persist full provider-native history for the turn (implementation detail)
         new_metadata["native_messages"] = native_messages
         if native_history_changed:
-            all_messages_after, _ = self._rebuild_core_from_native(native_messages, config)
+            all_messages_after, _ = self._rebuild_core_from_native(
+                native_messages, config
+            )
         else:
             appended: List[Message] = [Message.from_dict(m) for m in final_core]
             all_messages_after = [*session.messages, *appended]
@@ -1987,7 +2143,6 @@ class AgentCore:
         )
 
         return new_session, final_core
-
 
     def send_request_stream(
         self,
@@ -2017,8 +2172,8 @@ class AgentCore:
         if not self._providers:
             raise RuntimeError("No provider registered")
 
-        provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
-            config
+        provider, enabled_extensions, features, tools, _tags = (
+            self._resolve_plugins_for_config(config)
         )
 
         features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
@@ -2043,16 +2198,19 @@ class AgentCore:
                 cancel_token = None
 
         try:
-            messages, native_messages, state, native_history_changed = self._pre_request(
-                session,
-                config,
-                provider,
-                features,
-                tools,
-                request_id=request_id,
+            messages, native_messages, state, native_history_changed = (
+                self._pre_request(
+                    session,
+                    config,
+                    provider,
+                    features,
+                    tools,
+                    request_id=request_id,
+                    tags=_tags,
+                    models=self._get_models_for_config(provider, config),
+                )
             )
             baseline_native_len = len(native_messages)
-
 
             logger.debug(
                 "start streaming request",
@@ -2064,15 +2222,21 @@ class AgentCore:
 
             # Stream from provider using optimized streaming
             partial_count = 0
-            for event in provider.stream_messages(native_messages, state, request_id=request_id):
-                #logger.debug("streaming event received", _event=event) # the first positional argument is also named 'event', we cannot use that name
+            for event in provider.stream_messages(
+                native_messages, state, request_id=request_id
+            ):
+                # logger.debug("streaming event received", _event=event) # the first positional argument is also named 'event', we cannot use that name
                 if event["type"] == "partial":
                     partial_count += 1
-                    log_chunk_processing.debug("partial message received", partial=event["message"])
+                    log_chunk_processing.debug(
+                        "partial message received", partial=event["message"]
+                    )
                     yield {"type": "partial", "message": event["message"]}
                 elif event["type"] == "final_messages":
                     # These are provider-native finals
-                    log_chunk_processing.debug("final message received", final=event.get("messages"))
+                    log_chunk_processing.debug(
+                        "final message received", final=event.get("messages")
+                    )
                     aggregated_native_finals.extend(event["messages"])
         finally:
             if cancellation is not None and cancel_token is not None:
@@ -2089,7 +2253,10 @@ class AgentCore:
         # Feature finalize chain (native)
         pipe = pipeline()
         final_native, native_messages, state = pipe(
-            [feature.finalize for feature in features], final_native, native_messages, state
+            [feature.finalize for feature in features],
+            final_native,
+            native_messages,
+            state,
         )
 
         logger.debug("streaming complete", final_native=final_native)
@@ -2101,9 +2268,13 @@ class AgentCore:
 
         # Apply extension and feature from-native transforms (iterate to pass state to each)
         for ext in enabled_extensions:
-            final_core = ext.from_native_messages(combined_native_finals, final_core, state)
+            final_core = ext.from_native_messages(
+                combined_native_finals, final_core, state
+            )
         for feature in features:
-            final_core = feature.from_native_messages(combined_native_finals, final_core, state)
+            final_core = feature.from_native_messages(
+                combined_native_finals, final_core, state
+            )
 
         # Attach global native_indices for final core messages
         final_core = self._normalize_final_core_with_native_indices(
@@ -2134,7 +2305,9 @@ class AgentCore:
         new_metadata["native_messages"] = native_messages
         if native_history_changed:
             # Rebuild core from the post-initialize native (after structural changes)
-            all_messages_after, _ = self._rebuild_core_from_native(native_messages, config)
+            all_messages_after, _ = self._rebuild_core_from_native(
+                native_messages, config
+            )
         else:
             appended: List[Message] = [Message.from_dict(m) for m in final_core]
             all_messages_after = [*session.messages, *appended]
@@ -2169,8 +2342,8 @@ class AgentCore:
         """
         if not self._providers:
             raise RuntimeError("No provider registered")
-        provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
-            config
+        provider, enabled_extensions, features, tools, _tags = (
+            self._resolve_plugins_for_config(config)
         )
 
         features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
@@ -2195,19 +2368,21 @@ class AgentCore:
                 cancel_token = None
 
         try:
-            messages, native_messages, state, native_history_changed = self._pre_request(
-                session,
-                config,
-                provider,
-                features,
-                tools,
-                request_id=request_id,
+            messages, native_messages, state, native_history_changed = (
+                self._pre_request(
+                    session,
+                    config,
+                    provider,
+                    features,
+                    tools,
+                    request_id=request_id,
+                    tags=_tags,
+                    models=self._get_models_for_config(provider, config),
+                )
             )
             baseline_native_len = len(native_messages)
 
-
             aggregated_native_finals: List[Dict[str, Any]] = []
-
 
             # Stream from provider (async) using optimized streaming
             async for event in provider.stream_messages_async(
@@ -2233,7 +2408,10 @@ class AgentCore:
         # Feature finalize chain (native)
         pipe = pipeline()
         final_native, native_messages, state = pipe(
-            [feature.finalize for feature in features], final_native, native_messages, state
+            [feature.finalize for feature in features],
+            final_native,
+            native_messages,
+            state,
         )
 
         combined_native_finals = [*aggregated_native_finals, *final_native]
@@ -2243,9 +2421,13 @@ class AgentCore:
 
         # Apply extension and feature from-native transforms (iterate to pass state to each)
         for ext in enabled_extensions:
-            final_core = ext.from_native_messages(combined_native_finals, final_core, state)
+            final_core = ext.from_native_messages(
+                combined_native_finals, final_core, state
+            )
         for feature in features:
-            final_core = feature.from_native_messages(combined_native_finals, final_core, state)
+            final_core = feature.from_native_messages(
+                combined_native_finals, final_core, state
+            )
 
         # Attach global native_indices for final core messages
         final_core = self._normalize_final_core_with_native_indices(
@@ -2276,7 +2458,9 @@ class AgentCore:
         new_metadata["native_messages"] = native_messages
         if native_history_changed:
             # Rebuild core from the post-initialize native (after structural changes)
-            all_messages_after, _ = self._rebuild_core_from_native(native_messages, config)
+            all_messages_after, _ = self._rebuild_core_from_native(
+                native_messages, config
+            )
         else:
             appended: List[Message] = [Message.from_dict(m) for m in final_core]
             all_messages_after = [*session.messages, *appended]
@@ -2377,6 +2561,19 @@ class AgentCore:
         enabled_tools = sorted(
             enabled_tools, key=lambda tool: getattr(tool, "priority", 100)
         )
+        available_tools = self.get_available_tools(config)
+        effective_tools = self._get_prepared_tools_for_config(config)
+        ui_context = self._build_plugin_context(
+            config=config,
+            provider=provider,
+            enabled_extensions=enabled_extensions,
+            enabled_features=enabled_features,
+            enabled_tools=enabled_tools,
+            tags=tags,
+            models=models,
+            available_tools=available_tools,
+            tools=effective_tools,
+        )
         extension_plugin_names = {ext.name for ext in enabled_extensions}
         feature_plugin_names = {feature.name for feature in enabled_features}
 
@@ -2419,15 +2616,15 @@ class AgentCore:
                 elements.append(entry)
 
         if provider is not None:
-            _extend(provider.get_ui_elements(config, tags, models), provider.name)
+            _extend(provider.get_ui_elements(config, ui_context), provider.name)
             for name, ext_ui in provider.get_extension_ui_elements(
-                config, tags, models
+                config, ui_context
             ).items():
                 _extend(ext_ui, name)
         for feature in enabled_features:
-            _extend(feature.get_ui_elements(config, tags, models), feature.name)
+            _extend(feature.get_ui_elements(config, ui_context), feature.name)
         for tool in enabled_tools:
-            _extend(tool.get_ui_elements(config, tags, models), tool.name)
+            _extend(tool.get_ui_elements(config, ui_context), tool.name)
 
         elements.extend(config_by_key.values())
         return elements
@@ -2435,7 +2632,9 @@ class AgentCore:
     class _SessionActionValidationError(Exception):
         """Internal exception used for provider-extension session actions."""
 
-        def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+        def __init__(
+            self, message: str, details: Optional[Dict[str, Any]] = None
+        ) -> None:
             super().__init__(message)
             self.details: Dict[str, Any] = details or {}
 
@@ -2446,9 +2645,9 @@ class AgentCore:
         if expected_type == "integer":
             return isinstance(value, int) and not isinstance(value, bool)
         if expected_type == "number":
-            return (isinstance(value, int) and not isinstance(value, bool)) or isinstance(
-                value, float
-            )
+            return (
+                isinstance(value, int) and not isinstance(value, bool)
+            ) or isinstance(value, float)
         if expected_type == "boolean":
             return isinstance(value, bool)
         return True
@@ -2516,7 +2715,9 @@ class AgentCore:
         if not self._providers:
             return []
 
-        _provider, _features, _state, actions = self._get_core_session_actions_and_state(config)
+        _provider, _features, _state, actions = (
+            self._get_core_session_actions_and_state(config)
+        )
         return actions
 
     def _find_session_action_definition(
@@ -2557,15 +2758,17 @@ class AgentCore:
         if isinstance(trigger_val, str):
             return trigger_val == trigger
         if isinstance(trigger_val, list):
-            return any(isinstance(item, str) and item == trigger for item in trigger_val)
+            return any(
+                isinstance(item, str) and item == trigger for item in trigger_val
+            )
         return False
 
     def _get_core_session_actions_and_state(
         self,
         config: Dict[str, Any],
     ) -> Tuple[Any, List[Any], Dict[str, Any], List[Dict[str, Any]]]:
-        provider, enabled_extensions, features, tools, _tags = self._resolve_plugins_for_config(
-            config
+        provider, enabled_extensions, features, tools, _tags = (
+            self._resolve_plugins_for_config(config)
         )
         features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
         provider.set_active_extensions(enabled_extensions)
@@ -2615,25 +2818,42 @@ class AgentCore:
         result: Dict[str, Any],
     ) -> Tuple[Session, Dict[str, Any]]:
         raw_native = result.get("native_messages")
-        if not isinstance(raw_native, list) or not all(isinstance(item, dict) for item in raw_native):
-            raise RuntimeError("session action must return full native_messages as a list of dicts")
+        if not isinstance(raw_native, list) or not all(
+            isinstance(item, dict) for item in raw_native
+        ):
+            raise RuntimeError(
+                "session action must return full native_messages as a list of dicts"
+            )
         new_native_messages = [item for item in raw_native if isinstance(item, dict)]
 
         # Rebuild and get post-initialize native to ensure features' structural changes are captured
-        new_messages, post_init_native = self._rebuild_core_from_native(new_native_messages, config)
+        new_messages, post_init_native = self._rebuild_core_from_native(
+            new_native_messages, config
+        )
 
         metadata_patch_raw = result.get("session_metadata")
-        metadata_patch = metadata_patch_raw if isinstance(metadata_patch_raw, dict) else {}
+        metadata_patch = (
+            metadata_patch_raw if isinstance(metadata_patch_raw, dict) else {}
+        )
 
-        new_metadata = dict(session.metadata) if isinstance(session.metadata, dict) else {}
+        new_metadata = (
+            dict(session.metadata) if isinstance(session.metadata, dict) else {}
+        )
         new_metadata.update(metadata_patch)
         new_metadata["native_messages"] = post_init_native
-        new_metadata["native_messages_integrity"] = self._compute_native_integrity(new_messages)
+        new_metadata["native_messages_integrity"] = self._compute_native_integrity(
+            new_messages
+        )
 
         public_result = {
             key: value
             for key, value in result.items()
-            if key not in {"native_messages", "session_metadata", "rebuild_messages_from_native"}
+            if key
+            not in {
+                "native_messages",
+                "session_metadata",
+                "rebuild_messages_from_native",
+            }
         }
 
         return (
@@ -2665,11 +2885,17 @@ class AgentCore:
         if not isinstance(params, dict):
             raise ValueError("params must be a mapping of action inputs")
 
-        provider, features, state, available_actions = self._get_core_session_actions_and_state(config)
+        provider, features, state, available_actions = (
+            self._get_core_session_actions_and_state(config)
+        )
 
-        action_def = self._find_session_action_definition(available_actions, plugin_id, action_id)
+        action_def = self._find_session_action_definition(
+            available_actions, plugin_id, action_id
+        )
         if action_def is None:
-            raise KeyError(f"Unknown session action {action_id!r} for plugin {plugin_id!r}")
+            raise KeyError(
+                f"Unknown session action {action_id!r} for plugin {plugin_id!r}"
+            )
 
         validated_inputs = self._validate_session_action_inputs(action_def, params)
         native_messages = self._native_messages_for_session_action(session, config)
@@ -2677,7 +2903,9 @@ class AgentCore:
         # Layer 1: Core-level context enrichment.
         # Higher layers (application, terminal) may have already set these;
         # use setdefault so we never overwrite a richer value.
-        enriched_context: Dict[str, Any] = dict(context) if isinstance(context, dict) else {}
+        enriched_context: Dict[str, Any] = (
+            dict(context) if isinstance(context, dict) else {}
+        )
         enriched_context.setdefault("core", self)
         enriched_context.setdefault("config", config)
         enriched_context.setdefault("trigger_source", "core")
@@ -2699,7 +2927,9 @@ class AgentCore:
                 )
                 break
             if result is None:
-                raise KeyError(f"Unknown feature action {action_id!r} for plugin {plugin_id!r}")
+                raise KeyError(
+                    f"Unknown feature action {action_id!r} for plugin {plugin_id!r}"
+                )
         else:
             result = provider.execute_extension_action(
                 plugin_id,
@@ -2731,7 +2961,9 @@ class AgentCore:
         if not self._providers:
             return session, []
 
-        provider, features, state, available_actions = self._get_core_session_actions_and_state(config)
+        provider, features, state, available_actions = (
+            self._get_core_session_actions_and_state(config)
+        )
 
         current_session = session
         results: List[Dict[str, Any]] = []
@@ -2746,12 +2978,16 @@ class AgentCore:
                 continue
 
             validated_inputs = self._validate_session_action_inputs(action_def, {})
-            native_messages = self._native_messages_for_session_action(current_session, config)
+            native_messages = self._native_messages_for_session_action(
+                current_session, config
+            )
 
             # Layer 1: Core-level context enrichment.
             # Higher layers (application, terminal) may have already set these;
             # use setdefault so we never overwrite a richer value.
-            enriched_context: Dict[str, Any] = dict(context) if isinstance(context, dict) else {}
+            enriched_context: Dict[str, Any] = (
+                dict(context) if isinstance(context, dict) else {}
+            )
             enriched_context.setdefault("core", self)
             enriched_context.setdefault("config", config)
             enriched_context.setdefault("trigger_source", "core")
@@ -2818,7 +3054,9 @@ class AgentCore:
         stream: bool,
         turn_native_start_index: int,
         context: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any], List[Dict[str, Any]]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any], List[Dict[str, Any]]
+    ]:
         """Execute core-owned response lifecycles before finals are emitted."""
 
         if not isinstance(config, dict):
@@ -2826,12 +3064,18 @@ class AgentCore:
         if not isinstance(trigger, str) or not trigger:
             raise ValueError("trigger must be a non-empty string")
 
-        current_final_messages = [msg for msg in final_messages if isinstance(msg, dict)]
-        current_native_messages = [msg for msg in native_messages if isinstance(msg, dict)]
+        current_final_messages = [
+            msg for msg in final_messages if isinstance(msg, dict)
+        ]
+        current_native_messages = [
+            msg for msg in native_messages if isinstance(msg, dict)
+        ]
         metadata_patch: Dict[str, Any] = {}
         results: List[Dict[str, Any]] = []
 
-        available_actions = self._collect_core_session_actions(provider, features, state)
+        available_actions = self._collect_core_session_actions(
+            provider, features, state
+        )
 
         for action_def in available_actions:
             if not self._action_matches_trigger(action_def, trigger):
@@ -2844,7 +3088,9 @@ class AgentCore:
                 continue
 
             validated_inputs = self._validate_session_action_inputs(action_def, {})
-            enriched_context: Dict[str, Any] = dict(context) if isinstance(context, dict) else {}
+            enriched_context: Dict[str, Any] = (
+                dict(context) if isinstance(context, dict) else {}
+            )
             enriched_context["core"] = self
             enriched_context["config"] = config
             enriched_context["trigger_source"] = "core"
@@ -2890,19 +3136,27 @@ class AgentCore:
 
             if "final_messages" in result:
                 raw_finals = result.get("final_messages")
-                if not isinstance(raw_finals, list) or not all(isinstance(item, dict) for item in raw_finals):
+                if not isinstance(raw_finals, list) or not all(
+                    isinstance(item, dict) for item in raw_finals
+                ):
                     raise RuntimeError(
                         "response lifecycle action final_messages must be a list of dicts"
                     )
-                current_final_messages = [item for item in raw_finals if isinstance(item, dict)]
+                current_final_messages = [
+                    item for item in raw_finals if isinstance(item, dict)
+                ]
 
             if "native_messages" in result:
                 raw_native = result.get("native_messages")
-                if not isinstance(raw_native, list) or not all(isinstance(item, dict) for item in raw_native):
+                if not isinstance(raw_native, list) or not all(
+                    isinstance(item, dict) for item in raw_native
+                ):
                     raise RuntimeError(
                         "response lifecycle action native_messages must be a list of dicts"
                     )
-                current_native_messages = [item for item in raw_native if isinstance(item, dict)]
+                current_native_messages = [
+                    item for item in raw_native if isinstance(item, dict)
+                ]
 
             metadata_patch_raw = result.get("session_metadata")
             if isinstance(metadata_patch_raw, dict):
@@ -2924,7 +3178,9 @@ class AgentCore:
 
         return current_final_messages, current_native_messages, metadata_patch, results
 
-    def get_completions(self, config: Dict[str, Any], text: str) -> List[Dict[str, Any]]:
+    def get_completions(
+        self, config: Dict[str, Any], text: str
+    ) -> List[Dict[str, Any]]:
         """Collect completion suggestions from registered feature plugins.
 
         Args:
@@ -2987,42 +3243,219 @@ class AgentCore:
         return ""
 
     def get_tool_schemas(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Get tool schemas from enabled tool plugins for a config.
+        """Get the effective tool schemas for a config after feature policy."""
+        return [
+            descriptor.schema
+            for descriptor in self._get_prepared_tools_for_config(config)
+        ]
 
-        Args:
-            config: Application configuration passed to each tool's init.
+    def get_available_tools(self, config: Dict[str, Any]) -> List[ToolDescriptor]:
+        """Get the full available tool catalog for a config before filtering."""
+        return self._get_available_tools_for_config(config)[0]
 
-        Returns:
-            List of OpenAI-style function definitions across enabled tools.
-        """
-        schemas: List[Dict[str, Any]] = []
-        if not self._tools:
-            return schemas
+    def _tool_descriptor_from_schema(
+        self,
+        tool: ToolWrapper | str,
+        schema: Dict[str, Any],
+        registry: Any,
+        *,
+        index: int,
+    ) -> ToolDescriptor:
+        plugin_name = tool.name if isinstance(tool, ToolWrapper) else tool
+        tool_name = plugin_name
+        metadata: Dict[str, Any] = {"schema_index": index}
+        try:
+            inspected = registry.inspect_schema(schema)
+            if isinstance(inspected.tool_name, str) and inspected.tool_name:
+                tool_name = inspected.tool_name
+            if inspected.format_id:
+                metadata["format_id"] = inspected.format_id
+            if inspected.tool_type:
+                metadata["tool_type"] = inspected.tool_type
+            if inspected.tool_kind:
+                metadata["tool_kind"] = inspected.tool_kind
+            if inspected.description:
+                metadata["description"] = inspected.description
+        except Exception:
+            pass
+        return ToolDescriptor(
+            plugin_name=plugin_name,
+            tool_name=tool_name,
+            schema=schema,
+            metadata=metadata,
+        )
 
-        # When no provider is registered, fall back to exposing all tools.
-        if not self._providers:
-            for tool in self._tools:
-                state = tool.init(config)
-                schemas.extend(tool.get_tool_schemas(state))
-            return schemas
+    def _get_available_tools_for_config(
+        self,
+        config: Dict[str, Any],
+    ) -> Tuple[
+        List[ToolDescriptor],
+        Optional[ProviderWrapper],
+        List[ExtensionWrapper],
+        List[Tuple[ToolWrapper, Dict[str, Any]]],
+        Any,
+        List[str],
+    ]:
+        provider, extensions, tool_states = self._get_enabled_tool_states_for_config(
+            config
+        )
+        registry = self._get_tool_interop_registry_for_config(
+            config,
+            provider=provider,
+            extensions=extensions,
+            tool_states=tool_states,
+        )
+        target_formats = self._get_tool_schema_target_formats_for_config(
+            config,
+            provider=provider,
+            extensions=extensions,
+        )
+        descriptors: List[ToolDescriptor] = []
+        for tool, state in tool_states:
+            for index, schema in enumerate(tool.get_tool_schemas(state)):
+                if not isinstance(schema, dict):
+                    continue
+                descriptors.append(
+                    self._tool_descriptor_from_schema(
+                        tool, schema, registry, index=index
+                    )
+                )
+        explicit_tools = config.get("tools") if isinstance(config, dict) else None
+        if isinstance(explicit_tools, list):
+            for index, schema in enumerate(explicit_tools):
+                if not isinstance(schema, dict):
+                    continue
+                descriptor = self._tool_descriptor_from_schema(
+                    "config",
+                    schema,
+                    registry,
+                    index=index,
+                )
+                descriptors.append(
+                    ToolDescriptor(
+                        plugin_name="config",
+                        tool_name=descriptor.tool_name,
+                        schema=schema,
+                        metadata={**descriptor.metadata, "source": "config"},
+                    )
+                )
+        return descriptors, provider, extensions, tool_states, registry, target_formats
 
-        provider, exts, _features, tools, _tags = self._resolve_plugins_for_config(config)
-        tool_init_config = self._build_tool_init_config(config, provider=provider, extensions=exts)
-        for tool in tools:
-            state = tool.init(tool_init_config)
-            schemas.extend(tool.get_tool_schemas(state))
-        return schemas
+    def _prepare_tools_for_request(
+        self,
+        *,
+        config: Dict[str, Any],
+        provider: Optional[ProviderWrapper],
+        extensions: List[ExtensionWrapper],
+        features: List[FeatureWrapper],
+        tools: List[ToolWrapper],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+        available_tools: Optional[List[ToolDescriptor]] = None,
+        request_id: str | None = None,
+    ) -> List[ToolDescriptor]:
+        catalog = (
+            list(available_tools)
+            if isinstance(available_tools, list)
+            else list(self._get_available_tools_for_config(config)[0])
+        )
+        effective_tools = list(catalog)
+        for feature in sorted(
+            features, key=lambda feat: getattr(feat, "priority", 100)
+        ):
+            prepare_context = self._build_plugin_context(
+                config=config,
+                provider=provider,
+                enabled_extensions=extensions,
+                enabled_features=features,
+                enabled_tools=tools,
+                tags=tags,
+                models=models,
+                available_tools=catalog,
+                tools=effective_tools,
+                request_id=request_id,
+            )
+            effective_tools = feature.prepare_tools(
+                config,
+                effective_tools,
+                prepare_context,
+            )
+        return effective_tools
+
+    def _get_prepared_tools_for_config(
+        self,
+        config: Dict[str, Any],
+    ) -> List[ToolDescriptor]:
+        explicit_tools = config.get("tools") if isinstance(config, dict) else None
+        if not self._tools and not isinstance(explicit_tools, list):
+            return []
+
+        models: List[Dict[str, Any]] = []
+        provider: Optional[ProviderWrapper] = None
+        enabled_extensions: List[ExtensionWrapper] = []
+        features: List[FeatureWrapper] = []
+        tags: List[str] = []
+
+        if self._providers:
+            provider, enabled_extensions, features, tools, tags = (
+                self._resolve_plugins_for_config(config)
+            )
+            provider.set_active_extensions(enabled_extensions)
+            models = self._get_models_for_config(provider, config)
+            base_config = dict(config) if isinstance(config, dict) else {}
+            tool_config = self._build_tool_init_config(
+                base_config,
+                provider=provider,
+                extensions=enabled_extensions,
+            )
+            available_tools = self._get_available_tools_for_config(tool_config)[0]
+            return self._prepare_tools_for_request(
+                config=base_config,
+                provider=provider,
+                extensions=enabled_extensions,
+                features=features,
+                tools=tools,
+                tags=tags,
+                models=models,
+                available_tools=available_tools,
+            )
+
+        (
+            available_tools,
+            _provider,
+            _extensions,
+            _tool_states,
+            _registry,
+            _target_formats,
+        ) = self._get_available_tools_for_config(config)
+        features = sorted(
+            self._features, key=lambda feat: getattr(feat, "priority", 100)
+        )
+        if not features:
+            return available_tools
+        return self._prepare_tools_for_request(
+            config=dict(config) if isinstance(config, dict) else {},
+            provider=None,
+            extensions=[],
+            features=features,
+            tools=list(self._tools),
+            tags=[],
+            models=[],
+            available_tools=available_tools,
+        )
 
     def _resolve_tool_participants_for_config(
         self,
         config: Dict[str, Any],
     ) -> Tuple[Optional[ProviderWrapper], List[ExtensionWrapper], List[ToolWrapper]]:
-        if not self._tools:
-            return None, [], []
         if not self._providers:
             return None, [], list(self._tools)
         try:
-            provider, exts, _features, tools, _tags = self._resolve_plugins_for_config(config)
+            provider, exts, _features, tools, _tags = self._resolve_plugins_for_config(
+                config
+            )
+            if not self._tools:
+                return provider, list(exts), []
             return provider, list(exts), list(tools)
         except Exception:
             return None, [], list(self._tools)
@@ -3030,14 +3463,24 @@ class AgentCore:
     def _get_enabled_tool_states_for_config(
         self,
         config: Dict[str, Any],
-    ) -> Tuple[Optional[ProviderWrapper], List[ExtensionWrapper], List[Tuple[ToolWrapper, Dict[str, Any]]]]:
-        provider, extensions, enabled_tools = self._resolve_tool_participants_for_config(config)
+    ) -> Tuple[
+        Optional[ProviderWrapper],
+        List[ExtensionWrapper],
+        List[Tuple[ToolWrapper, Dict[str, Any]]],
+    ]:
+        provider, extensions, enabled_tools = (
+            self._resolve_tool_participants_for_config(config)
+        )
         tool_init_config = self._build_tool_init_config(
             config,
             provider=provider,
             extensions=extensions,
         )
-        return provider, extensions, [(tool, tool.init(tool_init_config)) for tool in enabled_tools]
+        return (
+            provider,
+            extensions,
+            [(tool, tool.init(tool_init_config)) for tool in enabled_tools],
+        )
 
     def _build_tool_init_config(
         self,
@@ -3052,8 +3495,8 @@ class AgentCore:
 
         if local_provider is None and extensions is None and self._providers:
             try:
-                local_provider, local_extensions, _tools = self._resolve_tool_participants_for_config(
-                    base_config
+                local_provider, local_extensions, _tools = (
+                    self._resolve_tool_participants_for_config(base_config)
                 )
             except Exception:
                 local_provider, local_extensions = None, []
@@ -3090,7 +3533,9 @@ class AgentCore:
             contributions.append(raw_single)
         if isinstance(raw_many, list):
             contributions.extend(raw_many)
-        return [item for item in contributions if isinstance(item, ToolInteropContribution)]
+        return [
+            item for item in contributions if isinstance(item, ToolInteropContribution)
+        ]
 
     def _get_tool_interop_registry_for_config(
         self,
@@ -3106,13 +3551,15 @@ class AgentCore:
         local_extensions = extensions or []
         local_tool_states = tool_states or []
         if local_provider is None and not local_extensions and not local_tool_states:
-            local_provider, local_extensions, local_tool_states = self._get_enabled_tool_states_for_config(
-                config
+            local_provider, local_extensions, local_tool_states = (
+                self._get_enabled_tool_states_for_config(config)
             )
 
         contributions: List[Any] = []
         if local_provider is not None:
-            contributions.append(local_provider.get_tool_interop_contribution(config, None))
+            contributions.append(
+                local_provider.get_tool_interop_contribution(config, None)
+            )
         for extension in local_extensions:
             contributions.append(extension.get_tool_interop_contribution(config, None))
         for tool, state in local_tool_states:
@@ -3133,8 +3580,8 @@ class AgentCore:
         local_provider = provider
         local_extensions = extensions
         if local_provider is None and local_extensions is None:
-            local_provider, local_extensions, _tool_states = self._get_enabled_tool_states_for_config(
-                config
+            local_provider, local_extensions, _tool_states = (
+                self._get_enabled_tool_states_for_config(config)
             )
         formats: List[str] = []
         if local_provider is not None:
@@ -3166,7 +3613,9 @@ class AgentCore:
     ) -> Dict[str, Any]:
         """Return a preview record for a single tool call."""
 
-        provider, extensions, tool_states = self._get_enabled_tool_states_for_config(config)
+        provider, extensions, tool_states = self._get_enabled_tool_states_for_config(
+            config
+        )
         registry = self._get_tool_interop_registry_for_config(
             config,
             provider=provider,
@@ -3277,7 +3726,9 @@ class AgentCore:
         inspected_call: Any,
         tool_states: List[Tuple[ToolWrapper, Dict[str, Any]]],
         registry: Any,
-    ) -> Tuple[Optional[ToolWrapper], Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    ) -> Tuple[
+        Optional[ToolWrapper], Optional[Dict[str, Any]], Optional[Dict[str, Any]]
+    ]:
         for tool, state in tool_states:
             try:
                 decision = tool.can_handle_tool_call(
@@ -3335,7 +3786,9 @@ class AgentCore:
             count=len(tool_calls),
         )
 
-        provider, extensions, tool_states = self._get_enabled_tool_states_for_config(config)
+        provider, extensions, tool_states = self._get_enabled_tool_states_for_config(
+            config
+        )
         registry = self._get_tool_interop_registry_for_config(
             config,
             provider=provider,
@@ -3391,7 +3844,9 @@ class AgentCore:
             # Layer 1: Core-level context enrichment.
             # Higher layers (application, terminal) may have already set these;
             # use setdefault so we never overwrite a richer value.
-            tool_context: Dict[str, Any] = dict(context) if isinstance(context, dict) else {}
+            tool_context: Dict[str, Any] = (
+                dict(context) if isinstance(context, dict) else {}
+            )
             tool_context.setdefault("core", self)
             tool_context.setdefault("config", config)
             tool_context.setdefault("trigger_source", "core")
@@ -3584,7 +4039,9 @@ class AgentCore:
         if not self._tools:
             return
 
-        provider, extensions, tool_states = self._get_enabled_tool_states_for_config(config)
+        provider, extensions, tool_states = self._get_enabled_tool_states_for_config(
+            config
+        )
         registry = self._get_tool_interop_registry_for_config(
             config,
             provider=provider,
@@ -3605,7 +4062,9 @@ class AgentCore:
             return
 
         # Layer 1: Core-level context enrichment.
-        tool_context: Dict[str, Any] = dict(context) if isinstance(context, dict) else {}
+        tool_context: Dict[str, Any] = (
+            dict(context) if isinstance(context, dict) else {}
+        )
         tool_context.setdefault("core", self)
         tool_context.setdefault("config", config)
         tool_context.setdefault("trigger_source", "core")
@@ -3681,6 +4140,13 @@ class AgentCore:
         import importlib
         import inspect
 
+        def _normalize_identifier(value: str) -> str:
+            return re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
+
+        def _class_identifier(obj: type) -> str:
+            snake_name = re.sub(r"(?<!^)(?=[A-Z])", "_", obj.__name__)
+            return _normalize_identifier(snake_name)
+
         providers = []
         features = []
         tools = []
@@ -3688,19 +4154,31 @@ class AgentCore:
 
         for mod_path in modules:
             module = importlib.import_module(mod_path)
+            module_basename = _normalize_identifier(mod_path.rsplit(".", 1)[-1])
+            module_providers = []
             for _, obj in inspect.getmembers(module, inspect.isclass):
                 # Only consider classes defined in the module (not imports)
                 if getattr(obj, "__module__", None) != module.__name__:
                     continue
                 # Duck typing
                 if hasattr(obj, "stream_api") or hasattr(obj, "call_api"):
-                    providers.append(obj)
+                    module_providers.append(obj)
                 elif hasattr(obj, "get_tool_schemas") and hasattr(obj, "execute_tool"):
                     tools.append(obj)
                 elif hasattr(obj, "process_chunk"):
                     extensions.append(obj)
                 else:
                     features.append(obj)
+            module_providers.sort(
+                key=lambda obj: (
+                    0
+                    if _normalize_identifier(getattr(obj, "name", "")) == module_basename
+                    or _class_identifier(obj) == module_basename
+                    else 1,
+                    obj.__name__,
+                )
+            )
+            providers.extend(module_providers)
 
         # Register a single provider (first), with all discovered extensions
         summary: Dict[str, List[str]] = {
@@ -3714,7 +4192,9 @@ class AgentCore:
             provider_name = getattr(provider_cls, "name", provider_cls.__name__)
             self.register_provider(provider_cls, extensions=extensions)
             summary["providers"].append(provider_name)
-            summary["extensions"].extend([getattr(ext, "name", ext.__name__) for ext in extensions])
+            summary["extensions"].extend(
+                [getattr(ext, "name", ext.__name__) for ext in extensions]
+            )
 
         # Register features and tools
         for feat in features:

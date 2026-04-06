@@ -32,7 +32,9 @@ pytestmark = [pytest.mark.integration, pytest.mark.openrouter]
 @pytest.fixture(scope="module")
 def ensure_openrouter_api_key() -> str:
     if not OPENROUTER_API_KEY:
-        pytest.skip("OPENROUTER_API_KEY not set; skipping Gemini application integration tests")
+        pytest.skip(
+            "OPENROUTER_API_KEY not set; skipping Gemini application integration tests"
+        )
     return OPENROUTER_API_KEY
 
 
@@ -44,6 +46,7 @@ def _write_config(tmp_path: Path) -> Path:
             "openrouter_plugins.openrouter_provider.OpenRouterProvider",
             "openrouter_plugins.openrouter_tools_extension.OpenRouterToolsExtension",
             "plugins.request_options_feature.RequestOptionsFeature",
+            "plugins.tool_gating_feature.ToolGatingFeature",
         ],
         "providers": {
             "openrouter_gemini_tools": {
@@ -111,7 +114,9 @@ def _first_tool_call(events: List[Dict[str, Any]]) -> Tuple[str, Dict[str, Any]]
     tool_calls: List[Dict[str, Any]] = []
     for final_event in final_events:
         messages = final_event.get("messages") or []
-        assistants = [message for message in messages if message.get("role") == "assistant"]
+        assistants = [
+            message for message in messages if message.get("role") == "assistant"
+        ]
         for assistant in reversed(assistants):
             metadata = assistant.get("metadata") or {}
             tool_calls = metadata.get("tool_calls") or []
@@ -142,7 +147,11 @@ def _send_request_until_tool_call(
     for _ in range(max_attempts):
         core, base_config, session = app.create_session("gemini")
         session = prepare_session(core, base_config, session)
-        events = list(app.send_request(core, session, base_config, overrides=overrides, stream=False))
+        events = list(
+            app.send_request(
+                core, session, base_config, overrides=overrides, stream=False
+            )
+        )
         last_events = events
         try:
             tool_name, tool_args = _first_tool_call(events)
@@ -162,7 +171,9 @@ def _last_assistant_text(events: List[Dict[str, Any]]) -> str:
 
     for final_event in reversed(final_events):
         messages = final_event.get("messages") or []
-        assistants = [message for message in messages if message.get("role") == "assistant"]
+        assistants = [
+            message for message in messages if message.get("role") == "assistant"
+        ]
         for assistant in reversed(assistants):
             content = assistant.get("content")
             if isinstance(content, str) and content.strip():
@@ -208,7 +219,10 @@ def test_agent_application_path_loaded_gemini_web_fetch_fallback_summarizes_loca
 
     app = _build_app(tmp_path)
     assert app.get_config_errors() == []
-    assert "gemini_tools.gemini_web_fetch_tool.GeminiWebFetchTool" in _plugin_class_paths(app)
+    assert (
+        "gemini_tools.gemini_web_fetch_tool.GeminiWebFetchTool"
+        in _plugin_class_paths(app)
+    )
 
     with _local_html_server(
         """
@@ -221,7 +235,10 @@ def test_agent_application_path_loaded_gemini_web_fetch_fallback_summarizes_loca
         </html>
         """
     ) as url:
-        def _prepare_session(core: Any, base_config: Dict[str, Any], session: Any) -> Any:
+
+        def _prepare_session(
+            core: Any, base_config: Dict[str, Any], session: Any
+        ) -> Any:
             session = core.add_message(
                 session,
                 "system",
@@ -273,7 +290,9 @@ def test_agent_application_path_loaded_gemini_replace_allows_empty_instruction(
 
     app = _build_app(tmp_path)
     assert app.get_config_errors() == []
-    assert "gemini_tools.gemini_replace_tool.GeminiReplaceTool" in _plugin_class_paths(app)
+    assert "gemini_tools.gemini_replace_tool.GeminiReplaceTool" in _plugin_class_paths(
+        app
+    )
 
     def _prepare_session(core: Any, base_config: Dict[str, Any], session: Any) -> Any:
         target.write_text("alpha\n", encoding="utf-8")

@@ -43,7 +43,9 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
     ) -> List[Dict[str, Any]]:
         return []
 
-    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
+    def get_tags(
+        self, config: Dict[str, Any], models: List[Dict[str, Any]]
+    ) -> List[str]:
         return ["ext:openai_responses_tools"]
 
     def required_tags(self) -> List[str]:
@@ -113,7 +115,9 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
                     "type": "custom_tool_call",
                     "call_id": inspected.call_id,
                     "name": inspected.tool_name,
-                    "input": inspected.payload if isinstance(inspected.payload, str) else "",
+                    "input": (
+                        inspected.payload if isinstance(inspected.payload, str) else ""
+                    ),
                 }
                 if inspected.payload_format:
                     native_item["input_format"] = inspected.payload_format
@@ -134,7 +138,10 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
         core_message: Dict[str, Any],
         native_message: Dict[str, Any],
     ) -> bool:
-        if native_message.get("type") != "message" or native_message.get("role") != "assistant":
+        if (
+            native_message.get("type") != "message"
+            or native_message.get("role") != "assistant"
+        ):
             return False
 
         native_content = native_message.get("content")
@@ -187,7 +194,9 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
                         metadata,
                     )
                     if native_tool_items:
-                        if self._is_empty_assistant_native_message(message, native_message):
+                        if self._is_empty_assistant_native_message(
+                            message, native_message
+                        ):
                             out.pop()
                         out.extend(native_tool_items)
 
@@ -239,7 +248,9 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
             return {k: v for k, v in item.items() if k != "_metadata"}
         return None
 
-    def _dedupe_tool_calls(self, tool_calls: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _dedupe_tool_calls(
+        self, tool_calls: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         deduped: List[Dict[str, Any]] = []
         seen: set[Tuple[str, str, str, str]] = set()
         for tool_call in tool_calls:
@@ -270,7 +281,10 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
         calls_by_response: Dict[str, List[Dict[str, Any]]] = {}
 
         for idx, native_item in enumerate(native_messages):
-            if not isinstance(native_item, dict) or native_item.get("type") not in {"function_call", "custom_tool_call"}:
+            if not isinstance(native_item, dict) or native_item.get("type") not in {
+                "function_call",
+                "custom_tool_call",
+            }:
                 continue
 
             tool_call = self._native_tool_call_to_core_tool_call(native_item)
@@ -299,7 +313,9 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
             if isinstance(native_indices, list):
                 index_set = {i for i in native_indices if isinstance(i, int)}
                 if index_set:
-                    selected = [tc for idx, _rid, tc in tool_call_records if idx in index_set]
+                    selected = [
+                        tc for idx, _rid, tc in tool_call_records if idx in index_set
+                    ]
 
             if not selected:
                 response_id = metadata.get("response_id")
@@ -311,8 +327,14 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
                 continue
 
             existing = metadata.get("tool_calls")
-            existing_calls = [tc for tc in existing if isinstance(tc, dict)] if isinstance(existing, list) else []
-            metadata["tool_calls"] = self._dedupe_tool_calls([*existing_calls, *selected])
+            existing_calls = (
+                [tc for tc in existing if isinstance(tc, dict)]
+                if isinstance(existing, list)
+                else []
+            )
+            metadata["tool_calls"] = self._dedupe_tool_calls(
+                [*existing_calls, *selected]
+            )
             out.append({**message, "metadata": metadata})
 
         return out
@@ -327,13 +349,16 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
             return list(native_messages), state
 
         payload = dict(request.get("payload") or {})
-
         tools: List[Dict[str, Any]] = state.get(_TOOLS_STATE_KEY) or []
         if tools and "tools" not in payload:
             registry = get_registry_from_config(state.get("config") or {})
-            target_formats = get_schema_target_formats_from_config(state.get("config") or {})
+            target_formats = get_schema_target_formats_from_config(
+                state.get("config") or {}
+            )
             if not target_formats:
-                target_formats = self.accepted_tool_schema_formats(state.get("config") or {}, state)
+                target_formats = self.accepted_tool_schema_formats(
+                    state.get("config") or {}, state
+                )
             payload_tools = registry.convert_schemas(
                 [tool for tool in tools if isinstance(tool, dict)],
                 target=ToolInteropTarget("openai.responses"),
@@ -357,7 +382,9 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         return (
             list(partial_messages),
             list(final_messages),

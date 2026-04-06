@@ -252,6 +252,7 @@ def test_discover_and_register_plugins():
 
     # At least provider discovered
     assert summary["providers"]
+    assert summary["providers"] == ["dummy_provider"]
 
     # Run a basic streaming flow to ensure discovered registration works
     config = {"model": "test-model", "enabled": True}
@@ -259,6 +260,7 @@ def test_discover_and_register_plugins():
     session = core.add_message(session, "user", "Hello")
 
     final_message = None
+    print("sending request")
     for chunk in core.send_request_stream(session, config):
         if chunk["type"] == "final":
             final_message = chunk["messages"][-1]

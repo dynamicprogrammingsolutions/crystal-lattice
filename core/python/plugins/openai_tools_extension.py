@@ -100,7 +100,9 @@ class OpenAIToolsExtension:
                     extra["display"] = display
                 if extra:
                     base_meta = nm.get("_metadata") or {}
-                    merged = {**base_meta, **extra} if isinstance(base_meta, dict) else extra
+                    merged = (
+                        {**base_meta, **extra} if isinstance(base_meta, dict) else extra
+                    )
                     nm["_metadata"] = merged
             elif role == "assistant":
                 tcs = md.get("tool_calls")
@@ -216,7 +218,9 @@ class OpenAIToolsExtension:
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         """Update the accumulator with tool_calls for each streaming chunk.
 
         This extension does not emit its own finals or mutate history; it only

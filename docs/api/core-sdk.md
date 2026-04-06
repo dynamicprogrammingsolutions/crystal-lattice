@@ -147,6 +147,8 @@ Discover plugins from Python modules and register them by duck typing.
 - Provider Extension: has `process_chunk` (and no tool/provider I/O methods)
 - Tool: has `get_tool_schemas` and `execute_tool`
 - Feature: otherwise
+- If a module exposes multiple provider classes, discovery prefers one whose
+  plugin name or snake_case class name matches the module basename.
 
 Returns a summary of registered plugin names by type.
 
