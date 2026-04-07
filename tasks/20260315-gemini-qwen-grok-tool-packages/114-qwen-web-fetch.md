@@ -223,20 +223,21 @@ Add section:
 
 ## Requirements Checklist
 
-- [ ] Implement `QwenWebFetchTool` class
-- [ ] URL validation
-- [ ] Local fetch via `web-fetch-shared`
-- [ ] HTML-to-text extraction via `web-fetch-shared`
-- [ ] LLM summarization via context
-- [ ] Update `agent_plugin.json`
-- [ ] Update `__init__.py` exports
-- [ ] Update `pyproject.toml` dependencies
-- [ ] Add schema tests
-- [ ] Add URL validation tests
-- [ ] Add fetch behavior tests
-- [ ] Add LLM summarization tests
-- [ ] Add OpenRouter integration test
-- [ ] Update README documentation
+- [x] Implement `QwenWebFetchTool` class
+- [x] URL validation
+- [x] Local fetch via `web-fetch-shared`
+- [x] HTML-to-text extraction via `web-fetch-shared`
+- [x] LLM summarization via context
+- [x] Update `agent_plugin.json`
+- [x] Update `__init__.py` exports
+- [x] Update `setup.py` dependencies (added web-fetch-shared)
+- [x] Add schema tests
+- [x] Add URL validation tests
+- [x] Add fetch behavior tests
+- [x] Add LLM summarization tests
+- [x] Add OpenRouter integration test
+- [x] Add package integration test (loading via "path:" pattern)
+- [x] Update README documentation
 
 ## Key Files
 
@@ -260,3 +261,81 @@ Add section:
 - LLM summarization uses `context["core"]` for core-level access
 - No special handling for private IPs (fetches directly)
 - Tool matches Qwen CLI behavior as closely as practical
+
+---
+
+## Completion Notes
+
+**Implementation completed successfully.**
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `plugins/qwen-tools/src/qwen_tools/qwen_web_fetch_tool.py` | Tool implementation (370 lines) |
+| `plugins/qwen-tools/tests/test_qwen_web_fetch_tool.py` | 30 unit tests |
+| `plugins/qwen-tools/tests/test_qwen_web_fetch_tool_openrouter_integration.py` | OpenRouter integration tests |
+| `plugins/qwen-tools/tests/test_qwen_tools_package_integration.py` | Package loading tests |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `plugins/qwen-tools/agent_plugin.json` | Added QwenWebFetchTool entry |
+| `plugins/qwen-tools/src/qwen_tools/__init__.py` | Exported QwenWebFetchTool |
+| `plugins/qwen-tools/setup.py` | Added web-fetch-shared dependency |
+| `plugins/qwen-tools/README.md` | Added Web Fetch Tool documentation section |
+| `plugins/qwen-tools/tests/test_qwen_read_file_tool.py` | Updated tool list for package loading test |
+| `plugins/qwen-tools/tests/test_qwen_search_tools.py` | Updated tool list for package loading test |
+
+### Shared Library Enhancements
+
+Also enhanced `web-fetch-shared` with new shared utilities:
+
+| Addition | Purpose |
+|----------|---------|
+| `LRUCache` class | Rate limiting cache for all vendor tools |
+| `check_rate_limit()` | Shared rate limit checking function |
+| `summarize_content()` | Generator for LLM summarization via context |
+| `summarize_content_sync()` | Synchronous wrapper for summarization |
+| `DEFAULT_RATE_LIMIT_REQUESTS` | Default 10 requests per window |
+| `DEFAULT_RATE_LIMIT_WINDOW` | Default 60 second window |
+
+### Gemini Refactoring
+
+Refactored Gemini web fetch tool to use shared utilities:
+- Removed local `LRUCache` class → uses shared from `web_fetch_shared`
+- Removed local `_check_rate_limit` logic → uses shared `check_rate_limit()`
+- Uses shared `summarize_content_sync()` for fallback summarization
+
+### Configuration Keys
+
+All keys use flat `web_fetch_` prefix:
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `web_fetch_enabled` | `true` | Enable the tool |
+| `web_fetch_timeout_seconds` | `10` | Fetch timeout in seconds |
+| `web_fetch_max_content_chars` | `100000` | Max content length in chars |
+| `web_fetch_rate_limit_requests` | `10` | Max requests per window per host |
+| `web_fetch_rate_limit_window` | `60` | Rate limit window in seconds |
+| `web_fetch_summarization_agent_id` | `null` | Optional dedicated summarization agent |
+| `web_fetch_summarization_model` | `null` | Optional model override |
+
+### Test Results
+
+- **Unit tests**: 30 tests passing
+- **Package integration tests**: 4 tests passing (includes loading via "path:" pattern)
+- **OpenRouter integration tests**: Run when API key available
+
+### Key Implementation Details
+
+1. **Single execution path**: Unlike Gemini, Qwen always fetches locally and summarizes via configured provider.
+
+2. **Shared utilities**: Uses `web_fetch_shared` for fetch, extraction, rate limiting, and summarization.
+
+3. **Rate limiting**: Per-host rate limiting using shared LRU cache (1000 hosts max).
+
+4. **No API key gating**: Tool is always enabled (unlike Gemini which requires API key for primary path).
+
+5. **Context-based summarization**: Uses `context["core"]` for LLM calls, supports optional agent switching via `web_fetch_summarization_agent_id`.

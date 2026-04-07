@@ -21,20 +21,21 @@ from __future__ import annotations
 
 import asyncio
 import os
-import time
-from collections import OrderedDict
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional
 
 from agent_core.types import ToolPlugin
 from web_fetch_shared import (
     DEFAULT_MAX_CHARS,
     DEFAULT_TIMEOUT_SECONDS,
+    LRUCache,
+    check_rate_limit,
     extract_text,
     fetch_url,
     format_gemini_citations,
     is_private_url,
     normalize_github_url,
     parse_urls_from_text,
+    summarize_content_sync,
     truncate_content,
 )
 
@@ -42,40 +43,8 @@ from web_fetch_shared import (
 genai = None
 
 
-class LRUCache:
-    """Simple LRU cache for rate limiting.
-
-    Matches Gemini CLI's use of mnemonist LRU cache with max 1000 entries.
-    """
-
-    def __init__(self, max_size: int = 1000):
-        self._max_size = max_size
-        self._cache: OrderedDict[str, List[float]] = OrderedDict()
-
-    def get(self, key: str) -> List[float]:
-        """Get cached value, moving to end if found."""
-        if key in self._cache:
-            self._cache.move_to_end(key)
-            return self._cache[key]
-        return []
-
-    def set(self, key: str, value: List[float]) -> None:
-        """Set cached value, evicting oldest if at capacity."""
-        if key in self._cache:
-            self._cache.move_to_end(key)
-        self._cache[key] = value
-        if len(self._cache) > self._max_size:
-            self._cache.popitem(last=False)
-
-    def clear(self) -> None:
-        """Clear all cached entries."""
-        self._cache.clear()
-
-
 # Constants
 MAX_URLS = 20
-DEFAULT_RATE_LIMIT_REQUESTS = 10
-DEFAULT_RATE_LIMIT_WINDOW = 60
 DEFAULT_PRIMARY_MODEL = "web-fetch"
 
 # Module-level LRU cache for rate limiting (shared across instances)
@@ -94,7 +63,7 @@ class GeminiWebFetchTool(ToolPlugin):
     """
 
     name = "gemini_web_fetch_tool"
-    version = "0.3.0"
+    version = "0.4.0"
 
     def _get_web_fetch_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Extract web_fetch settings from config with defaults.
@@ -118,12 +87,8 @@ class GeminiWebFetchTool(ToolPlugin):
             "max_content_chars": config.get(
                 "web_fetch_max_content_chars", DEFAULT_MAX_CHARS
             ),
-            "rate_limit_requests": config.get(
-                "web_fetch_rate_limit_requests", DEFAULT_RATE_LIMIT_REQUESTS
-            ),
-            "rate_limit_window": config.get(
-                "web_fetch_rate_limit_window", DEFAULT_RATE_LIMIT_WINDOW
-            ),
+            "rate_limit_requests": config.get("web_fetch_rate_limit_requests", 10),
+            "rate_limit_window": config.get("web_fetch_rate_limit_window", 60),
         }
 
     # ------------------------------------------------------------------
@@ -175,12 +140,12 @@ class GeminiWebFetchTool(ToolPlugin):
             },
             "web_fetch_rate_limit_requests": {
                 "type": "integer",
-                "default": DEFAULT_RATE_LIMIT_REQUESTS,
+                "default": 10,
                 "description": "Max requests per rate limit window per host",
             },
             "web_fetch_rate_limit_window": {
                 "type": "integer",
-                "default": DEFAULT_RATE_LIMIT_WINDOW,
+                "default": 60,
                 "description": "Rate limit window in seconds",
             },
         }
@@ -284,20 +249,6 @@ class GeminiWebFetchTool(ToolPlugin):
             return None
 
         # Check if using Gemini API
-        use_gemini = web_fetch_cfg.get("use_gemini_api", True)
-
-        # If not using Gemini API, we don't need an API key (fallback only)
-        if not use_gemini:
-            return None
-
-        # In prompt mode with Gemini, we need a Gemini API key
-        api_key = config.get("gemini_api_key") if config else None
-        if not api_key:
-            api_key = os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            return False
-
-        return None
         use_gemini = web_fetch_cfg.get("use_gemini_api", True)
 
         # If not using Gemini API, we don't need an API key (fallback only)
@@ -497,6 +448,23 @@ class GeminiWebFetchTool(ToolPlugin):
         # Always use fallback path in direct mode
         return await self._execute_fallback(prompt, url, state, context)
 
+    def _check_rate_limit(
+        self, url: str, state: Dict[str, Any]
+    ) -> tuple[bool, Optional[int]]:
+        """Check rate limit for a URL using shared utility.
+
+        Wrapper around web_fetch_shared.check_rate_limit for test compatibility.
+
+        Returns (allowed, wait_seconds) tuple.
+        """
+        web_fetch_cfg = state.get("web_fetch_config", {})
+        return check_rate_limit(
+            url,
+            _rate_limit_cache,
+            max_requests=web_fetch_cfg.get("rate_limit_requests", 10),
+            window_seconds=web_fetch_cfg.get("rate_limit_window", 60),
+        )
+
     async def _execute_prompt_mode(
         self,
         arguments: Dict[str, Any],
@@ -540,7 +508,7 @@ class GeminiWebFetchTool(ToolPlugin):
         # Normalize GitHub URLs
         normalized_urls = [normalize_github_url(url) for url in valid_urls]
 
-        # Check rate limiting for first URL (primary rate limit target)
+        # Check rate limiting for first URL
         first_url = normalized_urls[0]
         allowed, wait_seconds = self._check_rate_limit(first_url, state)
         if not allowed:
@@ -572,79 +540,6 @@ class GeminiWebFetchTool(ToolPlugin):
             return await self._execute_fallback(prompt, first_url, state, context)
 
         return result
-
-    def _check_rate_limit(
-        self, url: str, state: Dict[str, Any]
-    ) -> Tuple[bool, Optional[int]]:
-        """Check rate limit for a URL using LRU cache.
-
-        Returns (allowed, wait_seconds) tuple.
-        """
-        try:
-            from urllib.parse import urlparse
-
-            hostname = urlparse(url).hostname
-            if not hostname:
-                return True, None
-
-            # Get configurable limits
-            web_fetch_cfg = state.get("web_fetch_config", {})
-            max_requests = web_fetch_cfg.get(
-                "rate_limit_requests", DEFAULT_RATE_LIMIT_REQUESTS
-            )
-            window_seconds = web_fetch_cfg.get(
-                "rate_limit_window", DEFAULT_RATE_LIMIT_WINDOW
-            )
-
-            now = time.time()
-            window_start = now - window_seconds
-
-            # Get and clean history from LRU cache
-            history = _rate_limit_cache.get(hostname)
-            history = [t for t in history if t > window_start]
-
-            if len(history) >= max_requests:
-                wait = int(history[0] + window_seconds - now)
-                _rate_limit_cache.set(hostname, history)
-                return False, max(1, wait)
-
-            history.append(now)
-            _rate_limit_cache.set(hostname, history)
-            return True, None
-
-        except Exception:
-            # If parsing fails, allow the request
-            return True, None
-
-    def _collect_fallback_summary(
-        self,
-        core: Any,
-        session: Any,
-        config: Dict[str, Any],
-    ) -> str:
-        """Run a one-shot summarization turn through AgentCore and return assistant text."""
-        request_options = config.get("request_options")
-        merged_request_options = (
-            dict(request_options) if isinstance(request_options, dict) else {}
-        )
-        merged_request_options["tool_choice"] = "none"
-        runtime_config = {
-            **config,
-            "disable_all_tools": True,
-            "request_options": merged_request_options,
-        }
-
-        _next_session, final_messages = core.send_request(session, runtime_config)
-
-        assistant_texts: List[str] = []
-        for message in final_messages:
-            if message.get("role") != "assistant":
-                continue
-            content = message.get("content")
-            if isinstance(content, str) and content.strip():
-                assistant_texts.append(content.strip())
-
-        return "\n\n".join(assistant_texts).strip()
 
     async def _execute_primary(
         self,
@@ -779,7 +674,7 @@ class GeminiWebFetchTool(ToolPlugin):
     ) -> Dict[str, Any]:
         """Execute fallback path: local fetch + LLM summarization.
 
-        Uses web_fetch_shared for fetching and context for LLM calls.
+        Uses web_fetch_shared for fetching and summarize_content_sync for LLM calls.
         Supports optional fallback agent and settings overrides.
         """
         web_fetch_cfg = state.get("web_fetch_config", {})
@@ -811,88 +706,32 @@ class GeminiWebFetchTool(ToolPlugin):
                     "error": f"No text content extracted from {url}",
                 }
 
-            # Truncate content
-            max_chars = web_fetch_cfg.get("max_content_chars", DEFAULT_MAX_CHARS)
-            content = truncate_content(content, max_chars=max_chars)
-
-            # Build summarization prompt
-            summarization_prompt = (
-                f'The user requested: "{prompt}"\n\n'
-                f"I was unable to access the URL directly via the Gemini API. "
-                f"Instead, I have fetched the raw content. Please use the following content "
-                f"to answer the request. Do not attempt to access the URL again.\n\n"
-                f"---\n{content}\n---"
+            # Build context with settings overrides for summarization
+            fallback_settings_overrides = web_fetch_cfg.get(
+                "fallback_settings_overrides", {}
             )
-
-            # Get fallback configuration
-            fallback_agent_id = web_fetch_cfg.get("fallback_agent_id")
-            settings_overrides = web_fetch_cfg.get("fallback_settings_overrides", {})
-
-            # Try agent switching if configured and app context available
-            if fallback_agent_id and context and context.get("app"):
-                app = context["app"]
-                core = context.get("core")
-
-                if app and core:
-                    from agent_core import Session
-
-                    # Create temp session and switch agent
-                    temp_session = Session(session_id="web_fetch_fallback", messages=[])
-                    temp_session = core.add_message(
-                        temp_session, "user", summarization_prompt
-                    )
-
-                    try:
-                        # Switch to fallback agent
-                        fallback_core, fallback_config, fallback_session = (
-                            app.update_agent(fallback_agent_id, temp_session)
-                        )
-
-                        # Apply settings overrides
-                        if settings_overrides:
-                            fallback_config = {**fallback_config, **settings_overrides}
-
-                        result_text = self._collect_fallback_summary(
-                            fallback_core,
-                            fallback_session,
-                            fallback_config,
-                        )
-
-                        return {
-                            "success": True,
-                            "result": result_text.strip() or content,
-                        }
-                    except Exception:
-                        # Fall through to default core usage
-                        pass
-
-            # Use current agent/core for summarization
-            if context and context.get("core"):
-                core = context["core"]
+            summarization_context = context
+            if fallback_settings_overrides and context:
                 config = context.get("config", {})
-
-                # Apply settings overrides
-                if settings_overrides:
-                    config = {**config, **settings_overrides}
-
-                from agent_core import Session
-
-                temp_session = Session(session_id="web_fetch_fallback", messages=[])
-                temp_session = core.add_message(
-                    temp_session, "user", summarization_prompt
-                )
-
-                result_text = self._collect_fallback_summary(core, temp_session, config)
-
-                return {
-                    "success": True,
-                    "result": result_text.strip() or content,
+                summarization_context = {
+                    **context,
+                    "config": {**config, **fallback_settings_overrides},
                 }
 
-            # No LLM available, return raw content
+            # Use shared summarization utility
+            success, result = summarize_content_sync(
+                content,
+                prompt,
+                url,
+                summarization_context,
+                fallback_agent_id=web_fetch_cfg.get("fallback_agent_id"),
+                fallback_model=fallback_settings_overrides.get("model"),
+                max_chars=web_fetch_cfg.get("max_content_chars", DEFAULT_MAX_CHARS),
+            )
+
             return {
-                "success": True,
-                "result": content,
+                "success": success,
+                "result": result,
             }
 
         except Exception as e:

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import os
 import time
-from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -19,7 +18,8 @@ from agent_core import AgentCore
 from agent_core.plugin import ToolWrapper
 
 from gemini_tools import GeminiWebFetchTool
-from gemini_tools.gemini_web_fetch_tool import LRUCache, _rate_limit_cache
+from gemini_tools.gemini_web_fetch_tool import _rate_limit_cache
+from web_fetch_shared import LRUCache
 
 
 def _make_wrapper(
@@ -1017,26 +1017,6 @@ class TestPromptModeFallbackOnly:
 
 class TestFallbackSummaryRequestConfig:
     """Tests for the internal fallback summarization request config."""
-
-    def test_collect_fallback_summary_disables_tools_for_internal_request(self) -> None:
-        tool = GeminiWebFetchTool()
-        captured: Dict[str, Any] = {}
-
-        class _FakeCore:
-            def send_request(self, session: Any, config: Dict[str, Any]):
-                captured["config"] = dict(config)
-                return session, [{"role": "assistant", "content": "summary"}]
-
-        result = tool._collect_fallback_summary(
-            _FakeCore(),
-            session=object(),
-            config={"request_options": {"temperature": 0.0}},
-        )
-
-        assert result == "summary"
-        assert captured["config"]["disable_all_tools"] is True
-        assert captured["config"]["request_options"]["tool_choice"] == "none"
-        assert captured["config"]["request_options"]["temperature"] == 0.0
 
     def test_fallback_only_without_api_key(self, tmp_path: Path) -> None:
         """Should use fallback directly when no API key."""
