@@ -295,6 +295,7 @@ def extract_text(
     include_tables: bool = True,
     include_formatting: bool = False,
     output_format: str = "txt",
+    with_metadata: bool = False,
 ) -> str:
     """Extract text from HTML or passthrough for text content.
 
@@ -307,6 +308,7 @@ def extract_text(
         include_tables: Include tables in extraction.
         include_formatting: Preserve formatting in extraction.
         output_format: Output format ("txt", "markdown").
+        with_metadata: Include metadata (title, date, author) in extraction.
 
     Returns:
         Extracted text content.
@@ -347,6 +349,7 @@ def extract_text(
             include_comments=include_comments,
             include_tables=include_tables,
             include_formatting=include_formatting,
+            with_metadata=with_metadata,
         )
         if extracted is None:
             return ""

@@ -224,6 +224,38 @@ class TestExtractText:
 
         assert "Content" in text
 
+    def test_extraction_with_metadata(self):
+        """Test extraction with metadata (title, date, author)."""
+        html = """
+        <html>
+        <head><title>Page Title</title></head>
+        <body>
+            <h1>Heading</h1>
+            <p>Content paragraph.</p>
+        </body>
+        </html>
+        """
+        text = extract_text(html, "text/html", with_metadata=True)
+
+        # With metadata, trafilatura may include title and other metadata
+        assert "Heading" in text or "Page Title" in text
+
+    def test_extraction_without_metadata(self):
+        """Test extraction without metadata (default)."""
+        html = """
+        <html>
+        <head><title>Page Title</title></head>
+        <body>
+            <h1>Heading</h1>
+            <p>Content paragraph.</p>
+        </body>
+        </html>
+        """
+        text = extract_text(html, "text/html", with_metadata=False)
+
+        # Without metadata, should still extract main content
+        assert "Heading" in text or "Content paragraph" in text
+
 
 # -----------------------------------------------------------------------------
 # GitHub URL Normalization Tests

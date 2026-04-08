@@ -177,7 +177,7 @@ Key observations:
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/112-web-fetch-shared.md`
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/113-gemini-web-fetch.md`
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/114-qwen-web-fetch.md`
-  - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/115-kimi-fetch-url.md`
+  - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/115-kimi-fetch-url.md`
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/120-web-search-tools.md` — Web search tools
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/130-todo-tools.md` — Todo tools (all four vendors)
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/135-background-process-management.md` — Background process management (application layer, Tier 2)

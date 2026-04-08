@@ -12,16 +12,16 @@ This task has been split into the following subtasks:
 
 ## Task Checklist
 
-- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/111-tool-plugin-context.md`
-  - SPLIT INTO this subtask - prerequisite for tools to access LLM via context
-- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/112-web-fetch-shared.md`
-  - SPLIT INTO this subtask - shared HTTP fetch and extraction library
-- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/113-gemini-web-fetch.md`
-  - SPLIT INTO this subtask - Gemini web_fetch tool with API grounding
-- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/114-qwen-web-fetch.md`
-  - SPLIT INTO this subtask - Qwen web_fetch tool with LLM summarization
-- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/115-kimi-fetch-url.md`
-  - SPLIT INTO this subtask - Kimi FetchURL tool with trafilatura extraction
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/111-tool-plugin-context.md`
+  - COMPLETED - prerequisite for tools to access LLM via context
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/112-web-fetch-shared.md`
+  - COMPLETED - shared HTTP fetch and extraction library
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/113-gemini-web-fetch.md`
+  - COMPLETED - Gemini web_fetch tool with API grounding
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/114-qwen-web-fetch.md`
+  - COMPLETED - Qwen web_fetch tool with LLM summarization
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/115-kimi-fetch-url.md`
+  - COMPLETED - Kimi FetchURL tool with trafilatura extraction
 
 ## Summary of Split
 
