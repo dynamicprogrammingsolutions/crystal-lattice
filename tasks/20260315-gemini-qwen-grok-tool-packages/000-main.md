@@ -172,13 +172,17 @@ Key observations:
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/103-shell-engine-background.md` — Background process support
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/104-codex-v2-tool.md` — Codex V2 tool
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/105-vendor-tools.md` — Vendor wrappers
-- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/110-web-fetch-tools.md` — Web fetch tools
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/110-web-fetch-tools.md` — Web fetch tools
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/111-tool-plugin-context.md`
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/112-web-fetch-shared.md`
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/113-gemini-web-fetch.md`
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/114-qwen-web-fetch.md`
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/115-kimi-fetch-url.md`
-- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/120-web-search-tools.md` — Web search tools
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/120-web-search-tools.md` — Web search tools (SPLIT)
+  - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/121-web-search-shared.md` — Shared search infrastructure
+  - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/122-gemini-web-search.md` — Gemini google_web_search tool
+  - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/123-qwen-web-search.md` — Qwen web_search tool
+  - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/124-kimi-web-search.md` — Kimi SearchWeb tool
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/130-todo-tools.md` — Todo tools (all four vendors)
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/135-background-process-management.md` — Background process management (application layer, Tier 2)
 
