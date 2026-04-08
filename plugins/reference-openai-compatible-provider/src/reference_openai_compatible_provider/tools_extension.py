@@ -45,7 +45,22 @@ def _merge_tool_calls(
         i = i if isinstance(i, int) and i >= 0 else len(merged)
         while len(merged) <= i:
             merged.append({})
-        merged[i] = _merge_tool_call(merged[i], d)
+        # If the delta carries a different id than what's already at this
+        # index, it's a new tool call (some providers send multiple complete
+        # tool calls in a single chunk with the same index).  Append it
+        # instead of merging into the existing slot.
+        delta_id = d.get("id")
+        current_id = merged[i].get("id")
+        if (
+            isinstance(delta_id, str)
+            and delta_id
+            and isinstance(current_id, str)
+            and current_id
+            and delta_id != current_id
+        ):
+            merged.append(_merge_tool_call({}, d))
+        else:
+            merged[i] = _merge_tool_call(merged[i], d)
     return merged
 
 

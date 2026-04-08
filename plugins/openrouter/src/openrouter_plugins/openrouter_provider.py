@@ -474,12 +474,17 @@ class OpenRouterProvider(ProviderPlugin):
         self._validate_message_list(native_messages)
         override = request.get("messages")
         messages = override if isinstance(override, list) else native_messages
-        payload = {**request["payload"], "messages": messages, "stream": False}
+        messages_to_send = [
+            {k: v for k, v in m.items() if k != "_metadata"}
+            for m in messages
+            if isinstance(m, dict)
+        ]
+        payload = {**request["payload"], "messages": messages_to_send, "stream": False}
         logger.info(
             "sending request",
-            payload=str({**payload, "messages": "stripped", "tools": "stripped"}),
+            payload=str({**payload, "messages": "***REDACTED***", "tools": "***REDACTED***"}),
         )
-        logger.debug("full payload for non-streaming request", payload=payload)
+        # logger.debug("full payload for non-streaming request", payload=payload)
 
         runtime = self._register_inflight(request_id)
         results: queue.Queue[Tuple[str, Any]] = queue.Queue()
@@ -590,7 +595,12 @@ class OpenRouterProvider(ProviderPlugin):
         self._validate_message_list(native_messages)
         override = request.get("messages")
         messages = override if isinstance(override, list) else native_messages
-        payload = {**request["payload"], "messages": messages, "stream": True}
+        messages_to_send = [
+            {k: v for k, v in m.items() if k != "_metadata"}
+            for m in messages
+            if isinstance(m, dict)
+        ]
+        payload = {**request["payload"], "messages": messages_to_send, "stream": True}
         logger.info("sending request", payload=str({**payload, "messages": "stripped", "tools": "stripped"}))
         logger.debug("full payload for streaming request", payload=payload)
 
