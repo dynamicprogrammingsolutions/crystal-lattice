@@ -48,6 +48,7 @@ export {
   extractByPath,
   renderTemplate,
   formatValueForElement,
+  coerceValueForElement,
   filterFooterElements,
   filterStatusBarElements,
   evaluateCondition,

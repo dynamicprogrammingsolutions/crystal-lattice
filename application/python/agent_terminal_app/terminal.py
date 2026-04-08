@@ -1190,6 +1190,15 @@ async def _cmd_set(
             coerced = False
         else:
             raise TerminalUserError(f"invalid boolean for {key!r}: {value!r}")
+    elif el_type == "number":
+        # Try int first, then float
+        try:
+            if "." in value or "e" in value.lower():
+                coerced = float(value)
+            else:
+                coerced = int(value)
+        except ValueError:
+            raise TerminalUserError(f"invalid number for {key!r}: {value!r}")
 
     try:
         app.update_override(key, coerced)

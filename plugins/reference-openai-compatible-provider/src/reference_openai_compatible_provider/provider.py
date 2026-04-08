@@ -701,6 +701,11 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
         ]
         payload |= {"messages": messages_to_send, "stream": True}
 
+        get_logger("openai-compatible-provider").debug(
+            "sendig openai request",
+            payload={**payload, "messages": "<redacted>" if payload.get("messages") else None,  "tools": "<redacted>" if payload.get("tools") else None},
+        )
+
         recovery_mode = stream_recovery.get("mode", "disabled")
         recovery_max_retries = stream_recovery.get("max_retries", 0)
         runtime = self._register_inflight(request_id)
