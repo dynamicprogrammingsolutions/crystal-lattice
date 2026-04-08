@@ -1031,12 +1031,43 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
             return fn(config, tags, models, context)
         return None
 
+    def prepare(  # type: ignore[override]
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        fn = self._get_impl_method("prepare", ToolPlugin)
+        if fn is None:
+            return {}
+        out = self._call_with_optional_kwargs(fn, config, state, context=context)
+        return out if isinstance(out, dict) else {}
+
+    async def prepare_async(  # type: ignore[override]
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        fn = getattr(self.impl, "prepare_async", None)
+        if callable(fn):
+            out = self._call_with_optional_kwargs(fn, config, state, context=context)
+            if inspect.isawaitable(out):
+                out = await out
+            return out if isinstance(out, dict) else {}
+        return self.prepare(config, state, context=context)
+
     def get_tool_schemas(  # type: ignore[override]
-        self, state: Dict[str, Any]
+        self,
+        state: Dict[str, Any],
+        *,
+        prepared: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         fn = getattr(self.impl, "get_tool_schemas", None)
         if callable(fn):
-            out = fn(state)
+            out = self._call_with_optional_kwargs(fn, state, prepared=prepared)
             items = self._safe_list(out)
             return [s for s in items if isinstance(s, dict)]
         return []
@@ -1066,6 +1097,7 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
         payload_metadata: Optional[Dict[str, Any]] = None,
         tool_call: Optional[Dict[str, Any]] = None,
         tool_schema: Optional[Dict[str, Any]] = None,
+        prepared: Optional[Dict[str, Any]] = None,
     ) -> Optional[bool]:
         fn = self._get_impl_method("can_handle_tool_call", ToolPlugin)
         if fn is None:
@@ -1080,6 +1112,7 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
             payload_metadata=payload_metadata,
             tool_call=tool_call,
             tool_schema=tool_schema,
+            prepared=prepared,
         )
         return out if isinstance(out, bool) else None
 
@@ -1095,6 +1128,7 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
         tool_call: Optional[Dict[str, Any]] = None,
         cancellation: Any | None = None,
         context: Optional[Dict[str, Any]] = None,
+        prepared: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         fn = getattr(self.impl, "execute_tool", None)
         if callable(fn):
@@ -1109,6 +1143,7 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
                 tool_call=tool_call,
                 cancellation=cancellation,
                 context=context,
+                prepared=prepared,
             )
             return (
                 out
@@ -1141,6 +1176,7 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
         payload_format: Optional[str] = None,
         payload_metadata: Optional[Dict[str, Any]] = None,
         tool_call: Optional[Dict[str, Any]] = None,
+        prepared: Optional[Dict[str, Any]] = None,
     ) -> str:
         fn = getattr(self.impl, "format_tool_call_preview", None)
         if callable(fn):
@@ -1153,6 +1189,7 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
                 payload_format=payload_format,
                 payload_metadata=payload_metadata,
                 tool_call=tool_call,
+                prepared=prepared,
             )
             return str(out) if out else ""
         return ""
@@ -1169,6 +1206,7 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
         tool_call: Optional[Dict[str, Any]] = None,
         cancellation: Any | None = None,
         context: Optional[Dict[str, Any]] = None,
+        prepared: Optional[Dict[str, Any]] = None,
     ) -> Iterator[Dict[str, Any]]:
         """Default streaming hook.
 
@@ -1189,6 +1227,7 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
                 tool_call=tool_call,
                 cancellation=cancellation,
                 context=context,
+                prepared=prepared,
             )
             if isinstance(result, dict):
                 yield result
@@ -1204,6 +1243,7 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
             tool_call=tool_call,
             cancellation=cancellation,
             context=context,
+            prepared=prepared,
         )
         try:
             iterator = iter(out)
@@ -1212,6 +1252,151 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
         for chunk in iterator:
             if isinstance(chunk, dict):
                 yield chunk
+
+    async def execute_tool_async(  # type: ignore[override]
+        self,
+        tool_name: Optional[str],
+        payload: Any,
+        state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
+        prepared: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        fn = getattr(self.impl, "execute_tool_async", None)
+        if callable(fn):
+            out = self._call_with_optional_kwargs(
+                fn,
+                tool_name,
+                payload,
+                state,
+                payload_kind=payload_kind,
+                payload_format=payload_format,
+                payload_metadata=payload_metadata,
+                tool_call=tool_call,
+                cancellation=cancellation,
+                context=context,
+                prepared=prepared,
+            )
+            if inspect.isawaitable(out):
+                out = await out
+            return (
+                out
+                if isinstance(out, dict)
+                else {
+                    "success": False,
+                    "error": "invalid tool result",
+                }
+            )
+
+        fn = getattr(self.impl, "execute_tool", None)
+        if callable(fn):
+            out = self._call_with_optional_kwargs(
+                fn,
+                tool_name,
+                payload,
+                state,
+                payload_kind=payload_kind,
+                payload_format=payload_format,
+                payload_metadata=payload_metadata,
+                tool_call=tool_call,
+                cancellation=cancellation,
+                context=context,
+                prepared=prepared,
+            )
+            if inspect.isawaitable(out):
+                out = await out
+            return (
+                out
+                if isinstance(out, dict)
+                else {
+                    "success": False,
+                    "error": "invalid tool result",
+                }
+            )
+
+        return {"success": False, "error": f"Unknown tool: {tool_name}"}
+
+    async def stream_tool_async(  # type: ignore[override]
+        self,
+        tool_name: Optional[str],
+        payload: Any,
+        state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
+        prepared: Optional[Dict[str, Any]] = None,
+    ) -> AsyncIterator[Dict[str, Any]]:
+        fn = getattr(self.impl, "stream_tool_async", None)
+        if callable(fn):
+            out = self._call_with_optional_kwargs(
+                fn,
+                tool_name,
+                payload,
+                state,
+                payload_kind=payload_kind,
+                payload_format=payload_format,
+                payload_metadata=payload_metadata,
+                tool_call=tool_call,
+                cancellation=cancellation,
+                context=context,
+                prepared=prepared,
+            )
+            if inspect.isawaitable(out):
+                out = await out
+            if hasattr(out, "__aiter__"):
+                async for chunk in cast(AsyncIterator[Any], out):
+                    if isinstance(chunk, dict):
+                        yield chunk
+                return
+            try:
+                iterator = iter(out)
+            except TypeError:
+                return
+            for chunk in iterator:
+                if isinstance(chunk, dict):
+                    yield chunk
+            return
+
+        fn = getattr(self.impl, "stream_tool", None)
+        if callable(fn):
+            for chunk in self.stream_tool(
+                tool_name,
+                payload,
+                state,
+                payload_kind=payload_kind,
+                payload_format=payload_format,
+                payload_metadata=payload_metadata,
+                tool_call=tool_call,
+                cancellation=cancellation,
+                context=context,
+                prepared=prepared,
+            ):
+                yield chunk
+            return
+
+        result = await self.execute_tool_async(
+            tool_name,
+            payload,
+            state,
+            payload_kind=payload_kind,
+            payload_format=payload_format,
+            payload_metadata=payload_metadata,
+            tool_call=tool_call,
+            cancellation=cancellation,
+            context=context,
+            prepared=prepared,
+        )
+        if isinstance(result, dict):
+            yield result
 
     def to_display_format(  # type: ignore[override]
         self,

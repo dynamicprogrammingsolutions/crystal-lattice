@@ -266,6 +266,12 @@ The v1 host expects these methods:
 - `getToolSchemas(state) -> schema[]`
 - `executeTool(toolName, args, state, emit) -> result`
 
+The current v1 host does **not** expose Python-side `prepare(...)` /
+`prepareAsync(...)` hooks yet. Node-hosted tools should therefore keep schema
+discovery inside `init(...)` / `getToolSchemas(...)` for now, or wait for a
+future host-protocol extension if they need an explicit long-running
+preparation phase.
+
 The host protocol method names are snake_case on the wire, but the JS tool
 surface uses camelCase in practice.
 

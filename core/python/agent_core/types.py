@@ -26,6 +26,7 @@ from typing import (
     Tuple,
     Protocol,
     Iterator,
+    AsyncIterator,
     TYPE_CHECKING,
     runtime_checkable,
 )
@@ -1320,11 +1321,44 @@ class ToolPlugin(BasePlugin, Protocol):
         """
         return None
 
-    def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def prepare(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Perform optional long-running preparation for later cheap hooks.
+
+        ``prepare`` is separate from :meth:`init` so callers can keep schema
+        discovery and preview helpers cheap by default. Implementations may do
+        I/O, subprocess startup, discovery, or cache hydration here, but should
+        return only JSON-like prepared data.
+        """
+        return {}
+
+    async def prepare_async(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Async variant of :meth:`prepare` with identical semantics."""
+        return self.prepare(config, state, context=context)
+
+    def get_tool_schemas(
+        self,
+        state: Dict[str, Any],
+        *,
+        prepared: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
         """Return tool schemas provided by this tool.
 
         Args:
             state: Current tool state (if needed by the tool).
+            prepared: Optional JSON-like prepared data returned by
+                :meth:`prepare` or :meth:`prepare_async`.
 
         Returns:
             List of tool definition dictionaries in any format understood by the
@@ -1352,6 +1386,7 @@ class ToolPlugin(BasePlugin, Protocol):
         payload_metadata: Optional[Dict[str, Any]] = None,
         tool_call: Optional[Dict[str, Any]] = None,
         tool_schema: Optional[Dict[str, Any]] = None,
+        prepared: Optional[Dict[str, Any]] = None,
     ) -> Optional[bool]:
         """Return whether this tool can handle the inspected tool call.
 
@@ -1371,6 +1406,7 @@ class ToolPlugin(BasePlugin, Protocol):
         tool_call: Optional[Dict[str, Any]] = None,
         cancellation: Any | None = None,
         context: Optional[Dict[str, Any]] = None,
+        prepared: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Execute a tool call using the final payload object.
 
@@ -1384,6 +1420,8 @@ class ToolPlugin(BasePlugin, Protocol):
             payload_metadata: Optional extra payload metadata from the accessor.
             tool_call: Optional original tool-call dict.
             context: Optional layered context providing access to runtime capabilities.
+            prepared: Optional JSON-like prepared data returned by
+                :meth:`prepare` or :meth:`prepare_async`.
 
         The ``context`` parameter provides layered access to runtime capabilities:
 
@@ -1434,6 +1472,7 @@ class ToolPlugin(BasePlugin, Protocol):
         payload_format: Optional[str] = None,
         payload_metadata: Optional[Dict[str, Any]] = None,
         tool_call: Optional[Dict[str, Any]] = None,
+        prepared: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Generate a pre-execution preview for a tool call.
 
@@ -1448,6 +1487,8 @@ class ToolPlugin(BasePlugin, Protocol):
             tool_name: Name of the tool/function when available.
             payload: Final payload for the tool call.
             state: Current tool state.
+            prepared: Optional JSON-like prepared data returned by
+                :meth:`prepare` or :meth:`prepare_async`.
 
         Returns:
             A short string (preferably single-line). Return an empty string when
@@ -1468,6 +1509,7 @@ class ToolPlugin(BasePlugin, Protocol):
         tool_call: Optional[Dict[str, Any]] = None,
         cancellation: Any | None = None,
         context: Optional[Dict[str, Any]] = None,
+        prepared: Optional[Dict[str, Any]] = None,
     ) -> Iterator[Dict[str, Any]]:
         """Optional streaming execution hook for tools.
 
@@ -1486,12 +1528,71 @@ class ToolPlugin(BasePlugin, Protocol):
             cancellation: Optional cancellation token.
             context: Optional layered context providing access to runtime capabilities.
                 See :meth:`execute_tool` for context structure documentation.
+            prepared: Optional JSON-like prepared data returned by
+                :meth:`prepare` or :meth:`prepare_async`.
 
         Yields:
             Dictionary chunks with partial results ({"part": ...}) or final
             result ({"success": bool, ...}).
         """
         return iter(())
+
+    async def execute_tool_async(
+        self,
+        tool_name: Optional[str],
+        payload: Any,
+        state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
+        prepared: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Optional async execution hook for tool authors using async libraries."""
+        return self.execute_tool(
+            tool_name,
+            payload,
+            state,
+            payload_kind=payload_kind,
+            payload_format=payload_format,
+            payload_metadata=payload_metadata,
+            tool_call=tool_call,
+            cancellation=cancellation,
+            context=context,
+            prepared=prepared,
+        )
+
+    async def stream_tool_async(
+        self,
+        tool_name: Optional[str],
+        payload: Any,
+        state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
+        prepared: Optional[Dict[str, Any]] = None,
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """Optional async streaming hook for tool authors using async libraries."""
+        for chunk in self.stream_tool(
+            tool_name,
+            payload,
+            state,
+            payload_kind=payload_kind,
+            payload_format=payload_format,
+            payload_metadata=payload_metadata,
+            tool_call=tool_call,
+            cancellation=cancellation,
+            context=context,
+            prepared=prepared,
+        ):
+            yield chunk
 
     def to_display_format(
         self,

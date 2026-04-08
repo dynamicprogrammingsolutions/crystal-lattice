@@ -1,6 +1,14 @@
 # 140 — Async Tool Initialization Protocol Extension
 
-Short description: Extend the ToolPlugin protocol to support async initialization for long-running setup operations (such as MCP server discovery), with layered context and optional cache support. Also add async variants for existing execution methods to support tools that use async internally.
+Short description: Add explicit tool preparation hooks (`prepare` / `prepare_async`) plus optional async execution hooks, so long-running setup can stay separate from cheap sync discovery APIs while feeding them JSON-like prepared data.
+
+## Requirements checklist
+
+- [x] Define explicit `prepare` / `prepare_async` semantics for long-running tool setup without making existing cheap tool-discovery APIs async
+- [x] Keep cheap tool hooks pure/fast by feeding them JSON-like prepared data instead of live runtime handles
+- [x] Wire tool preparation into `AgentApplication` request flow without implicitly turning `get_available_tools()` or similar calls into long-running operations
+- [x] Define optional async execution hooks as plugin-author convenience without requiring async core tool APIs in this task
+- [x] Document how optional app-owned runtime services support MCP-style long-lived resources while remaining isolated from cheap hooks
 
 Parent Task: `tasks/20260315-gemini-qwen-grok-tool-packages/000-main.md`
 
@@ -418,4 +426,277 @@ def _supports_async_stream(self) -> bool:
 - MCP-specific implementation (that's task 150)
 - Changing the synchronous `init()` / `execute_tool` / `stream_tool` methods
 - Making `get_tool_schemas` async (deferred - requires deeper core changes)
+
+## Execution plan
+
+Added during completion planning after review of the current tool protocol, wrapper/adapter behavior, application request flow, and the latest plugin docs under `plugins/docs`.
+
+### 1. Reframe the task around explicit preparation, not async discovery APIs
+
+The current task text assumes that async initialization may need to push core discovery APIs such as `get_available_tools()` toward async. The approved direction is the opposite:
+
+1. Keep existing cheap core APIs such as `get_available_tools()`, `get_tool_schemas()`, preview helpers, and current sync tool-loop entry points blocking and fast.
+2. Introduce a separate explicit long-running preparation phase via `prepare(...)` and `prepare_async(...)`.
+3. Treat preparation as opt-in and application-driven, similar in spirit to provider `get_models()` being a separate stage that feeds later pure logic.
+
+This preserves a clean distinction between:
+
+1. cheap/pure hooks that should remain easy to unit test
+2. long-running hooks that may do I/O, subprocess startup, MCP discovery, auth handshakes, or cache hydration
+
+### 2. Proposed protocol semantics
+
+Add explicit preparation hooks to `ToolPlugin`:
+
+```python
+def prepare(
+    self,
+    config: Dict[str, Any],
+    state: Dict[str, Any],
+    *,
+    context: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Optional blocking preparation hook.
+
+    Performs long-running setup and returns JSON-like prepared data.
+    The returned mapping must be serializable / JSON-like so it can feed
+    cheap hooks without leaking live runtime objects into them.
+    """
+    return {}
+
+
+async def prepare_async(
+    self,
+    config: Dict[str, Any],
+    state: Dict[str, Any],
+    *,
+    context: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Optional async preparation hook returning the same prepared-data shape."""
+    return self.prepare(config, state, context=context)
+```
+
+Key semantic rules:
+
+1. `init(config)` remains cheap and synchronous. It should construct only base state.
+2. `prepare(...)` and `prepare_async(...)` are alternative entry points for the same long-running preparation phase.
+3. Preparation returns **prepared data**, not mutated live state and not runtime objects.
+4. Prepared data must be JSON-like / serializable so that later cheap hooks remain pure and easy to test.
+5. If a tool is never prepared, it may legitimately expose an empty or degraded schema set rather than forcing long-running work into a cheap hook.
+
+### 3. Feed prepared data into cheap hooks instead of live runtime
+
+The approved refinement is that cheap functions should consume prepared JSON-like data similarly to how provider model descriptors feed later pure logic.
+
+Recommended interface evolution:
+
+```python
+def get_tool_schemas(
+    self,
+    state: Dict[str, Any],
+    *,
+    prepared: Optional[Dict[str, Any]] = None,
+) -> List[Dict[str, Any]]:
+    """Fast schema generation from cheap base state + optional prepared data."""
+```
+
+Potentially the same optional `prepared=` keyword can be added to other cheap hooks when needed:
+
+1. `can_handle_tool_call(...)`
+2. `format_tool_call_preview(...)`
+3. other purely local routing/introspection helpers if this task touches them
+
+Important rule:
+
+1. Cheap hooks receive base `state` plus optional JSON-like `prepared` data.
+2. Cheap hooks do **not** receive live runtime handles and should not depend on them.
+
+This keeps the “fast path” unit-testable:
+
+1. construct `state` with `init(...)`
+2. pass in a handcrafted `prepared` dict
+3. assert pure behavior without needing network, subprocesses, or app runtime
+
+### 4. Optional async execution hooks remain convenience-only in this task
+
+Add canonical async execution hooks to the protocol:
+
+```python
+async def execute_tool_async(... ) -> Dict[str, Any]: ...
+async def stream_tool_async(... ) -> AsyncIterator[Dict[str, Any]]: ...
+```
+
+But the agreed semantics are:
+
+1. these hooks are an optional convenience for plugin authors
+2. they do **not** require `AgentCore` sync execution APIs to become async in this task
+3. the main sync core tool path remains blocking for now
+
+Compatibility direction:
+
+1. wrappers/adapters should support the new canonical async hook names
+2. wrappers should continue tolerating existing in-repo tools that currently implement `async def execute_tool(...)` under the sync name
+3. docs should make `execute_tool_async` / `stream_tool_async` the preferred forward-looking shape while acknowledging the compatibility shim
+
+### 5. AgentCore preparation API and cache shape
+
+Add explicit core entry points:
+
+```python
+def prepare_tools(
+    self,
+    config: Dict[str, Any],
+    *,
+    context: Optional[Dict[str, Any]] = None,
+) -> None: ...
+
+
+async def prepare_tools_async(
+    self,
+    config: Dict[str, Any],
+    *,
+    context: Optional[Dict[str, Any]] = None,
+) -> None: ...
+```
+
+Preparation behavior:
+
+1. resolve the enabled tools for the effective config
+2. build base tool state with `init(...)`
+3. prepare each tool exactly once for the current config
+4. cache the returned prepared data on the `AgentCore` instance for later cheap-hook reuse
+
+Per-tool hook selection:
+
+1. `prepare_tools(...)` prefers `prepare(...)`
+2. if only `prepare_async(...)` is implemented, `prepare_tools(...)` may block on it
+3. `prepare_tools_async(...)` prefers `prepare_async(...)`
+4. if only `prepare(...)` is implemented, `prepare_tools_async(...)` just calls it directly
+5. if both are implemented, they are alternative entry points, not two separate stages
+
+Prepared-data cache semantics:
+
+1. cache base state from `init(...)`
+2. cache prepared data separately from base state
+3. key by tool identity + effective tool-init config fingerprint
+4. later sync fast APIs reuse cached prepared data when available
+5. existing sync fast APIs do **not** implicitly trigger preparation in this task
+
+### 6. AgentApplication wiring
+
+Tool preparation should be wired at the application layer, not hidden inside fast core discovery helpers.
+
+Primary automatic wiring point:
+
+1. `AgentApplication.send_request(...)`
+2. after `run_session_lifecycle("request_prepare", ...)`
+3. after effective config resolution for the final post-lifecycle session/runtime
+4. before the tool loop/provider request begins
+
+This is the right ownership boundary because:
+
+1. `request_prepare` is already the documented long-running application-owned preparation point
+2. lifecycle actions may mutate the session/config and even cause runtime rebuilding
+3. preparation must run against the final effective runtime rather than an earlier stale core
+
+Recommended application behavior:
+
+1. automatically call `core.prepare_tools(...)` in the sync request path
+2. add `prepare_tools_for_session(...)` / `prepare_tools_for_session_async(...)` helpers for explicit non-request callers
+3. do not auto-run preparation from read-style APIs like “list available tools”
+
+### 7. Optional app-owned runtime service for long-lived resources
+
+The earlier `tool_runtime` idea remains useful, but only for long-running hooks and execution hooks.
+
+Approved refinement:
+
+1. cheap hooks consume only JSON-like prepared data
+2. live runtime services are exposed only to long-running functions such as `prepare`, `prepare_async`, `execute_tool`, `execute_tool_async`, `stream_tool`, and `stream_tool_async`
+
+Reserved context key:
+
+1. `tool_runtime`
+
+Intended role:
+
+1. app-owned registry for long-lived runtime resources such as MCP client managers
+2. lets fresh `AgentCore` instances reuse the same live resource through `AgentApplication`
+3. keeps live objects out of cheap hooks and out of the prepared-data contract
+
+For MCP, the intended pattern is:
+
+1. `prepare_async(...)` uses `context["tool_runtime"]` to look up or create an MCP manager
+2. it performs discovery through that live manager
+3. it returns only serializable prepared data such as sanitized schemas, tool index mappings, and possibly a stable `runtime_key`
+4. `get_tool_schemas(..., prepared=...)` returns schemas from prepared data only
+5. `execute_tool_async(...)` reacquires the live manager via `runtime_key` + `tool_runtime`
+
+### 8. Out-of-process tool hosts (Node and Bash)
+
+This task should not force a single cross-language MCP runtime story.
+
+Current architecture:
+
+1. Node-hosted tools are already Python proxy `ToolPlugin`s backed by an NDJSON host protocol
+2. Bash-hosted tools are already Python proxy `ToolPlugin`s backed by subcommand invocation
+
+Recommended scope for this task:
+
+1. Python in-process tools get the new preparation hooks first
+2. Node and bash proxy tools inherit default no-op preparation behavior unless explicitly extended later
+3. no host-protocol change is required for this task
+
+Implications:
+
+1. Python MCP tools can use `tool_runtime` immediately
+2. Node tools can continue working unchanged
+3. if Node-hosted tools later need preparation parity, that should be a separate host-protocol extension adding optional `prepare` / `prepareAsync` RPC methods
+4. bash tools likely remain preparation no-ops for now
+
+### 9. Documentation and testing direction
+
+Docs to update during implementation:
+
+1. `plugins/docs/tool-plugins.md`
+2. any protocol reference docs that mention `ToolPlugin`
+3. host docs only as needed to clarify that Node/Bash do not yet expose preparation unless explicitly extended
+
+Key documentation points:
+
+1. `init()` must remain cheap
+2. `prepare()` / `prepare_async()` are the only long-running preparation hooks
+3. prepared data must be JSON-like and is intended to feed cheap hooks
+4. cheap hooks do not receive live runtime handles
+5. sync core discovery APIs remain sync and do not implicitly prepare tools
+
+Tests to add later during implementation:
+
+1. `prepare()` feeds cached prepared data into `get_available_tools()` / schema generation on the same core
+2. `prepare_async()` does the same
+3. fast core discovery APIs remain cheap and do not auto-trigger preparation
+4. compatibility with tools that implement only existing sync hooks
+5. compatibility with existing tools that currently expose an awaitable `execute_tool(...)`
+6. application request flow invokes tool preparation after `request_prepare` and before the tool loop
+
+## Completion Notes
+
+Updated during implementation completion.
+
+Completed work:
+
+1. Added `prepare` / `prepare_async`, optional `prepared=...` hook plumbing, and canonical async execution/streaming hooks to the Python tool protocol and wrapper/adapter layer.
+2. Added `AgentCore.prepare_tools(...)` / `prepare_tools_async(...)` plus per-core caching of prepared JSON-like tool data so explicit preparation feeds existing sync discovery, preview, and execution paths.
+3. Wired `AgentApplication.send_request(...)` to prepare tools after `request_prepare` and before the tool loop, and added an app-owned `tool_runtime` store plus explicit `prepare_tools_for_session(...)` helpers.
+4. Updated tool-plugin docs to describe the new split between cheap hooks and long-running preparation, and documented the current Node-host limitation.
+5. Added regression coverage for prepared schema discovery, sync blocking over async-only preparation, async execution helper compatibility, and application-layer preparation context wiring.
+
+Verification:
+
+1. `pytest core/python/tests/test_tool_preparation.py core/python/tests/test_tool_adapter.py core/python/tests/test_core.py core/python/tests/test_application_layer_plugins.py -q`
+2. `pytest core/python/tests/test_node_tool_plugins.py core/python/tests/test_bash_tool_plugins.py core/python/tests/test_tool_plugin_context.py -q`
+
+Notes:
+
+1. `pytest core/python/tests/test_plugin_default_adapters.py -q` still reports two pre-existing failures in `test_adapter_init_and_initialize_request_default_passthrough(...)` for provider-extension and feature adapters; this task did not modify those code paths.
 - Choosing final method names (decided during implementation)

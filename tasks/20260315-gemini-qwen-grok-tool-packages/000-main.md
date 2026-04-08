@@ -184,7 +184,7 @@ Key observations:
 
 ### Phase 2.6: MCP tool support
 
-- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/140-async-tool-initialization.md` — Async tool initialization protocol extension
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/140-async-tool-initialization.md` — Async tool initialization protocol extension
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/150-mcp-tools.md` — MCP tool plugins with shared helper and vendor-specific implementations
   - DEPENDS ON `tasks/20260315-gemini-qwen-grok-tool-packages/140-async-tool-initialization.md`
 

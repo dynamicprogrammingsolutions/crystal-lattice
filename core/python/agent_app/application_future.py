@@ -8,6 +8,7 @@ import uuid
 from contextlib import contextmanager
 from datetime import datetime
 import os
+import threading
 
 from agent_core import AgentCore, Session
 from agent_core.plugin.loader import validate_plugin_for_kind
@@ -46,6 +47,43 @@ class _AgentPluginRuntime:
     plugin_classes: Dict[str, List[type[Any]]]
     plugins_by_kind_and_id: Dict[str, Dict[str, type[Any]]]
     default_enabled_ids: Optional[List[str]]
+
+
+class _ToolRuntimeStore:
+    """Application-owned store for long-lived tool runtime objects.
+
+    The store is intentionally minimal in this task: long-running hooks may use
+    it to persist live managers or clients between fresh ``AgentCore``
+    instances, while cheap hooks consume only JSON-like prepared data.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._values: Dict[Tuple[str, str], Any] = {}
+
+    def get(self, namespace: str, key: str) -> Any | None:
+        if not isinstance(namespace, str) or not namespace:
+            return None
+        if not isinstance(key, str) or not key:
+            return None
+        with self._lock:
+            return self._values.get((namespace, key))
+
+    def set(self, namespace: str, key: str, value: Any) -> None:
+        if not isinstance(namespace, str) or not namespace:
+            raise ValueError("namespace must be a non-empty string")
+        if not isinstance(key, str) or not key:
+            raise ValueError("key must be a non-empty string")
+        with self._lock:
+            self._values[(namespace, key)] = value
+
+    def pop(self, namespace: str, key: str) -> Any | None:
+        if not isinstance(namespace, str) or not namespace:
+            return None
+        if not isinstance(key, str) or not key:
+            return None
+        with self._lock:
+            return self._values.pop((namespace, key), None)
 
 
 class AgentApplication:
@@ -235,6 +273,7 @@ class AgentApplication:
         self._session_asset_store = FilesystemSessionAssetStore(
             session_root_path.parent / "session_assets"
         )
+        self._tool_runtime = _ToolRuntimeStore()
         self._tool_loop_cfg = _ToolLoopConfig()
         self._cancelled_requests: set[str] = set()
         self._request_cancellations: Dict[str, RequestCancellation] = {}
@@ -1686,6 +1725,9 @@ class AgentApplication:
     def get_session_asset_store(self) -> FilesystemSessionAssetStore:
         return self._session_asset_store
 
+    def get_tool_runtime(self) -> _ToolRuntimeStore:
+        return self._tool_runtime
+
     def save_session(self, session: Session) -> None:
         """Persist a session using the configured session store."""
 
@@ -1869,6 +1911,87 @@ class AgentApplication:
         )
         return core, base_cfg, switched_session
 
+    def _build_tool_context(
+        self,
+        *,
+        session: Session,
+        request_id: str,
+    ) -> Dict[str, Any]:
+        return {
+            "app": self,
+            "application": self,
+            "base_config": self._config,
+            "session": session.to_dict(),
+            "request_id": request_id,
+            "session_asset_store": self._session_asset_store,
+            "tool_runtime": self._tool_runtime,
+            "trigger_source": "application",
+        }
+
+    def prepare_tools_for_session(
+        self,
+        core: AgentCore,
+        session: Session,
+        base_config: Dict[str, Any],
+        overrides: Optional[Dict[str, Any]] = None,
+        *,
+        request_id: Optional[str] = None,
+    ) -> Tuple[AgentCore, Dict[str, Any], Session, Dict[str, Any], str]:
+        """Run request_prepare and explicitly prepare tools for the resulting runtime."""
+        rid = request_id or self._new_request_id()
+        request_context = {
+            "session_id": session.session_id,
+            "request_id": rid,
+            "stream": False,
+            "overrides": dict(overrides or {}),
+        }
+        core, base_config, session, _results = self.run_session_lifecycle(
+            "request_prepare",
+            session,
+            core=core,
+            base_config=base_config,
+            overrides=overrides,
+            context=request_context,
+        )
+        config = self.resolve_effective_config(base_config, session, overrides)
+        core.prepare_tools(
+            config,
+            context=self._build_tool_context(session=session, request_id=rid),
+        )
+        return core, base_config, session, config, rid
+
+    async def prepare_tools_for_session_async(
+        self,
+        core: AgentCore,
+        session: Session,
+        base_config: Dict[str, Any],
+        overrides: Optional[Dict[str, Any]] = None,
+        *,
+        request_id: Optional[str] = None,
+    ) -> Tuple[AgentCore, Dict[str, Any], Session, Dict[str, Any], str]:
+        """Async variant of :meth:`prepare_tools_for_session`."""
+        rid = request_id or self._new_request_id()
+        request_context = {
+            "session_id": session.session_id,
+            "request_id": rid,
+            "stream": False,
+            "overrides": dict(overrides or {}),
+        }
+        core, base_config, session, _results = self.run_session_lifecycle(
+            "request_prepare",
+            session,
+            core=core,
+            base_config=base_config,
+            overrides=overrides,
+            context=request_context,
+        )
+        config = self.resolve_effective_config(base_config, session, overrides)
+        await core.prepare_tools_async(
+            config,
+            context=self._build_tool_context(session=session, request_id=rid),
+        )
+        return core, base_config, session, config, rid
+
     # ------------------------------------------------------------------
     # Core-first request API (new architecture)
     # ------------------------------------------------------------------
@@ -1916,6 +2039,10 @@ class AgentApplication:
             context=request_context,
         )
         config = self.resolve_effective_config(base_config, session, overrides)
+        core.prepare_tools(
+            config,
+            context=self._build_tool_context(session=session, request_id=rid),
+        )
 
         cancellation = RequestCancellation(cancelled=rid in self._cancelled_requests)
         self._request_cancellations[rid] = cancellation
@@ -1948,11 +2075,8 @@ class AgentApplication:
             cancel_callback=_is_cancelled,
             cancellation=cancellation,
             context={
-                "app": self,
-                "application": self,
-                "base_config": self._config,
-                "session_asset_store": self._session_asset_store,
-                "trigger_source": "application",
+                **self._build_tool_context(session=session, request_id=rid),
+                "cancellation": cancellation,
             },
         )
 

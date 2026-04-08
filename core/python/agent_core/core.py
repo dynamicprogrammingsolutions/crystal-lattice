@@ -65,6 +65,8 @@ import re
 logger = None
 log_chunk_processing = None
 
+_PreparedToolState = Tuple[ToolWrapper, Dict[str, Any], Optional[Dict[str, Any]]]
+
 
 class AgentCore:
     """Stateless processing pipeline for AI Agent Platform.
@@ -569,12 +571,16 @@ class AgentCore:
             Tuple[List[str], List[str], List[str], List[str]],
         ] = {}
         self._tags_cache: Dict[Tuple[int, Tuple[int, str, str]], List[str]] = {}
+        self._prepared_tool_states: Dict[Tuple[int, str], Dict[str, Any]] = {}
+        self._prepared_tool_data: Dict[Tuple[int, str], Dict[str, Any]] = {}
 
     def _reset_caches(self) -> None:
         """Reset internal caches for models, dependencies, and tags."""
         self._models_cache = {}
         self._dependency_cache = {}
         self._tags_cache = {}
+        self._prepared_tool_states = {}
+        self._prepared_tool_data = {}
 
     def register_provider(
         self, plugin_class: type, extensions: Optional[List[type]] = None
@@ -3292,7 +3298,7 @@ class AgentCore:
         List[ToolDescriptor],
         Optional[ProviderWrapper],
         List[ExtensionWrapper],
-        List[Tuple[ToolWrapper, Dict[str, Any]]],
+        List[_PreparedToolState],
         Any,
         List[str],
     ]:
@@ -3311,8 +3317,10 @@ class AgentCore:
             extensions=extensions,
         )
         descriptors: List[ToolDescriptor] = []
-        for tool, state in tool_states:
-            for index, schema in enumerate(tool.get_tool_schemas(state)):
+        for tool, state, prepared in tool_states:
+            for index, schema in enumerate(
+                tool.get_tool_schemas(state, prepared=prepared)
+            ):
                 if not isinstance(schema, dict):
                     continue
                 descriptors.append(
@@ -3466,7 +3474,7 @@ class AgentCore:
     ) -> Tuple[
         Optional[ProviderWrapper],
         List[ExtensionWrapper],
-        List[Tuple[ToolWrapper, Dict[str, Any]]],
+        List[_PreparedToolState],
     ]:
         provider, extensions, enabled_tools = (
             self._resolve_tool_participants_for_config(config)
@@ -3476,10 +3484,19 @@ class AgentCore:
             provider=provider,
             extensions=extensions,
         )
+        tool_states: List[_PreparedToolState] = []
+        for tool in enabled_tools:
+            cache_key = self._tool_prepare_cache_key(tool, tool_init_config)
+            state = self._prepared_tool_states.get(cache_key)
+            if not isinstance(state, dict):
+                state = tool.init(tool_init_config)
+            tool_states.append(
+                (tool, state, self._prepared_tool_data.get(cache_key))
+            )
         return (
             provider,
             extensions,
-            [(tool, tool.init(tool_init_config)) for tool in enabled_tools],
+            tool_states,
         )
 
     def _build_tool_init_config(
@@ -3520,6 +3537,93 @@ class AgentCore:
             tool_config["_tool_schema_target_formats"] = tool_schema_target_formats
         return tool_config
 
+    def _normalize_tool_prepare_config(self, config: Dict[str, Any]) -> str:
+        sanitized = dict(config) if isinstance(config, dict) else {}
+        sanitized.pop("_tool_interop_registry", None)
+        return self._normalize_config(sanitized)
+
+    def _tool_prepare_cache_key(
+        self,
+        tool: ToolWrapper,
+        tool_init_config: Dict[str, Any],
+    ) -> Tuple[int, str]:
+        return (id(tool), self._normalize_tool_prepare_config(tool_init_config))
+
+    def _build_tool_runtime_context(
+        self,
+        config: Dict[str, Any],
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        enriched = dict(context) if isinstance(context, dict) else {}
+        enriched.setdefault("core", self)
+        enriched.setdefault("config", config)
+        enriched.setdefault("trigger_source", "core")
+        return enriched
+
+    def prepare_tools(
+        self,
+        config: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        provider, extensions, enabled_tools = self._resolve_tool_participants_for_config(
+            config
+        )
+        tool_init_config = self._build_tool_init_config(
+            config,
+            provider=provider,
+            extensions=extensions,
+        )
+        tool_context = self._build_tool_runtime_context(tool_init_config, context)
+        for tool in enabled_tools:
+            cache_key = self._tool_prepare_cache_key(tool, tool_init_config)
+            if cache_key in self._prepared_tool_states and cache_key in self._prepared_tool_data:
+                continue
+            state = self._prepared_tool_states.get(cache_key)
+            if not isinstance(state, dict):
+                state = tool.init(tool_init_config)
+            prepared = tool.prepare(
+                tool_init_config,
+                state,
+                context=tool_context,
+            )
+            self._prepared_tool_states[cache_key] = state
+            self._prepared_tool_data[cache_key] = (
+                prepared if isinstance(prepared, dict) else {}
+            )
+
+    async def prepare_tools_async(
+        self,
+        config: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        provider, extensions, enabled_tools = self._resolve_tool_participants_for_config(
+            config
+        )
+        tool_init_config = self._build_tool_init_config(
+            config,
+            provider=provider,
+            extensions=extensions,
+        )
+        tool_context = self._build_tool_runtime_context(tool_init_config, context)
+        for tool in enabled_tools:
+            cache_key = self._tool_prepare_cache_key(tool, tool_init_config)
+            if cache_key in self._prepared_tool_states and cache_key in self._prepared_tool_data:
+                continue
+            state = self._prepared_tool_states.get(cache_key)
+            if not isinstance(state, dict):
+                state = tool.init(tool_init_config)
+            prepared = await tool.prepare_async(
+                tool_init_config,
+                state,
+                context=tool_context,
+            )
+            self._prepared_tool_states[cache_key] = state
+            self._prepared_tool_data[cache_key] = (
+                prepared if isinstance(prepared, dict) else {}
+            )
+
     def _get_explicit_tool_interop_contributions(
         self,
         config: Dict[str, Any],
@@ -3543,7 +3647,7 @@ class AgentCore:
         *,
         provider: Optional[ProviderWrapper] = None,
         extensions: Optional[List[ExtensionWrapper]] = None,
-        tool_states: Optional[List[Tuple[ToolWrapper, Dict[str, Any]]]] = None,
+        tool_states: Optional[List[_PreparedToolState]] = None,
     ) -> Any:
         from .tool_interop import compose_tool_interop_registry
 
@@ -3562,7 +3666,7 @@ class AgentCore:
             )
         for extension in local_extensions:
             contributions.append(extension.get_tool_interop_contribution(config, None))
-        for tool, state in local_tool_states:
+        for tool, state, _prepared in local_tool_states:
             contributions.append(tool.get_tool_interop_contribution(state))
 
         return compose_tool_interop_registry(
@@ -3631,7 +3735,7 @@ class AgentCore:
         if inspected_call is None:
             return {"id": None, "preview": ""}
 
-        tool, state, _matched_schema = self._resolve_tool_handler_for_call(
+        tool, state, prepared, _matched_schema = self._resolve_tool_handler_for_call(
             inspected_call,
             tool_states,
             registry,
@@ -3648,6 +3752,7 @@ class AgentCore:
                 payload_format=inspected_call.payload_format,
                 payload_metadata=inspected_call.payload_metadata,
                 tool_call=inspected_call.raw,
+                prepared=prepared,
             )
         except Exception:
             preview = ""
@@ -3701,12 +3806,15 @@ class AgentCore:
     def _build_name_to_tool_map(
         self,
         registry: Any,
-        tool_states: List[Tuple[ToolWrapper, Dict[str, Any]]],
-    ) -> Dict[str, Tuple[ToolWrapper, Dict[str, Any], Dict[str, Any]]]:
-        name_to_tool: Dict[str, Tuple[ToolWrapper, Dict[str, Any], Dict[str, Any]]] = {}
-        for tool, state in tool_states:
+        tool_states: List[_PreparedToolState],
+    ) -> Dict[str, Tuple[ToolWrapper, Dict[str, Any], Optional[Dict[str, Any]], Dict[str, Any]]]:
+        name_to_tool: Dict[
+            str,
+            Tuple[ToolWrapper, Dict[str, Any], Optional[Dict[str, Any]], Dict[str, Any]],
+        ] = {}
+        for tool, state, prepared in tool_states:
             try:
-                schemas = tool.get_tool_schemas(state)
+                schemas = tool.get_tool_schemas(state, prepared=prepared)
             except Exception:
                 schemas = []
             for schema in schemas or []:
@@ -3718,18 +3826,21 @@ class AgentCore:
                     continue
                 name = inspected_schema.tool_name
                 if isinstance(name, str) and name and name not in name_to_tool:
-                    name_to_tool[name] = (tool, state, schema)
+                    name_to_tool[name] = (tool, state, prepared, schema)
         return name_to_tool
 
     def _resolve_tool_handler_for_call(
         self,
         inspected_call: Any,
-        tool_states: List[Tuple[ToolWrapper, Dict[str, Any]]],
+        tool_states: List[_PreparedToolState],
         registry: Any,
     ) -> Tuple[
-        Optional[ToolWrapper], Optional[Dict[str, Any]], Optional[Dict[str, Any]]
+        Optional[ToolWrapper],
+        Optional[Dict[str, Any]],
+        Optional[Dict[str, Any]],
+        Optional[Dict[str, Any]],
     ]:
-        for tool, state in tool_states:
+        for tool, state, prepared in tool_states:
             try:
                 decision = tool.can_handle_tool_call(
                     inspected_call.tool_name,
@@ -3740,20 +3851,21 @@ class AgentCore:
                     payload_metadata=inspected_call.payload_metadata,
                     tool_call=inspected_call.raw,
                     tool_schema=None,
+                    prepared=prepared,
                 )
             except Exception:
                 decision = None
             if decision is True:
-                return tool, state, None
+                return tool, state, prepared, None
 
         if isinstance(inspected_call.tool_name, str) and inspected_call.tool_name:
             by_name = self._build_name_to_tool_map(registry, tool_states)
             matched = by_name.get(inspected_call.tool_name)
             if matched is not None:
-                tool, state, schema = matched
-                return tool, state, schema
+                tool, state, prepared, schema = matched
+                return tool, state, prepared, schema
 
-        return None, None, None
+        return None, None, None, None
 
     def iter_tool_messages(
         self,
@@ -3820,7 +3932,7 @@ class AgentCore:
             call_id = inspected_call.call_id
             name = inspected_call.tool_name
 
-            tool, state, matched_schema = self._resolve_tool_handler_for_call(
+            tool, state, prepared, matched_schema = self._resolve_tool_handler_for_call(
                 inspected_call,
                 tool_states,
                 registry,
@@ -3844,12 +3956,7 @@ class AgentCore:
             # Layer 1: Core-level context enrichment.
             # Higher layers (application, terminal) may have already set these;
             # use setdefault so we never overwrite a richer value.
-            tool_context: Dict[str, Any] = (
-                dict(context) if isinstance(context, dict) else {}
-            )
-            tool_context.setdefault("core", self)
-            tool_context.setdefault("config", config)
-            tool_context.setdefault("trigger_source", "core")
+            tool_context = self._build_tool_runtime_context(config, context)
 
             try:
                 iterator = tool.stream_tool(
@@ -3862,6 +3969,7 @@ class AgentCore:
                     tool_call=inspected_call.raw,
                     cancellation=cancellation,
                     context=tool_context,
+                    prepared=prepared,
                 )
                 iterator = iter(iterator)
             except Exception as exc:
@@ -4053,7 +4161,7 @@ class AgentCore:
         except Exception:
             return
 
-        tool, state, _schema = self._resolve_tool_handler_for_call(
+        tool, state, prepared, _schema = self._resolve_tool_handler_for_call(
             inspected_call,
             tool_states,
             registry,
@@ -4062,12 +4170,7 @@ class AgentCore:
             return
 
         # Layer 1: Core-level context enrichment.
-        tool_context: Dict[str, Any] = (
-            dict(context) if isinstance(context, dict) else {}
-        )
-        tool_context.setdefault("core", self)
-        tool_context.setdefault("config", config)
-        tool_context.setdefault("trigger_source", "core")
+        tool_context = self._build_tool_runtime_context(config, context)
 
         try:
             iterator = tool.stream_tool(
@@ -4079,6 +4182,7 @@ class AgentCore:
                 payload_metadata=inspected_call.payload_metadata,
                 tool_call=inspected_call.raw,
                 context=tool_context,
+                prepared=prepared,
             )
             iterator = iter(iterator)
         except Exception:
