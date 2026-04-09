@@ -45,6 +45,14 @@ from .shell_engine import (
     run_shell_command,
     truncate_output,
 )
+from .web_search_engine import (
+    GeminiApiProvider,
+    SearchProvider,
+    SearchProviderError,
+    SearchResponse,
+    SearchResult,
+    TavilyProvider,
+)
 
 __all__ = [
     "BACKGROUND_DELAY_SECONDS",
@@ -70,6 +78,7 @@ __all__ = [
     "format_qwen_grep_result",
     "format_qwen_list_result",
     "format_with_line_numbers",
+    "GeminiApiProvider",
     "gemini_display_path",
     "glob_search",
     "grok_directory_listing",
@@ -86,6 +95,11 @@ __all__ = [
     "replace_literal_text",
     "resolve_path",
     "run_shell_command",
+    "SearchProvider",
+    "SearchProviderError",
+    "SearchResponse",
+    "SearchResult",
+    "TavilyProvider",
     "truncate_line",
     "truncate_output",
     "validate_path_within_directories",

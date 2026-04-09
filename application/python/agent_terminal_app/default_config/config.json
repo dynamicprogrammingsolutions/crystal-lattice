@@ -127,7 +127,6 @@
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/qwen-tools"
       ],
-      "disabled_plugins": ["apply_patch"],
       "system_message": {
         "template": "{{INTRODUCTION_AND_CORE_MANDATES}}\n\n{{PRIMARY_WORKFLOWS}}\n\n{{OPERATIONAL_GUIDELINES}}\n\n{{GIT_SECTION}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
