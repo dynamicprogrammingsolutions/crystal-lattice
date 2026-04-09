@@ -1,4 +1,10 @@
-import type { HttpMethod, Transport } from './transport';
+import type {
+  HttpMethod,
+  PathPrefixTimeoutRule,
+  Transport,
+  TransportTimeoutRule,
+} from './transport';
+import { resolveTransportTimeoutMs } from './transport';
 
 export interface BridgeServer {
   server_id: string;
@@ -40,9 +46,16 @@ export class BridgeTransport implements Transport {
   private readonly chunkingThresholdBytes: number;
   private readonly chunkSizeBytes: number;
   private readonly defaultRequestTimeoutMs: number;
+  private readonly connectTimeoutMs: number;
+  private readonly heartbeatIntervalMs: number;
+  private readonly heartbeatTimeoutMs: number;
   private readonly debug: boolean;
   private readonly logger: (msg: string, meta?: any) => void;
-  private readonly timeoutMsByPathPrefix: Array<{ pathPrefix: string; timeoutMs: number }>;
+  private readonly timeoutRules: TransportTimeoutRule[];
+  private readonly timeoutMsByPathPrefix: PathPrefixTimeoutRule[];
+  private heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
+  private heartbeatInFlight = false;
+  private connectionGeneration = 0;
 
   private pendingReplies: Map<
     string,
@@ -51,7 +64,13 @@ export class BridgeTransport implements Transport {
       resolve: (value: any) => void;
       reject: (err: any) => void;
       event: string;
-      context?: { method?: string; path?: string; requestId?: string; phase?: string };
+      context?: {
+        method?: string;
+        path?: string;
+        requestId?: string;
+        phase?: string;
+        resetSocketOnTimeout?: boolean;
+      };
     }
   > = new Map();
   private streamingResponses: Map<
@@ -63,6 +82,11 @@ export class BridgeTransport implements Transport {
       resolve: (resp: { status: number; headers: Record<string, string>; body: string }) => void;
       reject: (err: any) => void;
       timeoutId: any;
+      context: {
+        method: string;
+        path: string;
+        resetSocketOnTimeout: boolean;
+      };
     }
   > = new Map();
 
@@ -79,9 +103,13 @@ export class BridgeTransport implements Transport {
     chunkingThresholdBytes?: number;
     chunkSizeBytes?: number;
     defaultRequestTimeoutMs?: number;
+    connectTimeoutMs?: number;
+    heartbeatIntervalMs?: number;
+    heartbeatTimeoutMs?: number;
     debug?: boolean;
     logger?: (msg: string, meta?: any) => void;
-    timeoutMsByPathPrefix?: Array<{ pathPrefix: string; timeoutMs: number }>;
+    timeoutRules?: TransportTimeoutRule[];
+    timeoutMsByPathPrefix?: PathPrefixTimeoutRule[];
   }) {
     this.bridgeUrl = options.bridgeUrl;
     this.serverId = options.serverId ?? null;
@@ -92,8 +120,12 @@ export class BridgeTransport implements Transport {
     // Keep a safe headroom so the Phoenix envelope stays < ~1MiB.
     this.chunkSizeBytes = options.chunkSizeBytes ?? 900 * 1024;
     this.defaultRequestTimeoutMs = options.defaultRequestTimeoutMs ?? 120_000;
+    this.connectTimeoutMs = options.connectTimeoutMs ?? 10_000;
+    this.heartbeatIntervalMs = options.heartbeatIntervalMs ?? 15_000;
+    this.heartbeatTimeoutMs = options.heartbeatTimeoutMs ?? 5_000;
     this.debug = options.debug ?? false;
     this.logger = options.logger ?? ((msg: string, meta?: any) => console.log(msg, meta ?? ''));
+    this.timeoutRules = options.timeoutRules ?? [];
     this.timeoutMsByPathPrefix = options.timeoutMsByPathPrefix ?? [];
 
     this.wsFactory =
@@ -124,13 +156,7 @@ export class BridgeTransport implements Transport {
   }
 
   disconnect(): void {
-    this.failAllPendingReplies(new Error('Disconnected'));
-    this.failAllStreamingResponses(new Error('Disconnected'));
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
-    this.sessionId = null;
+    this.resetSocket(new Error('Disconnected'), { reason: 'disconnect', closeSocket: true });
   }
 
   async request<T = any>(req: {
@@ -152,14 +178,19 @@ export class BridgeTransport implements Transport {
 
     const bodySizeBytes = body === null ? 0 : this.utf8ByteLength(body);
     const willChunkRequestBody = body !== null && bodySizeBytes > this.chunkingThresholdBytes;
-
-    const timeoutMs =
-      req.timeoutMs ??
-      this.resolveTimeoutMsForPath(req.path) ??
-      this.defaultRequestTimeoutMs;
+    const timeoutMs = resolveTransportTimeoutMs({
+      method: req.method,
+      path: req.path,
+      timeoutMs: req.timeoutMs,
+      defaultRequestTimeoutMs: this.defaultRequestTimeoutMs,
+      timeoutRules: this.timeoutRules,
+      timeoutMsByPathPrefix: this.timeoutMsByPathPrefix,
+    })!;
+    const resetSocketOnTimeout = this.shouldResetSocketOnRequestTimeout(req.method, req.path);
     const responsePromise = this.createStreamingResponsePromise(requestId, timeoutMs, {
       method: req.method,
       path: req.path,
+      resetSocketOnTimeout,
     });
     // This promise may time out before we ever `await` it (e.g. legacy requests).
     // Attach a handler so a timeout can't surface as an unhandled rejection.
@@ -199,7 +230,13 @@ export class BridgeTransport implements Transport {
             chunk_size_bytes: this.chunkSizeBytes,
           },
           timeoutMs,
-          { method: req.method, path: req.path, requestId, phase: 'http_request_init' },
+          {
+            method: req.method,
+            path: req.path,
+            requestId,
+            phase: 'http_request_init',
+            resetSocketOnTimeout,
+          },
         );
 
         const chunks = this.splitIntoUtf8SizedChunks(body, this.chunkSizeBytes);
@@ -225,7 +262,13 @@ export class BridgeTransport implements Transport {
               chunk: chunks[i],
             },
             timeoutMs,
-            { method: req.method, path: req.path, requestId, phase: 'http_request_chunk' },
+            {
+              method: req.method,
+              path: req.path,
+              requestId,
+              phase: 'http_request_chunk',
+              resetSocketOnTimeout,
+            },
           );
         }
 
@@ -241,7 +284,13 @@ export class BridgeTransport implements Transport {
             final_seq: chunks.length - 1,
           },
           timeoutMs,
-          { method: req.method, path: req.path, requestId, phase: 'http_request_end' },
+          {
+            method: req.method,
+            path: req.path,
+            requestId,
+            phase: 'http_request_end',
+            resetSocketOnTimeout,
+          },
         );
 
         if (this.debug) {
@@ -260,7 +309,13 @@ export class BridgeTransport implements Transport {
             body,
           },
           timeoutMs,
-          { method: req.method, path: req.path, requestId, phase: 'http_request' },
+          {
+            method: req.method,
+            path: req.path,
+            requestId,
+            phase: 'http_request',
+            resetSocketOnTimeout,
+          },
         );
 
         if (this.debug) {
@@ -295,21 +350,36 @@ export class BridgeTransport implements Transport {
   }
 
   async listServers(): Promise<BridgeServer[]> {
-    const response = await this.sendMessage(`app:${this.clientId}`, 'list_servers', {});
+    const response = await this.sendMessage(`app:${this.clientId}`, 'list_servers', {}, undefined, {
+      phase: 'list_servers',
+      resetSocketOnTimeout: true,
+    });
     const servers = Array.isArray(response?.servers) ? response.servers : [];
     return servers as BridgeServer[];
   }
 
   async requestPairing(serverId: string): Promise<void> {
     this.serverId = serverId;
-    await this.sendMessage(`app:${this.clientId}`, 'pair_request', { server_id: serverId });
+    await this.sendMessage(
+      `app:${this.clientId}`,
+      'pair_request',
+      { server_id: serverId },
+      undefined,
+      { phase: 'pair_request', resetSocketOnTimeout: true },
+    );
   }
 
   async submitPairingCode(serverId: string, code: string): Promise<void> {
-    const response = await this.sendMessage(`app:${this.clientId}`, 'pair_submit', {
-      server_id: serverId,
-      code,
-    });
+    const response = await this.sendMessage(
+      `app:${this.clientId}`,
+      'pair_submit',
+      {
+        server_id: serverId,
+        code,
+      },
+      undefined,
+      { phase: 'pair_submit', resetSocketOnTimeout: true },
+    );
     this.sessionId = response.session_id;
     this.pairingToken = response.pairing_token || null;
     this.serverId = serverId;
@@ -335,16 +405,50 @@ export class BridgeTransport implements Transport {
     return new Promise((resolve, reject) => {
       const fullUrl = `${this.bridgeUrl}?type=app`;
       const ws = this.wsFactory(fullUrl);
+      const connectionGeneration = ++this.connectionGeneration;
       this.ws = ws;
+      let settled = false;
+
+      const resolveOnce = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        resolve();
+      };
+
+      const rejectOnce = (err: Error) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        reject(err);
+      };
+
+      const isCurrentSocket = () => this.ws === ws && this.connectionGeneration === connectionGeneration;
+
+      this.debugLog('[bridge] connect:start', {
+        generation: connectionGeneration,
+        bridgeUrl: this.bridgeUrl,
+      });
 
       const timeoutId = setTimeout(() => {
-        if (this.ws && this.ws.readyState !== 1) {
-          this.ws.close();
+        if (!isCurrentSocket()) {
+          return;
         }
-        reject(new Error('Connection timeout'));
-      }, 10000);
+        const err = new Error('Connection timeout');
+        this.resetSocket(err, {
+          reason: 'connect_timeout',
+          socket: ws,
+          closeSocket: true,
+        });
+        rejectOnce(err);
+      }, this.connectTimeoutMs);
 
       ws.onmessage = (event) => {
+        if (!isCurrentSocket()) {
+          return;
+        }
         let data: any;
         try {
           data = JSON.parse(event.data);
@@ -360,12 +464,20 @@ export class BridgeTransport implements Transport {
             clearTimeout(pending.timeoutId);
 
             if (data.event === 'phx_reply' && data.payload?.status === 'ok') {
+              if (pending.context?.phase === 'heartbeat') {
+                this.debugLog('[bridge] heartbeat:ok', { generation: connectionGeneration });
+              }
               pending.resolve(data.payload.response);
             } else {
+              const response = data?.payload?.response;
               pending.reject(
                 new Error(
                   this.formatBridgeError({
-                    error: data.payload?.response?.error || 'Request failed',
+                    error:
+                      response?.error ||
+                      response?.reason ||
+                      data?.payload?.reason ||
+                      'Request failed',
                     event: pending.event,
                     method: pending.context?.method,
                     path: pending.context?.path,
@@ -385,47 +497,65 @@ export class BridgeTransport implements Transport {
 
       ws.onopen = async () => {
         clearTimeout(timeoutId);
+        if (!isCurrentSocket()) {
+          return;
+        }
+        this.debugLog('[bridge] connect:open', { generation: connectionGeneration });
         try {
           await this.joinChannel();
           if (this.pairingToken && this.serverId && !this.sessionId) {
             await this.resumeSessionRaw();
           }
-          resolve();
+          this.startHeartbeat(connectionGeneration);
+          resolveOnce();
         } catch (err: any) {
-          this.ws?.close();
-          reject(err);
+          const error = err instanceof Error ? err : new Error(String(err));
+          this.resetSocket(error, {
+            reason: 'connect_setup_failed',
+            socket: ws,
+            closeSocket: true,
+          });
+          rejectOnce(error);
         }
       };
 
       ws.onerror = () => {
         clearTimeout(timeoutId);
-        const err = new Error('WebSocket error');
-        this.failAllPendingReplies(err);
-        this.failAllStreamingResponses(err);
-        this.ws = null;
-        this.sessionId = null;
-        try {
-          ws.close();
-        } catch {
-          // Ignore close failures.
+        if (!isCurrentSocket()) {
+          return;
         }
-        reject(err);
+        const err = new Error('WebSocket error');
+        this.resetSocket(err, {
+          reason: 'ws_error',
+          socket: ws,
+          closeSocket: true,
+        });
+        rejectOnce(err);
       };
 
       ws.onclose = (event) => {
         clearTimeout(timeoutId);
+        if (!isCurrentSocket()) {
+          return;
+        }
         const code = typeof event?.code === 'number' ? event.code : undefined;
         const reason = typeof event?.reason === 'string' ? event.reason : undefined;
         const closeError = new Error(
           `Connection closed${code ? ` (code: ${code})` : ''}${reason ? `: ${reason}` : ''}`,
         );
-        this.failAllPendingReplies(closeError);
-        this.failAllStreamingResponses(closeError);
-        this.ws = null;
-        this.sessionId = null;
+        this.resetSocket(closeError, {
+          reason: 'ws_close',
+          socket: ws,
+          closeSocket: false,
+          meta: { code, reason, wasClean: event?.wasClean },
+        });
 
-        if (code && code !== 1000 && code !== 1005) {
-          reject(new Error(`Connection closed unexpectedly (code: ${code})`));
+        if (!settled) {
+          rejectOnce(
+            code && code !== 1000 && code !== 1005
+              ? new Error(`Connection closed unexpectedly (code: ${code})`)
+              : closeError,
+          );
         }
       };
     });
@@ -465,6 +595,51 @@ export class BridgeTransport implements Transport {
     this.streamingResponses.clear();
   }
 
+  private resetSocket(
+    err: Error,
+    options: {
+      reason: string;
+      socket?: WebSocketLike | null;
+      closeSocket?: boolean;
+      meta?: Record<string, any>;
+    },
+  ): void {
+    const socket = options.socket ?? this.ws;
+    const shouldCloseSocket = options.closeSocket !== false;
+
+    this.debugLog('[bridge] socket:reset', {
+      reason: options.reason,
+      error: err.message,
+      sessionId: this.sessionId,
+      serverId: this.serverId,
+      ...options.meta,
+    });
+
+    this.stopHeartbeat();
+    this.failAllPendingReplies(err);
+    this.failAllStreamingResponses(err);
+
+    if (socket) {
+      socket.onopen = null;
+      socket.onmessage = null;
+      socket.onerror = null;
+      socket.onclose = null;
+    }
+
+    if (this.ws === socket) {
+      this.ws = null;
+    }
+    this.sessionId = null;
+
+    if (socket && shouldCloseSocket) {
+      try {
+        socket.close();
+      } catch {
+        // Ignore close failures.
+      }
+    }
+  }
+
   private getRef(): string {
     this.refCounter += 1;
     return this.refCounter.toString();
@@ -475,7 +650,13 @@ export class BridgeTransport implements Transport {
     event: string,
     payload: any,
     timeoutMs?: number,
-    context?: { method?: string; path?: string; requestId?: string; phase?: string },
+    context?: {
+      method?: string;
+      path?: string;
+      requestId?: string;
+      phase?: string;
+      resetSocketOnTimeout?: boolean;
+    },
   ): Promise<any> {
     await this.ensureConnected();
     return this.sendMessageRaw(topic, event, payload, timeoutMs, context);
@@ -486,7 +667,13 @@ export class BridgeTransport implements Transport {
     event: string,
     payload: any,
     timeoutMs: number = 30000,
-    context?: { method?: string; path?: string; requestId?: string; phase?: string },
+    context?: {
+      method?: string;
+      path?: string;
+      requestId?: string;
+      phase?: string;
+      resetSocketOnTimeout?: boolean;
+    },
   ): Promise<any> {
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== 1) {
@@ -503,18 +690,39 @@ export class BridgeTransport implements Transport {
           return;
         }
         this.pendingReplies.delete(ref);
-        reject(
-          new Error(
-            this.formatTimeoutError({
-              timeoutMs,
-              event,
-              method: context?.method,
-              path: context?.path,
-              requestId: context?.requestId,
-              phase: context?.phase,
-            }),
-          ),
+        const err = new Error(
+          this.formatTimeoutError({
+            timeoutMs,
+            event,
+            method: context?.method,
+            path: context?.path,
+            requestId: context?.requestId,
+            phase: context?.phase,
+          }),
         );
+        this.debugLog('[bridge] request:timeout', {
+          event,
+          method: context?.method,
+          path: context?.path,
+          requestId: context?.requestId,
+          phase: context?.phase,
+          timeoutMs,
+          resetSocketOnTimeout: context?.resetSocketOnTimeout ?? false,
+        });
+        if (context?.resetSocketOnTimeout) {
+          this.resetSocket(err, {
+            reason: 'reply_timeout',
+            closeSocket: true,
+            meta: {
+              event,
+              method: context.method,
+              path: context.path,
+              requestId: context.requestId,
+              phase: context.phase,
+            },
+          });
+        }
+        reject(err);
       }, timeoutMs);
 
       this.pendingReplies.set(ref, { timeoutId, resolve, reject, event, context });
@@ -524,6 +732,17 @@ export class BridgeTransport implements Transport {
       } catch (err: any) {
         clearTimeout(timeoutId);
         this.pendingReplies.delete(ref);
+        this.resetSocket(err instanceof Error ? err : new Error(String(err)), {
+          reason: 'send_failed',
+          closeSocket: true,
+          meta: {
+            event,
+            method: context?.method,
+            path: context?.path,
+            requestId: context?.requestId,
+            phase: context?.phase,
+          },
+        });
         reject(err);
       }
     });
@@ -532,7 +751,7 @@ export class BridgeTransport implements Transport {
   private createStreamingResponsePromise(
     requestId: string,
     timeoutMs: number,
-    context: { method: string; path: string },
+    context: { method: string; path: string; resetSocketOnTimeout: boolean },
   ): Promise<{ status: number; headers: Record<string, string>; body: string }> {
     // Prepare a buffer so we can transparently handle chunked responses.
     if (this.streamingResponses.has(requestId)) {
@@ -554,7 +773,26 @@ export class BridgeTransport implements Transport {
         return;
       }
       this.streamingResponses.delete(requestId);
-      state.reject(new Error(`Request timeout (HTTP ${context.method} ${context.path})`));
+      const err = new Error(`Request timeout (HTTP ${context.method} ${context.path})`);
+      this.debugLog('[bridge] response:timeout', {
+        requestId,
+        method: context.method,
+        path: context.path,
+        timeoutMs,
+        resetSocketOnTimeout: context.resetSocketOnTimeout,
+      });
+      if (context.resetSocketOnTimeout) {
+        this.resetSocket(err, {
+          reason: 'response_timeout',
+          closeSocket: true,
+          meta: {
+            requestId,
+            method: context.method,
+            path: context.path,
+          },
+        });
+      }
+      state.reject(err);
     }, timeoutMs);
 
     this.streamingResponses.set(requestId, {
@@ -564,6 +802,7 @@ export class BridgeTransport implements Transport {
       resolve: resolveFn,
       reject: rejectFn,
       timeoutId,
+      context,
     });
 
     return promise;
@@ -736,19 +975,58 @@ export class BridgeTransport implements Transport {
     return chunks;
   }
 
-  private resolveTimeoutMsForPath(path: string): number | undefined {
-    let best: { pathPrefix: string; timeoutMs: number } | null = null;
-    for (const rule of this.timeoutMsByPathPrefix) {
-      if (!rule?.pathPrefix) {
-        continue;
-      }
-      if (path.startsWith(rule.pathPrefix)) {
-        if (!best || rule.pathPrefix.length > best.pathPrefix.length) {
-          best = rule;
-        }
-      }
+  private shouldResetSocketOnRequestTimeout(method: HttpMethod, path: string): boolean {
+    return !(method === 'GET' && (path === '/events' || path.startsWith('/events?')));
+  }
+
+  private startHeartbeat(connectionGeneration: number): void {
+    this.stopHeartbeat();
+    if (this.heartbeatIntervalMs <= 0) {
+      return;
     }
-    return best?.timeoutMs;
+
+    this.heartbeatIntervalId = setInterval(() => {
+      if (connectionGeneration !== this.connectionGeneration) {
+        return;
+      }
+      this.sendHeartbeat(connectionGeneration).catch(() => {
+        // Heartbeat failures already trigger reset and logging.
+      });
+    }, this.heartbeatIntervalMs);
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatIntervalId) {
+      clearInterval(this.heartbeatIntervalId);
+      this.heartbeatIntervalId = null;
+    }
+    this.heartbeatInFlight = false;
+  }
+
+  private async sendHeartbeat(connectionGeneration: number): Promise<void> {
+    if (this.heartbeatInFlight) {
+      return;
+    }
+    if (!this.ws || this.ws.readyState !== 1 || connectionGeneration !== this.connectionGeneration) {
+      return;
+    }
+
+    this.heartbeatInFlight = true;
+    this.debugLog('[bridge] heartbeat:send', { generation: connectionGeneration });
+    try {
+      await this.sendMessageRaw('phoenix', 'heartbeat', {}, this.heartbeatTimeoutMs, {
+        phase: 'heartbeat',
+        resetSocketOnTimeout: true,
+      });
+    } catch (err) {
+      this.debugLog('[bridge] heartbeat:error', {
+        generation: connectionGeneration,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    } finally {
+      this.heartbeatInFlight = false;
+    }
   }
 
   private formatTimeoutError(options: {
@@ -762,6 +1040,9 @@ export class BridgeTransport implements Transport {
     const method = options.method || 'HTTP';
     const path = options.path || '(unknown path)';
     const phase = options.phase || options.event;
+    if (!options.method && !options.path) {
+      return `Request timeout after ${options.timeoutMs}ms (phase=${phase})`;
+    }
     return `Request timeout after ${options.timeoutMs}ms (HTTP ${method} ${path}, phase=${phase})`;
   }
 
@@ -773,15 +1054,22 @@ export class BridgeTransport implements Transport {
     requestId?: string;
     phase?: string;
   }): string {
+    const phase = options.phase || options.event;
+    if (!options.method && !options.path) {
+      return `${options.error} (phase=${phase})`;
+    }
     const method = options.method || 'HTTP';
     const path = options.path || '(unknown path)';
-    const phase = options.phase || options.event;
     return `${options.error} (HTTP ${method} ${path}, phase=${phase})`;
   }
 
   private async joinChannel(): Promise<void> {
     const topic = `app:${this.clientId}`;
-    await this.sendMessageRaw(topic, 'phx_join', {}, 10000);
+    await this.sendMessageRaw(topic, 'phx_join', {}, this.connectTimeoutMs, {
+      phase: 'phx_join',
+      resetSocketOnTimeout: true,
+    });
+    this.debugLog('[bridge] join:ok', { clientId: this.clientId });
   }
 
   private async resumeSessionRaw(): Promise<void> {
@@ -792,8 +1080,22 @@ export class BridgeTransport implements Transport {
     const response = await this.sendMessageRaw(`app:${this.clientId}`, 'resume_session', {
       pairing_token: this.pairingToken,
       server_id: this.serverId,
+    }, this.connectTimeoutMs, {
+      phase: 'resume_session',
+      resetSocketOnTimeout: true,
     });
 
     this.sessionId = response.session_id;
+    this.debugLog('[bridge] resume:ok', {
+      clientId: this.clientId,
+      serverId: this.serverId,
+      sessionId: this.sessionId,
+    });
+  }
+
+  private debugLog(msg: string, meta?: any): void {
+    if (this.debug) {
+      this.logger(msg, meta);
+    }
   }
 }

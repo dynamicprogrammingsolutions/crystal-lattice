@@ -29,6 +29,7 @@ import {
   type DiscoveryConnectionRecord,
   type ManualConnectionRecord,
   type Transport,
+  type TransportTimeoutRule,
 } from '@crystal-lattice/frontend-sdk';
 import ConnectedRoot from './src/ConnectedRoot';
 import { getConnectionAdditionalInfo } from './src/connectionInfo';
@@ -85,6 +86,70 @@ function generateId(): string {
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
+}
+
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+const LONG_RUNNING_REQUEST_TIMEOUT_MS = 120_000;
+const EVENTS_TIMEOUT_MS = 10_000;
+const BRIDGE_CONNECT_TIMEOUT_MS = 10_000;
+const BRIDGE_HEARTBEAT_INTERVAL_MS = 15_000;
+const BRIDGE_HEARTBEAT_TIMEOUT_MS = 5_000;
+
+const TRANSPORT_TIMEOUT_RULES: TransportTimeoutRule[] = [
+  { method: 'GET', pathPrefix: '/events', timeoutMs: EVENTS_TIMEOUT_MS },
+  {
+    method: 'POST',
+    pathRegex: /^\/sessions\/[^/]+\/messages(?:\?|$)/,
+    timeoutMs: LONG_RUNNING_REQUEST_TIMEOUT_MS,
+  },
+  {
+    method: 'POST',
+    pathRegex: /^\/sessions\/[^/]+\/send_message(?:\?|$)/,
+    timeoutMs: LONG_RUNNING_REQUEST_TIMEOUT_MS,
+  },
+  { method: 'POST', pathPrefix: '/actions', timeoutMs: LONG_RUNNING_REQUEST_TIMEOUT_MS },
+];
+
+function createHttpTransport(baseUrl: string): FetchTransport {
+  return new FetchTransport({
+    baseUrl,
+    defaultRequestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
+    timeoutRules: TRANSPORT_TIMEOUT_RULES,
+  });
+}
+
+function createBridgeTransport(options: {
+  bridgeUrl: string;
+  serverId?: string | null;
+  pairingToken?: string | null;
+  debug?: boolean;
+}): BridgeTransport {
+  return new BridgeTransport({
+    bridgeUrl: options.bridgeUrl,
+    serverId: options.serverId,
+    pairingToken: options.pairingToken,
+    debug: options.debug ?? true,
+    defaultRequestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
+    connectTimeoutMs: BRIDGE_CONNECT_TIMEOUT_MS,
+    heartbeatIntervalMs: BRIDGE_HEARTBEAT_INTERVAL_MS,
+    heartbeatTimeoutMs: BRIDGE_HEARTBEAT_TIMEOUT_MS,
+    timeoutRules: TRANSPORT_TIMEOUT_RULES,
+  });
+}
+
+function getBridgeReconnectErrorCode(error: unknown): 'invalid_pairing_token' | 'server_not_found' | 'server_mismatch' | null {
+  const message =
+    error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+  if (message.includes('invalid_pairing_token')) {
+    return 'invalid_pairing_token';
+  }
+  if (message.includes('server_not_found')) {
+    return 'server_not_found';
+  }
+  if (message.includes('server_mismatch')) {
+    return 'server_mismatch';
+  }
+  return null;
 }
 
 function App(): React.JSX.Element {
@@ -450,7 +515,7 @@ function App(): React.JSX.Element {
     try {
       const port = parseInt(manualPort, 10);
       const baseUrl = `http://${manualHost}:${port}`;
-      const nextTransport = new FetchTransport({ baseUrl });
+      const nextTransport = createHttpTransport(baseUrl);
       await nextTransport.request({ method: 'GET', path: '/api/data' });
       setTransport(nextTransport);
       setBackend(new RestAgentBackend({ transport: nextTransport }));
@@ -478,7 +543,7 @@ function App(): React.JSX.Element {
     setIsLoading(true);
     try {
       const baseUrl = `http://${service.host}:${service.port}`;
-      const nextTransport = new FetchTransport({ baseUrl });
+      const nextTransport = createHttpTransport(baseUrl);
       await nextTransport.request({ method: 'GET', path: '/api/data' });
       setTransport(nextTransport);
       setBackend(new RestAgentBackend({ transport: nextTransport }));
@@ -519,10 +584,9 @@ function App(): React.JSX.Element {
     try {
       console.log('🚀 Starting bridge connection...');
       
-      const bridge = new BridgeTransport({
+      const bridge = createBridgeTransport({
         bridgeUrl,
         debug: true,
-        timeoutMsByPathPrefix: [{ pathPrefix: '/events', timeoutMs: 10_000 }],
       });
       await bridge.connect();
       console.log('✅ Bridge connected, fetching servers...');
@@ -932,20 +996,82 @@ function App(): React.JSX.Element {
 
       let nextTransport: Transport | null = null;
 
+      const openBridgeRepairFlow = async (
+        bridgeRecord: BridgeConnectionRecord,
+        reasonCode: 'invalid_pairing_token' | 'server_not_found' | 'server_mismatch' | null,
+      ) => {
+        const bridge = createBridgeTransport({
+          bridgeUrl: bridgeRecord.bridgeUrl,
+          debug: true,
+        });
+        await bridge.connect();
+        const servers = await bridge.listServers();
+        const preferredServer =
+          servers.find((server) => server.server_id === bridgeRecord.serverId) ?? null;
+
+        setTransport(null);
+        setBackend(null);
+        setSelectedConnectionId(null);
+        setBridgeUrl(bridgeRecord.bridgeUrl);
+        setBridgeServers(servers);
+        setConnectingBridgeTransport(bridge);
+        setPairingCode('');
+        setShowConnectionWizard(true);
+        setConnectionMethod('bridge');
+
+        if (preferredServer) {
+          await bridge.requestPairing(preferredServer.server_id);
+          setSelectedBridgeServer(preferredServer);
+          Alert.alert(
+            'Bridge Re-pair Required',
+            reasonCode === 'server_not_found'
+              ? 'The saved bridge server is reachable again, but the previous session could not be resumed. Enter a fresh pairing code to continue.'
+              : 'The saved bridge pairing could not be resumed. Enter a fresh pairing code to continue.',
+          );
+          return;
+        }
+
+        setSelectedBridgeServer(null);
+        Alert.alert(
+          'Bridge Reconnect Needed',
+          'The saved bridge session could not be resumed. Select an available server and pair again.',
+        );
+      };
+
       if (record.kind === 'manual' || record.kind === 'discovery') {
         const baseUrl = `http://${record.host}:${record.port}`;
-        const httpTransport = new FetchTransport({ baseUrl });
+        const httpTransport = createHttpTransport(baseUrl);
         await httpTransport.request({ method: 'GET', path: '/api/data' });
         nextTransport = httpTransport;
       } else if (record.kind === 'bridge') {
-        const bridge = new BridgeTransport({
+        if (!record.pairingToken) {
+          await openBridgeRepairFlow(record, null);
+          return;
+        }
+
+        const bridge = createBridgeTransport({
           bridgeUrl: record.bridgeUrl,
           serverId: record.serverId,
           pairingToken: record.pairingToken,
           debug: true,
-          timeoutMsByPathPrefix: [{ pathPrefix: '/events', timeoutMs: 10_000 }],
         });
-        await bridge.connect();
+        try {
+          await bridge.connect();
+        } catch (error) {
+          const reasonCode = getBridgeReconnectErrorCode(error);
+          if (reasonCode) {
+            if (reasonCode === 'invalid_pairing_token' || reasonCode === 'server_mismatch') {
+              upsertConnection({
+                ...record,
+                pairingToken: null,
+                lastUsedAt: Date.now(),
+              });
+            }
+            await openBridgeRepairFlow(record, reasonCode);
+            return;
+          }
+          throw error;
+        }
         nextTransport = bridge;
       }
 

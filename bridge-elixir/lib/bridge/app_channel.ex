@@ -49,6 +49,7 @@ defmodule Bridge.AppChannel do
     after
       http_timeout_ms() ->
         Phoenix.PubSub.unsubscribe(Bridge.PubSub, "tunnel:request:#{request_id}")
+        Logger.warning("bridge app request timed out while awaiting response request_id=#{request_id}")
         {:reply, {:error, %{reason: "timeout"}}, socket}
     end
   end

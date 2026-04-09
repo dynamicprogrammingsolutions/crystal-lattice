@@ -732,6 +732,13 @@ def get_api_hello() -> Dict[str, Any]:
 
 if _TEST_CONTROL_ENABLED:
 
+    @app.get("/__test/sleep")
+    def _test_sleep(ms: int = 0) -> Dict[str, Any]:
+        delay_ms = max(0, min(ms, 5000))
+        if delay_ms:
+            time.sleep(delay_ms / 1000.0)
+        return {"slept_ms": delay_ms}
+
     @app.get("/__test/events/status")
     def _test_events_status() -> Dict[str, Any]:
         with _test_events_lock:

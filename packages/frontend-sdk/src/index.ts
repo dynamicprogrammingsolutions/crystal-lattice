@@ -64,6 +64,8 @@ export { isAttachmentDraftBlocking, attachmentDraftStatusLabel } from './attachm
 export type {
   Transport,
   HttpMethod,
+  PathPrefixTimeoutRule,
+  TransportTimeoutRule,
 } from './transport/transport';
 
 export type { KeyValueStore } from './storage/keyValueStore';

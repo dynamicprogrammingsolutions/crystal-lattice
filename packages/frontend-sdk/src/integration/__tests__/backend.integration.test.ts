@@ -320,4 +320,17 @@ describeIf('backend integration (real FastAPI server + plugins + SDK)', () => {
     expect(last.content).toBe('');
     expect((last as any).multipartContent).toEqual(multipart);
   }, 30000);
+
+  it('G: FetchTransport times out cleanly against a delayed backend response', async () => {
+    await ensureServer();
+
+    const transport = new FetchTransport({
+      baseUrl,
+      defaultRequestTimeoutMs: 20,
+    });
+
+    await expect(
+      transport.request({ method: 'GET', path: '/__test/sleep?ms=200' }),
+    ).rejects.toThrow(/timeout/i);
+  }, 30000);
 });

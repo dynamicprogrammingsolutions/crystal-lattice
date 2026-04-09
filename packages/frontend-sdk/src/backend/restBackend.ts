@@ -17,6 +17,8 @@ import type {
 import { generateIdempotencyKey } from '../utils/idempotency';
 import { emitSessionUiSchemaInvalidated } from '../uiSchema/sessionUiSchemaInvalidation';
 
+const HEAVY_REQUEST_TIMEOUT_MS = 120_000;
+
 function buildQuery(params: Record<string, string | number | undefined>): string {
   const parts: string[] = [];
   for (const [key, value] of Object.entries(params)) {
@@ -181,6 +183,7 @@ export class RestAgentBackend implements AgentBackend {
       path,
       headers: this.buildIdempotencyHeaders(options.idempotencyKey),
       body: payload,
+      timeoutMs: HEAVY_REQUEST_TIMEOUT_MS,
     });
   }
 
@@ -219,6 +222,7 @@ export class RestAgentBackend implements AgentBackend {
       path,
       headers: this.buildIdempotencyHeaders(params.idempotencyKey),
       body: payload,
+      timeoutMs: HEAVY_REQUEST_TIMEOUT_MS,
     });
     return resp.data as any;
   }
@@ -483,6 +487,7 @@ export class RestAgentBackend implements AgentBackend {
       path: '/actions',
       headers: this.buildIdempotencyHeaders(params.idempotencyKey),
       body: payload,
+      timeoutMs: HEAVY_REQUEST_TIMEOUT_MS,
     });
     return resp.data;
   }
