@@ -23,6 +23,7 @@ Current public tools in this package:
 - `replace`
 - `run_shell_command`
 - `web_fetch`
+- `google_web_search`
 
 Write/edit surface summary:
 
@@ -39,6 +40,7 @@ The plugin repo exposes these classes through `agent_plugin.json`:
 - `gemini_tools.gemini_replace_tool.GeminiReplaceTool`
 - `gemini_tools.gemini_shell_tool.GeminiShellTool`
 - `gemini_tools.gemini_web_fetch_tool.GeminiWebFetchTool`
+- `gemini_tools.gemini_web_search_tool.GeminiWebSearchTool`
 
 ## Quickstart
 
@@ -442,6 +444,105 @@ Error: Failed to fetch https://example.com: HTTP 404
 - Private IP URLs always use fallback (local fetch)
 - Direct mode does not use Gemini API for URL processing
 
+## Web Search behavior notes
+
+The Gemini-compatible web search entrypoint is `google_web_search`.
+
+### Parameters
+
+- `query` (required): The search query to find information on the web.
+
+### Behavior
+
+1. **Primary backend (`gemini_api`)**: Uses the Gemini API's server-side Google Search grounding via `GeminiApiProvider`.
+   - Returns content with inline citation markers `[N]` inserted at **UTF-8 byte offsets** (matching Gemini CLI's `TextEncoder`/`TextDecoder` approach).
+   - Appends a `Sources:` footer with `[N] Title (url)` entries.
+   - Requires a Gemini API key (`gemini_api_key` config or `GEMINI_API_KEY` environment variable).
+
+2. **Alternative backend (`tavily`)**: Uses the Tavily search API via `TavilyProvider`.
+   - Returns results in the same Gemini-style wrapper (`Web search results for "query":\n\n...`).
+   - Includes a `Sources:` footer built from result URLs.
+   - No inline citation markers (only the Gemini API provides grounding metadata).
+   - If Tavily returns an AI-generated answer, it is included before the result list.
+   - Requires a Tavily API key (`tavily_api_key` config or `TAVILY_API_KEY` environment variable).
+
+3. **Disabled by default**: The tool is not enabled unless `web_search_enabled` is set to `true`. If enabled without any configured provider, the tool returns an error.
+
+### UTF-8 byte-offset citations
+
+The Gemini API's `groundingSupports` use **UTF-8 byte offsets** for `startIndex` and `endIndex`, not character offsets. This matters for multi-byte text (e.g., 日本語, emoji 🎉). The tool encodes the response text to UTF-8 bytes, inserts citation markers at the byte positions, then decodes back — matching the Gemini CLI's `web-search.ts` implementation exactly.
+
+### Configuration
+
+All configuration keys are flat with `web_search_` prefix:
+
+| Key | Type | Default | UI | Description |
+|-----|------|---------|----|-------------|
+| `web_search_enabled` | boolean | false | Yes | Enable the google_web_search tool |
+| `web_search_provider` | string | "gemini_api" | Yes* | Search backend: `"gemini_api"` or `"tavily"` |
+| `tavily_api_key` | string | null | No | Tavily API key (for tavily backend) |
+
+\* Only visible when more than one provider is available.
+
+Additional configuration:
+- `gemini_api_key`: Gemini API key (or `GEMINI_API_KEY` environment variable). Required for `gemini_api` backend.
+
+### Representative call shape
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "google_web_search",
+    "arguments": {
+      "query": "Python programming language history"
+    }
+  }
+}
+```
+
+### Representative outcomes
+
+Gemini API backend (with citations):
+```text
+Web search results for "Python programming language history":
+
+Python was created by Guido van Rossum[1] and first released in 1991[2].
+
+Sources:
+[1] Python (https://en.wikipedia.org/wiki/Python_(programming_language))
+[2] Python History (https://python.org/about/history)
+```
+
+Tavily backend (without inline citations):
+```text
+Web search results for "Python programming language history":
+
+Python is a high-level programming language.
+1. Python (programming language)
+   Python is a high-level, general-purpose programming language.
+
+Sources:
+[1] Python (https://en.wikipedia.org/wiki/Python_(programming_language))
+```
+
+No results:
+```text
+No search results or information found for query: "obscure non-existent topic xyz"
+```
+
+Error:
+```text
+Error during web search for query "test": [Gemini API] API request failed: ...
+```
+
+### Known Limitations
+
+- Disabled by default; must be explicitly enabled
+- Requires at least one API key (Gemini or Tavily) to function
+- Only the `gemini_api` backend provides inline citation markers
+- No browser rendering or JavaScript execution for search results
+
 ## Compatibility contract
 
 Parity for this package means:
@@ -495,6 +596,24 @@ Shared package-level config keys used by the current Gemini tools:
   `working_directory` and restrict access to `allowed_paths` plus
   `project_temp_dir`.
 
+Web search config keys:
+
+- `web_search_enabled`
+  Default: `false`.
+  Must be set to `true` to enable the `google_web_search` tool.
+- `web_search_provider`
+  Default: `"gemini_api"`.
+  Search backend: `"gemini_api"` (requires `gemini_api_key`) or `"tavily"`
+  (requires `tavily_api_key`).
+- `tavily_api_key`
+  Default: none.
+  Tavily API key. Also read from `TAVILY_API_KEY` environment variable.
+- `gemini_api_key`
+  Default: none.
+  Gemini API key. Also read from `GEMINI_API_KEY` environment variable.
+  Required for the `gemini_api` web search backend and the primary
+  `web_fetch` path.
+
 Write/edit safety notes:
 
 - `write_file` and `replace` both allow relative `file_path` values, resolved from `working_directory`.
@@ -518,7 +637,7 @@ In scope for this package:
 - Gemini-style tool names and OpenAI chat-completions function schemas
 - Gemini-style path handling, validation, and major success/error wording
 - Gemini-style model-visible behavior for file reads, listing, globbing,
-  grep-style search, full-file writes, and literal replacements
+  grep-style search, full-file writes, literal replacements, and web search
 
 Intentionally out of scope for this tool-plugin package:
 

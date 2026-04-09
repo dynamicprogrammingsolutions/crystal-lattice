@@ -590,4 +590,46 @@ class GeminiWebSearchTool(ToolPlugin):
 3. Updated `plugins/gemini-tools/agent_plugin.json`
 4. Tests in `plugins/gemini-tools/tests/test_gemini_web_search_tool.py`
 
-## Status: TODO
+## Status: DONE
+
+## Completion Notes
+
+### Files created/modified
+
+1. **Created**: `plugins/gemini-tools/src/gemini_tools/gemini_web_search_tool.py`
+   - `format_gemini_citations_utf8()` — UTF-8 byte-offset citation insertion matching Gemini CLI's `TextEncoder`/`TextDecoder` approach
+   - `GeminiWebSearchTool` class — `google_web_search` tool with configurable backend
+   - Primary backend: `GeminiApiProvider` from `tool-compat-shared` (with UTF-8 citations)
+   - Alternative backend: `TavilyProvider` from `tool-compat-shared` (Gemini-style wrapper, no inline citations)
+   - Disabled by default (`web_search_enabled: False`)
+   - Config keys: `web_search_enabled`, `web_search_provider`, `tavily_api_key`
+   - Async execution handled via `asyncio.run()` with `ThreadPoolExecutor` fallback for nested async contexts
+
+2. **Updated**: `plugins/gemini-tools/src/gemini_tools/__init__.py`
+   - Added `GeminiWebSearchTool` import and `__all__` entry
+
+3. **Updated**: `plugins/gemini-tools/agent_plugin.json`
+   - Added `gemini_tools.gemini_web_search_tool.GeminiWebSearchTool` entry and kind
+
+4. **Updated**: `plugins/gemini-tools/tests/test_gemini_read_file_tool.py`
+   - Added `GeminiWebSearchTool` to expected plugin class list
+
+5. **Updated**: `plugins/gemini-tools/tests/test_gemini_search_tools.py`
+   - Added `GeminiWebSearchTool` to expected plugin class list
+
+6. **Created**: `plugins/gemini-tools/tests/test_gemini_web_search_tool.py`
+   - 41 tests across 9 test classes: Schema, CitationFormatting, ResultFormat, ProviderSelection, Conditional, ConfigSchema, FormatToolResult, Validation, FormatSharedResults
+
+### Key design decisions vs task file's proposed code
+
+1. **Uses `GeminiApiProvider` from shared** instead of inline Gemini API calls — task 121 already built this provider
+2. **No `GoogleProvider`** — removed in task 121 (Google Custom Search API deprecated 2027)
+3. **`format_gemini_citations_utf8` in vendor plugin** — not in shared package, per Engine vs Shape principle from task 121
+4. **UTF-8 byte offsets** — the critical difference from existing `format_gemini_citations` in `web-fetch-shared` (which uses character offsets). The Gemini CLI's `web-search.ts` uses `TextEncoder`/`TextDecoder` for byte positions; our Python equivalent encodes to bytes, inserts markers at byte positions, then decodes back
+5. **Async context handling** — uses `ThreadPoolExecutor` fallback when already in an async loop, matching `GeminiShellTool` pattern
+
+### Test results
+
+- **41/41** new tests pass
+- **131/131** total non-integration gemini-tools tests pass (including updated plugin manager tests)
+- Pre-existing shell tool failures unrelated to this change (TypeError in `execute_tool_async` signature)

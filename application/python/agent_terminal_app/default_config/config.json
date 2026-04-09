@@ -184,6 +184,10 @@
         "path:${env:BUILTIN_PLUGINS}/gemini-tools"
       ],
       "disabled_plugins": ["apply_patch"],
+      "gemini_api_key": "${env:GEMINI_API_KEY}",
+      "tavily_api_key": "${env:TAVILY_API_KEY}",
+      "web_search_enabled": true,
+      "web_search_provider": "gemini_api",
       "system_message": {
         "template": "{{PREAMBLE}}\n\n{{CORE_MANDATES}}\n\n{{WORKFLOW_SECTION}}\n\n{{OPERATIONAL_GUIDELINES}}\n\n{{GIT_SECTION}}\n\n{{CONTEXT_FILES_SECTION}}\n\n{{TASKS}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",

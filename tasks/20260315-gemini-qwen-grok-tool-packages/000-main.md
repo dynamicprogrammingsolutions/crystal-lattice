@@ -180,7 +180,7 @@ Key observations:
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/115-kimi-fetch-url.md`
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/120-web-search-tools.md` — Web search tools (SPLIT)
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/121-web-search-shared.md` — Shared search infrastructure
-  - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/122-gemini-web-search.md` — Gemini google_web_search tool
+  - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/122-gemini-web-search.md` — Gemini google_web_search tool
   - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/123-qwen-web-search.md` — Qwen web_search tool
   - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/124-kimi-web-search.md` — Kimi SearchWeb tool
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/130-todo-tools.md` — Todo tools (all four vendors)
