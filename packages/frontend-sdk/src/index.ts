@@ -57,6 +57,7 @@ export {
 export { selectDisplayContent, selectSingleLineContent } from './utils/messages';
 
 export { parseOptionalInt, parseIndexRangeText } from './utils/range';
+export { generateIdempotencyKey } from './utils/idempotency';
 export { selectAttachmentPreviewUrl } from './attachments/preview';
 export type { AttachmentDraftStatus } from './attachments/draftStatus';
 export { isAttachmentDraftBlocking, attachmentDraftStatusLabel } from './attachments/draftStatus';

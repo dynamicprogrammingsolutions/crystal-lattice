@@ -34,6 +34,7 @@ import {
   selectSessionAssetId,
   selectLastAssistantMessage,
   storeSessionAttachment,
+  generateIdempotencyKey,
   type AttachmentDraftStatus,
 } from '@crystal-lattice/frontend-sdk';
 import {
@@ -61,10 +62,16 @@ import {
 import MessageBubble from './components/MessageBubble';
 import { DependencyFlatList } from './components/DependencyFlatList';
 import DebugEventsView from './components/DebugEventsView';
+import {
+  describePendingRequestRecovery,
+  shouldClearPendingRequestRecovery,
+  type PendingRequestRecovery,
+} from './chatRecovery';
 import OptionsPickerModal from './components/OptionsPickerModal';
 import SessionSettingsModal from './components/SessionSettingsModal';
 import SessionPluginsModal from './components/SessionPluginsModal';
 import AgentSwitchModal from './components/AgentSwitchModal';
+import type { DebugTimelineEntry } from './debugTimeline';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 import { selectDisplayContent } from './messageUtils';
 import { pickAssetAsDataUrl } from './attachmentPicking';
@@ -109,6 +116,14 @@ interface SessionChatScreenProps {
   initialScrollAnchor: ChatScrollAnchor | null;
   onSaveComposeText: (composeText: string) => void;
   onSaveScrollAnchor: (scrollAnchor: ChatScrollAnchor) => void;
+  resumeEpoch: number;
+  debugTimeline: DebugTimelineEntry[];
+  onAppendDebugTimelineEntry: (
+    entry: Omit<DebugTimelineEntry, 'id' | 'timestampMs'> & {
+      detail?: string | null;
+      meta?: Record<string, any> | null;
+    },
+  ) => void;
 }
 
 const STORAGE_KEY_SESSION_ACTIONS = 'clc_pinned_session_actions_v1';
@@ -178,6 +193,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   initialScrollAnchor,
   onSaveComposeText,
   onSaveScrollAnchor,
+  resumeEpoch,
+  debugTimeline,
+  onAppendDebugTimelineEntry,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -275,6 +293,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [editingText, setEditingText] = useState('');
   const [debugVisible, setDebugVisible] = useState(false);
   const [debugEvents, setDebugEvents] = useState<Event[]>([]);
+  const [pendingRequestRecovery, setPendingRequestRecovery] =
+    useState<PendingRequestRecovery | null>(null);
+  const [resumeRecoveryInProgress, setResumeRecoveryInProgress] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [pluginsVisible, setPluginsVisible] = useState(false);
   const [sessionOverrides, setSessionOverrides] = useState<Record<string, any>>({});
@@ -298,6 +319,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     isChatScrollAnchor(initialScrollAnchor) ? initialScrollAnchor : null,
   );
   const hasRestoredScrollRef = useRef(false);
+  const lastResumeEpochRef = useRef(resumeEpoch);
+  const lastEventsStatusRef = useRef<string | null>(null);
   const lastCacheSnapshotRef = useRef<{
     messagesRef: IndexedMessage[] | null;
     activeRequestId: string | null;
@@ -335,6 +358,23 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       : null;
   }, [initialScrollAnchor]);
 
+  const appendDebugNote = useCallback(
+    (
+      title: string,
+      detail?: string | null,
+      meta?: Record<string, any> | null,
+      scope: DebugTimelineEntry['scope'] = 'chat',
+    ) => {
+      onAppendDebugTimelineEntry({
+        scope,
+        title,
+        detail: detail ?? null,
+        meta: meta ?? null,
+      });
+    },
+    [onAppendDebugTimelineEntry],
+  );
+
   const appendEventsToDebugBuffer = useCallback((events: Event[]) => {
     if (!events || events.length === 0) return;
     setDebugEvents((prev) => {
@@ -371,6 +411,31 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const activeError = chatState?.requestError ?? null;
   const loadingMessages = chatState?.loading ?? false;
   const sessionDirty = chatState?.dirty ?? false;
+  const eventsStatus = chatState?.eventsStatus ?? 'idle';
+
+  useEffect(() => {
+    if (
+      shouldClearPendingRequestRecovery({
+        pending: pendingRequestRecovery,
+        activeRequestId,
+      })
+    ) {
+      setPendingRequestRecovery(null);
+      appendDebugNote('Pending request reconciled', activeRequestId, {
+        reason: 'active_request_known',
+      });
+    }
+  }, [activeRequestId, appendDebugNote, pendingRequestRecovery]);
+
+  useEffect(() => {
+    if (lastEventsStatusRef.current === eventsStatus) {
+      return;
+    }
+    lastEventsStatusRef.current = eventsStatus;
+    appendDebugNote('Polling status changed', eventsStatus, {
+      sessionId,
+    });
+  }, [appendDebugNote, eventsStatus, sessionId]);
 
   const hydrateChatCache = useCallback(
     (
@@ -751,30 +816,113 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     loadMessages();
   };
 
-  const loadMessages = useCallback(async () => {
-    if (!chatController) {
-      const message = 'No active connection';
-      Alert.alert('Error', message);
+  const syncCacheFromController = useCallback(
+    (controller: NonNullable<typeof chatController>) => {
+      const snapshot = controller.getCacheSnapshot();
+      setLastReloadAt(new Date(snapshot.updatedAtMs ?? Date.now()));
+      onUpdateCache(
+        snapshot.messages,
+        snapshot.eventsCursorId ?? null,
+        snapshot.activeRequestId ?? null,
+      );
+      return snapshot;
+    },
+    [onUpdateCache],
+  );
+
+  const loadMessages = useCallback(
+    async (options: { silent?: boolean; reason?: string } = {}) => {
+      if (!chatController) {
+        const message = 'No active connection';
+        if (!options.silent) {
+          Alert.alert('Error', message);
+        }
+        return null;
+      }
+      appendDebugNote('Reload started', options.reason ?? 'manual_reload', {
+        rangeStartText,
+        rangeEndText,
+      });
+      try {
+        await chatController.loadMessagesFromRangeText({
+          startText: rangeStartText,
+          endText: rangeEndText,
+        });
+        const snapshot = syncCacheFromController(chatController);
+        appendDebugNote('Reload succeeded', options.reason ?? 'manual_reload', {
+          activeRequestId: snapshot.activeRequestId,
+          eventsCursorId: snapshot.eventsCursorId,
+        });
+        return snapshot;
+      } catch (err: any) {
+        console.log('Failed to load messages', err);
+        const message = err?.message || 'Failed to load messages';
+        appendDebugNote('Reload failed', message, {
+          reason: options.reason ?? 'manual_reload',
+        });
+        if (!options.silent) {
+          Alert.alert('Error', message);
+        }
+        return null;
+      }
+    },
+    [appendDebugNote, chatController, rangeEndText, rangeStartText, syncCacheFromController],
+  );
+
+  const recoverChatAfterResume = useCallback(
+    async (reason: string) => {
+      if (!chatController || !backend || !isActive) {
+        return null;
+      }
+
+      setResumeRecoveryInProgress(true);
+      appendDebugNote('Resume recovery started', reason, {
+        sessionId,
+        activeRequestId,
+      });
+      try {
+        await chatController.recoverAfterResume();
+        const snapshot = syncCacheFromController(chatController);
+        appendDebugNote('Resume recovery succeeded', reason, {
+          activeRequestId: snapshot.activeRequestId,
+          eventsCursorId: snapshot.eventsCursorId,
+        });
+        if (snapshot.activeRequestId) {
+          setPendingRequestRecovery(null);
+        }
+        return snapshot;
+      } catch (err: any) {
+        console.log('Failed to recover chat after resume', err);
+        appendDebugNote('Resume recovery failed', err?.message || 'resume_recovery_failed', {
+          reason,
+          sessionId,
+        });
+        return null;
+      } finally {
+        setResumeRecoveryInProgress(false);
+      }
+    },
+    [
+      activeRequestId,
+      appendDebugNote,
+      backend,
+      chatController,
+      isActive,
+      sessionId,
+      syncCacheFromController,
+    ],
+  );
+
+  useEffect(() => {
+    if (lastResumeEpochRef.current === resumeEpoch) {
       return;
     }
-    try {
-	  await chatController.loadMessagesFromRangeText({
-	    startText: rangeStartText,
-	    endText: rangeEndText,
-	  });
-	  const snapshot = chatController.getCacheSnapshot();
-	  setLastReloadAt(new Date(snapshot.updatedAtMs ?? Date.now()));
-	  onUpdateCache(
-	    snapshot.messages,
-	    snapshot.eventsCursorId ?? null,
-	    snapshot.activeRequestId ?? null,
-	  );
-    } catch (err: any) {
-      console.log('Failed to load messages', err);
-      const message = err?.message || 'Failed to load messages';
-      Alert.alert('Error', message);
+    lastResumeEpochRef.current = resumeEpoch;
+    if (!isAppActive || !isActive) {
+      return;
     }
-  }, [chatController, rangeStartText, rangeEndText, onUpdateCache]);
+    void recoverChatAfterResume('app_foreground');
+  }, [isActive, isAppActive, recoverChatAfterResume, resumeEpoch]);
 
   const {
     activeElement: activePluginDialogElement,
@@ -1464,7 +1612,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       Alert.alert('No connection', 'Connect to a server to append messages.');
       return;
     }
-    if (sendInProgress || activeRequestId || attachmentActionInProgress || unresolvedAttachmentDraft) {
+    if (
+      sendInProgress ||
+      activeRequestId ||
+      pendingRequestRecovery ||
+      attachmentActionInProgress ||
+      unresolvedAttachmentDraft
+    ) {
       return;
     }
 
@@ -1503,7 +1657,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       Alert.alert('No connection', 'Connect to a server to append messages.');
       return;
     }
-    if (sendInProgress || activeRequestId || attachmentActionInProgress || unresolvedAttachmentDraft) {
+    if (
+      sendInProgress ||
+      activeRequestId ||
+      pendingRequestRecovery ||
+      attachmentActionInProgress ||
+      unresolvedAttachmentDraft
+    ) {
       return;
     }
 
@@ -1532,6 +1692,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     chatController,
     clearComposerDraft,
     composeText,
+    pendingRequestRecovery,
     sendInProgress,
     unresolvedAttachmentDraft,
   ]);
@@ -1563,13 +1724,25 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       Alert.alert('Request in progress', 'Wait for the active request to finish before sending.');
       return;
     }
+    if (pendingRequestRecovery) {
+      Alert.alert(
+        'Send status unclear',
+        'Check status or retry the previous send before sending a new message.',
+      );
+      return;
+    }
     setSendInProgress(true);
     if (!chatController) {
       Alert.alert('No connection', 'Connect to a server to send messages.');
       setSendInProgress(false);
       return;
     }
+    const idempotencyKey = generateIdempotencyKey();
     try {
+      appendDebugNote('Send started', text || 'multipart_message', {
+        multipartCount: multipartContent.length,
+        idempotencyKey,
+      });
       chatController.clearRequestState();
       await chatController.sendMessage({
         message: {
@@ -1577,11 +1750,31 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           content: text,
           multipartContent,
         },
+        idempotencyKey,
       });
+      setPendingRequestRecovery(null);
       clearComposerDraft();
+      appendDebugNote('Send acknowledged', text || 'multipart_message', {
+        idempotencyKey,
+      });
     } catch (err: any) {
       console.log('Failed to send request', err);
       const message = err?.message || 'Failed to send request';
+      setPendingRequestRecovery({
+        kind: 'send_message',
+        idempotencyKey,
+        requestedAtMs: Date.now(),
+        errorMessage: message,
+        message: {
+          role: 'user',
+          content: text,
+          multipartContent,
+        },
+      });
+      appendDebugNote('Send ack failed', message, {
+        idempotencyKey,
+        multipartCount: multipartContent.length,
+      });
       Alert.alert('Error', message);
     } finally {
       setSendInProgress(false);
@@ -1589,18 +1782,42 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   };
 
   const handleResend = async () => {
+    if (pendingRequestRecovery) {
+      Alert.alert(
+        'Send status unclear',
+        'Check status or retry the previous send before starting another resend.',
+      );
+      return;
+    }
     setSendInProgress(true);
     if (!chatController) {
       Alert.alert('No connection', 'Connect to a server to resend.');
       setSendInProgress(false);
       return;
     }
+    const idempotencyKey = generateIdempotencyKey();
     try {
+      appendDebugNote('Resend started', null, {
+        idempotencyKey,
+      });
       chatController.clearRequestState();
-      await chatController.send();
+      await chatController.send({ idempotencyKey });
+      setPendingRequestRecovery(null);
+      appendDebugNote('Resend acknowledged', null, {
+        idempotencyKey,
+      });
     } catch (err: any) {
       console.log('Failed to resend request', err);
       const message = err?.message || 'Failed to resend request';
+      setPendingRequestRecovery({
+        kind: 'send',
+        idempotencyKey,
+        requestedAtMs: Date.now(),
+        errorMessage: message,
+      });
+      appendDebugNote('Resend ack failed', message, {
+        idempotencyKey,
+      });
       Alert.alert('Error', message);
     } finally {
       setSendInProgress(false);
@@ -1618,12 +1835,95 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
     try {
       await chatController.cancelActiveRequest();
-      // We rely on subsequent events (request_cancelled / request_completed)
-      // to clear activeRequestId and update any streaming state.
+      appendDebugNote('Cancel requested', activeRequestId, {
+        sessionId,
+      });
+      void recoverChatAfterResume('cancel_request');
     } catch (err: any) {
       console.log('Failed to cancel request', err);
       const message = err?.message || 'Failed to cancel request';
+      appendDebugNote('Cancel failed', message, {
+        activeRequestId,
+      });
       Alert.alert('Error', message);
+    }
+  };
+
+  const handleCheckPendingRequestStatus = async () => {
+    if (!pendingRequestRecovery) {
+      return;
+    }
+    appendDebugNote(
+      'Pending request status check started',
+      describePendingRequestRecovery(pendingRequestRecovery),
+      {
+        idempotencyKey: pendingRequestRecovery.idempotencyKey,
+      },
+    );
+    const snapshot = await recoverChatAfterResume('pending_status_check');
+    if (snapshot?.activeRequestId) {
+      setPendingRequestRecovery(null);
+      return;
+    }
+    appendDebugNote(
+      'Pending request still unresolved',
+      pendingRequestRecovery.errorMessage,
+      {
+        idempotencyKey: pendingRequestRecovery.idempotencyKey,
+      },
+    );
+  };
+
+  const handleRetryPendingRequest = async () => {
+    if (!pendingRequestRecovery || !chatController) {
+      return;
+    }
+
+    setSendInProgress(true);
+    appendDebugNote(
+      'Pending request retry started',
+      describePendingRequestRecovery(pendingRequestRecovery),
+      {
+        idempotencyKey: pendingRequestRecovery.idempotencyKey,
+      },
+    );
+
+    try {
+      chatController.clearRequestState();
+      if (pendingRequestRecovery.kind === 'send_message') {
+        await chatController.sendMessage({
+          message: pendingRequestRecovery.message,
+          configOverrides: pendingRequestRecovery.configOverrides,
+          idempotencyKey: pendingRequestRecovery.idempotencyKey,
+        });
+      } else {
+        await chatController.send({
+          configOverrides: pendingRequestRecovery.configOverrides,
+          idempotencyKey: pendingRequestRecovery.idempotencyKey,
+        });
+      }
+      setPendingRequestRecovery(null);
+      appendDebugNote(
+        'Pending request retry acknowledged',
+        describePendingRequestRecovery(pendingRequestRecovery),
+        {
+          idempotencyKey: pendingRequestRecovery.idempotencyKey,
+        },
+      );
+    } catch (err: any) {
+      const message = err?.message || 'Retry failed';
+      console.log('Failed to retry pending request', err);
+      setPendingRequestRecovery({
+        ...pendingRequestRecovery,
+        requestedAtMs: Date.now(),
+        errorMessage: message,
+      });
+      appendDebugNote('Pending request retry failed', message, {
+        idempotencyKey: pendingRequestRecovery.idempotencyKey,
+      });
+      Alert.alert('Retry failed', message);
+    } finally {
+      setSendInProgress(false);
     }
   };
 
@@ -1647,7 +1947,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         handlePickAttachment(element).catch(() => {});
       }
     },
-    [composerAttachmentElementByActionKey, handleCancel, handlePickAttachment, handleResend],
+    [
+      composerAttachmentElementByActionKey,
+      handleCancel,
+      handlePickAttachment,
+      handleResend,
+    ],
   );
 
   const isComposerActionDisabled = useCallback(
@@ -1656,7 +1961,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         return true;
       }
       if (key === 'resend') {
-        return sendInProgress || !!activeRequestId || hasDraftMessage;
+        return sendInProgress || !!activeRequestId || !!pendingRequestRecovery || hasDraftMessage;
       }
       if (key === 'cancel') {
         return sendInProgress || !activeRequestId;
@@ -1665,6 +1970,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       if (composerAttachmentElementByActionKey[key]) {
         return (
           sendInProgress ||
+          !!pendingRequestRecovery ||
           !!activeRequestId ||
           attachmentPickInProgress ||
           attachmentActionInProgress
@@ -1680,6 +1986,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       backend,
       composerAttachmentElementByActionKey,
       hasDraftMessage,
+      pendingRequestRecovery,
       sendInProgress,
     ],
   );
@@ -2100,7 +2407,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
               onAction={handleSessionAction}
               isActionDisabled={(action) =>
                 pluginActionInProgress ||
-                (sendInProgress && action === 'reload')
+                ((sendInProgress || resumeRecoveryInProgress) && action === 'reload')
               }
               extraActions={pluginSessionActionDefs}
               isActive={isActive}
@@ -2117,14 +2424,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	            style={[styles.button, styles.secondaryButton, styles.smallButton]}
 	            onPress={async () => {
 	              chatController?.clearRequestState();
-	              await loadMessages();
+	              await loadMessages({ reason: 'dirty_banner_reload' });
 	            }}
-	            disabled={!chatController || sendInProgress || loadingMessages}
+	            disabled={!chatController || sendInProgress || loadingMessages || resumeRecoveryInProgress}
 	          >
 	            <Text
 	              style={[
 	                styles.buttonTextSecondary,
-	                (!chatController || sendInProgress || loadingMessages) &&
+	                (!chatController || sendInProgress || loadingMessages || resumeRecoveryInProgress) &&
 	                  styles.buttonTextDisabled,
 	              ]}
 	            >
@@ -2134,12 +2441,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        </View>
 	      )}
 
-	      {(loadingMessages || pluginActionInProgress || attachmentActionInProgress) && (
+	      {(loadingMessages || pluginActionInProgress || attachmentActionInProgress || resumeRecoveryInProgress) && (
 	        <View style={styles.loadingContainer}>
 	          <ActivityIndicator size="small" color={theme.primary} />
 	          <Text style={styles.loadingText}>
 	            {loadingMessages
 	              ? 'Loading messages...'
+	              : resumeRecoveryInProgress
+	                ? 'Revalidating chat after resume...'
 	              : pluginActionInProgress
 	                ? 'Running action...'
 	                : attachmentActionText}
@@ -2282,6 +2591,39 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         </View>
       )}
 
+      {pendingRequestRecovery && (
+        <View style={styles.pendingRecoveryContainer}>
+          <Text style={styles.pendingRecoveryTitle}>Send not yet confirmed</Text>
+          <Text style={styles.pendingRecoveryText}>
+            {pendingRequestRecovery.errorMessage}
+          </Text>
+          <Text style={styles.pendingRecoveryText}>
+            Retry reuses the original idempotency key, so it will not duplicate a request that the
+            server already accepted.
+          </Text>
+          <View style={styles.pendingRecoveryButtonsRow}>
+            <TouchableOpacity
+              style={[styles.button, styles.secondaryButton, styles.pendingRecoveryButton]}
+              onPress={() => {
+                handleCheckPendingRequestStatus().catch(() => {});
+              }}
+              disabled={sendInProgress || loadingMessages || resumeRecoveryInProgress}
+            >
+              <Text style={styles.buttonTextSecondary}>Check status</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.button, styles.primaryButton, styles.pendingRecoveryButton]}
+              onPress={() => {
+                handleRetryPendingRequest().catch(() => {});
+              }}
+              disabled={sendInProgress || loadingMessages || resumeRecoveryInProgress}
+            >
+              <Text style={styles.buttonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       <View style={styles.composer}>
         <View style={styles.composerMainColumn}>
           <View style={styles.composerTopRow}>
@@ -2308,6 +2650,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                     onPress={() => setComposerLeftSelectModalElement(el)}
                     disabled={
                       sendInProgress ||
+                      !!pendingRequestRecovery ||
                       !!activeRequestId ||
                       attachmentActionInProgress ||
                       options.length === 0
@@ -2352,7 +2695,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 setAttachmentsManageSide('above');
                 setAttachmentsManageVisible(true);
               }}
-              disabled={sendInProgress || !!activeRequestId || attachmentActionInProgress}
+              disabled={
+                sendInProgress ||
+                !!pendingRequestRecovery ||
+                !!activeRequestId ||
+                attachmentActionInProgress
+              }
             />
 
             <TextInput
@@ -2374,12 +2722,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
               const canAppend =
                 !!backend &&
                 !sendInProgress &&
+                !pendingRequestRecovery &&
                 !activeRequestId &&
                 !attachmentActionInProgress &&
                 hasDraftMessage;
               const canSend =
                 !!backend &&
                 !sendInProgress &&
+                !pendingRequestRecovery &&
                 !activeRequestId &&
                 !attachmentActionInProgress &&
                 hasDraftMessage;
@@ -2428,7 +2778,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 setAttachmentsManageSide('below');
                 setAttachmentsManageVisible(true);
               }}
-              disabled={sendInProgress || !!activeRequestId || attachmentActionInProgress}
+              disabled={
+                sendInProgress ||
+                !!pendingRequestRecovery ||
+                !!activeRequestId ||
+                attachmentActionInProgress
+              }
             />
           </View>
       </View>
@@ -2443,7 +2798,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
               : 'Attachments'
         }
         attachments={attachmentsManageRows}
-        disabled={sendInProgress || !!activeRequestId || attachmentActionInProgress}
+        disabled={
+          sendInProgress ||
+          !!pendingRequestRecovery ||
+          !!activeRequestId ||
+          attachmentActionInProgress
+        }
         onMove={(draftId, direction) => {
           if (!attachmentsManageSide) return;
           moveAttachmentWithinSide(attachmentsManageSide, draftId, direction);
@@ -2492,6 +2852,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                       onPress={() => pickImageForElement('library')}
                       disabled={
                         sendInProgress ||
+                        !!pendingRequestRecovery ||
                         !!activeRequestId ||
                         attachmentPickInProgress ||
                         attachmentActionInProgress
@@ -2504,6 +2865,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                       onPress={() => pickImageForElement('camera')}
                       disabled={
                         sendInProgress ||
+                        !!pendingRequestRecovery ||
                         !!activeRequestId ||
                         attachmentPickInProgress ||
                         attachmentActionInProgress
@@ -2785,7 +3147,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	      />
 	      {debugVisible && (
 	        <View style={styles.debugOverlay}>
-	          <DebugEventsView events={debugEvents} onClose={() => setDebugVisible(false)} />
+	          <DebugEventsView
+              events={debugEvents}
+              notes={debugTimeline}
+              onClose={() => setDebugVisible(false)}
+            />
 	        </View>
 	      )}
 	    </View>
@@ -2914,6 +3280,36 @@ const createStyles = (theme: Theme) =>
     errorText: {
       fontSize: 13,
       color: theme.text,
+    },
+    pendingRecoveryContainer: {
+      marginHorizontal: 4,
+      marginBottom: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 10,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.primary,
+      backgroundColor: theme.primaryMuted,
+    },
+    pendingRecoveryTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.text,
+      marginBottom: 4,
+    },
+    pendingRecoveryText: {
+      fontSize: 13,
+      color: theme.text,
+      marginBottom: 4,
+    },
+    pendingRecoveryButtonsRow: {
+      flexDirection: 'row',
+      marginTop: 6,
+      gap: 8,
+    },
+    pendingRecoveryButton: {
+      flex: 1,
+      alignItems: 'center',
     },
     composer: {
       borderTopWidth: 1,

@@ -211,6 +211,12 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     await this.reloadMessages({ start, end }, { bumpEpoch: false });
   }
 
+  async recoverAfterResume(): Promise<void> {
+    this.beginEpoch();
+    const range = this.getSnapshot().historyRange ?? this.lastLoadRange;
+    await this.reloadMessages(range, { bumpEpoch: false });
+  }
+
   async appendMessage(message: {
     role: 'user' | 'assistant' | 'system' | 'tool';
     content: string;
@@ -453,6 +459,7 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
         dirtyReason: null,
         updatedAtMs: Date.now(),
         activeRequestId,
+        requestError: null,
         streamingRow: null,
       });
 

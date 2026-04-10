@@ -4,11 +4,11 @@ Make the React Native app recover cleanly after lock/unlock or background/foregr
 
 ## Requirements checklist
 
-- [ ] Improve mobile foreground/background recovery for direct HTTP and bridge usage.
-- [ ] Make chat send state recoverable when a request fails or times out before `request_id` is returned.
-- [ ] Ensure cancel/reload/retry behavior remains usable after wake-from-lock scenarios.
-- [ ] Add mobile-focused observability for resume/reconnect/send-state transitions.
-- [ ] Add related integration tests in the same subtask for resume and stuck-chat-state scenarios.
+- [x] Improve mobile foreground/background recovery for direct HTTP and bridge usage.
+- [x] Make chat send state recoverable when a request fails or times out before `request_id` is returned.
+- [x] Ensure cancel/reload/retry behavior remains usable after wake-from-lock scenarios.
+- [x] Add mobile-focused observability for resume/reconnect/send-state transitions.
+- [x] Add related integration tests in the same subtask for resume and stuck-chat-state scenarios.
 
 Parent Task: `tasks/20260408-connection-recovery/000-main.md`
 
@@ -71,3 +71,47 @@ Depends On: `tasks/20260408-connection-recovery/010-transport-reliability-and-re
 - `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx:2403-2419`
 - `packages/frontend-sdk-react/src/useChatController.ts:70-100`
 - `packages/frontend-sdk/src/chat/streamingStateReducer.ts:46-137`
+
+## Execution plan
+
+Added during completion.
+
+1. Add explicit foreground recovery orchestration in the mobile root.
+   - Extract the current bridge repair flow in `mobile/crystal-lattice-control-rn/App.tsx`.
+   - Reconnect active bridge transports eagerly on foreground instead of waiting for a later request.
+   - Propagate a resume signal to active screens so direct HTTP and bridge sessions can both revalidate on wake.
+
+2. Add deliberate chat-controller recovery after resume.
+   - Extend the chat controller with a resume/revalidation path that reloads the active message window and reconciles `activeRequestId` from the server.
+   - Trigger that path from the chat screen after app foregrounding and after recovery-oriented reload actions.
+
+3. Make pre-`request_id` send failures recoverable.
+   - Keep explicit local state for a send that failed before ack.
+   - Preserve and reuse the original idempotency key for retry.
+   - Surface recovery actions in the chat UI so the user can check status or retry without duplicating accepted sends.
+
+4. Add mobile-focused observability.
+   - Record resume, reconnect, polling-restart, send, pre-ack failure, and recovery events in a lightweight mobile debug timeline.
+   - Expose that timeline alongside the existing event debug view.
+
+5. Add regression coverage.
+   - Add SDK-level tests for resume reconciliation and pre-ack send recovery behavior.
+   - Add mobile-side Jest coverage for the new recovery helper logic and debug timeline rendering where practical.
+
+## Completion Notes
+
+Added during completion.
+
+- Implemented root-level mobile foreground recovery in `mobile/crystal-lattice-control-rn/App.tsx`, including eager bridge reconnect attempts on foreground, bridge repair-flow reuse, resume epoch propagation to screens, and a shared mobile debug timeline.
+- Added `ChatController.recoverAfterResume()` in `packages/frontend-sdk/src/chat/chatController.ts` and used it from `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx` so wake-from-lock triggers an explicit message-window reload and `activeRequestId` reconciliation instead of relying only on polling restart.
+- Reworked the chat screen send lifecycle to preserve a pending pre-ack recovery state with the original idempotency key, expose `Check status` and `Retry` recovery actions, clear the spinner after ack failures, and record recovery transitions in the mobile debug timeline.
+- Extended the debug modal to render both mobile timeline notes and streamed backend events, using `mobile/crystal-lattice-control-rn/src/components/DebugEventsView.tsx` plus the new helper modules `mobile/crystal-lattice-control-rn/src/debugTimeline.ts` and `mobile/crystal-lattice-control-rn/src/chatRecovery.ts`.
+- Added regression coverage:
+  - `packages/frontend-sdk/src/integration/__tests__/backend.integration.test.ts` now covers `recoverAfterResume()` against the real FastAPI backend.
+  - `mobile/crystal-lattice-control-rn/__tests__/chatRecovery.test.ts` covers pending-send recovery helpers.
+  - `mobile/crystal-lattice-control-rn/__tests__/DebugEventsView.test.tsx` covers the combined debug timeline/event view.
+- Verification:
+  - `npm test` in `packages/frontend-sdk`: passed.
+  - `RUN_BACKEND_INTEGRATION=1 npx vitest run src/integration/__tests__/backend.integration.test.ts -t "H: recoverAfterResume reloads the active window and reconciles a stale request id"`: passed.
+  - `npm test -- --runInBand` in `mobile/crystal-lattice-control-rn`: passed.
+  - `npx tsc --noEmit --project tsconfig.json` in `mobile/crystal-lattice-control-rn` still reports pre-existing `SessionChatScreen.tsx` attachment-side type errors unrelated to this recovery work.

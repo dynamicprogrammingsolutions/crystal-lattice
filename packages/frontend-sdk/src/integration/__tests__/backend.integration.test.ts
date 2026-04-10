@@ -333,4 +333,32 @@ describeIf('backend integration (real FastAPI server + plugins + SDK)', () => {
       transport.request({ method: 'GET', path: '/__test/sleep?ms=200' }),
     ).rejects.toThrow(/timeout/i);
   }, 30000);
+
+  it('H: recoverAfterResume reloads the active window and reconciles a stale request id', async () => {
+    const { controller } = await bootstrapController({});
+
+    controller.clearRequestState();
+    await controller.sendMessage({
+      message: { role: 'user', content: 'resume me' },
+      configOverrides: {
+        stream_chunk_count: 6,
+        stream_chunk_delay_ms: 120,
+      },
+    });
+
+    const startedRequestId = controller.getSnapshot().activeRequestId;
+    expect(startedRequestId).toBeTruthy();
+
+    controller.stopEventStreaming();
+
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+
+    expect(controller.getSnapshot().activeRequestId).toBe(startedRequestId);
+
+    await controller.recoverAfterResume();
+
+    const snapshot = controller.getSnapshot();
+    expect(snapshot.activeRequestId).toBeNull();
+    expect(snapshot.messages.some((m) => m.message.role === 'assistant')).toBe(true);
+  }, 30000);
 });
