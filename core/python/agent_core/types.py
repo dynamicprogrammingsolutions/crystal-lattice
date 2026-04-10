@@ -328,8 +328,8 @@ class ProviderPlugin(BasePlugin, Protocol):
             native_messages: Provider-native messages for this request.
             state: Current shared provider state.
             context: Optional request context. The core provides keys such as
-                `config`, `request_id`, `tags`, `models`, `available_tools`,
-                and `tools` here.
+                `core`, `config`, `request_id`, `tags`, `models`,
+                `available_tools`, `tools`, and `tool_interop` here.
 
         Returns:
             Tuple of (provider-native messages for this request, updated shared state).
@@ -392,7 +392,11 @@ class ProviderPlugin(BasePlugin, Protocol):
     # Returns: (partial_messages, final_messages, native_messages, new_state)
 
     def finalize(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Perform final processing after streaming completes.
 
@@ -406,6 +410,7 @@ class ProviderPlugin(BasePlugin, Protocol):
         Args:
             native_messages: Full provider-native message history (all prior turns plus any for this turn).
             state: Current shared provider state.
+            context: Optional request context for this turn.
 
         Returns:
             Tuple of (final_messages, native_messages, new_state).
@@ -696,8 +701,8 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
             native_messages: Provider-native messages for this request.
             state: Current shared provider state.
             context: Optional request context. The core provides keys such as
-                `config`, `request_id`, `tags`, `models`, `available_tools`,
-                and `tools` here.
+                `core`, `config`, `request_id`, `tags`, `models`,
+                `available_tools`, `tools`, and `tool_interop` here.
 
         Returns:
             Tuple of (provider-native messages for this request, updated shared state).
@@ -769,6 +774,8 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Final cold-path processing after provider streaming/finalize.
 
@@ -776,6 +783,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
             final_messages: Provider-native final messages emitted this turn (deltas).
             native_messages: Full provider-native message history for this turn.
             state: Current shared provider state.
+            context: Optional request context for this turn.
 
         Returns:
             Tuple of (final_messages, native_messages, new_state), all provider-native.
@@ -1029,8 +1037,8 @@ class FeaturePlugin(BasePlugin, Protocol):
             native_messages: Provider-native messages for this request.
             state: Current shared provider state.
             context: Optional request context. The core provides keys such as
-                `config`, `request_id`, `tags`, `models`, `available_tools`,
-                and `tools` here.
+                `core`, `config`, `request_id`, `tags`, `models`,
+                `available_tools`, `tools`, and `tool_interop` here.
 
         Returns:
             Tuple of (provider-native messages for this request, updated shared state).
@@ -1069,6 +1077,8 @@ class FeaturePlugin(BasePlugin, Protocol):
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Final cold-path processing after provider and extensions complete.
 
@@ -1076,6 +1086,7 @@ class FeaturePlugin(BasePlugin, Protocol):
             final_messages: Provider-native final messages emitted this turn (deltas).
             native_messages: Full provider-native message history for this turn.
             state: Current shared provider state.
+            context: Optional request context for this turn.
 
         Returns:
             Tuple of (final_messages, native_messages, new_state), all provider-native.

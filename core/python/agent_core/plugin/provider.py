@@ -47,6 +47,7 @@ class ProviderWrapper(ProviderPlugin):
         self._extensions: List[ExtensionWrapper] = []
         self._active_extensions: Optional[List[ExtensionWrapper]] = None
         self._last_native_messages: List[Dict[str, Any]] = []
+        self._request_context: Optional[Dict[str, Any]] = None
         if extension_classes:
             for ext_cls in extension_classes:
                 self._extensions.append(ExtensionWrapper(ext_cls))
@@ -209,6 +210,7 @@ class ProviderWrapper(ProviderPlugin):
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
         working_state = state or self.state
+        self._request_context = context if isinstance(context, dict) else None
         # Start full native history at request boundary
         self._last_native_messages = list(native_messages)
         native_after_provider, new_state = self.plugin.initialize_request(
@@ -357,13 +359,13 @@ class ProviderWrapper(ProviderPlugin):
         full_history = self._merge_history(self._last_native_messages, native_returned)
 
         # Let extensions finalize non-streaming finals against the full history.
-        pipe = pipeline()
-        final_messages, full_history, new_state = pipe(
-            [ext.finalize for ext in self._iter_extensions()],
-            final_messages,
-            full_history,
-            new_state,
-        )
+        for ext in self._iter_extensions():
+            final_messages, full_history, new_state = ext.finalize(
+                final_messages,
+                full_history,
+                new_state,
+                context=self._request_context,
+            )
 
         self.state = new_state
         self._last_native_messages = full_history
@@ -504,7 +506,11 @@ class ProviderWrapper(ProviderPlugin):
         return core_partials, final_messages, full_history, self._get_state()
 
     def finalize(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Finalize provider turn and let extensions enhance outputs.
 
@@ -521,19 +527,22 @@ class ProviderWrapper(ProviderPlugin):
 
         # Use full history baseline
         baseline = self._last_native_messages or list(native_messages)
+        active_context = context if isinstance(context, dict) else self._request_context
         final_messages, native_returned, new_state = self.plugin.finalize(
-            baseline, working_state
+            baseline,
+            working_state,
+            context=active_context,
         )
 
         # Merge and allow extensions to modify full history
         full_history = self._merge_history(baseline, native_returned)
-        pipe = pipeline()
-        final_messages, full_history, new_state = pipe(
-            [ext.finalize for ext in self._iter_extensions()],
-            final_messages,
-            full_history,
-            new_state,
-        )
+        for ext in self._iter_extensions():
+            final_messages, full_history, new_state = ext.finalize(
+                final_messages,
+                full_history,
+                new_state,
+                context=active_context,
+            )
 
         self.state = new_state
         # track latest full history

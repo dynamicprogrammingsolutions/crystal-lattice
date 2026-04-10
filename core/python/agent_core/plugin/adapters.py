@@ -460,9 +460,14 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        finals, natives, new_state = self.impl.finalize(  # type: ignore[attr-defined]
-            native_messages, state
+        finals, natives, new_state = self._call_with_optional_kwargs(
+            self.impl.finalize,  # type: ignore[attr-defined]
+            native_messages,
+            state,
+            context=context,
         )
         return (
             [m for m in self._safe_list(finals) if isinstance(m, dict)],
@@ -682,12 +687,20 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         fn = getattr(self.impl, "finalize", None)
         if callable(fn):
             return cast(
                 Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]],
-                fn(final_messages, native_messages, state),
+                self._call_with_optional_kwargs(
+                    fn,
+                    final_messages,
+                    native_messages,
+                    state,
+                    context=context,
+                ),
             )
         return final_messages, native_messages, state
 
@@ -910,12 +923,20 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         fn = getattr(self.impl, "finalize", None)
         if callable(fn):
             return cast(
                 Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]],
-                fn(final_messages, native_messages, state),
+                self._call_with_optional_kwargs(
+                    fn,
+                    final_messages,
+                    native_messages,
+                    state,
+                    context=context,
+                ),
             )
         return final_messages, native_messages, state
 

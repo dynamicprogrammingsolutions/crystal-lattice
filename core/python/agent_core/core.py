@@ -1635,12 +1635,21 @@ class AgentCore:
     ) -> Dict[str, Any]:
         catalog = list(available_tools or [])
         effective = list(tools if tools is not None else catalog)
+        tool_interop_registry = self._get_tool_interop_registry_for_config(config)
+        tool_schema_target_formats = self._get_tool_schema_target_formats_for_config(
+            config
+        )
         return {
+            "core": self,
             "config": dict(config),
             "request_id": request_id,
             "tags": list(tags),
             "models": list(models),
             "provider": provider.name if provider is not None else None,
+            "tool_interop": {
+                "registry": tool_interop_registry,
+                "schema_target_formats": list(tool_schema_target_formats),
+            },
             "enabled_plugins": {
                 "providers": [provider.name] if provider is not None else [],
                 "extensions": [ext.name for ext in enabled_extensions],
@@ -1682,7 +1691,7 @@ class AgentCore:
             _provider,
             _extensions,
             _tool_states,
-            tool_interop_registry,
+            _tool_interop_registry,
             tool_schema_target_formats,
         ) = self._get_available_tools_for_config(tool_init_config)
         include_tools_key = (
@@ -1702,7 +1711,6 @@ class AgentCore:
         prepared_schemas = [descriptor.schema for descriptor in prepared_tools]
         provider_config = {
             **base_config,
-            "_tool_interop_registry": tool_interop_registry,
             **(
                 {"_tool_schema_target_formats": tool_schema_target_formats}
                 if tool_schema_target_formats
@@ -2057,6 +2065,18 @@ class AgentCore:
                 )
             )
             baseline_native_len = len(native_messages)
+            request_context = self._build_plugin_context(
+                config=state.get("config") or config,
+                provider=provider,
+                enabled_extensions=provider._iter_extensions(),
+                enabled_features=features,
+                enabled_tools=tools,
+                tags=_tags,
+                models=self._get_models_for_config(provider, config),
+                available_tools=self.get_available_tools(config),
+                tools=self._get_prepared_tools_for_config(config),
+                request_id=request_id,
+            )
 
             logger.debug(
                 "sending request",
@@ -2078,20 +2098,22 @@ class AgentCore:
 
         # Provider finalize returns provider-native finals and full native history
         final_native_2, native_messages, state = provider.finalize(
-            native_messages, state
+            native_messages,
+            state,
+            context=request_context,
         )
 
         # Combine provider-native finals from call_api and provider.finalize
         final_native = final_native_1 + final_native_2
 
         # Feature finalize chain over provider-native finals (native cold path)
-        pipe = pipeline()
-        final_native, native_messages, state = pipe(
-            [feature.finalize for feature in features],
-            final_native,
-            native_messages,
-            state,
-        )
+        for feature in features:
+            final_native, native_messages, state = feature.finalize(
+                final_native,
+                native_messages,
+                state,
+                context=request_context,
+            )
 
         # Convert provider-native finals to core messages once finalization completes
         final_core = provider.from_native_messages(final_native, state)
@@ -2217,6 +2239,18 @@ class AgentCore:
                 )
             )
             baseline_native_len = len(native_messages)
+            request_context = self._build_plugin_context(
+                config=state.get("config") or config,
+                provider=provider,
+                enabled_extensions=provider._iter_extensions(),
+                enabled_features=features,
+                enabled_tools=tools,
+                tags=_tags,
+                models=self._get_models_for_config(provider, config),
+                available_tools=self.get_available_tools(config),
+                tools=self._get_prepared_tools_for_config(config),
+                request_id=request_id,
+            )
 
             logger.debug(
                 "start streaming request",
@@ -2253,17 +2287,19 @@ class AgentCore:
 
         # Finalize using the last accumulated native messages
         final_native, native_messages, state = provider.finalize(
-            provider.get_last_native_messages(), provider.get_state()
+            provider.get_last_native_messages(),
+            provider.get_state(),
+            context=request_context,
         )
 
         # Feature finalize chain (native)
-        pipe = pipeline()
-        final_native, native_messages, state = pipe(
-            [feature.finalize for feature in features],
-            final_native,
-            native_messages,
-            state,
-        )
+        for feature in features:
+            final_native, native_messages, state = feature.finalize(
+                final_native,
+                native_messages,
+                state,
+                context=request_context,
+            )
 
         logger.debug("streaming complete", final_native=final_native)
 
@@ -2387,6 +2423,18 @@ class AgentCore:
                 )
             )
             baseline_native_len = len(native_messages)
+            request_context = self._build_plugin_context(
+                config=state.get("config") or config,
+                provider=provider,
+                enabled_extensions=provider._iter_extensions(),
+                enabled_features=features,
+                enabled_tools=tools,
+                tags=_tags,
+                models=self._get_models_for_config(provider, config),
+                available_tools=self.get_available_tools(config),
+                tools=self._get_prepared_tools_for_config(config),
+                request_id=request_id,
+            )
 
             aggregated_native_finals: List[Dict[str, Any]] = []
 
@@ -2408,17 +2456,19 @@ class AgentCore:
                     pass
 
         final_native, native_messages, state = provider.finalize(
-            provider.get_last_native_messages(), provider.get_state()
+            provider.get_last_native_messages(),
+            provider.get_state(),
+            context=request_context,
         )
 
         # Feature finalize chain (native)
-        pipe = pipeline()
-        final_native, native_messages, state = pipe(
-            [feature.finalize for feature in features],
-            final_native,
-            native_messages,
-            state,
-        )
+        for feature in features:
+            final_native, native_messages, state = feature.finalize(
+                final_native,
+                native_messages,
+                state,
+                context=request_context,
+            )
 
         combined_native_finals = [*aggregated_native_finals, *final_native]
 
@@ -3521,25 +3571,18 @@ class AgentCore:
         if local_provider is None and not local_extensions:
             return base_config
 
-        tool_interop_registry = self._get_tool_interop_registry_for_config(
-            base_config,
-            provider=local_provider,
-            extensions=local_extensions,
-            tool_states=[],
-        )
         tool_schema_target_formats = self._get_tool_schema_target_formats_for_config(
             base_config,
             provider=local_provider,
             extensions=local_extensions,
         )
-        tool_config = {**base_config, "_tool_interop_registry": tool_interop_registry}
+        tool_config = dict(base_config)
         if tool_schema_target_formats:
             tool_config["_tool_schema_target_formats"] = tool_schema_target_formats
         return tool_config
 
     def _normalize_tool_prepare_config(self, config: Dict[str, Any]) -> str:
         sanitized = dict(config) if isinstance(config, dict) else {}
-        sanitized.pop("_tool_interop_registry", None)
         return self._normalize_config(sanitized)
 
     def _tool_prepare_cache_key(

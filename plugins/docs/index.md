@@ -2,6 +2,7 @@
 
 - [Provider plugins](provider-plugins.md)
 - [Tool plugins](tool-plugins.md)
+- [Tool interop flow](tool-interop.md)
 - [Node tool plugins](node-tool-plugins.md)
 - [Bash tool plugins](bash-tool-plugins.md)
 - [Plugin actions](actions.md)

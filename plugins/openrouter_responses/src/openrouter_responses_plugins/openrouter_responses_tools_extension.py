@@ -8,8 +8,8 @@ from agent_core.tool_interop import (
     OpenAIResponsesFunctionCallAccessor,
     OpenAIResponsesFunctionToolSchemaAccessor,
     ToolInteropTarget,
-    get_registry_from_config,
-    get_schema_target_formats_from_config,
+    get_registry_from_context,
+    get_schema_target_formats_from_context,
 )
 from agent_core.types import ProviderExtensionPlugin
 
@@ -90,16 +90,18 @@ class OpenRouterResponsesToolsExtension(ProviderExtensionPlugin):
         return messages
 
     def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         request = state.get("request") or {}
         payload = dict(request.get("payload", {}))
         tools: List[Dict[str, Any]] = state.get("_openrouter_responses_tools") or []
         if tools and "tools" not in payload:
-            registry = get_registry_from_config(state.get("config") or {})
-            target_formats = get_schema_target_formats_from_config(
-                state.get("config") or {}
-            )
+            registry = get_registry_from_context(context)
+            target_formats = get_schema_target_formats_from_context(context)
             if not target_formats:
                 target_formats = self.accepted_tool_schema_formats(
                     state.get("config") or {}, state

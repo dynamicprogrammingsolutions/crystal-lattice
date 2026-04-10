@@ -120,9 +120,16 @@ class FeatureWrapper(FeaturePlugin):
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Run feature finalize; return (final_messages, native_messages, new_state)."""
-        return self.plugin.finalize(final_messages, native_messages, state)
+        return self.plugin.finalize(
+            final_messages,
+            native_messages,
+            state,
+            context=context,
+        )
 
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return session-scoped action definitions from the feature."""

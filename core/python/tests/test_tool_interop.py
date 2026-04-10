@@ -49,7 +49,7 @@ def test_openai_chat_tool_call_accessor_strict() -> None:
     assert accessor.get_call_id(call) == "call_1"
     assert accessor.get_tool_type(call) == "function"
     assert accessor.get_tool_name(call) == "add"
-    assert accessor.get_arguments(call) == {"a": 2, "b": 3}
+    assert accessor.get_payload(call) == {"a": 2, "b": 3}
 
     assert not accessor.can_handle({"id": "call_1", "name": "add"})
     with pytest.raises(ToolInteropError):
@@ -85,11 +85,13 @@ def test_openai_responses_call_to_openai_chat_tool_call_adapter() -> None:
     }
     assert adapter.can_handle(responses_call)
     out = adapter.convert(responses_call, target=ToolInteropTarget(name="openai.chat_completions"))
-    assert out == {
-        "id": "call_1",
-        "type": "function",
-        "function": {"name": "add", "arguments": "{\"a\":2,\"b\":3}"},
-    }
+    # Arguments are parsed and re-serialized, so whitespace may differ
+    assert out["id"] == "call_1"
+    assert out["type"] == "function"
+    assert out["function"]["name"] == "add"
+    # Parse to compare semantically
+    import json
+    assert json.loads(out["function"]["arguments"]) == {"a": 2, "b": 3}
 
     event_wrapper = {"type": "response.output_item.added", "item": responses_call}
     assert adapter.can_handle(event_wrapper)

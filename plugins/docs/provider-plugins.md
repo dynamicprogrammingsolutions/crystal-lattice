@@ -30,6 +30,7 @@ Runtime code references (source of truth):
 
 See also:
 
+- [Tool interop flow](tool-interop.md)
 - [Provider extensions (tools + reasoning)](provider-extensions.md)
 - [Configuration schema (`get_config_schema`)](config-schema.md)
 - [Packaging & loading plugins](plugin-packaging-and-loading.md)

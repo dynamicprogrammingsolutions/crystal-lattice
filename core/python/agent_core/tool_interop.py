@@ -11,8 +11,10 @@ class ToolInteropError(ValueError):
 
 JsonObject = Dict[str, Any]
 
-TOOL_INTEROP_REGISTRY_CONFIG_KEY = "_tool_interop_registry"
 TOOL_SCHEMA_TARGET_FORMATS_CONFIG_KEY = "_tool_schema_target_formats"
+TOOL_INTEROP_CONTEXT_KEY = "tool_interop"
+TOOL_INTEROP_REGISTRY_CONTEXT_KEY = "registry"
+TOOL_SCHEMA_TARGET_FORMATS_CONTEXT_KEY = "schema_target_formats"
 
 
 @dataclass(frozen=True)
@@ -124,9 +126,6 @@ class ToolCallAccessor(Protocol):
     def get_tool_name(self, call: JsonObject) -> Optional[str]:
         ...
 
-    def get_arguments(self, call: JsonObject) -> Any:
-        ...
-
     def get_payload(self, call: JsonObject) -> Any:
         ...
 
@@ -137,6 +136,17 @@ class ToolCallAccessor(Protocol):
         ...
 
     def get_payload_metadata(self, call: JsonObject) -> Optional[JsonObject]:
+        ...
+
+    def sanitize_call(self, call: JsonObject) -> JsonObject:
+        """Return a sanitized copy of the call with valid arguments.
+
+        Used before storing in history to ensure subsequent API calls
+        don't fail due to corrupted JSON. Returns the call unchanged
+        if no sanitization is needed for this format.
+
+        Implementations should return a new dict, not mutate the input.
+        """
         ...
 
 
@@ -171,17 +181,32 @@ def _merge_ordered(*groups: Sequence[Any]) -> List[Any]:
     return merged
 
 
-def get_registry_from_config(config: Dict[str, Any]) -> "ToolInteropRegistry":
-    registry = config.get(TOOL_INTEROP_REGISTRY_CONFIG_KEY)
-    if isinstance(registry, ToolInteropRegistry):
-        return registry
-    return DEFAULT_TOOL_INTEROP_REGISTRY
-
-
 def get_schema_target_formats_from_config(config: Dict[str, Any]) -> List[str]:
     raw = config.get(TOOL_SCHEMA_TARGET_FORMATS_CONFIG_KEY)
     if isinstance(raw, list):
         return [value for value in raw if isinstance(value, str) and value]
+    return []
+
+
+def get_registry_from_context(context: Optional[Dict[str, Any]]) -> "ToolInteropRegistry":
+    if isinstance(context, dict):
+        tool_interop = context.get(TOOL_INTEROP_CONTEXT_KEY)
+        if isinstance(tool_interop, dict):
+            registry = tool_interop.get(TOOL_INTEROP_REGISTRY_CONTEXT_KEY)
+            if isinstance(registry, ToolInteropRegistry):
+                return registry
+    return DEFAULT_TOOL_INTEROP_REGISTRY
+
+
+def get_schema_target_formats_from_context(
+    context: Optional[Dict[str, Any]],
+) -> List[str]:
+    if isinstance(context, dict):
+        tool_interop = context.get(TOOL_INTEROP_CONTEXT_KEY)
+        if isinstance(tool_interop, dict):
+            raw = tool_interop.get(TOOL_SCHEMA_TARGET_FORMATS_CONTEXT_KEY)
+            if isinstance(raw, list):
+                return [value for value in raw if isinstance(value, str) and value]
     return []
 
 
@@ -343,6 +368,21 @@ class ToolInteropRegistry:
             payload_metadata=payload_metadata,
         )
 
+    def sanitize_tool_call(self, call: JsonObject) -> JsonObject:
+        """Sanitize a tool call before storing in history.
+
+        Returns a sanitized copy with valid arguments. If the call format
+        is not recognized or no sanitization is needed, returns the call unchanged.
+
+        This is used to prevent corrupted JSON arguments from being stored
+        in history and causing subsequent API calls to fail.
+        """
+        try:
+            accessor = self.get_call_accessor(call)
+        except ToolInteropError:
+            return call
+        return accessor.sanitize_call(call)
+
     def _infer_payload_kind(self, payload: Any) -> str:
         if payload is None:
             return "none"
@@ -355,18 +395,15 @@ class ToolInteropRegistry:
         return type(payload).__name__
 
     def _get_call_payload(self, accessor: ToolCallAccessor, call: JsonObject) -> Any:
+        """Get the parsed payload from a tool call using the accessor.
+
+        Delegates to the accessor's get_payload method, which handles
+        format-specific parsing (JSON for function calls, raw text for custom tools).
+        """
         payload = _safe_call(accessor, "get_payload", call)
         if payload is not None:
             return payload
-        payload = _safe_call(accessor, "get_arguments", call)
-        if isinstance(payload, str):
-            try:
-                return json.loads(payload)
-            except Exception:
-                return payload
-        if payload is None:
-            return {}
-        return payload
+        return {}
 
     def _match_schema_format(self, schema: JsonObject) -> Optional[str]:
         try:
@@ -721,21 +758,25 @@ class OpenAIChatToolCallAccessor:
             raise ToolInteropError("Tool call missing 'function.name'")
         return name
 
-    def get_arguments(self, call: JsonObject) -> Any:
+    def get_payload(self, call: JsonObject) -> Any:
+        """Parse and return the tool call arguments as a dict.
+
+        Returns an empty dict if arguments are missing, not a dict/string,
+        or if JSON parsing fails.
+        """
         fn = call.get("function")
         if not isinstance(fn, dict):
-            raise ToolInteropError("Tool call missing 'function' object")
-        return fn.get("arguments", {})
-
-    def get_payload(self, call: JsonObject) -> Any:
-        arguments = self.get_arguments(call)
+            return {}
+        arguments = fn.get("arguments")
+        if isinstance(arguments, dict):
+            return arguments
         if isinstance(arguments, str):
             try:
                 parsed = json.loads(arguments)
                 return parsed if isinstance(parsed, dict) else {}
-            except Exception:
+            except (json.JSONDecodeError, Exception):
                 return {}
-        return arguments if isinstance(arguments, dict) else {}
+        return {}
 
     def get_payload_kind(self, call: JsonObject) -> str:
         return "object"
@@ -745,6 +786,27 @@ class OpenAIChatToolCallAccessor:
 
     def get_payload_metadata(self, call: JsonObject) -> JsonObject:
         return {}
+
+    def sanitize_call(self, call: JsonObject) -> JsonObject:
+        """Return a sanitized copy with valid JSON arguments.
+
+        If the arguments field contains invalid JSON, returns a copy
+        with arguments set to "{}". Otherwise returns the call unchanged.
+        """
+        fn = call.get("function")
+        if not isinstance(fn, dict):
+            return call
+        arguments = fn.get("arguments")
+        if isinstance(arguments, str):
+            try:
+                json.loads(arguments)
+            except (json.JSONDecodeError, Exception):
+                # Return copy with sanitized empty arguments
+                return {
+                    **call,
+                    "function": {**fn, "arguments": "{}"},
+                }
+        return call
 
 
 class OpenAIResponsesFunctionCallAccessor:
@@ -783,18 +845,22 @@ class OpenAIResponsesFunctionCallAccessor:
             raise ToolInteropError("Responses function_call missing 'name'")
         return name
 
-    def get_arguments(self, call: JsonObject) -> Any:
-        return call.get("arguments", "{}")
-
     def get_payload(self, call: JsonObject) -> Any:
-        arguments = self.get_arguments(call)
+        """Parse and return the tool call arguments as a dict.
+
+        Returns an empty dict if arguments are missing, not a dict/string,
+        or if JSON parsing fails.
+        """
+        arguments = call.get("arguments", "{}")
+        if isinstance(arguments, dict):
+            return arguments
         if isinstance(arguments, str):
             try:
                 parsed = json.loads(arguments)
                 return parsed if isinstance(parsed, dict) else {}
-            except Exception:
+            except (json.JSONDecodeError, Exception):
                 return {}
-        return arguments if isinstance(arguments, dict) else {}
+        return {}
 
     def get_payload_kind(self, call: JsonObject) -> str:
         return "object"
@@ -805,6 +871,20 @@ class OpenAIResponsesFunctionCallAccessor:
     def get_payload_metadata(self, call: JsonObject) -> JsonObject:
         metadata = call.get("_metadata")
         return dict(metadata) if isinstance(metadata, dict) else {}
+
+    def sanitize_call(self, call: JsonObject) -> JsonObject:
+        """Return a sanitized copy with valid JSON arguments.
+
+        If the arguments field contains invalid JSON, returns a copy
+        with arguments set to "{}". Otherwise returns the call unchanged.
+        """
+        arguments = call.get("arguments")
+        if isinstance(arguments, str):
+            try:
+                json.loads(arguments)
+            except (json.JSONDecodeError, Exception):
+                return {**call, "arguments": "{}"}
+        return call
 
 
 class OpenAIResponsesCustomToolCallAccessor:
@@ -841,10 +921,11 @@ class OpenAIResponsesCustomToolCallAccessor:
             raise ToolInteropError("Responses custom_tool_call missing 'name'")
         return name
 
-    def get_arguments(self, call: JsonObject) -> Any:
-        return call.get("input", "")
-
     def get_payload(self, call: JsonObject) -> Any:
+        """Return the custom tool input as a string.
+
+        Custom tool payloads are text, not JSON objects, so no parsing needed.
+        """
         raw = call.get("input", "")
         return raw if isinstance(raw, str) else ""
 
@@ -858,6 +939,13 @@ class OpenAIResponsesCustomToolCallAccessor:
     def get_payload_metadata(self, call: JsonObject) -> JsonObject:
         metadata = call.get("_metadata")
         return dict(metadata) if isinstance(metadata, dict) else {}
+
+    def sanitize_call(self, call: JsonObject) -> JsonObject:
+        """Return the call unchanged.
+
+        Custom tool payloads are text, not JSON, so no sanitization needed.
+        """
+        return call
 
 
 # ---------------------------------------------------------------------------
@@ -913,7 +1001,12 @@ class OpenAIResponsesToolCallToOpenAIChatToolCall:
 
         call_id = self._call_accessor.get_call_id(item)
         name = self._call_accessor.get_tool_name(item)
-        arguments = self._call_accessor.get_arguments(item)
+        payload = self._call_accessor.get_payload(item)
+        # Serialize payload to JSON string for OpenAI chat format
+        if isinstance(payload, dict):
+            arguments = json.dumps(payload)
+        else:
+            arguments = "{}"
         return {
             "id": call_id,
             "type": "function",
@@ -924,6 +1017,9 @@ class OpenAIResponsesToolCallToOpenAIChatToolCall:
         }
 
 
+# Fallback-only registry for contexts where no request/runtime interop bundle exists.
+# Runtime code should prefer ``get_registry_from_context(...)`` so core-owned,
+# config-specific contributions are respected.
 DEFAULT_TOOL_INTEROP_REGISTRY = ToolInteropRegistry(
     schema_adapters=[OpenAIChatToolSchemaToOpenAIResponsesToolSchema()],
     call_adapters=[OpenAIResponsesToolCallToOpenAIChatToolCall()],

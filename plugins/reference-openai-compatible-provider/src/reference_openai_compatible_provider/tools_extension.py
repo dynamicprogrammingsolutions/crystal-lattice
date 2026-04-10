@@ -2,6 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from agent_core.tool_interop import (
+    OpenAIChatToolCallAccessor,
+    OpenAIChatToolSchemaAccessor,
+    ToolInteropTarget,
+    get_registry_from_context,
+    get_schema_target_formats_from_context,
+)
 from agent_core.types import ProviderExtensionPlugin
 
 from reference_openai_compatible_provider._extension_accumulator import (
@@ -73,12 +80,30 @@ class OpenAICompatibleToolsExtension(
     def required_tags(self) -> list[str]:
         return ["provider:openai_compatible", "supports_tools"]
 
+    def accepted_tool_schema_formats(
+        self,
+        config: dict[str, Any],
+        state: dict[str, Any] | None = None,
+    ) -> list[str]:
+        return [OpenAIChatToolSchemaAccessor.format_id]
+
+    def emitted_tool_call_formats(
+        self,
+        config: dict[str, Any],
+        state: dict[str, Any] | None = None,
+    ) -> list[str]:
+        return [OpenAIChatToolCallAccessor.format_id]
+
     def init(self, config: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
         tools = config.get("tools")
         return {**state, "_tools": tools if isinstance(tools, list) else []}
 
     def initialize_request(
-        self, native_messages: list[dict[str, Any]], state: dict[str, Any]
+        self,
+        native_messages: list[dict[str, Any]],
+        state: dict[str, Any],
+        *,
+        context: dict[str, Any] | None = None,
     ):
         tools = state.get("_tools") or []
         if not tools:
@@ -86,7 +111,20 @@ class OpenAICompatibleToolsExtension(
 
         req = state.get("request") or {}
         payload = dict(req.get("payload") or {})
-        payload |= {"tools": tools, "tool_choice": payload.get("tool_choice", "auto")}
+        if "tools" not in payload:
+            registry = get_registry_from_context(context)
+            target_formats = get_schema_target_formats_from_context(context)
+            if not target_formats:
+                target_formats = self.accepted_tool_schema_formats(
+                    state.get("config") or {},
+                    state,
+                )
+            payload["tools"] = registry.convert_schemas(
+                [tool for tool in tools if isinstance(tool, dict)],
+                target=ToolInteropTarget("openai.chat_completions"),
+                target_formats=target_formats,
+            )
+            payload["tool_choice"] = payload.get("tool_choice", "auto")
         return native_messages, {**state, "request": {**req, "payload": payload}}
 
     def extract_delta(self, native_chunk: dict[str, Any]) -> dict[str, Any]:
@@ -147,3 +185,23 @@ class OpenAICompatibleToolsExtension(
                 md.setdefault("tool_call_id", nm["tool_call_id"])
             out.append({**msg, "metadata": md})
         return out
+
+    def finalize(
+        self,
+        final_messages: list[dict[str, Any]],
+        native_messages: list[dict[str, Any]],
+        state: dict[str, Any],
+        *,
+        context: dict[str, Any] | None = None,
+    ):
+        partial = state.get("partial")
+        if isinstance(partial, dict):
+            tool_calls = partial.get("tool_calls")
+            if isinstance(tool_calls, list):
+                registry = get_registry_from_context(context)
+                partial["tool_calls"] = [
+                    registry.sanitize_tool_call(tool_call)
+                    for tool_call in tool_calls
+                    if isinstance(tool_call, dict)
+                ]
+        return final_messages, native_messages, state

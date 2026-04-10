@@ -24,8 +24,8 @@ from agent_core.tool_interop import (
     OpenAIResponsesFunctionToolSchemaAccessor,
     OpenAIResponsesToolCallToOpenAIChatToolCall,
     ToolInteropTarget,
-    get_registry_from_config,
-    get_schema_target_formats_from_config,
+    get_registry_from_context,
+    get_schema_target_formats_from_context,
 )
 from agent_core.types import ProviderPlugin
 from agent_core.utils import get_logger
@@ -215,7 +215,11 @@ class OpenRouterResponsesProvider(ProviderPlugin):
         return {"config": config}
 
     def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         config = state["config"]
 
@@ -244,8 +248,8 @@ class OpenRouterResponsesProvider(ProviderPlugin):
         # AgentCore usage without extensions still works.
         tools_value = config.get("tools")
         if isinstance(tools_value, list) and tools_value:
-            registry = get_registry_from_config(config)
-            target_formats = get_schema_target_formats_from_config(config)
+            registry = get_registry_from_context(context)
+            target_formats = get_schema_target_formats_from_context(context)
             if not target_formats:
                 target_formats = self.accepted_tool_schema_formats(config, state)
             payload_tools = registry.convert_schemas(

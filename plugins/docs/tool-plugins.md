@@ -23,6 +23,7 @@ Reference implementations:
 
 See also:
 
+- [Tool interop flow](tool-interop.md)
 - [Provider extensions (tools + reasoning)](provider-extensions.md)
 - [Node tool plugins](node-tool-plugins.md)
 - [Bash tool plugins](bash-tool-plugins.md)

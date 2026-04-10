@@ -19,8 +19,8 @@ from agent_core.tool_interop import (
     OpenAIResponsesToolCallToOpenAIChatToolCall,
     ToolInteropError,
     ToolInteropTarget,
-    get_registry_from_config,
-    get_schema_target_formats_from_config,
+    get_registry_from_context,
+    get_schema_target_formats_from_context,
 )
 from agent_core.types import ProviderExtensionPlugin
 
@@ -238,14 +238,33 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
         tool_call = converted[0]
         return tool_call if isinstance(tool_call, dict) else None
 
+    def _sanitize_native_tool_call(
+        self, item: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Sanitize a native tool call item before storing in history.
+
+        For function_call items, ensures the arguments field contains valid JSON.
+        For custom_tool_call items, returns unchanged (text payload).
+        """
+        if item.get("type") == "function_call":
+            arguments = item.get("arguments")
+            if isinstance(arguments, str):
+                try:
+                    json.loads(arguments)
+                except (json.JSONDecodeError, Exception):
+                    return {**item, "arguments": "{}"}
+        return item
+
     def _native_tool_call_to_core_tool_call(
         self,
         item: Dict[str, Any],
     ) -> Optional[Dict[str, Any]]:
-        if item.get("type") == "function_call":
-            return self._native_function_call_to_chat_tool_call(item)
-        if item.get("type") == "custom_tool_call":
-            return {k: v for k, v in item.items() if k != "_metadata"}
+        # Sanitize the native item first to ensure valid arguments
+        sanitized = self._sanitize_native_tool_call(item)
+        if sanitized.get("type") == "function_call":
+            return self._native_function_call_to_chat_tool_call(sanitized)
+        if sanitized.get("type") == "custom_tool_call":
+            return {k: v for k, v in sanitized.items() if k != "_metadata"}
         return None
 
     def _dedupe_tool_calls(
@@ -343,6 +362,8 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         request = state.get("request")
         if not isinstance(request, dict):
@@ -351,10 +372,8 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
         payload = dict(request.get("payload") or {})
         tools: List[Dict[str, Any]] = state.get(_TOOLS_STATE_KEY) or []
         if tools and "tools" not in payload:
-            registry = get_registry_from_config(state.get("config") or {})
-            target_formats = get_schema_target_formats_from_config(
-                state.get("config") or {}
-            )
+            registry = get_registry_from_context(context)
+            target_formats = get_schema_target_formats_from_context(context)
             if not target_formats:
                 target_formats = self.accepted_tool_schema_formats(
                     state.get("config") or {}, state
