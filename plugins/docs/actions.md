@@ -51,7 +51,32 @@ Recommended shape:
     "format": "markdown",
     "title": "ChatGPT Login",
     "body": "Open [this link](https://example.test) and enter code `ABCD-EFGH`.",
-    "variant": "info"
+    "variant": "info",
+    "presentation": "inline",
+    "dismissible": true,
+    "display_id": "chatgpt-auth-login",
+    "actions": [
+      {
+        "kind": "open_url",
+        "id": "open-login-link",
+        "label": "Open link",
+        "url": "https://example.test"
+      },
+      {
+        "kind": "copy_text",
+        "id": "copy-login-code",
+        "label": "Copy code",
+        "text": "ABCD-EFGH"
+      },
+      {
+        "kind": "run_action",
+        "id": "check-login-status",
+        "label": "Check status",
+        "plugin": "chatgpt_auth",
+        "action_id": "check_status",
+        "preserve_display": true
+      }
+    ]
   }
 }
 ```
@@ -63,6 +88,13 @@ Fields:
 - `title`: optional heading
 - `variant`: optional tone hint such as `info`, `success`, `warning`, or
   `error`
+- `presentation`: optional frontend hint such as `modal`, `inline`, or
+  `banner`
+- `dismissible`: optional hint controlling whether the user can dismiss the
+  rendered display
+- `display_id`: optional stable id so frontends can update or replace an
+  existing inline/banner display instead of always appending a new one
+- `actions`: optional list of generic follow-up actions
 
 Guidance:
 
@@ -71,6 +103,8 @@ Guidance:
   need structured state
 - do not overload top-level `message` keys for successful rich content when
   `display` is more appropriate
+- keep follow-up actions intentionally narrow and generic; current supported
+  shapes are `open_url`, `copy_text`, and `run_action`
 
 ## Dynamic lifecycle names
 

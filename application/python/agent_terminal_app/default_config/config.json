@@ -377,6 +377,7 @@
       ],
       "shell_tool_mode": "auto",
       "system_message_as_instructions": true,
+      "strip_leading_system_or_developer_message": true,
       "codex_personality": "default",
       "codex_developer_messages": [
         {

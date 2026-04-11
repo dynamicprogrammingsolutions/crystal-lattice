@@ -202,6 +202,7 @@ def _build_app(tmp_path: Path, *, port: int) -> AgentApplication:
         str(config_path),
         str(tmp_path / "sessions"),
         event_store=InMemoryEventStore(),
+        env_overrides={"CONFIG_DIR": str(tmp_path)},
     )
 
 
@@ -235,6 +236,7 @@ def _build_default_codex_app(tmp_path: Path, *, issuer: str) -> AgentApplication
         str(config_path),
         str(tmp_path / "sessions"),
         event_store=InMemoryEventStore(),
+        env_overrides={"CONFIG_DIR": str(tmp_path)},
     )
 
 
@@ -251,6 +253,11 @@ def test_login_start_polls_in_background_and_persists_credentials(tmp_path: Path
         assert result["display"]["format"] == "markdown"
         assert "ABCD-EFGH" in result["display"]["body"]
         assert auth_status["verification_url"] in result["display"]["body"]
+        assert result["display"]["presentation"] == "inline"
+        assert result["display"]["dismissible"] is True
+        assert result["display"]["display_id"] == "chatgpt-auth-login"
+        action_kinds = [entry["kind"] for entry in result["display"]["actions"]]
+        assert action_kinds == ["open_url", "copy_text", "run_action"]
 
         deadline = time.time() + 3.5
         status = auth_status
@@ -311,6 +318,7 @@ def test_codex_default_endpoints_and_exchange_flow_work_from_issuer_only(tmp_pat
         assert auth_status["user_code"] == "WXYZ-1234"
         assert result["display"]["title"] == "ChatGPT Login"
         assert f"{issuer}/codex/device" in result["display"]["body"]
+        assert result["display"]["presentation"] == "inline"
 
         deadline = time.time() + 3.5
         status = auth_status

@@ -175,6 +175,17 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 "default": _DEFAULT_CHATGPT_CLIENT_VERSION,
                 "description": "Client version query parameter used for ChatGPT-backed /models discovery.",
             },
+            "strip_leading_system_or_developer_message": {
+                "type": "boolean",
+                "required": False,
+                "default": False,
+                "description": (
+                    "When true, drop the first provider-native message if it is "
+                    "a system or developer message before sending the request. "
+                    "Useful when top-level instructions replace older persisted "
+                    "system/developer messages."
+                ),
+            },
             "timeout": {
                 "type": "number",
                 "required": False,
@@ -403,6 +414,29 @@ class OpenAIResponsesProvider(ProviderPlugin):
             return None
         text = raw.strip()
         return text or None
+
+    def _should_strip_leading_system_or_developer_message(
+        self,
+        config: Dict[str, Any],
+    ) -> bool:
+        return bool(config.get("strip_leading_system_or_developer_message", False))
+
+    def _strip_leading_system_or_developer_message(
+        self,
+        native_messages: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        if not native_messages:
+            return native_messages
+        first = native_messages[0]
+        if not isinstance(first, dict):
+            return native_messages
+        item_type = first.get("type")
+        if isinstance(item_type, str) and item_type and item_type != "message":
+            return native_messages
+        role = first.get("role")
+        if role not in {"system", "developer"}:
+            return native_messages
+        return list(native_messages[1:])
 
     def _request_client(self, client: Any, *, timeout: float, max_retries: Optional[int]) -> Any:
         if max_retries is None:
@@ -1841,6 +1875,8 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
         override = request.get("messages")
         base_history = override if isinstance(override, list) else native_messages
+        if self._should_strip_leading_system_or_developer_message(cfg):
+            base_history = self._strip_leading_system_or_developer_message(base_history)
         self._validate_native_item_list(base_history)
 
         request_history = [item for item in base_history if isinstance(item, dict)]
@@ -1990,6 +2026,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
         override = request.get("messages")
         base_history = override if isinstance(override, list) else native_messages
+        cfg = state.get("config") or {}
+        if self._should_strip_leading_system_or_developer_message(cfg):
+            base_history = self._strip_leading_system_or_developer_message(base_history)
         self._validate_native_item_list(base_history)
 
         request_history = [item for item in base_history if isinstance(item, dict)]

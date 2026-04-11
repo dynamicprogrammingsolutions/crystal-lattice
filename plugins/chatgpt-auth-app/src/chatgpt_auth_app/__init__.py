@@ -903,6 +903,7 @@ class ChatGPTAuthAppPlugin:
         title = "ChatGPT Login"
         variant = "info"
         lines: List[str] = []
+        actions: List[Dict[str, Any]] = []
 
         if action == "logout":
             title = "ChatGPT Logout"
@@ -917,16 +918,44 @@ class ChatGPTAuthAppPlugin:
             user_code = auth_status.get("user_code")
             if isinstance(verification_url, str) and verification_url:
                 lines.append(f"1. Open [ChatGPT device login]({verification_url})")
+                actions.append(
+                    {
+                        "kind": "open_url",
+                        "id": "open-chatgpt-login-link",
+                        "label": "Open link",
+                        "url": verification_url,
+                    }
+                )
             else:
                 lines.append("1. Open the ChatGPT device login page in your browser.")
             if isinstance(user_code, str) and user_code:
                 lines.append(f"2. Enter code `{user_code}`")
+                actions.append(
+                    {
+                        "kind": "copy_text",
+                        "id": "copy-chatgpt-login-code",
+                        "label": "Copy code",
+                        "text": user_code,
+                        "copied_label": "Copied",
+                    }
+                )
             lines.append("")
             lines.append("When you are done, return here and run **Show ChatGPT login status**.")
             expires_at = auth_status.get("expires_at")
             if isinstance(expires_at, str) and expires_at:
                 lines.append("")
                 lines.append(f"Code expires at: `{expires_at}`")
+            actions.append(
+                {
+                    "kind": "run_action",
+                    "id": "check-chatgpt-login-status",
+                    "label": "Check status",
+                    "plugin": self.name,
+                    "action_id": "check_status",
+                    "fixed_params": {},
+                    "preserve_display": True,
+                }
+            )
         elif state == "authenticated":
             variant = "success"
             lines.append("ChatGPT login is active.")
@@ -958,12 +987,18 @@ class ChatGPTAuthAppPlugin:
         else:
             lines.append(f"Current ChatGPT auth state: `{state}`")
 
-        return {
+        payload = {
             "format": "markdown",
             "title": title,
             "body": "\n".join(lines),
             "variant": variant,
         }
+        if state == "pending":
+            payload["presentation"] = "inline"
+            payload["dismissible"] = True
+            payload["display_id"] = "chatgpt-auth-login"
+            payload["actions"] = actions
+        return payload
 
 
 __all__ = ["ChatGPTAuthAppPlugin"]

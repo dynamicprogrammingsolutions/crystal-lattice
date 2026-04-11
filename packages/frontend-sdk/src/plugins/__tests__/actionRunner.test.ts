@@ -197,6 +197,17 @@ describe('runApplicationAction effect derivation', () => {
           title: 'ChatGPT Login',
           body: 'Open [this link](https://auth.openai.com/codex/device)',
           variant: 'info',
+          presentation: 'inline',
+          dismissible: true,
+          display_id: 'chatgpt-auth-login',
+          actions: [
+            {
+              kind: 'open_url',
+              id: 'open-login',
+              label: 'Open link',
+              url: 'https://auth.openai.com/codex/device',
+            },
+          ],
         },
         auth_status: {
           state: 'pending',
@@ -219,6 +230,17 @@ describe('runApplicationAction effect derivation', () => {
       title: 'ChatGPT Login',
       body: 'Open [this link](https://auth.openai.com/codex/device)',
       variant: 'info',
+      presentation: 'inline',
+      dismissible: true,
+      display_id: 'chatgpt-auth-login',
+      actions: [
+        {
+          kind: 'open_url',
+          id: 'open-login',
+          label: 'Open link',
+          url: 'https://auth.openai.com/codex/device',
+        },
+      ],
     });
   });
 });

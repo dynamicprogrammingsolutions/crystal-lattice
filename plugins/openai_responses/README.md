@@ -5,6 +5,7 @@ OpenAI Responses API bundle for the AI Agent Platform.
 Use it when you want an OpenAI-backed agent with:
 
 - plain chat over the Responses API
+- OpenAI API-key auth, ChatGPT auth, or automatic fallback between them
 - streaming and non-streaming replies
 - direct-send image attachments
 - upload-before-send image/PDF attachments
@@ -20,6 +21,10 @@ Most users can think of this as a single plugin bundle that adds OpenAI
 Responses support to the app. The package name for installation is
 `openai_responses`.
 
+It can also be paired with the `chatgpt-auth-app` application plugin so
+Responses requests can use a saved ChatGPT login against the ChatGPT-hosted
+endpoint.
+
 ## Install
 
 From the repo root:
@@ -32,13 +37,18 @@ python -m pip install -e "plugins/openai_responses[dev]"
 ## Environment
 
 - `OPENAI_API_KEY` is required unless you pass `api_key` directly in provider
-  config.
+  config and use `auth_mode: "api"`, or use `auth_mode: "auto"` with a valid
+  saved ChatGPT login.
 - For local use in this repo, keeping `OPENAI_API_KEY` in the repo root `.env`
   is the simplest setup.
 - Do not commit real API keys into configs or docs.
 
 The provider defaults to `OPENAI_API_KEY` automatically, so `api_key` can be
 omitted from config when the env var is present.
+
+When `auth_mode: "chatgpt"` is selected, or when `auth_mode: "auto"` resolves
+to ChatGPT because a valid saved login exists, the provider reads a saved
+credential file instead of requiring `OPENAI_API_KEY`.
 
 When credentials and network access are available, the provider now fetches the
 real OpenAI model list through the OpenAI Python SDK. The provider UI uses that
@@ -83,6 +93,59 @@ In config-aware UIs, the provider will try to populate the `model` selector
 from the live OpenAI catalog. If that lookup fails, you can still type a model
 id manually.
 
+## ChatGPT auth quickstart
+
+This is the smallest useful config for OpenAI Responses with ChatGPT login
+support.
+
+It assumes:
+
+- the `chatgpt-auth-app` application plugin is loaded
+- the system-message feature is loaded
+- top-level `instructions` should come from the system-message feature rather
+  than a provider-only `instructions` config key
+
+```json
+{
+  "plugin_cache_dir": "${env:CONFIG_DIR}/.plugin_cache/plugins",
+  "plugins": [
+    "path:/absolute/path/to/plugins/openai_responses",
+    "path:/absolute/path/to/plugins/chatgpt-auth-app",
+    "path:/absolute/path/to/plugins/feature-system-message"
+  ],
+  "providers": {
+    "openai": {
+      "provider": "openai_responses",
+      "model": "gpt-5",
+      "auth_mode": "auto",
+      "system_message_as_instructions": true,
+      "strip_leading_system_or_developer_message": true,
+      "system_message": "You are a precise assistant.",
+      "timeout": 120
+    }
+  },
+  "application": {
+    "chatgpt_auth": {}
+  },
+  "agents": {
+    "default": {
+      "provider": "openai"
+    }
+  }
+}
+```
+
+Then:
+
+1. Run the app or terminal client.
+2. Use the `chatgpt_auth` application actions:
+   - `Sign in with ChatGPT`
+   - `Show ChatGPT login status`
+   - `Cancel ChatGPT login`
+   - `Log out of ChatGPT`
+3. After login succeeds, `auth_mode: "auto"` will use ChatGPT-backed auth when
+   available and fall back to API-key mode otherwise.
+
 ## Full bundle example
 
 Reasoning request shaping depends on the request-options feature, and tool usage
@@ -103,6 +166,7 @@ combination.
       "model": "gpt-5-mini",
       "api_key": "${env:OPENAI_API_KEY}",
       "base_url": "https://api.openai.com/v1",
+      "auth_mode": "api",
       "timeout": 120,
       "enable_flex_processing": false,
       "flex_timeout_seconds": 300,
@@ -134,6 +198,56 @@ What this enables:
 - flex processing controls for supported OpenAI accounts
 - prompt caching settings plus a regenerate-key session action
 - a native compaction session action for longer conversations
+
+## ChatGPT auth mode
+
+The bundle supports three auth modes:
+
+- `api`
+  - use `api_key` or `OPENAI_API_KEY`
+  - use the normal OpenAI API base URL
+- `chatgpt`
+  - use saved ChatGPT login credentials
+  - use the ChatGPT-hosted Responses endpoint
+- `auto`
+  - use ChatGPT when a valid saved login exists
+  - otherwise fall back to API-key mode
+
+Relevant keys:
+
+- `auth_mode`
+- `chatgpt_credentials_path`
+- `chatgpt_base_url`
+- `chatgpt_account_id`
+- `chatgpt_client_version`
+- `strip_leading_system_or_developer_message`
+
+Defaults:
+
+- ChatGPT base URL defaults to `https://chatgpt.com/backend-api/codex`
+- saved credentials default to `CONFIG_DIR/auth/chatgpt-auth.json` when the
+  auth feature can discover `CONFIG_DIR` from runtime env
+
+### Instructions path for ChatGPT mode
+
+For the ChatGPT endpoint, the recommended shape is:
+
+- set `system_message_as_instructions: true` on the provider config
+- let the system-message feature compile the prompt into
+  `state["request"]["instructions"]`
+- avoid a provider-only `instructions` config key
+
+This mirrors how Codex-style requests send top-level `instructions`.
+
+### Migrating older sessions
+
+If older session histories contain a leading provider-native `system` or
+`developer` message from before top-level `instructions` were used, enable:
+
+- `strip_leading_system_or_developer_message: true`
+
+When enabled, the provider drops the first native message only if its role is
+`system` or `developer` before sending the request.
 
 ## Features
 
@@ -216,6 +330,12 @@ By default, prompt cache key support is enabled when this extension is loaded.
 Set `enable_prompt_cache_key: false` if you want to turn off automatic
 session-owned key generation and request injection.
 
+When the effective auth mode selects the ChatGPT endpoint:
+
+- `prompt_cache_key` behavior remains available
+- `prompt_cache_retention: "24h"` is suppressed automatically even if
+  `enable_prompt_cache_retention_24h` is `true`
+
 ### Flex processing
 
 Flex processing controls are available through:
@@ -228,6 +348,10 @@ Flex processing controls are available through:
 When flex processing is enabled, the extension writes request overrides so the
 provider can apply `service_tier: "flex"`, the configured timeout, and the
 configured retry policy on both streaming and non-streaming Responses calls.
+
+When the effective auth mode selects the ChatGPT endpoint, flex processing is
+disabled automatically even if the config flags are set. The ChatGPT-hosted
+endpoint does not support this OpenAI API feature.
 
 ### Verbosity
 
@@ -249,8 +373,15 @@ Configuration is a flat dict shared across the provider and enabled extensions.
 
 - `provider`: must be `openai_responses` in app-layer provider config
 - `model`: required model id
-- `api_key`: optional if `OPENAI_API_KEY` is set
+- `auth_mode`: optional, one of `api`, `chatgpt`, `auto`; defaults to `api`
+- `api_key`: optional if `OPENAI_API_KEY` is set or ChatGPT auth is used
 - `base_url`: optional, defaults to `https://api.openai.com/v1`
+- `api_base_url`: optional explicit base URL for API-key mode
+- `chatgpt_base_url`: optional, defaults to `https://chatgpt.com/backend-api/codex`
+- `chatgpt_credentials_path`: optional path to saved ChatGPT credentials
+- `chatgpt_account_id`: optional explicit ChatGPT account id override
+- `chatgpt_client_version`: optional, used for ChatGPT `/models` discovery
+- `strip_leading_system_or_developer_message`: optional compatibility flag for migrated sessions
 - `timeout`: optional request timeout in seconds, defaults to `60`
 
 ### Attachment keys
@@ -267,6 +398,9 @@ PDF support is only available in this mode.
 - `flex_timeout_seconds`: per-request timeout to apply when flex is enabled; defaults to `300`
 - `enable_flex_retries`: enable request-scoped retries for flex calls; defaults to `true`
 - `flex_max_retries`: max retry count when flex retries are enabled; defaults to `2`
+
+Note: flex processing is ignored automatically when the effective auth mode
+selects the ChatGPT endpoint.
 
 ### Reasoning keys
 
@@ -305,6 +439,9 @@ models whose id contains `gpt-5`.
 - `prompt_cache_key`: optional manual cache key override shown in normal session settings UI
 - `enable_prompt_cache_retention_24h`: set to `true` to send `prompt_cache_retention: "24h"`
 
+Note: `enable_prompt_cache_retention_24h` is ignored automatically when the
+effective auth mode selects the ChatGPT endpoint.
+
 ### Tools
 
 Tool schemas come from loaded tool plugins such as `plugins.math_tools.MathTools`.
@@ -325,13 +462,20 @@ transcript.
 
 ## Capabilities and caveats
 
-- Both non-streaming and streaming Responses requests are supported.
+- API-key mode supports both non-streaming and streaming Responses requests.
+- ChatGPT mode is streaming-only in the current implementation. Non-streaming
+  requests fail with a clear error.
 - The provider retains Responses-native history so future turns can replay
   native items rather than flattening everything to plain chat text.
 - Reasoning requests include `reasoning.encrypted_content` so raw reasoning can
   be preserved even when the model does not expose readable reasoning text.
 - Verbosity support is model-gated and currently follows the provider tag check
   for `gpt-5` models.
+- ChatGPT-backed requests use top-level `instructions` and `store: false`.
+- Flex processing and prompt-cache retention are automatically disabled when
+  the ChatGPT endpoint is selected.
+- ChatGPT `/models` discovery may still require `client_version`; if discovery
+  is unavailable, pin `model` explicitly in config.
 - Native compaction is intentionally different from human-readable summary
   insertion. It preserves provider-native compacted artifacts for future
   Responses requests instead of replacing history with a plain assistant
@@ -361,12 +505,16 @@ like this:
 - usage: usage formatting and pricing metadata
 - verbosity: `text.verbosity` request shaping
 - prompt caching: `prompt_cache_key` / retention request shaping and session-key lifecycle
+- ChatGPT auth feature: saved-credential loading plus `api` / `chatgpt` /
+  `auto` auth-mode selection
 - native compaction: session action for provider-native compaction
 
 Implementation classes registered by the bundle:
 
 - `openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider`
 - `openai_responses_plugins.openai_responses_attachments_extension.OpenAIResponsesAttachmentsExtension`
+- `openai_responses_plugins.openai_responses_chatgpt_auth_feature.OpenAIResponsesChatGPTAuthFeature`
+- `openai_responses_plugins.openai_responses_flex_processing_extension.OpenAIResponsesFlexProcessingExtension`
 - `openai_responses_plugins.openai_responses_native_compaction_extension.OpenAIResponsesNativeCompactionExtension`
 - `openai_responses_plugins.openai_responses_prompt_caching_extension.OpenAIResponsesPromptCachingExtension`
 - `openai_responses_plugins.openai_responses_tools_extension.OpenAIResponsesToolsExtension`
@@ -377,7 +525,13 @@ Implementation classes registered by the bundle:
 ## Troubleshooting
 
 - Authentication errors:
-  check `OPENAI_API_KEY` in the repo root `.env`, or set `api_key` in config.
+  check `OPENAI_API_KEY` in the repo root `.env`, set `api_key` in config, or
+  verify the saved ChatGPT credential file exists when using `chatgpt` / `auto`.
+- ChatGPT mode says streaming is required:
+  use the streaming request path, or switch `auth_mode` to `api` / `auto`.
+- ChatGPT requests behave oddly on older sessions:
+  enable `system_message_as_instructions: true` and
+  `strip_leading_system_or_developer_message: true`.
 - Reasoning controls do nothing:
   make sure `plugins.request_options_feature.RequestOptionsFeature` is loaded.
 - Verbosity control does not appear or has no effect:

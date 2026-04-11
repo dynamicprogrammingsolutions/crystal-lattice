@@ -5,6 +5,7 @@ import {
   Alert,
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   ScrollView,
@@ -35,6 +36,7 @@ import {
   selectLastAssistantMessage,
   storeSessionAttachment,
   generateIdempotencyKey,
+  type RunActionContext,
   type AttachmentDraftStatus,
 } from '@crystal-lattice/frontend-sdk';
 import {
@@ -55,6 +57,7 @@ import {
 import {
   type ApiMessage,
   type IndexedMessage,
+  type ActionDisplayFollowupAction,
   type ActionUiElement,
   type ActionDisplayPayload,
   type UiSchemaElement,
@@ -73,6 +76,7 @@ import SessionSettingsModal from './components/SessionSettingsModal';
 import SessionPluginsModal from './components/SessionPluginsModal';
 import AgentSwitchModal from './components/AgentSwitchModal';
 import ActionResultModal from './components/ActionResultModal';
+import ActionResultInlineCard from './components/ActionResultInlineCard';
 import type { DebugTimelineEntry } from './debugTimeline';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 import { selectDisplayContent } from './messageUtils';
@@ -174,6 +178,36 @@ type AttachmentBackgroundOperation =
   | { kind: 'upload'; filename: string }
   | { kind: 'delete'; filename: string }
   | null;
+
+type ActionDisplayEntry = {
+  key: string;
+  display: ActionDisplayPayload;
+  context: RunActionContext;
+};
+
+function createDisplayEntry(display: ActionDisplayPayload, context: RunActionContext): ActionDisplayEntry {
+  const key =
+    typeof display.display_id === 'string' && display.display_id
+      ? display.display_id
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return { key, display, context };
+}
+
+function upsertInlineDisplay(
+  current: ActionDisplayEntry[],
+  nextEntry: ActionDisplayEntry,
+): ActionDisplayEntry[] {
+  const displayId = nextEntry.display.display_id;
+  if (typeof displayId === 'string' && displayId) {
+    const existingIndex = current.findIndex((entry) => entry.display.display_id === displayId);
+    if (existingIndex >= 0) {
+      const updated = current.slice();
+      updated[existingIndex] = nextEntry;
+      return updated;
+    }
+  }
+  return [...current, nextEntry];
+}
 
 const TRANSCRIPT_STATUS_ROW: TranscriptRow = { kind: 'status' };
 const TRANSCRIPT_STREAM_ROW: TranscriptRow = { kind: 'stream' };
@@ -299,7 +333,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     useState<PendingRequestRecovery | null>(null);
   const [resumeRecoveryInProgress, setResumeRecoveryInProgress] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
-  const [actionResultDisplay, setActionResultDisplay] = useState<ActionDisplayPayload | null>(null);
+  const [actionResultDisplay, setActionResultDisplay] = useState<ActionDisplayEntry | null>(null);
+  const [inlineActionDisplays, setInlineActionDisplays] = useState<ActionDisplayEntry[]>([]);
+  const [activeDisplayActionId, setActiveDisplayActionId] = useState<string | null>(null);
   const [pluginsVisible, setPluginsVisible] = useState(false);
   const [sessionOverrides, setSessionOverrides] = useState<Record<string, any>>({});
   const [sessionBaseConfig, setSessionBaseConfig] = useState<Record<string, any>>({});
@@ -872,6 +908,102 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     [appendDebugNote, chatController, rangeEndText, rangeStartText, syncCacheFromController],
   );
 
+  const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {
+    const nextEntry = createDisplayEntry(display, context);
+    const presentation = display.presentation ?? 'modal';
+    if (presentation === 'inline' || presentation === 'banner') {
+      setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
+      return;
+    }
+    setActionResultDisplay(nextEntry);
+  }, []);
+
+  const executePluginAction = useCallback(
+    async (element: ActionUiElement, context: RunActionContext) => {
+      if (!backend) {
+        Alert.alert('No connection', 'Connect to a server to run actions.');
+        return;
+      }
+
+      setPluginActionInProgress(true);
+      try {
+        const { ok, effects, display, errorMessage } = await runApplicationAction({
+          backend,
+          element,
+          actionsById,
+          context,
+          effects: {
+            currentSessionId: sessionId,
+            navigateOnCreatedSession: true,
+          },
+        });
+        if (!ok) {
+          Alert.alert('Action error', errorMessage || 'Failed to execute action');
+          return;
+        }
+
+        for (const effect of effects) {
+          if (effect.type === 'navigateToSession') {
+            if (onNavigateToSession) {
+              onNavigateToSession(effect.sessionId);
+            }
+            return;
+          }
+        }
+        if (effects.some((effect) => effect.type === 'reloadSession')) {
+          await loadMessages();
+        }
+        if (display) {
+          presentActionDisplay(display, context);
+        }
+      } finally {
+        setPluginActionInProgress(false);
+      }
+    },
+    [actionsById, backend, loadMessages, onNavigateToSession, presentActionDisplay, sessionId],
+  );
+
+  const handleDisplayFollowupAction = useCallback(
+    async (entry: ActionDisplayEntry, action: ActionDisplayFollowupAction) => {
+      if (action.kind === 'open_url') {
+        try {
+          await Linking.openURL(action.url);
+        } catch (err: any) {
+          Alert.alert('Open link failed', err?.message || 'Unable to open the link.');
+        }
+        return;
+      }
+      if (action.kind === 'copy_text') {
+        Clipboard.setString(action.text);
+        Alert.alert('Copied', 'Copied to clipboard.');
+        return;
+      }
+      if (action.kind === 'run_action') {
+        if ((entry.display.presentation ?? 'modal') !== 'inline' && action.preserve_display !== true) {
+          setActionResultDisplay((current) => (current?.key === entry.key ? null : current));
+        }
+        setActiveDisplayActionId(action.id);
+        try {
+          await executePluginAction(
+            {
+              ui_type: 'action_result_followup',
+              plugin: action.plugin,
+              id: action.id,
+              label: action.label,
+              action_id: action.action_id,
+              action_owner: action.action_owner,
+              fixed_params: action.fixed_params as Record<string, any> | undefined,
+            },
+            entry.context,
+          );
+        } finally {
+          setActiveDisplayActionId(null);
+        }
+      }
+    },
+    [executePluginAction],
+  );
+
   const recoverChatAfterResume = useCallback(
     async (reason: string) => {
       if (!chatController || !backend || !isActive) {
@@ -940,54 +1072,16 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         context: PluginActionContext,
         dialogValues: Record<string, any> | undefined,
       ) => {
-        if (!backend) {
-          Alert.alert('No connection', 'Connect to a server to run actions.');
-          return;
-        }
-
-        setPluginActionInProgress(true);
-        try {
-          const isMessage = context.kind === 'message';
-          const { ok, effects, display, errorMessage } = await runApplicationAction({
-            backend,
-            element,
-            actionsById,
-            context: {
-              sessionId,
-              messageContext: isMessage
-                ? { index: (context as any).index, message: (context as any).message }
-                : undefined,
-              dialogValues,
-            },
-            effects: {
-              currentSessionId: sessionId,
-              navigateOnCreatedSession: true,
-            },
-          });
-          if (!ok) {
-            Alert.alert('Action error', errorMessage || 'Failed to execute action');
-            return;
-          }
-
-          for (const effect of effects) {
-            if (effect.type === 'navigateToSession') {
-              if (onNavigateToSession) {
-                onNavigateToSession(effect.sessionId);
-              }
-              return;
-            }
-          }
-          if (effects.some((effect) => effect.type === 'reloadSession')) {
-            await loadMessages();
-          }
-          if (display) {
-            setActionResultDisplay(display);
-          }
-        } finally {
-          setPluginActionInProgress(false);
-        }
+        const isMessage = context.kind === 'message';
+        await executePluginAction(element, {
+          sessionId,
+          messageContext: isMessage
+            ? { index: (context as any).index, message: (context as any).message }
+            : undefined,
+          dialogValues,
+        });
       },
-      [backend, actionsById, sessionId, loadMessages, onNavigateToSession],
+      [executePluginAction, sessionId],
     ),
   );
 
@@ -3152,10 +3246,26 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        onSubmit={handleSubmitPluginDialog}
 	        onCancel={handleCancelPluginDialog}
 	      />
+        {inlineActionDisplays.map((entry) => (
+          <ActionResultInlineCard
+            key={entry.key}
+            display={entry.display}
+            activeActionId={activeDisplayActionId}
+            onDismiss={() =>
+              setInlineActionDisplays((current) => current.filter((item) => item.key !== entry.key))
+            }
+            onFollowupAction={(action) => handleDisplayFollowupAction(entry, action)}
+          />
+        ))}
         <ActionResultModal
           visible={!!actionResultDisplay}
-          display={actionResultDisplay}
+          display={actionResultDisplay?.display ?? null}
+          activeActionId={activeDisplayActionId}
           onRequestClose={() => setActionResultDisplay(null)}
+          onFollowupAction={(action) => {
+            if (!actionResultDisplay) return;
+            handleDisplayFollowupAction(actionResultDisplay, action);
+          }}
         />
 	      {debugVisible && (
 	        <View style={styles.debugOverlay}>

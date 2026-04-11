@@ -12,6 +12,7 @@ export type {
   ActionInputParam,
   ApplicationActionDefinition,
   ActionUiElement,
+  ActionDisplayFollowupAction,
   ActionDisplayPayload,
   SessionListFieldElement,
   ApplicationUiElement,

@@ -750,6 +750,82 @@ def test_call_api_uses_request_instructions() -> None:
     assert fixture_client.responses.calls[0]["instructions"] == "Compiled system instructions"
 
 
+def test_call_api_can_strip_leading_system_message_from_request_history() -> None:
+    provider = OpenAIResponsesProvider()
+    fixture_client = _FixtureClient(_load_fixture())
+    native_messages = provider.to_native_messages(
+        [
+            {"role": "system", "content": "Legacy system prompt"},
+            {"role": "user", "content": "hello"},
+        ],
+        {},
+    )
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 42,
+            "strip_leading_system_or_developer_message": True,
+        },
+        "client": fixture_client,
+        "request": {
+            "url": "https://api.openai.com/v1/responses",
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {
+                "Authorization": "Bearer test_key",
+                "Content-Type": "application/json",
+            },
+            "timeout": 42.0,
+            "instructions": "Compiled system instructions",
+        },
+    }
+
+    provider.call_api(native_messages, state)
+
+    sent_input = fixture_client.responses.calls[0]["input"]
+    assert len(sent_input) == 1
+    assert sent_input[0]["role"] == "user"
+
+
+def test_stream_api_can_strip_leading_developer_message_from_request_history() -> None:
+    provider = OpenAIResponsesProvider()
+    fixture_client = _FixtureStreamingClient(_load_stream_fixture_events())
+    native_messages = provider.to_native_messages(
+        [
+            {"role": "developer", "content": "Legacy developer prompt"},
+            {"role": "user", "content": "hello"},
+        ],
+        {},
+    )
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 42,
+            "strip_leading_system_or_developer_message": True,
+        },
+        "client": fixture_client,
+        "request": {
+            "url": "https://api.openai.com/v1/responses",
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {
+                "Authorization": "Bearer test_key",
+                "Content-Type": "application/json",
+            },
+            "timeout": 42.0,
+            "instructions": "Compiled system instructions",
+        },
+    }
+
+    list(provider.stream_api(native_messages, state))
+
+    sent_input = fixture_client.responses.calls[0]["input"]
+    assert len(sent_input) == 1
+    assert sent_input[0]["role"] == "user"
+
+
 def test_to_native_and_from_native_roundtrip_with_tool_output() -> None:
     provider = OpenAIResponsesProvider()
 

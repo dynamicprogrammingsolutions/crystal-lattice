@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Linking,
   Modal,
   ScrollView,
   StyleSheet,
@@ -11,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
 import Icon from 'react-native-vector-icons/Feather';
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import {
@@ -18,6 +20,7 @@ import {
   groupSessionListFields,
   pickDefaultAgentId,
   runApplicationAction,
+  type RunActionContext,
 } from '@crystal-lattice/frontend-sdk';
 import {
   ApplicationActionDialog,
@@ -34,6 +37,7 @@ import { useTheme, type Theme } from './theme';
 import SessionSettingsModal from './components/SessionSettingsModal';
 import SessionPluginsModal from './components/SessionPluginsModal';
 import {
+  type ActionDisplayFollowupAction,
   type ActionUiElement,
   type ActionDisplayPayload,
   type SessionSummary,
@@ -43,6 +47,7 @@ import { usePersistentPinnedActions } from './usePersistentPinnedActions';
 import { usePluginActionDialog } from './usePluginActionDialog';
 import AgentSwitchModal from './components/AgentSwitchModal';
 import ActionResultModal from './components/ActionResultModal';
+import ActionResultInlineCard from './components/ActionResultInlineCard';
 
 interface SessionsScreenProps {
   backend: AgentBackend | null;
@@ -59,6 +64,36 @@ const STORAGE_KEY_SESSION_LIST_ACTIONS = 'clc_pinned_session_list_actions_v1';
 const DEFAULT_PINNED_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settings'];
 
 const BUILTIN_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settings', 'plugins'];
+
+type ActionDisplayEntry = {
+  key: string;
+  display: ActionDisplayPayload;
+  context: RunActionContext;
+};
+
+function createDisplayEntry(display: ActionDisplayPayload, context: RunActionContext): ActionDisplayEntry {
+  const key =
+    typeof display.display_id === 'string' && display.display_id
+      ? display.display_id
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return { key, display, context };
+}
+
+function upsertInlineDisplay(
+  current: ActionDisplayEntry[],
+  nextEntry: ActionDisplayEntry,
+): ActionDisplayEntry[] {
+  const displayId = nextEntry.display.display_id;
+  if (typeof displayId === 'string' && displayId) {
+    const existingIndex = current.findIndex((entry) => entry.display.display_id === displayId);
+    if (existingIndex >= 0) {
+      const updated = current.slice();
+      updated[existingIndex] = nextEntry;
+      return updated;
+    }
+  }
+  return [...current, nextEntry];
+}
 
 const SessionsScreen: React.FC<SessionsScreenProps> = ({
   backend,
@@ -100,7 +135,9 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const loading = sessionsLoading || actionLoading;
   const error = sessionsState?.error ?? (!backend ? 'No active connection' : null);
   const [agentPickerVisible, setAgentPickerVisible] = useState(false);
-  const [actionResultDisplay, setActionResultDisplay] = useState<ActionDisplayPayload | null>(null);
+  const [actionResultDisplay, setActionResultDisplay] = useState<ActionDisplayEntry | null>(null);
+  const [inlineActionDisplays, setInlineActionDisplays] = useState<ActionDisplayEntry[]>([]);
+  const [activeDisplayActionId, setActiveDisplayActionId] = useState<string | null>(null);
   const { controller: agentsController, state: agentsState } = useAgentsController({
     backend,
     cacheKey: connectionId ?? 'default',
@@ -165,6 +202,97 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     }
 	  }, [sessionsController, onUpdateCache]);
 
+  const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {
+    const nextEntry = createDisplayEntry(display, context);
+    const presentation = display.presentation ?? 'modal';
+    if (presentation === 'inline' || presentation === 'banner') {
+      setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
+      return;
+    }
+    setActionResultDisplay(nextEntry);
+  }, []);
+
+  const executePluginAction = useCallback(
+    async (element: ActionUiElement, context: RunActionContext) => {
+      if (!backend) {
+        Alert.alert('Error', 'No active connection');
+        return;
+      }
+
+      setActionLoading(true);
+      try {
+        const { ok, effects, display, errorMessage } = await runApplicationAction({
+          backend,
+          element,
+          actionsById,
+          context,
+          effects: { reloadSessionsListOnMutations: true },
+        });
+        if (!ok) {
+          Alert.alert('Action error', errorMessage || 'Failed to execute action');
+          return;
+        }
+
+        for (const effect of effects) {
+          if (effect.type === 'navigateToSession') {
+            navigateToSession(effect.sessionId);
+            return;
+          }
+        }
+        if (effects.some((effect) => effect.type === 'reloadSessionsList')) {
+          await loadSessions();
+        }
+        if (display) {
+          presentActionDisplay(display, context);
+        }
+      } finally {
+        setActionLoading(false);
+      }
+    },
+    [actionsById, backend, loadSessions, navigateToSession, presentActionDisplay],
+  );
+
+  const handleDisplayFollowupAction = useCallback(
+    async (entry: ActionDisplayEntry, action: ActionDisplayFollowupAction) => {
+      if (action.kind === 'open_url') {
+        try {
+          await Linking.openURL(action.url);
+        } catch (err: any) {
+          Alert.alert('Open link failed', err?.message || 'Unable to open the link.');
+        }
+        return;
+      }
+      if (action.kind === 'copy_text') {
+        Clipboard.setString(action.text);
+        Alert.alert('Copied', 'Copied to clipboard.');
+        return;
+      }
+      if (action.kind === 'run_action') {
+        if ((entry.display.presentation ?? 'modal') !== 'inline' && action.preserve_display !== true) {
+          setActionResultDisplay((current) => (current?.key === entry.key ? null : current));
+        }
+        setActiveDisplayActionId(action.id);
+        try {
+          await executePluginAction(
+            {
+              ui_type: 'action_result_followup',
+              plugin: action.plugin,
+              id: action.id,
+              label: action.label,
+              action_id: action.action_id,
+              action_owner: action.action_owner,
+              fixed_params: action.fixed_params as Record<string, any> | undefined,
+            },
+            entry.context,
+          );
+        } finally {
+          setActiveDisplayActionId(null);
+        }
+      }
+    },
+    [executePluginAction],
+  );
+
 	  const {
 	    activeElement: activePluginDialogElement,
       context: activePluginDialogContext,
@@ -178,46 +306,13 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         session: SessionSummary,
         dialogValues: Record<string, any> | undefined,
       ) => {
-        if (!backend) {
-          Alert.alert('Error', 'No active connection');
-          return;
-        }
-
-        setActionLoading(true);
-        try {
-          const { ok, effects, display, errorMessage } = await runApplicationAction({
-            backend,
-            element,
-            actionsById,
-            context: {
-              sessionId: session.session_id,
-              sessionSummary: session,
-              dialogValues,
-            },
-            effects: { reloadSessionsListOnMutations: true },
-          });
-          if (!ok) {
-            Alert.alert('Action error', errorMessage || 'Failed to execute action');
-            return;
-          }
-
-          for (const effect of effects) {
-            if (effect.type === 'navigateToSession') {
-              navigateToSession(effect.sessionId);
-              return;
-            }
-          }
-          if (effects.some((effect) => effect.type === 'reloadSessionsList')) {
-            await loadSessions();
-          }
-          if (display) {
-            setActionResultDisplay(display);
-          }
-        } finally {
-          setActionLoading(false);
-        }
+        await executePluginAction(element, {
+          sessionId: session.session_id,
+          sessionSummary: session,
+          dialogValues,
+        });
       },
-	      [backend, actionsById, loadSessions, navigateToSession],
+	      [executePluginAction],
 	    ),
 	  );
 
@@ -591,10 +686,27 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         onCancel={handleCancelPluginDialog}
       />
 
+      {inlineActionDisplays.map((entry) => (
+        <ActionResultInlineCard
+          key={entry.key}
+          display={entry.display}
+          activeActionId={activeDisplayActionId}
+          onDismiss={() =>
+            setInlineActionDisplays((current) => current.filter((item) => item.key !== entry.key))
+          }
+          onFollowupAction={(action) => handleDisplayFollowupAction(entry, action)}
+        />
+      ))}
+
       <ActionResultModal
         visible={!!actionResultDisplay}
-        display={actionResultDisplay}
+        display={actionResultDisplay?.display ?? null}
+        activeActionId={activeDisplayActionId}
         onRequestClose={() => setActionResultDisplay(null)}
+        onFollowupAction={(action) => {
+          if (!actionResultDisplay) return;
+          handleDisplayFollowupAction(actionResultDisplay, action);
+        }}
       />
 
       {settingsSessionId && (
