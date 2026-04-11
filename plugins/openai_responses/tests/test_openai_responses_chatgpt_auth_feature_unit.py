@@ -169,3 +169,28 @@ def test_endpoint_ui_uses_chatgpt_default_when_auto_mode_has_valid_login(
             "default": "https://chatgpt.example.test/backend-api/codex",
         }
     ]
+
+
+def test_auto_mode_prefers_chatgpt_when_saved_access_token_exists_even_if_expired(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CONFIG_DIR", str(tmp_path))
+    credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
+    _write_credentials(credentials_path, expires_in_seconds=-30)
+
+    feature = OpenAIResponsesChatGPTAuthFeature()
+    state = feature.init(
+        {
+            "model": "gpt-5-mini",
+            "auth_mode": "auto",
+            "chatgpt_credentials_path": str(credentials_path),
+        },
+        {"config": {}},
+    )
+
+    auth_state = state["_openai_responses_chatgpt_auth"]
+    assert auth_state["requested_mode"] == "auto"
+    assert auth_state["effective_mode"] == "chatgpt"
+    assert auth_state["logged_in"] is True
+    assert auth_state["credentials_valid"] is False
+    assert state["config"]["chatgpt_access_token"] == "chatgpt-access-token"

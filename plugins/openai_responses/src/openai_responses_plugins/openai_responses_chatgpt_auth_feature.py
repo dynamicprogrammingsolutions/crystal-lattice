@@ -1,29 +1,16 @@
 from __future__ import annotations
 
-import json
-import os
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from .chatgpt_credentials import (
+    credentials_are_valid,
+    credentials_have_access_token,
+    load_credentials,
+    resolve_credentials_path,
+)
 
 _DEFAULT_CHATGPT_BASE_URL = "https://chatgpt.com/backend-api/codex"
-_DEFAULT_CHATGPT_CREDENTIALS_RELATIVE_PATH = "auth/chatgpt-auth.json"
-
-
-def _parse_iso8601(value: Any) -> Optional[datetime]:
-    if not isinstance(value, str) or not value.strip():
-        return None
-    text = value.strip()
-    if text.endswith("Z"):
-        text = text[:-1] + "+00:00"
-    try:
-        parsed = datetime.fromisoformat(text)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
 
 
 class OpenAIResponsesChatGPTAuthFeature:
@@ -69,10 +56,11 @@ class OpenAIResponsesChatGPTAuthFeature:
         requested_mode = self._normalize_auth_mode(config.get("auth_mode"))
         credentials_path = self._credentials_path(config)
         credentials = self._load_credentials(credentials_path)
-        has_valid_chatgpt = self._credentials_are_valid(credentials)
+        has_saved_chatgpt = credentials_have_access_token(credentials)
+        has_valid_chatgpt = credentials_are_valid(credentials)
         if requested_mode == "chatgpt":
             effective_mode = "chatgpt"
-        elif requested_mode == "auto" and has_valid_chatgpt:
+        elif requested_mode == "auto" and has_saved_chatgpt:
             effective_mode = "chatgpt"
         else:
             effective_mode = "api"
@@ -105,11 +93,12 @@ class OpenAIResponsesChatGPTAuthFeature:
         requested_mode = self._normalize_auth_mode(config.get("auth_mode"))
         credentials_path = self._credentials_path(config)
         credentials = self._load_credentials(credentials_path)
-        has_valid_chatgpt = self._credentials_are_valid(credentials)
+        has_saved_chatgpt = credentials_have_access_token(credentials)
+        has_valid_chatgpt = credentials_are_valid(credentials)
 
         if requested_mode == "chatgpt":
             effective_mode = "chatgpt"
-        elif requested_mode == "auto" and has_valid_chatgpt:
+        elif requested_mode == "auto" and has_saved_chatgpt:
             effective_mode = "chatgpt"
         else:
             effective_mode = "api"
@@ -123,7 +112,7 @@ class OpenAIResponsesChatGPTAuthFeature:
         runtime_config["chatgpt_credentials_path"] = str(credentials_path)
         runtime_config["_openai_responses_effective_auth_mode"] = effective_mode
 
-        if effective_mode == "chatgpt" and has_valid_chatgpt:
+        if effective_mode == "chatgpt" and has_saved_chatgpt:
             runtime_config["chatgpt_access_token"] = credentials.get("access_token")
             runtime_config["chatgpt_token_type"] = credentials.get("token_type") or "Bearer"
             runtime_config["chatgpt_account_id"] = credentials.get("account_id") or config.get(
@@ -140,7 +129,8 @@ class OpenAIResponsesChatGPTAuthFeature:
             "requested_mode": requested_mode,
             "effective_mode": effective_mode,
             "credentials_path": str(credentials_path),
-            "logged_in": has_valid_chatgpt,
+            "logged_in": has_saved_chatgpt,
+            "credentials_valid": has_valid_chatgpt,
             "account_email": credentials.get("account_email") if isinstance(credentials, dict) else None,
             "plan_type": credentials.get("plan_type") if isinstance(credentials, dict) else None,
         }
@@ -174,31 +164,10 @@ class OpenAIResponsesChatGPTAuthFeature:
         return raw.rstrip("/")
 
     def _credentials_path(self, config: Dict[str, Any]) -> Path:
-        raw = config.get("chatgpt_credentials_path")
-        if isinstance(raw, str) and raw.strip():
-            return Path(raw).expanduser()
-        config_dir = os.environ.get("CONFIG_DIR")
-        if isinstance(config_dir, str) and config_dir:
-            return Path(config_dir).expanduser() / _DEFAULT_CHATGPT_CREDENTIALS_RELATIVE_PATH
-        return Path.cwd() / _DEFAULT_CHATGPT_CREDENTIALS_RELATIVE_PATH
+        return resolve_credentials_path(config)
 
     def _load_credentials(self, path: Path) -> Dict[str, Any]:
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            return {}
-        except Exception:
-            return {}
-        return payload if isinstance(payload, dict) else {}
-
-    def _credentials_are_valid(self, credentials: Dict[str, Any]) -> bool:
-        token = credentials.get("access_token")
-        if not isinstance(token, str) or not token.strip():
-            return False
-        expires_at = _parse_iso8601(credentials.get("expires_at"))
-        if expires_at is None:
-            return True
-        return datetime.now(timezone.utc) < expires_at
+        return load_credentials(path)
 
 
 __all__ = ["OpenAIResponsesChatGPTAuthFeature"]

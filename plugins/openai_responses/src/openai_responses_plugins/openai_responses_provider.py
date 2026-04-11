@@ -55,6 +55,15 @@ from .openai_responses_attachment_policy import (
     uploaded_attachment_map,
 )
 from .openai_responses_attachment_assets import session_asset_ref_from_content
+from .chatgpt_credentials import (
+    ChatGPTRefreshPermanentError,
+    ChatGPTRefreshTransientError,
+    credentials_are_valid as _chatgpt_credentials_are_valid_shared,
+    credentials_have_access_token,
+    load_credentials as _load_chatgpt_credentials_shared,
+    refresh_chatgpt_credentials,
+    resolve_credentials_path as _resolve_chatgpt_credentials_path_shared,
+)
 
 
 JsonObject = Dict[str, Any]
@@ -530,40 +539,92 @@ class OpenAIResponsesProvider(ProviderPlugin):
         return None
 
     def _chatgpt_credentials_path(self, config: Dict[str, Any]) -> Path:
-        raw = config.get("chatgpt_credentials_path")
-        if isinstance(raw, str) and raw.strip():
-            return Path(raw).expanduser()
-        config_dir = os.environ.get("CONFIG_DIR")
-        if isinstance(config_dir, str) and config_dir:
-            return Path(config_dir).expanduser() / "auth" / "chatgpt-auth.json"
-        return Path.cwd() / "auth" / "chatgpt-auth.json"
+        return _resolve_chatgpt_credentials_path_shared(config)
 
     def _load_json_file(self, path: Path) -> Dict[str, Any]:
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            return {}
-        except Exception:
-            return {}
-        return payload if isinstance(payload, dict) else {}
+        return _load_chatgpt_credentials_shared(path)
 
     def _chatgpt_credentials_are_valid(self, credentials: Dict[str, Any]) -> bool:
-        token = credentials.get("access_token")
-        if not isinstance(token, str) or not token.strip():
-            return False
-        expires_at = credentials.get("expires_at")
-        if not isinstance(expires_at, str) or not expires_at.strip():
-            return True
-        text = expires_at.strip()
-        if text.endswith("Z"):
-            text = text[:-1] + "+00:00"
-        try:
-            parsed = datetime.fromisoformat(text)
-        except ValueError:
-            return True
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
-        return datetime.now(timezone.utc) < parsed.astimezone(timezone.utc)
+        return _chatgpt_credentials_are_valid_shared(credentials)
+
+    def _chatgpt_credentials_can_attempt_request(self, credentials: Dict[str, Any]) -> bool:
+        return credentials_have_access_token(credentials)
+
+    def _chatgpt_config_with_credentials(
+        self,
+        config: Dict[str, Any],
+        credentials: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        updated = dict(config)
+        updated["chatgpt_access_token"] = credentials.get("access_token")
+        updated["chatgpt_token_type"] = credentials.get("token_type") or "Bearer"
+        account_id = credentials.get("account_id") or config.get("chatgpt_account_id")
+        if isinstance(account_id, str) and account_id.strip():
+            updated["chatgpt_account_id"] = account_id.strip()
+        else:
+            updated.pop("chatgpt_account_id", None)
+        updated["chatgpt_credentials_path"] = str(self._chatgpt_credentials_path(config))
+        updated["_openai_responses_effective_auth_mode"] = "chatgpt"
+        updated["base_url"] = self._resolve_base_url(updated)
+        return updated
+
+    def _exception_status_code(self, exc: Exception) -> Optional[int]:
+        status_code = getattr(exc, "status_code", None)
+        if isinstance(status_code, int):
+            return status_code
+        response = getattr(exc, "response", None)
+        response_status = getattr(response, "status_code", None)
+        if isinstance(response_status, int):
+            return response_status
+        if isinstance(exc, HTTPError):
+            return exc.code
+        message = str(exc)
+        if "Error code: 401" in message or "status 401" in message:
+            return 401
+        return None
+
+    def _is_unauthorized_error(self, exc: Exception) -> bool:
+        return self._exception_status_code(exc) == 401
+
+    def _reload_chatgpt_credentials_if_changed(
+        self,
+        config: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        path = self._chatgpt_credentials_path(config)
+        credentials = self._load_json_file(path)
+        if not self._chatgpt_credentials_can_attempt_request(credentials):
+            return None
+        current_token = config.get("chatgpt_access_token")
+        next_token = credentials.get("access_token")
+        if not isinstance(next_token, str) or not next_token.strip():
+            return None
+        if isinstance(current_token, str) and current_token.strip() == next_token.strip():
+            return None
+        return self._chatgpt_config_with_credentials(config, credentials)
+
+    def _refresh_chatgpt_config(
+        self,
+        config: Dict[str, Any],
+        *,
+        timeout: float,
+    ) -> Dict[str, Any]:
+        path = self._chatgpt_credentials_path(config)
+        credentials = refresh_chatgpt_credentials(path, timeout=timeout)
+        return self._chatgpt_config_with_credentials(config, credentials)
+
+    def _rebuild_request_client(
+        self,
+        config: Dict[str, Any],
+        *,
+        timeout: float,
+        max_retries: Optional[int],
+    ) -> Any:
+        client = self._create_sdk_client_with_options(
+            config,
+            timeout=timeout,
+            max_retries=max_retries,
+        )
+        return self._request_client(client, timeout=timeout, max_retries=max_retries)
 
     def _chatgpt_client_version(self, config: Dict[str, Any]) -> str:
         raw = config.get("chatgpt_client_version") or _DEFAULT_CHATGPT_CLIENT_VERSION
@@ -2039,11 +2100,11 @@ class OpenAIResponsesProvider(ProviderPlugin):
         stream_recovery_retries = self._request_stream_recovery_retries(request)
         extra_headers = dict(request.get("headers") or {})
 
+        local_cfg = dict(cfg)
         client = state.get("client")
         if client is None:
-            cfg = state.get("config") or {}
             client = self._create_sdk_client_with_options(
-                cfg,
+                local_cfg,
                 timeout=timeout,
                 max_retries=max_retries,
             )
@@ -2079,7 +2140,47 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
         def _worker() -> None:
             local_request_client = request_client
-            runtime.add_closer(lambda: _close_candidate(local_request_client))
+            runtime.add_closer(lambda candidate=local_request_client: _close_candidate(candidate))
+            auth_recovery_used = False
+
+            def _attempt_chatgpt_auth_recovery(exc: Exception) -> bool:
+                nonlocal local_cfg, local_request_client, auth_recovery_used
+                if auth_recovery_used or self._effective_auth_mode(local_cfg) != "chatgpt":
+                    return False
+                if not self._is_unauthorized_error(exc):
+                    return False
+
+                reloaded_cfg = self._reload_chatgpt_credentials_if_changed(local_cfg)
+                if reloaded_cfg is not None:
+                    local_cfg = reloaded_cfg
+                    local_request_client = self._rebuild_request_client(
+                        local_cfg,
+                        timeout=timeout,
+                        max_retries=max_retries,
+                    )
+                    runtime.add_closer(
+                        lambda candidate=local_request_client: _close_candidate(candidate)
+                    )
+                    auth_recovery_used = True
+                    return True
+
+                try:
+                    refreshed_cfg = self._refresh_chatgpt_config(local_cfg, timeout=timeout)
+                except ChatGPTRefreshPermanentError as refresh_exc:
+                    raise RuntimeError(str(refresh_exc)) from refresh_exc
+                except ChatGPTRefreshTransientError as refresh_exc:
+                    raise RuntimeError(str(refresh_exc)) from refresh_exc
+
+                local_cfg = refreshed_cfg
+                local_request_client = self._rebuild_request_client(
+                    local_cfg,
+                    timeout=timeout,
+                    max_retries=max_retries,
+                )
+                runtime.add_closer(lambda candidate=local_request_client: _close_candidate(candidate))
+                auth_recovery_used = True
+                return True
+
             recovery_attempts = 0
             try:
                 while True:
@@ -2122,6 +2223,8 @@ class OpenAIResponsesProvider(ProviderPlugin):
                                 timeout=timeout,
                             )
                         else:
+                            if _attempt_chatgpt_auth_recovery(exc):
+                                continue
                             raise
 
                     runtime.add_closer(lambda stream=sdk_stream: _close_candidate(stream))
@@ -2154,6 +2257,13 @@ class OpenAIResponsesProvider(ProviderPlugin):
                                 results.put(("chunk", event_dict))
                     except Exception as exc:
                         stream_error = exc
+
+                    if (
+                        stream_error is not None
+                        and not emitted_visible_output
+                        and _attempt_chatgpt_auth_recovery(stream_error)
+                    ):
+                        continue
 
                     if saw_completed:
                         results.put(("done", None))

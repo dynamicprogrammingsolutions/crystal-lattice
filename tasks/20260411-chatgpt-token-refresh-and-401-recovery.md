@@ -4,15 +4,15 @@ Add the next auth-hardening step after the ChatGPT device-login proof of concept
 
 ## Requirements checklist
 
-- [ ] Add managed ChatGPT token refresh using the saved `refresh_token`.
-- [ ] Persist refreshed credentials atomically to the same credential file used by the login plugin and provider auth feature.
-- [ ] Add provider-side `401` recovery for ChatGPT-backed OpenAI Responses requests:
+- [x] Add managed ChatGPT token refresh using the saved `refresh_token`.
+- [x] Persist refreshed credentials atomically to the same credential file used by the login plugin and provider auth feature.
+- [x] Add provider-side `401` recovery for ChatGPT-backed OpenAI Responses requests:
   - one guarded refresh attempt
   - one retry after successful refresh
   - clear permanent failure messaging when refresh cannot recover
-- [ ] Keep `api`, `chatgpt`, and `auto` mode semantics intact.
-- [ ] Avoid regressing the existing device-code login flow, saved-login integration test, and API-key mode.
-- [ ] Add focused unit and mocked integration tests for refresh success, refresh failure, and `401` retry behavior.
+- [x] Keep `api`, `chatgpt`, and `auto` mode semantics intact.
+- [x] Avoid regressing the existing device-code login flow, saved-login integration test, and API-key mode.
+- [x] Add focused unit and mocked integration tests for refresh success, refresh failure, and `401` retry behavior.
 
 ## Background
 
@@ -230,6 +230,31 @@ Non-streaming ChatGPT mode should remain explicitly unsupported.
 
 6. Add tests.
 
+## Execution plan
+
+Added during task completion.
+
+1. Add a shared ChatGPT credential helper module for the OpenAI Responses bundle.
+   - Centralize credential path resolution, JSON load/atomic write, token-type normalization, expiry parsing, and JWT claim extraction.
+   - Implement managed refresh-token exchange against `https://auth.openai.com/oauth/token` using the Codex client id.
+   - Return structured permanent vs transient refresh failures so the provider can message them clearly.
+
+2. Refactor the ChatGPT auth feature to use the shared helper.
+   - Keep the feature responsible for auth-mode selection and runtime config injection.
+   - Make `auto` mode prefer ChatGPT whenever a saved ChatGPT access token exists, even if it may need refresh at request time.
+
+3. Add guarded ChatGPT auth recovery to the OpenAI Responses streaming path.
+   - Detect real unauthorized failures only.
+   - On `401`, first reload credentials from disk and retry once if another process already rotated the token.
+   - Otherwise refresh using the saved `refresh_token`, persist rotated credentials, rebuild the client, and retry once.
+   - Only perform auth recovery before any visible stream output has been emitted, to avoid duplicated partial output.
+   - Keep non-streaming ChatGPT mode explicitly unsupported.
+
+4. Add focused tests around the risky paths.
+   - Shared helper unit tests for refresh success, permanent failure, and missing refresh token.
+   - Provider unit tests for reload-before-refresh, refresh-and-retry success, and permanent failure messaging.
+   - Run existing OpenAI Responses auth/provider regressions after the new coverage is in place.
+
 ## Test plan
 
 ### Unit tests
@@ -264,6 +289,32 @@ Optional follow-up manual test:
 - `auto` mode fallback behavior after unrecoverable ChatGPT refresh failure should be chosen deliberately.
 - Concurrent refresh attempts from multiple processes may need a simple file-locking or guarded-reload strategy if collisions become common.
 
-## Completion notes placeholder
+## Completion Notes
 
-Add implementation outcomes, tests run, and any discovered refresh-endpoint quirks here when this task is executed.
+Added during task completion.
+
+- Added shared ChatGPT credential helpers at `plugins/openai_responses/src/openai_responses_plugins/chatgpt_credentials.py`.
+  - Centralizes credential path resolution, JSON load, atomic write, token normalization, JWT claim extraction, and refresh-token exchange.
+  - Refresh defaults match Codex:
+    - endpoint `https://auth.openai.com/oauth/token`
+    - client id `app_EMoamEEZ73f0CkXaXp7hrann`
+- Refactored `OpenAIResponsesChatGPTAuthFeature` to use the shared helper.
+  - `auto` mode now prefers ChatGPT when a saved ChatGPT access token exists, even if the token may need runtime refresh.
+  - Feature auth state now records both `logged_in` and `credentials_valid`.
+- Added guarded ChatGPT `401` recovery to `OpenAIResponsesProvider.stream_api(...)`.
+  - On unauthorized before visible output:
+    - reload credentials from disk and retry once if another process already rotated the token
+    - otherwise refresh using the saved `refresh_token`, persist the rotated credentials, rebuild the client, and retry once
+  - Permanent refresh failures now surface a clear sign-in-again error.
+  - Non-streaming ChatGPT mode remains explicitly unsupported.
+- Added tests:
+  - `plugins/openai_responses/tests/test_openai_responses_chatgpt_credentials_unit.py`
+  - `plugins/openai_responses/tests/test_openai_responses_chatgpt_refresh_recovery_unit.py`
+  - extended `plugins/openai_responses/tests/test_openai_responses_chatgpt_auth_feature_unit.py`
+- Verified with:
+  - `python -m pytest plugins/openai_responses/tests/test_openai_responses_chatgpt_credentials_unit.py plugins/openai_responses/tests/test_openai_responses_chatgpt_refresh_recovery_unit.py plugins/openai_responses/tests/test_openai_responses_chatgpt_auth_feature_unit.py -q`
+  - `python -m pytest plugins/openai_responses/tests/test_openai_responses_provider_unit.py -q`
+  - `python -m pytest plugins/openai_responses/tests/test_openai_responses_imports.py -q`
+  - `python -m pytest plugins/openai_responses/tests/test_openai_responses_chatgpt_auth_manual_integration.py --collect-only -q`
+- Not yet run:
+  - a live manual refresh integration against the real refresh endpoint after forcing an expired/invalid access token
