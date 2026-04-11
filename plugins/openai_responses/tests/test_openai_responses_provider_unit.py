@@ -421,6 +421,7 @@ def test_provider_metadata_schema_and_tags() -> None:
     assert "model" in schema
     assert "api_key" in schema
     assert "base_url" in schema
+    assert "instructions" not in schema
     assert "timeout" in schema
 
     tags = provider.get_tags({"model": "gpt-5-mini"}, [{"id": "gpt-5-mini"}])
@@ -526,6 +527,71 @@ def test_get_models_returns_empty_list_and_logs_warning_when_sdk_call_fails(
     assert warnings[0][1]["error"] == "network boom"
 
 
+def test_get_models_uses_chatgpt_models_endpoint_with_client_version(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "chatgpt-access-token",
+                "account_id": "acct-123",
+                "expires_at": "2999-01-01T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    captured: dict[str, Any] = {}
+
+    class _FakeHttpResponse:
+        def __enter__(self) -> "_FakeHttpResponse":
+            return self
+
+        def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+            _ = (exc_type, exc, tb)
+
+        def read(self) -> bytes:
+            return json.dumps(
+                {
+                    "models": [
+                        {"slug": "gpt-5.2-codex", "display_name": "GPT-5.2 Codex"},
+                        {"slug": "gpt-5-codex"},
+                    ]
+                }
+            ).encode("utf-8")
+
+    def _fake_urlopen(request: Any, timeout: float) -> _FakeHttpResponse:
+        captured["url"] = request.full_url
+        captured["headers"] = dict(request.header_items())
+        captured["timeout"] = timeout
+        return _FakeHttpResponse()
+
+    monkeypatch.setattr(provider_module, "urlopen", _fake_urlopen)
+
+    models = provider.get_models(
+        {
+            "auth_mode": "chatgpt",
+            "chatgpt_base_url": "https://chatgpt.example.test/backend-api/codex",
+            "chatgpt_credentials_path": str(credentials_path),
+            "chatgpt_client_version": "0.1.0",
+            "timeout": 15,
+        }
+    )
+
+    assert captured["url"] == "https://chatgpt.example.test/backend-api/codex/models?client_version=0.1.0"
+    normalized_headers = {key.lower(): value for key, value in captured["headers"].items()}
+    assert normalized_headers["authorization"] == "Bearer chatgpt-access-token"
+    assert normalized_headers["chatgpt-account-id"] == "acct-123"
+    assert captured["timeout"] == 15.0
+    assert models == [
+        {"id": "gpt-5.2-codex", "name": "GPT-5.2 Codex"},
+        {"id": "gpt-5-codex"},
+    ]
+
+
 def test_get_ui_elements_uses_dropdown_when_models_are_available() -> None:
     provider = OpenAIResponsesProvider()
 
@@ -549,6 +615,18 @@ def test_get_ui_elements_uses_dropdown_when_models_are_available() -> None:
         ],
     }
     assert elements[1] == {
+        "ui_type": "config",
+        "type": "select",
+        "key": "auth_mode",
+        "label": "OpenAI auth mode",
+        "options": [
+            {"value": "api", "label": "API"},
+            {"value": "chatgpt", "label": "ChatGPT"},
+            {"value": "auto", "label": "Auto"},
+        ],
+        "default": "api",
+    }
+    assert elements[2] == {
         "ui_type": "model_picker",
         "key": "model",
         "attachment_type": "dropdown",
@@ -559,7 +637,7 @@ def test_get_ui_elements_uses_dropdown_when_models_are_available() -> None:
         ],
         "label": "model",
     }
-    assert elements[2] == {
+    assert elements[3] == {
         "ui_type": "composer_attachment",
         "key": "openai_responses:attachment:image",
         "attachment_type": "image",
@@ -582,9 +660,11 @@ def test_get_ui_elements_falls_back_to_text_when_models_are_unavailable() -> Non
         "key": "model",
         "label": "OpenAI Model",
     }
-    assert elements[1]["ui_type"] == "model_picker"
-    assert elements[1]["options"] == []
-    assert elements[2]["ui_type"] == "composer_attachment"
+    assert elements[1]["ui_type"] == "config"
+    assert elements[1]["key"] == "auth_mode"
+    assert elements[2]["ui_type"] == "model_picker"
+    assert elements[2]["options"] == []
+    assert elements[3]["ui_type"] == "composer_attachment"
 
 
 def test_init_uses_env_api_key_when_not_in_config(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -635,6 +715,39 @@ def test_initialize_request_builds_request_state() -> None:
     assert req["headers"]["Authorization"] == "Bearer test_key"
     assert req["headers"]["Content-Type"] == "application/json"
     assert req["timeout"] == 42.0
+
+
+def test_call_api_uses_request_instructions() -> None:
+    provider = OpenAIResponsesProvider()
+    fixture_client = _FixtureClient(_load_fixture())
+    native_messages = provider.to_native_messages(
+        [{"role": "user", "content": "hello"}],
+        {},
+    )
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 42,
+        },
+        "client": fixture_client,
+        "request": {
+            "url": "https://api.openai.com/v1/responses",
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {
+                "Authorization": "Bearer test_key",
+                "Content-Type": "application/json",
+            },
+            "timeout": 42.0,
+            "instructions": "Compiled system instructions",
+        },
+    }
+
+    provider.call_api(native_messages, state)
+
+    assert fixture_client.responses.calls
+    assert fixture_client.responses.calls[0]["instructions"] == "Compiled system instructions"
 
 
 def test_to_native_and_from_native_roundtrip_with_tool_output() -> None:

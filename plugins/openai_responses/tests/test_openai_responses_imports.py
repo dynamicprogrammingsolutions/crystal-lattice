@@ -6,6 +6,7 @@ from pathlib import Path
 
 from openai_responses_plugins import (
     OpenAIResponsesAttachmentsExtension,
+    OpenAIResponsesChatGPTAuthFeature,
     OpenAIResponsesFlexProcessingExtension,
     OpenAIResponsesPromptCachingExtension,
     OpenAIResponsesProvider,
@@ -26,6 +27,7 @@ def _import_symbol(dotted_path: str):
 def test_all_entry_classes_are_importable() -> None:
     assert OpenAIResponsesProvider.name == "openai_responses"
     assert OpenAIResponsesAttachmentsExtension.name == "openai_responses_attachments"
+    assert OpenAIResponsesChatGPTAuthFeature.name == "openai_responses_chatgpt_auth"
     assert OpenAIResponsesFlexProcessingExtension.name == "openai_responses_flex_processing"
     assert OpenAIResponsesPromptCachingExtension.name == "openai_responses_prompt_caching"
     assert OpenAIResponsesToolsExtension.name == "openai_responses_tools"

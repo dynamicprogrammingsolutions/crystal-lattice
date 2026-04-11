@@ -185,6 +185,42 @@ describe('runApplicationAction effect derivation', () => {
     expect(res.ok).toBe(true);
     expect(res.effects).toEqual([{ type: 'reloadSessionsList' }]);
   });
+
+  it('passes through generic display payloads for frontend rendering', async () => {
+    const backend = buildBackend({
+      status: 'ok',
+      plugin: 'chatgpt_auth',
+      action_id: 'login_start',
+      result: {
+        display: {
+          format: 'markdown',
+          title: 'ChatGPT Login',
+          body: 'Open [this link](https://auth.openai.com/codex/device)',
+          variant: 'info',
+        },
+        auth_status: {
+          state: 'pending',
+        },
+      },
+    });
+
+    const res = await runApplicationAction({
+      backend,
+      element: { ...ELEMENT, plugin: 'chatgpt_auth', action_id: 'login_start' },
+      actionsById: {
+        login_start: { ...ACTION_DEF, plugin: 'chatgpt_auth', id: 'login_start' },
+      },
+      context: { sessionId: 's1' },
+    });
+
+    expect(res.ok).toBe(true);
+    expect(res.display).toEqual({
+      format: 'markdown',
+      title: 'ChatGPT Login',
+      body: 'Open [this link](https://auth.openai.com/codex/device)',
+      variant: 'info',
+    });
+  });
 });
 
 describe('runApplicationAction input building', () => {

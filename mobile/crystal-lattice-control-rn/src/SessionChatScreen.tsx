@@ -56,6 +56,7 @@ import {
   type ApiMessage,
   type IndexedMessage,
   type ActionUiElement,
+  type ActionDisplayPayload,
   type UiSchemaElement,
   type SessionSummary,
 } from './api';
@@ -71,6 +72,7 @@ import OptionsPickerModal from './components/OptionsPickerModal';
 import SessionSettingsModal from './components/SessionSettingsModal';
 import SessionPluginsModal from './components/SessionPluginsModal';
 import AgentSwitchModal from './components/AgentSwitchModal';
+import ActionResultModal from './components/ActionResultModal';
 import type { DebugTimelineEntry } from './debugTimeline';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 import { selectDisplayContent } from './messageUtils';
@@ -297,6 +299,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     useState<PendingRequestRecovery | null>(null);
   const [resumeRecoveryInProgress, setResumeRecoveryInProgress] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [actionResultDisplay, setActionResultDisplay] = useState<ActionDisplayPayload | null>(null);
   const [pluginsVisible, setPluginsVisible] = useState(false);
   const [sessionOverrides, setSessionOverrides] = useState<Record<string, any>>({});
   const [sessionBaseConfig, setSessionBaseConfig] = useState<Record<string, any>>({});
@@ -945,38 +948,41 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         setPluginActionInProgress(true);
         try {
           const isMessage = context.kind === 'message';
-	          const { ok, effects, errorMessage } = await runApplicationAction({
-	            backend,
-	            element,
-	            actionsById,
-	            context: {
-	              sessionId,
-	              messageContext: isMessage
-	                ? { index: (context as any).index, message: (context as any).message }
-	                : undefined,
-	              dialogValues,
-	            },
-	            effects: {
-	              currentSessionId: sessionId,
-	              navigateOnCreatedSession: true,
-	            },
-	          });
-	          if (!ok) {
-	            Alert.alert('Action error', errorMessage || 'Failed to execute action');
-	            return;
-	          }
+          const { ok, effects, display, errorMessage } = await runApplicationAction({
+            backend,
+            element,
+            actionsById,
+            context: {
+              sessionId,
+              messageContext: isMessage
+                ? { index: (context as any).index, message: (context as any).message }
+                : undefined,
+              dialogValues,
+            },
+            effects: {
+              currentSessionId: sessionId,
+              navigateOnCreatedSession: true,
+            },
+          });
+          if (!ok) {
+            Alert.alert('Action error', errorMessage || 'Failed to execute action');
+            return;
+          }
 
-	          for (const effect of effects) {
-	            if (effect.type === 'navigateToSession') {
-	              if (onNavigateToSession) {
-	                onNavigateToSession(effect.sessionId);
-	              }
-	              return;
-	            }
-	          }
-	          if (effects.some((effect) => effect.type === 'reloadSession')) {
-	            await loadMessages();
-	          }
+          for (const effect of effects) {
+            if (effect.type === 'navigateToSession') {
+              if (onNavigateToSession) {
+                onNavigateToSession(effect.sessionId);
+              }
+              return;
+            }
+          }
+          if (effects.some((effect) => effect.type === 'reloadSession')) {
+            await loadMessages();
+          }
+          if (display) {
+            setActionResultDisplay(display);
+          }
         } finally {
           setPluginActionInProgress(false);
         }
@@ -2411,6 +2417,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
               }
               extraActions={pluginSessionActionDefs}
               isActive={isActive}
+              modalContentStyle={styles.sessionActionsModalContent}
             />
           </View>
 	        </View>
@@ -3145,6 +3152,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        onSubmit={handleSubmitPluginDialog}
 	        onCancel={handleCancelPluginDialog}
 	      />
+        <ActionResultModal
+          visible={!!actionResultDisplay}
+          display={actionResultDisplay}
+          onRequestClose={() => setActionResultDisplay(null)}
+        />
 	      {debugVisible && (
 	        <View style={styles.debugOverlay}>
 	          <DebugEventsView
@@ -3192,6 +3204,10 @@ const createStyles = (theme: Theme) =>
     headerButtons: {
       flexDirection: 'row',
       alignItems: 'center',
+    },
+    sessionActionsModalContent: {
+      width: '90%',
+      maxHeight: '80%',
     },
     iconButton: {
       paddingHorizontal: 8,

@@ -278,6 +278,50 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
 
   const renderers: SessionSettingsRenderers = {
     fallback: renderTextLike,
+    readonly: (ctx: SessionSettingRenderCtx) => {
+      const { item } = ctx;
+      const value =
+        item.effectiveValue !== undefined && item.effectiveValue !== null
+          ? String(item.effectiveValue)
+          : '';
+
+      return (
+        <View style={styles.itemRow}>
+          <View style={styles.itemTextColumn}>
+            <View style={styles.itemLabelRow}>
+              <View style={styles.itemLabelChipColumn}>
+                <Text style={styles.itemLabel}>{item.label}</Text>
+                {item.tagLabel && (
+                  <View
+                    style={
+                      item.tagLabel === 'config'
+                        ? styles.tagConfig
+                        : styles.tagDefault
+                    }
+                  >
+                    <Text
+                      style={
+                        item.tagLabel === 'config'
+                          ? styles.tagTextConfig
+                          : styles.tagTextDefault
+                      }
+                    >
+                      {item.tagLabel}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+            {item.description ? (
+              <Text style={styles.itemDescription}>{item.description}</Text>
+            ) : null}
+            <View style={styles.readonlyValueBox}>
+              <Text style={styles.readonlyValueText}>{value || 'Not set'}</Text>
+            </View>
+          </View>
+        </View>
+      );
+    },
     checkbox: (ctx: SessionSettingRenderCtx) => {
       const { item } = ctx;
       const boolValue = Boolean(item.effectiveValue ?? false);
@@ -785,6 +829,19 @@ const createStyles = (theme: Theme) =>
     },
     dropdownButtonValue: {
       flex: 1,
+      fontSize: 14,
+      color: theme.text,
+    },
+    readonlyValueBox: {
+      marginTop: 6,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      backgroundColor: theme.surfaceAlt,
+    },
+    readonlyValueText: {
       fontSize: 14,
       color: theme.text,
     },

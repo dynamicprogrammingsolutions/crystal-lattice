@@ -36,6 +36,7 @@ export type {
   ActionUiElement,
   ActionMutations,
   ActionUiEffects,
+  ActionDisplayPayload,
   StandardActionResult,
   SessionListFieldElement,
   ApplicationUiElement,

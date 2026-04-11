@@ -43,9 +43,18 @@ export interface ActionUiEffects {
   reload_sessions_list?: boolean;
 }
 
+export interface ActionDisplayPayload {
+  format: 'markdown' | 'text';
+  body: string;
+  title?: string;
+  variant?: 'info' | 'success' | 'warning' | 'error';
+}
+
 export interface StandardActionResult {
   mutations?: ActionMutations;
   ui_effects?: ActionUiEffects;
+  display?: ActionDisplayPayload;
+  message?: string;
   [k: string]: any;
 }
 

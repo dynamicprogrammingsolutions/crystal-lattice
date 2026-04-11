@@ -24,6 +24,7 @@ import {
 } from '@crystal-lattice/frontend-rn-components';
 import type {
   ActionUiElement,
+  ActionDisplayPayload,
   AgentBackend,
   ApiMessage,
   IndexedMessage,
@@ -62,6 +63,7 @@ import { truncateByChars } from '../utils/text';
 import { DependencyFlatList } from '../ui/DependencyFlatList';
 import { DependencyVirtualizedScroll } from '../ui/DependencyVirtualizedScroll';
 import { PlaceholderFlatList } from '../ui/PlaceholderFlatList';
+import { ActionResultModal } from '../ui/ActionResultModal';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
 import { closeDesktopPopover, openDesktopPopover } from '../windows/desktopPopoverCoordinator';
 import { MessageLimitPopoverContent } from '../windows/MessageLimitPopoverContent';
@@ -241,6 +243,7 @@ export const ChatPane = React.memo(function ChatPane({
   const [reloadInFlight, setReloadInFlight] = useState(false);
   const [cancelInFlight, setCancelInFlight] = useState(false);
   const [pluginActionRunning, setPluginActionRunning] = useState(false);
+  const [actionResultDisplay, setActionResultDisplay] = useState<ActionDisplayPayload | null>(null);
   const [attachmentBackgroundOperation, setAttachmentBackgroundOperation] =
     useState<AttachmentBackgroundOperation>(null);
   const [openingAgentPicker, setOpeningAgentPicker] = useState(false);
@@ -1838,7 +1841,7 @@ export const ChatPane = React.memo(function ChatPane({
         setPluginActionRunning(true);
         try {
           const isMessage = context.kind === 'message';
-          const { ok, effects, errorMessage } = await runApplicationAction({
+          const { ok, effects, display, errorMessage } = await runApplicationAction({
             backend,
             element,
             actionsById,
@@ -1880,6 +1883,9 @@ export const ChatPane = React.memo(function ChatPane({
               sessionId: navigateEffect.sessionId,
               title: navigateEffect.sessionId,
             });
+          }
+          if (display) {
+            setActionResultDisplay(display);
           }
         } finally {
           setPluginActionRunning(false);
@@ -2198,6 +2204,11 @@ export const ChatPane = React.memo(function ChatPane({
 
   return (
 	  <View style={styles.root}>
+      <ActionResultModal
+        visible={!!actionResultDisplay}
+        display={actionResultDisplay}
+        onRequestClose={() => setActionResultDisplay(null)}
+      />
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.title} numberOfLines={2}>

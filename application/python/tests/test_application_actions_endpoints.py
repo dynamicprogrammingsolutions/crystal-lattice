@@ -58,6 +58,9 @@ def _make_config_with_dummy_app_plugin(tmp_path: Path) -> Path:
 def _build_app(tmp_path: Path) -> AgentApplication:
     from agent_terminal_app import server as server_mod
 
+    previous = getattr(server_mod, "_agent_app", None)
+    if previous is not None:
+        previous.close()
     config_path = _make_config_with_dummy_app_plugin(tmp_path)
     session_root = tmp_path / "sessions"
     events = InMemoryEventStore()

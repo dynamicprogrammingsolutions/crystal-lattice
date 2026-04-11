@@ -12,6 +12,10 @@ Behavior overview
   ``system_message`` template (if non-empty) and injects a synthetic
   provider-native ``system`` message at the beginning of the native message
   list.
+- When ``system_message_as_instructions`` is enabled, the compiled template is
+  written into ``state["request"]["instructions"]`` instead of being injected
+  into provider-native request messages. This is useful for providers such as
+  OpenAI Responses that support a top-level ``instructions`` field.
 - Templates may contain placeholders like ``{{NAME}}``. Variable definitions
   live under a single top-level ``system_message`` key.
 - On every request, placeholders are resolved to concrete values, but the
@@ -23,6 +27,7 @@ Config shape
 Top-level keys used by this feature:
 
 - ``system_message_enabled``: bool (default True)
+- ``system_message_as_instructions``: bool (default False)
 - ``system_message``: string or object
 
 If ``system_message`` is a *string*, it is treated as the template verbatim
@@ -118,6 +123,7 @@ class SystemMessageFeature(FeaturePlugin):
         # requests.
         self._config: Dict[str, Any] = {
             "enabled": True,
+            "as_instructions": False,
             "template": "",
             "runtime_code": "",
             # variables: Dict[str, Dict[str, Any]] where each value is a
@@ -145,6 +151,14 @@ class SystemMessageFeature(FeaturePlugin):
                 "type": "boolean",
                 "default": True,
                 "description": "Enable or disable the system message feature.",
+            },
+            "system_message_as_instructions": {
+                "type": "boolean",
+                "default": False,
+                "description": (
+                    "Compile the rendered system message into request.instructions "
+                    "instead of injecting a provider-native system message."
+                ),
             },
             "system_message": {
                 "description": (
@@ -377,6 +391,7 @@ class SystemMessageFeature(FeaturePlugin):
         """
 
         enabled = bool(config.get("system_message_enabled", True))
+        as_instructions = bool(config.get("system_message_as_instructions", False))
 
         raw_sm = config.get("system_message")
         template = ""
@@ -397,6 +412,7 @@ class SystemMessageFeature(FeaturePlugin):
 
         return {
             "enabled": enabled,
+            "as_instructions": as_instructions,
             "template": template,
             "runtime_code": runtime_code,
             "variables": variables,
@@ -827,14 +843,17 @@ class SystemMessageFeature(FeaturePlugin):
         :meth:`initialize_request` by:
 
         - Ensuring that a single template-level ``system`` message exists
-          in the provider-native history when the feature is enabled and
-          a template is configured but no user ``system`` message is
-          present. This permanent message is inserted into the returned
+          in the provider-native history when the feature is enabled, a
+          template is configured, no user ``system`` message is present,
+          and ``system_message_as_instructions`` is disabled. This
+          permanent message is inserted into the returned
           ``native_messages`` with its *template* content.
         - Computing concrete variable values and rendering the chosen
-          system message template into ``state["request"]["messages"]``
-          for this request only. The stored native history keeps the
-          template content.
+          system message template into either
+          ``state["request"]["instructions"]`` or
+          ``state["request"]["messages"]`` for this request only. The
+          stored native history keeps the template content when message
+          injection mode is active.
         """
 
         cfg = self._config
@@ -861,7 +880,9 @@ class SystemMessageFeature(FeaturePlugin):
 
         # Structural step: ensure a permanent template-level system
         # message exists in the provider-native history when no user
-        # system message is present and a template is configured.
+        # system message is present, a template is configured, and the
+        # provider should receive the prompt as a message rather than as
+        # top-level instructions.
         if is_responses_items:
             has_system = any(
                 isinstance(m, dict)
@@ -873,7 +894,7 @@ class SystemMessageFeature(FeaturePlugin):
             has_system = any(
                 isinstance(m, dict) and m.get("role") == "system" for m in native_messages
             )
-        if not has_system:
+        if not has_system and not cfg.get("as_instructions", False):
             template = cfg.get("template", "") or ""
             if template:
                 if is_responses_items:
@@ -954,6 +975,16 @@ class SystemMessageFeature(FeaturePlugin):
             return working_native, state
 
         rendered = self._render_template(base_template, variables)
+        request = state.get("request") or {}
+
+        if cfg.get("as_instructions", False):
+            existing_instructions = request.get("instructions")
+            if isinstance(existing_instructions, str) and existing_instructions.strip():
+                rendered = f"{existing_instructions.rstrip()}\n\n{rendered}"
+            new_request = {**request, "instructions": rendered}
+            new_state = {**state, "request": new_request}
+            return working_native, new_state
+
         if system_index is not None:
             working_native = self._stamp_compiled_content_once(
                 working_native,
@@ -1012,7 +1043,6 @@ class SystemMessageFeature(FeaturePlugin):
                     *override_messages,
                 ]
 
-        request = state.get("request") or {}
         new_request = {**request, "messages": override_messages}
         new_state = {**state, "request": new_request}
         return working_native, new_state

@@ -1,0 +1,98 @@
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+
+import pytest
+
+from agent_app.application_future import AgentApplication
+from agent_app.config import build_agent_config
+from agent_core import AgentCore
+
+from .dummy_app_plugin import DummyAppPlugin  # noqa: F401
+from .dummy_provider import DummyProvider  # noqa: F401
+
+
+def _write_config(tmp_path: Path) -> Path:
+    cfg = {
+        "providers": {
+            "dummy": {"provider": "dummy_provider", "model": "test-model"}
+        },
+        "plugins": [
+            "tests.dummy_provider.DummyProvider",
+            "tests.dummy_app_plugin.DummyAppPlugin",
+        ],
+        "agents": {
+            "default": {"provider": "dummy"},
+        },
+        "application": {},
+    }
+    path = tmp_path / "config_runtime_env.json"
+    path.write_text(json.dumps(cfg), encoding="utf-8")
+    return path
+
+
+def test_application_plugins_receive_runtime_env_overlay_and_agent_config_stays_clean(tmp_path: Path) -> None:
+    config_path = _write_config(tmp_path)
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        core_factory=AgentCore,
+        env_overrides={"CONFIG_DIR": str(tmp_path / "override-config")},
+    )
+
+    try:
+        wrapper = app._app_plugins["dummy_app_plugin"]
+        plugin = wrapper.plugin
+        assert isinstance(plugin, DummyAppPlugin)
+        assert plugin.init_config is not None
+        assert os.environ["CONFIG_DIR"] == str(tmp_path / "override-config")
+
+        base_config = build_agent_config(app._config, "default")
+        assert "_resolved_env" not in base_config
+        assert app.get_resolved_env()["CONFIG_DIR"] == str(tmp_path / "override-config")
+    finally:
+        app.close()
+
+
+def test_runtime_env_overlay_restores_previous_process_env(tmp_path: Path) -> None:
+    config_path = _write_config(tmp_path)
+    previous = os.environ.get("CONFIG_DIR")
+    os.environ["CONFIG_DIR"] = "before-app"
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        core_factory=AgentCore,
+        env_overrides={"CONFIG_DIR": str(tmp_path / "override-config")},
+    )
+    try:
+        assert os.environ["CONFIG_DIR"] == str(tmp_path / "override-config")
+    finally:
+        app.close()
+    if previous is None:
+        assert os.environ["CONFIG_DIR"] == "before-app"
+        os.environ.pop("CONFIG_DIR", None)
+    else:
+        assert os.environ["CONFIG_DIR"] == "before-app"
+        os.environ["CONFIG_DIR"] = previous
+
+
+def test_runtime_env_overlay_rejects_conflicting_live_apps(tmp_path: Path) -> None:
+    config_path = _write_config(tmp_path)
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        core_factory=AgentCore,
+        env_overrides={"CONFIG_DIR": str(tmp_path / "config-a")},
+    )
+    try:
+        with pytest.raises(RuntimeError, match="Conflicting runtime environment overlay"):
+            AgentApplication(
+                str(config_path),
+                str(tmp_path / "sessions-b"),
+                core_factory=AgentCore,
+                env_overrides={"CONFIG_DIR": str(tmp_path / "config-b")},
+            )
+    finally:
+        app.close()

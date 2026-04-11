@@ -47,6 +47,9 @@ def _make_config(tmp_path: Path) -> Path:
 def _build_app(tmp_path: Path) -> AgentApplication:
     from agent_terminal_app import server as server_mod
 
+    previous = getattr(server_mod, "_agent_app", None)
+    if previous is not None:
+        previous.close()
     config_path = _make_config(tmp_path)
     session_root = tmp_path / "sessions"
     app = AgentApplication(str(config_path), str(session_root), event_store=InMemoryEventStore())
@@ -54,6 +57,13 @@ def _build_app(tmp_path: Path) -> AgentApplication:
     app._plugins_by_kind_and_id.setdefault("extensions", {})[
         DummySessionActionExtension.name
     ] = DummySessionActionExtension
+    runtime = app._agent_plugin_runtimes["default"]
+    runtime.plugin_classes.setdefault("extensions", []).append(DummySessionActionExtension)
+    runtime.plugins_by_kind_and_id.setdefault("extensions", {})[
+        DummySessionActionExtension.name
+    ] = DummySessionActionExtension
+    if runtime.default_enabled_ids is not None:
+        runtime.default_enabled_ids.append(DummySessionActionExtension.name)
     server_mod._agent_app = app
     return app
 

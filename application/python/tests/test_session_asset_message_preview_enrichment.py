@@ -51,6 +51,9 @@ def _write_config(tmp_path: Path) -> Path:
 
 def _build_app(tmp_path: Path, monkeypatch: Any) -> AgentApplication:
     monkeypatch.setattr(OpenAIResponsesProvider, "get_models", lambda self, config: [])
+    previous = getattr(server_mod, "_agent_app", None)
+    if previous is not None:
+        previous.close()
     return AgentApplication(
         str(_write_config(tmp_path)),
         str(tmp_path / "sessions"),

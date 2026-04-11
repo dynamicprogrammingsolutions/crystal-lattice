@@ -40,6 +40,7 @@ Application plugins are ideal for features that need:
 | Event publishing | `app.publish_event(event)` | Publish events to subscribers |
 | Switch agents | `app.update_agent(agent_id, session)` | Switch a session to a different agent |
 | Full config access | `self._config` (via `init`) | Access to the full application configuration |
+| Runtime env access | `os.environ[...]` | Real process environment installed from config resolution env |
 | Request config resolution | `resolve_request_config(base_config, overrides)` | Resolve effective config for a request |
 
 ---
@@ -82,6 +83,38 @@ class ApplicationPlugin(Protocol):
     ) -> Dict[str, Any]:
         """Execute an action with validated parameters."""
 ```
+
+---
+
+## Runtime env contract
+
+`AgentApplication` installs the same runtime env mapping used during config
+placeholder resolution into the real process environment before application
+plugins initialize.
+
+Example:
+
+```python
+import os
+
+
+def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:
+    config_dir = os.environ.get("CONFIG_DIR")
+    return {
+        "config_dir": config_dir,
+    }
+```
+
+This runtime environment is intended for path derivation and subprocesses that
+need to inherit the same anchors used during `${env:...}` config resolution.
+Common keys include:
+
+- `CONFIG_DIR`
+- `WORKING_DIR`
+- `BUILTIN_PLUGINS`
+
+This is the preferred way for application plugins to anchor sidecar files such
+as cached metadata, auth credentials, or other application-owned state.
 
 ---
 
@@ -365,6 +398,26 @@ class MyApplicationPlugin:
             "message": "Action completed successfully.",
         }
 ```
+
+---
+
+## Pattern: Background auth flows
+
+Application plugins are the right place for minimal login flows that need to:
+
+- start a long-running process in the background
+- write credentials to disk under `CONFIG_DIR`
+- expose small manual actions such as `login_start`, `check_status`, `cancel_login`, and `logout`
+
+For cross-device login, keep persistence in the application plugin itself:
+
+1. `login_start` begins the backend-side workflow and returns a URL/code.
+2. A background worker polls or waits for completion.
+3. The plugin writes credentials atomically when login succeeds.
+4. `check_status` reports state only; it should not be responsible for saving credentials.
+
+Provider or feature plugins can then consume the saved file during request-time
+runtime setup.
 
 ---
 

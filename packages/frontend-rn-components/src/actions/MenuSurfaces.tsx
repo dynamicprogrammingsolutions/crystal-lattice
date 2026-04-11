@@ -3,8 +3,8 @@ import {
   Dimensions,
   Modal,
   Platform,
+  Pressable,
   StyleSheet,
-  TouchableWithoutFeedback,
   View,
   type LayoutRectangle,
   type StyleProp,
@@ -44,27 +44,24 @@ export const ModalMenuSurface: React.FC<MenuSurfaceBaseProps> = ({
       animationType={Platform.OS === 'macos' ? 'none' : 'fade'}
       onRequestClose={onRequestClose}
     >
-      <TouchableWithoutFeedback onPress={onRequestClose}>
+      <View
+        style={[
+          styles.backdropBase,
+          { backgroundColor: theme.modalBackdrop },
+          backdropStyle,
+        ]}
+      >
+        <Pressable style={StyleSheet.absoluteFill} onPress={onRequestClose} />
         <View
           style={[
-            styles.backdropBase,
-            { backgroundColor: theme.modalBackdrop },
-            backdropStyle,
+            styles.modalContentBase,
+            { backgroundColor: theme.surface },
+            contentStyle,
           ]}
         >
-          <TouchableWithoutFeedback onPress={() => {}}>
-            <View
-              style={[
-                styles.modalContentBase,
-                { backgroundColor: theme.surface },
-                contentStyle,
-              ]}
-            >
-              {children}
-            </View>
-          </TouchableWithoutFeedback>
+          {children}
         </View>
-      </TouchableWithoutFeedback>
+      </View>
     </Modal>
   );
 };
@@ -152,51 +149,44 @@ export const DropdownMenuSurface: React.FC<DropdownMenuSurfaceProps> = ({
       animationType={Platform.OS === 'macos' ? 'none' : 'fade'}
       onRequestClose={onRequestClose}
     >
-      <TouchableWithoutFeedback onPress={onRequestClose}>
-        <View
-          style={[
-            styles.backdropBase,
-            { backgroundColor: theme.modalBackdrop },
-            backdropStyle,
-          ]}
-        >
-          <TouchableWithoutFeedback
-            onPress={() => {
-              // Stop propagation.
+      <View
+        style={[
+          styles.backdropBase,
+          { backgroundColor: theme.modalBackdrop },
+          backdropStyle,
+        ]}
+      >
+        <Pressable style={StyleSheet.absoluteFill} onPress={onRequestClose} />
+        {position ? (
+          <View
+            style={[
+              styles.dropdownMenuBase,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+              { left: position.left, top: position.top },
+              menuStyle,
+            ]}
+            onLayout={(event) => {
+              setMenuLayout(event.nativeEvent.layout);
             }}
           >
-            {position ? (
-              <View
-                style={[
-                  styles.dropdownMenuBase,
-                  { backgroundColor: theme.surface, borderColor: theme.border },
-                  { left: position.left, top: position.top },
-                  menuStyle,
-                ]}
-                onLayout={(event) => {
-                  setMenuLayout(event.nativeEvent.layout);
-                }}
-              >
-                {children}
-              </View>
-            ) : (
-              <View
-                style={[
-                  styles.dropdownMenuBase,
-                  { backgroundColor: theme.surface, borderColor: theme.border },
-                  styles.dropdownMenuHidden,
-                  menuStyle,
-                ]}
-                onLayout={(event) => {
-                  setMenuLayout(event.nativeEvent.layout);
-                }}
-              >
-                {children}
-              </View>
-            )}
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
+            {children}
+          </View>
+        ) : (
+          <View
+            style={[
+              styles.dropdownMenuBase,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+              styles.dropdownMenuHidden,
+              menuStyle,
+            ]}
+            onLayout={(event) => {
+              setMenuLayout(event.nativeEvent.layout);
+            }}
+          >
+            {children}
+          </View>
+        )}
+      </View>
     </Modal>
   );
 };

@@ -16,6 +16,7 @@ from agent_core.plugin.loader import validate_plugin_for_kind
 from .app_plugins import ApplicationPluginWrapper
 from .config import (
     build_config_resolution_env,
+    build_runtime_overlay_env,
     build_agent_config,
     load_raw_config,
     resolve_placeholders,
@@ -27,6 +28,8 @@ from .sessions import FilesystemSessionStore
 from .tool_loop import RequestCancellation, ToolLoopRunner
 from agent_core.utils import get_logger
 from .plugin_manager import PluginManager
+from .runtime_env import RuntimeEnvOverlay
+import weakref
 
 
 @dataclass(frozen=True)
@@ -131,6 +134,16 @@ class AgentApplication:
         resolved_config, placeholder_errors = resolve_placeholders(raw_config, env=resolution_env)
         self._config: Dict[str, Any] = resolved_config
         self._config_errors: List[Dict[str, Any]] = placeholder_errors
+        self._resolved_env: Dict[str, str] = dict(resolution_env)
+        self._runtime_env_overlay = RuntimeEnvOverlay(
+            build_runtime_overlay_env(config_path, env_overrides=env_overrides)
+        )
+        self._runtime_env_overlay.install()
+        self._runtime_env_finalizer = weakref.finalize(
+            self,
+            AgentApplication._release_runtime_env_overlay,
+            self._runtime_env_overlay,
+        )
 
         plugin_specs = self._coerce_plugin_specs(
             resolved_config.get("plugins"),
@@ -1267,6 +1280,21 @@ class AgentApplication:
         cfg = self._config if isinstance(self._config, dict) else {}
         raw_app_cfg = cfg.get("application") if isinstance(cfg.get("application"), dict) else {}
         return cast(Dict[str, Any], raw_app_cfg)
+
+    def get_resolved_env(self) -> Dict[str, str]:
+        """Return the runtime env mapping used for config placeholder resolution."""
+
+        return dict(self._resolved_env)
+
+    @staticmethod
+    def _release_runtime_env_overlay(overlay: RuntimeEnvOverlay) -> None:
+        overlay.close()
+
+    def close(self) -> None:
+        """Release process-global runtime env overlay owned by this app."""
+
+        if self._runtime_env_finalizer.alive:
+            self._runtime_env_finalizer()
 
     def cancel_request(self, request_id: str) -> None:
         """Request cooperative cancellation for an in-flight request.

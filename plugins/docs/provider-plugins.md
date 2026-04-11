@@ -109,6 +109,20 @@ state = {
 }
 ```
 
+Runtime-only config keys may also be injected by the application layer or by
+features before request execution. Providers and features can also use the
+real process environment installed by `AgentApplication` from the `${env:...}`
+config-resolution mapping. That makes keys like `CONFIG_DIR` available through
+`os.environ` without hardcoding repo-local locations.
+
+Another common pattern is a feature updating `state["config"]` before the
+provider request starts. This is useful for auth bridging, where a feature can:
+
+- read a credential file from `CONFIG_DIR`
+- choose an effective auth mode such as `api` / `chatgpt` / `auto`
+- inject runtime-only values like access tokens or alternate base URLs
+- clear `state["client"]` so the provider recreates its SDK client with the new config
+
 ---
 
 ## Quickstart / development workflow

@@ -35,12 +35,14 @@ import SessionSettingsModal from './components/SessionSettingsModal';
 import SessionPluginsModal from './components/SessionPluginsModal';
 import {
   type ActionUiElement,
+  type ActionDisplayPayload,
   type SessionSummary,
 } from './api';
 import { useApplicationPlugins } from './ApplicationPluginsContext';
 import { usePersistentPinnedActions } from './usePersistentPinnedActions';
 import { usePluginActionDialog } from './usePluginActionDialog';
 import AgentSwitchModal from './components/AgentSwitchModal';
+import ActionResultModal from './components/ActionResultModal';
 
 interface SessionsScreenProps {
   backend: AgentBackend | null;
@@ -98,6 +100,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const loading = sessionsLoading || actionLoading;
   const error = sessionsState?.error ?? (!backend ? 'No active connection' : null);
   const [agentPickerVisible, setAgentPickerVisible] = useState(false);
+  const [actionResultDisplay, setActionResultDisplay] = useState<ActionDisplayPayload | null>(null);
   const { controller: agentsController, state: agentsState } = useAgentsController({
     backend,
     cacheKey: connectionId ?? 'default',
@@ -170,47 +173,50 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 	    handleCancel: handleCancelPluginDialog,
 	  } = usePluginActionDialog<SessionSummary>(
 	    useCallback(
-	      async (
-	        element: ActionUiElement,
-	        session: SessionSummary,
-	        dialogValues: Record<string, any> | undefined,
-	      ) => {
-	        if (!backend) {
-	          Alert.alert('Error', 'No active connection');
-	          return;
-	        }
+      async (
+        element: ActionUiElement,
+        session: SessionSummary,
+        dialogValues: Record<string, any> | undefined,
+      ) => {
+        if (!backend) {
+          Alert.alert('Error', 'No active connection');
+          return;
+        }
 
-	        setActionLoading(true);
-	        try {
-	          const { ok, effects, errorMessage } = await runApplicationAction({
-	            backend,
-	            element,
-	            actionsById,
-	            context: {
-	              sessionId: session.session_id,
-	              sessionSummary: session,
-	              dialogValues,
-	            },
-	            effects: { reloadSessionsListOnMutations: true },
-	          });
-	          if (!ok) {
-	            Alert.alert('Action error', errorMessage || 'Failed to execute action');
-	            return;
-	          }
+        setActionLoading(true);
+        try {
+          const { ok, effects, display, errorMessage } = await runApplicationAction({
+            backend,
+            element,
+            actionsById,
+            context: {
+              sessionId: session.session_id,
+              sessionSummary: session,
+              dialogValues,
+            },
+            effects: { reloadSessionsListOnMutations: true },
+          });
+          if (!ok) {
+            Alert.alert('Action error', errorMessage || 'Failed to execute action');
+            return;
+          }
 
-	          for (const effect of effects) {
-	            if (effect.type === 'navigateToSession') {
-	              navigateToSession(effect.sessionId);
-	              return;
-	            }
-	          }
-	          if (effects.some((effect) => effect.type === 'reloadSessionsList')) {
-	            await loadSessions();
-	          }
-	        } finally {
-	          setActionLoading(false);
-	        }
-	      },
+          for (const effect of effects) {
+            if (effect.type === 'navigateToSession') {
+              navigateToSession(effect.sessionId);
+              return;
+            }
+          }
+          if (effects.some((effect) => effect.type === 'reloadSessionsList')) {
+            await loadSessions();
+          }
+          if (display) {
+            setActionResultDisplay(display);
+          }
+        } finally {
+          setActionLoading(false);
+        }
+      },
 	      [backend, actionsById, loadSessions, navigateToSession],
 	    ),
 	  );
@@ -457,6 +463,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
               extraActions={pluginSessionActionDefs}
               availableActions={BUILTIN_SESSION_LIST_ACTIONS}
               isActive={isActive}
+              modalContentStyle={styles.sessionActionsModalContent}
             />
           </View>
         )}
@@ -582,6 +589,12 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         }}
         onSubmit={handleSubmitPluginDialog}
         onCancel={handleCancelPluginDialog}
+      />
+
+      <ActionResultModal
+        visible={!!actionResultDisplay}
+        display={actionResultDisplay}
+        onRequestClose={() => setActionResultDisplay(null)}
       />
 
       {settingsSessionId && (
@@ -737,6 +750,10 @@ const createStyles = (theme: Theme) =>
     sessionActionsRow: {
       flexDirection: 'row',
       marginTop: 8,
+    },
+    sessionActionsModalContent: {
+      width: '90%',
+      maxHeight: '80%',
     },
     sessionActionButton: {
       paddingHorizontal: 10,

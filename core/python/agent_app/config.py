@@ -51,6 +51,28 @@ def build_config_resolution_env(
     return merged
 
 
+def build_runtime_overlay_env(
+    config_path: str | Path,
+    *,
+    env_overrides: Mapping[str, str] | None = None,
+) -> Dict[str, str]:
+    """Build the subset of runtime env keys installed into ``os.environ``.
+
+    The real process environment already contains inherited variables, so the
+    overlay only needs to install application-owned anchor keys plus explicit
+    caller overrides that may not exist in the parent process.
+    """
+
+    overlay = {
+        "CONFIG_DIR": str(Path(config_path).expanduser().resolve().parent),
+        "WORKING_DIR": str(Path.cwd().resolve()),
+        "BUILTIN_PLUGINS": str(_default_builtin_plugins_dir()),
+    }
+    if env_overrides:
+        overlay.update({key: str(value) for key, value in env_overrides.items()})
+    return overlay
+
+
 def load_raw_config(path: str | Path) -> Dict[str, Any]:
     """Load JSON configuration from disk.
 

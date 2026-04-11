@@ -3,6 +3,7 @@
   "subdirectory": ".",
   "entries": [
     "openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider",
+    "openai_responses_plugins.openai_responses_chatgpt_auth_feature.OpenAIResponsesChatGPTAuthFeature",
     "openai_responses_plugins.openai_responses_attachments_extension.OpenAIResponsesAttachmentsExtension",
     "openai_responses_plugins.openai_responses_flex_processing_extension.OpenAIResponsesFlexProcessingExtension",
     "openai_responses_plugins.openai_responses_native_compaction_extension.OpenAIResponsesNativeCompactionExtension",
@@ -15,6 +16,7 @@
   ],
   "kinds": {
     "openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider": "providers",
+    "openai_responses_plugins.openai_responses_chatgpt_auth_feature.OpenAIResponsesChatGPTAuthFeature": "features",
     "openai_responses_plugins.openai_responses_attachments_extension.OpenAIResponsesAttachmentsExtension": "extensions",
     "openai_responses_plugins.openai_responses_flex_processing_extension.OpenAIResponsesFlexProcessingExtension": "extensions",
     "openai_responses_plugins.openai_responses_native_compaction_extension.OpenAIResponsesNativeCompactionExtension": "extensions",

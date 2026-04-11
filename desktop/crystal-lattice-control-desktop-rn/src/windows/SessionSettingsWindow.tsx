@@ -307,6 +307,27 @@ function SessionSettingsWindowInner(): React.JSX.Element {
 
     return {
       fallback: renderTextLike,
+      readonly: ({ item }) => {
+        const value =
+          item.effectiveValue !== undefined && item.effectiveValue !== null
+            ? String(item.effectiveValue)
+            : '';
+
+        return (
+          <View style={styles.itemRow}>
+            <View style={styles.itemHeaderRow}>
+              <View style={styles.itemTitleRow}>
+                <Text style={styles.itemLabel}>{item.label}</Text>
+                {renderTag(item.tagLabel)}
+              </View>
+            </View>
+            {item.description ? <Text style={styles.itemDescription}>{item.description}</Text> : null}
+            <View style={styles.readonlyValueBox}>
+              <Text style={styles.readonlyValueText}>{value || 'Not set'}</Text>
+            </View>
+          </View>
+        );
+      },
       checkbox: ({ item, actions }) => {
         const boolValue = Boolean(item.effectiveValue ?? false);
         return (
@@ -661,6 +682,19 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
     textInputMultiline: {
       minHeight: 72,
       textAlignVertical: 'top',
+    },
+    readonlyValueBox: {
+      marginTop: 2,
+      borderWidth,
+      borderColor: theme.border,
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      backgroundColor: theme.surfaceAlt,
+    },
+    readonlyValueText: {
+      fontSize: 12,
+      color: theme.text,
     },
     saveButton: {
       paddingHorizontal: 12,

@@ -34,6 +34,44 @@ After the update, actions will follow these rules:
 - `AgentCore` executes lifecycle-triggered actions for core-side plugins and
   returns a modified `Session`.
 
+## Generic display payloads
+
+Successful actions may return a generic user-facing display payload in
+`result.display`.
+
+This is the preferred way for plugins to tell frontends to show instructions,
+status summaries, or rich follow-up text without introducing plugin-specific
+result keys.
+
+Recommended shape:
+
+```json
+{
+  "display": {
+    "format": "markdown",
+    "title": "ChatGPT Login",
+    "body": "Open [this link](https://example.test) and enter code `ABCD-EFGH`.",
+    "variant": "info"
+  }
+}
+```
+
+Fields:
+
+- `format`: `"markdown"` or `"text"`
+- `body`: required display content
+- `title`: optional heading
+- `variant`: optional tone hint such as `info`, `success`, `warning`, or
+  `error`
+
+Guidance:
+
+- keep `display` user-oriented and safe to render directly
+- keep machine-readable fields alongside it when frontend logic or tests still
+  need structured state
+- do not overload top-level `message` keys for successful rich content when
+  `display` is more appropriate
+
 ## Dynamic lifecycle names
 
 Lifecycle names are dynamic strings.

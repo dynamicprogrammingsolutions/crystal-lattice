@@ -23,6 +23,7 @@ import {
 
 import type {
   ActionUiElement,
+  ActionDisplayPayload,
   AgentBackend,
   SessionSummary,
 } from '@crystal-lattice/frontend-sdk';
@@ -45,6 +46,7 @@ import {
 import { asyncStorageKeyValueStore } from '../storage/asyncStorageKeyValueStore';
 import { desktopEventBus } from '../events/desktopEventBus';
 import { PanelHeader } from '../ui/PanelHeader';
+import { ActionResultModal } from '../ui/ActionResultModal';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
 import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationActionDialog';
 import { truncateByChars } from '../utils/text';
@@ -254,6 +256,7 @@ function SessionsPanelInner({
   });
 
   const [pluginActionRunning, setPluginActionRunning] = useState(false);
+  const [actionResultDisplay, setActionResultDisplay] = useState<ActionDisplayPayload | null>(null);
 
   const {
     activeElement: activePluginDialogElement,
@@ -275,7 +278,7 @@ function SessionsPanelInner({
 
         setPluginActionRunning(true);
         try {
-          const { ok, effects, errorMessage } = await runApplicationAction({
+          const { ok, effects, display, errorMessage } = await runApplicationAction({
             backend,
             element,
             actionsById,
@@ -310,6 +313,9 @@ function SessionsPanelInner({
               connectionId,
               reason: `action:${element.id}`,
             });
+          }
+          if (display) {
+            setActionResultDisplay(display);
           }
         } finally {
           setPluginActionRunning(false);
@@ -535,6 +541,11 @@ function SessionsPanelInner({
 
   return (
     <View style={styles.root}>
+      <ActionResultModal
+        visible={!!actionResultDisplay}
+        display={actionResultDisplay}
+        onRequestClose={() => setActionResultDisplay(null)}
+      />
       <PanelHeader
         title="Sessions"
         subtitle={subtitle}

@@ -18,8 +18,13 @@ import json
 import os
 import queue
 import threading
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 from openai import OpenAI
 
@@ -54,6 +59,8 @@ from .openai_responses_attachment_assets import session_asset_ref_from_content
 
 JsonObject = Dict[str, Any]
 _DEFAULT_BASE_URL = "https://api.openai.com/v1"
+_DEFAULT_CHATGPT_BASE_URL = "https://chatgpt.com/backend-api/codex"
+_DEFAULT_CHATGPT_CLIENT_VERSION = "0.1.0"
 _DEFAULT_TIMEOUT = 60.0
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
@@ -126,6 +133,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
     def get_config_schema(self) -> Dict[str, Any]:
         return {
             "model": {"type": "string", "required": True},
+            "auth_mode": {
+                "type": "string",
+                "required": False,
+                "default": "api",
+                "description": "Authentication mode: api, chatgpt, or auto.",
+            },
             "api_key": {
                 "type": "string",
                 "required": False,
@@ -135,6 +148,32 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 "type": "string",
                 "required": False,
                 "default": _DEFAULT_BASE_URL,
+            },
+            "api_base_url": {
+                "type": "string",
+                "required": False,
+                "default": _DEFAULT_BASE_URL,
+            },
+            "chatgpt_base_url": {
+                "type": "string",
+                "required": False,
+                "default": _DEFAULT_CHATGPT_BASE_URL,
+            },
+            "chatgpt_account_id": {
+                "type": "string",
+                "required": False,
+                "description": "ChatGPT account id used for ChatGPT-backed requests.",
+            },
+            "chatgpt_credentials_path": {
+                "type": "string",
+                "required": False,
+                "description": "Path to saved ChatGPT credentials for chatgpt/auto auth mode.",
+            },
+            "chatgpt_client_version": {
+                "type": "string",
+                "required": False,
+                "default": _DEFAULT_CHATGPT_CLIENT_VERSION,
+                "description": "Client version query parameter used for ChatGPT-backed /models discovery.",
             },
             "timeout": {
                 "type": "number",
@@ -174,6 +213,18 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 **({"options": model_options} if use_dropdown else {}),
             },
             {
+                "ui_type": "config",
+                "type": "select",
+                "key": "auth_mode",
+                "label": "OpenAI auth mode",
+                "options": [
+                    {"value": "api", "label": "API"},
+                    {"value": "chatgpt", "label": "ChatGPT"},
+                    {"value": "auto", "label": "Auto"},
+                ],
+                "default": "api",
+            },
+            {
                 "ui_type": "model_picker",
                 "key": "model",
                 "attachment_type": "dropdown",
@@ -195,8 +246,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
     def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         try:
-            client = self._create_sdk_client_for_discovery(config)
-            raw_result = client.models.list()
+            raw_result = self._fetch_models_raw(config)
             return self._normalize_model_descriptors(raw_result)
         except Exception as exc:
             get_logger("openai_responses_provider").warning(
@@ -241,12 +291,43 @@ class OpenAIResponsesProvider(ProviderPlugin):
         return max_retries
 
     def _resolve_api_key(self, config: Dict[str, Any]) -> str:
+        effective_auth_mode = self._effective_auth_mode(config)
+        if effective_auth_mode == "chatgpt":
+            access_token = config.get("chatgpt_access_token")
+            if isinstance(access_token, str) and access_token.strip():
+                return access_token.strip()
+            raise ValueError(
+                "[openai_responses_provider] chatgpt auth_mode requires a valid saved ChatGPT login"
+            )
+
         api_key = config.get("api_key") or os.getenv("OPENAI_API_KEY")
         if not isinstance(api_key, str) or not api_key.strip():
+            requested_mode = self._normalize_auth_mode(config.get("auth_mode"))
+            if requested_mode == "auto":
+                raise ValueError(
+                    "[openai_responses_provider] auto auth_mode requires either a saved ChatGPT login or config.api_key / OPENAI_API_KEY"
+                )
             raise ValueError(
                 "[openai_responses_provider] api_key is required (config.api_key or OPENAI_API_KEY)"
             )
         return api_key.strip()
+
+    def _normalize_auth_mode(self, raw: Any) -> str:
+        if not isinstance(raw, str):
+            return "api"
+        normalized = raw.strip().lower()
+        if normalized == "api_key":
+            return "api"
+        if normalized in {"api", "chatgpt", "auto"}:
+            return normalized
+        return "api"
+
+    def _effective_auth_mode(self, config: Dict[str, Any]) -> str:
+        raw = config.get("_openai_responses_effective_auth_mode")
+        if isinstance(raw, str) and raw.strip().lower() in {"api", "chatgpt"}:
+            return raw.strip().lower()
+        requested = self._normalize_auth_mode(config.get("auth_mode"))
+        return "chatgpt" if requested == "chatgpt" else "api"
 
     def _resolve_model(self, config: Dict[str, Any]) -> str:
         model = config.get("model")
@@ -255,21 +336,73 @@ class OpenAIResponsesProvider(ProviderPlugin):
         return model.strip()
 
     def _resolve_base_url(self, config: Dict[str, Any]) -> str:
-        base_url = config.get("base_url") or _DEFAULT_BASE_URL
+        effective_auth_mode = self._effective_auth_mode(config)
+        if effective_auth_mode == "chatgpt":
+            base_url = (
+                config.get("chatgpt_base_url")
+                or config.get("base_url")
+                or _DEFAULT_CHATGPT_BASE_URL
+            )
+        else:
+            base_url = config.get("api_base_url") or config.get("base_url") or _DEFAULT_BASE_URL
         if not isinstance(base_url, str) or not base_url.strip():
             raise ValueError("[openai_responses_provider] base_url must be a non-empty string")
         return base_url.rstrip("/")
 
     def _create_sdk_client(self, config: Dict[str, Any]) -> OpenAI:
+        timeout = self._coerce_timeout(config.get("timeout", _DEFAULT_TIMEOUT))
+        return self._create_sdk_client_with_options(config, timeout=timeout, max_retries=None)
+
+    def _chatgpt_default_headers(self, config: Dict[str, Any]) -> Dict[str, str]:
+        if self._effective_auth_mode(config) != "chatgpt":
+            return {}
+        account_id = config.get("chatgpt_account_id")
+        if isinstance(account_id, str) and account_id.strip():
+            return {"ChatGPT-Account-Id": account_id.strip()}
+        return {}
+
+    def _create_sdk_client_with_options(
+        self,
+        config: Dict[str, Any],
+        *,
+        timeout: float,
+        max_retries: Optional[int],
+    ) -> OpenAI:
         api_key = self._resolve_api_key(config)
         base_url = self._resolve_base_url(config)
-        timeout = self._coerce_timeout(config.get("timeout", _DEFAULT_TIMEOUT))
-        return OpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
+        kwargs: Dict[str, Any] = {
+            "api_key": api_key,
+            "base_url": base_url,
+            "timeout": timeout,
+        }
+        default_headers = self._chatgpt_default_headers(config)
+        if default_headers:
+            kwargs["default_headers"] = default_headers
+        if max_retries is not None:
+            kwargs["max_retries"] = max_retries
+        return OpenAI(**kwargs)
+
+    def _authorization_header_value(self, config: Dict[str, Any], token: str) -> str:
+        if self._effective_auth_mode(config) == "chatgpt":
+            token_type = config.get("chatgpt_token_type")
+            if isinstance(token_type, str) and token_type.strip():
+                normalized = token_type.strip()
+                if normalized.lower() == "bearer":
+                    normalized = "Bearer"
+                return f"{normalized} {token}"
+        return f"Bearer {token}"
 
     def _request_max_retries(self, request: Dict[str, Any]) -> Optional[int]:
         if "max_retries" not in request:
             return None
         return self._coerce_max_retries(request.get("max_retries"))
+
+    def _request_instructions(self, request: Dict[str, Any]) -> Optional[str]:
+        raw = request.get("instructions")
+        if not isinstance(raw, str):
+            return None
+        text = raw.strip()
+        return text or None
 
     def _request_client(self, client: Any, *, timeout: float, max_retries: Optional[int]) -> Any:
         if max_retries is None:
@@ -318,8 +451,140 @@ class OpenAIResponsesProvider(ProviderPlugin):
             raise TypeError("[openai_responses_provider] config must be a dict")
         return self._create_sdk_client(config)
 
+    def _fetch_models_raw(self, config: Dict[str, Any]) -> Any:
+        mode = self._discovery_auth_mode(config)
+        if mode == "chatgpt":
+            return self._fetch_chatgpt_models(config)
+        client = self._create_sdk_client_for_discovery(config)
+        return client.models.list()
+
+    def _discovery_auth_mode(self, config: Dict[str, Any]) -> str:
+        requested = self._normalize_auth_mode(config.get("auth_mode"))
+        if requested == "chatgpt":
+            self._chatgpt_discovery_credentials(config)
+            return "chatgpt"
+        if requested == "auto":
+            credentials = self._chatgpt_discovery_credentials(config, require=False)
+            if credentials is not None:
+                return "chatgpt"
+        return "api"
+
+    def _chatgpt_discovery_credentials(
+        self,
+        config: Dict[str, Any],
+        *,
+        require: bool = True,
+    ) -> Optional[Dict[str, Any]]:
+        access_token = config.get("chatgpt_access_token")
+        if isinstance(access_token, str) and access_token.strip():
+            token_type = config.get("chatgpt_token_type")
+            account_id = config.get("chatgpt_account_id")
+            return {
+                "access_token": access_token.strip(),
+                "token_type": token_type if isinstance(token_type, str) else "Bearer",
+                "account_id": account_id if isinstance(account_id, str) else None,
+            }
+
+        path = self._chatgpt_credentials_path(config)
+        payload = self._load_json_file(path)
+        if isinstance(payload, dict) and self._chatgpt_credentials_are_valid(payload):
+            return payload
+        if require:
+            raise ValueError(
+                "[openai_responses_provider] chatgpt auth_mode requires a valid saved ChatGPT login"
+            )
+        return None
+
+    def _chatgpt_credentials_path(self, config: Dict[str, Any]) -> Path:
+        raw = config.get("chatgpt_credentials_path")
+        if isinstance(raw, str) and raw.strip():
+            return Path(raw).expanduser()
+        config_dir = os.environ.get("CONFIG_DIR")
+        if isinstance(config_dir, str) and config_dir:
+            return Path(config_dir).expanduser() / "auth" / "chatgpt-auth.json"
+        return Path.cwd() / "auth" / "chatgpt-auth.json"
+
+    def _load_json_file(self, path: Path) -> Dict[str, Any]:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return {}
+        except Exception:
+            return {}
+        return payload if isinstance(payload, dict) else {}
+
+    def _chatgpt_credentials_are_valid(self, credentials: Dict[str, Any]) -> bool:
+        token = credentials.get("access_token")
+        if not isinstance(token, str) or not token.strip():
+            return False
+        expires_at = credentials.get("expires_at")
+        if not isinstance(expires_at, str) or not expires_at.strip():
+            return True
+        text = expires_at.strip()
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        try:
+            parsed = datetime.fromisoformat(text)
+        except ValueError:
+            return True
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) < parsed.astimezone(timezone.utc)
+
+    def _chatgpt_client_version(self, config: Dict[str, Any]) -> str:
+        raw = config.get("chatgpt_client_version") or _DEFAULT_CHATGPT_CLIENT_VERSION
+        if not isinstance(raw, str) or not raw.strip():
+            return _DEFAULT_CHATGPT_CLIENT_VERSION
+        return raw.strip()
+
+    def _chatgpt_models_base_url(self, config: Dict[str, Any]) -> str:
+        raw = config.get("chatgpt_base_url") or _DEFAULT_CHATGPT_BASE_URL
+        if not isinstance(raw, str) or not raw.strip():
+            return _DEFAULT_CHATGPT_BASE_URL
+        return raw.rstrip("/")
+
+    def _fetch_chatgpt_models(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        credentials = self._chatgpt_discovery_credentials(config)
+        token = credentials.get("access_token")
+        if not isinstance(token, str) or not token.strip():
+            raise ValueError(
+                "[openai_responses_provider] chatgpt auth_mode requires a valid saved ChatGPT login"
+            )
+        headers = {
+            "Authorization": self._authorization_header_value(config, token.strip()),
+            "Accept": "application/json",
+        }
+        account_id = credentials.get("account_id")
+        if isinstance(account_id, str) and account_id.strip():
+            headers["ChatGPT-Account-Id"] = account_id.strip()
+        url = "{}?{}".format(
+            f"{self._chatgpt_models_base_url(config)}/models",
+            urlencode({"client_version": self._chatgpt_client_version(config)}),
+        )
+        request = Request(url, headers=headers, method="GET")
+        timeout = self._coerce_timeout(config.get("timeout", _DEFAULT_TIMEOUT))
+        try:
+            with urlopen(request, timeout=timeout) as response:
+                body = response.read().decode("utf-8")
+        except HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(
+                f"chatgpt models discovery failed with status {exc.code}: {body}"
+            ) from exc
+        except URLError as exc:
+            raise RuntimeError(f"chatgpt models discovery failed: {exc}") from exc
+        try:
+            payload = json.loads(body)
+        except Exception as exc:
+            raise RuntimeError("chatgpt models discovery returned invalid JSON") from exc
+        if not isinstance(payload, dict):
+            raise RuntimeError("chatgpt models discovery returned an unexpected payload")
+        return payload
+
     def _normalize_model_descriptors(self, raw_result: Any) -> List[Dict[str, Any]]:
         data = getattr(raw_result, "data", raw_result)
+        if isinstance(data, dict) and isinstance(data.get("models"), list):
+            data = data.get("models")
         if not isinstance(data, list):
             raise ValueError("[openai_responses_provider] models list response missing data list")
 
@@ -329,8 +594,8 @@ class OpenAIResponsesProvider(ProviderPlugin):
             model_name = None
 
             if isinstance(item, dict):
-                model_id = item.get("id")
-                model_name = item.get("name")
+                model_id = item.get("id") or item.get("slug")
+                model_name = item.get("name") or item.get("display_name")
             else:
                 model_id = getattr(item, "id", None)
                 model_name = getattr(item, "name", None)
@@ -350,19 +615,25 @@ class OpenAIResponsesProvider(ProviderPlugin):
             raise TypeError("[openai_responses_provider] config must be a dict")
 
         model = self._resolve_model(config)
-        api_key = self._resolve_api_key(config)
         base_url = self._resolve_base_url(config)
         timeout = self._coerce_timeout(config.get("timeout", _DEFAULT_TIMEOUT))
+        auth_mode = self._normalize_auth_mode(config.get("auth_mode"))
 
         normalized_config = {
             **config,
             "model": model,
-            "api_key": api_key,
             "base_url": base_url,
+            "auth_mode": auth_mode,
             "timeout": timeout,
         }
-
-        client = self._create_sdk_client(normalized_config)
+        if auth_mode == "api":
+            normalized_config["api_key"] = self._resolve_api_key(config)
+        client: Any = None
+        try:
+            client = self._create_sdk_client(normalized_config)
+        except ValueError:
+            if auth_mode == "api":
+                raise
         return {"config": normalized_config, "client": client}
 
     def initialize_request(
@@ -380,15 +651,20 @@ class OpenAIResponsesProvider(ProviderPlugin):
         base_url = self._resolve_base_url(cfg)
         timeout = self._coerce_timeout(cfg.get("timeout", _DEFAULT_TIMEOUT))
 
+        payload: Dict[str, Any] = {"model": model}
+        if self._effective_auth_mode(cfg) == "chatgpt":
+            payload["store"] = False
+
         request = {
             "url": f"{base_url}/responses",
-            "payload": {"model": model},
+            "payload": payload,
             "headers": {
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}",
+                "Authorization": self._authorization_header_value(cfg, api_key),
             },
             "timeout": timeout,
         }
+        request["headers"].update(self._chatgpt_default_headers(cfg))
 
         return list(native_messages), {**state, "request": request}
 
@@ -1552,8 +1828,16 @@ class OpenAIResponsesProvider(ProviderPlugin):
         request = state.get("request")
         if not isinstance(request, dict):
             raise RuntimeError("[openai_responses_provider] missing request in state")
+        cfg = state.get("config") or {}
+        if self._effective_auth_mode(cfg) == "chatgpt":
+            raise RuntimeError(
+                "[openai_responses_provider] chatgpt auth_mode requires streaming requests; use send_request_stream or switch auth_mode to api/auto"
+            )
 
         payload = dict(request.get("payload") or {})
+        instructions = self._request_instructions(request)
+        if instructions is not None:
+            payload["instructions"] = instructions
 
         override = request.get("messages")
         base_history = override if isinstance(override, list) else native_messages
@@ -1567,12 +1851,10 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
         client = state.get("client")
         if client is None:
-            cfg = state.get("config") or {}
-            client = OpenAI(
-                api_key=self._resolve_api_key(cfg),
-                base_url=self._resolve_base_url(cfg),
+            client = self._create_sdk_client_with_options(
+                cfg,
                 timeout=timeout,
-                **({"max_retries": max_retries} if max_retries is not None else {}),
+                max_retries=max_retries,
             )
         request_client = self._request_client(client, timeout=timeout, max_retries=max_retries)
 
@@ -1702,6 +1984,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
             raise RuntimeError("[openai_responses_provider] missing request in state")
 
         payload = dict(request.get("payload") or {})
+        instructions = self._request_instructions(request)
+        if instructions is not None:
+            payload["instructions"] = instructions
 
         override = request.get("messages")
         base_history = override if isinstance(override, list) else native_messages
@@ -1718,11 +2003,10 @@ class OpenAIResponsesProvider(ProviderPlugin):
         client = state.get("client")
         if client is None:
             cfg = state.get("config") or {}
-            client = OpenAI(
-                api_key=self._resolve_api_key(cfg),
-                base_url=self._resolve_base_url(cfg),
+            client = self._create_sdk_client_with_options(
+                cfg,
                 timeout=timeout,
-                **({"max_retries": max_retries} if max_retries is not None else {}),
+                max_retries=max_retries,
             )
         request_client = self._request_client(client, timeout=timeout, max_retries=max_retries)
 
@@ -1900,6 +2184,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
         emitted_partials: List[Dict[str, Any]] = []
         emitted_finals: List[Dict[str, Any]] = []
+        accumulated_output_items = state.get("_openai_responses_stream_output_items")
+        output_items_state = (
+            [item for item in accumulated_output_items if isinstance(item, dict)]
+            if isinstance(accumulated_output_items, list)
+            else []
+        )
 
         if event_type == "response.output_text.delta":
             delta = event.get("delta")
@@ -1920,6 +2210,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
                     {"role": "assistant", "content": "", "_metadata": {"reasoning": delta}}
                 )
 
+        if event_type == "response.output_item.done":
+            item = event.get("item")
+            if isinstance(item, dict):
+                output_items_state = [*output_items_state, item]
+                new_state["_openai_responses_stream_output_items"] = output_items_state
+
         if event_type == "response.completed":
             response_payload = event.get("response")
             response_obj = self._response_to_dict(response_payload)
@@ -1931,12 +2227,15 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 )
 
             output_items = [item for item in output if isinstance(item, dict)]
+            if not output_items and output_items_state:
+                output_items = list(output_items_state)
             response_md = self._response_internal_metadata(response_obj)
             emitted_finals = self._attach_internal_metadata_to_output(output_items, response_md)
 
             new_state = {
                 **new_state,
                 "_openai_responses_stream_completed": True,
+                "_openai_responses_stream_output_items": [],
             }
 
             if emitted_finals:

@@ -362,6 +362,7 @@
       "model": "gpt-5-mini",
       "api_key": "${env:OPENAI_API_KEY}",
       "base_url": "https://api.openai.com/v1",
+      "auth_mode": "auto",
       "timeout": 300,
       "allowed_paths": [".", "..", "${env:CONFIG_DIR}"],
       "max_file_size": 5242880,
@@ -375,6 +376,7 @@
         "path:${env:BUILTIN_PLUGINS}/codex-tools"
       ],
       "shell_tool_mode": "auto",
+      "system_message_as_instructions": true,
       "codex_personality": "default",
       "codex_developer_messages": [
         {
@@ -556,6 +558,7 @@
     "path:${env:BUILTIN_PLUGINS}/timestamp-extension",
     "path:${env:BUILTIN_PLUGINS}/feature-file-context",
     "path:${env:BUILTIN_PLUGINS}/feature-web-context",
+    "path:${env:BUILTIN_PLUGINS}/chatgpt-auth-app",
     "path:${env:BUILTIN_PLUGINS}/session-actions-app",
     "path:${env:BUILTIN_PLUGINS}/summarize-range-app",
     "path:${env:BUILTIN_PLUGINS}/session-title-app",
@@ -583,7 +586,8 @@
       "model": "openai/gpt-5-mini",
       "reasoningEffort": "low"
     },
-    "generate_title_max_messages": 999
+    "generate_title_max_messages": 999,
+    "chatgpt_auth": {}
   },
   "agents": {
     "codex-openrouter": {
