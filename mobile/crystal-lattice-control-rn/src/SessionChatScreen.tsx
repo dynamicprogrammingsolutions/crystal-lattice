@@ -912,6 +912,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     const nextEntry = createDisplayEntry(display, context);
     const presentation = display.presentation ?? 'modal';
     if (presentation === 'inline' || presentation === 'banner') {
+      setActionResultDisplay(null);
       setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
       return;
     }
@@ -2360,6 +2361,27 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	    return rows;
 	  }, [messages]);
 
+  const inlineActionDisplaysContent = useMemo(() => {
+    if (inlineActionDisplays.length === 0) {
+      return null;
+    }
+    return (
+      <View>
+        {inlineActionDisplays.map((entry) => (
+          <ActionResultInlineCard
+            key={entry.key}
+            display={entry.display}
+            activeActionId={activeDisplayActionId}
+            onDismiss={() =>
+              setInlineActionDisplays((current) => current.filter((item) => item.key !== entry.key))
+            }
+            onFollowupAction={(action) => handleDisplayFollowupAction(entry, action)}
+          />
+        ))}
+      </View>
+    );
+  }, [activeDisplayActionId, handleDisplayFollowupAction, inlineActionDisplays]);
+
 	  const handleListScroll = useCallback((event: any) => {
 	    const offset = event?.nativeEvent?.contentOffset?.y;
 	    if (typeof offset !== 'number' || !Number.isFinite(offset)) {
@@ -2562,6 +2584,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        ref={listRef}
 	        data={transcriptRows}
 	        inverted
+          ListHeaderComponent={inlineActionDisplaysContent}
 	        onLayout={() => {
 	          maybeRestoreScroll();
 	        }}
@@ -3246,17 +3269,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        onSubmit={handleSubmitPluginDialog}
 	        onCancel={handleCancelPluginDialog}
 	      />
-        {inlineActionDisplays.map((entry) => (
-          <ActionResultInlineCard
-            key={entry.key}
-            display={entry.display}
-            activeActionId={activeDisplayActionId}
-            onDismiss={() =>
-              setInlineActionDisplays((current) => current.filter((item) => item.key !== entry.key))
-            }
-            onFollowupAction={(action) => handleDisplayFollowupAction(entry, action)}
-          />
-        ))}
         <ActionResultModal
           visible={!!actionResultDisplay}
           display={actionResultDisplay?.display ?? null}

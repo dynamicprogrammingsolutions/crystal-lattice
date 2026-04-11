@@ -60,7 +60,7 @@ const ActionResultModal: React.FC<ActionResultModalProps> = ({
                   onFollowupAction={onFollowupAction}
                   activeActionId={activeActionId}
                   variantLabel={VARIANT_LABELS[variant]}
-                  footerDismissLabel={dismissible ? 'Close' : null}
+                  footerDismissLabel={null}
                 />
               ) : null}
             </View>

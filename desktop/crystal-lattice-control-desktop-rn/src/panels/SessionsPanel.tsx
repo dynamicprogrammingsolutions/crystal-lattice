@@ -299,6 +299,7 @@ function SessionsPanelInner({
     const nextEntry = createDisplayEntry(display, context);
     const presentation = display.presentation ?? 'modal';
     if (presentation === 'inline' || presentation === 'banner') {
+      setActionResultDisplay(null);
       setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
       return;
     }

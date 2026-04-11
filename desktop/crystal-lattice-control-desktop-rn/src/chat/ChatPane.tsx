@@ -1762,6 +1762,7 @@ export const ChatPane = React.memo(function ChatPane({
     const nextEntry = createDisplayEntry(display, context);
     const presentation = display.presentation ?? 'modal';
     if (presentation === 'inline' || presentation === 'banner') {
+      setActionResultDisplay(null);
       setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
       return;
     }
@@ -2237,28 +2238,47 @@ export const ChatPane = React.memo(function ChatPane({
   );
 
   const streamingFooter = useMemo(() => {
-    if (!streamingRow || (!streamingRow.content && !streamingRow.reasoning)) {
+    const hasStreaming = !!(streamingRow && (streamingRow.content || streamingRow.reasoning));
+    const hasInlineDisplays = inlineActionDisplays.length > 0;
+    if (!hasStreaming && !hasInlineDisplays) {
       return null;
     }
 
-    const streamingIndex = messages.length > 0 ? messages[messages.length - 1].index + 1 : 0;
     return (
-      <DesktopMessageBubble
-        index={streamingIndex}
-        message={{
-          role: 'assistant',
-          content: streamingRow.content,
-          metadata: {
-            ...(streamingRow.metadata || {}),
-            reasoning: streamingRow.reasoning,
-          },
-        }}
-        renderMode="markdown"
-        footerElements={footerElements}
-      />
+      <View>
+        {hasStreaming ? (
+          <DesktopMessageBubble
+            index={messages.length > 0 ? messages[messages.length - 1].index + 1 : 0}
+            message={{
+              role: 'assistant',
+              content: streamingRow?.content,
+              metadata: {
+                ...(streamingRow?.metadata || {}),
+                reasoning: streamingRow?.reasoning,
+              },
+            }}
+            renderMode="markdown"
+            footerElements={footerElements}
+          />
+        ) : null}
+        {inlineActionDisplays.map((entry) => (
+          <ActionResultInlineCard
+            key={entry.key}
+            display={entry.display}
+            activeActionId={activeDisplayActionId}
+            onDismiss={() =>
+              setInlineActionDisplays((current) => current.filter((item) => item.key !== entry.key))
+            }
+            onFollowupAction={(action) => handleDisplayFollowupAction(entry, action)}
+          />
+        ))}
+      </View>
     );
   }, [
+    activeDisplayActionId,
     footerElements,
+    handleDisplayFollowupAction,
+    inlineActionDisplays,
     messages,
     streamingRow,
   ]);
@@ -2306,17 +2326,6 @@ export const ChatPane = React.memo(function ChatPane({
 
   return (
 	  <View style={styles.root}>
-      {inlineActionDisplays.map((entry) => (
-        <ActionResultInlineCard
-          key={entry.key}
-          display={entry.display}
-          activeActionId={activeDisplayActionId}
-          onDismiss={() =>
-            setInlineActionDisplays((current) => current.filter((item) => item.key !== entry.key))
-          }
-          onFollowupAction={(action) => handleDisplayFollowupAction(entry, action)}
-        />
-      ))}
       <ActionResultModal
         visible={!!actionResultDisplay}
         display={actionResultDisplay?.display ?? null}

@@ -904,6 +904,7 @@ class ChatGPTAuthAppPlugin:
         variant = "info"
         lines: List[str] = []
         actions: List[Dict[str, Any]] = []
+        checked_at = _isoformat_utc(_utcnow())
 
         if action == "logout":
             title = "ChatGPT Logout"
@@ -945,6 +946,9 @@ class ChatGPTAuthAppPlugin:
             if isinstance(expires_at, str) and expires_at:
                 lines.append("")
                 lines.append(f"Code expires at: `{expires_at}`")
+            if action == "check_status":
+                lines.append("")
+                lines.append(f"Last checked at: `{checked_at}`")
             actions.append(
                 {
                     "kind": "run_action",
