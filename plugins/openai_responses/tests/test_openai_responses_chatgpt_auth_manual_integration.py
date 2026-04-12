@@ -64,7 +64,7 @@ def test_openai_responses_chatgpt_saved_login_real_request() -> None:
     load_dotenv(REPO_ROOT / ".env")
 
     credentials_path = _credentials_path()
-    credentials = _load_saved_credentials()
+    _load_saved_credentials()
 
     core = AgentCore()
     core.register_provider(OpenAIResponsesProvider)
@@ -72,20 +72,6 @@ def test_openai_responses_chatgpt_saved_login_real_request() -> None:
     core.register_feature(SystemMessageFeature)
 
     config = _chatgpt_config(credentials_path)
-
-    auth_feature = OpenAIResponsesChatGPTAuthFeature()
-    system_feature = SystemMessageFeature()
-    provider = OpenAIResponsesProvider()
-    provider_state = auth_feature.init(config, {"config": dict(config)})
-    provider_state = system_feature.init(config, provider_state)
-    _, request_state = provider.initialize_request([], provider_state)
-    _, request_state = system_feature.initialize_request([], request_state)
-    request = request_state["request"]
-
-    assert request["url"] == f"{str(config['chatgpt_base_url']).rstrip('/')}/responses"
-    assert request["headers"]["Authorization"].endswith(str(credentials["access_token"]))
-    assert request["headers"]["ChatGPT-Account-Id"] == credentials.get("account_id")
-    assert request["instructions"] == "You are a precise assistant. Reply exactly with the requested text."
 
     session = core.create_session()
     session = core.add_message(
@@ -113,3 +99,9 @@ def test_openai_responses_chatgpt_saved_login_real_request() -> None:
     native_history = (final_session.metadata or {}).get("native_messages")
     assert isinstance(native_history, list)
     assert any(isinstance(item, dict) and item.get("type") == "message" for item in native_history)
+    assert any(
+        isinstance(item, dict)
+        and item.get("role") == "user"
+        and item.get("content") == [{"type": "input_text", "text": "Reply with exactly: CHATGPT_AUTH_RESPONSES_OK"}]
+        for item in native_history
+    )

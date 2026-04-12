@@ -382,6 +382,7 @@ Configuration is a flat dict shared across the provider and enabled extensions.
 - `chatgpt_account_id`: optional explicit ChatGPT account id override
 - `chatgpt_client_version`: optional, used for ChatGPT `/models` discovery
 - `strip_leading_system_or_developer_message`: optional compatibility flag for migrated sessions
+- `use_chatgpt_auth_for_compaction`: optional, defaults to `true`; set to `false` to force native compaction onto the API endpoint
 - `timeout`: optional request timeout in seconds, defaults to `60`
 
 ### Attachment keys
@@ -453,6 +454,23 @@ No extra config key is required beyond loading tools in the application.
 It exposes a session action with id `compact_native_history` that uses the
 native compaction API and rewrites provider-native history while keeping a
 visible placeholder message in the transcript.
+
+By default, native compaction follows the same effective auth mode as normal
+Responses requests. If `use_chatgpt_auth_for_compaction` is enabled, a session
+running in ChatGPT mode, or `auto` mode that selected ChatGPT, will attempt
+native compaction against the ChatGPT-backed endpoint too. If that backend does
+not support native compaction, the action fails with a clear endpoint-specific
+error. Set `use_chatgpt_auth_for_compaction: false` to force compaction onto
+the normal API endpoint instead.
+
+The action no longer accepts a freeform `instructions` field. When the backend
+requires top-level instructions, native compaction now uses the same
+config-driven system-message pipeline as normal requests:
+
+- enable `system_message_as_instructions: true`
+- set `system_message` as usual
+- enable `strip_leading_system_or_developer_message: true` if older sessions
+  still contain a persisted leading `system` or `developer` message
 
 ### Prompt caching session action
 

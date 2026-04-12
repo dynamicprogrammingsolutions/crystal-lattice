@@ -77,6 +77,17 @@ class ContextRecordingPlugin:
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        request_key = "context_recording_request_marker"
+        request_value = state.get("config", {}).get(request_key) if isinstance(state.get("config"), dict) else None
+        if isinstance(request_value, str) and request_value:
+            request = state.get("request") if isinstance(state.get("request"), dict) else {}
+            return native_messages, {
+                **state,
+                "request": {
+                    **request,
+                    request_key: request_value,
+                },
+            }
         return native_messages, state
 
     def finalize(
@@ -118,6 +129,7 @@ class ContextRecordingPlugin:
             ContextRecordingPlugin._captured_contexts.append({
                 **context,
                 "_action_id": action_id,
+                "_request": state.get("request"),
             })
 
         return {

@@ -15,7 +15,6 @@ from __future__ import annotations
 import hashlib
 import io
 import json
-import os
 import queue
 import threading
 from datetime import datetime, timezone
@@ -64,18 +63,30 @@ from .chatgpt_credentials import (
     refresh_chatgpt_credentials,
     resolve_credentials_path as _resolve_chatgpt_credentials_path_shared,
 )
+from .openai_responses_runtime import (
+    DEFAULT_API_BASE_URL as _DEFAULT_BASE_URL,
+    DEFAULT_CHATGPT_BASE_URL as _DEFAULT_CHATGPT_BASE_URL,
+    DEFAULT_TIMEOUT as _DEFAULT_TIMEOUT,
+    authorization_header_value as _authorization_header_value_shared,
+    build_openai_sdk_client as _build_openai_sdk_client_shared,
+    chatgpt_default_headers as _chatgpt_default_headers_shared,
+    effective_auth_mode as _effective_auth_mode_shared,
+    normalize_auth_mode as _normalize_auth_mode_shared,
+    resolve_api_key as _resolve_api_key_shared,
+    resolve_base_url as _resolve_base_url_shared,
+    should_strip_leading_system_or_developer_message as _should_strip_leading_shared,
+    strip_leading_system_or_developer_message as _strip_leading_shared,
+)
 
 
 JsonObject = Dict[str, Any]
-_DEFAULT_BASE_URL = "https://api.openai.com/v1"
-_DEFAULT_CHATGPT_BASE_URL = "https://chatgpt.com/backend-api/codex"
 _DEFAULT_CHATGPT_CLIENT_VERSION = "0.1.0"
-_DEFAULT_TIMEOUT = 60.0
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
 _SESSION_ASSET_STORE_CONFIG_KEY = "_session_asset_store"
 _IMAGE_ATTACHMENT_TYPES = ["png", "jpg", "jpeg", "webp", "gif"]
 _PDF_ATTACHMENT_TYPES = ["pdf"]
+_COMPACTION_ITEM_TYPES = {"compaction", "compaction_summary"}
 
 
 @dataclass
@@ -311,43 +322,13 @@ class OpenAIResponsesProvider(ProviderPlugin):
         return max_retries
 
     def _resolve_api_key(self, config: Dict[str, Any]) -> str:
-        effective_auth_mode = self._effective_auth_mode(config)
-        if effective_auth_mode == "chatgpt":
-            access_token = config.get("chatgpt_access_token")
-            if isinstance(access_token, str) and access_token.strip():
-                return access_token.strip()
-            raise ValueError(
-                "[openai_responses_provider] chatgpt auth_mode requires a valid saved ChatGPT login"
-            )
-
-        api_key = config.get("api_key") or os.getenv("OPENAI_API_KEY")
-        if not isinstance(api_key, str) or not api_key.strip():
-            requested_mode = self._normalize_auth_mode(config.get("auth_mode"))
-            if requested_mode == "auto":
-                raise ValueError(
-                    "[openai_responses_provider] auto auth_mode requires either a saved ChatGPT login or config.api_key / OPENAI_API_KEY"
-                )
-            raise ValueError(
-                "[openai_responses_provider] api_key is required (config.api_key or OPENAI_API_KEY)"
-            )
-        return api_key.strip()
+        return _resolve_api_key_shared(config)
 
     def _normalize_auth_mode(self, raw: Any) -> str:
-        if not isinstance(raw, str):
-            return "api"
-        normalized = raw.strip().lower()
-        if normalized == "api_key":
-            return "api"
-        if normalized in {"api", "chatgpt", "auto"}:
-            return normalized
-        return "api"
+        return _normalize_auth_mode_shared(raw)
 
     def _effective_auth_mode(self, config: Dict[str, Any]) -> str:
-        raw = config.get("_openai_responses_effective_auth_mode")
-        if isinstance(raw, str) and raw.strip().lower() in {"api", "chatgpt"}:
-            return raw.strip().lower()
-        requested = self._normalize_auth_mode(config.get("auth_mode"))
-        return "chatgpt" if requested == "chatgpt" else "api"
+        return _effective_auth_mode_shared(config)
 
     def _resolve_model(self, config: Dict[str, Any]) -> str:
         model = config.get("model")
@@ -356,30 +337,14 @@ class OpenAIResponsesProvider(ProviderPlugin):
         return model.strip()
 
     def _resolve_base_url(self, config: Dict[str, Any]) -> str:
-        effective_auth_mode = self._effective_auth_mode(config)
-        if effective_auth_mode == "chatgpt":
-            base_url = (
-                config.get("chatgpt_base_url")
-                or config.get("base_url")
-                or _DEFAULT_CHATGPT_BASE_URL
-            )
-        else:
-            base_url = config.get("api_base_url") or config.get("base_url") or _DEFAULT_BASE_URL
-        if not isinstance(base_url, str) or not base_url.strip():
-            raise ValueError("[openai_responses_provider] base_url must be a non-empty string")
-        return base_url.rstrip("/")
+        return _resolve_base_url_shared(config)
 
     def _create_sdk_client(self, config: Dict[str, Any]) -> OpenAI:
         timeout = self._coerce_timeout(config.get("timeout", _DEFAULT_TIMEOUT))
         return self._create_sdk_client_with_options(config, timeout=timeout, max_retries=None)
 
     def _chatgpt_default_headers(self, config: Dict[str, Any]) -> Dict[str, str]:
-        if self._effective_auth_mode(config) != "chatgpt":
-            return {}
-        account_id = config.get("chatgpt_account_id")
-        if isinstance(account_id, str) and account_id.strip():
-            return {"ChatGPT-Account-Id": account_id.strip()}
-        return {}
+        return _chatgpt_default_headers_shared(config)
 
     def _create_sdk_client_with_options(
         self,
@@ -388,29 +353,14 @@ class OpenAIResponsesProvider(ProviderPlugin):
         timeout: float,
         max_retries: Optional[int],
     ) -> OpenAI:
-        api_key = self._resolve_api_key(config)
-        base_url = self._resolve_base_url(config)
-        kwargs: Dict[str, Any] = {
-            "api_key": api_key,
-            "base_url": base_url,
-            "timeout": timeout,
-        }
-        default_headers = self._chatgpt_default_headers(config)
-        if default_headers:
-            kwargs["default_headers"] = default_headers
-        if max_retries is not None:
-            kwargs["max_retries"] = max_retries
-        return OpenAI(**kwargs)
+        return _build_openai_sdk_client_shared(
+            config,
+            timeout=timeout,
+            max_retries=max_retries,
+        )
 
     def _authorization_header_value(self, config: Dict[str, Any], token: str) -> str:
-        if self._effective_auth_mode(config) == "chatgpt":
-            token_type = config.get("chatgpt_token_type")
-            if isinstance(token_type, str) and token_type.strip():
-                normalized = token_type.strip()
-                if normalized.lower() == "bearer":
-                    normalized = "Bearer"
-                return f"{normalized} {token}"
-        return f"Bearer {token}"
+        return _authorization_header_value_shared(config, token)
 
     def _request_max_retries(self, request: Dict[str, Any]) -> Optional[int]:
         if "max_retries" not in request:
@@ -428,24 +378,13 @@ class OpenAIResponsesProvider(ProviderPlugin):
         self,
         config: Dict[str, Any],
     ) -> bool:
-        return bool(config.get("strip_leading_system_or_developer_message", False))
+        return _should_strip_leading_shared(config)
 
     def _strip_leading_system_or_developer_message(
         self,
         native_messages: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        if not native_messages:
-            return native_messages
-        first = native_messages[0]
-        if not isinstance(first, dict):
-            return native_messages
-        item_type = first.get("type")
-        if isinstance(item_type, str) and item_type and item_type != "message":
-            return native_messages
-        role = first.get("role")
-        if role not in {"system", "developer"}:
-            return native_messages
-        return list(native_messages[1:])
+        return _strip_leading_shared(native_messages)
 
     def _request_client(self, client: Any, *, timeout: float, max_retries: Optional[int]) -> Any:
         if max_retries is None:
@@ -1766,9 +1705,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
         sanitized = dict(self._strip_internal_metadata(item))
         item_type = sanitized.get("type")
 
-        if item_type == "compaction":
+        if item_type in _COMPACTION_ITEM_TYPES:
             compacted: JsonObject = {
-                "type": "compaction",
+                "type": str(item_type),
                 "encrypted_content": sanitized.get("encrypted_content", ""),
             }
             if isinstance(sanitized.get("id"), str) and sanitized.get("id"):

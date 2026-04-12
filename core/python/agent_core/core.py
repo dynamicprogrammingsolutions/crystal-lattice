@@ -2839,6 +2839,61 @@ class AgentCore:
 
         return provider, features, state, actions
 
+    def _initialize_session_action_request(
+        self,
+        provider: Any,
+        features: List[Any],
+        state: Dict[str, Any],
+        config: Dict[str, Any],
+        native_messages: List[Dict[str, Any]],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        """Apply request-time initialization to session-action inputs.
+
+        Session actions should see the same request-time state that normal
+        provider requests see, including feature/provider `initialize_request`
+        changes such as compiled top-level instructions.
+        """
+
+        request_context = self._build_plugin_context(
+            config=state.get("config") or config,
+            provider=provider,
+            enabled_extensions=provider._iter_extensions(),
+            enabled_features=features,
+            enabled_tools=[],
+            tags=[],
+            models=self._get_models_for_config(provider, config),
+            available_tools=self.get_available_tools(config),
+            tools=self._get_prepared_tools_for_config(config),
+        )
+        if isinstance(context, dict):
+            request_context.update(context)
+
+        next_native_messages, next_state = provider.initialize_request(
+            native_messages,
+            state,
+            context=request_context,
+        )
+        initialized_native = (
+            next_native_messages
+            if next_native_messages != native_messages
+            else native_messages
+        )
+        initialized_state = next_state
+
+        for feature in features:
+            next_native_messages, initialized_state = feature.initialize_request(
+                initialized_native,
+                initialized_state,
+                context=request_context,
+            )
+            if next_native_messages != initialized_native:
+                initialized_native = next_native_messages
+            provider.set_state(initialized_state)
+
+        return initialized_native, initialized_state
+
     def _collect_core_session_actions(
         self,
         provider: Any,
@@ -2966,6 +3021,15 @@ class AgentCore:
         enriched_context.setdefault("config", config)
         enriched_context.setdefault("trigger_source", "core")
         enriched_context.setdefault("session", session.to_dict())
+
+        native_messages, state = self._initialize_session_action_request(
+            provider,
+            features,
+            state,
+            config,
+            native_messages,
+            context=enriched_context,
+        )
 
         action_owner = action_def.get("action_owner")
         if action_owner == "feature":

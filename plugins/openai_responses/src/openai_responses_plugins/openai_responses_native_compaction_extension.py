@@ -7,11 +7,20 @@ from typing import Any, Dict, List, Optional
 from openai import OpenAI
 
 from agent_core.types import ProviderExtensionPlugin, Session
+from .openai_responses_runtime import (
+    DEFAULT_API_BASE_URL,
+    DEFAULT_TIMEOUT,
+    build_openai_sdk_client,
+    effective_auth_mode,
+    should_strip_leading_system_or_developer_message,
+    strip_leading_system_or_developer_message,
+)
 
 
-_DEFAULT_TIMEOUT = 60.0
 _COMPACTION_METADATA_KEY = "openai_responses_compaction"
 _COMPACTION_PLACEHOLDER_TEXT = "Earlier conversation compacted to reduce context size."
+_USE_CHATGPT_AUTH_FOR_COMPACTION_KEY = "use_chatgpt_auth_for_compaction"
+_COMPACTION_ITEM_TYPES = {"compaction", "compaction_summary"}
 
 
 class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
@@ -20,7 +29,18 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
     priority = 90
 
     def get_config_schema(self) -> Dict[str, Any]:
-        return {}
+        return {
+            _USE_CHATGPT_AUTH_FOR_COMPACTION_KEY: {
+                "type": "boolean",
+                "required": False,
+                "default": True,
+                "description": (
+                    "When true, native compaction uses the same effective ChatGPT/API "
+                    "endpoint and credentials as normal OpenAI Responses requests. "
+                    "When false, compaction is forced onto the normal API endpoint."
+                ),
+            }
+        }
 
     def get_ui_elements(
         self,
@@ -30,6 +50,13 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
     ) -> List[Dict[str, Any]]:
         _ = config, tags, models
         return [
+            {
+                "ui_type": "config",
+                "type": "checkbox",
+                "key": _USE_CHATGPT_AUTH_FOR_COMPACTION_KEY,
+                "label": "Use ChatGPT auth for native compaction",
+                "default": True,
+            },
             {
                 "ui_type": "session_action",
                 "id": "compact_native_history",
@@ -42,7 +69,6 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                 "param_map": {
                     "session_id": "$session.session_id",
                     "end_index": "$dialog.end_index",
-                    "instructions": "$dialog.instructions",
                 },
                 "dialog": {
                     "kind": "form",
@@ -58,13 +84,6 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                             "label": "Compact visible messages [:end]",
                             "required": False,
                             "placeholder": "Leave empty to compact the full history",
-                        },
-                        {
-                            "name": "instructions",
-                            "type": "multiline",
-                            "label": "Instructions",
-                            "required": False,
-                            "placeholder": "Optional compaction instructions",
                         }
                     ],
                 },
@@ -87,7 +106,6 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                 "description": "Compact provider-native history with the OpenAI Responses compact API.",
                 "inputs": {
                     "end_index": {"type": "integer", "required": False},
-                    "instructions": {"type": "string", "required": False},
                 },
             }
         ]
@@ -109,24 +127,27 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
             raise ValueError("[openai_responses_native_compaction] model is required")
         return model.strip()
 
-    def _resolve_base_url(self, config: Dict[str, Any]) -> str:
-        base_url = config.get("base_url") or "https://api.openai.com/v1"
-        if not isinstance(base_url, str) or not base_url.strip():
-            raise ValueError("[openai_responses_native_compaction] base_url must be a string")
-        return base_url.rstrip("/")
+    def _use_chatgpt_auth_for_compaction(self, config: Dict[str, Any]) -> bool:
+        raw = config.get(_USE_CHATGPT_AUTH_FOR_COMPACTION_KEY, True)
+        return False if raw is False else True
 
-    def _resolve_api_key(self, config: Dict[str, Any]) -> str:
-        api_key = config.get("api_key")
-        if not isinstance(api_key, str) or not api_key.strip():
-            raise ValueError("[openai_responses_native_compaction] api_key is required")
-        return api_key.strip()
+    def _compaction_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        if self._use_chatgpt_auth_for_compaction(config):
+            return dict(config)
 
-    def _build_client(self, state: Dict[str, Any]) -> OpenAI:
-        config = state.get("config") if isinstance(state.get("config"), dict) else {}
-        return OpenAI(
-            api_key=self._resolve_api_key(config),
-            base_url=self._resolve_base_url(config),
-            timeout=self._coerce_timeout(config.get("timeout", _DEFAULT_TIMEOUT)),
+        forced = dict(config)
+        forced["auth_mode"] = "api"
+        forced["_openai_responses_effective_auth_mode"] = "api"
+        forced["base_url"] = config.get("api_base_url") or DEFAULT_API_BASE_URL
+        forced.pop("chatgpt_access_token", None)
+        forced.pop("chatgpt_token_type", None)
+        forced.pop("chatgpt_account_id", None)
+        return forced
+
+    def _build_client(self, config: Dict[str, Any]) -> OpenAI:
+        return build_openai_sdk_client(
+            config,
+            timeout=self._coerce_timeout(config.get("timeout", DEFAULT_TIMEOUT)),
         )
 
     def _sanitize_input_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
@@ -137,9 +158,9 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
             sanitized = dict(item)
 
         item_type = sanitized.get("type")
-        if item_type == "compaction":
+        if item_type in _COMPACTION_ITEM_TYPES:
             compacted: Dict[str, Any] = {
-                "type": "compaction",
+                "type": str(item_type),
                 "encrypted_content": sanitized.get("encrypted_content", ""),
             }
             if isinstance(sanitized.get("id"), str) and sanitized.get("id"):
@@ -249,7 +270,7 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
         for native_index, item in enumerate(native_messages):
             if not isinstance(item, dict):
                 continue
-            if item.get("type") != "compaction":
+            if item.get("type") not in _COMPACTION_ITEM_TYPES:
                 continue
             segments.append((segment_start, native_index))
             segment_start = native_index + 1
@@ -396,18 +417,34 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
             )
 
         config = state.get("config") if isinstance(state.get("config"), dict) else {}
-        model = self._resolve_model(config)
-        timeout = self._coerce_timeout(config.get("timeout", _DEFAULT_TIMEOUT))
+        compaction_config = self._compaction_config(config)
+        model = self._resolve_model(compaction_config)
+        timeout = self._coerce_timeout(compaction_config.get("timeout", DEFAULT_TIMEOUT))
         end_index = self._resolve_end_index(session, params)
         prefix_native_end = self._resolve_prefix_native_end(session, end_index)
-        instructions = params.get("instructions")
-        instructions_value = instructions.strip() if isinstance(instructions, str) else None
+        request = state.get("request") if isinstance(state.get("request"), dict) else {}
+        raw_instructions = request.get("instructions")
+        instructions_value = (
+            raw_instructions.strip() if isinstance(raw_instructions, str) and raw_instructions.strip() else None
+        )
 
-        client = state.get("client")
-        if client is None:
-            client = self._build_client(state)
+        try:
+            client = self._build_client(compaction_config)
+        except ValueError as exc:
+            if (
+                effective_auth_mode(config) == "chatgpt"
+                and not self._use_chatgpt_auth_for_compaction(config)
+            ):
+                raise RuntimeError(
+                    "OpenAI Responses native compaction is configured to use the API endpoint, "
+                    "but no OpenAI API key is available. Set config.api_key / OPENAI_API_KEY "
+                    "or re-enable use_chatgpt_auth_for_compaction."
+                ) from exc
+            raise
 
         prefix_native = list(native_messages[:prefix_native_end])
+        if should_strip_leading_system_or_developer_message(compaction_config):
+            prefix_native = strip_leading_system_or_developer_message(prefix_native)
         suffix_native = list(native_messages[prefix_native_end:])
         input_items = [
             self._sanitize_input_item(item)
@@ -423,6 +460,12 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                 timeout=timeout,
             )
         except Exception as exc:
+            if effective_auth_mode(compaction_config) == "chatgpt":
+                raise RuntimeError(
+                    "OpenAI Responses native compaction failed on the ChatGPT endpoint. "
+                    "This backend may not support native compaction: "
+                    f"{exc}"
+                ) from exc
             raise RuntimeError(f"OpenAI Responses compact failed: {exc}") from exc
 
         response_obj = self._response_to_dict(sdk_response)

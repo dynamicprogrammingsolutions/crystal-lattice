@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
+import pytest
+
 from agent_core import AgentCore, Message, Session
+from feature_system_message.system_message_feature import SystemMessageFeature
 
 from openai_responses_plugins.openai_responses_native_compaction_extension import (
     OpenAIResponsesNativeCompactionExtension,
@@ -83,7 +86,32 @@ def _build_core() -> AgentCore:
     return core
 
 
-def test_compaction_action_uses_sdk_and_sanitizes_input() -> None:
+def _patch_extension_client(
+    monkeypatch: pytest.MonkeyPatch,
+    captured: Dict[str, Any] | None = None,
+) -> None:
+    def _fake_build_client(
+        self: OpenAIResponsesNativeCompactionExtension,
+        config: Dict[str, Any],
+    ) -> _ScriptedClient:
+        _ = self
+        if captured is not None:
+            captured["config"] = dict(config)
+        client = _ScriptedCompactionProvider.scripted_client
+        if client is None:
+            raise RuntimeError("scripted_client must be configured before use")
+        return client
+
+    monkeypatch.setattr(
+        OpenAIResponsesNativeCompactionExtension,
+        "_build_client",
+        _fake_build_client,
+    )
+
+
+def test_compaction_action_uses_sdk_and_sanitizes_input(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _ScriptedCompactionProvider.scripted_client = _ScriptedClient(
         create_payloads=[],
         compact_payload={
@@ -106,6 +134,7 @@ def test_compaction_action_uses_sdk_and_sanitizes_input() -> None:
             "usage": {"total_tokens": 10},
         },
     )
+    _patch_extension_client(monkeypatch)
 
     extension = OpenAIResponsesNativeCompactionExtension()
     session = Session(
@@ -120,6 +149,7 @@ def test_compaction_action_uses_sdk_and_sanitizes_input() -> None:
     )
     state = {
         "config": _config(),
+        "request": {"instructions": "Compiled system instructions"},
         "client": _ScriptedCompactionProvider.scripted_client,
     }
     native_messages = [
@@ -137,7 +167,7 @@ def test_compaction_action_uses_sdk_and_sanitizes_input() -> None:
         "compact_native_history",
         session=session,
         native_messages=native_messages,
-        params={"instructions": "Compact this session"},
+        params={},
         state=state,
     )
 
@@ -146,7 +176,7 @@ def test_compaction_action_uses_sdk_and_sanitizes_input() -> None:
     calls = _ScriptedCompactionProvider.scripted_client.responses.compact_calls
     assert len(calls) == 1
     assert calls[0]["model"] == "gpt-5-mini"
-    assert calls[0]["instructions"] == "Compact this session"
+    assert calls[0]["instructions"] == "Compiled system instructions"
     assert calls[0]["timeout"] == 30.0
     assert calls[0]["input"] == [
         {
@@ -157,7 +187,9 @@ def test_compaction_action_uses_sdk_and_sanitizes_input() -> None:
     ]
 
 
-def test_core_session_action_rebuilds_to_compaction_placeholder_and_keeps_future_turns_working() -> None:
+def test_core_session_action_rebuilds_to_compaction_placeholder_and_keeps_future_turns_working(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _ScriptedCompactionProvider.scripted_client = _ScriptedClient(
         create_payloads=[
             {
@@ -201,6 +233,7 @@ def test_core_session_action_rebuilds_to_compaction_placeholder_and_keeps_future
             "usage": {"total_tokens": 12},
         },
     )
+    _patch_extension_client(monkeypatch)
 
     core = _build_core()
     config = _config()
@@ -249,7 +282,9 @@ def test_core_session_action_rebuilds_to_compaction_placeholder_and_keeps_future
     )
 
 
-def test_core_session_action_compacts_only_visible_prefix_slice() -> None:
+def test_core_session_action_compacts_only_visible_prefix_slice(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _ScriptedCompactionProvider.scripted_client = _ScriptedClient(
         create_payloads=[
             {
@@ -303,6 +338,7 @@ def test_core_session_action_compacts_only_visible_prefix_slice() -> None:
             "usage": {"total_tokens": 20},
         },
     )
+    _patch_extension_client(monkeypatch)
 
     core = _build_core()
     config = _config()
@@ -366,3 +402,232 @@ def test_core_session_action_compacts_only_visible_prefix_slice() -> None:
         for item in third_input
         if isinstance(item, dict)
     )
+
+
+def test_compaction_uses_chatgpt_effective_endpoint_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ScriptedCompactionProvider.scripted_client = _ScriptedClient(
+        create_payloads=[],
+        compact_payload={
+            "id": "cmp_chatgpt",
+            "output": [{"type": "compaction", "encrypted_content": "opaque"}],
+        },
+    )
+    captured: Dict[str, Any] = {}
+    _patch_extension_client(monkeypatch, captured)
+
+    extension = OpenAIResponsesNativeCompactionExtension()
+    session = Session(
+        session_id="session-chatgpt",
+        messages=[Message(role="assistant", content="hello", metadata={"native_indices": [0]})],
+    )
+    native_messages = [
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "hello"}],
+        }
+    ]
+    state = {
+        "config": {
+            **_config(),
+            "auth_mode": "auto",
+            "_openai_responses_effective_auth_mode": "chatgpt",
+            "base_url": "https://chatgpt.com/backend-api/codex",
+            "api_base_url": "https://api.openai.com/v1",
+            "chatgpt_base_url": "https://chatgpt.com/backend-api/codex",
+            "chatgpt_access_token": "chatgpt_token",
+            "chatgpt_account_id": "acct_123",
+        }
+    }
+
+    extension.execute_action(
+        "compact_native_history",
+        session=session,
+        native_messages=native_messages,
+        params={},
+        state=state,
+    )
+
+    assert captured["config"]["_openai_responses_effective_auth_mode"] == "chatgpt"
+    assert captured["config"]["base_url"] == "https://chatgpt.com/backend-api/codex"
+    assert captured["config"]["chatgpt_access_token"] == "chatgpt_token"
+
+
+def test_compaction_can_force_api_endpoint_when_chatgpt_compaction_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ScriptedCompactionProvider.scripted_client = _ScriptedClient(
+        create_payloads=[],
+        compact_payload={
+            "id": "cmp_api",
+            "output": [{"type": "compaction", "encrypted_content": "opaque"}],
+        },
+    )
+    captured: Dict[str, Any] = {}
+    _patch_extension_client(monkeypatch, captured)
+
+    extension = OpenAIResponsesNativeCompactionExtension()
+    session = Session(
+        session_id="session-api",
+        messages=[Message(role="assistant", content="hello", metadata={"native_indices": [0]})],
+    )
+    native_messages = [
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "hello"}],
+        }
+    ]
+    state = {
+        "config": {
+            **_config(),
+            "auth_mode": "chatgpt",
+            "_openai_responses_effective_auth_mode": "chatgpt",
+            "base_url": "https://chatgpt.com/backend-api/codex",
+            "api_base_url": "https://api.openai.com/v1",
+            "chatgpt_base_url": "https://chatgpt.com/backend-api/codex",
+            "chatgpt_access_token": "chatgpt_token",
+            "use_chatgpt_auth_for_compaction": False,
+        }
+    }
+
+    extension.execute_action(
+        "compact_native_history",
+        session=session,
+        native_messages=native_messages,
+        params={},
+        state=state,
+    )
+
+    assert captured["config"]["_openai_responses_effective_auth_mode"] == "api"
+    assert captured["config"]["base_url"] == "https://api.openai.com/v1"
+    assert "chatgpt_access_token" not in captured["config"]
+
+
+def test_core_session_action_uses_compiled_request_instructions_and_strips_leading_system(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ScriptedCompactionProvider.scripted_client = _ScriptedClient(
+        create_payloads=[],
+        compact_payload={
+            "id": "cmp_strip",
+            "output": [{"id": "comp_strip", "type": "compaction", "encrypted_content": "opaque"}],
+        },
+    )
+    _patch_extension_client(monkeypatch)
+
+    core = AgentCore()
+    core.register_provider(
+        _ScriptedCompactionProvider,
+        [OpenAIResponsesNativeCompactionExtension],
+    )
+    core.register_feature(SystemMessageFeature)
+
+    config = {
+        **_config(),
+        "system_message_as_instructions": True,
+        "strip_leading_system_or_developer_message": True,
+        "system_message": "Configured instructions",
+    }
+    session = Session(
+        session_id="session-strip",
+        messages=[
+            Message(role="system", content="Old persisted system", metadata={"native_indices": [0]}),
+            Message(role="user", content="hello", metadata={"native_indices": [1]}),
+            Message(role="assistant", content="world", metadata={"native_indices": [2]}),
+        ],
+        metadata={
+            "native_messages": [
+                {
+                    "type": "message",
+                    "role": "system",
+                    "content": [{"type": "input_text", "text": "Old persisted system"}],
+                },
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "hello"}],
+                },
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "world"}],
+                },
+            ],
+            "native_messages_integrity": core._compute_native_integrity(  # type: ignore[attr-defined]
+                [
+                    Message(role="system", content="Old persisted system", metadata={"native_indices": [0]}),
+                    Message(role="user", content="hello", metadata={"native_indices": [1]}),
+                    Message(role="assistant", content="world", metadata={"native_indices": [2]}),
+                ]
+            ),
+        },
+    )
+
+    core.execute_session_action(
+        session,
+        config,
+        plugin_id="openai_responses_native_compaction",
+        action_id="compact_native_history",
+        params={},
+    )
+
+    calls = _ScriptedCompactionProvider.scripted_client.responses.compact_calls
+    assert len(calls) == 1
+    assert calls[0]["instructions"] == "Old persisted system"
+    assert calls[0]["input"] == [
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": "hello"}],
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "world"}],
+        },
+    ]
+
+
+def test_compaction_disabled_chatgpt_mode_requires_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    extension = OpenAIResponsesNativeCompactionExtension()
+    session = Session(
+        session_id="session-error",
+        messages=[Message(role="assistant", content="hello", metadata={"native_indices": [0]})],
+    )
+    native_messages = [
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "hello"}],
+        }
+    ]
+    state = {
+        "config": {
+            "provider": "openai_responses",
+            "model": "gpt-5-mini",
+            "auth_mode": "chatgpt",
+            "_openai_responses_effective_auth_mode": "chatgpt",
+            "api_base_url": "https://api.openai.com/v1",
+            "chatgpt_base_url": "https://chatgpt.com/backend-api/codex",
+            "chatgpt_access_token": "chatgpt_token",
+            "use_chatgpt_auth_for_compaction": False,
+        }
+    }
+
+    with pytest.raises(RuntimeError) as excinfo:
+        extension.execute_action(
+            "compact_native_history",
+            session=session,
+            native_messages=native_messages,
+            params={},
+            state=state,
+        )
+
+    assert "use the API endpoint" in str(excinfo.value)
+    assert "re-enable use_chatgpt_auth_for_compaction" in str(excinfo.value)

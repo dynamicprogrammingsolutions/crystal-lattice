@@ -13,6 +13,7 @@ from agent_app.session_assets import FilesystemSessionAssetStore
 from agent_core import AgentCore
 from agent_core.types import ProviderRequestCancelled
 import openai_responses_plugins.openai_responses_provider as provider_module
+import openai_responses_plugins.openai_responses_runtime as runtime_module
 from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider
 from openai_responses_plugins.openai_responses_tools_extension import (
     OpenAIResponsesToolsExtension,
@@ -464,7 +465,7 @@ def test_get_models_uses_sdk_and_normalizes_response(
         captured.update(kwargs)
         return fake_client
 
-    monkeypatch.setattr(provider_module, "OpenAI", _fake_openai)
+    monkeypatch.setattr(runtime_module, "OpenAI", _fake_openai)
     monkeypatch.setenv("OPENAI_API_KEY", "test_env_key")
 
     models = provider.get_models({"base_url": "https://example.test/v1", "timeout": 15})
