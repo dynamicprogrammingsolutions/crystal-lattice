@@ -181,7 +181,6 @@ function App(): React.JSX.Element {
   const [connectionsLoading, setConnectionsLoading] = useState(false);
   const [sessionsCache, setSessionsCache] = useState<SessionsCache>({});
   const [messagesCache, setMessagesCache] = useState<MessagesCache>({});
-  const [resumeEpoch, setResumeEpoch] = useState(0);
   const [debugTimeline, setDebugTimeline] = useState<DebugTimelineEntry[]>([]);
   
   const [isSearching, setIsSearching] = useState(false);
@@ -537,7 +536,6 @@ function App(): React.JSX.Element {
         connectionId: activeConnection?.id ?? null,
       },
     });
-    setResumeEpoch((prev) => prev + 1);
 
     try {
       if (!(transport instanceof BridgeTransport) || activeConnection?.kind !== 'bridge') {
@@ -1343,7 +1341,6 @@ function App(): React.JSX.Element {
               onUpdateMessagesCache={updateMessagesCache}
               onSaveMessagesComposeText={saveMessagesComposeText}
               onSaveMessagesScrollAnchor={saveMessagesScrollAnchor}
-              resumeEpoch={resumeEpoch}
               debugTimeline={debugTimeline}
               onAppendDebugTimelineEntry={appendDebugNote}
             />

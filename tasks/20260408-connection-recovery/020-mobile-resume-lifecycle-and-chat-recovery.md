@@ -110,8 +110,15 @@ Added during completion.
   - `packages/frontend-sdk/src/integration/__tests__/backend.integration.test.ts` now covers `recoverAfterResume()` against the real FastAPI backend.
   - `mobile/crystal-lattice-control-rn/__tests__/chatRecovery.test.ts` covers pending-send recovery helpers.
   - `mobile/crystal-lattice-control-rn/__tests__/DebugEventsView.test.tsx` covers the combined debug timeline/event view.
+- Follow-up adjustment:
+  - Removed automatic full chat reload on app foreground.
+  - Kept transport-level foreground reconnect in the mobile root.
+  - Changed session-open bootstrap so every newly opened chat performs one initial server reload, even when hydrated from cache.
+  - Added explicit `ensureEventStreamingStarted()` startup so an opened session does not depend solely on incidental hook timing to begin polling.
 - Verification:
   - `npm test` in `packages/frontend-sdk`: passed.
+  - Follow-up rerun `npm test` in `packages/frontend-sdk`: passed.
   - `RUN_BACKEND_INTEGRATION=1 npx vitest run src/integration/__tests__/backend.integration.test.ts -t "H: recoverAfterResume reloads the active window and reconciles a stale request id"`: passed.
   - `npm test -- --runInBand` in `mobile/crystal-lattice-control-rn`: passed.
+  - Follow-up rerun `npm test -- --runInBand` in `mobile/crystal-lattice-control-rn`: passed.
   - `npx tsc --noEmit --project tsconfig.json` in `mobile/crystal-lattice-control-rn` still reports pre-existing `SessionChatScreen.tsx` attachment-side type errors unrelated to this recovery work.

@@ -50,7 +50,6 @@ interface ConnectedRootProps {
     sessionId: string,
     scrollAnchor: ChatScrollAnchor,
   ) => void;
-  resumeEpoch: number;
   debugTimeline: DebugTimelineEntry[];
   onAppendDebugTimelineEntry: (
     entry: Omit<DebugTimelineEntry, 'id' | 'timestampMs'> & {
@@ -79,7 +78,6 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   onUpdateMessagesCache,
   onSaveMessagesComposeText,
   onSaveMessagesScrollAnchor,
-  resumeEpoch,
   debugTimeline,
   onAppendDebugTimelineEntry,
 }) => {
@@ -306,7 +304,6 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                       onSaveMessagesScrollAnchor(connectionId, selectedSessionId, scrollAnchor);
                     }
                   }}
-                  resumeEpoch={resumeEpoch}
                   debugTimeline={debugTimeline}
                   onAppendDebugTimelineEntry={onAppendDebugTimelineEntry}
                 />

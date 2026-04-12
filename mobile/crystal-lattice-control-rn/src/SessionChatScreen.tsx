@@ -20,7 +20,7 @@ import type { FlatList as FlatListType } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Clipboard from '@react-native-clipboard/clipboard';
-import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
+import type { AgentBackend, ChatController as FrontendChatController } from '@crystal-lattice/frontend-sdk';
 import {
   attachmentDraftStatusLabel,
   deleteSessionAttachment,
@@ -122,7 +122,6 @@ interface SessionChatScreenProps {
   initialScrollAnchor: ChatScrollAnchor | null;
   onSaveComposeText: (composeText: string) => void;
   onSaveScrollAnchor: (scrollAnchor: ChatScrollAnchor) => void;
-  resumeEpoch: number;
   debugTimeline: DebugTimelineEntry[];
   onAppendDebugTimelineEntry: (
     entry: Omit<DebugTimelineEntry, 'id' | 'timestampMs'> & {
@@ -229,7 +228,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   initialScrollAnchor,
   onSaveComposeText,
   onSaveScrollAnchor,
-  resumeEpoch,
   debugTimeline,
   onAppendDebugTimelineEntry,
 }) => {
@@ -358,8 +356,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     isChatScrollAnchor(initialScrollAnchor) ? initialScrollAnchor : null,
   );
   const hasRestoredScrollRef = useRef(false);
-  const lastResumeEpochRef = useRef(resumeEpoch);
   const lastEventsStatusRef = useRef<string | null>(null);
+  const initialLoadControllerRef = useRef<FrontendChatController | null>(null);
+  const initialLoadCompletedRef = useRef(false);
   const lastCacheSnapshotRef = useRef<{
     messagesRef: IndexedMessage[] | null;
     activeRequestId: string | null;
@@ -1050,15 +1049,50 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   );
 
   useEffect(() => {
-    if (lastResumeEpochRef.current === resumeEpoch) {
+    if (!chatController) {
+      initialLoadControllerRef.current = null;
+      initialLoadCompletedRef.current = false;
       return;
     }
-    lastResumeEpochRef.current = resumeEpoch;
-    if (!isAppActive || !isActive) {
+
+    if (initialLoadControllerRef.current === chatController) {
       return;
     }
-    void recoverChatAfterResume('app_foreground');
-  }, [isActive, isAppActive, recoverChatAfterResume, resumeEpoch]);
+
+    initialLoadControllerRef.current = chatController;
+    initialLoadCompletedRef.current = false;
+
+    if (!isActive || !isAppActive) {
+      return;
+    }
+
+    let cancelled = false;
+    void loadMessages({ reason: 'initial_open', silent: true }).then((snapshot) => {
+      if (cancelled) {
+        return;
+      }
+      initialLoadCompletedRef.current = snapshot != null;
+      if (snapshot) {
+        chatController.ensureEventStreamingStarted({
+          initialSinceId: snapshot.eventsCursorId ?? null,
+        });
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [chatController, isActive, isAppActive, loadMessages]);
+
+  useEffect(() => {
+    if (!chatController || !eventsEnabled) {
+      return;
+    }
+    if (!initialLoadCompletedRef.current) {
+      return;
+    }
+    chatController.ensureEventStreamingStarted();
+  }, [chatController, eventsEnabled, eventsStatus, messages.length]);
 
   const {
     activeElement: activePluginDialogElement,
@@ -1113,12 +1147,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       setLastReloadAt(new Date(lastLoadedAt));
     }
   }, [cachedMessages, connectionId, sessionId, lastLoadedAt]);
-
-  useEffect(() => {
-    if (!cachedMessages && chatController) {
-      loadMessages();
-    }
-  }, [chatController, cachedMessages, loadMessages]);
 
   useEffect(() => {
     if (!chatState) {

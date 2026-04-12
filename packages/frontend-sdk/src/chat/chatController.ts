@@ -217,6 +217,20 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     await this.reloadMessages(range, { bumpEpoch: false });
   }
 
+  ensureEventStreamingStarted(options: { initialSinceId?: string | null } = {}): void {
+    const snapshot = this.getSnapshot();
+    if (snapshot.loading || !snapshot.followTail || this.isEventStreaming()) {
+      return;
+    }
+
+    const sinceId =
+      options.initialSinceId ??
+      snapshot.eventsCursorId ??
+      this.getSnapshot().eventsCursorId ??
+      null;
+    this.startEventStreaming({ initialSinceId: sinceId });
+  }
+
   async appendMessage(message: {
     role: 'user' | 'assistant' | 'system' | 'tool';
     content: string;
