@@ -19,7 +19,11 @@ _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
 _PUBLIC_USAGE_METADATA_KEYS = (
     "usage_prompt_tokens_formatted",
     "usage_cached_tokens_formatted",
+    "usage_estimated_cached_tokens",
+    "usage_estimated_cached_tokens_formatted",
     "usage_completion_tokens_formatted",
+    "usage_effective_auth_mode",
+    "usage_effective_auth_mode_label",
     "usage_service_tier",
     "usage_total_cost",
     "usage_total_cost_formatted",
@@ -43,7 +47,19 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                 "type": "string",
                 "required": False,
                 "description": "Optional path override for the checked-in OpenAI pricing snapshot.",
-            }
+            },
+            "show_estimated_cached_tokens": {
+                "type": "boolean",
+                "required": False,
+                "default": False,
+                "description": "Show estimated cached tokens for ChatGPT-backed usage footers.",
+            },
+            "show_openai_auth_mode": {
+                "type": "boolean",
+                "required": False,
+                "default": False,
+                "description": "Show the effective OpenAI auth mode in usage footers.",
+            },
         }
 
     def get_ui_elements(
@@ -65,12 +81,53 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                 "ui_type": "message_footer",
                 "data": "metadata.usage_cached_tokens_formatted",
                 "template": "cached: {{data}}",
+                "condition": {
+                    "not": {
+                        "path": "metadata.usage_effective_auth_mode",
+                        "eq": "chatgpt",
+                    }
+                },
             },
+            *(
+                [
+                    {
+                        "ui_type": "message_footer",
+                        "data": "metadata.usage_estimated_cached_tokens_formatted",
+                        "template": "estimated cached: {{data}}",
+                        "condition": {
+                            "all": [
+                                {"path": "metadata.usage_effective_auth_mode", "eq": "chatgpt"},
+                                {
+                                    "path": "metadata.usage_estimated_cached_tokens_formatted",
+                                    "exists": True,
+                                },
+                            ]
+                        },
+                    }
+                ]
+                if isinstance(config, dict) and config.get("show_estimated_cached_tokens") is True
+                else []
+            ),
             {
                 "ui_type": "message_footer",
                 "data": "metadata.usage_completion_tokens_formatted",
                 "template": "completion: {{data}}",
             },
+            *(
+                [
+                    {
+                        "ui_type": "message_footer",
+                        "data": "metadata.usage_effective_auth_mode_label",
+                        "template": "auth: {{data}}",
+                        "condition": {
+                            "path": "metadata.usage_effective_auth_mode_label",
+                            "exists": True,
+                        },
+                    }
+                ]
+                if isinstance(config, dict) and config.get("show_openai_auth_mode") is True
+                else []
+            ),
             {
                 "ui_type": "message_footer",
                 "data": "metadata.usage_service_tier",
@@ -180,6 +237,37 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         return 0
 
     @staticmethod
+    def _effective_auth_mode(state: Dict[str, Any]) -> str:
+        config = state.get("config") if isinstance(state, dict) else None
+        if not isinstance(config, dict):
+            return "api"
+        raw = config.get("_openai_responses_effective_auth_mode")
+        if isinstance(raw, str) and raw.strip().lower() in {"api", "chatgpt"}:
+            return raw.strip().lower()
+        requested = config.get("auth_mode")
+        if not isinstance(requested, str):
+            return "api"
+        normalized = requested.strip().lower()
+        if normalized == "api_key":
+            return "api"
+        if normalized == "chatgpt":
+            return "chatgpt"
+        return "api"
+
+    @staticmethod
+    def _effective_auth_mode_label(mode: str) -> str:
+        if mode == "chatgpt":
+            return "ChatGPT"
+        return "API"
+
+    @staticmethod
+    def _usage_input_tokens(usage: Dict[str, Any]) -> Optional[int]:
+        value = usage.get("input_tokens")
+        if isinstance(value, (int, float)):
+            return max(0, int(value))
+        return None
+
+    @staticmethod
     def _public_usage_from_internal(internal: Any) -> Optional[Dict[str, Any]]:
         if not isinstance(internal, dict):
             return None
@@ -219,6 +307,104 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                 out[key] = internal[key]
 
         return out
+
+    @classmethod
+    def _item_usage_for_estimation(cls, item: Any) -> Optional[Dict[str, Any]]:
+        if not isinstance(item, dict):
+            return None
+        internal = item.get("_metadata")
+        return cls._public_usage_from_internal(internal)
+
+    @classmethod
+    def _is_reduced_history_user_item(cls, item: Any) -> bool:
+        return (
+            isinstance(item, dict)
+            and item.get("type") == "message"
+            and item.get("role") == "user"
+        )
+
+    @classmethod
+    def _is_reduced_history_tool_result_item(cls, item: Any) -> bool:
+        if not isinstance(item, dict):
+            return False
+        if item.get("type") == "function_call_output":
+            return True
+        return item.get("type") == "message" and item.get("role") == "tool"
+
+    @classmethod
+    def _is_reduced_history_usage_item(cls, item: Any) -> bool:
+        if not isinstance(item, dict):
+            return False
+        if cls._is_reduced_history_tool_result_item(item):
+            return False
+        usage = cls._item_usage_for_estimation(item)
+        if not isinstance(usage, dict):
+            return False
+        if cls._usage_input_tokens(usage) is None:
+            return False
+        item_type = item.get("type")
+        if item_type == "message":
+            return item.get("role") == "assistant"
+        return item_type in {"function_call", "custom_tool_call"}
+
+    @classmethod
+    def _reduced_history_markers(cls, native_items: List[Dict[str, Any]]) -> List[Tuple[str, int]]:
+        reduced: List[Tuple[str, int]] = []
+        for item in native_items:
+            if cls._is_reduced_history_user_item(item):
+                reduced.append(("user", 0))
+                continue
+            if cls._is_reduced_history_usage_item(item):
+                usage = cls._item_usage_for_estimation(item) or {}
+                input_tokens = cls._usage_input_tokens(usage)
+                if input_tokens is not None:
+                    reduced.append(("usage", input_tokens))
+        return reduced
+
+    @classmethod
+    def _estimated_cached_tokens_from_markers(cls, markers: List[Tuple[str, int]]) -> List[int]:
+        estimates: List[int] = []
+        previous_turn_first_usage_input: Optional[int] = None
+        current_turn_first_usage_input: Optional[int] = None
+        current_turn_last_usage_input: Optional[int] = None
+
+        for kind, input_tokens in markers:
+            if kind == "user":
+                if current_turn_first_usage_input is not None:
+                    previous_turn_first_usage_input = current_turn_first_usage_input
+                current_turn_first_usage_input = None
+                current_turn_last_usage_input = None
+                continue
+
+            if current_turn_last_usage_input is not None:
+                estimated = current_turn_last_usage_input
+            elif previous_turn_first_usage_input is not None:
+                estimated = previous_turn_first_usage_input
+            else:
+                estimated = 0
+
+            estimates.append(estimated)
+            if current_turn_first_usage_input is None:
+                current_turn_first_usage_input = input_tokens
+            current_turn_last_usage_input = input_tokens
+
+        return estimates
+
+    @classmethod
+    def _estimated_cached_tokens_for_current(
+        cls,
+        base_native: List[Dict[str, Any]],
+        usage: Dict[str, Any],
+    ) -> Optional[int]:
+        input_tokens = cls._usage_input_tokens(usage)
+        if input_tokens is None:
+            return None
+        markers = cls._reduced_history_markers(base_native)
+        markers.append(("usage", input_tokens))
+        estimates = cls._estimated_cached_tokens_from_markers(markers)
+        if not estimates:
+            return None
+        return estimates[-1]
 
     @staticmethod
     def _service_tier_from_items(items: List[Dict[str, Any]]) -> Optional[str]:
@@ -273,6 +459,8 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
     ) -> Dict[str, Any]:
         prompt_tokens_str = None
         cached_tokens_str = None
+        estimated_cached_tokens = None
+        estimated_cached_tokens_str = None
         completion_tokens_str = None
         cost_str = None
         total_cost = None
@@ -281,18 +469,33 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         model = config.get("model") if isinstance(config, dict) else None
         snapshot_path = config.get("pricing_snapshot_path") if isinstance(config, dict) else None
         service_tier = self._service_tier_from_items(current_items)
+        effective_auth_mode = self._effective_auth_mode(state)
 
         input_tokens = usage.get("input_tokens")
         if isinstance(input_tokens, (int, float)):
             prompt_tokens_str = f"{int(input_tokens):,}"
 
-        cached = None
+        reported_cached = None
         try:
-            cached = (usage.get("input_tokens_details") or {}).get("cached_tokens")
+            reported_cached = (usage.get("input_tokens_details") or {}).get("cached_tokens")
         except Exception:
-            cached = None
-        if isinstance(cached, (int, float)):
-            cached_tokens_str = f"{int(cached):,}"
+            reported_cached = None
+        if isinstance(reported_cached, (int, float)):
+            cached_tokens_str = f"{int(reported_cached):,}"
+
+        effective_usage = usage
+        if effective_auth_mode == "chatgpt":
+            estimated_cached_tokens = self._estimated_cached_tokens_for_current(base_native, usage)
+            if isinstance(estimated_cached_tokens, int):
+                estimated_cached_tokens_str = f"{estimated_cached_tokens:,}"
+        if effective_auth_mode == "chatgpt" and isinstance(estimated_cached_tokens, int):
+            details = (
+                dict(usage.get("input_tokens_details"))
+                if isinstance(usage.get("input_tokens_details"), dict)
+                else {}
+            )
+            details["cached_tokens"] = estimated_cached_tokens
+            effective_usage = {**usage, "input_tokens_details": details}
 
         output_tokens = usage.get("output_tokens")
         if isinstance(output_tokens, (int, float)):
@@ -301,7 +504,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         if isinstance(model, str) and model:
             try:
                 total_cost = estimate_usage_cost(
-                    usage,
+                    effective_usage,
                     model=model,
                     service_tier=service_tier,
                     snapshot_path=snapshot_path if isinstance(snapshot_path, str) else None,
@@ -368,6 +571,8 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         extra_md: Dict[str, Any] = {
             "usage": usage,
             "has_tool_calls": has_tool_calls,
+            "usage_effective_auth_mode": effective_auth_mode,
+            "usage_effective_auth_mode_label": self._effective_auth_mode_label(effective_auth_mode),
             "usage_total_cost": effective_total_cost,
             "usage_total_cost_cumulative": cumulative_cost,
             "usage_total_cost_cumulative_formatted": f"${cumulative_cost:.6f}",
@@ -384,8 +589,12 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
 
         if prompt_tokens_str is not None:
             extra_md["usage_prompt_tokens_formatted"] = prompt_tokens_str
-        if cached_tokens_str is not None:
+        if cached_tokens_str is not None and effective_auth_mode != "chatgpt":
             extra_md["usage_cached_tokens_formatted"] = cached_tokens_str
+        if estimated_cached_tokens is not None:
+            extra_md["usage_estimated_cached_tokens"] = estimated_cached_tokens
+        if estimated_cached_tokens_str is not None:
+            extra_md["usage_estimated_cached_tokens_formatted"] = estimated_cached_tokens_str
         if completion_tokens_str is not None:
             extra_md["usage_completion_tokens_formatted"] = completion_tokens_str
         if cost_str is not None and effective_total_cost != 0.0:

@@ -433,6 +433,14 @@ models whose id contains `gpt-5`.
 
 - `pricing_snapshot_path`: optional override for the checked-in pricing snapshot
 - `show_usage`: set to `false` to hide usage footer/status UI elements
+- `show_estimated_cached_tokens`: set to `true` to show ChatGPT estimated cached-token footers
+- `show_openai_auth_mode`: set to `true` to show the effective auth mode (`API` or `ChatGPT`) in usage footers
+
+ChatGPT-backed Responses usage currently estimates cached tokens using
+turn-aware heuristics. That estimate is kept separate from the raw provider
+usage payload and is used for ChatGPT-mode pricing instead of any
+backend-reported cached-token field. By default it is not displayed; enable
+`show_estimated_cached_tokens` if you want the footer.
 
 ### Prompt caching keys
 
