@@ -63,6 +63,11 @@ from .chatgpt_credentials import (
     refresh_chatgpt_credentials,
     resolve_credentials_path as _resolve_chatgpt_credentials_path_shared,
 )
+from .chatgpt_rate_limits import (
+    parse_all_rate_limit_headers,
+    persist_rate_limit_snapshots,
+    resolve_rate_limits_path as _resolve_chatgpt_rate_limits_path_shared,
+)
 from .openai_responses_runtime import (
     DEFAULT_API_BASE_URL as _DEFAULT_BASE_URL,
     DEFAULT_CHATGPT_BASE_URL as _DEFAULT_CHATGPT_BASE_URL,
@@ -188,6 +193,11 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 "type": "string",
                 "required": False,
                 "description": "Path to saved ChatGPT credentials for chatgpt/auto auth mode.",
+            },
+            "chatgpt_rate_limits_path": {
+                "type": "string",
+                "required": False,
+                "description": "Path to the persisted ChatGPT/Codex rate-limit snapshot sidecar.",
             },
             "chatgpt_client_version": {
                 "type": "string",
@@ -480,6 +490,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
     def _chatgpt_credentials_path(self, config: Dict[str, Any]) -> Path:
         return _resolve_chatgpt_credentials_path_shared(config)
 
+    def _chatgpt_rate_limits_path(self, config: Dict[str, Any]) -> Path:
+        return _resolve_chatgpt_rate_limits_path_shared(config)
+
     def _load_json_file(self, path: Path) -> Dict[str, Any]:
         return _load_chatgpt_credentials_shared(path)
 
@@ -488,6 +501,35 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
     def _chatgpt_credentials_can_attempt_request(self, credentials: Dict[str, Any]) -> bool:
         return credentials_have_access_token(credentials)
+
+    def _capture_chatgpt_rate_limits(
+        self,
+        config: Dict[str, Any],
+        headers: Any,
+    ) -> None:
+        if self._effective_auth_mode(config) != "chatgpt" or headers is None:
+            return
+        try:
+            header_map = {str(key).lower(): value for key, value in dict(headers).items()}
+        except Exception:
+            return
+        snapshots = parse_all_rate_limit_headers(header_map)
+        if not snapshots:
+            return
+        persist_rate_limit_snapshots(
+            self._chatgpt_rate_limits_path(config),
+            snapshots,
+            plan_type=config.get("chatgpt_plan_type"),
+        )
+
+    def _capture_chatgpt_rate_limits_from_stream(
+        self,
+        config: Dict[str, Any],
+        stream: Any,
+    ) -> None:
+        response = getattr(stream, "_response", None)
+        headers = getattr(response, "headers", None)
+        self._capture_chatgpt_rate_limits(config, headers)
 
     def _chatgpt_config_with_credentials(
         self,
@@ -1752,6 +1794,47 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 return dumped
         raise RuntimeError("[openai_responses_provider] invalid SDK stream event payload")
 
+    def _iter_raw_sse_event_dicts(self, response: Any) -> Iterator[Dict[str, Any]]:
+        iter_lines = getattr(response, "iter_lines", None)
+        if not callable(iter_lines):
+            raise RuntimeError("[openai_responses_provider] raw streaming response is missing iter_lines()")
+
+        data_lines: List[str] = []
+        for raw_line in iter_lines():
+            line = raw_line if isinstance(raw_line, str) else str(raw_line)
+            if not line:
+                if not data_lines:
+                    continue
+                payload_text = "\n".join(data_lines).strip()
+                data_lines = []
+                if not payload_text or payload_text == "[DONE]":
+                    continue
+                try:
+                    payload = json.loads(payload_text)
+                except Exception as exc:
+                    raise RuntimeError(
+                        "[openai_responses_provider] invalid JSON event in raw streaming response"
+                    ) from exc
+                if isinstance(payload, dict):
+                    yield payload
+                continue
+            if line.startswith(":"):
+                continue
+            if line.startswith("data:"):
+                data_lines.append(line[5:].lstrip())
+
+        if data_lines:
+            payload_text = "\n".join(data_lines).strip()
+            if payload_text and payload_text != "[DONE]":
+                try:
+                    payload = json.loads(payload_text)
+                except Exception as exc:
+                    raise RuntimeError(
+                        "[openai_responses_provider] invalid trailing JSON event in raw streaming response"
+                    ) from exc
+                if isinstance(payload, dict):
+                    yield payload
+
     def _safe_dict_payload(self, payload: Any) -> Dict[str, Any]:
         if isinstance(payload, dict):
             return payload
@@ -2125,12 +2208,28 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 while True:
                     if runtime.cancelled.is_set():
                         raise ProviderRequestCancelled(request_id)
+                    responses_resource = getattr(local_request_client, "responses", None)
+                    raw_stream_resource = (
+                        getattr(responses_resource, "with_streaming_response", None)
+                        if responses_resource is not None and self._effective_auth_mode(local_cfg) == "chatgpt"
+                        else None
+                    )
+                    use_raw_streaming = bool(
+                        raw_stream_resource is not None and hasattr(raw_stream_resource, "create")
+                    )
                     try:
-                        sdk_stream = local_request_client.responses.create(  # type: ignore[union-attr]
-                            **{**payload, "input": input_items, "stream": True},
-                            extra_headers=extra_headers,
-                            timeout=timeout,
-                        )
+                        if use_raw_streaming:
+                            sdk_stream = raw_stream_resource.create(  # type: ignore[union-attr]
+                                **{**payload, "input": input_items, "stream": True},
+                                extra_headers=extra_headers,
+                                timeout=timeout,
+                            )
+                        else:
+                            sdk_stream = local_request_client.responses.create(  # type: ignore[union-attr]
+                                **{**payload, "input": input_items, "stream": True},
+                                extra_headers=extra_headers,
+                                timeout=timeout,
+                            )
                     except Exception as exc:
                         if (
                             self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD
@@ -2156,11 +2255,18 @@ class OpenAIResponsesProvider(ProviderPlugin):
                             retry_input_items = [
                                 self._sanitize_input_item(item) for item in retry_history
                             ]
-                            sdk_stream = local_request_client.responses.create(  # type: ignore[union-attr]
-                                **{**payload, "input": retry_input_items, "stream": True},
-                                extra_headers=extra_headers,
-                                timeout=timeout,
-                            )
+                            if use_raw_streaming:
+                                sdk_stream = raw_stream_resource.create(  # type: ignore[union-attr]
+                                    **{**payload, "input": retry_input_items, "stream": True},
+                                    extra_headers=extra_headers,
+                                    timeout=timeout,
+                                )
+                            else:
+                                sdk_stream = local_request_client.responses.create(  # type: ignore[union-attr]
+                                    **{**payload, "input": retry_input_items, "stream": True},
+                                    extra_headers=extra_headers,
+                                    timeout=timeout,
+                                )
                         else:
                             if _attempt_chatgpt_auth_recovery(exc):
                                 continue
@@ -2175,7 +2281,16 @@ class OpenAIResponsesProvider(ProviderPlugin):
                         if hasattr(sdk_stream, "__enter__") and hasattr(sdk_stream, "__exit__"):
                             with sdk_stream as stream:
                                 runtime.add_closer(lambda active_stream=stream: _close_candidate(active_stream))
-                                for event in stream:
+                                if use_raw_streaming:
+                                    self._capture_chatgpt_rate_limits(
+                                        local_cfg,
+                                        getattr(stream, "headers", None),
+                                    )
+                                    event_iter = self._iter_raw_sse_event_dicts(stream)
+                                else:
+                                    self._capture_chatgpt_rate_limits_from_stream(local_cfg, stream)
+                                    event_iter = stream
+                                for event in event_iter:
                                     if runtime.cancelled.is_set():
                                         raise ProviderRequestCancelled(request_id)
                                     event_dict = self._stream_event_to_dict(event)

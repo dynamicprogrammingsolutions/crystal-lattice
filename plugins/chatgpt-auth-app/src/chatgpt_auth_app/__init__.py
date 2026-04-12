@@ -23,8 +23,10 @@ _DEFAULT_ISSUER = "https://auth.openai.com"
 _DEFAULT_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 _DEVICE_CODE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
 _DEFAULT_CHATGPT_CREDENTIALS_RELATIVE_PATH = "auth/chatgpt-auth.json"
+_DEFAULT_CHATGPT_RATE_LIMITS_RELATIVE_PATH = "auth/chatgpt-rate-limits.json"
 _NON_FATAL_TOKEN_ERRORS = {"authorization_pending", "slow_down"}
 _TERMINAL_TOKEN_ERRORS = {"access_denied", "expired_token", "invalid_grant"}
+_RATE_LIMIT_STALE_THRESHOLD_MINUTES = 15
 
 
 def _utcnow() -> datetime:
@@ -128,6 +130,97 @@ def _remove_file(path: Path) -> None:
         return
 
 
+def _normalize_auth_mode(value: Any) -> str:
+    if not isinstance(value, str):
+        return "api"
+    normalized = value.strip().lower()
+    if normalized == "api_key":
+        return "api"
+    if normalized in {"api", "chatgpt", "auto"}:
+        return normalized
+    return "api"
+
+
+def _resolve_rate_limits_path(config: Dict[str, Any]) -> Path:
+    raw = config.get("chatgpt_rate_limits_path")
+    if isinstance(raw, str) and raw.strip():
+        return Path(raw).expanduser()
+    credentials_path = config.get("chatgpt_credentials_path")
+    if isinstance(credentials_path, str) and credentials_path.strip():
+        return Path(credentials_path).expanduser().with_name("chatgpt-rate-limits.json")
+    config_dir = os.environ.get("CONFIG_DIR")
+    if isinstance(config_dir, str) and config_dir:
+        return Path(config_dir).expanduser() / _DEFAULT_CHATGPT_RATE_LIMITS_RELATIVE_PATH
+    return Path.cwd() / _DEFAULT_CHATGPT_RATE_LIMITS_RELATIVE_PATH
+
+
+def _format_limit_duration(window_minutes: int) -> str:
+    minutes_per_hour = 60
+    minutes_per_day = 24 * minutes_per_hour
+    minutes_per_week = 7 * minutes_per_day
+    minutes_per_month = 30 * minutes_per_day
+    rounding_bias = 3
+
+    window_minutes = max(0, int(window_minutes))
+    if window_minutes <= minutes_per_day + rounding_bias:
+        adjusted = window_minutes + rounding_bias
+        hours = max(1, adjusted // minutes_per_hour)
+        return f"{hours}h"
+    if window_minutes <= minutes_per_week + rounding_bias:
+        return "weekly"
+    if window_minutes <= minutes_per_month + rounding_bias:
+        return "monthly"
+    return "annual"
+
+
+def _format_limit_label(window: Dict[str, Any], fallback: str) -> str:
+    minutes = window.get("window_minutes")
+    if isinstance(minutes, int):
+        text = _format_limit_duration(minutes)
+        if text == "weekly":
+            return "Weekly limit"
+        if text == "monthly":
+            return "Monthly limit"
+        if text == "annual":
+            return "Annual limit"
+        return f"{text} limit"
+    return fallback
+
+
+def _format_reset_time(resets_at: Any, *, now: Optional[datetime] = None) -> Optional[str]:
+    if not isinstance(resets_at, int):
+        return None
+    observed_at = now or _utcnow()
+    try:
+        reset_dt = datetime.fromtimestamp(resets_at, tz=timezone.utc).astimezone()
+    except Exception:
+        return None
+    local_now = observed_at.astimezone(reset_dt.tzinfo)
+    text = reset_dt.strftime("%H:%M")
+    if reset_dt.date() != local_now.date():
+        text = f"{text} on {reset_dt.day} {reset_dt.strftime('%b')}"
+    return text
+
+
+def _format_credit_balance(raw: Any) -> Optional[str]:
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    text = raw.strip()
+    try:
+        int_value = int(text)
+    except ValueError:
+        try:
+            float_value = float(text)
+        except ValueError:
+            return None
+        if float_value <= 0:
+            return None
+        return str(int(round(float_value)))
+    if int_value <= 0:
+        return None
+    return str(int_value)
+
+
 class ChatGPTAuthAppPlugin:
     """Application plugin implementing a minimal device-code login flow."""
 
@@ -152,7 +245,9 @@ class ChatGPTAuthAppPlugin:
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
-        _ = (state, config, tags, models)
+        _ = (state, models)
+        if not self._should_show_session_actions(config, tags):
+            return []
         return [
             {
                 "ui_type": "session_action",
@@ -174,10 +269,20 @@ class ChatGPTAuthAppPlugin:
             },
             {
                 "ui_type": "session_action",
+                "id": "chatgpt_auth_show_account_status",
+                "label": "Show ChatGPT account status",
+                "icon": "gauge",
+                "order": 7,
+                "action_id": "show_account_status",
+                "param_map": {"session_id": "$session.session_id"},
+                "dialog": {"kind": "none"},
+            },
+            {
+                "ui_type": "session_action",
                 "id": "chatgpt_auth_cancel_login",
                 "label": "Cancel ChatGPT login",
                 "icon": "x-circle",
-                "order": 7,
+                "order": 8,
                 "action_id": "cancel_login",
                 "dialog": {"kind": "none"},
             },
@@ -186,7 +291,7 @@ class ChatGPTAuthAppPlugin:
                 "id": "chatgpt_auth_logout",
                 "label": "Log out of ChatGPT",
                 "icon": "log-out",
-                "order": 8,
+                "order": 9,
                 "action_id": "logout",
                 "dialog": {"kind": "none"},
             },
@@ -208,9 +313,15 @@ class ChatGPTAuthAppPlugin:
             credentials_file = Path(credentials_path).expanduser()
         else:
             credentials_file = config_root / _DEFAULT_CHATGPT_CREDENTIALS_RELATIVE_PATH
+        rate_limits_path = auth_cfg.get("rate_limits_path")
+        if isinstance(rate_limits_path, str) and rate_limits_path.strip():
+            rate_limits_file = Path(rate_limits_path).expanduser()
+        else:
+            rate_limits_file = credentials_file.with_name("chatgpt-rate-limits.json")
 
         normalized_config = {
             "credentials_path": str(credentials_file),
+            "rate_limits_path": str(rate_limits_file),
             "protocol": (
                 auth_cfg.get("protocol").strip().lower()
                 if isinstance(auth_cfg.get("protocol"), str) and auth_cfg.get("protocol").strip()
@@ -264,6 +375,21 @@ class ChatGPTAuthAppPlugin:
             "last_status": None,
         }
 
+    def _should_show_session_actions(
+        self,
+        config: Optional[Dict[str, Any]],
+        tags: Optional[List[str]],
+    ) -> bool:
+        if not isinstance(config, dict):
+            return False
+        provider_name = config.get("provider")
+        provider_match = provider_name == "openai_responses"
+        tag_match = any(tag == "provider:openai_responses" for tag in tags or [])
+        if not (provider_match or tag_match):
+            return False
+        requested_mode = _normalize_auth_mode(config.get("auth_mode"))
+        return requested_mode in {"auto", "chatgpt"}
+
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         _ = state
         return [
@@ -278,6 +404,14 @@ class ChatGPTAuthAppPlugin:
                 "label": "Show ChatGPT login status",
                 "description": "Return the current login status.",
                 "inputs": {},
+            },
+            {
+                "id": "show_account_status",
+                "label": "Show ChatGPT account status",
+                "description": "Return the current ChatGPT account and usage-limit status for a session.",
+                "inputs": {
+                    "session_id": {"type": "string", "required": True},
+                },
             },
             {
                 "id": "cancel_login",
@@ -310,6 +444,8 @@ class ChatGPTAuthAppPlugin:
                 "display": self._status_display_payload(auth_status, action="check_status"),
                 "auth_status": auth_status,
             }
+        if action_id == "show_account_status":
+            return self._show_account_status(app, state, params)
         if action_id == "cancel_login":
             auth_status = self._cancel_login(app, state)
             return {
@@ -334,6 +470,110 @@ class ChatGPTAuthAppPlugin:
         if not isinstance(raw, str) or not raw.strip():
             raise ValueError("[chatgpt_auth] credentials_path must be configured")
         return Path(raw).expanduser()
+
+    def _rate_limits_path(self, state: Dict[str, Any]) -> Path:
+        return _resolve_rate_limits_path(
+            {
+                "chatgpt_rate_limits_path": self._config(state).get("rate_limits_path"),
+                "chatgpt_credentials_path": str(self._credentials_path(state)),
+            }
+        )
+
+    def _session_config(self, app: Any, session_id: str) -> Dict[str, Any]:
+        ctx = app.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        core, base_config, session = ctx
+        _ = core
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides = metadata.get("overrides")
+        if not isinstance(overrides, dict):
+            overrides = {}
+        resolve_effective = getattr(app, "resolve_effective_config", None)
+        if callable(resolve_effective):
+            return resolve_effective(base_config, session, overrides)
+        return dict(base_config)
+
+    def _effective_auth_mode(self, config: Dict[str, Any], auth_status: Dict[str, Any]) -> str:
+        raw = config.get("_openai_responses_effective_auth_mode")
+        if isinstance(raw, str) and raw.strip().lower() in {"api", "chatgpt"}:
+            return raw.strip().lower()
+        requested = _normalize_auth_mode(config.get("auth_mode"))
+        if requested == "chatgpt":
+            return "chatgpt"
+        if requested == "auto":
+            status_state = auth_status.get("state")
+            if status_state == "authenticated":
+                return "chatgpt"
+        return "api"
+
+    def _render_rate_limit_lines(self, rate_limits_state: Dict[str, Any]) -> List[str]:
+        snapshots = rate_limits_state.get("snapshots")
+        if not isinstance(snapshots, list) or not snapshots:
+            return []
+
+        lines: List[str] = []
+        captured_at = _parse_iso8601(rate_limits_state.get("captured_at"))
+        if captured_at is not None and _utcnow() - captured_at > timedelta(
+            minutes=_RATE_LIMIT_STALE_THRESHOLD_MINUTES
+        ):
+            lines.append("_Latest known usage limits may be stale. Run a ChatGPT-backed request to refresh._")
+
+        for snapshot in snapshots:
+            if not isinstance(snapshot, dict):
+                continue
+            limit_id = snapshot.get("limit_id")
+            bucket = str(limit_id) if isinstance(limit_id, str) and limit_id else "codex"
+            primary = snapshot.get("primary")
+            secondary = snapshot.get("secondary")
+            credits = snapshot.get("credits")
+            window_count = int(isinstance(primary, dict)) + int(isinstance(secondary, dict))
+            prefix_non_codex_single = bucket != "codex" and window_count == 1
+
+            if bucket != "codex" and window_count > 1:
+                lines.append(f"- `{bucket}`")
+
+            if isinstance(primary, dict):
+                label = _format_limit_label(primary, "5h limit")
+                if prefix_non_codex_single:
+                    label = f"{bucket} {label}"
+                percent_used = primary.get("used_percent")
+                percent_remaining = 100.0 - float(percent_used) if isinstance(percent_used, (int, float)) else None
+                reset_text = _format_reset_time(primary.get("resets_at"))
+                line = f"- {label}: "
+                if percent_remaining is not None:
+                    line += f"`{percent_remaining:.0f}% left`"
+                else:
+                    line += "`usage available`"
+                if isinstance(reset_text, str) and reset_text:
+                    line += f" (resets `{reset_text}`)"
+                lines.append(line)
+
+            if isinstance(secondary, dict):
+                label = _format_limit_label(secondary, "Weekly limit")
+                if prefix_non_codex_single:
+                    label = f"{bucket} {label}"
+                percent_used = secondary.get("used_percent")
+                percent_remaining = 100.0 - float(percent_used) if isinstance(percent_used, (int, float)) else None
+                reset_text = _format_reset_time(secondary.get("resets_at"))
+                line = f"- {label}: "
+                if percent_remaining is not None:
+                    line += f"`{percent_remaining:.0f}% left`"
+                else:
+                    line += "`usage available`"
+                if isinstance(reset_text, str) and reset_text:
+                    line += f" (resets `{reset_text}`)"
+                lines.append(line)
+
+            if isinstance(credits, dict) and credits.get("has_credits") is True:
+                if credits.get("unlimited") is True:
+                    lines.append("- Credits: `Unlimited`")
+                else:
+                    balance = _format_credit_balance(credits.get("balance"))
+                    if isinstance(balance, str):
+                        lines.append(f"- Credits: `{balance} credits`")
+
+        return lines
 
     def _request_payload(
         self,
@@ -855,6 +1095,70 @@ class ChatGPTAuthAppPlugin:
                 return dict(last_status)
             return {"state": "logged_out", "login_id": None, "error": None}
 
+    def _show_account_status(
+        self,
+        app: Any,
+        state: Dict[str, Any],
+        params: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        session_id = params.get("session_id")
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("session_id is required")
+
+        config = self._session_config(app, session_id)
+        auth_status = self._current_status(state)
+        requested_mode = _normalize_auth_mode(config.get("auth_mode"))
+        effective_mode = self._effective_auth_mode(config, auth_status)
+        supported = self._should_show_session_actions(config, [f"provider:{config.get('provider')}"])
+
+        rate_limits_path = _resolve_rate_limits_path(config)
+        rate_limits_state = _read_json(rate_limits_path) or {}
+        rate_limit_lines = self._render_rate_limit_lines(rate_limits_state)
+        endpoint = config.get("chatgpt_base_url") if effective_mode == "chatgpt" else config.get("api_base_url") or config.get("base_url")
+
+        lines: List[str] = []
+        variant = "success" if auth_status.get("state") == "authenticated" else "info"
+        if not supported:
+            variant = "warning"
+            lines.append(
+                "ChatGPT account status is only available for OpenAI Responses sessions with `auth_mode` set to `auto` or `chatgpt`."
+            )
+        else:
+            lines.append(f"Requested auth mode: `{requested_mode}`")
+            lines.append(f"Effective auth mode: `{effective_mode}`")
+            lines.append(f"Login state: `{auth_status.get('state') or 'unknown'}`")
+            account_email = auth_status.get("account_email")
+            account_id = auth_status.get("account_id")
+            plan_type = auth_status.get("plan_type") or rate_limits_state.get("plan_type")
+            if isinstance(account_email, str) and account_email:
+                lines.append(f"Account: `{account_email}`")
+            if isinstance(account_id, str) and account_id:
+                lines.append(f"Account ID: `{account_id}`")
+            if isinstance(plan_type, str) and plan_type:
+                lines.append(f"Plan: `{plan_type}`")
+            if isinstance(endpoint, str) and endpoint:
+                lines.append(f"Endpoint: `{endpoint}`")
+            lines.append("")
+            lines.append("Usage limits:")
+            if rate_limit_lines:
+                lines.extend(rate_limit_lines)
+            else:
+                lines.append("- Not available yet. Run a ChatGPT-backed request to refresh.")
+
+        display = {
+            "format": "markdown",
+            "title": "ChatGPT Account Status",
+            "body": "\n".join(lines),
+            "variant": variant,
+        }
+        return {
+            "display": display,
+            "auth_status": auth_status,
+            "rate_limits": rate_limits_state,
+            "requested_auth_mode": requested_mode,
+            "effective_auth_mode": effective_mode,
+        }
+
     def _cancel_login(self, app: Any, state: Dict[str, Any]) -> Dict[str, Any]:
         with self._lock:
             active_attempt = state.get("active_attempt")
@@ -875,6 +1179,7 @@ class ChatGPTAuthAppPlugin:
         _ = status
         with self._lock:
             _remove_file(self._credentials_path(state))
+            _remove_file(self._rate_limits_path(state))
             active_attempt = state.get("active_attempt")
             if isinstance(active_attempt, dict) and active_attempt.get("state") == "canceled":
                 state["active_attempt"] = None

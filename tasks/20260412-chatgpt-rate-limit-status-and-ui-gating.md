@@ -4,39 +4,39 @@ Refine the ChatGPT auth proof of concept so ChatGPT login/session actions only a
 
 ## Requirements checklist
 
-- [ ] Show ChatGPT login/session actions only for sessions that use the `openai_responses` provider.
-- [ ] Further restrict those ChatGPT login/session actions to sessions whose effective `auth_mode` is `auto` or `chatgpt`.
-- [ ] Hide those ChatGPT login/session actions for `auth_mode: "api"` and for non-`openai_responses` sessions.
-- [ ] Add a new session-scoped application action in the ChatGPT auth app plugin for account status.
-- [ ] Keep the new status action focused on account/auth and usage limits, not generic session information.
-- [ ] Prioritize Codex-style usage limit details in the new status action:
-  - [ ] 5-hour remaining percentage and reset time when available
-  - [ ] weekly remaining percentage and reset time when available
-  - [ ] monthly remaining percentage and reset time when available
-  - [ ] credits balance / unlimited status when available
-- [ ] Include account/auth details in the new status action when available:
-  - [ ] requested auth mode
-  - [ ] effective auth mode
-  - [ ] login state
-  - [ ] account email
-  - [ ] account id
-  - [ ] plan type
-  - [ ] effective ChatGPT/Codex endpoint when useful
-- [ ] Exclude generic session details from the new status action:
-  - [ ] model
-  - [ ] working directory
-  - [ ] session id
-  - [ ] agent id
-  - [ ] sandbox / approval / other unrelated runtime state
-- [ ] Do not use "last assistant message usage" as the primary status source for this action.
-- [ ] Investigate whether the ChatGPT Codex endpoint used by `openai_responses` exposes Codex-style rate-limit metadata that can be captured in this repo.
-- [ ] If rate-limit metadata is available, capture and persist a latest snapshot suitable for the new status action.
-- [ ] If rate-limit metadata is not directly available in the current SDK path, document and implement the smallest viable lower-level or alternate fetch path needed to obtain it.
-- [ ] Add tests for:
-  - [ ] UI gating by provider + auth mode
-  - [ ] account status action payloads
-  - [ ] rate-limit snapshot parsing/capture, if implemented
-  - [ ] session-scoped endpoint behavior
+- [x] Show ChatGPT login/session actions only for sessions that use the `openai_responses` provider.
+- [x] Further restrict those ChatGPT login/session actions to sessions whose effective `auth_mode` is `auto` or `chatgpt`.
+- [x] Hide those ChatGPT login/session actions for `auth_mode: "api"` and for non-`openai_responses` sessions.
+- [x] Add a new session-scoped application action in the ChatGPT auth app plugin for account status.
+- [x] Keep the new status action focused on account/auth and usage limits, not generic session information.
+- [x] Prioritize Codex-style usage limit details in the new status action:
+  - [x] 5-hour remaining percentage and reset time when available
+  - [x] weekly remaining percentage and reset time when available
+  - [x] monthly remaining percentage and reset time when available
+  - [x] credits balance / unlimited status when available
+- [x] Include account/auth details in the new status action when available:
+  - [x] requested auth mode
+  - [x] effective auth mode
+  - [x] login state
+  - [x] account email
+  - [x] account id
+  - [x] plan type
+  - [x] effective ChatGPT/Codex endpoint when useful
+- [x] Exclude generic session details from the new status action:
+  - [x] model
+  - [x] working directory
+  - [x] session id
+  - [x] agent id
+  - [x] sandbox / approval / other unrelated runtime state
+- [x] Do not use "last assistant message usage" as the primary status source for this action.
+- [x] Investigate whether the ChatGPT Codex endpoint used by `openai_responses` exposes Codex-style rate-limit metadata that can be captured in this repo.
+- [x] If rate-limit metadata is available, capture and persist a latest snapshot suitable for the new status action.
+- [x] If rate-limit metadata is not directly available in the current SDK path, document and implement the smallest viable lower-level or alternate fetch path needed to obtain it.
+- [x] Add tests for:
+  - [x] UI gating by provider + auth mode
+  - [x] account status action payloads
+  - [x] rate-limit snapshot parsing/capture, if implemented
+  - [x] session-scoped endpoint behavior
 
 ## Background
 
@@ -216,3 +216,53 @@ Likely options:
    - less appropriate because the data is account-scoped, not session-scoped
 
 The most likely fit is a small durable sidecar file under `CONFIG_DIR` so the status action can report the latest known limits even across restarts.
+
+## Execution plan
+
+Added during task completion after plan approval.
+
+1. Add session-aware UI gating to the `chatgpt_auth` app plugin.
+   - Only show ChatGPT session actions when the session-scoped UI query includes:
+     - `provider:openai_responses`
+     - effective `auth_mode` of `auto` or `chatgpt`
+   - Hide them for `auth_mode: "api"` and for global application UI queries.
+
+2. Add a new session-scoped application action for account/limits status.
+   - Keep it application-owned.
+   - Scope the display to auth/account/limits only, excluding generic session details.
+
+3. Add a small reusable rate-limit snapshot helper in the OpenAI Responses stack.
+   - Parse Codex-style `x-codex-*` headers.
+   - Support atomic persistence of the latest snapshot in an account-scoped sidecar file.
+   - Preserve partial fields such as credits/plan when newer snapshots omit them.
+
+4. Capture rate-limit metadata from ChatGPT-backed OpenAI Responses requests.
+   - First use the current SDK seams to access raw response headers while preserving streaming behavior.
+   - If needed, use the smallest targeted lower-level path for ChatGPT streaming requests only.
+
+5. Persist the latest rate-limit snapshot under `CONFIG_DIR`.
+   - Prefer a durable account-scoped sidecar file, not session metadata.
+
+6. Render the new account-status action from:
+   - saved credentials
+   - effective auth mode / endpoint config
+   - latest persisted rate-limit snapshot
+
+7. Add tests for:
+   - session UI gating
+   - rate-limit header parsing/persistence
+   - account-status action payloads
+   - session-scoped endpoint behavior
+   - manual live request flow that can reuse saved login state after the semi-manual login test
+
+## Completion Notes
+
+Added during task completion.
+
+- Implemented session-aware UI gating in `chatgpt_auth` so ChatGPT session actions are only returned for `openai_responses` sessions with `auth_mode` set to `auto` or `chatgpt`.
+- Added a new session-scoped `show_account_status` application action that reports auth/account info plus persisted usage-limit state while excluding generic session details.
+- Added durable ChatGPT/Codex rate-limit snapshot capture in the OpenAI Responses provider using response headers available from the streaming SDK response object.
+- Persisted latest known limit snapshots to a sidecar file next to the ChatGPT credential file.
+- Added parser/persistence unit tests, provider capture tests, auth app/plugin tests, and session-scoped endpoint tests.
+- Added a manual saved-login integration test that performs a real ChatGPT-backed request, expects the rate-limit sidecar to be captured, and verifies the new account status action can render it.
+- Live verification succeeded: `chatgpt.com/backend-api/codex` returned Codex-style `x-codex-*` rate-limit headers on the raw streaming response path, and the saved-login real request/account-status tests both passed after switching the provider to capture headers from the raw streaming response API.

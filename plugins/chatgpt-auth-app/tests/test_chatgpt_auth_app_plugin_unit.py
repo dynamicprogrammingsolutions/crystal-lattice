@@ -196,8 +196,48 @@ def _write_config(tmp_path: Path, *, port: int) -> Path:
     return path
 
 
+def _write_openai_responses_config(tmp_path: Path, *, auth_mode: str = "auto") -> Path:
+    cfg: Dict[str, Any] = {
+        "plugin_cache_dir": str(tmp_path / ".plugin_cache"),
+        "providers": {
+            "chatgpt": {
+                "provider": "openai_responses",
+                "model": "gpt-5",
+                "auth_mode": auth_mode,
+                "chatgpt_base_url": "https://chatgpt.example.test/backend-api/codex",
+            }
+        },
+        "plugins": [
+            _plugin_entry("chatgpt-auth-app", "chatgpt_auth_app.ChatGPTAuthAppPlugin"),
+            _plugin_entry("openai_responses", "openai_responses_plugins.OpenAIResponsesProvider"),
+        ],
+        "agents": {
+            "default": {"provider": "chatgpt"},
+        },
+        "application": {
+            "chatgpt_auth": {
+                "credentials_path": "${env:CONFIG_DIR}/auth/chatgpt-auth.json",
+                "rate_limits_path": "${env:CONFIG_DIR}/auth/chatgpt-rate-limits.json",
+            }
+        },
+    }
+    path = tmp_path / f"config_chatgpt_auth_openai_responses_{auth_mode}.json"
+    path.write_text(json.dumps(cfg), encoding="utf-8")
+    return path
+
+
 def _build_app(tmp_path: Path, *, port: int) -> AgentApplication:
     config_path = _write_config(tmp_path, port=port)
+    return AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        event_store=InMemoryEventStore(),
+        env_overrides={"CONFIG_DIR": str(tmp_path)},
+    )
+
+
+def _build_openai_responses_app(tmp_path: Path, *, auth_mode: str = "auto") -> AgentApplication:
+    config_path = _write_openai_responses_config(tmp_path, auth_mode=auth_mode)
     return AgentApplication(
         str(config_path),
         str(tmp_path / "sessions"),
@@ -276,9 +316,13 @@ def test_login_start_polls_in_background_and_persists_credentials(tmp_path: Path
         assert saved["access_token"] == "chatgpt-access-token"
         assert saved["account_email"] == "user@example.com"
 
-        ui_elements = app.get_application_ui_schema()
+        ui_elements = app.get_application_ui_schema(
+            config={"provider": "openai_responses", "auth_mode": "auto"},
+            tags=["provider:openai_responses"],
+        )
         labels = {element.get("label") for element in ui_elements}
         assert "Show ChatGPT login status" in labels
+        assert "Show ChatGPT account status" in labels
     finally:
         server.shutdown()
         server.server_close()
@@ -340,3 +384,126 @@ def test_codex_default_endpoints_and_exchange_flow_work_from_issuer_only(tmp_pat
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_session_ui_elements_are_gated_by_provider_and_auth_mode(tmp_path: Path) -> None:
+    app = _build_openai_responses_app(tmp_path, auth_mode="auto")
+    visible = app.get_application_ui_schema(
+        config={"provider": "openai_responses", "auth_mode": "auto"},
+        tags=["provider:openai_responses"],
+    )
+    labels = {element.get("label") for element in visible}
+    assert "Sign in with ChatGPT" in labels
+    assert "Show ChatGPT account status" in labels
+
+    hidden_for_api = app.get_application_ui_schema(
+        config={"provider": "openai_responses", "auth_mode": "api"},
+        tags=["provider:openai_responses"],
+    )
+    assert hidden_for_api == []
+
+    hidden_for_other_provider = app.get_application_ui_schema(
+        config={"provider": "echo_openai_like", "auth_mode": "chatgpt"},
+        tags=["provider:echo_openai_like"],
+    )
+    assert hidden_for_other_provider == []
+
+    assert app.get_application_ui_schema() == []
+
+
+def test_show_account_status_reads_saved_rate_limits(tmp_path: Path) -> None:
+    app = _build_openai_responses_app(tmp_path, auth_mode="auto")
+    credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "chatgpt-access-token",
+                "refresh_token": "chatgpt-refresh-token",
+                "token_type": "Bearer",
+                "account_email": "user@example.com",
+                "account_id": "acct-123",
+                "plan_type": "plus",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "auth" / "chatgpt-rate-limits.json").write_text(
+        json.dumps(
+            {
+                "captured_at": "2026-04-12T10:00:00Z",
+                "plan_type": "plus",
+                "snapshots": [
+                    {
+                        "limit_id": "codex",
+                        "primary": {
+                            "used_percent": 45.0,
+                            "window_minutes": 300,
+                            "resets_at": 1775995500,
+                        },
+                        "secondary": {
+                            "used_percent": 30.0,
+                            "window_minutes": 10080,
+                            "resets_at": 1776500000,
+                        },
+                        "credits": {
+                            "has_credits": True,
+                            "unlimited": False,
+                            "balance": "13",
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    _core, _base_config, session = app.create_session("default")
+    app.save_session(session)
+
+    result = app.execute_application_action(
+        "chatgpt_auth",
+        "show_account_status",
+        {"session_id": session.session_id},
+    )
+
+    assert result["requested_auth_mode"] == "auto"
+    assert result["effective_auth_mode"] == "chatgpt"
+    body = result["display"]["body"]
+    assert "Requested auth mode: `auto`" in body
+    assert "Effective auth mode: `chatgpt`" in body
+    assert "Account: `user@example.com`" in body
+    assert "Plan: `plus`" in body
+    assert "5h limit: `55% left`" in body
+    assert "Weekly limit: `70% left`" in body
+    assert "Credits: `13 credits`" in body
+
+
+def test_show_account_status_reports_missing_limits_when_no_snapshot_exists(tmp_path: Path) -> None:
+    app = _build_openai_responses_app(tmp_path, auth_mode="chatgpt")
+    credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "chatgpt-access-token",
+                "refresh_token": "chatgpt-refresh-token",
+                "token_type": "Bearer",
+                "account_email": "user@example.com",
+                "account_id": "acct-123",
+                "plan_type": "plus",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    _core, _base_config, session = app.create_session("default")
+    app.save_session(session)
+
+    result = app.execute_application_action(
+        "chatgpt_auth",
+        "show_account_status",
+        {"session_id": session.session_id},
+    )
+
+    assert "- Not available yet. Run a ChatGPT-backed request to refresh." in result["display"]["body"]

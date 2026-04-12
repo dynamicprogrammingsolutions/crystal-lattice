@@ -37,5 +37,7 @@ include = ["chatgpt_auth_app*"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 markers = [
+  "integration: integration tests that call real services",
+  "openai: tests requiring OpenAI credentials",
   "manual_integration: semiautomated tests requiring a human to complete login",
 ]

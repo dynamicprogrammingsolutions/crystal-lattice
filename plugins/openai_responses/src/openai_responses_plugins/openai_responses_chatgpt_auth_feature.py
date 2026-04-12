@@ -118,11 +118,13 @@ class OpenAIResponsesChatGPTAuthFeature:
             runtime_config["chatgpt_account_id"] = credentials.get("account_id") or config.get(
                 "chatgpt_account_id"
             )
+            runtime_config["chatgpt_plan_type"] = credentials.get("plan_type")
             runtime_config["base_url"] = chatgpt_base_url
         else:
             runtime_config.pop("chatgpt_access_token", None)
             runtime_config.pop("chatgpt_token_type", None)
             runtime_config.pop("chatgpt_account_id", None)
+            runtime_config.pop("chatgpt_plan_type", None)
             runtime_config["base_url"] = api_base_url
 
         auth_state = {
