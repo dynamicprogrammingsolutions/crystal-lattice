@@ -187,11 +187,15 @@ class LocalPathRepoSource:
         trigger a reinstall.
 
         Fingerprint format:
-          - "git:<commit>:<status_hash>:<scope>"
+          - clean: "git:<commit>:<state_hash>:<scope>"
+          - dirty: "git:<commit>:<state_hash>:<scope>"
 
         Where:
           - <commit> is the last commit that touched <scope>
-          - <status_hash> is a hash of `git status --porcelain` output scoped to <scope>
+          - <state_hash> is:
+              - a hash of `git status --porcelain` output scoped to <scope> for clean trees
+              - a hash of both the scoped porcelain status and the project file fingerprint
+                for dirty trees, so edits within already-dirty files still change the revision
           - <scope> is the repo-relative directory ("." for repo root)
         """
 
@@ -227,7 +231,15 @@ class LocalPathRepoSource:
             status = ""
 
         status_hash = hashlib.sha256(status.encode("utf-8", errors="ignore")).hexdigest()
-        return f"git:{commit}:{status_hash}:{scope}"
+        if status.strip():
+            project_hash = self._fingerprint_files(project_dir)
+            combined = f"{status_hash}:{project_hash}"
+            state_hash = hashlib.sha256(
+                combined.encode("utf-8", errors="ignore")
+            ).hexdigest()
+        else:
+            state_hash = status_hash
+        return f"git:{commit}:{state_hash}:{scope}"
 
     def _fingerprint_files(self, project_dir: Path) -> str:
         hasher = hashlib.sha256()
