@@ -571,13 +571,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       sessionId,
       enabled: !!(backend && isActive),
     });
-  const { state: sessionAppUiSchemaState } = useSessionApplicationUiSchemaController({
+  const { state: sessionAppUiSchemaState, controller: sessionAppUiSchemaController } = useSessionApplicationUiSchemaController({
     backend,
     cacheKey: connectionId ?? 'default',
     sessionId,
     enabled: !!(backend && isActive),
   });
-  useSessionSettingsController({
+  const { controller: sessionSettingsController } = useSessionSettingsController({
     backend,
     cacheKey: connectionId ?? 'default',
     sessionId,
@@ -851,7 +851,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   const applyMessageLimitAndReload = () => {
     setMessageLimitVisible(false);
-    loadMessages();
+    loadMessages({ reason: 'message_limit_reload', refreshUiSchema: true });
   };
 
   const syncCacheFromController = useCallback(
@@ -868,14 +868,30 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     [onUpdateCache],
   );
 
+  const refreshSessionUiControllers = useCallback(() => {
+    sessionUiSchemaController?.invalidate();
+    sessionUiSchemaController?.load()?.catch(() => {});
+    sessionAppUiSchemaController?.invalidate();
+    sessionAppUiSchemaController?.load()?.catch(() => {});
+    sessionSettingsController?.invalidate();
+    sessionSettingsController?.load()?.catch(() => {});
+  }, [
+    sessionAppUiSchemaController,
+    sessionSettingsController,
+    sessionUiSchemaController,
+  ]);
+
   const loadMessages = useCallback(
-    async (options: { silent?: boolean; reason?: string } = {}) => {
+    async (options: { silent?: boolean; reason?: string; refreshUiSchema?: boolean } = {}) => {
       if (!chatController) {
         const message = 'No active connection';
         if (!options.silent) {
           Alert.alert('Error', message);
         }
         return null;
+      }
+      if (options.refreshUiSchema) {
+        refreshSessionUiControllers();
       }
       appendDebugNote('Reload started', options.reason ?? 'manual_reload', {
         rangeStartText,
@@ -904,7 +920,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         return null;
       }
     },
-    [appendDebugNote, chatController, rangeEndText, rangeStartText, syncCacheFromController],
+    [
+      appendDebugNote,
+      chatController,
+      rangeEndText,
+      rangeStartText,
+      refreshSessionUiControllers,
+      syncCacheFromController,
+    ],
   );
 
   const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {
@@ -951,7 +974,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           }
         }
         if (effects.some((effect) => effect.type === 'reloadSession')) {
-          await loadMessages();
+          await loadMessages({ reason: 'action_reload', refreshUiSchema: true });
         }
         if (display) {
           presentActionDisplay(display, context);
@@ -2173,7 +2196,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const handleSessionAction = async (action: SessionActionKey) => {
     if (action === 'reload') {
       chatController?.clearRequestState();
-      await loadMessages();
+      await loadMessages({ reason: 'manual_reload', refreshUiSchema: true });
       return;
     }
     if (action === 'messageLimit') {
@@ -2575,7 +2598,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	            style={[styles.button, styles.secondaryButton, styles.smallButton]}
 	            onPress={async () => {
 	              chatController?.clearRequestState();
-	              await loadMessages({ reason: 'dirty_banner_reload' });
+                      await loadMessages({ reason: 'dirty_banner_reload', refreshUiSchema: true });
 	            }}
 	            disabled={!chatController || sendInProgress || loadingMessages || resumeRecoveryInProgress}
 	          >

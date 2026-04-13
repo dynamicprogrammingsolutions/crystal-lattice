@@ -489,6 +489,38 @@ export class RestAgentBackend implements AgentBackend {
       body: payload,
       timeoutMs: HEAVY_REQUEST_TIMEOUT_MS,
     });
-    return resp.data;
+    const data = resp.data;
+
+    if (data && data.status === 'ok') {
+      const result: any = data.result && typeof data.result === 'object' ? data.result : {};
+      const resultStatus = typeof result.status === 'string' ? result.status : 'ok';
+      if (resultStatus === 'ok') {
+        const mutations: any =
+          result.mutations && typeof result.mutations === 'object' ? result.mutations : {};
+        const uiEffects: any =
+          result.ui_effects && typeof result.ui_effects === 'object' ? result.ui_effects : {};
+
+        const invalidatedSessionIds = new Set<string>();
+        const maybeLists = [
+          mutations.updated_session_ids,
+          uiEffects.reload_session_ids,
+        ];
+        for (const rawList of maybeLists) {
+          if (!Array.isArray(rawList)) continue;
+          for (const id of rawList) {
+            if (typeof id === 'string' && id) {
+              invalidatedSessionIds.add(id);
+            }
+          }
+        }
+        for (const sessionId of invalidatedSessionIds) {
+          emitSessionUiSchemaInvalidated(this, sessionId, {
+            reason: 'action_session_updated',
+          });
+        }
+      }
+    }
+
+    return data;
   }
 }
