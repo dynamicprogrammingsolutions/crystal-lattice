@@ -177,6 +177,24 @@ class SessionActionsAppPlugin:
                 },
             },
             {
+                "ui_type": "message_action",
+                "id": "delete_from_here",
+                "label": "Delete from here",
+                "icon": "trash-2",
+                "order": 35,
+                "action_id": "delete_messages",
+                "fixed_params": {},
+                "param_map": {
+                    "session_id": "$session.session_id",
+                    "start": "$message.index",
+                },
+                "dialog": {
+                    "kind": "confirm",
+                    "title": "Delete from here",
+                    "message": "Delete this message and all later messages?",
+                },
+            },
+            {
                 "ui_type": "session_action",
                 "id": "delete_last_messages",
                 "label": "Delete messages",

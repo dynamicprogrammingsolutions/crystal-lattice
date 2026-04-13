@@ -199,6 +199,67 @@ def test_delete_messages_by_indices_and_range(tmp_path: Path) -> None:
     assert remaining_contents2 == ["m0"]
 
 
+def test_delete_from_here_deletes_message_and_all_later_messages(tmp_path: Path) -> None:
+    app = _build_app(tmp_path)
+
+    session_id = _create_session_with_messages(app, ["m0", "m1", "m2", "m3", "m4"])
+
+    # Simulate the "Delete from here" message action: start=2, no end.
+    result = app.execute_application_action(
+        plugin_id="session_actions",
+        action_id="delete_messages",
+        params={"session_id": session_id, "start": 2},
+    )
+
+    deleted_indices = sorted(result.get("deleted_indices") or [])
+    assert deleted_indices == [2, 3, 4]
+
+    ctx = app.load_session(session_id)
+    assert ctx is not None
+    _core, _base, session = ctx
+    remaining_contents = [m.content for m in session.messages]
+    assert remaining_contents == ["m0", "m1"]
+
+
+def test_delete_from_here_at_first_message_removes_all(tmp_path: Path) -> None:
+    app = _build_app(tmp_path)
+
+    session_id = _create_session_with_messages(app, ["m0", "m1", "m2"])
+
+    result = app.execute_application_action(
+        plugin_id="session_actions",
+        action_id="delete_messages",
+        params={"session_id": session_id, "start": 0},
+    )
+
+    deleted_indices = sorted(result.get("deleted_indices") or [])
+    assert deleted_indices == [0, 1, 2]
+
+    ctx = app.load_session(session_id)
+    assert ctx is not None
+    _core, _base, session = ctx
+    assert len(session.messages) == 0
+
+
+def test_delete_from_here_ui_element_is_present() -> None:
+    """Verify the delete_from_here message action is exposed in UI elements."""
+    plugin = SessionActionsAppPlugin()
+    plugin.init({"application": {"session_actions": {"allow_delete": True}}})
+    elements = plugin.get_ui_elements(plugin._state)
+
+    message_actions = [
+        el for el in elements if el.get("ui_type") == "message_action"
+    ]
+    ids = [el["id"] for el in message_actions]
+    assert "delete_from_here" in ids
+
+    delete_from_here = next(el for el in message_actions if el["id"] == "delete_from_here")
+    assert delete_from_here["label"] == "Delete from here"
+    assert delete_from_here["action_id"] == "delete_messages"
+    assert delete_from_here["param_map"]["start"] == "$message.index"
+    assert delete_from_here["dialog"]["kind"] == "confirm"
+
+
 def test_delete_session_respects_allow_delete_flag(tmp_path: Path) -> None:
     # First, with allow_delete enabled (default in helper config).
     app = _build_app(tmp_path)
