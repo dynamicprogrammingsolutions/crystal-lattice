@@ -168,6 +168,7 @@ def test_compaction_action_uses_sdk_and_sanitizes_input(
         session=session,
         native_messages=native_messages,
         params={},
+        context=None,
         state=state,
     )
 
@@ -447,6 +448,7 @@ def test_compaction_uses_chatgpt_effective_endpoint_when_enabled(
         session=session,
         native_messages=native_messages,
         params={},
+        context=None,
         state=state,
     )
 
@@ -498,6 +500,7 @@ def test_compaction_can_force_api_endpoint_when_chatgpt_compaction_disabled(
         session=session,
         native_messages=native_messages,
         params={},
+        context=None,
         state=state,
     )
 
@@ -626,6 +629,7 @@ def test_compaction_disabled_chatgpt_mode_requires_api_key(
             session=session,
             native_messages=native_messages,
             params={},
+            context=None,
             state=state,
         )
 

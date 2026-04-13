@@ -738,6 +738,8 @@ Updated during implementation completion and follow-up cleanup.
   - empty `application.chatgpt_auth` block so built-in defaults activate
 - Updated server-side tests that swap global `AgentApplication` instances so they close the previous app before replacing it.
 - Fixed provider-extension session-action test wiring so the injected test extension is also registered in the per-agent runtime cache.
+- Native compaction follow-up work for the ChatGPT-backed endpoint, live verification, and the explicit action request-initialization contract is tracked in:
+  - `tasks/20260411-openai-responses-chatgpt-compaction-endpoint.md`
 
 ## Follow-up plan
 
@@ -750,7 +752,3 @@ Added after the runtime env contract changed from config injection to real proce
    - the meaning of `close()`
    - why conflicting live `CONFIG_DIR` overlays are rejected
 4. Revisit whether any production code paths still create multiple live `AgentApplication` instances in one process with different `CONFIG_DIR` values; if not, the overlay implementation may be simplifiable later.
-5. Make provider-extension session actions use request-initialized state so OpenAI Responses native compaction inherits the same:
-   - `system_message_as_instructions` compiled top-level `request.instructions`
-   - `strip_leading_system_or_developer_message` migrated-session cleanup
-6. Remove the native compaction action-level `instructions` parameter and rely entirely on the configured system-message feature for ChatGPT-backed compaction prompts.

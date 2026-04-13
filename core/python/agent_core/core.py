@@ -2839,15 +2839,12 @@ class AgentCore:
 
         return provider, features, state, actions
 
-    def _initialize_session_action_request(
+    def initialize_action_request(
         self,
-        provider: Any,
-        features: List[Any],
-        state: Dict[str, Any],
-        config: Dict[str, Any],
         native_messages: List[Dict[str, Any]],
-        *,
-        context: Optional[Dict[str, Any]] = None,
+        state: Dict[str, Any],
+        request_runtime: Dict[str, Any],
+        request_context: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Apply request-time initialization to session-action inputs.
 
@@ -2855,20 +2852,25 @@ class AgentCore:
         provider requests see, including feature/provider `initialize_request`
         changes such as compiled top-level instructions.
         """
+        if not isinstance(native_messages, list):
+            raise TypeError("native_messages must be a list")
+        if not isinstance(state, dict):
+            raise TypeError("state must be a dict")
+        if not isinstance(request_runtime, dict):
+            raise TypeError("request_runtime must be a dict")
+        if not isinstance(request_context, dict):
+            raise TypeError("request_context must be a dict")
 
-        request_context = self._build_plugin_context(
-            config=state.get("config") or config,
-            provider=provider,
-            enabled_extensions=provider._iter_extensions(),
-            enabled_features=features,
-            enabled_tools=[],
-            tags=[],
-            models=self._get_models_for_config(provider, config),
-            available_tools=self.get_available_tools(config),
-            tools=self._get_prepared_tools_for_config(config),
-        )
-        if isinstance(context, dict):
-            request_context.update(context)
+        provider = request_runtime.get("provider")
+        if provider is None:
+            raise ValueError("request_runtime must include provider")
+        raw_features = request_runtime.get("features")
+        if raw_features is None:
+            features: List[Any] = []
+        elif isinstance(raw_features, list):
+            features = raw_features
+        else:
+            raise TypeError("request_runtime['features'] must be a list")
 
         next_native_messages, next_state = provider.initialize_request(
             native_messages,
@@ -3021,15 +3023,23 @@ class AgentCore:
         enriched_context.setdefault("config", config)
         enriched_context.setdefault("trigger_source", "core")
         enriched_context.setdefault("session", session.to_dict())
-
-        native_messages, state = self._initialize_session_action_request(
-            provider,
-            features,
-            state,
-            config,
-            native_messages,
-            context=enriched_context,
+        request_context = self._build_plugin_context(
+            config=state.get("config") or config,
+            provider=provider,
+            enabled_extensions=provider._iter_extensions(),
+            enabled_features=features,
+            enabled_tools=[],
+            tags=[],
+            models=self._get_models_for_config(provider, config),
+            available_tools=self.get_available_tools(config),
+            tools=self._get_prepared_tools_for_config(config),
         )
+        request_context.update(enriched_context)
+        enriched_context["request_context"] = request_context
+        enriched_context["request_runtime"] = {
+            "provider": provider,
+            "features": list(features),
+        }
 
         action_owner = action_def.get("action_owner")
         if action_owner == "feature":

@@ -19,8 +19,19 @@ Updated `plugins/openai_responses/src/openai_responses_plugins/openai_responses_
 - honor `use_chatgpt_auth_for_compaction` (default `true`)
 - force API-mode compaction when disabled
 - raise a clearer error when ChatGPT-backed compaction fails on the ChatGPT endpoint
+- remove the misleading action-level `instructions` field and rely on the configured system-message feature path instead
+- explicitly opt into request-time provider/feature initialization via `AgentCore.initialize_action_request(...)`
+- use `request_context` and `request_runtime` injected into session-action context instead of relying on automatic action initialization
+- preserve the same top-level `instructions` and migrated-session stripping behavior as normal requests
+
+Follow-up implementation and verification added after the initial endpoint work:
+- verified the real ChatGPT-backed native compaction path using saved manual-login credentials
+- added a manual integration test under `plugins/openai_responses/tests/test_openai_responses_chatgpt_native_compaction_manual_integration.py`
+- fixed compatibility with ChatGPT backend responses that emit `type: "compaction_summary"` instead of only `type: "compaction"`
+- confirmed the explicit action-initialization refactor preserved the live ChatGPT compaction flow
 
 Verified with:
 - `python -m pytest plugins/openai_responses/tests/test_openai_responses_native_compaction_extension_unit.py -q`
 - `python -m pytest plugins/openai_responses/tests/test_openai_responses_provider_unit.py -q`
 - `python -m pytest plugins/openai_responses/tests/test_agent_application_openai_responses_config_loads.py -q`
+- `python -m pytest plugins/openai_responses/tests/test_openai_responses_chatgpt_native_compaction_manual_integration.py -m manual_integration -q`

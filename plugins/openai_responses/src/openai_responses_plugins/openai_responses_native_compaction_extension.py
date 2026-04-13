@@ -409,6 +409,7 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
         session: Session,
         native_messages: List[Dict[str, Any]],
         params: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Dict[str, Any]:
         if action_id != "compact_native_history":
@@ -416,13 +417,39 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                 f"Unknown action_id {action_id!r} for OpenAIResponsesNativeCompactionExtension"
             )
 
-        config = state.get("config") if isinstance(state.get("config"), dict) else {}
+        current_native_messages = native_messages
+        current_state = state
+        if isinstance(context, dict):
+            core = context.get("core")
+            request_runtime = context.get("request_runtime")
+            request_context = context.get("request_context")
+            if (
+                core is not None
+                and isinstance(request_runtime, dict)
+                and isinstance(request_context, dict)
+            ):
+                current_native_messages, current_state = core.initialize_action_request(
+                    current_native_messages,
+                    current_state,
+                    request_runtime,
+                    request_context,
+                )
+
+        config = (
+            current_state.get("config")
+            if isinstance(current_state.get("config"), dict)
+            else {}
+        )
         compaction_config = self._compaction_config(config)
         model = self._resolve_model(compaction_config)
         timeout = self._coerce_timeout(compaction_config.get("timeout", DEFAULT_TIMEOUT))
         end_index = self._resolve_end_index(session, params)
         prefix_native_end = self._resolve_prefix_native_end(session, end_index)
-        request = state.get("request") if isinstance(state.get("request"), dict) else {}
+        request = (
+            current_state.get("request")
+            if isinstance(current_state.get("request"), dict)
+            else {}
+        )
         raw_instructions = request.get("instructions")
         instructions_value = (
             raw_instructions.strip() if isinstance(raw_instructions, str) and raw_instructions.strip() else None
@@ -442,10 +469,10 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                 ) from exc
             raise
 
-        prefix_native = list(native_messages[:prefix_native_end])
+        prefix_native = list(current_native_messages[:prefix_native_end])
         if should_strip_leading_system_or_developer_message(compaction_config):
             prefix_native = strip_leading_system_or_developer_message(prefix_native)
-        suffix_native = list(native_messages[prefix_native_end:])
+        suffix_native = list(current_native_messages[prefix_native_end:])
         input_items = [
             self._sanitize_input_item(item)
             for item in prefix_native

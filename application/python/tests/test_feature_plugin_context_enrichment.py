@@ -187,6 +187,33 @@ class TestApplicationContextEnrichment:
 
         contexts = plugin_class.get_captured_contexts()
         assert len(contexts) == 1
+        ctx = contexts[0]
+        request = ctx.get("_request")
+        assert isinstance(request, dict)
+        assert "context_recording_request_marker" not in request
+        assert isinstance(ctx.get("request_context"), dict)
+        assert isinstance(ctx.get("request_runtime"), dict)
+
+    def test_application_session_action_can_explicitly_initialize_request_state(
+        self, tmp_path: Path, clear_captured_contexts: None
+    ) -> None:
+        plugin_class = _get_plugin_class()
+        assert plugin_class is not None, "Could not load ContextRecordingPlugin"
+
+        app = _make_app(tmp_path, _config_with_request_marker())
+        core, base_config, session = app.create_session("default")
+
+        session = core.add_message(session, "user", "Test", None, base_config)
+        app.save_session(session)
+
+        app.execute_session_action(
+            plugin_id="context_recording",
+            action_id="record_initialized_context",
+            params={"session_id": session.session_id},
+        )
+
+        contexts = plugin_class.get_captured_contexts()
+        assert len(contexts) == 1
         request = contexts[0].get("_request")
         assert isinstance(request, dict)
         assert request.get("context_recording_request_marker") == "request-initialized"
@@ -305,7 +332,14 @@ class TestContextStructure:
         ctx = contexts[0]
 
         # Document all expected keys
-        expected_layer1_keys = ["core", "config", "trigger_source", "session"]
+        expected_layer1_keys = [
+            "core",
+            "config",
+            "trigger_source",
+            "session",
+            "request_context",
+            "request_runtime",
+        ]
         expected_layer2_keys = ["app", "application", "base_config", "session_asset_store"]
 
         for key in expected_layer1_keys:
