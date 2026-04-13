@@ -74,10 +74,12 @@ def _build_core() -> AgentCore:
     return core
 
 
-def _assert_has_compaction_placeholder(session) -> None:
+def _assert_has_compaction_native_items(session) -> None:
+    native_history = (session.metadata or {}).get("native_messages")
+    assert isinstance(native_history, list)
     assert any(
-        (message.metadata or {}).get("openai_responses_compaction")
-        for message in session.messages
+        isinstance(item, dict) and item.get("type") in {"compaction", "compaction_summary"}
+        for item in native_history
     )
 
 
@@ -122,7 +124,11 @@ def test_openai_responses_chatgpt_saved_login_native_compaction() -> None:
     )
 
     assert result["message"] == "Compacted the full visible history."
-    _assert_has_compaction_placeholder(compacted_session)
+    _assert_has_compaction_native_items(compacted_session)
+    assert all(
+        message.content != "Earlier conversation compacted to reduce context size."
+        for message in compacted_session.messages
+    )
 
     compacted_session = core.add_message(
         compacted_session,
@@ -142,7 +148,7 @@ def test_openai_responses_chatgpt_saved_login_native_compaction() -> None:
     assert isinstance(final_messages, list)
     assert final_messages
     assert "CHATGPT_COMPACTION_TURN_TWO" in str(final_messages[-1].get("content"))
-    _assert_has_compaction_placeholder(final_session)
+    _assert_has_compaction_native_items(final_session)
     native_history = (final_session.metadata or {}).get("native_messages")
     assert isinstance(native_history, list)
     assert any(

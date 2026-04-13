@@ -9,6 +9,7 @@ from feature_system_message.system_message_feature import SystemMessageFeature
 
 from openai_responses_plugins.openai_responses_native_compaction_extension import (
     OpenAIResponsesNativeCompactionExtension,
+    _PLACEHOLDER_TRANSCRIPT_STATE_KEY,
 )
 from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider
 
@@ -188,7 +189,213 @@ def test_compaction_action_uses_sdk_and_sanitizes_input(
     ]
 
 
-def test_core_session_action_rebuilds_to_compaction_placeholder_and_keeps_future_turns_working(
+def test_compaction_toggle_ui_label_depends_on_config() -> None:
+    extension = OpenAIResponsesNativeCompactionExtension()
+
+    collapsed_elements = extension.get_ui_elements(
+        {"use_compaction_placeholder_transcript": False}
+    )
+    expand_elements = extension.get_ui_elements(
+        {"use_compaction_placeholder_transcript": True}
+    )
+
+    collapsed_toggle = next(
+        element
+        for element in collapsed_elements
+        if element.get("ui_type") == "session_action"
+        and element.get("id") == "toggle_compaction_transcript_mode"
+    )
+    expand_toggle = next(
+        element
+        for element in expand_elements
+        if element.get("ui_type") == "session_action"
+        and element.get("id") == "toggle_compaction_transcript_mode"
+    )
+
+    assert collapsed_toggle["label"] == "Collapse compacted messages"
+    assert expand_toggle["label"] == "Expand compacted messages"
+
+
+def test_from_native_messages_surfaces_compaction_summary_as_local_placeholder() -> None:
+    extension = OpenAIResponsesNativeCompactionExtension()
+
+    native_messages = [
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "Before"}],
+        },
+        {
+            "type": "compaction_summary",
+            "encrypted_content": "opaque-summary",
+        },
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": "after user"}],
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "later"}],
+        },
+    ]
+    provider_messages = [
+        {
+            "role": "assistant",
+            "content": "Before",
+            "metadata": {"native_indices": [0]},
+        },
+        {
+            "role": "user",
+            "content": "after user",
+            "metadata": {"native_indices": [2]},
+        },
+        {
+            "role": "assistant",
+            "content": "later",
+            "metadata": {"native_indices": [1, 3]},
+        },
+    ]
+
+    rebuilt = extension.from_native_messages(
+        native_messages,
+        provider_messages,
+        {_PLACEHOLDER_TRANSCRIPT_STATE_KEY: False},
+    )
+
+    assert [message["content"] for message in rebuilt] == [
+        "Before",
+        "Earlier conversation compacted to reduce context size.",
+        "after user",
+        "later",
+    ]
+    assert rebuilt[1]["metadata"]["native_indices"] == [1]
+    assert "openai_responses_compaction" in rebuilt[1]["metadata"]
+    assert rebuilt[3]["metadata"]["native_indices"] == [3]
+
+
+def test_toggle_compaction_transcript_mode_updates_overrides_and_rebuilds() -> None:
+    core = _build_core()
+    config = _config()
+    session = Session(
+        session_id="session-toggle",
+        messages=[
+            Message(role="user", content="first turn", metadata={"native_indices": [0]}),
+        ],
+        metadata={
+            "native_messages": [
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "first turn"}],
+                },
+                {
+                    "type": "compaction",
+                    "encrypted_content": "opaque",
+                },
+            ],
+            "native_messages_integrity": core._compute_native_integrity(  # type: ignore[attr-defined]
+                [Message(role="user", content="first turn", metadata={"native_indices": [0]})]
+            ),
+        },
+    )
+
+    collapsed_session, result = core.execute_session_action(
+        session,
+        config,
+        plugin_id="openai_responses_native_compaction",
+        action_id="toggle_compaction_transcript_mode",
+        params={},
+    )
+
+    assert result["message"] == "Collapsed compacted messages."
+    assert (collapsed_session.metadata or {}).get("overrides") == {
+        "use_compaction_placeholder_transcript": True
+    }
+    assert [message.content for message in collapsed_session.messages] == [
+        "Earlier conversation compacted to reduce context size."
+    ]
+
+    expanded_session, result2 = core.execute_session_action(
+        collapsed_session,
+        {
+            **config,
+            "use_compaction_placeholder_transcript": True,
+        },
+        plugin_id="openai_responses_native_compaction",
+        action_id="toggle_compaction_transcript_mode",
+        params={},
+    )
+
+    assert result2["message"] == "Expanded compacted messages."
+    assert (expanded_session.metadata or {}).get("overrides") == {
+        "use_compaction_placeholder_transcript": False
+    }
+    assert [message.content for message in expanded_session.messages] == [
+        "first turn"
+    ]
+
+
+def test_compaction_allows_missing_compaction_summary_index_in_visible_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ScriptedCompactionProvider.scripted_client = _ScriptedClient(
+        create_payloads=[],
+        compact_payload={
+            "id": "cmp_recompact",
+            "output": [{"type": "compaction", "encrypted_content": "opaque"}],
+        },
+    )
+    _patch_extension_client(monkeypatch)
+
+    extension = OpenAIResponsesNativeCompactionExtension()
+    state = {
+        "config": _config(),
+    }
+    messages = [
+        Message(role="user", content=f"m{i}", metadata={"native_indices": [i]})
+        for i in range(102)
+    ]
+    messages.append(
+        Message(role="user", content="after-gap", metadata={"native_indices": [103]})
+    )
+    session = Session(session_id="session-gap", messages=messages)
+    native_messages = [
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": f"m{i}"}],
+        }
+        for i in range(102)
+    ]
+    native_messages.append({"type": "compaction_summary", "encrypted_content": "opaque-summary"})
+    native_messages.append(
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": "after-gap"}],
+        }
+    )
+
+    extension.execute_action(
+        "compact_native_history",
+        session=session,
+        native_messages=native_messages,
+        params={},
+        context=None,
+        state=state,
+    )
+
+    calls = _ScriptedCompactionProvider.scripted_client.responses.compact_calls
+    assert len(calls) == 1
+    assert any(
+        isinstance(item, dict) and item.get("type") == "compaction_summary"
+        for item in calls[0]["input"]
+    )
+
+
+def test_core_session_action_rebuilds_from_compacted_native_output_and_keeps_future_turns_working(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _ScriptedCompactionProvider.scripted_client = _ScriptedClient(
@@ -254,14 +461,109 @@ def test_core_session_action_rebuilds_to_compaction_placeholder_and_keeps_future
 
     assert result["message"] == "Compacted the full visible history."
     assert [message.content for message in compacted_session.messages] == [
+        "first turn",
+    ]
+    rebuilt_metadata = compacted_session.messages[0].metadata or {}
+    assert rebuilt_metadata["native_indices"] == [0, 1]
+    assert "openai_responses_compaction" not in rebuilt_metadata
+    compacted_native = (compacted_session.metadata or {}).get("native_messages")
+    assert isinstance(compacted_native, list)
+    assert compacted_native[-1]["type"] == "compaction"
+
+    compacted_session = core.add_message(compacted_session, "user", "second turn", config=config)
+    session_after_second, second_finals = core.send_request(compacted_session, config)
+
+    assert second_finals[-1]["content"] == "Second answer"
+    assert [message.content for message in session_after_second.messages] == [
+        "first turn",
+        "second turn",
+        "Second answer",
+    ]
+    create_calls = _ScriptedCompactionProvider.scripted_client.responses.create_calls
+    assert len(create_calls) == 2
+    second_input = create_calls[1]["input"]
+    assert any(item.get("type") == "compaction" for item in second_input if isinstance(item, dict))
+    assert all(
+        item.get("content") != "Earlier conversation compacted to reduce context size."
+        for item in second_input
+        if isinstance(item, dict)
+    )
+
+
+def test_core_session_action_can_use_placeholder_transcript_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ScriptedCompactionProvider.scripted_client = _ScriptedClient(
+        create_payloads=[
+            {
+                "id": "resp_ph_1",
+                "output": [
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [{"type": "output_text", "text": "First answer"}],
+                    }
+                ],
+            },
+            {
+                "id": "resp_ph_2",
+                "output": [
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [{"type": "output_text", "text": "Second answer"}],
+                    }
+                ],
+            },
+        ],
+        compact_payload={
+            "id": "cmp_placeholder",
+            "created_at": 2,
+            "object": "response.compaction",
+            "output": [
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "first turn"}],
+                },
+                {
+                    "id": "comp_placeholder",
+                    "type": "compaction",
+                    "encrypted_content": "opaque-compacted",
+                    "created_by": "openai",
+                },
+            ],
+            "usage": {"total_tokens": 12},
+        },
+    )
+    _patch_extension_client(monkeypatch)
+
+    core = _build_core()
+    config = {
+        **_config(),
+        "use_compaction_placeholder_transcript": True,
+    }
+
+    session = core.create_session()
+    session = core.add_message(session, "user", "first turn", config=config)
+    session, first_finals = core.send_request(session, config)
+    assert first_finals[-1]["content"] == "First answer"
+
+    compacted_session, result = core.execute_session_action(
+        session,
+        config,
+        plugin_id="openai_responses_native_compaction",
+        action_id="compact_native_history",
+        params={},
+    )
+
+    assert result["message"] == "Compacted the full visible history."
+    assert [message.content for message in compacted_session.messages] == [
         "Earlier conversation compacted to reduce context size.",
     ]
     placeholder_metadata = compacted_session.messages[0].metadata or {}
     assert placeholder_metadata["native_indices"] == [0, 1]
     assert "openai_responses_compaction" in placeholder_metadata
-    compacted_native = (compacted_session.metadata or {}).get("native_messages")
-    assert isinstance(compacted_native, list)
-    assert compacted_native[-1]["type"] == "compaction"
 
     compacted_session = core.add_message(compacted_session, "user", "second turn", config=config)
     session_after_second, second_finals = core.send_request(compacted_session, config)
@@ -360,7 +662,7 @@ def test_core_session_action_compacts_only_visible_prefix_slice(
 
     assert result["message"] == "Compacted visible messages [:2]"
     assert [message.content for message in compacted_session.messages] == [
-        "Earlier conversation compacted to reduce context size.",
+        "first turn",
         "second turn",
         "Second answer",
     ]
@@ -370,7 +672,7 @@ def test_core_session_action_compacts_only_visible_prefix_slice(
 
     assert third_finals[-1]["content"] == "Third answer"
     assert [message.content for message in session_after_third.messages] == [
-        "Earlier conversation compacted to reduce context size.",
+        "first turn",
         "second turn",
         "Second answer",
         "third turn",
@@ -592,6 +894,154 @@ def test_core_session_action_uses_compiled_request_instructions_and_strips_leadi
             "content": [{"type": "output_text", "text": "world"}],
         },
     ]
+
+
+def test_core_session_action_message_injection_compaction_uses_rendered_system_message_and_restores_stored_template(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ScriptedCompactionProvider.scripted_client = _ScriptedClient(
+        create_payloads=[],
+        compact_payload={
+            "id": "cmp_message_injection",
+            "output": [
+                {
+                    "type": "message",
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": "You are helping AI Agent Platform.",
+                        }
+                    ],
+                },
+                {
+                    "id": "comp_message_injection",
+                    "type": "compaction",
+                    "encrypted_content": "opaque",
+                },
+            ],
+        },
+    )
+    _patch_extension_client(monkeypatch)
+
+    core = AgentCore()
+    core.register_provider(
+        _ScriptedCompactionProvider,
+        [OpenAIResponsesNativeCompactionExtension],
+    )
+    core.register_feature(SystemMessageFeature)
+
+    config = {
+        **_config(),
+        "system_message_as_instructions": False,
+        "system_message": {
+            "variables": {
+                "PROJECT": "AI Agent Platform",
+            }
+        },
+    }
+    messages = [
+        Message(
+            role="system",
+            content="You are helping {{PROJECT}}.",
+            metadata={"native_indices": [0]},
+        ),
+        Message(role="user", content="hello", metadata={"native_indices": [1]}),
+        Message(role="assistant", content="world", metadata={"native_indices": [2]}),
+    ]
+    session = Session(
+        session_id="session-message-injection",
+        messages=messages,
+        metadata={
+            "native_messages": [
+                {
+                    "type": "message",
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": "You are helping {{PROJECT}}.",
+                        }
+                    ],
+                    "_metadata": {
+                        "compiled_content": "You are helping AI Agent Platform.",
+                        "system_message_compiled_logged": True,
+                    },
+                },
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "hello"}],
+                },
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "world"}],
+                },
+            ],
+            "native_messages_integrity": core._compute_native_integrity(messages),  # type: ignore[attr-defined]
+        },
+    )
+
+    compacted_session, result = core.execute_session_action(
+        session,
+        config,
+        plugin_id="openai_responses_native_compaction",
+        action_id="compact_native_history",
+        params={},
+    )
+
+    assert result["message"] == "Compacted the full visible history."
+    calls = _ScriptedCompactionProvider.scripted_client.responses.compact_calls
+    assert len(calls) == 1
+    assert calls[0]["instructions"] is None
+    assert calls[0]["input"] == [
+        {
+            "type": "message",
+            "role": "system",
+            "content": [
+                {
+                    "type": "input_text",
+                    "text": "You are helping AI Agent Platform.",
+                }
+            ],
+        },
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": "hello"}],
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "world"}],
+        },
+    ]
+    assert "_metadata" not in calls[0]["input"][0]
+
+    compacted_native = (compacted_session.metadata or {}).get("native_messages")
+    assert isinstance(compacted_native, list)
+    assert compacted_native[0]["content"] == [
+        {
+            "type": "input_text",
+            "text": "You are helping {{PROJECT}}.",
+        }
+    ]
+    assert compacted_native[0]["_metadata"] == {
+        "compiled_content": "You are helping AI Agent Platform.",
+        "system_message_compiled_logged": True,
+    }
+    assert compacted_native[1]["type"] == "compaction"
+
+    assert [message.role for message in compacted_session.messages] == ["system"]
+    assert [message.content for message in compacted_session.messages] == [
+        "You are helping {{PROJECT}}."
+    ]
+    assert compacted_session.messages[0].metadata == {
+        "compiled_content": "You are helping AI Agent Platform.",
+        "system_message_compiled_logged": True,
+        "native_indices": [0, 1],
+    }
 
 
 def test_compaction_disabled_chatgpt_mode_requires_api_key(

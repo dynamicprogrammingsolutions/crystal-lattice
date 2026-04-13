@@ -383,6 +383,7 @@ Configuration is a flat dict shared across the provider and enabled extensions.
 - `chatgpt_client_version`: optional, used for ChatGPT `/models` discovery
 - `strip_leading_system_or_developer_message`: optional compatibility flag for migrated sessions
 - `use_chatgpt_auth_for_compaction`: optional, defaults to `true`; set to `false` to force native compaction onto the API endpoint
+- `use_compaction_placeholder_transcript`: optional, defaults to `false`; set to `true` to show compacted native ranges as a single visible placeholder message instead of rebuilding the compacted native output directly
 - `timeout`: optional request timeout in seconds, defaults to `60`
 
 ### Attachment keys
@@ -460,8 +461,24 @@ No extra config key is required beyond loading tools in the application.
 ### Native compaction
 
 It exposes a session action with id `compact_native_history` that uses the
-native compaction API and rewrites provider-native history while keeping a
-visible placeholder message in the transcript.
+native compaction API, rewrites provider-native history, and then rebuilds the
+visible transcript directly from the compacted native output.
+
+If you prefer the older placeholder-style transcript behavior, enable:
+
+- `use_compaction_placeholder_transcript: true`
+
+When enabled, compacted native segments are shown as a single visible
+placeholder message and are expanded back into native compaction artifacts on
+future requests.
+
+The bundle also exposes a session action that toggles this view mode:
+
+- `Collapse compacted messages`
+- `Expand compacted messages`
+
+The action changes the visible projection only. Retained native history stays
+canonical and is rebuilt using the updated session override.
 
 By default, native compaction follows the same effective auth mode as normal
 Responses requests. If `use_chatgpt_auth_for_compaction` is enabled, a session
@@ -479,6 +496,19 @@ config-driven system-message pipeline as normal requests:
 - set `system_message` as usual
 - enable `strip_leading_system_or_developer_message: true` if older sessions
   still contain a persisted leading `system` or `developer` message
+
+When `system_message_as_instructions: false`, native compaction also follows
+the same request-time message-injection path as a normal request:
+
+- if `state["request"]["messages"]` is the effective outbound message set,
+  compaction uses that rendered message list as its compact input
+- `_metadata` is stripped from outbound compact input
+- if the compacted output preserves the leading `system` or `developer`
+  message, the stored native history restores the original retained version of
+  that message, including template-form content and `_metadata`
+- when a retained `compaction_summary` item is present, the visible rebuilt
+  transcript surfaces it as a clear assistant placeholder message instead of
+  letting that native item drift into unrelated later message ownership
 
 ### Prompt caching session action
 
@@ -514,8 +544,12 @@ transcript summarization.
 
 - It can compact the full native history or a visible prefix.
 - It uses the OpenAI Python SDK rather than application-layer summary logic.
-- It rebuilds visible messages after compaction and leaves a placeholder
-  assistant message in the compacted region.
+- It rebuilds visible messages after compaction directly from the compacted
+  native output.
+- If `use_compaction_placeholder_transcript: true` is enabled, it instead
+  shows the compacted region as a single placeholder message in the visible
+  transcript while still preserving the underlying retained native compaction
+  artifacts.
 - Future requests continue from the compacted native history.
 
 ## Bundle layout

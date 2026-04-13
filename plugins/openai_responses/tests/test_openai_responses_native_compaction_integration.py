@@ -40,10 +40,12 @@ def _config(api_key: str) -> dict[str, object]:
     }
 
 
-def _assert_has_compaction_placeholder(session) -> None:
+def _assert_has_compaction_native_items(session) -> None:
+    native_history = (session.metadata or {}).get("native_messages")
+    assert isinstance(native_history, list)
     assert any(
-        (message.metadata or {}).get("openai_responses_compaction")
-        for message in session.messages
+        isinstance(item, dict) and item.get("type") in {"compaction", "compaction_summary"}
+        for item in native_history
     )
 
 
@@ -73,7 +75,11 @@ def test_openai_responses_full_compaction_allows_followup_turn(ensure_openai_api
     )
 
     assert result["message"] == "Compacted the full visible history."
-    _assert_has_compaction_placeholder(compacted_session)
+    _assert_has_compaction_native_items(compacted_session)
+    assert all(
+        message.content != "Earlier conversation compacted to reduce context size."
+        for message in compacted_session.messages
+    )
 
     compacted_session = core.add_message(
         compacted_session,
@@ -84,7 +90,11 @@ def test_openai_responses_full_compaction_allows_followup_turn(ensure_openai_api
     session_after_second, second_finals = core.send_request(compacted_session, config)
 
     assert "FULL_COMPACTION_TURN_TWO" in second_finals[-1]["content"]
-    _assert_has_compaction_placeholder(session_after_second)
+    _assert_has_compaction_native_items(session_after_second)
+    assert all(
+        message.content != "Earlier conversation compacted to reduce context size."
+        for message in session_after_second.messages
+    )
 
 
 @pytest.mark.integration
@@ -121,7 +131,11 @@ def test_openai_responses_partial_compaction_allows_followup_turn(ensure_openai_
     )
 
     assert result["message"] == "Compacted visible messages [:2]"
-    _assert_has_compaction_placeholder(compacted_session)
+    _assert_has_compaction_native_items(compacted_session)
+    assert all(
+        message.content != "Earlier conversation compacted to reduce context size."
+        for message in compacted_session.messages
+    )
     assert any(
         message.content == "PARTIAL_COMPACTION_TURN_TWO"
         for message in compacted_session.messages
@@ -136,4 +150,8 @@ def test_openai_responses_partial_compaction_allows_followup_turn(ensure_openai_
     session_after_third, third_finals = core.send_request(compacted_session, config)
 
     assert "PARTIAL_COMPACTION_TURN_THREE" in third_finals[-1]["content"]
-    _assert_has_compaction_placeholder(session_after_third)
+    _assert_has_compaction_native_items(session_after_third)
+    assert all(
+        message.content != "Earlier conversation compacted to reduce context size."
+        for message in session_after_third.messages
+    )

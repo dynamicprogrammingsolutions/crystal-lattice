@@ -10,7 +10,9 @@ Short description: Create a new `openai_responses` plugin bundle using the OpenA
 - [x] `tasks/20260310-openai-responses-provider/040-provider-streaming-event-normalization-and-finalization.md`
 - [x] `tasks/20260310-openai-responses-provider/042-native-compaction-instruction-message-exclusion.md` (Design umbrella - split into 043-047, optionally 048)
 - [ ] `tasks/20260310-openai-responses-provider/043-native-message-preparation-for-compaction.md`
-- [ ] `tasks/20260310-openai-responses-provider/044-visible-rebuild-from-compacted-native-output.md`
+  - PARTIALLY SUPERSEDED BY `tasks/20260310-openai-responses-provider/045-message-injection-compaction-request-messages.md`
+- [x] `tasks/20260310-openai-responses-provider/045-message-injection-compaction-request-messages.md`
+- [x] `tasks/20260310-openai-responses-provider/044-visible-rebuild-from-compacted-native-output.md`
 - [ ] `tasks/20260310-openai-responses-provider/046-manual-range-selection-native-compaction.md`
 - [ ] `tasks/20260310-openai-responses-provider/047-auto-compaction-after-request-complete.md`
 - [ ] `tasks/20260310-openai-responses-provider/048-config-based-role-normalization.md` (Optional)
@@ -38,8 +40,9 @@ Short description: Create a new `openai_responses` plugin bundle using the OpenA
 - `100` has already been completed, but `120` is a targeted follow-up because provider model discovery and model-selection UI were left in placeholder form.
 - `095` is a late-stage native compaction subtask and includes its own high-level prerequisite core capability scope (no separate prerequisite task file).
 - `042` is now the broad design umbrella for the later split tasks rather than the preferred implementation unit.
-- `043` is the generic action-lifecycle split from `042`: `AgentApplication` should run action-scoped pre/post lifecycles automatically, with compaction using the pre-action path to receive prepared native messages. Note: `system`/`developer` role normalization is intentionally excluded and handled separately in the optional `048`.
-- `044` is focused on removing the compaction placeholder hiding behavior so compacted native output is rebuilt into visible core messages directly.
+- `043` is now partially superseded: the broader `AgentApplication`-owned action lifecycle design is no longer the preferred implementation path. The explicit action-side request preparation contract now lives in core, while the remaining message-injection compaction behavior gap is tracked separately in `045`. Note: `system`/`developer` role normalization is intentionally excluded and handled separately in the optional `048`.
+- `045` implemented native compaction request-message override support for normal API-mode system/developer message injection, including `_metadata` stripping on outbound compact input and restoration of the leading stored system/developer message when preserved by the compacted output.
+- `044` implemented direct visible rebuild from compacted native output, removing the default placeholder transcript round-trip while preserving follow-up request continuity.
 - `046` is the manual compaction UX follow-up for summarize-range-style visible range selection plus a `compact up to here` message action, with real integration coverage to determine whether non-prefix compaction is actually supported.
 - `047` is the post-request auto-compaction follow-up for a separate action/lifecycle path that runs only after a successful request has completed and the session has already been saved.
 - `048` is an **optional** follow-up for config-based `system`/`developer` role normalization across the entire codebase, enabling manual `developer` message support. It can be done in parallel with or after the compaction subtasks.

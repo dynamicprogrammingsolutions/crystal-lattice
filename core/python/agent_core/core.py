@@ -2939,11 +2939,6 @@ class AgentCore:
             )
         new_native_messages = [item for item in raw_native if isinstance(item, dict)]
 
-        # Rebuild and get post-initialize native to ensure features' structural changes are captured
-        new_messages, post_init_native = self._rebuild_core_from_native(
-            new_native_messages, config
-        )
-
         metadata_patch_raw = result.get("session_metadata")
         metadata_patch = (
             metadata_patch_raw if isinstance(metadata_patch_raw, dict) else {}
@@ -2953,6 +2948,17 @@ class AgentCore:
             dict(session.metadata) if isinstance(session.metadata, dict) else {}
         )
         new_metadata.update(metadata_patch)
+
+        rebuild_config = dict(config)
+        overrides = new_metadata.get("overrides")
+        if isinstance(overrides, dict):
+            rebuild_config.update(overrides)
+
+        # Rebuild and get post-initialize native to ensure features' structural changes are captured
+        new_messages, post_init_native = self._rebuild_core_from_native(
+            new_native_messages, rebuild_config
+        )
+
         new_metadata["native_messages"] = post_init_native
         new_metadata["native_messages_integrity"] = self._compute_native_integrity(
             new_messages

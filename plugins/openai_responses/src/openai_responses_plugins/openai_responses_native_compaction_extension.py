@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from openai import OpenAI
 
@@ -16,11 +16,12 @@ from .openai_responses_runtime import (
     strip_leading_system_or_developer_message,
 )
 
-
+_USE_CHATGPT_AUTH_FOR_COMPACTION_KEY = "use_chatgpt_auth_for_compaction"
+_USE_PLACEHOLDER_TRANSCRIPT_KEY = "use_compaction_placeholder_transcript"
+_COMPACTION_ITEM_TYPES = {"compaction", "compaction_summary"}
 _COMPACTION_METADATA_KEY = "openai_responses_compaction"
 _COMPACTION_PLACEHOLDER_TEXT = "Earlier conversation compacted to reduce context size."
-_USE_CHATGPT_AUTH_FOR_COMPACTION_KEY = "use_chatgpt_auth_for_compaction"
-_COMPACTION_ITEM_TYPES = {"compaction", "compaction_summary"}
+_PLACEHOLDER_TRANSCRIPT_STATE_KEY = "_openai_responses_use_compaction_placeholder_transcript"
 
 
 class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
@@ -39,7 +40,25 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                     "endpoint and credentials as normal OpenAI Responses requests. "
                     "When false, compaction is forced onto the normal API endpoint."
                 ),
+            },
+            _USE_PLACEHOLDER_TRANSCRIPT_KEY: {
+                "type": "boolean",
+                "required": False,
+                "default": False,
+                "description": (
+                    "When true, compacted native segments are shown in the visible "
+                    "transcript as a single placeholder message instead of rebuilding "
+                    "the compacted native output directly."
+                ),
             }
+        }
+
+    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            **state,
+            _PLACEHOLDER_TRANSCRIPT_STATE_KEY: bool(
+                config.get(_USE_PLACEHOLDER_TRANSCRIPT_KEY, False)
+            ),
         }
 
     def get_ui_elements(
@@ -48,7 +67,8 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
-        _ = config, tags, models
+        _ = tags, models
+        placeholder_enabled = self._placeholder_transcript_enabled_for_config(config)
         return [
             {
                 "ui_type": "config",
@@ -56,6 +76,30 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                 "key": _USE_CHATGPT_AUTH_FOR_COMPACTION_KEY,
                 "label": "Use ChatGPT auth for native compaction",
                 "default": True,
+            },
+            {
+                "ui_type": "config",
+                "type": "checkbox",
+                "key": _USE_PLACEHOLDER_TRANSCRIPT_KEY,
+                "label": "Show compacted history as placeholder transcript",
+                "default": False,
+            },
+            {
+                "ui_type": "session_action",
+                "id": "toggle_compaction_transcript_mode",
+                "label": (
+                    "Expand compacted messages"
+                    if placeholder_enabled
+                    else "Collapse compacted messages"
+                ),
+                "icon": "rows-3",
+                "order": 45,
+                "action_id": "toggle_compaction_transcript_mode",
+                "action_owner": "provider_extension",
+                "fixed_params": {},
+                "param_map": {
+                    "session_id": "$session.session_id",
+                },
             },
             {
                 "ui_type": "session_action",
@@ -75,7 +119,7 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                     "title": "Compact native history",
                     "message": (
                         "Compact provider-native history for future Responses requests "
-                        "and replace the compacted prefix with a visible placeholder message."
+                        "using the OpenAI Responses compact API."
                     ),
                     "inputs": [
                         {
@@ -98,8 +142,22 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
         return ["openai_responses"]
 
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
-        _ = state
+        config = state.get("config") if isinstance(state.get("config"), dict) else {}
+        placeholder_enabled = self._placeholder_transcript_enabled_for_config(config)
         return [
+            {
+                "id": "toggle_compaction_transcript_mode",
+                "label": (
+                    "Expand compacted messages"
+                    if placeholder_enabled
+                    else "Collapse compacted messages"
+                ),
+                "description": (
+                    "Toggle whether compacted native history is shown as a single "
+                    "placeholder message or expanded rebuilt messages."
+                ),
+                "inputs": {},
+            },
             {
                 "id": "compact_native_history",
                 "label": "Compact native history",
@@ -184,6 +242,15 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
 
         return sanitized
 
+    def _placeholder_transcript_enabled_for_config(
+        self,
+        config: Optional[Dict[str, Any]],
+    ) -> bool:
+        return bool(
+            isinstance(config, dict)
+            and config.get(_USE_PLACEHOLDER_TRANSCRIPT_KEY, False)
+        )
+
     def _placeholder_metadata_from_segment(
         self,
         segment: List[Dict[str, Any]],
@@ -223,7 +290,10 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
             "metadata": metadata,
         }
 
-    def _segment_from_placeholder_message(self, message: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+    def _segment_from_placeholder_message(
+        self,
+        message: Dict[str, Any],
+    ) -> Optional[List[Dict[str, Any]]]:
         raw_metadata = message.get("metadata")
         metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
         raw_compaction = metadata.get(_COMPACTION_METADATA_KEY)
@@ -238,7 +308,17 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
         self,
         messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any] | None = None,
     ) -> List[Dict[str, Any]]:
+        has_placeholder = any(
+            self._segment_from_placeholder_message(message) is not None
+            for message in messages
+            if isinstance(message, dict)
+        )
+        if not has_placeholder:
+            _ = state
+            return list(native_messages)
+
         rebuilt: List[Dict[str, Any]] = []
         native_cursor = 0
 
@@ -264,7 +344,14 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
         self,
         native_messages: List[Dict[str, Any]],
         messages: List[Dict[str, Any]],
+        state: Dict[str, Any] | None = None,
     ) -> List[Dict[str, Any]]:
+        if not self._use_placeholder_transcript_enabled(state):
+            return self._surface_compaction_items_as_placeholders(
+                native_messages,
+                messages,
+            )
+
         segments: List[tuple[int, int]] = []
         segment_start = 0
         for native_index, item in enumerate(native_messages):
@@ -327,7 +414,9 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                 message = messages[idx]
                 indices = msg_indices[idx]
                 remaining_indices = [
-                    native_index for native_index in indices if native_index not in segment_index_set
+                    native_index
+                    for native_index in indices
+                    if native_index not in segment_index_set
                 ]
                 if not remaining_indices:
                     continue
@@ -343,6 +432,188 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
             result.append(messages[idx])
 
         return result
+
+    def _use_placeholder_transcript_enabled(
+        self,
+        state: Dict[str, Any] | None,
+    ) -> bool:
+        return bool(
+            isinstance(state, dict)
+            and state.get(_PLACEHOLDER_TRANSCRIPT_STATE_KEY, False)
+        )
+
+    def _build_toggle_placeholder_transcript_result(
+        self,
+        session: Session,
+        native_messages: List[Dict[str, Any]],
+        config: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides = metadata.get("overrides")
+        next_overrides = dict(overrides) if isinstance(overrides, dict) else {}
+        currently_enabled = self._placeholder_transcript_enabled_for_config(config)
+        next_enabled = not currently_enabled
+        next_overrides[_USE_PLACEHOLDER_TRANSCRIPT_KEY] = next_enabled
+        return {
+            "native_messages": native_messages,
+            "session_metadata": {
+                "overrides": next_overrides,
+            },
+            "message": (
+                "Collapsed compacted messages."
+                if next_enabled
+                else "Expanded compacted messages."
+            ),
+        }
+
+    def _is_system_or_developer_message(self, item: Any) -> bool:
+        return (
+            isinstance(item, dict)
+            and item.get("type") == "message"
+            and item.get("role") in {"system", "developer"}
+        )
+
+    def _copy_message_with_native_indices(
+        self,
+        message: Dict[str, Any],
+        native_indices: List[int],
+    ) -> Optional[Dict[str, Any]]:
+        raw_metadata = message.get("metadata")
+        metadata = dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
+        remaining = [index for index in native_indices if isinstance(index, int)]
+        if remaining:
+            metadata["native_indices"] = remaining
+        else:
+            metadata.pop("native_indices", None)
+        updated = dict(message)
+        if metadata:
+            updated["metadata"] = metadata
+        else:
+            updated.pop("metadata", None)
+        return updated
+
+    def _surface_compaction_items_as_placeholders(
+        self,
+        native_messages: List[Dict[str, Any]],
+        messages: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        compaction_indices = [
+            native_index
+            for native_index, item in enumerate(native_messages)
+            if isinstance(item, dict) and item.get("type") == "compaction_summary"
+        ]
+        if not compaction_indices:
+            return list(messages)
+
+        working_messages = [dict(message) for message in messages if isinstance(message, dict)]
+        working_indices: List[List[int]] = []
+        for message in working_messages:
+            raw_metadata = message.get("metadata")
+            metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
+            raw_indices = metadata.get("native_indices")
+            if isinstance(raw_indices, list):
+                working_indices.append([index for index in raw_indices if isinstance(index, int)])
+            else:
+                working_indices.append([])
+
+        for compaction_index in compaction_indices:
+            for idx, native_index_list in enumerate(working_indices):
+                if compaction_index not in native_index_list:
+                    continue
+                remaining = [value for value in native_index_list if value != compaction_index]
+                working_indices[idx] = remaining
+                updated = self._copy_message_with_native_indices(
+                    working_messages[idx],
+                    remaining,
+                )
+                if updated is not None:
+                    working_messages[idx] = updated
+
+            insertion_index = len(working_messages)
+            for idx, native_index_list in enumerate(working_indices):
+                if native_index_list and min(native_index_list) > compaction_index:
+                    insertion_index = idx
+                    break
+
+            placeholder = self._placeholder_message_for_segment(
+                [native_messages[compaction_index]],
+                [compaction_index],
+            )
+            working_messages.insert(insertion_index, placeholder)
+            working_indices.insert(insertion_index, [compaction_index])
+
+        return working_messages
+
+    def _effective_prefix_end(
+        self,
+        prepared_native_messages: List[Dict[str, Any]],
+        effective_messages: List[Dict[str, Any]],
+        prefix_native_end: int,
+    ) -> int:
+        if prefix_native_end <= 0:
+            return 0
+        if len(effective_messages) == len(prepared_native_messages):
+            return min(prefix_native_end, len(effective_messages))
+        if len(effective_messages) < len(prepared_native_messages):
+            return min(prefix_native_end, len(effective_messages))
+
+        delta = len(effective_messages) - len(prepared_native_messages)
+        leading = effective_messages[:delta]
+        if leading and all(self._is_system_or_developer_message(item) for item in leading):
+            return min(prefix_native_end + delta, len(effective_messages))
+        return min(prefix_native_end, len(effective_messages))
+
+    def _build_compaction_input(
+        self,
+        prepared_native_messages: List[Dict[str, Any]],
+        prefix_native_end: int,
+        request: Dict[str, Any],
+        config: Dict[str, Any],
+    ) -> Tuple[List[Dict[str, Any]], Optional[Dict[str, Any]], List[Dict[str, Any]]]:
+        override = request.get("messages")
+        effective_messages = (
+            [item for item in override if isinstance(item, dict)]
+            if isinstance(override, list)
+            else list(prepared_native_messages)
+        )
+        effective_prefix_end = self._effective_prefix_end(
+            prepared_native_messages,
+            effective_messages,
+            prefix_native_end,
+        )
+        prefix_native = list(prepared_native_messages[:prefix_native_end])
+        prefix_input = list(effective_messages[:effective_prefix_end])
+        if should_strip_leading_system_or_developer_message(config):
+            prefix_input = strip_leading_system_or_developer_message(prefix_input)
+        input_items = [
+            self._sanitize_input_item(item)
+            for item in prefix_input
+            if isinstance(item, dict)
+        ]
+        original_first = prefix_native[0] if prefix_native else None
+        restore_first = (
+            dict(original_first)
+            if self._is_system_or_developer_message(original_first)
+            else None
+        )
+        suffix_native = list(prepared_native_messages[prefix_native_end:])
+        return input_items, restore_first, suffix_native
+
+    def _restore_leading_system_or_developer_message(
+        self,
+        compacted_output: List[Dict[str, Any]],
+        restore_first: Optional[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        if not compacted_output or not isinstance(restore_first, dict):
+            return compacted_output
+        first = compacted_output[0]
+        if not self._is_system_or_developer_message(first):
+            return compacted_output
+        if first.get("role") != restore_first.get("role"):
+            return compacted_output
+        restored = list(compacted_output)
+        restored[0] = dict(restore_first)
+        return restored
 
     def _resolve_end_index(self, session: Session, params: Dict[str, Any]) -> int:
         visible_count = len(session.messages)
@@ -364,6 +635,7 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
         self,
         session: Session,
         end_index: int,
+        native_messages: Optional[List[Dict[str, Any]]] = None,
     ) -> int:
         prefix_messages = list(session.messages[:end_index])
         if not prefix_messages:
@@ -389,6 +661,15 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
             raise RuntimeError("compaction range must start at the beginning of native history")
         expected = list(range(unique_indices[-1] + 1))
         if unique_indices != expected:
+            missing = sorted(set(expected).difference(unique_indices))
+            if missing and isinstance(native_messages, list):
+                if all(
+                    0 <= missing_index < len(native_messages)
+                    and isinstance(native_messages[missing_index], dict)
+                    and native_messages[missing_index].get("type") in _COMPACTION_ITEM_TYPES
+                    for missing_index in missing
+                ):
+                    return unique_indices[-1] + 1
             raise RuntimeError(
                 "selected visible prefix does not map to a contiguous native prefix for compaction"
             )
@@ -412,6 +693,14 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
         context: Optional[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Dict[str, Any]:
+        config = state.get("config") if isinstance(state.get("config"), dict) else {}
+        if action_id == "toggle_compaction_transcript_mode":
+            return self._build_toggle_placeholder_transcript_result(
+                session,
+                native_messages,
+                config,
+            )
+
         if action_id != "compact_native_history":
             raise ValueError(
                 f"Unknown action_id {action_id!r} for OpenAIResponsesNativeCompactionExtension"
@@ -444,7 +733,11 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
         model = self._resolve_model(compaction_config)
         timeout = self._coerce_timeout(compaction_config.get("timeout", DEFAULT_TIMEOUT))
         end_index = self._resolve_end_index(session, params)
-        prefix_native_end = self._resolve_prefix_native_end(session, end_index)
+        prefix_native_end = self._resolve_prefix_native_end(
+            session,
+            end_index,
+            current_native_messages,
+        )
         request = (
             current_state.get("request")
             if isinstance(current_state.get("request"), dict)
@@ -469,15 +762,12 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                 ) from exc
             raise
 
-        prefix_native = list(current_native_messages[:prefix_native_end])
-        if should_strip_leading_system_or_developer_message(compaction_config):
-            prefix_native = strip_leading_system_or_developer_message(prefix_native)
-        suffix_native = list(current_native_messages[prefix_native_end:])
-        input_items = [
-            self._sanitize_input_item(item)
-            for item in prefix_native
-            if isinstance(item, dict)
-        ]
+        input_items, restore_first, suffix_native = self._build_compaction_input(
+            current_native_messages,
+            prefix_native_end,
+            request,
+            compaction_config,
+        )
 
         try:
             sdk_response = client.responses.compact(  # type: ignore[union-attr]
@@ -503,6 +793,10 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
         new_native_messages = [item for item in output if isinstance(item, dict)]
         if not new_native_messages:
             raise RuntimeError("OpenAI Responses compact failed: empty compacted output")
+        new_native_messages = self._restore_leading_system_or_developer_message(
+            new_native_messages,
+            restore_first,
+        )
 
         return {
             "native_messages": [*new_native_messages, *suffix_native],
