@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -42,7 +42,7 @@ import {
   type ActionDisplayPayload,
   type SessionSummary,
 } from './api';
-import { useApplicationPlugins } from './ApplicationPluginsContext';
+import { useApplicationPlugins, useApplicationPluginsContext } from './ApplicationPluginsContext';
 import { usePersistentPinnedActions } from './usePersistentPinnedActions';
 import { usePluginActionDialog } from './usePluginActionDialog';
 import AgentSwitchModal from './components/AgentSwitchModal';
@@ -152,6 +152,15 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     sessionListFields,
     sessionListPinnedToggles,
   } = useApplicationPlugins();
+  const {
+    error: applicationPluginsError,
+    refresh: refreshApplicationPlugins,
+  } = useApplicationPluginsContext();
+  const applicationPluginsErrorRef = useRef<string | null>(applicationPluginsError);
+
+  useEffect(() => {
+    applicationPluginsErrorRef.current = applicationPluginsError;
+  }, [applicationPluginsError]);
 
   const scopedSessionListActionsStorageKey = useMemo(
     () => `${STORAGE_KEY_SESSION_LIST_ACTIONS}:${connectionId ?? 'default'}`,
@@ -193,14 +202,17 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       return;
     }
     try {
-      const list = await sessionsController.load({ force: true });
+      const [list] = await Promise.all([
+        sessionsController.load({ force: true }),
+        refreshApplicationPlugins(),
+      ]);
       onUpdateCache(list);
     } catch (err: any) {
       console.log('Failed to load sessions', err);
       const message = err?.message || 'Failed to load sessions';
       Alert.alert('Error', message);
     }
-	  }, [sessionsController, onUpdateCache]);
+	  }, [sessionsController, onUpdateCache, refreshApplicationPlugins]);
 
   const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {
     const nextEntry = createDisplayEntry(display, context);
@@ -341,6 +353,15 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         // Error is handled in controller + via Alert in manual reload flows.
       });
   }, [isActive, sessionsController, onUpdateCache]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    if (!applicationPluginsErrorRef.current) return;
+
+    refreshApplicationPlugins().catch(() => {
+      // Errors are stored in state and can be retried manually via Reload.
+    });
+  }, [isActive, refreshApplicationPlugins]);
 
   useEffect(() => {
     if (isActive) return;
