@@ -8,7 +8,7 @@ surface a "Rebuild native history" button. When invoked, it calls
 the session and saves the updated session.
 """
 
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING, Tuple
 
 from agent_core import Session
 
@@ -28,6 +28,32 @@ class RebuildNativeAppPlugin:
     # ------------------------------------------------------------------
     # ApplicationPlugin protocol methods
     # ------------------------------------------------------------------
+
+    def _normalize_slice_bounds(
+        self,
+        message_count: int,
+        start: Optional[int],
+        end: Optional[int],
+    ) -> Tuple[int, int]:
+        def _bound(value: Optional[int], default: int) -> int:
+            if value is None:
+                return default
+            idx = value
+            if idx < 0:
+                idx = message_count + idx
+            if idx < 0:
+                return 0
+            if idx > message_count:
+                return message_count
+            return idx
+
+        start_idx = _bound(start, 0)
+        end_idx = _bound(end, message_count)
+
+        if start_idx >= end_idx:
+            raise ValueError("message_range selects no messages")
+
+        return start_idx, end_idx
 
     def get_config_schema(self) -> Dict[str, Any]:
         """Return config schema keys under the top-level ``application`` key."""
@@ -69,12 +95,29 @@ class RebuildNativeAppPlugin:
                     "session_id": "$session.session_id",
                 },
                 "dialog": {
-                    "kind": "confirm",
+                    "kind": "form",
                     "title": "Rebuild native history",
                     "message": (
                         "Recompute provider-native history from the current messages. "
-                        "This may slightly adjust message metadata. Continue?"
+                        "Optionally provide Python-style slice bounds to rebuild "
+                        "only part of the native history."
                     ),
+                    "inputs": [
+                        {
+                            "name": "start",
+                            "type": "integer",
+                            "label": "Start index",
+                            "required": False,
+                            "placeholder": "e.g. 0 or -10",
+                        },
+                        {
+                            "name": "end",
+                            "type": "integer",
+                            "label": "End index (optional)",
+                            "required": False,
+                            "placeholder": "leave blank for end",
+                        },
+                    ],
                 },
             }
         ]
@@ -98,6 +141,8 @@ class RebuildNativeAppPlugin:
                 "description": "Recompute provider-native history from the current messages.",
                 "inputs": {
                     "session_id": {"type": "string", "required": True},
+                    "start": {"type": "integer", "required": False},
+                    "end": {"type": "integer", "required": False},
                 },
             }
         ]
@@ -133,7 +178,35 @@ class RebuildNativeAppPlugin:
             )
             effective_config = resolve_request_config(base_config, md_overrides)
 
-            new_session = core.rebuild_native_history(session, effective_config)
+            raw_start = params.get("start")
+            raw_end = params.get("end")
+            if raw_start is None and raw_end is None:
+                new_session = core.rebuild_native_history(session, effective_config)
+                result_message = "Rebuilt provider-native history from core messages."
+            else:
+                if raw_start is not None and (
+                    not isinstance(raw_start, int) or isinstance(raw_start, bool)
+                ):
+                    raise ValueError("start must be an integer")
+                if raw_end is not None and (
+                    not isinstance(raw_end, int) or isinstance(raw_end, bool)
+                ):
+                    raise ValueError("end must be an integer")
+                start_idx, end_idx = self._normalize_slice_bounds(
+                    len(session.messages),
+                    raw_start,
+                    raw_end,
+                )
+                new_session = core.rebuild_native_history(
+                    session,
+                    effective_config,
+                    start=start_idx,
+                    end=end_idx,
+                )
+                result_message = (
+                    f"Rebuilt provider-native history for visible messages "
+                    f"[{start_idx}:{end_idx}]."
+                )
             app.save_session(new_session)
 
         return {
@@ -145,7 +218,7 @@ class RebuildNativeAppPlugin:
             "ui_effects": {
                 "reload_session_ids": [session_id],
             },
-            "message": "Rebuilt provider-native history from core messages.",
+            "message": result_message,
         }
 
 

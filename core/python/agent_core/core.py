@@ -1131,18 +1131,26 @@ class AgentCore:
         self,
         session: Session,
         config: Optional[Dict[str, Any]] = None,
+        *,
+        start: Optional[int] = None,
+        end: Optional[int] = None,
     ) -> Session:
         """Rebuild provider-native history from the current core messages.
 
         This helper converts the session's core messages to provider-native
         form using the configured provider, extensions, and features, then
-        rebuilds the full core message sequence from that native history.
-        The resulting session contains a fresh ``native_messages`` array and
-        matching integrity metadata.
+        rebuilds the full core message sequence from that native history. When
+        ``start``/``end`` are provided, only the visible message slice
+        ``session.messages[start:end]`` is rebuilt back into native history
+        before the canonical full core transcript is reconstructed.
 
         Args:
             session: Current session.
             config: Configuration used to resolve provider and plugins.
+            start: Optional inclusive visible-message start index for selective
+                rebuild. Requires retained native history on the session.
+            end: Optional exclusive visible-message end index for selective
+                rebuild. Requires retained native history on the session.
 
         Returns:
             New Session with native history rebuilt from core messages.
@@ -1153,6 +1161,76 @@ class AgentCore:
 
         if not isinstance(config, dict):
             raise TypeError("config must be a dict when rebuilding native history")
+
+        if start is not None or end is not None:
+            message_count = len(session.messages)
+            start_idx = 0 if start is None else start
+            end_idx = message_count if end is None else end
+            if start_idx < 0 or end_idx < 0 or start_idx >= end_idx or end_idx > message_count:
+                raise ValueError("start/end must select a non-empty visible message slice")
+
+            retained_native = None
+            base_metadata: Dict[str, Any] = (
+                dict(session.metadata) if isinstance(session.metadata, dict) else {}
+            )
+            rn = base_metadata.get("native_messages")
+            if isinstance(rn, list):
+                retained_native = rn
+
+            if retained_native is None:
+                raise RuntimeError(
+                    "selective rebuild requires retained native history on the session"
+                )
+
+            self._verify_native_integrity(session)
+
+            target_messages = session.messages[start_idx:end_idx]
+            target_native_indices: List[int] = []
+            for message in target_messages:
+                metadata = message.metadata if isinstance(message.metadata, dict) else {}
+                native_indices = metadata.get("native_indices")
+                if not isinstance(native_indices, list) or not native_indices:
+                    raise RuntimeError(
+                        "selective rebuild requires native_indices for every selected message"
+                    )
+                target_native_indices.extend(
+                    index for index in native_indices if isinstance(index, int)
+                )
+
+            if not target_native_indices:
+                raise RuntimeError("selected visible message slice maps to no native history")
+
+            unique_indices = sorted(set(target_native_indices))
+            expected_indices = list(range(unique_indices[0], unique_indices[-1] + 1))
+            if unique_indices != expected_indices:
+                raise RuntimeError(
+                    "selected visible message slice does not map to a contiguous native slice"
+                )
+
+            replacement_core = [message.to_dict() for message in target_messages]
+            replacement_native = self._core_messages_to_native_for_config(
+                replacement_core,
+                config,
+            )
+
+            before = retained_native[: unique_indices[0]]
+            after = retained_native[unique_indices[-1] + 1 :]
+            new_native = [*before, *replacement_native, *after]
+
+            rebuilt_messages, post_init_native = self._rebuild_core_from_native(
+                new_native, config
+            )
+
+            base_metadata["native_messages"] = post_init_native
+            base_metadata["native_messages_integrity"] = self._compute_native_integrity(
+                rebuilt_messages
+            )
+
+            return Session(
+                session_id=session.session_id,
+                messages=rebuilt_messages,
+                metadata=base_metadata,
+            )
 
         # Convert core messages to provider-native history.
         core_dicts: List[Dict[str, Any]] = [m.to_dict() for m in session.messages]
