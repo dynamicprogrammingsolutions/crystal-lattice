@@ -34,6 +34,7 @@ import type {
 import {
   deriveSessionListPresentationFromGroups,
   groupSessionListFields,
+  normalizeActionDisplayForSurface,
   runApplicationAction,
 } from '@crystal-lattice/frontend-sdk';
 
@@ -347,8 +348,13 @@ function SessionsPanelInner({
             reason: `action:${element.id}`,
           });
         }
-        if (display) {
-          presentActionDisplay(display, context);
+        const normalizedDisplay = normalizeActionDisplayForSurface({
+          display,
+          surface: 'session_list_action',
+          host: 'desktop',
+        });
+        if (normalizedDisplay) {
+          presentActionDisplay(normalizedDisplay, context);
         }
       } finally {
         setPluginActionRunning(false);

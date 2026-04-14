@@ -41,6 +41,7 @@ import {
   groupSessionListFields,
   isAttachmentDraftBlocking,
   mergeSessionScopedActionElements,
+  normalizeActionDisplayForSurface,
   runApplicationAction,
   selectSessionAssetId,
   selectDisplayContent,
@@ -1814,8 +1815,13 @@ export const ChatPane = React.memo(function ChatPane({
             title: navigateEffect.sessionId,
           });
         }
-        if (display) {
-          presentActionDisplay(display, context);
+        const normalizedDisplay = normalizeActionDisplayForSurface({
+          display,
+          surface: 'session_action',
+          host: 'desktop',
+        });
+        if (normalizedDisplay) {
+          presentActionDisplay(normalizedDisplay, context);
         }
       } finally {
         setPluginActionRunning(false);

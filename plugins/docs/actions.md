@@ -105,6 +105,12 @@ Guidance:
   `display` is more appropriate
 - keep follow-up actions intentionally narrow and generic; current supported
   shapes are `open_url`, `copy_text`, and `run_action`
+- treat `presentation` as a frontend hint, not a guarantee:
+  current frontends ignore `display` for `session_list_action` surfaces
+  and the desktop app currently coerces session-action displays to `inline`
+- `modal` remains part of the protocol, but richer cross-platform popup support
+  should be added later only when there is a concrete use case and a UI
+  approach that works on both mobile and desktop
 
 ## Dynamic lifecycle names
 
