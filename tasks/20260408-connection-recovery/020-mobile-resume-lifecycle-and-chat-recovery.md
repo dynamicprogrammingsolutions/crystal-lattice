@@ -139,3 +139,23 @@ Added during completion.
     - `npm test` in `packages/frontend-sdk`: passed (integration tests remain skipped unless `RUN_BACKEND_INTEGRATION=1` is set).
     - `pytest core/python/tests/test_application_config_errors.py -q`: passed.
     - `pytest application/python/tests/test_agent_terminal_app_server.py -q -k "events_endpoint_bootstrap_returns_latest_event_id or events_endpoint_uses_session_cursor_as_default_since_id or filtered_empty_response_still_includes_latest_event_id"`: passed.
+  - Additional follow-up coverage:
+    - Added restart/polling regression `J` in `packages/frontend-sdk/src/integration/__tests__/backend.integration.test.ts` for the case where the backend restarts while the same controller keeps polling.
+    - Added cache-rehydration regressions `K1`-`K4` in `packages/frontend-sdk/src/integration/__tests__/backend.integration.test.ts` covering:
+      - cached reopen without restart
+      - cached reopen after backend restart
+      - empty cached session without restart
+      - empty cached session after backend restart
+    - Extended `packages/frontend-sdk/src/integration/harness.ts` to support restarting the backend on a fixed port so a single live transport/controller can survive a backend restart.
+    - Root cause for the live-poll restart bug:
+      - event ids were process-local and restart from low values after backend restart
+      - comparing bare numeric `since_id` values across server processes is unsafe, even when the old cursor is not greater than the new latest id
+      - final fix moved this one level lower into the shared event layer:
+        - `InMemoryEventStore` now emits composite opaque ids of the form `<store-instance>:<counter>`
+        - store-side `since_id` handling replays safely when the cursor belongs to another store instance
+        - the frontend poller now treats `event_id` as an opaque cursor token instead of parsing numeric ids
+      - this removed the temporary need for an HTTP-only `server_instance_id` response field
+    - Verification:
+      - `RUN_BACKEND_INTEGRATION=1 npx vitest run src/integration/__tests__/backend.integration.test.ts`: passed with 15 tests.
+      - `npm test` in `packages/frontend-sdk`: passed.
+      - `pytest application/python/tests/test_agent_terminal_app_server.py -q -k "events_endpoint_bootstrap_returns_latest_event_id or events_endpoint_uses_session_cursor_as_default_since_id or filtered_empty_response_still_includes_latest_event_id"`: passed with explicit `server_instance_id` assertions.

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Protocol, Iterator
+from typing import Any, Dict, List, Optional, Protocol, Iterator, Tuple
 from threading import Lock
 from contextlib import contextmanager
 from itertools import count
+import uuid
 
 
 class EventStore(Protocol):
@@ -66,6 +67,7 @@ class InMemoryEventStore(EventStore):
     def __init__(self) -> None:
         self._events: List[Dict[str, Any]] = []
         self._counter = count(1)
+        self._instance_id = uuid.uuid4().hex
         self._lock = Lock()
         # Optional shared state for per-session cursors and locks. These are
         # used by application instances that share this store so that
@@ -76,7 +78,26 @@ class InMemoryEventStore(EventStore):
         self._session_locks_lock = Lock()
 
     def _next_id(self) -> str:
-        return str(next(self._counter))
+        return f"{self._instance_id}:{next(self._counter)}"
+
+    def _parse_event_id(self, value: Any) -> Tuple[Optional[str], Optional[int]]:
+        if isinstance(value, int):
+            return None, value
+        if not isinstance(value, str) or not value:
+            return None, None
+        if value == "0":
+            return None, 0
+        if ":" not in value:
+            # Legacy unscoped ids are ambiguous across process restarts.
+            # Replay from the beginning instead of risking skipped events.
+            return None, 0
+
+        instance_id, _, counter_text = value.partition(":")
+        try:
+            counter = int(counter_text)
+        except Exception:  # pragma: no cover - defensive
+            return instance_id or None, None
+        return instance_id or None, counter
 
     def publish(self, event: Dict[str, Any]) -> Dict[str, Any]:
         with self._lock:
@@ -93,18 +114,23 @@ class InMemoryEventStore(EventStore):
         session_id: Optional[str] = None,
         limit: int = 100,
     ) -> List[Dict[str, Any]]:
-        def _to_int(value: Any) -> int:
-            try:
-                return int(value)
-            except Exception:  # pragma: no cover - defensive
+        def _counter_for_current_instance(value: Any) -> int:
+            instance_id, counter = self._parse_event_id(value)
+            if counter is None:
                 return -1
+            if instance_id is None:
+                return counter
+            if instance_id != self._instance_id:
+                return 0
+            return counter
 
-        since = _to_int(since_id) if since_id is not None else 0
+        since = _counter_for_current_instance(since_id) if since_id is not None else 0
 
         with self._lock:
             result: List[Dict[str, Any]] = []
             for ev in self._events:
-                if _to_int(ev.get("event_id")) <= since:
+                _event_instance, event_counter = self._parse_event_id(ev.get("event_id"))
+                if event_counter is None or event_counter <= since:
                     continue
                 if request_id is not None and ev.get("request_id") != request_id:
                     continue

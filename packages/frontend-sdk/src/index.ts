@@ -100,6 +100,8 @@ export {
 
 export type { ActionEffect, RunActionResult, RunActionContext, RunActionEffectsOptions } from './plugins/actionRunner';
 export { runApplicationAction, getRunActionErrorMessage } from './plugins/actionRunner';
+export type { ActionDisplayHost, ActionDisplaySurface } from './plugins/actionDisplayPolicy';
+export { normalizeActionDisplayForSurface } from './plugins/actionDisplayPolicy';
 export type { SessionAssetRef, StoredAttachmentAssetDescriptor } from './plugins/attachmentActions';
 export {
   DEFAULT_ATTACHMENT_ACTION_PLUGIN_ID,

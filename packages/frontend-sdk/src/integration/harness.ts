@@ -75,6 +75,7 @@ function findRepoRoot(fromDir: string): string {
 
 export interface StartedServer {
   baseUrl: string;
+  port: number;
   configPath: string;
   sessionsRoot: string;
   stdout: string[];
@@ -87,6 +88,7 @@ export async function startBackendServer(options: {
   env?: Record<string, string>;
   configPath?: string;
   sessionsRoot?: string;
+  port?: number;
 }): Promise<StartedServer> {
   const repoRoot = findRepoRoot(process.cwd());
   const runnerPath = path.join(repoRoot, 'scripts', 'run_backend_server_for_ts_integration_tests.py');
@@ -105,7 +107,7 @@ export async function startBackendServer(options: {
     fs.writeFileSync(configPath, JSON.stringify(options.config, null, 2), 'utf8');
   }
 
-  const port = await getFreePort();
+  const port = options.port ?? await getFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
 
   const python = process.env.PYTHON || 'python';
@@ -172,6 +174,7 @@ export async function startBackendServer(options: {
 
   return {
     baseUrl,
+    port,
     configPath,
     sessionsRoot,
     stdout,

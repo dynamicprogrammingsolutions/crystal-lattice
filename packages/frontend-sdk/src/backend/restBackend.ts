@@ -269,7 +269,10 @@ export class RestAgentBackend implements AgentBackend {
       internal_limit: 5000,
     });
 
-    const resp = await this.transport.request<{ events?: any[]; latest_event_id?: string | null }>({
+    const resp = await this.transport.request<{
+      events?: any[];
+      latest_event_id?: string | null;
+    }>({
       method: 'GET',
       path: `/events${query}`,
     });

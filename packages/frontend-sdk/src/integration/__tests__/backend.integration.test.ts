@@ -110,6 +110,79 @@ describeIf('backend integration (real FastAPI server + plugins + SDK)', () => {
     return messages.map((m) => `${m.index}:${m.message.role}:${m.message.content}`);
   }
 
+  function countMessagesByRole(messages: IndexedMessage[], role: string): number {
+    return messages.filter((m) => m.message.role === role).length;
+  }
+
+  async function seedSessionWithCompletedTurn(
+    backend: RestAgentBackend,
+    sessionId: string,
+    content: string,
+  ): Promise<void> {
+    await backend.sendMessage(sessionId, {
+      message: { role: 'user', content },
+      configOverrides: {
+        stream_chunk_count: 3,
+        stream_chunk_delay_ms: 20,
+      },
+    });
+
+    await waitForAsync(async () => {
+      const listed = await backend.listMessages(sessionId);
+      return listed.messages.some(
+        (m) => m.message.role === 'user' && m.message.content === content,
+      ) && listed.messages.some((m) => m.message.role === 'assistant');
+    }, { timeoutMs: 10000, intervalMs: 100 });
+  }
+
+  async function createCacheSnapshot(
+    backend: RestAgentBackend,
+    sessionId: string,
+  ): Promise<ReturnType<ChatController['getCacheSnapshot']>> {
+    const controller = new ChatController({ backend, sessionId });
+    await controller.loadMessagesFromRangeText({ startText: '-50', endText: '' });
+    controller.ensureEventStreamingStarted({
+      initialSinceId: controller.getSnapshot().eventsCursorId,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    return controller.getCacheSnapshot();
+  }
+
+  async function rehydrateAndOpenController(options: {
+    backend: RestAgentBackend;
+    sessionId: string;
+    cache: ReturnType<ChatController['getCacheSnapshot']>;
+  }): Promise<ChatController> {
+    const controller = new ChatController({
+      backend: options.backend,
+      sessionId: options.sessionId,
+    });
+    controller.hydrateFromCache(options.cache);
+    await controller.loadMessagesFromRangeText({ startText: '-50', endText: '' });
+    controller.ensureEventStreamingStarted({
+      initialSinceId: controller.getSnapshot().eventsCursorId,
+    });
+    return controller;
+  }
+
+  async function waitForCompletedTurn(options: {
+    controller: ChatController;
+    userContent: string;
+    initialAssistantCount: number;
+    timeoutMs?: number;
+  }): Promise<void> {
+    await waitFor(() => {
+      const snapshot = options.controller.getSnapshot();
+      return (
+        snapshot.activeRequestId == null &&
+        snapshot.messages.some(
+          (m) => m.message.role === 'user' && m.message.content === options.userContent,
+        ) &&
+        countMessagesByRole(snapshot.messages, 'assistant') > options.initialAssistantCount
+      );
+    }, { timeoutMs: options.timeoutMs ?? 15000, intervalMs: 50 });
+  }
+
   function indexPlugins(plugins: Array<{ id: string; [k: string]: any }>): Record<string, any> {
     const byId: Record<string, any> = {};
     for (const p of plugins) {
@@ -467,4 +540,296 @@ describeIf('backend integration (real FastAPI server + plugins + SDK)', () => {
       await startedA.stop();
     }
   }, 30000);
+
+  it('J: polling continues across backend restart while the same controller remains open', async () => {
+    const startedA = await startBackendServer({
+      config: serverConfig,
+      enableTestControl: true,
+    });
+    let startedB: Awaited<ReturnType<typeof startBackendServer>> | null = null;
+
+    try {
+      const eventBatches: Array<Array<{ type?: string }>> = [];
+      const baseTransport = new FetchTransport({
+        baseUrl: startedA.baseUrl,
+        defaultRequestTimeoutMs: 1000,
+        timeoutRules: [
+          {
+            method: 'GET',
+            pathPrefix: '/events',
+            timeoutMs: 1000,
+          },
+        ],
+      });
+      const transport = {
+        async request<T = any>(req: {
+          method: any;
+          path: string;
+          headers?: Record<string, string>;
+          body?: any;
+          timeoutMs?: number;
+        }): Promise<{ status: number; data: T }> {
+          const resp = await baseTransport.request<T>(req);
+          if (
+            String(req.method).toUpperCase() === 'GET' &&
+            req.path.startsWith('/events') &&
+            Array.isArray((resp.data as any)?.events) &&
+            (resp.data as any).events.length > 0
+          ) {
+            eventBatches.push((resp.data as any).events);
+          }
+          return resp;
+        },
+      };
+      const backend = new RestAgentBackend({ transport });
+      const sessionId = await createSession(backend);
+
+      await seedSessionWithCompletedTurn(backend, sessionId, 'before live restart');
+
+      const controller = new ChatController({ backend, sessionId });
+      await controller.loadMessagesFromRangeText({ startText: '-50', endText: '' });
+      controller.startEventStreaming({ initialSinceId: controller.getSnapshot().eventsCursorId });
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      const assistantCountBefore = countMessagesByRole(
+        controller.getSnapshot().messages,
+        'assistant',
+      );
+
+      await startedA.stop();
+      await new Promise((resolve) => setTimeout(resolve, 2200));
+
+      startedB = await startBackendServer({
+        config: serverConfig,
+        configPath: startedA.configPath,
+        sessionsRoot: startedA.sessionsRoot,
+        port: startedA.port,
+        enableTestControl: true,
+      });
+
+      await controller.sendMessage({
+        message: { role: 'user', content: 'after live restart' },
+        configOverrides: {
+          stream_chunk_count: 6,
+          stream_chunk_delay_ms: 80,
+        },
+      });
+
+      await waitForAsync(async () => {
+        const listed = await backend.listMessages(sessionId);
+        return listed.messages.some(
+          (m) => m.message.role === 'user' && m.message.content === 'after live restart',
+        ) && countMessagesByRole(listed.messages, 'assistant') > assistantCountBefore;
+      }, { timeoutMs: 15000, intervalMs: 100 });
+
+      await waitFor(() => eventBatches.length > 0, {
+        timeoutMs: 15000,
+        intervalMs: 50,
+      });
+
+      const observedEventTypes = eventBatches.flat().map((event) => event.type).filter(Boolean);
+      expect(observedEventTypes).toContain('message_appended');
+
+      await waitForCompletedTurn({
+        controller,
+        userContent: 'after live restart',
+        initialAssistantCount: assistantCountBefore,
+        timeoutMs: 20000,
+      });
+    } finally {
+      if (startedB) {
+        await startedB.stop();
+      }
+      await startedA.stop();
+    }
+  }, 40000);
+
+  it('K1: rehydrated cached session without restart can send and stream immediately', async () => {
+    await ensureServer();
+
+    const backend = new RestAgentBackend({
+      transport: new FetchTransport({ baseUrl }),
+    });
+    const sessionId = await createSession(backend);
+
+    await seedSessionWithCompletedTurn(backend, sessionId, 'cache seed without restart');
+
+    const cache = await createCacheSnapshot(backend, sessionId);
+    const controller = await rehydrateAndOpenController({ backend, sessionId, cache });
+
+    expect(controller.getSnapshot().messages.length).toBeGreaterThan(0);
+
+    const assistantCountBefore = countMessagesByRole(
+      controller.getSnapshot().messages,
+      'assistant',
+    );
+
+    await controller.sendMessage({
+      message: { role: 'user', content: 'rehydrated without restart' },
+      configOverrides: {
+        stream_chunk_count: 6,
+        stream_chunk_delay_ms: 80,
+      },
+    });
+
+    await waitForCompletedTurn({
+      controller,
+      userContent: 'rehydrated without restart',
+      initialAssistantCount: assistantCountBefore,
+    });
+  }, 30000);
+
+  it('K2: rehydrated cached session after backend restart can send and stream immediately', async () => {
+    const startedA = await startBackendServer({
+      config: serverConfig,
+      enableTestControl: true,
+    });
+    let startedB: Awaited<ReturnType<typeof startBackendServer>> | null = null;
+
+    try {
+      const backendA = new RestAgentBackend({
+        transport: new FetchTransport({ baseUrl: startedA.baseUrl }),
+      });
+      const sessionId = await createSession(backendA);
+
+      await seedSessionWithCompletedTurn(backendA, sessionId, 'cache seed before restart');
+      const cache = await createCacheSnapshot(backendA, sessionId);
+
+      await startedA.stop();
+
+      startedB = await startBackendServer({
+        config: serverConfig,
+        configPath: startedA.configPath,
+        sessionsRoot: startedA.sessionsRoot,
+        enableTestControl: true,
+      });
+
+      const backendB = new RestAgentBackend({
+        transport: new FetchTransport({ baseUrl: startedB.baseUrl }),
+      });
+      const controller = await rehydrateAndOpenController({ backend: backendB, sessionId, cache });
+
+      const assistantCountBefore = countMessagesByRole(
+        controller.getSnapshot().messages,
+        'assistant',
+      );
+
+      await controller.sendMessage({
+        message: { role: 'user', content: 'rehydrated after restart' },
+        configOverrides: {
+          stream_chunk_count: 6,
+          stream_chunk_delay_ms: 80,
+        },
+      });
+
+      await waitForCompletedTurn({
+        controller,
+        userContent: 'rehydrated after restart',
+        initialAssistantCount: assistantCountBefore,
+      });
+    } finally {
+      if (startedB) {
+        await startedB.stop();
+      }
+      await startedA.stop();
+    }
+  }, 40000);
+
+  it('K3: empty cached session without restart still reloads and can send immediately', async () => {
+    await ensureServer();
+
+    const backend = new RestAgentBackend({
+      transport: new FetchTransport({ baseUrl }),
+    });
+    const sessionId = await createSession(backend);
+
+    const cache = {
+      messages: [],
+      eventsCursorId: null,
+      activeRequestId: null,
+      updatedAtMs: null,
+    };
+
+    const controller = await rehydrateAndOpenController({ backend, sessionId, cache });
+    expect(controller.getSnapshot().messages).toEqual([]);
+
+    const assistantCountBefore = countMessagesByRole(
+      controller.getSnapshot().messages,
+      'assistant',
+    );
+
+    await controller.sendMessage({
+      message: { role: 'user', content: 'empty cache without restart' },
+      configOverrides: {
+        stream_chunk_count: 6,
+        stream_chunk_delay_ms: 80,
+      },
+    });
+
+    await waitForCompletedTurn({
+      controller,
+      userContent: 'empty cache without restart',
+      initialAssistantCount: assistantCountBefore,
+    });
+  }, 30000);
+
+  it('K4: empty cached session after backend restart still reloads and can send immediately', async () => {
+    const startedA = await startBackendServer({
+      config: serverConfig,
+      enableTestControl: true,
+    });
+    let startedB: Awaited<ReturnType<typeof startBackendServer>> | null = null;
+
+    try {
+      const backendA = new RestAgentBackend({
+        transport: new FetchTransport({ baseUrl: startedA.baseUrl }),
+      });
+      const sessionId = await createSession(backendA);
+
+      const cache = {
+        messages: [],
+        eventsCursorId: null,
+        activeRequestId: null,
+        updatedAtMs: null,
+      };
+
+      await startedA.stop();
+
+      startedB = await startBackendServer({
+        config: serverConfig,
+        configPath: startedA.configPath,
+        sessionsRoot: startedA.sessionsRoot,
+        enableTestControl: true,
+      });
+
+      const backendB = new RestAgentBackend({
+        transport: new FetchTransport({ baseUrl: startedB.baseUrl }),
+      });
+      const controller = await rehydrateAndOpenController({ backend: backendB, sessionId, cache });
+
+      const assistantCountBefore = countMessagesByRole(
+        controller.getSnapshot().messages,
+        'assistant',
+      );
+
+      await controller.sendMessage({
+        message: { role: 'user', content: 'empty cache after restart' },
+        configOverrides: {
+          stream_chunk_count: 6,
+          stream_chunk_delay_ms: 80,
+        },
+      });
+
+      await waitForCompletedTurn({
+        controller,
+        userContent: 'empty cache after restart',
+        initialAssistantCount: assistantCountBefore,
+      });
+    } finally {
+      if (startedB) {
+        await startedB.stop();
+      }
+      await startedA.stop();
+    }
+  }, 40000);
 });

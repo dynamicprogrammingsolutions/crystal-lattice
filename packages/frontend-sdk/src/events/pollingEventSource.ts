@@ -117,21 +117,11 @@ export class PollingEventSource {
       }
 
       if (events.length > 0) {
-        let maxId: string | null = this.sinceId;
-        for (const ev of events) {
-          const raw = (ev as any).event_id;
-          if (typeof raw !== 'string') continue;
-          if (maxId == null) {
-            maxId = raw;
-          } else {
-            const current = parseInt(maxId, 10);
-            const next = parseInt(raw, 10);
-            if (!Number.isNaN(next) && (Number.isNaN(current) || next > current)) {
-              maxId = raw;
-            }
-          }
-        }
-
+        const lastEvent = events[events.length - 1];
+        const maxId =
+          lastEvent && typeof (lastEvent as any).event_id === 'string'
+            ? (lastEvent as any).event_id
+            : this.sinceId;
         this.lastEventId = maxId;
         this.sinceId = maxId;
         this.onEvents(events);

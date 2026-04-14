@@ -18,6 +18,7 @@ import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import {
   deriveSessionListPresentationFromGroups,
   groupSessionListFields,
+  normalizeActionDisplayForSurface,
   pickDefaultAgentId,
   runApplicationAction,
   type RunActionContext,
@@ -255,8 +256,13 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         if (effects.some((effect) => effect.type === 'reloadSessionsList')) {
           await loadSessions();
         }
-        if (display) {
-          presentActionDisplay(display, context);
+        const normalizedDisplay = normalizeActionDisplayForSurface({
+          display,
+          surface: 'session_list_action',
+          host: 'mobile',
+        });
+        if (normalizedDisplay) {
+          presentActionDisplay(normalizedDisplay, context);
         }
       } finally {
         setActionLoading(false);

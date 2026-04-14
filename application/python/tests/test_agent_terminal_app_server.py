@@ -1688,6 +1688,7 @@ def test_events_endpoint_bootstrap_returns_latest_event_id(tmp_path: Path) -> No
     # The latest event id should correspond to the last event published
     # in the store.
     assert isinstance(latest_event_id, str) and latest_event_id
+    assert ":" in latest_event_id
 
 
 def test_events_endpoint_uses_session_cursor_as_default_since_id(tmp_path: Path) -> None:

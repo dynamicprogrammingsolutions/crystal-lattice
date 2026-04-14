@@ -109,3 +109,19 @@ def test_shared_event_store_shares_locks_between_applications(tmp_path: Path) ->
         xi = order.index(exit)
         assert xi == ei + 1
 
+
+def test_in_memory_event_store_replays_when_since_id_is_from_another_instance() -> None:
+    """Composite event ids reset safely across fresh store instances."""
+
+    first = InMemoryEventStore()
+    old_event = first.publish({"type": "debug_marker", "session_id": "s1"})
+    old_event_id = old_event.get("event_id")
+
+    second = InMemoryEventStore()
+    current = second.publish({"type": "message_appended", "session_id": "s1", "index": 0})
+
+    replayed = second.list(session_id="s1", since_id=old_event_id, limit=10)
+    returned_ids = [ev.get("event_id") for ev in replayed]
+
+    assert current.get("event_id") in returned_ids
+

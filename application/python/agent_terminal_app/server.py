@@ -2633,7 +2633,10 @@ def list_events(
     # return the entire history. Instead, expose only the latest
     # event_id so that clients can start polling from "now".
     if since_id is None and session_id is None and request_id is None:
-        return {"events": [], "latest_event_id": latest_event_id}
+        return {
+            "events": [],
+            "latest_event_id": latest_event_id,
+        }
 
     effective_since_id = since_id
     # When filtering by session but no since_id is provided, default to
@@ -2654,7 +2657,10 @@ def list_events(
     compacted = app_instance.compact_events(events)
     if len(compacted) > limit:
         compacted = compacted[:limit]
-    return {"events": compacted, "latest_event_id": latest_event_id}
+    return {
+        "events": compacted,
+        "latest_event_id": latest_event_id,
+    }
 
 
 @app.post("/requests/{request_id}/cancel")
