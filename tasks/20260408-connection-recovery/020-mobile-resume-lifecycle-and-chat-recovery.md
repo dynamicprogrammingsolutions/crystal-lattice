@@ -122,3 +122,20 @@ Added during completion.
   - `npm test -- --runInBand` in `mobile/crystal-lattice-control-rn`: passed.
   - Follow-up rerun `npm test -- --runInBand` in `mobile/crystal-lattice-control-rn`: passed.
   - `npx tsc --noEmit --project tsconfig.json` in `mobile/crystal-lattice-control-rn` still reports pre-existing `SessionChatScreen.tsx` attachment-side type errors unrelated to this recovery work.
+- Follow-up investigation:
+  - Added a real FastAPI + frontend SDK integration reproducer for reopened persisted sessions after backend restart in `packages/frontend-sdk/src/integration/__tests__/backend.integration.test.ts`.
+  - Extended `packages/frontend-sdk/src/integration/harness.ts` so restart-style tests can reuse an existing config file and sessions directory across backend processes.
+  - Verification for this follow-up is tracked separately from the earlier green runs, because the new restart regression test is intended to confirm whether older-session send visibility currently fails.
+  - Root cause and fix:
+    - Reopened sessions after backend restart could begin polling with a null cursor, allowing `/events` to keep reusing the server's moving default session cursor and skip the first post-reopen send events.
+    - Added an explicit polling bootstrap cursor path in the frontend SDK (`getLatestEventId()` plus `PollingEventSource` startup stabilization) so null-cursor sessions pin a stable lower bound before normal session polling begins.
+    - Updated `/events` responses to always include `latest_event_id`, which keeps the contract explicit and helps filtered polling callers stabilize empty responses.
+    - Tightened shared request-state reduction so `final` events clear `activeRequestId`, preventing reopened sessions from staying visually "stuck" after terminal assistant output arrives.
+    - Updated the backend integration harness/config to use the new repo-root system-message feature plugin package under `plugins/feature-system-message`.
+    - Changed `AgentApplication` startup to default the plugin cache directory relative to the config directory and to raise immediately for plugin resolution/import errors instead of degrading silently.
+  - Follow-up verification:
+    - `RUN_BACKEND_INTEGRATION=1 npx vitest run src/integration/__tests__/backend.integration.test.ts`: passed.
+    - `RUN_BACKEND_INTEGRATION=1 npx vitest run src/integration/__tests__/backend.integration.test.ts -t "I: reopened persisted sessions after backend restart keep the next user send visible before assistant final"`: passed.
+    - `npm test` in `packages/frontend-sdk`: passed (integration tests remain skipped unless `RUN_BACKEND_INTEGRATION=1` is set).
+    - `pytest core/python/tests/test_application_config_errors.py -q`: passed.
+    - `pytest application/python/tests/test_agent_terminal_app_server.py -q -k "events_endpoint_bootstrap_returns_latest_event_id or events_endpoint_uses_session_cursor_as_default_since_id or filtered_empty_response_still_includes_latest_event_id"`: passed.

@@ -2617,6 +2617,10 @@ def list_events(
     _maybe_block_events_for_tests()
 
     store = app_instance.get_event_store()
+    try:
+        latest_event_id = store.get_latest_event_id()
+    except AttributeError:  # pragma: no cover - defensive
+        latest_event_id = None
     # ``internal_limit`` bounds the number of raw events loaded from
     # the store so that compaction has sufficient context without
     # unbounded memory usage. ``limit`` caps the number of events
@@ -2629,11 +2633,6 @@ def list_events(
     # return the entire history. Instead, expose only the latest
     # event_id so that clients can start polling from "now".
     if since_id is None and session_id is None and request_id is None:
-        latest_event_id: Optional[str]
-        try:
-            latest_event_id = store.get_latest_event_id()
-        except AttributeError:  # pragma: no cover - defensive
-            latest_event_id = None
         return {"events": [], "latest_event_id": latest_event_id}
 
     effective_since_id = since_id
@@ -2655,7 +2654,7 @@ def list_events(
     compacted = app_instance.compact_events(events)
     if len(compacted) > limit:
         compacted = compacted[:limit]
-    return {"events": compacted}
+    return {"events": compacted, "latest_event_id": latest_event_id}
 
 
 @app.post("/requests/{request_id}/cancel")

@@ -23,6 +23,11 @@ export interface FeatureCompletion {
   [key: string]: any;
 }
 
+export interface ListEventsResult {
+  events: Event[];
+  latestEventId: string | null;
+}
+
 export interface BackendCapabilities {
   featureCompletions: boolean;
   sessionUiSchema: boolean;
@@ -125,7 +130,8 @@ export interface AgentBackend {
     sinceId?: string;
     requestId?: string;
     limit?: number;
-  }): Promise<Event[]>;
+  }): Promise<ListEventsResult>;
+  getLatestEventId(): Promise<string | null>;
 
   // --- Feature completions (optional) ---
   getFeatureCompletions?(sessionId: string, text: string): Promise<FeatureCompletion[]>;

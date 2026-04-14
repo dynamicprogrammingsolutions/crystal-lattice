@@ -260,7 +260,7 @@ export class RestAgentBackend implements AgentBackend {
     sinceId?: string;
     requestId?: string;
     limit?: number;
-  }): Promise<Event[]> {
+  }): Promise<{ events: Event[]; latestEventId: string | null }> {
     const query = buildQuery({
       session_id: params.sessionId,
       since_id: params.sinceId,
@@ -269,12 +269,23 @@ export class RestAgentBackend implements AgentBackend {
       internal_limit: 5000,
     });
 
-    const resp = await this.transport.request<{ events?: any[] }>({
+    const resp = await this.transport.request<{ events?: any[]; latest_event_id?: string | null }>({
       method: 'GET',
       path: `/events${query}`,
     });
     const events = Array.isArray(resp.data?.events) ? resp.data.events : [];
-    return events as Event[];
+    return {
+      events: events as Event[],
+      latestEventId: resp.data?.latest_event_id ?? null,
+    };
+  }
+
+  async getLatestEventId(): Promise<string | null> {
+    const resp = await this.transport.request<{ latest_event_id?: string | null }>({
+      method: 'GET',
+      path: '/events',
+    });
+    return resp.data?.latest_event_id ?? null;
   }
 
   async getSessionAgent(sessionId: string): Promise<string> {

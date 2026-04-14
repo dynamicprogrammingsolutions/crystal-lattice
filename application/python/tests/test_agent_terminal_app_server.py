@@ -1740,6 +1740,35 @@ def test_events_endpoint_uses_session_cursor_as_default_since_id(tmp_path: Path)
     assert cursor_id not in returned_ids
 
 
+def test_events_endpoint_filtered_empty_response_still_includes_latest_event_id(
+    tmp_path: Path,
+) -> None:
+    """Filtered /events responses include a bootstrap cursor even when empty."""
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    # Publish an unrelated event so the global store has a latest event id,
+    # while the target session still has no matching events after filtering.
+    other = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    other_session_id = other["session"]["session_id"]
+    marker = app.publish_event({"type": "debug_marker", "session_id": other_session_id})
+
+    resp = server_mod.list_events(session_id=session_id, app_instance=app)
+
+    assert resp.get("events") == []
+    assert resp.get("latest_event_id") == marker.get("event_id")
+
+
 def test_events_endpoint_compacts_partials(tmp_path: Path) -> None:
     """GET /events omits redundant partials when a final is present.
 

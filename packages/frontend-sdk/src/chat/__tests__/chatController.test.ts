@@ -6,7 +6,8 @@ describe('ChatController.ensureEventStreamingStarted', () => {
   it('starts polling for tail-following sessions with an initial snapshot', () => {
     const controller = new ChatController({
       backend: {
-        listEvents: async () => [],
+        listEvents: async () => ({ events: [], latestEventId: null }),
+        getLatestEventId: async () => null,
       } as any,
       sessionId: 's1',
       initialMessages: [
@@ -27,7 +28,8 @@ describe('ChatController.ensureEventStreamingStarted', () => {
   it('does not start polling for non-tail history windows', () => {
     const controller = new ChatController({
       backend: {
-        listEvents: async () => [],
+        listEvents: async () => ({ events: [], latestEventId: null }),
+        getLatestEventId: async () => null,
       } as any,
       sessionId: 's1',
       initialMessages: [

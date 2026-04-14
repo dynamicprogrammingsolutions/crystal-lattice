@@ -85,6 +85,8 @@ export async function startBackendServer(options: {
   config: Record<string, any>;
   enableTestControl?: boolean;
   env?: Record<string, string>;
+  configPath?: string;
+  sessionsRoot?: string;
 }): Promise<StartedServer> {
   const repoRoot = findRepoRoot(process.cwd());
   const runnerPath = path.join(repoRoot, 'scripts', 'run_backend_server_for_ts_integration_tests.py');
@@ -92,11 +94,16 @@ export async function startBackendServer(options: {
     throw new Error(`Missing runner script: ${runnerPath}`);
   }
 
-  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-backend-integration-'));
-  const sessionsRoot = path.join(tmpRoot, 'sessions');
+  const tmpRoot =
+    options.configPath && options.sessionsRoot
+      ? null
+      : fs.mkdtempSync(path.join(os.tmpdir(), 'cl-backend-integration-'));
+  const sessionsRoot = options.sessionsRoot ?? path.join(tmpRoot!, 'sessions');
   fs.mkdirSync(sessionsRoot, { recursive: true });
-  const configPath = path.join(tmpRoot, 'config.json');
-  fs.writeFileSync(configPath, JSON.stringify(options.config, null, 2), 'utf8');
+  const configPath = options.configPath ?? path.join(tmpRoot!, 'config.json');
+  if (!options.configPath) {
+    fs.writeFileSync(configPath, JSON.stringify(options.config, null, 2), 'utf8');
+  }
 
   const port = await getFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
@@ -112,6 +119,8 @@ export async function startBackendServer(options: {
     env: {
       ...process.env,
       ...(options.env || {}),
+      REPO_ROOT: repoRoot,
+      BUILTIN_PLUGINS: path.join(repoRoot, 'plugins'),
       PYTHONUNBUFFERED: '1',
     },
   });

@@ -40,7 +40,11 @@ export class PollingEventSource {
     this.lastEventId = options.initialSinceId;
     this.stopped = false;
     this.status = 'running';
-    this.schedulePoll(0);
+    if (options.initialSinceId == null) {
+      void this.bootstrapCursorAndSchedulePoll(this.generation);
+    } else {
+      this.schedulePoll(0);
+    }
   }
 
   stop(): void {
@@ -73,6 +77,25 @@ export class PollingEventSource {
     }, delayMs);
   }
 
+  private async bootstrapCursorAndSchedulePoll(generation: number): Promise<void> {
+    let latestEventId: string | null = null;
+    try {
+      latestEventId = await this.backend.getLatestEventId();
+    } catch {
+      latestEventId = null;
+    }
+
+    if (this.stopped || generation !== this.generation) {
+      return;
+    }
+
+    const stabilizedSinceId =
+      (typeof latestEventId === 'string' && latestEventId) ? latestEventId : '0';
+    this.sinceId = stabilizedSinceId;
+    this.lastEventId = stabilizedSinceId;
+    this.schedulePoll(0);
+  }
+
   private async pollOnce(): Promise<void> {
     if (this.stopped) return;
     const generation = this.generation;
@@ -82,10 +105,12 @@ export class PollingEventSource {
     }
 
     try {
-      const events = await this.backend.listEvents({
+      const result = await this.backend.listEvents({
         sessionId: this.sessionId,
         sinceId: this.sinceId ?? undefined,
       });
+      const events = result.events;
+      const latestEventId = result.latestEventId;
 
       if (this.stopped || generation !== this.generation) {
         return;
@@ -110,6 +135,9 @@ export class PollingEventSource {
         this.lastEventId = maxId;
         this.sinceId = maxId;
         this.onEvents(events);
+      } else if (typeof latestEventId === 'string' && latestEventId) {
+        this.lastEventId = latestEventId;
+        this.sinceId = latestEventId;
       }
 
       this.status = 'running';

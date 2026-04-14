@@ -32,7 +32,7 @@ describeIf('backend integration (real FastAPI server + plugins + SDK)', () => {
     },
     plugins: [
       'plugins.deterministic_stream_provider.DeterministicStreamProvider',
-      'plugins.system_message_feature.SystemMessageFeature',
+      'path:${env:REPO_ROOT}/plugins/feature-system-message',
     ],
     agents: {
       default: {
@@ -360,5 +360,111 @@ describeIf('backend integration (real FastAPI server + plugins + SDK)', () => {
     const snapshot = controller.getSnapshot();
     expect(snapshot.activeRequestId).toBeNull();
     expect(snapshot.messages.some((m) => m.message.role === 'assistant')).toBe(true);
+  }, 30000);
+
+  it('I: reopened persisted sessions after backend restart keep the next user send visible before assistant final', async () => {
+    const startedA = await startBackendServer({
+      config: serverConfig,
+      enableTestControl: true,
+    });
+    let startedB: Awaited<ReturnType<typeof startBackendServer>> | null = null;
+
+    try {
+      const backendA = new RestAgentBackend({
+        transport: new FetchTransport({ baseUrl: startedA.baseUrl }),
+      });
+      const sessionId = await createSession(backendA);
+
+      await backendA.sendMessage(sessionId, {
+        message: { role: 'user', content: 'history before restart' },
+        configOverrides: {
+          stream_chunk_count: 2,
+          stream_chunk_delay_ms: 20,
+        },
+      });
+
+      await waitForAsync(async () => {
+        const listed = await backendA.listMessages(sessionId);
+        return listed.messages.some((m) => m.message.role === 'assistant');
+      }, { timeoutMs: 10000, intervalMs: 100 });
+
+      await startedA.stop();
+
+      startedB = await startBackendServer({
+        config: serverConfig,
+        configPath: startedA.configPath,
+        sessionsRoot: startedA.sessionsRoot,
+        enableTestControl: true,
+      });
+
+      const eventBatches: Array<Array<{ type?: string }>> = [];
+      const baseTransportB = new FetchTransport({ baseUrl: startedB.baseUrl });
+      const observingTransport = {
+        async request<T = any>(req: {
+          method: any;
+          path: string;
+          headers?: Record<string, string>;
+          body?: any;
+          timeoutMs?: number;
+        }): Promise<{ status: number; data: T }> {
+          const resp = await baseTransportB.request<T>(req);
+          if (
+            String(req.method).toUpperCase() === 'GET' &&
+            req.path.startsWith('/events') &&
+            Array.isArray((resp.data as any)?.events) &&
+            (resp.data as any).events.length > 0
+          ) {
+            eventBatches.push((resp.data as any).events);
+          }
+          return resp;
+        },
+      };
+      const backendB = new RestAgentBackend({
+        transport: observingTransport,
+      });
+      const controller = new ChatController({ backend: backendB, sessionId });
+
+      await controller.loadMessagesFromRangeText({ startText: '-50', endText: '' });
+
+      const reopened = controller.getSnapshot();
+      expect(reopened.messages.some((m) => m.message.content === 'history before restart')).toBe(true);
+      expect(reopened.eventsCursorId).toBeNull();
+
+      controller.startEventStreaming({ initialSinceId: reopened.eventsCursorId });
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      await controller.sendMessage({
+        message: { role: 'user', content: 'after restart' },
+        configOverrides: {
+          stream_chunk_count: 6,
+          stream_chunk_delay_ms: 80,
+        },
+      });
+
+      await waitForAsync(async () => {
+        const listed = await backendB.listMessages(sessionId);
+        return listed.messages.some((m) => m.message.role === 'assistant');
+      }, { timeoutMs: 15000, intervalMs: 100 });
+
+      const replayEvents = await backendB.listEvents({ sessionId, sinceId: '0' });
+      expect(replayEvents.events.length).toBeGreaterThan(0);
+
+      await waitFor(() => {
+        const snapshot = controller.getSnapshot();
+        return (
+          snapshot.activeRequestId == null &&
+          snapshot.messages.some((m) => m.message.role === 'assistant') &&
+          snapshot.messages.some((m) => m.message.role === 'user' && m.message.content === 'after restart')
+        );
+      }, { timeoutMs: 15000, intervalMs: 50 });
+
+      const observedEventTypes = eventBatches.flat().map((event) => event.type).filter(Boolean);
+      expect(observedEventTypes).toContain('message_appended');
+    } finally {
+      if (startedB) {
+        await startedB.stop();
+      }
+      await startedA.stop();
+    }
   }, 30000);
 });
