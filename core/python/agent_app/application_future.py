@@ -158,13 +158,6 @@ class AgentApplication:
 
         plugin_cache_dir = resolved_config.get("plugin_cache_dir")
         if not (isinstance(plugin_cache_dir, str) and plugin_cache_dir.strip()):
-            self._config_errors.append(
-                {
-                    "type": "plugin_cache_dir_missing",
-                    "detail": "plugin_cache_dir is required when using the application plugin manager",
-                    "path": "plugin_cache_dir",
-                }
-            )
             # Use a deterministic directory near the config so tests and
             # local runs do not write into the developer's home unexpectedly.
             cache_path = Path(config_base_dir) / ".plugin_cache" / "plugins"
@@ -385,6 +378,8 @@ class AgentApplication:
             self._agent_plugin_runtimes[agent_id] = runtime
             self._agent_plugin_ids[agent_id] = runtime.default_enabled_ids
 
+        self._raise_for_fatal_plugin_errors()
+
     # ------------------------------------------------------------------
     # Helper methods (kept in the same order as application.AgentApplication)
     # ------------------------------------------------------------------
@@ -424,6 +419,31 @@ class AgentApplication:
             }
         )
         return [raw_value]
+
+    def _raise_for_fatal_plugin_errors(self) -> None:
+        fatal_errors = [
+            err
+            for err in self._config_errors
+            if isinstance(err, dict) and str(err.get("type") or "").startswith("plugin_")
+        ]
+        if not fatal_errors:
+            return
+
+        details: List[str] = []
+        for err in fatal_errors:
+            err_type = str(err.get("type") or "plugin_error")
+            path = err.get("path")
+            detail = err.get("detail")
+            parts = [err_type]
+            if isinstance(path, str) and path:
+                parts.append(path)
+            if isinstance(detail, str) and detail:
+                parts.append(detail)
+            details.append(" - ".join(parts))
+
+        raise RuntimeError(
+            "Plugin resolution failed:\n" + "\n".join(f"- {item}" for item in details)
+        )
 
     @staticmethod
     def _coerce_plugin_ids(
