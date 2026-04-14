@@ -242,6 +242,58 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
 
         return sanitized
 
+    def _sanitize_compacted_output_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
+        sanitized = dict(item)
+        content = sanitized.get("content")
+        if not isinstance(content, list):
+            return sanitized
+
+        cleaned_content: List[Dict[str, Any]] = []
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+            cleaned_part = dict(part)
+            cleaned_part.pop("annotations", None)
+            cleaned_part.pop("logprobs", None)
+
+            part_type = cleaned_part.get("type")
+            if part_type in {"input_text", "output_text", "text"}:
+                next_part: Dict[str, Any] = {"type": str(part_type)}
+                if isinstance(cleaned_part.get("text"), str):
+                    next_part["text"] = cleaned_part["text"]
+                cleaned_content.append(next_part)
+                continue
+
+            if part_type in {"input_image", "image_url"}:
+                next_part = {"type": str(part_type)}
+                if isinstance(cleaned_part.get("image_url"), (str, dict)):
+                    next_part["image_url"] = cleaned_part["image_url"]
+                if isinstance(cleaned_part.get("file_id"), str) and cleaned_part.get("file_id"):
+                    next_part["file_id"] = cleaned_part["file_id"]
+                if isinstance(cleaned_part.get("detail"), str) and cleaned_part.get("detail"):
+                    next_part["detail"] = cleaned_part["detail"]
+                cleaned_content.append(next_part)
+                continue
+
+            if part_type == "input_file":
+                next_part = {"type": "input_file"}
+                if isinstance(cleaned_part.get("file_url"), str) and cleaned_part.get("file_url"):
+                    next_part["file_url"] = cleaned_part["file_url"]
+                if isinstance(cleaned_part.get("file_id"), str) and cleaned_part.get("file_id"):
+                    next_part["file_id"] = cleaned_part["file_id"]
+                if isinstance(cleaned_part.get("file_data"), str) and cleaned_part.get("file_data"):
+                    next_part["file_data"] = cleaned_part["file_data"]
+                if isinstance(cleaned_part.get("filename"), str) and cleaned_part.get("filename"):
+                    next_part["filename"] = cleaned_part["filename"]
+                cleaned_content.append(next_part)
+                continue
+
+            cleaned_part.pop("text", None)
+            cleaned_content.append(cleaned_part)
+
+        sanitized["content"] = cleaned_content
+        return sanitized
+
     def _placeholder_transcript_enabled_for_config(
         self,
         config: Optional[Dict[str, Any]],
@@ -790,7 +842,11 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
         if not isinstance(output, list):
             raise RuntimeError("OpenAI Responses compact failed: missing output list in response")
 
-        new_native_messages = [item for item in output if isinstance(item, dict)]
+        new_native_messages = [
+            self._sanitize_compacted_output_item(item)
+            for item in output
+            if isinstance(item, dict)
+        ]
         if not new_native_messages:
             raise RuntimeError("OpenAI Responses compact failed: empty compacted output")
         new_native_messages = self._restore_leading_system_or_developer_message(

@@ -189,6 +189,72 @@ def test_compaction_action_uses_sdk_and_sanitizes_input(
     ]
 
 
+def test_compaction_sanitizes_output_before_storing_native_history(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ScriptedCompactionProvider.scripted_client = _ScriptedClient(
+        create_payloads=[],
+        compact_payload={
+            "id": "cmp_store_1",
+            "output": [
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": "hello"},
+                        {
+                            "type": "input_image",
+                            "image_url": "data:image/png;base64,AAA",
+                            "detail": "auto",
+                            "annotations": None,
+                            "logprobs": None,
+                            "text": None,
+                        },
+                    ],
+                }
+            ],
+        },
+    )
+    _patch_extension_client(monkeypatch)
+
+    extension = OpenAIResponsesNativeCompactionExtension()
+    session = Session(
+        session_id="session-store-1",
+        messages=[
+            Message(role="user", content="hello", metadata={"native_indices": [0]}),
+        ],
+    )
+    state = {
+        "config": _config(),
+    }
+    native_messages = [
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": "hello"}],
+        }
+    ]
+
+    result = extension.execute_action(
+        "compact_native_history",
+        session=session,
+        native_messages=native_messages,
+        params={},
+        context=None,
+        state=state,
+    )
+
+    stored_native = result["native_messages"]
+    assert stored_native[0]["content"] == [
+        {"type": "input_text", "text": "hello"},
+        {
+            "type": "input_image",
+            "image_url": "data:image/png;base64,AAA",
+            "detail": "auto",
+        },
+    ]
+
+
 def test_compaction_toggle_ui_label_depends_on_config() -> None:
     extension = OpenAIResponsesNativeCompactionExtension()
 
