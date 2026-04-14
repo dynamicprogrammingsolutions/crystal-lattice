@@ -476,6 +476,47 @@ def test_poll_new_events_compacts_partials(tmp_path: Path) -> None:
     assert "partial" not in types
 
 
+def test_poll_new_events_surfaces_cursor_expiry(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app.terminal_app import TerminalApplication
+
+    base_dir = Path(__file__).resolve().parent.parent / "agent_terminal_app"
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore(max_events_global=1)
+    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    term_app = TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    session = term_app.start_new_session(agent_id="default")
+    session_id = session.session_id
+
+    first = agent_app.publish_event(
+        {
+            "type": "message_appended",
+            "session_id": session_id,
+            "index": 0,
+        }
+    )
+    second = agent_app.publish_event(
+        {
+            "type": "checkpoint",
+            "session_id": session_id,
+        }
+    )
+
+    term_app._last_event_id = first.get("event_id")
+    events_list = term_app.poll_new_events(limit=10)
+
+    assert [ev.get("type") for ev in events_list] == ["events_cursor_expired"]
+    assert term_app._last_event_id == second.get("event_id")
+
+
 @pytest.mark.asyncio
 async def test_delete_slash_command_negative_range(tmp_path: Path) -> None:
     from agent_app.application_future import AgentApplication

@@ -89,6 +89,10 @@ export async function startBackendServer(options: {
   configPath?: string;
   sessionsRoot?: string;
   port?: number;
+  eventStoreOptions?: {
+    maxEventsGlobal?: number;
+    maxEventAgeSeconds?: number;
+  };
 }): Promise<StartedServer> {
   const repoRoot = findRepoRoot(process.cwd());
   const runnerPath = path.join(repoRoot, 'scripts', 'run_backend_server_for_ts_integration_tests.py');
@@ -112,6 +116,12 @@ export async function startBackendServer(options: {
 
   const python = process.env.PYTHON || 'python';
   const args = [runnerPath, '--config', configPath, '--sessions', sessionsRoot, '--port', String(port)];
+  if (typeof options.eventStoreOptions?.maxEventsGlobal === 'number') {
+    args.push('--max-events-global', String(options.eventStoreOptions.maxEventsGlobal));
+  }
+  if (typeof options.eventStoreOptions?.maxEventAgeSeconds === 'number') {
+    args.push('--max-event-age-seconds', String(options.eventStoreOptions.maxEventAgeSeconds));
+  }
   if (options.enableTestControl) {
     args.push('--enable-test-control');
   }

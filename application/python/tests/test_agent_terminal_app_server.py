@@ -42,6 +42,10 @@ from plugins.echo_openai_like_provider import EchoOpenAILikeProvider  # noqa: F4
 from tests.dummy_provider import CancellableBlockingProvider, DummyProvider  # noqa: F401
 
 
+def _store_events(store: Any, **kwargs: Any) -> list[Dict[str, Any]]:
+    return list((store.list(**kwargs) or {}).get("events") or [])
+
+
 def _make_multi_provider_echo_config(tmp_path: Path) -> Path:
     cfg: Dict[str, Any] = {
         "plugin_cache_dir": str(tmp_path / ".plugin_cache"),
@@ -97,7 +101,7 @@ def _make_blocking_provider_config(
 def _wait_for_request_completion(app: AgentApplication, session_id: str, timeout_seconds: float = 10.0) -> None:
     deadline = time.time() + timeout_seconds
     while time.time() < deadline:
-        events = app.get_event_store().list(session_id=session_id, limit=100)
+        events = _store_events(app.get_event_store(), session_id=session_id, limit=100)
         kinds = {ev.get("type") for ev in events}
         if "final" in kinds or "request_completed" in kinds:
             return
@@ -151,7 +155,7 @@ def test_server_flow_with_echo_provider(tmp_path: Path) -> None:
     deadline = time.time() + 30.0
     final_kinds: set[str] = set()
     while time.time() < deadline:
-        events = app.get_event_store().list(session_id=session_id, limit=100)
+        events = _store_events(app.get_event_store(), session_id=session_id, limit=100)
         final_kinds = {ev.get("type") for ev in events}
         if "final" in final_kinds or "request_completed" in final_kinds:
             break
@@ -175,7 +179,7 @@ def test_server_flow_with_echo_provider(tmp_path: Path) -> None:
     # the exact assistant content here.
 
     # 4) Basic check that events were recorded for this session.
-    events = app.get_event_store().list(session_id=session_id, limit=100)
+    events = _store_events(app.get_event_store(), session_id=session_id, limit=100)
     kinds = {ev.get("type") for ev in events}
     assert "session_created" in kinds
     assert "message_appended" in kinds
@@ -1113,7 +1117,7 @@ def test_run_send_request_background_helper_sends_and_persists(tmp_path: Path) -
     history = session_dict.get("messages") or []
     assert history, "expected at least one message in the final session"
 
-    evs = app.get_event_store().list(session_id=session_id, limit=100)
+    evs = _store_events(app.get_event_store(), session_id=session_id, limit=100)
     kinds = {ev.get("type") for ev in evs}
     assert "request_started" in kinds
     assert "final" in kinds or "request_completed" in kinds
@@ -1358,7 +1362,7 @@ def test_checkpoint_cursor_after_final_event(tmp_path: Path) -> None:
     # Run the helper synchronously to drive the non-streaming request.
     server_mod._run_send_request_background(app, session_id, {})
 
-    evs = app.get_event_store().list(session_id=session_id, limit=200)
+    evs = _store_events(app.get_event_store(), session_id=session_id, limit=200)
     final_events = [ev for ev in evs if ev.get("type") == "final"]
     checkpoint_events = [ev for ev in evs if ev.get("type") == "checkpoint"]
 
@@ -1368,15 +1372,7 @@ def test_checkpoint_cursor_after_final_event(tmp_path: Path) -> None:
     last_final = final_events[-1]
     last_checkpoint = checkpoint_events[-1]
 
-    def _to_int(value: Any) -> int:
-        try:
-            return int(value)
-        except Exception:
-            return -1
-
-    assert _to_int(last_checkpoint.get("event_id")) > _to_int(
-        last_final.get("event_id")
-    )
+    assert evs.index(last_checkpoint) > evs.index(last_final)
 
     resp = server_mod.list_session_messages(session_id, app_instance=app)
     assert resp["cursor_event_id"] == last_checkpoint.get("event_id")
@@ -1524,7 +1520,7 @@ def test_list_session_messages_includes_cursor_event_id_after_request(tmp_path: 
 
     server_mod._run_send_request_background(app, session_id, {})
 
-    evs = app.get_event_store().list(session_id=session_id, limit=100)
+    evs = _store_events(app.get_event_store(), session_id=session_id, limit=100)
     checkpoint_events = [ev for ev in evs if ev.get("type") == "checkpoint"]
     assert checkpoint_events, "expected at least one checkpoint event for the session"
     last_id = checkpoint_events[-1].get("event_id")
@@ -1628,7 +1624,7 @@ def test_list_session_messages_exposes_active_request_id_during_and_after_reques
     # Verify that at least one checkpoint exists with a non-null request_id
     # (during the request) and that the last checkpoint has request_id None
     # due to the post-completion marker.
-    evs = app.get_event_store().list(session_id=session_id, limit=200)
+    evs = _store_events(app.get_event_store(), session_id=session_id, limit=200)
     checkpoints = [ev for ev in evs if ev.get("type") == "checkpoint"]
     assert checkpoints, "expected checkpoint events for the session"
 
@@ -1689,6 +1685,7 @@ def test_events_endpoint_bootstrap_returns_latest_event_id(tmp_path: Path) -> No
     # in the store.
     assert isinstance(latest_event_id, str) and latest_event_id
     assert ":" in latest_event_id
+    assert resp.get("cursor_expired") is False
 
 
 def test_events_endpoint_uses_session_cursor_as_default_since_id(tmp_path: Path) -> None:
@@ -1739,6 +1736,7 @@ def test_events_endpoint_uses_session_cursor_as_default_since_id(tmp_path: Path)
     # Older events (including the checkpoint itself) should not be
     # included in this batch.
     assert cursor_id not in returned_ids
+    assert resp.get("cursor_expired") is False
 
 
 def test_events_endpoint_filtered_empty_response_still_includes_latest_event_id(
@@ -1768,6 +1766,39 @@ def test_events_endpoint_filtered_empty_response_still_includes_latest_event_id(
 
     assert resp.get("events") == []
     assert resp.get("latest_event_id") == marker.get("event_id")
+    assert resp.get("cursor_expired") is False
+
+
+def test_events_endpoint_reports_cursor_expired_for_pruned_same_store_cursor(
+    tmp_path: Path,
+) -> None:
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore(max_events_global=2)
+    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    first = app.publish_event({"type": "message_appended", "session_id": session_id, "index": 0})
+    second = app.publish_event({"type": "request_started", "session_id": session_id, "request_id": "r1"})
+    third = app.publish_event({"type": "checkpoint", "session_id": session_id})
+
+    resp = server_mod.list_events(
+        session_id=session_id,
+        since_id=first.get("event_id"),
+        app_instance=app,
+    )
+
+    returned_ids = [ev.get("event_id") for ev in (resp.get("events") or [])]
+    assert resp.get("cursor_expired") is True
+    assert resp.get("latest_event_id") == third.get("event_id")
+    assert second.get("event_id") in returned_ids
+    assert third.get("event_id") in returned_ids
 
 
 def test_events_endpoint_compacts_partials(tmp_path: Path) -> None:
@@ -2273,7 +2304,7 @@ def test_checkpoint_cursor_after_message_appended(tmp_path: Path) -> None:
     )
 
     # Inspect raw events for this session.
-    evs = app.get_event_store().list(session_id=session_id, limit=100)
+    evs = _store_events(app.get_event_store(), session_id=session_id, limit=100)
     appended = [ev for ev in evs if ev.get("type") == "message_appended"]
     checkpoints = [ev for ev in evs if ev.get("type") == "checkpoint"]
 
@@ -2287,15 +2318,7 @@ def test_checkpoint_cursor_after_message_appended(tmp_path: Path) -> None:
     assert isinstance(last_appended.get("index"), int)
     assert isinstance(last_appended.get("message"), dict)
 
-    def _to_int(value: Any) -> int:
-        try:
-            return int(value)
-        except Exception:
-            return -1
-
-    assert _to_int(last_checkpoint.get("event_id")) > _to_int(
-        last_appended.get("event_id")
-    )
+    assert evs.index(last_checkpoint) > evs.index(last_appended)
 
     # The messages endpoint should expose the same cursor_event_id.
     resp = server_mod.list_session_messages(session_id, app_instance=app)
@@ -2335,7 +2358,7 @@ def test_add_message_accepts_multipart_content_and_allows_empty_content(tmp_path
     assert last["content"] == ""
     assert last.get("multipartContent") == multipart
 
-    evs = app.get_event_store().list(session_id=session_id, limit=100)
+    evs = _store_events(app.get_event_store(), session_id=session_id, limit=100)
     appended = [ev for ev in evs if ev.get("type") == "message_appended"]
     assert appended, "expected message_appended event"
     msg = appended[-1].get("message")
@@ -2479,7 +2502,7 @@ def test_cancel_request_endpoint_cancels_active_provider_request(tmp_path: Path)
     saw_started = False
     saw_active = False
     while time.time() < deadline:
-        current_events = app.get_event_store().list(session_id=session_id, limit=100)
+        current_events = _store_events(app.get_event_store(), session_id=session_id, limit=100)
         kinds = {ev.get("type") for ev in current_events}
         if "request_started" in kinds:
             saw_started = True
@@ -2497,7 +2520,7 @@ def test_cancel_request_endpoint_cancels_active_provider_request(tmp_path: Path)
     deadline = time.time() + 5.0
     final_events: list[dict] = []
     while time.time() < deadline:
-        final_events = app.get_event_store().list(session_id=session_id, limit=100)
+        final_events = _store_events(app.get_event_store(), session_id=session_id, limit=100)
         kinds = {ev.get("type") for ev in final_events}
         if "request_completed" in kinds:
             break
@@ -2861,7 +2884,7 @@ def test_update_message_endpoint_modifies_content_and_emits_event(tmp_path: Path
     assert contents == ["system", "one", "two modified"]
 
     # Check that a message_modified event was recorded with the expected index.
-    evs = app.get_event_store().list(session_id=session_id, limit=100)
+    evs = _store_events(app.get_event_store(), session_id=session_id, limit=100)
     modified = [ev for ev in evs if ev.get("type") == "message_modified"]
     assert modified, "expected at least one message_modified event"
     last_ev = modified[-1]
@@ -3008,7 +3031,7 @@ def test_fork_session_endpoint_creates_truncated_copy(tmp_path: Path) -> None:
     assert forked_contents == ["system", "one", "two"]
 
     # A session_created event for the fork should be present.
-    evs = app.get_event_store().list(session_id=forked_id, limit=20)
+    evs = _store_events(app.get_event_store(), session_id=forked_id, limit=20)
     created = [ev for ev in evs if ev.get("type") == "session_created"]
     assert created, "expected a session_created event for forked session"
     assert created[-1].get("source_session_id") == source_id

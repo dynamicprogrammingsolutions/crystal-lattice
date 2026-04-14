@@ -173,7 +173,7 @@ def test_server_and_terminal_list_js_fs_tools_and_can_execute(
     }
     server_mod._run_send_request_background(app, session_id, overrides)
 
-    stored_events = app.get_event_store().list(session_id=session_id, limit=5000)
+    stored_events = (app.get_event_store().list(session_id=session_id, limit=5000).get("events") or [])
     kinds = {ev.get("type") for ev in stored_events}
     assert "tool_calls" in kinds
     assert "tool_results" in kinds

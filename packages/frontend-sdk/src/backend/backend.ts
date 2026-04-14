@@ -26,6 +26,7 @@ export interface FeatureCompletion {
 export interface ListEventsResult {
   events: Event[];
   latestEventId: string | null;
+  cursorExpired: boolean;
 }
 
 export interface BackendCapabilities {

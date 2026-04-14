@@ -43,6 +43,8 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--log-level", default="warning")
+    parser.add_argument("--max-events-global", type=int)
+    parser.add_argument("--max-event-age-seconds", type=float)
     parser.add_argument(
         "--enable-test-control",
         action="store_true",
@@ -67,7 +69,10 @@ def main() -> None:
     server_mod._agent_app = AgentApplication(
         str(config_path),
         str(sessions_root),
-        event_store=InMemoryEventStore(),
+        event_store=InMemoryEventStore(
+            max_events_global=args.max_events_global,
+            max_event_age_seconds=args.max_event_age_seconds,
+        ),
     )
 
     import uvicorn

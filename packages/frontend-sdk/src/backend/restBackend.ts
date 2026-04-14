@@ -260,7 +260,7 @@ export class RestAgentBackend implements AgentBackend {
     sinceId?: string;
     requestId?: string;
     limit?: number;
-  }): Promise<{ events: Event[]; latestEventId: string | null }> {
+  }): Promise<{ events: Event[]; latestEventId: string | null; cursorExpired: boolean }> {
     const query = buildQuery({
       session_id: params.sessionId,
       since_id: params.sinceId,
@@ -272,6 +272,7 @@ export class RestAgentBackend implements AgentBackend {
     const resp = await this.transport.request<{
       events?: any[];
       latest_event_id?: string | null;
+      cursor_expired?: boolean;
     }>({
       method: 'GET',
       path: `/events${query}`,
@@ -280,6 +281,7 @@ export class RestAgentBackend implements AgentBackend {
     return {
       events: events as Event[],
       latestEventId: resp.data?.latest_event_id ?? null,
+      cursorExpired: Boolean(resp.data?.cursor_expired),
     };
   }
 

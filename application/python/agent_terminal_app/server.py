@@ -2636,6 +2636,7 @@ def list_events(
         return {
             "events": [],
             "latest_event_id": latest_event_id,
+            "cursor_expired": False,
         }
 
     effective_since_id = since_id
@@ -2648,18 +2649,20 @@ def list_events(
         except Exception:  # pragma: no cover - defensive
             effective_since_id = None
 
-    events = store.list(
+    listed = store.list(
         since_id=effective_since_id,
         request_id=request_id,
         session_id=session_id,
         limit=internal_limit,
     )
+    events = listed.get("events") or []
     compacted = app_instance.compact_events(events)
     if len(compacted) > limit:
         compacted = compacted[:limit]
     return {
         "events": compacted,
         "latest_event_id": latest_event_id,
+        "cursor_expired": bool(listed.get("cursor_expired")),
     }
 
 

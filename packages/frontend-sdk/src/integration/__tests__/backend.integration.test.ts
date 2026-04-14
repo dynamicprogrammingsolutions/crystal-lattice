@@ -131,8 +131,14 @@ describeIf('backend integration (real FastAPI server + plugins + SDK)', () => {
       const listed = await backend.listMessages(sessionId);
       return listed.messages.some(
         (m) => m.message.role === 'user' && m.message.content === content,
-      ) && listed.messages.some((m) => m.message.role === 'assistant');
+      ) && listed.messages.some((m) => m.message.role === 'assistant') &&
+        listed.activeRequestId == null;
     }, { timeoutMs: 10000, intervalMs: 100 });
+
+    // The session-level active-send reservation is released just after the
+    // request completes; give the background worker a brief moment to clear it
+    // before the next seeded send starts.
+    await new Promise((resolve) => setTimeout(resolve, 150));
   }
 
   async function createCacheSnapshot(
@@ -145,7 +151,9 @@ describeIf('backend integration (real FastAPI server + plugins + SDK)', () => {
       initialSinceId: controller.getSnapshot().eventsCursorId,
     });
     await new Promise((resolve) => setTimeout(resolve, 150));
-    return controller.getCacheSnapshot();
+    const cache = controller.getCacheSnapshot();
+    controller.dispose();
+    return cache;
   }
 
   async function rehydrateAndOpenController(options: {
@@ -832,4 +840,63 @@ describeIf('backend integration (real FastAPI server + plugins + SDK)', () => {
       await startedA.stop();
     }
   }, 40000);
+
+  it('L: expired event cursors trigger automatic controller reload recovery', async () => {
+    const started = await startBackendServer({
+      config: serverConfig,
+      enableTestControl: true,
+      eventStoreOptions: {
+        maxEventsGlobal: 8,
+      },
+    });
+
+    try {
+      const backend = new RestAgentBackend({
+        transport: new FetchTransport({ baseUrl: started.baseUrl }),
+      });
+      const sessionId = await createSession(backend);
+
+      await seedSessionWithCompletedTurn(backend, sessionId, 'seed before expiry');
+
+      const cached = await createCacheSnapshot(backend, sessionId);
+      expect(cached.eventsCursorId).toBeTruthy();
+
+      await seedSessionWithCompletedTurn(backend, sessionId, 'after expiry one');
+      await seedSessionWithCompletedTurn(backend, sessionId, 'after expiry two');
+      await seedSessionWithCompletedTurn(backend, sessionId, 'after expiry three');
+
+      const expiredProbe = await backend.listEvents({
+        sessionId,
+        sinceId: cached.eventsCursorId ?? undefined,
+      });
+      expect(expiredProbe.cursorExpired).toBe(true);
+
+      const controller = new ChatController({
+        backend,
+        sessionId,
+        initialMessages: cached.messages,
+        initialEventsCursorId: cached.eventsCursorId,
+        initialActiveRequestId: cached.activeRequestId,
+      });
+
+      controller.startEventStreaming({ initialSinceId: cached.eventsCursorId });
+
+      await waitFor(() => {
+        const snapshot = controller.getSnapshot();
+        return (
+          snapshot.loading === false &&
+          snapshot.dirty === false &&
+          snapshot.eventsStatus === 'running' &&
+          snapshot.messages.some(
+            (m) => m.message.role === 'user' && m.message.content === 'after expiry three',
+          ) &&
+          countMessagesByRole(snapshot.messages, 'assistant') >= 4
+        );
+      }, { timeoutMs: 15000, intervalMs: 50 });
+
+      controller.dispose();
+    } finally {
+      await started.stop();
+    }
+  }, 30000);
 });

@@ -698,12 +698,25 @@ class TerminalApplication:
             return []
 
         store = self._app.get_event_store()
-        raw_events = store.list(
+        listed = store.list(
             since_id=self._last_event_id,
             request_id=None,
             session_id=session.session_id,
             limit=limit,
         )
+        raw_events = listed.get("events") or []
+        if listed.get("cursor_expired"):
+            latest_event_id = listed.get("latest_event_id")
+            if isinstance(latest_event_id, str) and latest_event_id:
+                self._last_event_id = latest_event_id
+            return [
+                {
+                    "type": "events_cursor_expired",
+                    "session_id": session.session_id,
+                    "message": "Event cursor expired; reload recommended.",
+                    "latest_event_id": latest_event_id,
+                }
+            ]
         events = self._app.compact_events(raw_events)
         if raw_events:
             last = raw_events[-1].get("event_id")
@@ -725,12 +738,12 @@ class TerminalApplication:
         """
         sid = session_id or self.session.session_id
         store = self._app.get_event_store()
-        return store.list(
+        return (store.list(
             since_id=since_id,
             request_id=request_id,
             session_id=sid,
             limit=limit,
-        )
+        ).get("events") or [])
 
     def get_feature_completions(self, text: str) -> List[Dict[str, Any]]:
         """Return feature-driven completion suggestions for the active session.
