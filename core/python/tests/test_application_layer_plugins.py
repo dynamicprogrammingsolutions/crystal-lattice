@@ -307,6 +307,54 @@ def test_duplicate_plugin_ids_follow_first_registration_wins(tmp_path: Path) -> 
     assert _core_plugin_names(core) == (["DummyProvider"], [], [], ["DummyCalculator"])
 
 
+def test_update_agent_recovers_when_previous_agent_is_missing(tmp_path: Path) -> None:
+    config = {
+        "providers": {
+            "primary": {"provider": "dummy_provider", "model": "test-model"}
+        },
+        "plugins": [
+            "tests.dummy_provider.DummyProvider",
+            "tests.dummy_feature.DummyFeature",
+            "tests.dummy_tool.DummyCalculator",
+        ],
+        "agents": {
+            "default": {
+                "provider": "primary",
+                "disabled_plugins": ["dummy_calculator"],
+            },
+            "other": {
+                "provider": "primary",
+                "disabled_plugins": ["dummy_feature"],
+            },
+        },
+    }
+
+    app = _make_app(tmp_path, config)
+
+    _core, _base_config, session = app.create_session("default")
+    broken_session = Session(
+        session_id=session.session_id,
+        messages=list(session.messages),
+        metadata={
+            **(session.metadata or {}),
+            "agent_id": "missing-agent",
+            "plugins": ["dummy_provider", "dummy_feature"],
+        },
+    )
+
+    switched_core, switched_base_config, switched_session = app.update_agent("other", broken_session)
+
+    assert switched_base_config["provider"] == "dummy_provider"
+    assert switched_session.metadata["agent_id"] == "other"
+    assert switched_session.metadata["plugins"] == ["dummy_provider", "dummy_calculator"]
+    assert _core_plugin_names(switched_core) == (
+        ["DummyProvider"],
+        [],
+        [],
+        ["DummyCalculator"],
+    )
+
+
 def test_load_session_raises_when_no_provider_enabled(tmp_path: Path) -> None:
     config = {
         "providers": {

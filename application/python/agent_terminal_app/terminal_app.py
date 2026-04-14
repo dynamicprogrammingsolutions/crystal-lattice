@@ -207,14 +207,26 @@ class TerminalApplication:
         if not isinstance(session_id, str) or not session_id:
             raise TerminalUserError("session_id must be a non-empty string")
 
-        ctx = self._app.load_session(session_id)
-        if ctx is None:
-            raise TerminalUserError(f"session {session_id!r} not found")
+        try:
+            ctx = self._app.load_session(session_id)
+        except KeyError as exc:
+            detail = exc.args[0] if exc.args and isinstance(exc.args[0], str) else str(exc)
+            if not (isinstance(detail, str) and detail.startswith("Unknown agent_id")):
+                raise
+            session = self._app.load_session_record(session_id)
+            if session is None:
+                raise TerminalUserError(f"session {session_id!r} not found") from exc
+            self._core = None
+            self._base_config = None
+            self._session = session
+        else:
+            if ctx is None:
+                raise TerminalUserError(f"session {session_id!r} not found")
 
-        core, base_config, session = ctx
-        self._core = core
-        self._base_config = base_config
-        self._session = session
+            core, base_config, session = ctx
+            self._core = core
+            self._base_config = base_config
+            self._session = session
         # Resume polling from the persisted cursor for this session so
         # that switching does not replay the entire event history.
         try:

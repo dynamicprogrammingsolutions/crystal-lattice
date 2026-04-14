@@ -2766,13 +2766,11 @@ def update_session_agent(
 
     try:
         with app_instance.acquire_session_lock(session_id):
-            ctx = app_instance.load_session(session_id)
-            if ctx is None:
+            session = app_instance.load_session_record(session_id)
+            if session is None:
                 raise KeyError(f"Session {session_id!r} not found")
 
-            _core, _base_config, session = ctx
-
-            core, base_config, new_session = app_instance.update_agent(
+            _core, _base_config, new_session = app_instance.update_agent(
                 target_agent_id, session
             )
 

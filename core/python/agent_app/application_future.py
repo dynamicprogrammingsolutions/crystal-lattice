@@ -556,6 +556,15 @@ class AgentApplication:
             raise KeyError(f"Unknown agent_id {agent_id!r}")
         return runtime
 
+    @staticmethod
+    def _is_unknown_agent_error(error: BaseException) -> bool:
+        if not isinstance(error, KeyError):
+            return False
+        if not error.args:
+            return False
+        detail = error.args[0]
+        return isinstance(detail, str) and detail.startswith("Unknown agent_id")
+
     def _configured_agent_plugin_ids(self, agent_id: str) -> Optional[List[str]]:
         agents = self._config.get("agents") if isinstance(self._config, dict) else {}
         agent_cfg = agents.get(agent_id) if isinstance(agents, dict) else None
@@ -1915,15 +1924,22 @@ class AgentApplication:
             "previous_agent_id": previous_agent_id if isinstance(previous_agent_id, str) else None,
             "next_agent_id": agent_id,
         }
+        previous_agent_unavailable = False
 
-        current_core, current_base_cfg, _current_config = self._resolve_runtime_for_session(session)
-        _prep_core, _prep_base_cfg, prepared_session, _prep_results = self.run_session_lifecycle(
-            "agent_switch_prepare",
-            session,
-            core=current_core,
-            base_config=current_base_cfg,
-            context=switch_context,
-        )
+        try:
+            current_core, current_base_cfg, _current_config = self._resolve_runtime_for_session(session)
+            _prep_core, _prep_base_cfg, prepared_session, _prep_results = self.run_session_lifecycle(
+                "agent_switch_prepare",
+                session,
+                core=current_core,
+                base_config=current_base_cfg,
+                context=switch_context,
+            )
+        except KeyError as exc:
+            if not self._is_unknown_agent_error(exc):
+                raise
+            previous_agent_unavailable = True
+            prepared_session = session
 
         metadata = prepared_session.metadata or {}
         switched_metadata = {**metadata, "agent_id": agent_id}
@@ -1956,6 +1972,11 @@ class AgentApplication:
             selected_provider_config=base_cfg,
             plugins_by_kind_and_id=plugin_runtime.plugins_by_kind_and_id,
         )
+        if previous_agent_unavailable:
+            switch_context = {
+                **switch_context,
+                "previous_agent_unavailable": True,
+            }
         core, base_cfg, switched_session, _results = self.run_session_lifecycle(
             "agent_switch_complete",
             switched_session,
