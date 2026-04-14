@@ -560,7 +560,9 @@ class SummarizeRangeAppPlugin:
                 "updated_session_ids": [session_id],
                 "deleted_session_ids": [],
             },
-            "ui_effects": {},
+            "ui_effects": {
+                "reload_session_ids": [session_id],
+            },
             "message": "Summarized messages in the selected range.",
         }
 
