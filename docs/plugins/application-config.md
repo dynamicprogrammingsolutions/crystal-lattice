@@ -5,6 +5,7 @@ This page explains how to configure plugins in the application. It covers the `p
 ## Overview
 
 - top-level `plugins`: global plugin package specs shared by all agents.
+- top-level `mixins`: reusable config fragments that can be applied to providers and agents.
 - provider-level `plugins`: additional plugin package specs for agents using that provider config.
 - agent-level `plugins`: additional plugin package specs for that agent only.
 - session metadata `plugins`: still means explicit enabled plugin ids, not plugin package specs.
@@ -13,6 +14,7 @@ This page explains how to configure plugins in the application. It covers the `p
 - `force_enabled_plugins`: config-level list of plugin ids to force-enable, overriding tag-based enablement logic (`is_enabled`, `required_tags`, `forbidden_tags`).
 - `plugin_cache_dir`: enables plugin installs and caching (for both `git+...` and `path:...`).
 - `plugin_policy`: controls installation and security policy (see Policy & Security).
+- `mixin_policy`: controls config-mixin merge defaults and recursion depth.
 
 ## Built-in Placeholder Environment Variables
 
@@ -59,6 +61,76 @@ These are especially useful for portable configs:
 - session metadata: explicit enabled plugin ids controlled by the existing session UI/API flow
 
 `disabled_plugins` is available at the top level, provider level, and agent level. It is always a list of plugin ids, never plugin package specs.
+
+## Config Mixins
+
+Application config supports reusable mixins for provider and agent entries.
+
+Top-level keys:
+
+- `mixins`: mapping of mixin id to config fragment
+- `mixin_policy.default_merge`: `"shallow"` (default) or `"deep"`
+- `mixin_policy.max_depth`: positive integer recursion limit, default `16`
+
+Per-provider, per-agent, and per-mixin keys:
+
+- `mixin_refs`: ordered list of mixin ids
+- `mixin_merge`: optional override for how that node merges its referenced mixins with its local keys
+
+Precedence rules:
+
+1. Referenced mixins are resolved recursively.
+2. Mixins are applied in `mixin_refs` order.
+3. Later mixins override earlier mixins.
+4. Keys defined directly on the provider/agent/mixin override mixin-provided keys.
+5. After mixin expansion, normal config layering still applies, so agent config overrides provider config on overlap.
+
+Merge rules:
+
+- `shallow`: replace whole top-level keys
+- `deep`: recursively merge dictionaries
+- for `deep`, lists and scalar values are still replaced rather than concatenated
+
+Example:
+
+```json
+{
+  "mixin_policy": {
+    "default_merge": "deep",
+    "max_depth": 16
+  },
+  "mixins": {
+    "portable-system-message": {
+      "system_message": {
+        "variables": {
+          "AGENTS": {
+            "text": "${file:${env:WORKING_DIR}/AGENTS.md}"
+          }
+        }
+      }
+    },
+    "openai-base": {
+      "mixin_refs": ["portable-system-message"],
+      "provider": "openai_compatible",
+      "model": "gpt-5-mini"
+    }
+  },
+  "providers": {
+    "openai": {
+      "mixin_refs": ["openai-base"],
+      "api_key": "${env:OPENAI_API_KEY}"
+    }
+  },
+  "agents": {
+    "default": {
+      "provider": "openai",
+      "system_message": {
+        "template": "{{AGENTS}}"
+      }
+    }
+  }
+}
+```
 
 ## System Message Templates
 

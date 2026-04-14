@@ -19,7 +19,7 @@ def test_application_raises_for_plugin_errors(tmp_path: Path, monkeypatch) -> No
     # Required provider envs
     monkeypatch.setenv("OPENAI_BASE_URL", "http://localhost:11434/v1")
     monkeypatch.setenv("OLLAMA_MODEL_TOOLS", "qwen3:0.6b")
-    with pytest.raises(RuntimeError, match="Plugin resolution failed"):
+    with pytest.raises(RuntimeError, match="Configuration resolution failed"):
         AgentApplication(str(temp_cfg), str(tmp_path / "sessions"))
 
 

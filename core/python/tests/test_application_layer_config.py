@@ -6,6 +6,7 @@ from agent_app.application_future import AgentApplication
 from agent_app.config import (
     build_config_resolution_env,
     load_raw_config,
+    resolve_config_mixins,
     resolve_placeholders,
     build_agent_config,
 )
@@ -44,6 +45,162 @@ def test_build_agent_config_merges_provider_and_agent():
     cfg = build_agent_config(resolved, "default")
     assert cfg["provider"] == "dummy_provider"
     assert cfg["model"] == "override"
+
+
+def test_resolve_config_mixins_applies_ordered_mixins_and_local_override():
+    resolved, errors = resolve_config_mixins(
+        {
+            "mixins": {
+                "base": {"model": "first", "temperature": 0.1},
+                "second": {"model": "second", "top_p": 0.9},
+            },
+            "providers": {
+                "dummy": {
+                    "provider": "dummy_provider",
+                    "mixin_refs": ["base", "second"],
+                    "model": "local",
+                }
+            },
+            "agents": {"default": {"provider": "dummy"}},
+        }
+    )
+
+    assert errors == []
+    provider = resolved["providers"]["dummy"]
+    assert provider["model"] == "local"
+    assert provider["temperature"] == 0.1
+    assert provider["top_p"] == 0.9
+    assert "mixin_refs" not in provider
+
+
+def test_resolve_config_mixins_supports_deep_merge():
+    resolved, errors = resolve_config_mixins(
+        {
+            "mixin_policy": {"default_merge": "deep"},
+            "mixins": {
+                "system-base": {
+                    "system_message": {
+                        "variables": {
+                            "A": {"text": "alpha"},
+                        }
+                    }
+                }
+            },
+            "providers": {
+                "dummy": {
+                    "provider": "dummy_provider",
+                    "mixin_refs": ["system-base"],
+                }
+            },
+            "agents": {
+                "default": {
+                    "provider": "dummy",
+                    "system_message": {
+                        "template": "{{A}} {{B}}",
+                        "variables": {
+                            "B": {"text": "beta"},
+                        },
+                    },
+                }
+            },
+        }
+    )
+
+    assert errors == []
+    cfg = build_agent_config(resolved, "default")
+    assert cfg["system_message"]["variables"]["A"]["text"] == "alpha"
+    assert cfg["system_message"]["variables"]["B"]["text"] == "beta"
+    assert cfg["system_message"]["template"] == "{{A}} {{B}}"
+
+
+def test_resolve_config_mixins_recursive_mixins_and_plugin_fields():
+    resolved, errors = resolve_config_mixins(
+        {
+            "mixins": {
+                "plugin-base": {"plugins": ["tests.dummy_provider.DummyProvider"]},
+                "provider-base": {
+                    "mixin_refs": ["plugin-base"],
+                    "provider": "dummy_provider",
+                    "model": "base-model",
+                },
+            },
+            "providers": {"dummy": {"mixin_refs": ["provider-base"]}},
+            "agents": {"default": {"provider": "dummy"}},
+        }
+    )
+
+    assert errors == []
+    provider = resolved["providers"]["dummy"]
+    assert provider["provider"] == "dummy_provider"
+    assert provider["model"] == "base-model"
+    assert provider["plugins"] == ["tests.dummy_provider.DummyProvider"]
+
+
+def test_resolve_config_mixins_reports_cycles():
+    _resolved, errors = resolve_config_mixins(
+        {
+            "mixins": {
+                "a": {"mixin_refs": ["b"], "model": "a"},
+                "b": {"mixin_refs": ["a"], "model": "b"},
+            },
+            "providers": {"dummy": {"mixin_refs": ["a"], "provider": "dummy_provider"}},
+            "agents": {"default": {"provider": "dummy"}},
+        }
+    )
+
+    assert any(err["type"] == "mixin_cycle" for err in errors)
+
+
+def test_resolve_config_mixins_reports_depth_limit():
+    _resolved, errors = resolve_config_mixins(
+        {
+            "mixin_policy": {"max_depth": 2},
+            "mixins": {
+                "a": {"mixin_refs": ["b"]},
+                "b": {"mixin_refs": ["c"]},
+                "c": {"model": "deep"},
+            },
+            "providers": {"dummy": {"mixin_refs": ["a"], "provider": "dummy_provider"}},
+            "agents": {"default": {"provider": "dummy"}},
+        }
+    )
+
+    assert any(err["type"] == "mixin_depth_exceeded" for err in errors)
+
+
+def test_resolve_config_mixins_shallow_merge_replaces_nested_dicts_by_default():
+    resolved, errors = resolve_config_mixins(
+        {
+            "mixins": {
+                "base": {
+                    "system_message": {
+                        "variables": {
+                            "A": {"text": "alpha"},
+                        }
+                    }
+                }
+            },
+            "providers": {"dummy": {"provider": "dummy_provider"}},
+            "agents": {
+                "default": {
+                    "provider": "dummy",
+                    "mixin_refs": ["base"],
+                    "system_message": {
+                        "template": "{{B}}",
+                        "variables": {
+                            "B": {"text": "beta"},
+                        },
+                    },
+                }
+            },
+        }
+    )
+
+    assert errors == []
+    cfg = build_agent_config(resolved, "default")
+    assert cfg["system_message"]["template"] == "{{B}}"
+    assert "A" not in cfg["system_message"]["variables"]
+    assert cfg["system_message"]["variables"]["B"]["text"] == "beta"
 
 
 def test_build_config_resolution_env_sets_derived_defaults(tmp_path, monkeypatch):
@@ -152,6 +309,25 @@ def test_agent_application_accepts_env_overrides(tmp_path):
 
     assert app._config["plugin_cache_dir"] == str(config_dir / "plugin-cache")
     assert app._agent_base_configs["default"]["working_directory"] == str(workspace_dir)
+
+
+def test_agent_application_rejects_invalid_mixin_configs(tmp_path):
+    cfg = {
+        "mixins": {"broken": {"mixin_refs": ["missing"], "model": "base"}},
+        "providers": {"dummy": {"mixin_refs": ["broken"], "provider": "dummy_provider"}},
+        "plugins": ["tests.dummy_provider.DummyProvider"],
+        "agents": {"default": {"provider": "dummy"}},
+    }
+    config_path = tmp_path / "config.json"
+    config_path.write_text(__import__("json").dumps(cfg), encoding="utf-8")
+
+    try:
+        AgentApplication(str(config_path), str(tmp_path / "sessions"), core_factory=AgentCore)
+    except RuntimeError as exc:
+        assert "Configuration resolution failed" in str(exc)
+        assert "mixin_missing" in str(exc)
+    else:  # pragma: no cover - defensive
+        raise AssertionError("Expected AgentApplication to reject invalid mixin config")
 
 
 def test_agent_application_resolves_system_message_config_values(tmp_path):

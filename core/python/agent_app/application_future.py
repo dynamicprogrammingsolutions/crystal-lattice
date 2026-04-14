@@ -19,6 +19,7 @@ from .config import (
     build_runtime_overlay_env,
     build_agent_config,
     load_raw_config,
+    resolve_config_mixins,
     resolve_placeholders,
     resolve_request_config,
 )
@@ -132,8 +133,9 @@ class AgentApplication:
             env_overrides=env_overrides,
         )
         resolved_config, placeholder_errors = resolve_placeholders(raw_config, env=resolution_env)
-        self._config: Dict[str, Any] = resolved_config
-        self._config_errors: List[Dict[str, Any]] = placeholder_errors
+        mixin_resolved_config, mixin_errors = resolve_config_mixins(resolved_config)
+        self._config: Dict[str, Any] = mixin_resolved_config
+        self._config_errors: List[Dict[str, Any]] = placeholder_errors + mixin_errors
         self._resolved_env: Dict[str, str] = dict(resolution_env)
         self._runtime_env_overlay = RuntimeEnvOverlay(
             build_runtime_overlay_env(config_path, env_overrides=env_overrides)
@@ -146,17 +148,17 @@ class AgentApplication:
         )
 
         plugin_specs = self._coerce_plugin_specs(
-            resolved_config.get("plugins"),
+            self._config.get("plugins"),
             "plugins",
             self._config_errors,
         )
         global_disabled_plugins = self._coerce_plugin_ids(
-            resolved_config.get("disabled_plugins"),
+            self._config.get("disabled_plugins"),
             "disabled_plugins",
             self._config_errors,
         )
 
-        plugin_cache_dir = resolved_config.get("plugin_cache_dir")
+        plugin_cache_dir = self._config.get("plugin_cache_dir")
         if not (isinstance(plugin_cache_dir, str) and plugin_cache_dir.strip()):
             # Use a deterministic directory near the config so tests and
             # local runs do not write into the developer's home unexpectedly.
@@ -166,13 +168,13 @@ class AgentApplication:
             if not cache_path.is_absolute():
                 cache_path = Path(config_base_dir) / cache_path
 
-        plugin_policy_in = resolved_config.get("plugin_policy") or {}
+        plugin_policy_in = self._config.get("plugin_policy") or {}
         plugin_policy: Dict[str, Any] = dict(plugin_policy_in) if isinstance(plugin_policy_in, dict) else {}
         plugin_policy.setdefault("base_dir", config_base_dir)
 
         mgr = PluginManager(cache_dir=cache_path, policy=plugin_policy)
 
-        providers_cfg = resolved_config.get("providers") or {}
+        providers_cfg = self._config.get("providers") or {}
         provider_plugin_specs: Dict[str, List[Any]] = {}
         provider_disabled_plugins: Dict[str, List[str]] = {}
         if isinstance(providers_cfg, dict):
@@ -190,7 +192,7 @@ class AgentApplication:
                     self._config_errors,
                 )
 
-        agents = resolved_config.get("agents") or {}
+        agents = self._config.get("agents") or {}
         agent_plugin_specs: Dict[str, List[Any]] = {}
         agent_disabled_plugins: Dict[str, List[str]] = {}
         if isinstance(agents, dict):
@@ -271,7 +273,7 @@ class AgentApplication:
             if plugin_id in self._app_plugins:
                 continue
             wrapper = ApplicationPluginWrapper(plugin_id=plugin_id, plugin_class=plugin_class)
-            wrapper.init(resolved_config)
+            wrapper.init(self._config)
             self._app_plugins[plugin_id] = wrapper
 
         session_root_path = Path(session_root)
@@ -299,7 +301,7 @@ class AgentApplication:
         for agent_id, agent_cfg in agents.items():
             if not isinstance(agent_cfg, dict):
                 continue
-            self._agent_base_configs[agent_id] = build_agent_config(resolved_config, agent_id)
+            self._agent_base_configs[agent_id] = build_agent_config(self._config, agent_id)
 
             provider_name = agent_cfg.get("provider")
             provider_spec_list = (
@@ -378,7 +380,7 @@ class AgentApplication:
             self._agent_plugin_runtimes[agent_id] = runtime
             self._agent_plugin_ids[agent_id] = runtime.default_enabled_ids
 
-        self._raise_for_fatal_plugin_errors()
+        self._raise_for_fatal_config_errors()
 
     # ------------------------------------------------------------------
     # Helper methods (kept in the same order as application.AgentApplication)
@@ -420,11 +422,15 @@ class AgentApplication:
         )
         return [raw_value]
 
-    def _raise_for_fatal_plugin_errors(self) -> None:
+    def _raise_for_fatal_config_errors(self) -> None:
         fatal_errors = [
             err
             for err in self._config_errors
-            if isinstance(err, dict) and str(err.get("type") or "").startswith("plugin_")
+            if isinstance(err, dict)
+            and (
+                str(err.get("type") or "").startswith("plugin_")
+                or str(err.get("type") or "").startswith("mixin_")
+            )
         ]
         if not fatal_errors:
             return
@@ -442,7 +448,7 @@ class AgentApplication:
             details.append(" - ".join(parts))
 
         raise RuntimeError(
-            "Plugin resolution failed:\n" + "\n".join(f"- {item}" for item in details)
+            "Configuration resolution failed:\n" + "\n".join(f"- {item}" for item in details)
         )
 
     @staticmethod
