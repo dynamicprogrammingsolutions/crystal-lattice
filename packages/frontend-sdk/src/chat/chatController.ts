@@ -239,6 +239,37 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     }
   }
 
+  private restartEventStreamingFromNullCursor(): void {
+    const current = this.getSnapshot();
+    this.setSnapshot({
+      ...current,
+      eventsCursorId: null,
+      listCursorEventId: null,
+      eventsStatus: 'idle',
+    });
+    this.startEventStreaming({ initialSinceId: null });
+  }
+
+  private handleCursorExpiry(): void {
+    const current = this.getSnapshot();
+    const expiredSnapshotCursor =
+      current.eventsCursorId != null &&
+      current.eventsCursorId === current.listCursorEventId;
+
+    if (expiredSnapshotCursor) {
+      this.restartEventStreamingFromNullCursor();
+      return;
+    }
+
+    this.setSnapshot({
+      ...current,
+      eventsStatus: 'expired',
+    });
+    void this.recoverAfterCursorExpiry().catch(() => {
+      // Keep the expired status visible if reload fails.
+    });
+  }
+
   ensureEventStreamingStarted(options: { initialSinceId?: string | null } = {}): void {
     const snapshot = this.getSnapshot();
     if (snapshot.loading || !snapshot.followTail || this.isEventStreaming()) {
@@ -358,13 +389,7 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
         });
       },
       onCursorExpired: () => {
-        this.setSnapshot({
-          ...this.getSnapshot(),
-          eventsStatus: source.getStatus(),
-        });
-        void this.recoverAfterCursorExpiry().catch(() => {
-          // Keep the expired status visible if reload fails.
-        });
+        this.handleCursorExpiry();
       },
     });
     this.setSnapshot({ ...this.getSnapshot(), eventsStatus: source.getStatus() });

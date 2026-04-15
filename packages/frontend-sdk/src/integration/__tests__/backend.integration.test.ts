@@ -899,4 +899,76 @@ describeIf('backend integration (real FastAPI server + plugins + SDK)', () => {
       await started.stop();
     }
   }, 30000);
+
+  it('M: expired snapshot cursor does not trigger a /messages reload loop', async () => {
+    const started = await startBackendServer({
+      config: serverConfig,
+      enableTestControl: true,
+      eventStoreOptions: {
+        maxEventsGlobal: 8,
+      },
+    });
+
+    try {
+      const setupBackend = new RestAgentBackend({
+        transport: new FetchTransport({ baseUrl: started.baseUrl }),
+      });
+      const sessionId = await createSession(setupBackend);
+
+      await seedSessionWithCompletedTurn(setupBackend, sessionId, 'stale cursor target');
+      const cached = await createCacheSnapshot(setupBackend, sessionId);
+      expect(cached.eventsCursorId).toBeTruthy();
+
+      for (let idx = 0; idx < 4; idx += 1) {
+        const noisySessionId = await createSession(setupBackend);
+        await seedSessionWithCompletedTurn(setupBackend, noisySessionId, `noise ${idx}`);
+      }
+
+      const expiredProbe = await setupBackend.listEvents({
+        sessionId,
+        sinceId: cached.eventsCursorId ?? undefined,
+      });
+      expect(expiredProbe.cursorExpired).toBe(true);
+
+      const tracking = new TrackingTransport(
+        new FetchTransport({ baseUrl: started.baseUrl }),
+      );
+      const backend = new RestAgentBackend({ transport: tracking });
+      const controller = new ChatController({
+        backend,
+        sessionId,
+        initialMessages: cached.messages,
+        initialEventsCursorId: cached.eventsCursorId,
+        initialActiveRequestId: cached.activeRequestId,
+      });
+
+      const listPath = `/sessions/${encodeURIComponent(sessionId)}/messages`;
+      await controller.loadMessagesFromRangeText({ startText: '-50', endText: '' });
+      controller.ensureEventStreamingStarted({
+        initialSinceId: controller.getSnapshot().eventsCursorId,
+      });
+
+      await waitFor(() => {
+        const snapshot = controller.getSnapshot();
+        return (
+          snapshot.loading === false &&
+          snapshot.eventsStatus === 'running' &&
+          snapshot.eventsCursorId == null &&
+          snapshot.listCursorEventId == null
+        );
+      }, { timeoutMs: 5000, intervalMs: 50 });
+
+      await new Promise((resolve) => setTimeout(resolve, 2200));
+
+      expect(tracking.getCount({ method: 'GET', pathPrefix: listPath })).toBe(1);
+      expect(
+        controller.getSnapshot().messages.some(
+          (m) => m.message.role === 'user' && m.message.content === 'stale cursor target',
+        ),
+      ).toBe(true);
+      controller.dispose();
+    } finally {
+      await started.stop();
+    }
+  }, 30000);
 });
