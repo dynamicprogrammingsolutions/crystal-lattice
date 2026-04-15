@@ -9,17 +9,21 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from agent_core import AgentCore
 from agent_core.plugin import ToolWrapper
+from agent_core.types import ProviderPlugin, ToolPlugin
 
 from gemini_tools import GeminiWebFetchTool
 from gemini_tools.gemini_web_fetch_tool import _rate_limit_cache
 from web_fetch_shared import LRUCache
+from plugins.openai_tools_extension import OpenAIToolsExtension
+from plugins.request_options_feature import RequestOptionsFeature
+from plugins.tool_gating_feature import ToolGatingFeature
 
 
 def _make_wrapper(
@@ -36,6 +40,143 @@ def _make_wrapper(
         cfg["gemini_api_key"] = api_key
     state = wrapper.init(cfg)
     return wrapper, state
+
+
+class RecordingOpenAIProvider(ProviderPlugin):
+    """Test provider that records the effective internal request payload."""
+
+    name = "recording_openai_provider"
+    version = "1.0.0"
+
+    last_payload: Optional[Dict[str, Any]] = None
+    last_user_message: Optional[str] = None
+    call_count: int = 0
+
+    @classmethod
+    def reset(cls) -> None:
+        cls.last_payload = None
+        cls.last_user_message = None
+        cls.call_count = 0
+
+    def get_config_schema(self) -> Dict[str, Any]:
+        return {"model": {"type": "string", "required": True}}
+
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        return []
+
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        return {"config": dict(config)}
+
+    def get_tags(
+        self, config: Dict[str, Any], models: List[Dict[str, Any]]
+    ) -> List[str]:
+        return ["provider:openai_compatible", "supports_tools"]
+
+    def to_native_messages(
+        self,
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        return list(messages)
+
+    def from_native_messages(
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        return list(native_messages)
+
+    def initialize_request(
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        config = state.get("config") or {}
+        payload = {"model": config.get("model", "test-model")}
+        return list(native_messages), {
+            **state,
+            "request": {"payload": payload},
+        }
+
+    def call_api(
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
+        payload = dict((state.get("request") or {}).get("payload") or {})
+        last_user_message = None
+        for message in reversed(native_messages):
+            if message.get("role") != "user":
+                continue
+            content = message.get("content")
+            if isinstance(content, str):
+                last_user_message = content
+                break
+
+        type(self).last_payload = payload
+        type(self).last_user_message = last_user_message
+        type(self).call_count += 1
+
+        assistant = {
+            "role": "assistant",
+            "content": "recorded-summary",
+            "metadata": {
+                "payload": payload,
+                "last_user_message": last_user_message,
+            },
+        }
+        return [], [assistant], [*native_messages, assistant], state
+
+    def stream_api(
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Iterator[Dict[str, Any]]:
+        yield from []
+
+
+class DummyPingTool(ToolPlugin):
+    """Simple extra tool so the internal request has something real to suppress."""
+
+    name = "dummy_ping_tool"
+    version = "1.0.0"
+
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        return {}
+
+    def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "dummy_ping",
+                    "description": "Return a fixed ping response.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                    },
+                },
+            }
+        ]
+
+    def execute_tool(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return {"success": True, "result": "pong"}
+
+    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
+        return result.get("result", "")
 
 
 class TestSchema:
@@ -827,6 +968,84 @@ class TestToolPipeline:
         assert len(messages) == 1
         assert messages[0]["role"] == "tool"
         assert messages[0]["metadata"]["tool_name"] == "web_fetch"
+
+    def test_fallback_internal_summary_uses_tool_gating_and_keeps_prompt_semantics(
+        self, tmp_path: Path
+    ) -> None:
+        """Fallback summarization should disable tools without changing Gemini wording."""
+        from web_fetch_shared import FetchResult
+
+        RecordingOpenAIProvider.reset()
+
+        core = AgentCore()
+        core.register_provider(RecordingOpenAIProvider, extensions=[OpenAIToolsExtension])
+        core.register_feature(RequestOptionsFeature)
+        core.register_feature(ToolGatingFeature)
+        core.register_tool(GeminiWebFetchTool)
+        core.register_tool(DummyPingTool)
+
+        config = {
+            "model": "test-model",
+            "gemini_api_key": "test-key",
+            "web_fetch_use_gemini_api": False,
+            "web_fetch_fallback_settings_overrides": {
+                "model": "fallback-model",
+            },
+            "request_options": {"temperature": 0.2},
+        }
+
+        available_tools = core.get_available_tools(config)
+        available_tool_names = [descriptor.tool_name for descriptor in available_tools]
+
+        assert "web_fetch" in available_tool_names
+        assert "dummy_ping" in available_tool_names
+
+        mock_result = FetchResult(
+            content="Fetched article body",
+            content_type="text/plain",
+            status_code=200,
+            headers={},
+            url="https://example.com",
+        )
+
+        with patch(
+            "gemini_tools.gemini_web_fetch_tool.fetch_url", return_value=mock_result
+        ):
+            tool_messages = core.execute_tool_calls(
+                [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": "web_fetch",
+                            "arguments": {
+                                "prompt": "Summarize https://example.com carefully."
+                            },
+                        },
+                    }
+                ],
+                config,
+            )
+
+        assert len(tool_messages) == 1
+        assert tool_messages[0]["role"] == "tool"
+        assert "recorded-summary" in tool_messages[0]["content"]
+        assert RecordingOpenAIProvider.call_count == 1
+        assert RecordingOpenAIProvider.last_payload is not None
+        assert RecordingOpenAIProvider.last_user_message is not None
+
+        payload = RecordingOpenAIProvider.last_payload
+        prompt = RecordingOpenAIProvider.last_user_message
+
+        assert payload["model"] == "fallback-model"
+        assert payload["temperature"] == 0.2
+        assert "tools" not in payload
+        assert payload["tool_choice"] == "none"
+
+        assert 'The user requested: "Summarize https://example.com carefully."' in prompt
+        assert "I was unable to access the URL directly via the Gemini API." in prompt
+        assert "Do not attempt to access the URL again." in prompt
+        assert "---\nFetched article body\n---" in prompt
 
 
 if __name__ == "__main__":
