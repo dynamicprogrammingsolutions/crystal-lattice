@@ -112,11 +112,8 @@ export function reduceStreamingState(state: StreamingState, event: Event): Strea
   }
 
   if (type === 'final') {
-    const rid = typeof (event as any).request_id === 'string' ? (event as any).request_id : null;
-    const current = state.activeRequestId;
     return {
       ...state,
-      activeRequestId: rid == null || current == null || current === rid ? null : current,
       streamingRow: null,
     };
   }

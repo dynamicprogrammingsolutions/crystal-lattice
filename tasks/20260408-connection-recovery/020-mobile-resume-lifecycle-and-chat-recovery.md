@@ -130,7 +130,7 @@ Added during completion.
     - Reopened sessions after backend restart could begin polling with a null cursor, allowing `/events` to keep reusing the server's moving default session cursor and skip the first post-reopen send events.
     - Added an explicit polling bootstrap cursor path in the frontend SDK (`getLatestEventId()` plus `PollingEventSource` startup stabilization) so null-cursor sessions pin a stable lower bound before normal session polling begins.
     - Updated `/events` responses to always include `latest_event_id`, which keeps the contract explicit and helps filtered polling callers stabilize empty responses.
-    - Tightened shared request-state reduction so `final` events clear `activeRequestId`, preventing reopened sessions from staying visually "stuck" after terminal assistant output arrives.
+    - Shared request-state handling was temporarily tightened so `final` events also cleared `activeRequestId`, but that change was later reverted because it changed UI semantics incorrectly; request state now remains tied to `request_completed` / `request_cancelled`, while the restart/reopen bugs are handled by the lower-level event cursor fixes.
     - Updated the backend integration harness/config to use the new repo-root system-message feature plugin package under `plugins/feature-system-message`.
     - Changed `AgentApplication` startup to default the plugin cache directory relative to the config directory and to raise immediately for plugin resolution/import errors instead of degrading silently.
   - Follow-up verification:
