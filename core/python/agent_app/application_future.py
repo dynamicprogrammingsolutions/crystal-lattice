@@ -4,14 +4,14 @@ from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Set, Tuple, cast
+from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Sequence, Set, Tuple, cast
 import uuid
 from contextlib import contextmanager
 from datetime import datetime
 import os
 import threading
 
-from agent_core import AgentCore, Session
+from agent_core import AgentCore, Message, Session
 from agent_core.plugin.loader import validate_plugin_for_kind
 
 from .app_plugins import ApplicationPluginWrapper
@@ -112,6 +112,16 @@ class AgentApplication:
     Structure and helper method names intentionally mirror the original
     application-layer implementation so it can be compared easily.
     """
+
+    _PROTECTED_SESSION_METADATA_KEYS = frozenset(
+        {
+            "agent_id",
+            "plugins",
+            "native_messages",
+            "native_messages_integrity",
+        }
+    )
+    _MISSING_METADATA = object()
 
     def __init__(
         self,
@@ -837,8 +847,12 @@ class AgentApplication:
 
     @staticmethod
     def _session_messages_digest(session: Session) -> str:
+        return AgentApplication._messages_digest(session.messages)
+
+    @staticmethod
+    def _messages_digest(messages: Sequence[Message]) -> str:
         payload = json.dumps(
-            [message.to_dict() for message in session.messages],
+            [message.to_dict() for message in messages],
             sort_keys=True,
             separators=(",", ":"),
         ).encode("utf-8")
@@ -858,6 +872,56 @@ class AgentApplication:
         metadata = session.metadata if isinstance(session.metadata, dict) else {}
         raw = metadata.get("overrides")
         return raw if isinstance(raw, dict) else {}
+
+    @classmethod
+    def _protected_session_metadata(cls, session: Session) -> Dict[str, Any]:
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        return {
+            key: value
+            for key, value in metadata.items()
+            if key in cls._PROTECTED_SESSION_METADATA_KEYS
+        }
+
+    @classmethod
+    def _merge_non_protected_session_metadata(
+        cls,
+        *,
+        baseline_session: Session,
+        stored_session: Session,
+        current_session: Session,
+    ) -> Dict[str, Any]:
+        baseline_metadata = (
+            dict(baseline_session.metadata)
+            if isinstance(baseline_session.metadata, dict)
+            else {}
+        )
+        stored_metadata = (
+            dict(stored_session.metadata)
+            if isinstance(stored_session.metadata, dict)
+            else {}
+        )
+        current_metadata = (
+            dict(current_session.metadata)
+            if isinstance(current_session.metadata, dict)
+            else {}
+        )
+
+        merged_metadata = dict(current_metadata)
+        all_keys = set(baseline_metadata) | set(stored_metadata) | set(current_metadata)
+        for key in all_keys:
+            if key in cls._PROTECTED_SESSION_METADATA_KEYS:
+                continue
+
+            baseline_value = baseline_metadata.get(key, cls._MISSING_METADATA)
+            stored_value = stored_metadata.get(key, cls._MISSING_METADATA)
+
+            if stored_value != baseline_value:
+                if stored_value is cls._MISSING_METADATA:
+                    merged_metadata.pop(key, None)
+                else:
+                    merged_metadata[key] = stored_value
+
+        return merged_metadata
 
     def _save_session_conflict_backup(
         self,
@@ -937,7 +1001,7 @@ class AgentApplication:
                 f"Backup saved to {backup_path}"
             )
 
-        if self._metadata_without_overrides(stored_session) != self._metadata_without_overrides(
+        if self._protected_session_metadata(stored_session) != self._protected_session_metadata(
             baseline.session
         ):
             backup_path = self._save_session_conflict_backup(
@@ -945,20 +1009,15 @@ class AgentApplication:
                 request_id=request_id,
             )
             raise ToolLoopCheckpointError(
-                "Concurrent session modification detected; non-settings metadata changed. "
+                "Concurrent session modification detected; protected metadata changed. "
                 f"Backup saved to {backup_path}"
             )
 
-        merged_overrides = self._session_overrides(stored_session)
-        merged_metadata = (
-            dict(checkpoint_session.metadata)
-            if isinstance(checkpoint_session.metadata, dict)
-            else {}
+        merged_metadata = self._merge_non_protected_session_metadata(
+            baseline_session=baseline.session,
+            stored_session=stored_session,
+            current_session=checkpoint_session,
         )
-        if merged_overrides:
-            merged_metadata["overrides"] = merged_overrides
-        else:
-            merged_metadata.pop("overrides", None)
 
         reconciled_session = Session(
             session_id=checkpoint_session.session_id,
@@ -971,6 +1030,95 @@ class AgentApplication:
         return persisted, _CheckpointBaseline(
             session=persisted,
             file_state=saved_state,
+        )
+
+    def _preflight_request_session(
+        self,
+        *,
+        session: Session,
+        request_id: str,
+    ) -> tuple[Session, _CheckpointBaseline | None]:
+        current_state = self._session_store.get_file_state(session.session_id)
+        if not current_state.exists:
+            return session, None
+
+        stored_session = self.load_session_record(session.session_id)
+        if stored_session is None:
+            return session, None
+
+        if stored_session.session_id != session.session_id:
+            backup_path = self._save_session_conflict_backup(
+                session,
+                request_id=request_id,
+            )
+            raise ToolLoopCheckpointError(
+                "Concurrent session modification detected before request start; "
+                f"session id changed. Backup saved to {backup_path}"
+            )
+
+        stored_message_count = len(stored_session.messages)
+        session_message_count = len(session.messages)
+
+        if stored_message_count > session_message_count:
+            backup_path = self._save_session_conflict_backup(
+                session,
+                request_id=request_id,
+            )
+            raise ToolLoopCheckpointError(
+                "Concurrent session modification detected before request start; "
+                f"message count changed. Backup saved to {backup_path}"
+            )
+
+        if stored_message_count < session_message_count:
+            if self._messages_digest(stored_session.messages) != self._messages_digest(
+                session.messages[:stored_message_count]
+            ):
+                backup_path = self._save_session_conflict_backup(
+                    session,
+                    request_id=request_id,
+                )
+                raise ToolLoopCheckpointError(
+                    "Concurrent session modification detected before request start; "
+                    f"messages changed. Backup saved to {backup_path}"
+                )
+        elif self._session_messages_digest(stored_session) != self._session_messages_digest(
+            session
+        ):
+            backup_path = self._save_session_conflict_backup(
+                session,
+                request_id=request_id,
+            )
+            raise ToolLoopCheckpointError(
+                "Concurrent session modification detected before request start; "
+                f"messages changed. Backup saved to {backup_path}"
+            )
+
+        if self._protected_session_metadata(stored_session) != self._protected_session_metadata(
+            session
+        ):
+            backup_path = self._save_session_conflict_backup(
+                session,
+                request_id=request_id,
+            )
+            raise ToolLoopCheckpointError(
+                "Concurrent session modification detected before request start; "
+                f"protected metadata changed. Backup saved to {backup_path}"
+            )
+
+        merged_metadata = self._merge_non_protected_session_metadata(
+            baseline_session=session,
+            stored_session=stored_session,
+            current_session=session,
+        )
+
+        merged_session = Session(
+            session_id=session.session_id,
+            messages=session.messages,
+            metadata=merged_metadata,
+        )
+        return merged_session, _CheckpointBaseline(
+            session=stored_session,
+            file_state=current_state,
         )
 
     def _sync_phase_session(
@@ -1020,7 +1168,7 @@ class AgentApplication:
                 f"messages changed. Backup saved to {backup_path}"
             )
 
-        if self._metadata_without_overrides(stored_session) != self._metadata_without_overrides(
+        if self._protected_session_metadata(stored_session) != self._protected_session_metadata(
             baseline.session
         ):
             backup_path = self._save_session_conflict_backup(
@@ -1029,19 +1177,14 @@ class AgentApplication:
             )
             raise ToolLoopCheckpointError(
                 "Concurrent session modification detected before the next phase; "
-                f"non-settings metadata changed. Backup saved to {backup_path}"
+                f"protected metadata changed. Backup saved to {backup_path}"
             )
 
-        merged_metadata = (
-            dict(current_session.metadata)
-            if isinstance(current_session.metadata, dict)
-            else {}
+        merged_metadata = self._merge_non_protected_session_metadata(
+            baseline_session=baseline.session,
+            stored_session=stored_session,
+            current_session=current_session,
         )
-        stored_overrides = self._session_overrides(stored_session)
-        if stored_overrides:
-            merged_metadata["overrides"] = stored_overrides
-        else:
-            merged_metadata.pop("overrides", None)
 
         updated_session = Session(
             session_id=current_session.session_id,
@@ -2329,13 +2472,37 @@ class AgentApplication:
             "stream": bool(stream),
             "overrides": dict(overrides or {}),
         }
-        initial_file_state = self._session_store.get_file_state(session.session_id)
-        checkpoint_baseline: _CheckpointBaseline | None = (
-            _CheckpointBaseline(session=session, file_state=initial_file_state)
-            if initial_file_state.exists
-            else None
-        )
+        try:
+            with self.acquire_session_lock(session.session_id):
+                session, checkpoint_baseline = self._preflight_request_session(
+                    session=session,
+                    request_id=rid,
+                )
+        except ToolLoopCheckpointError as exc:
+            yield {
+                "type": "error",
+                "session_id": session.session_id,
+                "request_id": rid,
+                "detail": exc.detail,
+            }
+            yield {
+                "type": "request_completed",
+                "session_id": session.session_id,
+                "request_id": rid,
+            }
+            return
         original_session = session
+
+        latest_session = session
+
+        # Initial request_started event
+        yield {
+            "type": "request_started",
+            "session_id": session.session_id,
+            "request_id": rid,
+            "stream": bool(stream),
+        }
+
         core, base_config, session, _results = self.run_session_lifecycle(
             "request_prepare",
             session,
@@ -2386,14 +2553,6 @@ class AgentApplication:
                     request_id=rid,
                 )
             return refreshed
-
-        # Initial request_started event
-        yield {
-            "type": "request_started",
-            "session_id": session.session_id,
-            "request_id": rid,
-            "stream": bool(stream),
-        }
 
         latest_session = session
         if session != original_session:

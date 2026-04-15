@@ -122,6 +122,15 @@ def _make_pending_tool_call_session(
     return core, base_config, session
 
 
+def _make_user_prompt_session(
+    app: AgentApplication,
+) -> tuple[AgentCore, Dict[str, Any], Session]:
+    core, base_config, session = app.create_session("default")
+    session = core.add_message(session, "user", "hello", {})
+    app.save_session(session)
+    return core, base_config, session
+
+
 def test_concurrent_override_change_is_applied_before_next_phase(tmp_path: Path) -> None:
     config_path = _write_config(tmp_path)
     app = AgentApplication(str(config_path), str(tmp_path / "sessions"), core_factory=AgentCore)
@@ -167,7 +176,7 @@ def test_concurrent_override_change_is_applied_before_next_phase(tmp_path: Path)
 
 
 def test_concurrent_non_settings_change_stops_request_and_saves_backup(tmp_path: Path) -> None:
-    config_path = _write_config(tmp_path, include_lifecycle=True)
+    config_path = _write_config(tmp_path)
     app = AgentApplication(str(config_path), str(tmp_path / "sessions"), core_factory=AgentCore)
 
     core, base_config, session = _make_pending_tool_call_session(app)
@@ -220,3 +229,236 @@ def test_concurrent_non_settings_change_stops_request_and_saves_backup(tmp_path:
     stored_final = app.load_session_record(session.session_id)
     assert stored_final is not None
     assert stored_final.messages[-1].content == "concurrent edit"
+
+
+def test_request_preflight_applies_override_only_drift_before_first_phase(tmp_path: Path) -> None:
+    config_path = _write_config(tmp_path)
+    session_root = tmp_path / "sessions"
+    app_terminal = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+    app_server = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+
+    core, base_config, stale_session = _make_user_prompt_session(app_terminal)
+
+    stored = app_server.load_session_record(stale_session.session_id)
+    assert stored is not None
+    updated = Session(
+        session_id=stored.session_id,
+        messages=stored.messages,
+        metadata={**stored.metadata, "overrides": {"model": "updated-model"}},
+    )
+    app_server.save_session(updated)
+
+    events = list(app_terminal.send_request(core, stale_session, base_config, overrides=None, stream=False))
+
+    error_events = [ev for ev in events if ev.get("type") == "error"]
+    assert not error_events
+
+    final_events = [ev for ev in events if ev.get("type") == "final"]
+    assert final_events
+    assert final_events[-1]["messages"][-1]["content"] == "model=updated-model"
+
+    stored_final = app_server.load_session_record(stale_session.session_id)
+    assert stored_final is not None
+    assert stored_final.metadata["overrides"]["model"] == "updated-model"
+
+
+def test_request_preflight_allows_non_protected_metadata_drift_before_first_phase(
+    tmp_path: Path,
+) -> None:
+    config_path = _write_config(tmp_path)
+    session_root = tmp_path / "sessions"
+    app_terminal = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+    app_server = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+
+    core, base_config, stale_session = _make_user_prompt_session(app_terminal)
+
+    stored = app_server.load_session_record(stale_session.session_id)
+    assert stored is not None
+    updated = Session(
+        session_id=stored.session_id,
+        messages=stored.messages,
+        metadata={**stored.metadata, "pinned": True},
+    )
+    app_server.save_session(updated)
+
+    events = list(app_terminal.send_request(core, stale_session, base_config, overrides=None, stream=False))
+
+    assert not [ev for ev in events if ev.get("type") == "error"]
+    assert [ev for ev in events if ev.get("type") == "final"]
+
+    stored_final = app_server.load_session_record(stale_session.session_id)
+    assert stored_final is not None
+    assert stored_final.metadata["pinned"] is True
+
+
+def test_request_preflight_rejects_stale_terminal_session_before_first_phase(tmp_path: Path) -> None:
+    config_path = _write_config(tmp_path)
+    session_root = tmp_path / "sessions"
+    app_terminal = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+    app_server = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+
+    core, base_config, stale_session = _make_user_prompt_session(app_terminal)
+
+    fresh_ctx = app_server.load_session(stale_session.session_id)
+    assert fresh_ctx is not None
+    server_core, server_base_config, fresh_session = fresh_ctx
+    server_events = list(
+        app_server.send_request(server_core, fresh_session, server_base_config, overrides=None, stream=False)
+    )
+    assert [ev for ev in server_events if ev.get("type") == "final"]
+
+    stale_events = list(
+        app_terminal.send_request(core, stale_session, base_config, overrides=None, stream=False)
+    )
+
+    error_events = [ev for ev in stale_events if ev.get("type") == "error"]
+    assert error_events
+    assert "Concurrent session modification detected before request start" in str(
+        error_events[-1]["detail"]
+    )
+    assert not [ev for ev in stale_events if ev.get("type") == "final"]
+    assert not [ev for ev in stale_events if ev.get("type") == "session_checkpoint"]
+
+    stored_final = app_server.load_session_record(stale_session.session_id)
+    assert stored_final is not None
+    assert len(stored_final.messages) == 2
+    assert stored_final.messages[-1].role == "assistant"
+
+
+def test_fresh_concurrent_request_reloaded_from_storage_fails_later_with_error_event(
+    tmp_path: Path,
+) -> None:
+    config_path = _write_config(tmp_path)
+    session_root = tmp_path / "sessions"
+    app_a = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+    app_b = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+
+    _core, _base_config, created = _make_pending_tool_call_session(app_a)
+
+    ctx_a = app_a.load_session(created.session_id)
+    assert ctx_a is not None
+    core_a, base_config_a, session_a = ctx_a
+    events_a_iter = app_a.send_request(core_a, session_a, base_config_a, overrides=None, stream=False)
+    events_a: List[Dict[str, Any]] = [next(events_a_iter)]
+    assert events_a[0]["type"] == "request_started"
+
+    ctx_b = app_b.load_session(created.session_id)
+    assert ctx_b is not None
+    core_b, base_config_b, session_b = ctx_b
+    events_b_iter = app_b.send_request(core_b, session_b, base_config_b, overrides=None, stream=False)
+    events_b: List[Dict[str, Any]] = [next(events_b_iter)]
+    assert events_b[0]["type"] == "request_started"
+
+    for event in events_a_iter:
+        events_a.append(event)
+        if event.get("type") == "session_checkpoint":
+            break
+
+    events_b.extend(list(events_b_iter))
+
+    error_events_b = [ev for ev in events_b if ev.get("type") == "error"]
+    assert error_events_b
+    assert "Concurrent session modification detected before the next phase" in str(
+        error_events_b[-1]["detail"]
+    )
+
+    stored_final = app_a.load_session_record(created.session_id)
+    assert stored_final is not None
+    assert len(stored_final.messages) == 2
+
+
+def test_concurrent_non_protected_metadata_change_is_merged_during_tool_loop(
+    tmp_path: Path,
+) -> None:
+    config_path = _write_config(tmp_path)
+    app = AgentApplication(str(config_path), str(tmp_path / "sessions"), core_factory=AgentCore)
+
+    core, base_config, session = _make_pending_tool_call_session(app)
+
+    events_iter = app.send_request(core, session, base_config, overrides=None, stream=False)
+    events: List[Dict[str, Any]] = []
+    updated = False
+
+    for event in events_iter:
+        events.append(event)
+        if event.get("type") != "session_checkpoint" or updated:
+            continue
+        checkpoint = event.get("session")
+        if not isinstance(checkpoint, Session):
+            continue
+        if len(checkpoint.messages) != 2:
+            continue
+
+        stored = app.load_session_record(session.session_id)
+        assert stored is not None
+        app.save_session(
+            Session(
+                session_id=stored.session_id,
+                messages=stored.messages,
+                metadata={**stored.metadata, "pinned": True},
+            )
+        )
+        updated = True
+
+    assert updated, "expected to update pinned metadata after the tool checkpoint"
+    assert not [ev for ev in events if ev.get("type") == "error"]
+
+    stored_final = app.load_session_record(session.session_id)
+    assert stored_final is not None
+    assert stored_final.metadata["pinned"] is True
+
+
+def test_cross_process_append_then_send_should_eventually_stop_both_requests(tmp_path: Path) -> None:
+    """Known failing regression for the unresolved append-and-send race.
+
+    Current behavior lets the request that appended a user message continue
+    from the malformed history, while the older in-flight request notices the
+    conflict and stops. A later fix should propagate that conflict so both
+    competing requests stop.
+    """
+
+    config_path = _write_config(tmp_path)
+    session_root = tmp_path / "sessions"
+    app_a = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+    app_b = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+
+    _core, _base_config, created = _make_pending_tool_call_session(app_a)
+
+    ctx_a = app_a.load_session(created.session_id)
+    assert ctx_a is not None
+    core_a, base_config_a, session_a = ctx_a
+    events_a_iter = app_a.send_request(core_a, session_a, base_config_a, overrides=None, stream=False)
+    events_a: List[Dict[str, Any]] = [next(events_a_iter)]
+    assert events_a[0]["type"] == "request_started"
+
+    stored_before_append = app_b.load_session_record(created.session_id)
+    assert stored_before_append is not None
+    appended = Session(
+        session_id=stored_before_append.session_id,
+        messages=[
+            *stored_before_append.messages,
+            type(stored_before_append.messages[0])(
+                role="user",
+                content="new user turn",
+                metadata={},
+            ),
+        ],
+        metadata=stored_before_append.metadata,
+    )
+    app_b.save_session(appended)
+
+    ctx_b = app_b.load_session(created.session_id)
+    assert ctx_b is not None
+    core_b, base_config_b, session_b = ctx_b
+    events_b = list(app_b.send_request(core_b, session_b, base_config_b, overrides=None, stream=False))
+
+    events_a.extend(list(events_a_iter))
+
+    error_events_a = [ev for ev in events_a if ev.get("type") == "error"]
+    assert error_events_a, "the older in-flight request should notice the appended message"
+
+    error_events_b = [ev for ev in events_b if ev.get("type") == "error"]
+    assert error_events_b, (
+        "known gap: the request started from the appended session should also stop once the "
+        "other request detects the conflict"
+    )

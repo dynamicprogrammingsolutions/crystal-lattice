@@ -2,6 +2,8 @@
 
 Investigate and implement safe session persistence during a running tool loop so session settings can be changed concurrently without being overwritten, while conflicting non-settings edits stop the request and preserve a backup.
 
+Parent Task: tasks/20260414-tool-loop-session-concurrency-followups/000-main.md
+
 ## Requirements checklist
 
 - [x] Preserve concurrent session settings changes made while a tool loop is running.
@@ -243,3 +245,76 @@ Added during task-file creation after investigation and planning.
     - `pytest application/python/tests/test_terminal_application.py -q`
   - Current caveat:
     - when a concurrency conflict is detected, the request stops and preserves the backup as intended, but request-error lifecycle metadata is not forced back into the conflicted session file if that would itself overwrite the external edit.
+
+## Follow-up improvement
+
+Added after implementation to capture the next scoped enhancement for this subtask.
+
+- Catch stale/conflicting session state earlier, before the request fully starts:
+  - On request start, compare the caller-provided session snapshot against the latest persisted session.
+  - If unchanged, proceed normally.
+  - If only `session.metadata["overrides"]` changed, adopt the latest overrides and proceed.
+  - If messages or other metadata changed, reject the request before the first LLM/tool phase begins.
+- This should remain a focused enhancement to the current shared application-layer request path, separate from the broader cross-process conflict-handling design tracked in `tasks/20260414-tool-loop-session-concurrency-followups/020-request-conflict-handling-draft.md`.
+
+## Task checklist
+
+- [x] Add request-start preflight validation in the shared application layer.
+- [x] Reuse current override-only merge vs. non-override conflict classification before the first phase.
+- [x] Add regression tests for stale terminal-held request start, fresh concurrent server request behavior, and the unresolved append-and-send race.
+- [x] Document the unresolved cross-process append race as a known failing regression to drive later work.
+
+## Follow-up execution plan
+
+Added during follow-up planning/completion after the initial implementation.
+
+1. Add a shared preflight helper in `AgentApplication.send_request()`.
+   - Compare the caller-provided session snapshot with the latest persisted session before `request_prepare` and before any provider/tool work starts.
+   - If unchanged, proceed with the provided session.
+   - If only `session.metadata["overrides"]` changed, adopt the latest stored overrides and continue from the merged session.
+   - If messages changed or other metadata changed, raise the existing shared concurrency error immediately.
+
+2. Run preflight before the first request phase and update the checkpoint baseline.
+   - Wire the preflight helper into the top of `send_request()`.
+   - When override-only drift is adopted, refresh the in-memory request baseline so the first phase and later checkpoint sync use the updated persisted state instead of re-detecting the same change.
+   - On preflight conflict, emit an `error` event and stop before any new LLM/tool output is generated.
+
+3. Keep checkpoint-time reconciliation as the fallback safety net.
+   - This follow-up only catches stale/conflicting starts earlier.
+   - Changes that happen after the request begins must still be handled by the existing phase-boundary sync and checkpoint barrier logic.
+
+4. Add flow-focused regression tests that match real entry paths.
+   - Core/application-level:
+     - stale terminal-held session start after the session advanced elsewhere => preflight `error`, no new request output, stored session unchanged
+     - override-only drift before request start => request starts successfully and uses the adopted override immediately
+   - Server-level:
+     - request A running while request B starts through the server path with a fresh reload => request B may still start under the current design, but it must surface an `error` event later rather than silently overwriting state
+     - cross-process-style `send_message` append race => keep a currently failing regression that documents the real unsolved behavior: one side may notice the conflict first and stop while the other side may not notice at all
+
+5. Keep assertions aligned with the current solution boundary.
+   - Assert live `error` event visibility, because that is what mobile/server clients rely on today.
+   - Do not yet assert durable request-error recovery on reopen; that belongs to `tasks/20260414-tool-loop-session-concurrency-followups/015-durable-request-error-log-and-lightweight-client-cache.md`.
+
+## Follow-up completion notes
+
+Added during follow-up planning before implementation of the early preflight enhancement.
+
+- Refined the test plan away from purely synthetic “message was externally edited” cases toward real request-entry flows.
+- Clarified the important distinction between:
+  - terminal-held stale sessions, which should fail early once preflight exists
+  - server-request flows that reload fresh persisted state, which may still only fail later until broader active-request coordination is added
+- Captured the cross-process `send_message` append race as an intentionally unresolved regression that should remain visible until a later fix propagates the conflict to both competing requests.
+- Updated during follow-up implementation:
+  - Added shared request-start preflight validation in `core/python/agent_app/application_future.py`.
+  - The preflight rejects stored-session drift before `request_prepare`, but still allows append-only local unsaved messages that extend the currently stored session so existing direct `app.send_request(...)` flows keep working.
+  - Added focused regressions in `core/python/tests/test_application_tool_loop_session_concurrency.py` for:
+    - override-only preflight adoption before the first phase
+    - stale terminal-held request start failing before the first phase
+    - fresh concurrent request start from the same persisted baseline failing later with an `error` event
+    - the unresolved cross-process append-and-send race as an intentionally failing regression
+  - Verified passing coverage with:
+    - `pytest core/python/tests/test_application_tool_loop_session_concurrency.py -k 'not cross_process' -q -vv`
+    - `pytest core/python/tests/test_application_layer_tools.py::test_execute_tool_calls_non_streaming -q -vv`
+    - `pytest application/python/tests/test_terminal_application.py -q`
+  - Verified the known failing regression with:
+    - `pytest core/python/tests/test_application_tool_loop_session_concurrency.py::test_cross_process_append_then_send_should_eventually_stop_both_requests -q -vv`
