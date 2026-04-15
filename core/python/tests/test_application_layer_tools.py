@@ -56,6 +56,7 @@ def test_execute_tool_calls_non_streaming(tmp_path: Path) -> None:
         "",
         {"tool_calls": [tool_call]},
     )
+    app.save_session(session)
 
     events = list(app.send_request(core, session, base_config, overrides=None, stream=False))
 
@@ -94,6 +95,7 @@ def test_execute_tool_calls_streaming(tmp_path: Path) -> None:
         "",
         {"tool_calls": [tool_call]},
     )
+    app.save_session(session)
 
     events = list(app.send_request(core, session, base_config, overrides=None, stream=True))
 

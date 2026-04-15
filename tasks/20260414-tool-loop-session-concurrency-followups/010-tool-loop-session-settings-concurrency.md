@@ -306,15 +306,20 @@ Added during follow-up planning before implementation of the early preflight enh
 - Captured the cross-process `send_message` append race as an intentionally unresolved regression that should remain visible until a later fix propagates the conflict to both competing requests.
 - Updated during follow-up implementation:
   - Added shared request-start preflight validation in `core/python/agent_app/application_future.py`.
-  - The preflight rejects stored-session drift before `request_prepare`, but still allows append-only local unsaved messages that extend the currently stored session so existing direct `app.send_request(...)` flows keep working.
+  - Refactored the shared concurrency logic down to one store-aware reconcile entry point plus one strict compatibility merge helper in `core/python/agent_app/application_future.py`.
+  - Tightened preflight so request start now requires exact message equality with the persisted session; direct tests that were relying on unsaved in-memory appends before `send_request(...)` were updated to persist first, matching the intended terminal/server flow.
   - Added focused regressions in `core/python/tests/test_application_tool_loop_session_concurrency.py` for:
     - override-only preflight adoption before the first phase
     - stale terminal-held request start failing before the first phase
     - fresh concurrent request start from the same persisted baseline failing later with an `error` event
+    - mergeable non-protected metadata such as pinned state being preserved before request start and during the tool loop
     - the unresolved cross-process append-and-send race as an intentionally failing regression
   - Verified passing coverage with:
     - `pytest core/python/tests/test_application_tool_loop_session_concurrency.py -k 'not cross_process' -q -vv`
-    - `pytest core/python/tests/test_application_layer_tools.py::test_execute_tool_calls_non_streaming -q -vv`
+    - `pytest core/python/tests/test_application_layer_tools.py -q -vv`
+    - `pytest core/python/tests/test_application_layer_basic.py -q -vv`
+    - `pytest core/python/tests/test_tool_preparation.py -q -vv`
+    - `pytest core/python/tests/test_application_layer_streaming.py -q -vv`
     - `pytest application/python/tests/test_terminal_application.py -q`
   - Verified the known failing regression with:
     - `pytest core/python/tests/test_application_tool_loop_session_concurrency.py::test_cross_process_append_then_send_should_eventually_stop_both_requests -q -vv`

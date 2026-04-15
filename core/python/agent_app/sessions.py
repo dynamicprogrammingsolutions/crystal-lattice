@@ -21,11 +21,19 @@ class SessionStore(Protocol):
         ...
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class SessionFileState:
     exists: bool
     mtime_ns: Optional[int]
-    size: Optional[int]
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, SessionFileState):
+            return NotImplemented
+        if not self.exists or not other.exists:
+            return False
+        if self.mtime_ns is None or other.mtime_ns is None:
+            return False
+        return self.mtime_ns == other.mtime_ns
 
 
 class FilesystemSessionStore(SessionStore):
@@ -58,11 +66,10 @@ class FilesystemSessionStore(SessionStore):
         try:
             stat = path.stat()
         except FileNotFoundError:
-            return SessionFileState(exists=False, mtime_ns=None, size=None)
+            return SessionFileState(exists=False, mtime_ns=None)
         return SessionFileState(
             exists=True,
             mtime_ns=getattr(stat, "st_mtime_ns", None),
-            size=getattr(stat, "st_size", None),
         )
 
     def save(self, session: Session) -> None:

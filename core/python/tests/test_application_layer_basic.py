@@ -72,6 +72,7 @@ def test_send_request_non_streaming(tmp_path: Path) -> None:
 
     core, base_config, session = app.create_session("default")
     session = core.add_message(session, "user", "Hi")
+    app.save_session(session)
 
     final_messages: list[dict] = []
 

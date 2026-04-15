@@ -297,6 +297,7 @@ def test_application_send_request_prepares_tools_with_application_context(
 
     core, base_config, session = app.create_session("alpha")
     session = core.add_message(session, "user", "hello")
+    app.save_session(session)
 
     events = list(app.send_request(core, session, base_config, stream=False))
 

@@ -858,21 +858,6 @@ class AgentApplication:
         ).encode("utf-8")
         return hashlib.sha256(payload).hexdigest()
 
-    @staticmethod
-    def _metadata_without_overrides(session: Session) -> Dict[str, Any]:
-        metadata = session.metadata if isinstance(session.metadata, dict) else {}
-        return {
-            key: value
-            for key, value in metadata.items()
-            if key != "overrides"
-        }
-
-    @staticmethod
-    def _session_overrides(session: Session) -> Dict[str, Any]:
-        metadata = session.metadata if isinstance(session.metadata, dict) else {}
-        raw = metadata.get("overrides")
-        return raw if isinstance(raw, dict) else {}
-
     @classmethod
     def _protected_session_metadata(cls, session: Session) -> Dict[str, Any]:
         metadata = session.metadata if isinstance(session.metadata, dict) else {}
@@ -923,6 +908,101 @@ class AgentApplication:
 
         return merged_metadata
 
+    def _merge_session_if_compatible(
+        self,
+        *,
+        baseline_session: Session,
+        stored_session: Session,
+        current_session: Session,
+    ) -> Session:
+        if stored_session.session_id != baseline_session.session_id:
+            raise ValueError("session_id_changed")
+
+        if len(stored_session.messages) != len(baseline_session.messages):
+            raise ValueError("message_count_changed")
+
+        if self._session_messages_digest(stored_session) != self._session_messages_digest(
+            baseline_session
+        ):
+            raise ValueError("messages_changed")
+
+        if self._protected_session_metadata(stored_session) != self._protected_session_metadata(
+            baseline_session
+        ):
+            raise ValueError("protected_metadata_changed")
+
+        merged_metadata = self._merge_non_protected_session_metadata(
+            baseline_session=baseline_session,
+            stored_session=stored_session,
+            current_session=current_session,
+        )
+        return Session(
+            session_id=current_session.session_id,
+            messages=current_session.messages,
+            metadata=merged_metadata,
+        )
+
+    def _reconcile_session_with_store(
+        self,
+        *,
+        baseline_session: Session,
+        baseline_file_state: SessionFileState | None,
+        current_session: Session,
+        persist_on_success: bool,
+    ) -> tuple[Session, _CheckpointBaseline | None]:
+        current_state = self._session_store.get_file_state(current_session.session_id)
+
+        if baseline_file_state is not None and current_state == baseline_file_state:
+            if not persist_on_success:
+                return current_session, _CheckpointBaseline(
+                    session=baseline_session,
+                    file_state=baseline_file_state,
+                )
+
+            self.save_session(current_session)
+            persisted = self.load_session_record(current_session.session_id) or current_session
+            saved_state = self._session_store.get_file_state(current_session.session_id)
+            return persisted, _CheckpointBaseline(
+                session=persisted,
+                file_state=saved_state,
+            )
+
+        if not current_state.exists:
+            if not persist_on_success:
+                return current_session, None
+
+            self.save_session(current_session)
+            persisted = self.load_session_record(current_session.session_id) or current_session
+            saved_state = self._session_store.get_file_state(current_session.session_id)
+            return persisted, _CheckpointBaseline(
+                session=persisted,
+                file_state=saved_state,
+            )
+
+        stored_session = self.load_session_record(current_session.session_id)
+        if stored_session is None:
+            raise ValueError("stored_session_disappeared")
+
+        merged_session = self._merge_session_if_compatible(
+            baseline_session=baseline_session,
+            stored_session=stored_session,
+            current_session=current_session,
+        )
+
+        if not persist_on_success:
+            return merged_session, _CheckpointBaseline(
+                session=stored_session,
+                file_state=current_state,
+            )
+
+        self.save_session(merged_session)
+        persisted = self.load_session_record(merged_session.session_id) or merged_session
+        saved_state = self._session_store.get_file_state(merged_session.session_id)
+        return persisted, _CheckpointBaseline(
+            session=persisted,
+            file_state=saved_state,
+        )
+
     def _save_session_conflict_backup(
         self,
         session: Session,
@@ -931,270 +1011,6 @@ class AgentApplication:
     ) -> Path:
         return self._session_store.save_backup(session, request_id=request_id)
 
-    def _reconcile_checkpoint_session(
-        self,
-        *,
-        baseline: _CheckpointBaseline | None,
-        checkpoint_session: Session,
-        request_id: str,
-    ) -> tuple[Session, _CheckpointBaseline]:
-        current_state = self._session_store.get_file_state(checkpoint_session.session_id)
-
-        if baseline is None:
-            self.save_session(checkpoint_session)
-            persisted = self.load_session_record(checkpoint_session.session_id) or checkpoint_session
-            saved_state = self._session_store.get_file_state(checkpoint_session.session_id)
-            return persisted, _CheckpointBaseline(
-                session=persisted,
-                file_state=saved_state,
-            )
-
-        if current_state == baseline.file_state:
-            self.save_session(checkpoint_session)
-            persisted = self.load_session_record(checkpoint_session.session_id) or checkpoint_session
-            saved_state = self._session_store.get_file_state(checkpoint_session.session_id)
-            return persisted, _CheckpointBaseline(
-                session=persisted,
-                file_state=saved_state,
-            )
-
-        stored_session = self.load_session_record(checkpoint_session.session_id)
-        if stored_session is None:
-            backup_path = self._save_session_conflict_backup(
-                checkpoint_session,
-                request_id=request_id,
-            )
-            raise ToolLoopCheckpointError(
-                "Concurrent session modification detected; stored session disappeared "
-                f"while request was running. Backup saved to {backup_path}"
-            )
-
-        if stored_session.session_id != baseline.session.session_id:
-            backup_path = self._save_session_conflict_backup(
-                checkpoint_session,
-                request_id=request_id,
-            )
-            raise ToolLoopCheckpointError(
-                "Concurrent session modification detected; session id changed. "
-                f"Backup saved to {backup_path}"
-            )
-
-        if len(stored_session.messages) != len(baseline.session.messages):
-            backup_path = self._save_session_conflict_backup(
-                checkpoint_session,
-                request_id=request_id,
-            )
-            raise ToolLoopCheckpointError(
-                "Concurrent session modification detected; message count changed. "
-                f"Backup saved to {backup_path}"
-            )
-
-        if self._session_messages_digest(stored_session) != self._session_messages_digest(
-            baseline.session
-        ):
-            backup_path = self._save_session_conflict_backup(
-                checkpoint_session,
-                request_id=request_id,
-            )
-            raise ToolLoopCheckpointError(
-                "Concurrent session modification detected; messages changed. "
-                f"Backup saved to {backup_path}"
-            )
-
-        if self._protected_session_metadata(stored_session) != self._protected_session_metadata(
-            baseline.session
-        ):
-            backup_path = self._save_session_conflict_backup(
-                checkpoint_session,
-                request_id=request_id,
-            )
-            raise ToolLoopCheckpointError(
-                "Concurrent session modification detected; protected metadata changed. "
-                f"Backup saved to {backup_path}"
-            )
-
-        merged_metadata = self._merge_non_protected_session_metadata(
-            baseline_session=baseline.session,
-            stored_session=stored_session,
-            current_session=checkpoint_session,
-        )
-
-        reconciled_session = Session(
-            session_id=checkpoint_session.session_id,
-            messages=checkpoint_session.messages,
-            metadata=merged_metadata,
-        )
-        self.save_session(reconciled_session)
-        persisted = self.load_session_record(reconciled_session.session_id) or reconciled_session
-        saved_state = self._session_store.get_file_state(reconciled_session.session_id)
-        return persisted, _CheckpointBaseline(
-            session=persisted,
-            file_state=saved_state,
-        )
-
-    def _preflight_request_session(
-        self,
-        *,
-        session: Session,
-        request_id: str,
-    ) -> tuple[Session, _CheckpointBaseline | None]:
-        current_state = self._session_store.get_file_state(session.session_id)
-        if not current_state.exists:
-            return session, None
-
-        stored_session = self.load_session_record(session.session_id)
-        if stored_session is None:
-            return session, None
-
-        if stored_session.session_id != session.session_id:
-            backup_path = self._save_session_conflict_backup(
-                session,
-                request_id=request_id,
-            )
-            raise ToolLoopCheckpointError(
-                "Concurrent session modification detected before request start; "
-                f"session id changed. Backup saved to {backup_path}"
-            )
-
-        stored_message_count = len(stored_session.messages)
-        session_message_count = len(session.messages)
-
-        if stored_message_count > session_message_count:
-            backup_path = self._save_session_conflict_backup(
-                session,
-                request_id=request_id,
-            )
-            raise ToolLoopCheckpointError(
-                "Concurrent session modification detected before request start; "
-                f"message count changed. Backup saved to {backup_path}"
-            )
-
-        if stored_message_count < session_message_count:
-            if self._messages_digest(stored_session.messages) != self._messages_digest(
-                session.messages[:stored_message_count]
-            ):
-                backup_path = self._save_session_conflict_backup(
-                    session,
-                    request_id=request_id,
-                )
-                raise ToolLoopCheckpointError(
-                    "Concurrent session modification detected before request start; "
-                    f"messages changed. Backup saved to {backup_path}"
-                )
-        elif self._session_messages_digest(stored_session) != self._session_messages_digest(
-            session
-        ):
-            backup_path = self._save_session_conflict_backup(
-                session,
-                request_id=request_id,
-            )
-            raise ToolLoopCheckpointError(
-                "Concurrent session modification detected before request start; "
-                f"messages changed. Backup saved to {backup_path}"
-            )
-
-        if self._protected_session_metadata(stored_session) != self._protected_session_metadata(
-            session
-        ):
-            backup_path = self._save_session_conflict_backup(
-                session,
-                request_id=request_id,
-            )
-            raise ToolLoopCheckpointError(
-                "Concurrent session modification detected before request start; "
-                f"protected metadata changed. Backup saved to {backup_path}"
-            )
-
-        merged_metadata = self._merge_non_protected_session_metadata(
-            baseline_session=session,
-            stored_session=stored_session,
-            current_session=session,
-        )
-
-        merged_session = Session(
-            session_id=session.session_id,
-            messages=session.messages,
-            metadata=merged_metadata,
-        )
-        return merged_session, _CheckpointBaseline(
-            session=stored_session,
-            file_state=current_state,
-        )
-
-    def _sync_phase_session(
-        self,
-        *,
-        baseline: _CheckpointBaseline | None,
-        current_session: Session,
-        request_id: str,
-    ) -> tuple[Session, _CheckpointBaseline | None]:
-        if baseline is None:
-            return current_session, baseline
-
-        current_state = self._session_store.get_file_state(current_session.session_id)
-        if current_state == baseline.file_state:
-            return current_session, baseline
-
-        stored_session = self.load_session_record(current_session.session_id)
-        if stored_session is None:
-            backup_path = self._save_session_conflict_backup(
-                current_session,
-                request_id=request_id,
-            )
-            raise ToolLoopCheckpointError(
-                "Concurrent session modification detected before the next phase; "
-                f"stored session disappeared. Backup saved to {backup_path}"
-            )
-
-        if len(stored_session.messages) != len(baseline.session.messages):
-            backup_path = self._save_session_conflict_backup(
-                current_session,
-                request_id=request_id,
-            )
-            raise ToolLoopCheckpointError(
-                "Concurrent session modification detected before the next phase; "
-                f"message count changed. Backup saved to {backup_path}"
-            )
-
-        if self._session_messages_digest(stored_session) != self._session_messages_digest(
-            baseline.session
-        ):
-            backup_path = self._save_session_conflict_backup(
-                current_session,
-                request_id=request_id,
-            )
-            raise ToolLoopCheckpointError(
-                "Concurrent session modification detected before the next phase; "
-                f"messages changed. Backup saved to {backup_path}"
-            )
-
-        if self._protected_session_metadata(stored_session) != self._protected_session_metadata(
-            baseline.session
-        ):
-            backup_path = self._save_session_conflict_backup(
-                current_session,
-                request_id=request_id,
-            )
-            raise ToolLoopCheckpointError(
-                "Concurrent session modification detected before the next phase; "
-                f"protected metadata changed. Backup saved to {backup_path}"
-            )
-
-        merged_metadata = self._merge_non_protected_session_metadata(
-            baseline_session=baseline.session,
-            stored_session=stored_session,
-            current_session=current_session,
-        )
-
-        updated_session = Session(
-            session_id=current_session.session_id,
-            messages=current_session.messages,
-            metadata=merged_metadata,
-        )
-        return updated_session, _CheckpointBaseline(
-            session=stored_session,
-            file_state=current_state,
-        )
 
     @staticmethod
     def _action_matches_trigger(action: Dict[str, Any], lifecycle: str) -> bool:
@@ -2472,18 +2288,45 @@ class AgentApplication:
             "stream": bool(stream),
             "overrides": dict(overrides or {}),
         }
+        reason_texts = {
+            "stored_session_disappeared": "stored session disappeared",
+            "session_id_changed": "session id changed",
+            "message_count_changed": "message count changed",
+            "messages_changed": "messages changed",
+            "protected_metadata_changed": "protected metadata changed",
+        }
+
+        def _format_session_conflict_detail(
+            *,
+            prefix: str,
+            reason: str,
+            backup_session: Session,
+        ) -> str:
+            backup_path = self._save_session_conflict_backup(
+                backup_session,
+                request_id=rid,
+            )
+            suffix = reason_texts.get(reason, reason.replace("_", " "))
+            return f"{prefix}{suffix}. Backup saved to {backup_path}"
+
         try:
             with self.acquire_session_lock(session.session_id):
-                session, checkpoint_baseline = self._preflight_request_session(
-                    session=session,
-                    request_id=rid,
+                session, checkpoint_baseline = self._reconcile_session_with_store(
+                    baseline_session=session,
+                    baseline_file_state=None,
+                    current_session=session,
+                    persist_on_success=False,
                 )
-        except ToolLoopCheckpointError as exc:
+        except ValueError as exc:
             yield {
                 "type": "error",
                 "session_id": session.session_id,
                 "request_id": rid,
-                "detail": exc.detail,
+                "detail": _format_session_conflict_detail(
+                    prefix="Concurrent session modification detected before request start; ",
+                    reason=str(exc),
+                    backup_session=session,
+                ),
             }
             yield {
                 "type": "request_completed",
@@ -2537,21 +2380,53 @@ class AgentApplication:
         def _persist_checkpoint(current_session: Session) -> Session:
             nonlocal checkpoint_baseline
             with self.acquire_session_lock(current_session.session_id):
-                reconciled, checkpoint_baseline = self._reconcile_checkpoint_session(
-                    baseline=checkpoint_baseline,
-                    checkpoint_session=current_session,
-                    request_id=rid,
+                baseline_session = (
+                    checkpoint_baseline.session
+                    if checkpoint_baseline is not None
+                    else current_session
                 )
+                baseline_file_state = (
+                    checkpoint_baseline.file_state
+                    if checkpoint_baseline is not None
+                    else None
+                )
+                try:
+                    reconciled, checkpoint_baseline = self._reconcile_session_with_store(
+                        baseline_session=baseline_session,
+                        baseline_file_state=baseline_file_state,
+                        current_session=current_session,
+                        persist_on_success=True,
+                    )
+                except ValueError as exc:
+                    raise ToolLoopCheckpointError(
+                        _format_session_conflict_detail(
+                            prefix="Concurrent session modification detected; ",
+                            reason=str(exc),
+                            backup_session=current_session,
+                        )
+                    ) from exc
             return reconciled
 
-        def _sync_phase_session(current_session: Session) -> Session:
+        def _sync_phase_session_for_request(current_session: Session) -> Session:
             nonlocal checkpoint_baseline
             with self.acquire_session_lock(current_session.session_id):
-                refreshed, checkpoint_baseline = self._sync_phase_session(
-                    baseline=checkpoint_baseline,
-                    current_session=current_session,
-                    request_id=rid,
-                )
+                if checkpoint_baseline is None:
+                    return current_session
+                try:
+                    refreshed, checkpoint_baseline = self._reconcile_session_with_store(
+                        baseline_session=checkpoint_baseline.session,
+                        baseline_file_state=checkpoint_baseline.file_state,
+                        current_session=current_session,
+                        persist_on_success=False,
+                    )
+                except ValueError as exc:
+                    raise ToolLoopCheckpointError(
+                        _format_session_conflict_detail(
+                            prefix="Concurrent session modification detected before the next phase; ",
+                            reason=str(exc),
+                            backup_session=current_session,
+                        )
+                    ) from exc
             return refreshed
 
         latest_session = session
@@ -2576,7 +2451,7 @@ class AgentApplication:
                 "cancellation": cancellation,
             },
             on_session_checkpoint=_persist_checkpoint,
-            session_for_phase=_sync_phase_session,
+            session_for_phase=_sync_phase_session_for_request,
             config_for_session=_refresh_config_for_session,
         )
 
