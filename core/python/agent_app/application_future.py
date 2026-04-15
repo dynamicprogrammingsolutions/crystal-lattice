@@ -60,6 +60,20 @@ class _CheckpointBaseline:
     file_state: SessionFileState
 
 
+class SessionConflictError(RuntimeError):
+    def __init__(
+        self,
+        detail: str,
+        *,
+        reason: str,
+        backup_path: Path | None = None,
+    ) -> None:
+        super().__init__(detail)
+        self.detail = detail
+        self.reason = reason
+        self.backup_path = backup_path
+
+
 class _ToolRuntimeStore:
     """Application-owned store for long-lived tool runtime objects.
 
@@ -122,6 +136,13 @@ class AgentApplication:
         }
     )
     _MISSING_METADATA = object()
+    _SESSION_CONFLICT_REASON_TEXTS = {
+        "stored_session_disappeared": "stored session disappeared",
+        "session_id_changed": "session id changed",
+        "message_count_changed": "message count changed",
+        "messages_changed": "messages changed",
+        "protected_metadata_changed": "protected metadata changed",
+    }
 
     def __init__(
         self,
@@ -949,59 +970,81 @@ class AgentApplication:
         baseline_file_state: SessionFileState | None,
         current_session: Session,
         persist_on_success: bool,
+        conflict_prefix: str | None = None,
+        backup_on_conflict: bool = False,
+        conflict_request_id: str | None = None,
     ) -> tuple[Session, _CheckpointBaseline | None]:
         current_state = self._session_store.get_file_state(current_session.session_id)
 
-        if baseline_file_state is not None and current_state == baseline_file_state:
-            if not persist_on_success:
-                return current_session, _CheckpointBaseline(
-                    session=baseline_session,
-                    file_state=baseline_file_state,
+        try:
+            if baseline_file_state is not None and current_state == baseline_file_state:
+                if not persist_on_success:
+                    return current_session, _CheckpointBaseline(
+                        session=baseline_session,
+                        file_state=baseline_file_state,
+                    )
+
+                persisted = self._save_session_low_level(current_session)
+                saved_state = self._session_store.get_file_state(current_session.session_id)
+                return persisted, _CheckpointBaseline(
+                    session=persisted,
+                    file_state=saved_state,
                 )
 
-            self.save_session(current_session)
-            persisted = self.load_session_record(current_session.session_id) or current_session
-            saved_state = self._session_store.get_file_state(current_session.session_id)
-            return persisted, _CheckpointBaseline(
-                session=persisted,
-                file_state=saved_state,
+            if not current_state.exists:
+                if not persist_on_success:
+                    return current_session, None
+
+                persisted = self._save_session_low_level(current_session)
+                saved_state = self._session_store.get_file_state(current_session.session_id)
+                return persisted, _CheckpointBaseline(
+                    session=persisted,
+                    file_state=saved_state,
+                )
+
+            stored_session = self.load_session_record(current_session.session_id)
+            if stored_session is None:
+                raise ValueError("stored_session_disappeared")
+
+            merged_session = self._merge_session_if_compatible(
+                baseline_session=baseline_session,
+                stored_session=stored_session,
+                current_session=current_session,
             )
 
-        if not current_state.exists:
             if not persist_on_success:
-                return current_session, None
+                return merged_session, _CheckpointBaseline(
+                    session=stored_session,
+                    file_state=current_state,
+                )
 
-            self.save_session(current_session)
-            persisted = self.load_session_record(current_session.session_id) or current_session
-            saved_state = self._session_store.get_file_state(current_session.session_id)
+            persisted = self._save_session_low_level(merged_session)
+            saved_state = self._session_store.get_file_state(merged_session.session_id)
             return persisted, _CheckpointBaseline(
                 session=persisted,
                 file_state=saved_state,
             )
-
-        stored_session = self.load_session_record(current_session.session_id)
-        if stored_session is None:
-            raise ValueError("stored_session_disappeared")
-
-        merged_session = self._merge_session_if_compatible(
-            baseline_session=baseline_session,
-            stored_session=stored_session,
-            current_session=current_session,
-        )
-
-        if not persist_on_success:
-            return merged_session, _CheckpointBaseline(
-                session=stored_session,
-                file_state=current_state,
+        except ValueError as exc:
+            if conflict_prefix is None:
+                raise
+            backup_path: Path | None = None
+            if backup_on_conflict:
+                backup_path = self._save_session_conflict_backup(
+                    current_session,
+                    request_id=conflict_request_id or self._new_request_id(),
+                )
+            suffix = self._SESSION_CONFLICT_REASON_TEXTS.get(
+                str(exc),
+                str(exc).replace("_", " "),
             )
-
-        self.save_session(merged_session)
-        persisted = self.load_session_record(merged_session.session_id) or merged_session
-        saved_state = self._session_store.get_file_state(merged_session.session_id)
-        return persisted, _CheckpointBaseline(
-            session=persisted,
-            file_state=saved_state,
-        )
+            detail = f"{conflict_prefix}{suffix}."
+            if backup_path is not None:
+                detail = f"{detail} Backup saved to {backup_path}"
+            raise SessionConflictError(
+                detail,
+                reason=str(exc),
+                backup_path=backup_path,
+            ) from exc
 
     def _save_session_conflict_backup(
         self,
@@ -1853,36 +1896,45 @@ class AgentApplication:
             ctx = self.load_session(session_id)
             if ctx is None:
                 raise KeyError(f"Session {session_id!r} not found")
-
             core, base_config, session = ctx
-            metadata = session.metadata if isinstance(session.metadata, dict) else {}
-            overrides = metadata.get("overrides")
-            if not isinstance(overrides, dict):
-                overrides = {}
-            effective_config = self.resolve_effective_config(base_config, session, overrides)
+            baseline_file_state = self.get_session_file_state(session_id)
 
-            action_context = dict(context) if isinstance(context, dict) else {}
-            action_context.setdefault("app", self)
-            action_context.setdefault("application", self)
-            action_context.setdefault("session_asset_store", self._session_asset_store)
-            action_context.setdefault("base_config", base_config)
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides = metadata.get("overrides")
+        if not isinstance(overrides, dict):
+            overrides = {}
+        effective_config = self.resolve_effective_config(base_config, session, overrides)
 
-            try:
-                new_session, result = core.execute_session_action(
-                    session,
-                    effective_config,
-                    plugin_id,
-                    action_id,
-                    action_params,
-                    context=action_context,
-                )
-            except AgentCore._SessionActionValidationError as exc:  # type: ignore[attr-defined]
-                raise self._ApplicationActionValidationError(
-                    str(exc),
-                    getattr(exc, "details", {}) or {},
-                ) from exc
+        action_context = dict(context) if isinstance(context, dict) else {}
+        action_context.setdefault("app", self)
+        action_context.setdefault("application", self)
+        action_context.setdefault("session_asset_store", self._session_asset_store)
+        action_context.setdefault("base_config", base_config)
 
-            self.save_session(new_session)
+        try:
+            new_session, result = core.execute_session_action(
+                session,
+                effective_config,
+                plugin_id,
+                action_id,
+                action_params,
+                context=action_context,
+            )
+        except AgentCore._SessionActionValidationError as exc:  # type: ignore[attr-defined]
+            raise self._ApplicationActionValidationError(
+                str(exc),
+                getattr(exc, "details", {}) or {},
+            ) from exc
+
+        self.save_session(
+            new_session,
+            reconcile=True,
+            baseline_session=session,
+            baseline_file_state=baseline_file_state,
+            conflict_prefix="Concurrent session modification detected while executing action; ",
+            backup_on_conflict=True,
+            acquire_lock=True,
+        )
 
         if not isinstance(result, dict):
             result = {}
@@ -1975,15 +2027,62 @@ class AgentApplication:
     def get_tool_runtime(self) -> _ToolRuntimeStore:
         return self._tool_runtime
 
-    def save_session(self, session: Session) -> None:
-        """Persist a session using the configured session store."""
+    def get_session_file_state(self, session_id: str) -> SessionFileState:
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("session_id must be a non-empty string")
+        return self._session_store.get_file_state(session_id)
 
+    def _prepare_session_for_save(self, session: Session) -> Session:
         _core, _base_cfg, prepared_session, _results = self.run_session_lifecycle(
             "session_save_prepare",
             session,
             context={"session_id": session.session_id},
         )
-        self._session_store.save(prepared_session)
+        return prepared_session
+
+    def _save_session_low_level(self, session: Session) -> Session:
+        self._session_store.save(session)
+        return self.load_session_record(session.session_id) or session
+
+    def save_session(
+        self,
+        session: Session,
+        *,
+        reconcile: bool = False,
+        baseline_session: Session | None = None,
+        baseline_file_state: SessionFileState | None = None,
+        conflict_prefix: str | None = None,
+        backup_on_conflict: bool = False,
+        conflict_request_id: str | None = None,
+        acquire_lock: bool = False,
+    ) -> Session:
+        """Persist a session using the configured session store."""
+        if reconcile and baseline_session is None:
+            raise ValueError("baseline_session is required when reconcile=True")
+
+        @contextmanager
+        def _maybe_lock() -> Iterator[None]:
+            if not acquire_lock:
+                yield
+                return
+            with self.acquire_session_lock(session.session_id):
+                yield
+
+        with _maybe_lock():
+            prepared_session = self._prepare_session_for_save(session)
+            if not reconcile:
+                return self._save_session_low_level(prepared_session)
+
+            persisted, _baseline = self._reconcile_session_with_store(
+                baseline_session=cast(Session, baseline_session),
+                baseline_file_state=baseline_file_state,
+                current_session=prepared_session,
+                persist_on_success=True,
+                conflict_prefix=conflict_prefix,
+                backup_on_conflict=backup_on_conflict,
+                conflict_request_id=conflict_request_id,
+            )
+            return persisted
 
     def delete_session(self, session_id: str) -> None:
         """Delete a session from the store (no-op if missing)."""
@@ -2264,6 +2363,7 @@ class AgentApplication:
         *,
         stream: bool = False,
         request_id: Optional[str] = None,
+        baseline_file_state: SessionFileState | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Core-first request API that yields events.
 
@@ -2288,45 +2388,23 @@ class AgentApplication:
             "stream": bool(stream),
             "overrides": dict(overrides or {}),
         }
-        reason_texts = {
-            "stored_session_disappeared": "stored session disappeared",
-            "session_id_changed": "session id changed",
-            "message_count_changed": "message count changed",
-            "messages_changed": "messages changed",
-            "protected_metadata_changed": "protected metadata changed",
-        }
-
-        def _format_session_conflict_detail(
-            *,
-            prefix: str,
-            reason: str,
-            backup_session: Session,
-        ) -> str:
-            backup_path = self._save_session_conflict_backup(
-                backup_session,
-                request_id=rid,
-            )
-            suffix = reason_texts.get(reason, reason.replace("_", " "))
-            return f"{prefix}{suffix}. Backup saved to {backup_path}"
-
         try:
             with self.acquire_session_lock(session.session_id):
                 session, checkpoint_baseline = self._reconcile_session_with_store(
                     baseline_session=session,
-                    baseline_file_state=None,
+                    baseline_file_state=baseline_file_state,
                     current_session=session,
                     persist_on_success=False,
+                    conflict_prefix="Concurrent session modification detected before request start; ",
+                    backup_on_conflict=True,
+                    conflict_request_id=rid,
                 )
-        except ValueError as exc:
+        except SessionConflictError as exc:
             yield {
                 "type": "error",
                 "session_id": session.session_id,
                 "request_id": rid,
-                "detail": _format_session_conflict_detail(
-                    prefix="Concurrent session modification detected before request start; ",
-                    reason=str(exc),
-                    backup_session=session,
-                ),
+                "detail": exc.detail,
             }
             yield {
                 "type": "request_completed",
@@ -2391,20 +2469,21 @@ class AgentApplication:
                     else None
                 )
                 try:
-                    reconciled, checkpoint_baseline = self._reconcile_session_with_store(
+                    reconciled = self.save_session(
+                        current_session,
+                        reconcile=True,
                         baseline_session=baseline_session,
                         baseline_file_state=baseline_file_state,
-                        current_session=current_session,
-                        persist_on_success=True,
+                        conflict_prefix="Concurrent session modification detected; ",
+                        backup_on_conflict=True,
+                        conflict_request_id=rid,
                     )
-                except ValueError as exc:
-                    raise ToolLoopCheckpointError(
-                        _format_session_conflict_detail(
-                            prefix="Concurrent session modification detected; ",
-                            reason=str(exc),
-                            backup_session=current_session,
-                        )
-                    ) from exc
+                    checkpoint_baseline = _CheckpointBaseline(
+                        session=reconciled,
+                        file_state=self.get_session_file_state(reconciled.session_id),
+                    )
+                except SessionConflictError as exc:
+                    raise ToolLoopCheckpointError(exc.detail) from exc
             return reconciled
 
         def _sync_phase_session_for_request(current_session: Session) -> Session:
@@ -2418,15 +2497,12 @@ class AgentApplication:
                         baseline_file_state=checkpoint_baseline.file_state,
                         current_session=current_session,
                         persist_on_success=False,
+                        conflict_prefix="Concurrent session modification detected before the next phase; ",
+                        backup_on_conflict=True,
+                        conflict_request_id=rid,
                     )
-                except ValueError as exc:
-                    raise ToolLoopCheckpointError(
-                        _format_session_conflict_detail(
-                            prefix="Concurrent session modification detected before the next phase; ",
-                            reason=str(exc),
-                            backup_session=current_session,
-                        )
-                    ) from exc
+                except SessionConflictError as exc:
+                    raise ToolLoopCheckpointError(exc.detail) from exc
             return refreshed
 
         latest_session = session

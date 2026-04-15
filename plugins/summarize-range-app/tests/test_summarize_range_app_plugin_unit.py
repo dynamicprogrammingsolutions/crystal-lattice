@@ -10,8 +10,9 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import json
+import pytest
 
-from agent_app.application_future import AgentApplication
+from agent_app.application_future import AgentApplication, SessionConflictError
 from agent_app.events import InMemoryEventStore
 from agent_core import Session
 
@@ -149,33 +150,31 @@ def test_plugin_error_status_when_no_assistant_reply(tmp_path: Path) -> None:
 
     captured: Dict[str, Any] = {}
 
-    def _fake_send_request(
+    class _FakeCore:
+        def send_request(
+            self,
+            session_arg: Session,
+            config_arg: Dict[str, Any],
+            *,
+            request_id: str | None = None,
+            cancellation: Any | None = None,
+        ) -> tuple[Session, List[Dict[str, Any]]]:
+            captured["session_id"] = session_arg.session_id
+            captured["config"] = config_arg
+            return session_arg, []
+
+    def _fake_prepare_tools_for_session(
         core_arg: Any,
         session_arg: Session,
         base_config_arg: Dict[str, Any],
         overrides_arg: Dict[str, Any] | None = None,
         *,
-        stream: bool = False,
         request_id: str | None = None,
-    ) -> List[Dict[str, Any]]:
-        # Record arguments for sanity and yield no final event.
-        captured["session_id"] = session_arg.session_id
+    ) -> tuple[Any, Dict[str, Any], Session, Dict[str, Any], str]:
         captured["overrides"] = overrides_arg
-        return [
-            {
-                "type": "request_started",
-                "session_id": session_arg.session_id,
-                "request_id": request_id,
-            },
-            {
-                "type": "request_completed",
-                "session_id": session_arg.session_id,
-                "request_id": request_id,
-            },
-        ]
+        return _FakeCore(), base_config_arg, session_arg, dict(base_config_arg), "fake-rid"
 
-    # Monkeypatch AgentApplication.send_request on this instance.
-    app.send_request = _fake_send_request  # type: ignore[assignment]
+    app.prepare_tools_for_session = _fake_prepare_tools_for_session  # type: ignore[assignment]
 
     result = app.execute_application_action(
         plugin_id="summarize_range",
@@ -191,3 +190,63 @@ def test_plugin_error_status_when_no_assistant_reply(tmp_path: Path) -> None:
     assert ctx is not None
     _core, _base, session = ctx
     assert [m.content for m in session.messages] == ["one", "two"]
+
+
+def test_summarize_range_conflicts_when_session_changes_mid_action(tmp_path: Path) -> None:
+    app = _build_app(tmp_path)
+    session_id = _create_session_with_messages(app, ["m0", "m1", "m2", "m3"])
+
+    class _FakeCore:
+        def send_request(
+            self,
+            session_arg: Session,
+            config_arg: Dict[str, Any],
+            *,
+            request_id: str | None = None,
+            cancellation: Any | None = None,
+        ) -> tuple[Session, List[Dict[str, Any]]]:
+            ctx = app.load_session(session_id)
+            assert ctx is not None
+            core_live, base_live, live_session = ctx
+            advanced = core_live.add_message(
+                live_session,
+                "user",
+                "concurrent edit",
+                None,
+                base_live,
+            )
+            app.save_session(advanced)
+            return session_arg, [{"role": "assistant", "content": "summary output"}]
+
+    def _fake_prepare_tools_for_session(
+        core_arg: Any,
+        session_arg: Session,
+        base_config_arg: Dict[str, Any],
+        overrides_arg: Dict[str, Any] | None = None,
+        *,
+        request_id: str | None = None,
+    ) -> tuple[Any, Dict[str, Any], Session, Dict[str, Any], str]:
+        return _FakeCore(), base_config_arg, session_arg, dict(base_config_arg), "fake-rid"
+
+    app.prepare_tools_for_session = _fake_prepare_tools_for_session  # type: ignore[assignment]
+
+    with pytest.raises(
+        SessionConflictError,
+        match="Concurrent session modification detected while summarizing messages",
+    ):
+        app.execute_application_action(
+            plugin_id="summarize_range",
+            action_id="summarize_range",
+            params={"session_id": session_id, "start": 1, "end": 3},
+        )
+
+    ctx = app.load_session(session_id)
+    assert ctx is not None
+    _core, _base, session = ctx
+    assert [msg.content for msg in session.messages] == [
+        "m0",
+        "m1",
+        "m2",
+        "m3",
+        "concurrent edit",
+    ]

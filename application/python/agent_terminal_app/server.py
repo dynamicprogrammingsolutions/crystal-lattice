@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import asyncio
 import base64
@@ -23,7 +24,7 @@ except Exception:  # pragma: no cover - optional dependency
 
 from fastapi import Depends, FastAPI, Header, HTTPException  # type: ignore[reportMissingImports]
 
-from agent_app.application_future import AgentApplication
+from agent_app.application_future import AgentApplication, SessionConflictError
 from agent_app.config import resolve_request_config
 from agent_core import Session
 from agent_terminal_app import bonjour as bonjour_mod
@@ -214,17 +215,29 @@ def _load_session_ctx_for_send(
     app_instance: AgentApplication,
     session_id: str,
     overrides: Optional[Dict[str, Any]] = None,
-) -> Tuple[Any, Any, Session]:
+    *,
+    acquire_lock: bool = True,
+) -> Tuple[Any, Any, Session, Any]:
     try:
-        session_record = app_instance.load_session_record(session_id)
-        if session_record is None:
-            raise KeyError(f"Session {session_id!r} not found")
+        @contextmanager
+        def _maybe_lock() -> Iterator[None]:
+            if not acquire_lock:
+                yield
+                return
+            with app_instance.acquire_session_lock(session_id):
+                yield
 
-        ctx = app_instance.load_session(session_id, overrides=overrides)
-        if ctx is None:
-            raise KeyError(f"Session {session_id!r} not found")
+        with _maybe_lock():
+            session_record = app_instance.load_session_record(session_id)
+            if session_record is None:
+                raise KeyError(f"Session {session_id!r} not found")
 
-        return ctx
+            ctx = app_instance.load_session(session_id, overrides=overrides)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
+
+            file_state = app_instance.get_session_file_state(session_id)
+            return (*ctx, file_state)
     except KeyError as exc:
         detail = exc.args[0] if exc.args and isinstance(exc.args[0], str) else str(exc)
         if isinstance(detail, str) and detail.startswith("Unknown agent_id"):
@@ -994,12 +1007,11 @@ def _run_send_request_background(
     rid = request_id or _generate_request_id(app_instance)
 
     try:
-        ctx = app_instance.load_session(session_id)
-        if ctx is None:
-            _log.warning("send_request background worker: session %r not found", session_id)
-            return
-
-        core, base_config, session = ctx
+        core, base_config, session, baseline_file_state = _load_session_ctx_for_send(
+            app_instance,
+            session_id,
+            overrides=overrides,
+        )
 
         # Merge per-session configuration overrides stored on the
         # session metadata with any overrides provided in the HTTP
@@ -1020,6 +1032,7 @@ def _run_send_request_background(
             merged_overrides,
             stream=True,
             request_id=rid,
+            baseline_file_state=baseline_file_state,
         ):
             etype = ev.get("type")
 
@@ -1871,10 +1884,11 @@ def send_message(
             if cached is not None:
                 return cached
 
-            core, base_config, session = _load_session_ctx_for_send(
+            core, base_config, session, _baseline_file_state = _load_session_ctx_for_send(
                 app_instance,
                 session_id,
                 overrides=overrides,
+                acquire_lock=False,
             )
 
             request_id = _generate_request_id(app_instance)
@@ -2886,6 +2900,16 @@ def execute_action(
             "action_id": action_id,
             "action_owner": action_owner,
             "error_type": "not_found",
+            "message": str(exc),
+            "details": {},
+        }
+    except SessionConflictError as exc:
+        response = {
+            "status": "error",
+            "plugin": plugin_id,
+            "action_id": action_id,
+            "action_owner": action_owner,
+            "error_type": "conflict",
             "message": str(exc),
             "details": {},
         }

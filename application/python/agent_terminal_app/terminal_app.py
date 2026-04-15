@@ -643,6 +643,8 @@ class TerminalApplication:
         core, base_config, session = self.require_session()
 
         overrides = session.metadata.get("overrides")
+        with self._app.acquire_session_lock(session.session_id):
+            baseline_file_state = self._app.get_session_file_state(session.session_id)
 
         final_session_dict: Optional[Dict[str, Any]] = session.to_dict()
         final_messages: List[Dict[str, Any]] = []
@@ -650,7 +652,14 @@ class TerminalApplication:
 
         store = self._app.get_event_store()
 
-        for ev in self._app.send_request(core, session, base_config, overrides, stream=stream):
+        for ev in self._app.send_request(
+            core,
+            session,
+            base_config,
+            overrides,
+            stream=stream,
+            baseline_file_state=baseline_file_state,
+        ):
             etype = ev.get("type")
 
             # Internal checkpoint events carry the live Session object so the

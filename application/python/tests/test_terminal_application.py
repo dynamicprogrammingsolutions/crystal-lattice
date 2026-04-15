@@ -272,7 +272,17 @@ def test_set_overrides_and_send_request_uses_them(tmp_path: Path, monkeypatch: p
     # Patch AgentApplication.send_request to capture overrides passed in.
     captured: dict = {}
 
-    def _fake_send_request(self, core, session_obj, base_cfg, overrides_arg, *, stream=False, request_id=None):  # type: ignore[override]
+    def _fake_send_request(
+        self,
+        core,
+        session_obj,
+        base_cfg,
+        overrides_arg,
+        *,
+        stream=False,
+        request_id=None,
+        baseline_file_state=None,
+    ):  # type: ignore[override]
         captured["overrides"] = overrides_arg
         # Emit a session_checkpoint carrying a live Session (internal event)
         # plus a public final event without embedding a serialized session.

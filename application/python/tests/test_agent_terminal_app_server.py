@@ -300,6 +300,7 @@ def test_send_request_single_flight_blocks_while_running(tmp_path: Path) -> None
         *,
         stream: bool = True,
         request_id: str | None = None,
+        baseline_file_state: Any = None,
     ):
         nonlocal call_count
         call_count += 1
@@ -387,6 +388,7 @@ def test_send_request_idempotency_key_replays_request_id(tmp_path: Path) -> None
         *,
         stream: bool = True,
         request_id: str | None = None,
+        baseline_file_state: Any = None,
     ):
         nonlocal call_count
         call_count += 1
@@ -484,6 +486,7 @@ def test_send_message_endpoint_appends_and_starts_request(tmp_path: Path) -> Non
         *,
         stream: bool = True,
         request_id: str | None = None,
+        baseline_file_state: Any = None,
     ):
         nonlocal call_count
         call_count += 1
@@ -571,6 +574,7 @@ def test_send_message_endpoint_rejects_when_active(tmp_path: Path) -> None:
         *,
         stream: bool = True,
         request_id: str | None = None,
+        baseline_file_state: Any = None,
     ):
         nonlocal call_count
         call_count += 1
@@ -666,6 +670,7 @@ def test_send_message_endpoint_idempotency_replays_without_double_append(tmp_pat
         *,
         stream: bool = True,
         request_id: str | None = None,
+        baseline_file_state: Any = None,
     ):
         nonlocal call_count
         call_count += 1
@@ -762,6 +767,7 @@ def test_send_message_endpoint_idempotency_key_reused_with_different_payload_con
         *,
         stream: bool = True,
         request_id: str | None = None,
+        baseline_file_state: Any = None,
     ):
         yield {
             "type": "request_started",
@@ -1424,6 +1430,7 @@ def test_run_send_request_background_merges_session_and_http_overrides(tmp_path:
         overrides_arg: Dict[str, Any] | None,
         stream: bool = True,
         request_id: str | None = None,
+        baseline_file_state: Any = None,
     ) -> list[dict[str, Any]]:
         captured["overrides"] = overrides_arg
         return []
@@ -1479,6 +1486,7 @@ def test_run_send_request_background_uses_session_overrides_when_http_empty(tmp_
         overrides_arg: Dict[str, Any] | None,
         stream: bool = True,
         request_id: str | None = None,
+        baseline_file_state: Any = None,
     ) -> list[dict[str, Any]]:
         captured["overrides"] = overrides_arg
         return []
@@ -1574,6 +1582,7 @@ def test_list_session_messages_exposes_active_request_id_during_and_after_reques
         *,
         stream: bool = True,
         request_id: str | None = None,
+        baseline_file_state: Any = None,
     ) -> list[Dict[str, Any]]:
         rid = request_id or "req-test"
         # request_started

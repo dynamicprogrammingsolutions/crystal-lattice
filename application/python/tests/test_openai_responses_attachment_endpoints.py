@@ -210,6 +210,7 @@ def test_send_message_applies_request_overrides_before_pdf_append(
         *,
         stream: bool = True,
         request_id: str | None = None,
+        baseline_file_state: Any = None,
     ):
         captured["overrides"] = overrides_arg
         yield {

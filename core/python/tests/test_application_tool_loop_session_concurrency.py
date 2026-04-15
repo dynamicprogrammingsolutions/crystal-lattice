@@ -6,8 +6,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterator, List
 
-from agent_app.application_future import AgentApplication
-from agent_core import AgentCore, Session
+import pytest
+
+from agent_app.application_future import AgentApplication, SessionConflictError
+from agent_core import AgentCore, Message, Session
 from agent_core.types import ProviderPlugin
 
 from .dummy_lifecycle_app_plugin import DummyLifecycleAppPlugin  # noqa: F401
@@ -229,6 +231,50 @@ def test_concurrent_non_settings_change_stops_request_and_saves_backup(tmp_path:
     stored_final = app.load_session_record(session.session_id)
     assert stored_final is not None
     assert stored_final.messages[-1].content == "concurrent edit"
+
+
+def test_reconciled_save_detects_conflict_for_long_running_action(tmp_path: Path) -> None:
+    config_path = _write_config(tmp_path)
+    app = AgentApplication(str(config_path), str(tmp_path / "sessions"), core_factory=AgentCore)
+
+    _core, _base_config, session = _make_user_prompt_session(app)
+    baseline_file_state = app.get_session_file_state(session.session_id)
+
+    stored = app.load_session_record(session.session_id)
+    assert stored is not None
+    external = Session(
+        session_id=stored.session_id,
+        messages=[*stored.messages, Message(role="user", content="external edit", metadata={})],
+        metadata=stored.metadata,
+    )
+    app.save_session(external)
+
+    modified = Session(
+        session_id=session.session_id,
+        messages=[*session.messages, Message(role="assistant", content="summary", metadata={})],
+        metadata=session.metadata,
+    )
+
+    with pytest.raises(SessionConflictError) as exc_info:
+        app.save_session(
+            modified,
+            reconcile=True,
+            baseline_session=session,
+            baseline_file_state=baseline_file_state,
+            conflict_prefix="Concurrent session modification detected while saving action result; ",
+            backup_on_conflict=True,
+            conflict_request_id="action-conflict",
+        )
+
+    assert "Concurrent session modification detected while saving action result" in str(
+        exc_info.value
+    )
+    assert exc_info.value.backup_path is not None
+    assert exc_info.value.backup_path.exists()
+
+    stored_final = app.load_session_record(session.session_id)
+    assert stored_final is not None
+    assert stored_final.messages[-1].content == "external edit"
 
 
 def test_request_preflight_applies_override_only_drift_before_first_phase(tmp_path: Path) -> None:

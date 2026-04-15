@@ -571,11 +571,12 @@ class GeminiCompactionAppPlugin:
             instructions.strip() if isinstance(instructions, str) else None
         )
 
-        ctx = app.load_session(session_id)
-        if ctx is None:
-            raise KeyError(f"Session {session_id!r} not found")
-
-        core_orig, base_config_orig, session_orig = ctx
+        with app.acquire_session_lock(session_id):
+            ctx = app.load_session(session_id)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
+            core_orig, base_config_orig, session_orig = ctx
+            baseline_file_state = app.get_session_file_state(session_id)
 
         # Check enablement (should already be checked via UI, but verify)
         if not self._is_compaction_enabled(base_config_orig):
@@ -607,11 +608,9 @@ class GeminiCompactionAppPlugin:
 
         # Also preserve the last message if it's a user message (might be in-progress)
         # This matches Gemini's behavior of not compressing the most recent user turn
-        preserve_last_user = False
         if end_idx == message_count and message_count > 0:
             last_msg = session_orig.messages[-1]
             if last_msg.role == "user":
-                preserve_last_user = True
                 end_idx = message_count - 1
 
         # Validate that the compaction range excludes system messages
@@ -728,26 +727,27 @@ class GeminiCompactionAppPlugin:
         )
 
         # Run the compaction request
-        # TODO: Future enhancement - inject the configured compression prompt
-        # (compaction_config.get("prompt") or _GEMINI_COMPRESSION_PROMPT) as a
-        # temporary system message override for the compaction request.
-        # For now, we rely on the agent's configured system message.
         try:
-            events = app.send_request(
+            (
+                core_compact,
+                _base_compact,
+                session_with_prompt,
+                request_config,
+                rid,
+            ) = app.prepare_tools_for_session(
                 core_compact,
                 session_with_prompt,
                 base_config_compact,
                 combined_overrides,
-                stream=False,
+            )
+            _request_session, final_messages = core_compact.send_request(
+                session_with_prompt,
+                request_config,
+                request_id=rid,
             )
             last_final_messages: Optional[List[Dict[str, Any]]] = None
-            for ev in events:
-                if not isinstance(ev, dict):
-                    continue
-                if ev.get("type") == "final":
-                    msgs = ev.get("messages") or []
-                    if isinstance(msgs, list):
-                        last_final_messages = msgs
+            if isinstance(final_messages, list):
+                last_final_messages = final_messages
         except Exception as exc:
             return {
                 "status": "error",
@@ -791,21 +791,26 @@ class GeminiCompactionAppPlugin:
             )
 
             try:
-                verify_events = app.send_request(
+                (
+                    core_compact,
+                    _base_compact,
+                    session_for_verify,
+                    verify_request_config,
+                    verify_rid,
+                ) = app.prepare_tools_for_session(
                     core_compact,
                     session_for_verify,
                     base_config_compact,
                     combined_overrides,
-                    stream=False,
+                )
+                _verify_session, verify_messages = core_compact.send_request(
+                    session_for_verify,
+                    verify_request_config,
+                    request_id=verify_rid,
                 )
                 verify_final_messages: Optional[List[Dict[str, Any]]] = None
-                for ev in verify_events:
-                    if not isinstance(ev, dict):
-                        continue
-                    if ev.get("type") == "final":
-                        msgs = ev.get("messages") or []
-                        if isinstance(msgs, list):
-                            verify_final_messages = msgs
+                if isinstance(verify_messages, list):
+                    verify_final_messages = verify_messages
             except Exception:
                 # Verification failed; use the initial snapshot
                 verify_final_messages = None
@@ -817,117 +822,67 @@ class GeminiCompactionAppPlugin:
                 if verified_snapshot:
                     final_snapshot = verified_snapshot
 
-        # Apply the compacted snapshot to the original session under a lock
-        with app.acquire_session_lock(session_id):
-            ctx_latest = app.load_session(session_id)
-            if ctx_latest is None:
-                raise KeyError(f"Session {session_id!r} not found")
+        # Apply the compacted snapshot to the original session snapshot and
+        # reconcile at save time so message drift is detected instead of being
+        # replayed onto a later session version.
+        edit_config = resolve_request_config(base_config_orig, md_overrides)
+        session_after_delete = core_orig.slice_session(
+            session_orig,
+            edit_config,
+            remove_indices=remove_indices,
+        )
 
-            core_latest, base_cfg_latest, session_latest = ctx_latest
-            message_count2 = len(session_latest.messages)
-            start_idx2, end_idx2 = _normalize_slice_bounds(
-                message_count2,
-                start_int,
-                end_int,
-            )
-
-            # Handle inclusive end semantics for "compact up to here"
-            # (must match the adjustment applied in the first part)
-            if end_inclusive and end_raw is not None:
-                end_idx2 = min(end_idx2 + 1, message_count2)
-
-            # Adjust for preserved last user message
-            if preserve_last_user and end_idx2 == message_count2:
-                end_idx2 = message_count2 - 1
-
-            # Calculate system prefix for the latest session
-            system_prefix_end2 = 0
-            for msg in session_latest.messages:
-                if msg.role == "system":
-                    system_prefix_end2 += 1
-                else:
-                    break
-
-            # Adjust start_idx2 to skip system prefix
-            if start_idx2 < system_prefix_end2:
-                start_idx2 = system_prefix_end2
-
-            # Build config for editing
-            md_latest = (
-                session_latest.metadata
-                if isinstance(session_latest.metadata, dict)
-                else {}
-            )
-            md_overrides_latest_val = md_latest.get("overrides")
-            md_overrides_latest: Dict[str, Any] = (
-                md_overrides_latest_val
-                if isinstance(md_overrides_latest_val, dict)
-                else {}
-            )
-            edit_config = resolve_request_config(base_cfg_latest, md_overrides_latest)
-
-            # Step 1: remove the compacted range using slice_session
-            # Keep system prefix [0, system_prefix_end2) and tail [end_idx2, message_count2)
-            # Remove only the compaction range [start_idx2, end_idx2)
-            remove_indices2 = list(range(start_idx2, end_idx2))
-            session_after_delete = core_latest.slice_session(
-                session_latest,
-                edit_config,
-                remove_indices=remove_indices2,
-            )
-
-            # Step 2: insert the snapshot as user message + assistant acknowledgment
-            # Insert at start_idx2 position
-            insert_after = start_idx2 - 1
-
-            # First add the user message with the snapshot
-            snapshot_metadata: Dict[str, Any] = {
-                "compacted_range": {
-                    "start_index": start_idx2,
-                    "end_index": end_idx2,
-                    "verification_pass": verification_pass,
-                }
+        insert_after = start_idx - 1
+        snapshot_metadata: Dict[str, Any] = {
+            "compacted_range": {
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "verification_pass": verification_pass,
             }
+        }
 
-            session_with_user = core_latest.add_message(
-                session_after_delete,
-                "user",
-                final_snapshot,
-                metadata=snapshot_metadata,
-                config=edit_config,
-                after_index=insert_after,
-            )
+        session_with_user = core_orig.add_message(
+            session_after_delete,
+            "user",
+            final_snapshot,
+            metadata=snapshot_metadata,
+            config=edit_config,
+            after_index=insert_after,
+        )
 
-            # Then add the assistant acknowledgment
-            # Find where the user message was inserted
-            insert_after_ack = insert_after + 1 if insert_after >= 0 else 0
-            session_final = core_latest.add_message(
-                session_with_user,
-                "assistant",
-                _ACKNOWLEDGMENT_MESSAGE,
-                metadata=None,
-                config=edit_config,
-                after_index=insert_after_ack,
-            )
+        insert_after_ack = insert_after + 1 if insert_after >= 0 else 0
+        session_final = core_orig.add_message(
+            session_with_user,
+            "assistant",
+            _ACKNOWLEDGMENT_MESSAGE,
+            metadata=None,
+            config=edit_config,
+            after_index=insert_after_ack,
+        )
+        session_final = app.save_session(
+            session_final,
+            reconcile=True,
+            baseline_session=session_orig,
+            baseline_file_state=baseline_file_state,
+            conflict_prefix="Concurrent session modification detected while compacting messages; ",
+            backup_on_conflict=True,
+            acquire_lock=True,
+        )
 
-            app.save_session(session_final)
+        stored = app.publish_event(
+            {
+                "type": "session_compacted",
+                "session_id": session_final.session_id,
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "verification_pass": verification_pass,
+            }
+        )
 
-            stored = app.publish_event(
-                {
-                    "type": "session_compacted",
-                    "session_id": session_final.session_id,
-                    "start_index": start_idx2,
-                    "end_index": end_idx2,
-                    "verification_pass": verification_pass,
-                }
-            )
-
-            try:
-                app.record_checkpoint(
-                    session_final.session_id, stored.get("request_id")
-                )
-            except Exception:  # pragma: no cover - defensive
-                pass
+        try:
+            app.record_checkpoint(session_final.session_id, stored.get("request_id"))
+        except Exception:  # pragma: no cover - defensive
+            pass
 
         # Build debug info for verification
         compacted_messages_debug = [
@@ -949,7 +904,7 @@ class GeminiCompactionAppPlugin:
             },
             "ui_effects": {},
             "message": (
-                f"Compacted messages [{start_idx2}:{end_idx2}] into a state snapshot."
+                f"Compacted messages [{start_idx}:{end_idx}] into a state snapshot."
             ),
             "verification_pass": verification_pass,
             # Debug info for verification

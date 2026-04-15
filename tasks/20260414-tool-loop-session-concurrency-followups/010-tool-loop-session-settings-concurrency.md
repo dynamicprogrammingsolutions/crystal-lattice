@@ -257,6 +257,176 @@ Added after implementation to capture the next scoped enhancement for this subta
   - If messages or other metadata changed, reject the request before the first LLM/tool phase begins.
 - This should remain a focused enhancement to the current shared application-layer request path, separate from the broader cross-process conflict-handling design tracked in `tasks/20260414-tool-loop-session-concurrency-followups/020-request-conflict-handling-draft.md`.
 
+### Explicit File-State API For Long-Running Actions
+
+Added later during follow-up planning to extend the same safety model to
+long-running history-rewriting actions without exposing low-level
+reconciliation internals directly to callers.
+
+Goal:
+
+- Keep `load_session(...)` unchanged for callers.
+- Add an explicit file-state read that can be paired with `load_session(...)`
+  under the same session lock.
+- Reuse the existing reconciliation/save path as much as possible instead of
+  creating a second action-specific concurrency system.
+- Make `send_request(...)` use the same explicit baseline-file-state flow so
+  request preflight/checkpoint logic and action-save logic stay aligned.
+
+Proposed public API changes:
+
+- Add `AgentApplication.get_session_file_state(session_id) -> SessionFileState`
+  - This should delegate to the session store and return the current saved file
+    state used only as an optimistic-concurrency fast path.
+  - Callers are expected to invoke it under the same session lock as
+    `load_session(...)` when they need an explicit baseline for later save.
+- Extend `AgentApplication.save_session(...)` with optional reconciliation
+  kwargs rather than introducing a separate public mutation wrapper:
+  - `reconcile: bool = False`
+  - `baseline_file_state: SessionFileState | None = None`
+  - `conflict_message: str | None = None`
+  - `backup_on_conflict: bool = False`
+  - `acquire_lock: bool = False`
+- Extend `AgentApplication.send_request(...)` with:
+  - `baseline_file_state: SessionFileState | None = None`
+
+Intended caller workflow for long-running actions:
+
+1. Acquire the session lock.
+2. Call `load_session(session_id)`.
+3. Call `get_session_file_state(session_id)`.
+4. Release the lock.
+5. Perform the long-running history-rewrite action.
+6. Call `save_session(..., reconcile=True, baseline_file_state=..., ...)`.
+
+This is the action-side equivalent of the current request checkpoint flow and
+keeps the baseline explicit from the caller side.
+
+How existing helpers should change:
+
+- Keep `_merge_session_if_compatible(...)` as the strict semantic comparison
+  helper.
+  - This remains the core policy point for:
+    - exact message-history matching
+    - protected metadata matching
+    - mergeable non-protected metadata updates
+- Keep `_reconcile_session_with_store(...)` as the main internal store-aware
+  helper, but adjust it so it can sit under both `save_session(...)` and
+  `send_request(...)`.
+  - It should continue to:
+    - check current file state first
+    - fast-path when the file state matches the provided baseline
+    - load and compare stored session only when needed
+    - return the merged session plus updated baseline state
+  - It should own conflict conversion and backup handling:
+    - catch low-level semantic mismatch reasons from
+      `_merge_session_if_compatible(...)`
+    - write a backup when requested
+    - raise the shared conflict exception with the final caller-provided
+      message
+  - It should not be made public.
+- Add a low-level internal save helper beneath `save_session(...)`.
+  - This helper should perform only the raw store write.
+  - It should not run lifecycle hooks, reconciliation, backup logic, or lock
+    acquisition.
+  - `_reconcile_session_with_store(...)` should call this low-level helper on
+    successful save paths so the public `save_session(...)` method does not
+    recurse into itself.
+- Remove any remaining direct/private reconciliation call sites that can be
+  routed through the new `save_session(..., reconcile=True, ...)` path without
+  changing behavior substantially.
+
+How existing request calls should change:
+
+- `send_request(...)` should accept `baseline_file_state`.
+  - Terminal/server callers that already load a session before send can capture
+    file state under the same lock and pass it in.
+  - If not provided, `send_request(...)` should preserve current behavior by
+    loading and comparing against storage during preflight.
+- Request preflight should use the provided `baseline_file_state` first.
+  - This remains a read-only reconciliation path.
+  - If the saved file state matches, preflight can skip reloading the stored
+    session.
+  - If not, it should fall back to the existing structural compare path.
+- The checkpoint closure inside `send_request(...)` should route persistence
+  through `save_session(..., reconcile=True, ...)` as far as practical so
+  error handling and backup behavior stay centralized in the save path.
+- Phase-sync can remain a read-only use of `_reconcile_session_with_store(...)`
+  because it needs compatibility checking without persisting.
+- This follow-up should avoid substantially rewriting the current request logic.
+  The goal is to move existing reconciliation users onto the shared save path,
+  not to invent a second independent implementation.
+
+How existing action calls should change:
+
+- `execute_session_action(...)`
+  - Under the session lock:
+    - load the session
+    - capture `baseline_file_state`
+  - Run the provider-extension session action as today.
+  - Save via
+    `save_session(..., reconcile=True, baseline_file_state=..., conflict_message=..., backup_on_conflict=True)`.
+  - No provider-extension plugin interface change is needed.
+- Long-running application actions that rewrite message history
+  - Use the same explicit `load_session(...)` + `get_session_file_state(...)` +
+    reconciled `save_session(...)` pattern.
+  - Target examples include summarize-range / compaction style actions.
+- Simpler actions like `delete_messages`
+  - Also move to the same pattern for consistency, even if they are less likely
+    to conflict.
+- Metadata-only actions like pinning
+  - Can use the same reconciled save path with `backup_on_conflict=False`.
+  - Because non-protected metadata is mergeable, these should continue to work
+    concurrently with requests when only mergeable metadata changed.
+
+Error-handling expectations:
+
+- Requests continue to surface conflict through request `error` events.
+- Actions continue to surface conflict synchronously through `POST /actions`
+  response payloads.
+- Both should use the same underlying conflict exception and backup behavior.
+- `_reconcile_session_with_store(...)` should be the place where backup writing
+  and conflict exception construction happens; outer layers should only convert
+  that exception into request events or action responses.
+
+Concrete implementation order:
+
+1. Add `AgentApplication.get_session_file_state(session_id)`.
+2. Add a low-level raw save helper beneath `save_session(...)`.
+3. Extend `save_session(...)` with reconciliation kwargs and route the new path
+   through `_reconcile_session_with_store(...)`.
+4. Move backup/error handling into `_reconcile_session_with_store(...)` so
+   callers no longer need to duplicate that logic.
+5. Extend `send_request(...)` with `baseline_file_state` and update preflight
+   to use it when available.
+6. Update request checkpoint persistence to use the new `save_session(..., reconcile=True, ...)`
+   path as far as possible, while keeping phase-sync as a read-only reconcile
+   path and preserving current control flow.
+7. Update `execute_session_action(...)` to capture file state and commit via the
+   new save path.
+8. Migrate the most important long-running history-rewriting application
+   actions to the same pattern.
+9. Add regression coverage for explicit-baseline request and action flows.
+
+Follow-up test plan additions:
+
+- `send_request(...)` preflight with provided `baseline_file_state`
+  - unchanged file state => no unnecessary reload required
+  - stale file state => conflict is still detected
+- provider-extension session action
+  - captures file state at load time
+  - concurrent message/native-history drift causes conflict on save
+  - no plugin API change required
+- long-running history-rewrite action pattern
+  - load session
+  - capture file state
+  - external drift
+  - reconciled save fails without overwriting stored session
+- metadata-only action
+  - concurrent mergeable metadata drift still succeeds through reconciled save
+- `/actions` endpoint regression
+  - conflict returns `status="error"` with `error_type="conflict"`
+
 ## Task checklist
 
 - [x] Add request-start preflight validation in the shared application layer.
@@ -323,3 +493,41 @@ Added during follow-up planning before implementation of the early preflight enh
     - `pytest application/python/tests/test_terminal_application.py -q`
   - Verified the known failing regression with:
     - `pytest core/python/tests/test_application_tool_loop_session_concurrency.py::test_cross_process_append_then_send_should_eventually_stop_both_requests -q -vv`
+  - Updated during explicit file-state follow-up implementation:
+    - Added `AgentApplication.get_session_file_state(...)` and a public reconciled `save_session(...)` path with explicit kwargs for `reconcile`, `baseline_session`, `baseline_file_state`, `backup_on_conflict`, and `acquire_lock`.
+    - Added a low-level raw save helper beneath `save_session(...)` so `_reconcile_session_with_store(...)` can persist without recursion.
+    - Moved backup creation and conflict exception construction into `_reconcile_session_with_store(...)` via a shared `SessionConflictError`.
+    - Extended `AgentApplication.send_request(...)` with optional `baseline_file_state` and updated terminal/server request entry points to pass captured file state into preflight.
+    - Updated checkpoint persistence inside `send_request(...)` to route through the new reconciled `save_session(...)` path, while keeping phase-sync as a read-only reconcile step.
+    - Updated `execute_session_action(...)` to capture file state at load time and commit via the reconciled save path without changing provider-extension plugin APIs.
+    - Migrated the built-in pinned toggle and `delete_messages` action to the new reconciled save path as early action adopters.
+    - Added focused regressions for:
+      - reconciled save conflict during a long-running action-style flow
+      - provider-extension session action conflict surfacing as `/actions` `error_type="conflict"`
+    - Verified passing coverage with:
+      - `pytest core/python/tests/test_application_tool_loop_session_concurrency.py -k 'not cross_process' -q -vv`
+      - `pytest application/python/tests/test_provider_extension_session_actions_endpoints.py -q -vv`
+      - `pytest application/python/tests/test_terminal_application.py -q -vv`
+      - `pytest plugins/session-pinned-app/tests/test_session_pinned_app_via_agent_application.py -q -vv`
+      - `pytest plugins/session-actions-app/tests/test_session_actions_app_plugin_unit.py::test_delete_messages_by_indices_and_range -q -vv`
+      - `pytest core/python/tests/test_application_layer_tools.py -q -vv`
+      - `pytest core/python/tests/test_application_layer_basic.py -q -vv`
+      - `pytest core/python/tests/test_application_layer_streaming.py -q -vv`
+      - `pytest application/python/tests/test_agent_terminal_app_server.py::test_send_request_idempotency_key_replays_request_id -q -vv`
+  - Updated during long-running action follow-up:
+    - Reverted the reconciled save path from short actions that already hold `acquire_session_lock(...)` for their entire mutation, specifically the built-in pinned toggle and `delete_messages`.
+    - Moved the explicit baseline-and-reconcile flow onto long-running application actions that release the lock while doing provider work:
+      - `plugins/summarize-range-app/src/summarize_range_app/__init__.py`
+      - `plugins/gemini-compaction-app/src/gemini_compaction_app/__init__.py`
+    - Changed those long-running actions to capture `load_session(...)` and `get_session_file_state(...)` together under the lock, perform their model work ephemerally, and then commit with `save_session(..., reconcile=True, acquire_lock=True)`.
+    - Switched their internal model calls from `AgentApplication.send_request(...)` to `prepare_tools_for_session(...)` plus `AgentCore.send_request(...)` so the temporary derived sessions do not run persisted-session preflight.
+    - Added action-level conflict regressions in:
+      - `plugins/summarize-range-app/tests/test_summarize_range_app_plugin_unit.py`
+      - `plugins/gemini-compaction-app/tests/test_gemini_compaction_app_via_agent_application.py`
+    - Re-verified passing coverage with:
+      - `pytest plugins/summarize-range-app/tests/test_summarize_range_app_plugin_unit.py -q`
+      - `pytest plugins/summarize-range-app/tests/test_summarize_range_app_via_agent_application.py -q`
+      - `pytest plugins/gemini-compaction-app/tests/test_gemini_compaction_app_via_agent_application.py -q`
+      - `pytest plugins/session-pinned-app/tests/test_session_pinned_app_via_agent_application.py -q`
+      - `pytest plugins/session-actions-app/tests/test_session_actions_app_plugin_unit.py::test_delete_messages_by_indices_and_range -q`
+      - `pytest application/python/tests/test_provider_extension_session_actions_endpoints.py -q`

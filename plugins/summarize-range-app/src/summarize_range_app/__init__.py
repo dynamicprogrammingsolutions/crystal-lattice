@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Application-level plugin that summarizes a range of messages.
 
 This plugin operates at the :class:`agent_app.application_future.AgentApplication`
@@ -23,6 +21,8 @@ constructs a new :class:`agent_core.types.Session` object with adjusted
 messages and drops provider-native history fields so that subsequent requests
 can rebuild native state from the core message list.
 """
+
+from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
@@ -346,11 +346,12 @@ class SummarizeRangeAppPlugin:
 
         effective_prompt = self._effective_prompt(params, state)
 
-        ctx = app.load_session(session_id)
-        if ctx is None:
-            raise KeyError(f"Session {session_id!r} not found")
-
-        core_orig, base_config_orig, session_orig = ctx
+        with app.acquire_session_lock(session_id):
+            ctx = app.load_session(session_id)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
+            core_orig, base_config_orig, session_orig = ctx
+            baseline_file_state = app.get_session_file_state(session_id)
 
         message_count = len(session_orig.messages)
         start_idx, end_idx = _normalize_slice_bounds(message_count, start_int, end_int)
@@ -437,23 +438,25 @@ class SummarizeRangeAppPlugin:
             config=config_for_add,
         )
 
-        # Run the summarization request using AgentApplication.send_request.
+        # Run the summarization request without persisting the temporary
+        # summarizer session. We only need the model output here.
         try:
-            events = app.send_request(
-                core_sum,
+            core_sum, _base_sum, session_with_prompt, request_config, rid = (
+                app.prepare_tools_for_session(
+                    core_sum,
+                    session_with_prompt,
+                    base_config_sum,
+                    combined_overrides,
+                )
+            )
+            _request_session, final_messages = core_sum.send_request(
                 session_with_prompt,
-                base_config_sum,
-                combined_overrides,
-                stream=False,
+                request_config,
+                request_id=rid,
             )
             last_final_messages: Optional[List[Dict[str, Any]]] = None
-            for ev in events:
-                if not isinstance(ev, dict):
-                    continue
-                if ev.get("type") == "final":
-                    msgs = ev.get("messages") or []
-                    if isinstance(msgs, list):
-                        last_final_messages = msgs
+            if isinstance(final_messages, list):
+                last_final_messages = final_messages
         except Exception as exc:  # pragma: no cover - defensive
             return {
                 "status": "error",
@@ -480,79 +483,56 @@ class SummarizeRangeAppPlugin:
                 "message": "Summarization failed (no assistant reply).",
             }
 
-        # Apply the summary to the original session under a lock.
-        with app.acquire_session_lock(session_id):
-            ctx_latest = app.load_session(session_id)
-            if ctx_latest is None:
-                raise KeyError(f"Session {session_id!r} not found")
+        # Apply the summary to the original session snapshot and reconcile
+        # when saving so concurrent message edits fail instead of being
+        # silently rewritten onto a later session version.
+        edit_config = resolve_request_config(base_config_orig, md_overrides)
+        remove_indices = list(range(start_idx, end_idx))
+        session_after_delete = core_orig.slice_session(
+            session_orig,
+            edit_config,
+            remove_indices=remove_indices,
+        )
 
-            core_latest, base_cfg_latest, session_latest = ctx_latest
-            message_count2 = len(session_latest.messages)
-            start_idx2, end_idx2 = _normalize_slice_bounds(
-                message_count2,
-                start_int,
-                end_int,
-            )
-
-            # Build a config for editing that mirrors the original slice
-            # semantics, including per-session overrides.
-            md_latest = (
-                session_latest.metadata
-                if isinstance(session_latest.metadata, dict)
-                else {}
-            )
-            md_overrides_latest_val = md_latest.get("overrides")
-            md_overrides_latest: Dict[str, Any] = (
-                md_overrides_latest_val
-                if isinstance(md_overrides_latest_val, dict)
-                else {}
-            )
-            edit_config = resolve_request_config(base_cfg_latest, md_overrides_latest)
-
-            # Step 1: remove the original range using slice_session. This
-            # keeps provider-native history aligned with the remaining
-            # messages.
-            remove_indices = list(range(start_idx2, end_idx2))
-            session_after_delete = core_latest.slice_session(
-                session_latest,
-                edit_config,
-                remove_indices=remove_indices,
-            )
-
-            # Step 2: insert the summary assistant message at the original
-            # start index position using the native-aware add_message API.
-            insert_after = start_idx2 - 1
-            summary_metadata: Dict[str, Any] = {
-                "summarized_range": {
-                    "start_index": start_idx2,
-                    "end_index": end_idx2,
-                }
+        insert_after = start_idx - 1
+        summary_metadata: Dict[str, Any] = {
+            "summarized_range": {
+                "start_index": start_idx,
+                "end_index": end_idx,
             }
+        }
 
-            new_session = core_latest.add_message(
-                session_after_delete,
-                "assistant",
-                summary_text,
-                metadata=summary_metadata,
-                config=edit_config,
-                after_index=insert_after,
-            )
+        new_session = core_orig.add_message(
+            session_after_delete,
+            "assistant",
+            summary_text,
+            metadata=summary_metadata,
+            config=edit_config,
+            after_index=insert_after,
+        )
+        new_session = app.save_session(
+            new_session,
+            reconcile=True,
+            baseline_session=session_orig,
+            baseline_file_state=baseline_file_state,
+            conflict_prefix="Concurrent session modification detected while summarizing messages; ",
+            backup_on_conflict=True,
+            acquire_lock=True,
+        )
 
-            app.save_session(new_session)
+        stored = app.publish_event(
+            {
+                "type": "range_summarized",
+                "session_id": new_session.session_id,
+                "start_index": start_idx,
+                "end_index": end_idx,
+            }
+        )
 
-            stored = app.publish_event(
-                {
-                    "type": "range_summarized",
-                    "session_id": new_session.session_id,
-                    "start_index": start_idx2,
-                    "end_index": end_idx2,
-                }
-            )
-
-            try:
-                app.record_checkpoint(new_session.session_id, stored.get("request_id"))
-            except Exception:  # pragma: no cover - defensive
-                pass
+        try:
+            app.record_checkpoint(new_session.session_id, stored.get("request_id"))
+        except Exception:  # pragma: no cover - defensive
+            pass
 
         return {
             "mutations": {
