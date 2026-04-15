@@ -654,31 +654,22 @@ class TerminalApplication:
             etype = ev.get("type")
 
             # Internal checkpoint events carry the live Session object so the
-            # terminal can persist progress incrementally. They are not
+            # terminal can track progress incrementally. They are not
             # published to the shared event store or exposed over the
             # network.
             if etype == "session_checkpoint":
                 session_obj = ev.get("session")
                 if isinstance(session_obj, Session):
                     sid = session_obj.session_id
-                    # Serialize persistence and checkpoint emission using the
-                    # shared application-level lock so that multiple
-                    # frontends (terminal + HTTP server) coordinate access to
-                    # this session's state.
-                    with self._app.acquire_session_lock(sid):
-                        try:
-                            self._app.save_session(session_obj)
-                        except Exception:  # pragma: no cover - defensive
-                            pass
-                        self._session = session_obj
-                        try:
-                            final_session_dict = session_obj.to_dict()
-                        except Exception:  # pragma: no cover - defensive
-                            pass
-                        try:
-                            self._app.record_checkpoint(sid, ev.get("request_id"))
-                        except Exception:  # pragma: no cover - defensive
-                            pass
+                    self._session = session_obj
+                    try:
+                        final_session_dict = session_obj.to_dict()
+                    except Exception:  # pragma: no cover - defensive
+                        pass
+                    try:
+                        self._app.record_checkpoint(sid, ev.get("request_id"))
+                    except Exception:  # pragma: no cover - defensive
+                        pass
                 continue
 
             stored = store.publish(ev)
@@ -694,7 +685,6 @@ class TerminalApplication:
         if final_session_dict is not None:
             try:
                 final_session = Session.from_dict(final_session_dict)
-                self._app.save_session(final_session)
                 self._session = final_session
             except Exception:  # pragma: no cover - defensive
                 pass

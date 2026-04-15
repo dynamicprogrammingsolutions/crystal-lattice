@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import threading
-from typing import Any, Dict, Iterator, List
+from typing import Any, Callable, Dict, Iterator, List
 import traceback  # Add this import at the beginning of your file
 
 
@@ -51,6 +51,14 @@ class RequestCancellation:
             self._callbacks.pop(token, None)
 
 
+class ToolLoopCheckpointError(RuntimeError):
+    """Raised when a checkpoint cannot be safely persisted."""
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(detail)
+        self.detail = detail
+
+
 class ToolLoopRunner:
     """Run the application-layer tool loop for a single request.
 
@@ -70,6 +78,9 @@ class ToolLoopRunner:
         cancel_callback: Any | None = None,
         cancellation: RequestCancellation | None = None,
         context: Dict[str, Any] | None = None,
+        on_session_checkpoint: Callable[[Session], Session | None] | None = None,
+        session_for_phase: Callable[[Session], Session | None] | None = None,
+        config_for_session: Callable[[Session], Dict[str, Any] | None] | None = None,
     ) -> None:
         self._core = core
         self._config = config
@@ -78,6 +89,9 @@ class ToolLoopRunner:
         self._cancel_callback = cancel_callback
         self._cancellation = cancellation
         self._context = context
+        self._on_session_checkpoint = on_session_checkpoint
+        self._session_for_phase = session_for_phase
+        self._config_for_session = config_for_session
 
 
     # ------------------------------------------------------------------
@@ -131,6 +145,33 @@ class ToolLoopRunner:
         except Exception:
             return False
 
+    def _refresh_runtime(self, session: Session) -> Session:
+        session_for_phase = getattr(self, "_session_for_phase", None)
+        if session_for_phase is not None:
+            updated_session = session_for_phase(session)
+            if isinstance(updated_session, Session):
+                session = updated_session
+
+        config_for_session = getattr(self, "_config_for_session", None)
+        if config_for_session is not None:
+            updated = config_for_session(session)
+            if isinstance(updated, dict):
+                self._config = updated
+
+        if isinstance(self._context, dict):
+            self._context = {
+                **self._context,
+                "session": session.to_dict(),
+            }
+        return session
+
+    def _checkpoint_session(self, session: Session) -> Session:
+        handler = getattr(self, "_on_session_checkpoint", None)
+        if handler is None:
+            return session
+        checkpointed = handler(session)
+        return checkpointed if isinstance(checkpointed, Session) else session
+
     def _run_llm_phase(
         self,
         session: Session,
@@ -153,6 +194,7 @@ class ToolLoopRunner:
         """
 
         core = self._core
+        session = self._refresh_runtime(session)
         config = self._config
         rid = self._request_id
         start_index = len(session.messages)
@@ -195,13 +237,14 @@ class ToolLoopRunner:
             # Internal checkpoint is emitted *after* the final event so
             # that session persistence and checkpoint cursors align with
             # the visible assistant messages.
+            checkpoint_session = self._checkpoint_session(next_session)
             yield {
                 "type": "session_checkpoint",
-                "session_id": next_session.session_id,
+                "session_id": checkpoint_session.session_id,
                 "request_id": rid,
-                "session": next_session,
+                "session": checkpoint_session,
             }
-            return next_session, final_messages
+            return checkpoint_session, final_messages
 
         # Streaming: yield partial and final events directly from
         # send_request_stream so that callers see true streaming
@@ -284,11 +327,12 @@ class ToolLoopRunner:
                     # Internal checkpoint is emitted *after* the final
                     # event so that persistence and checkpoint cursors align
                     # with the visible assistant messages.
+                    checkpoint_session = self._checkpoint_session(final_session)
                     yield {
                         "type": "session_checkpoint",
-                        "session_id": final_session.session_id,
+                        "session_id": checkpoint_session.session_id,
                         "request_id": rid,
-                        "session": final_session,
+                        "session": checkpoint_session,
                     }
         except ProviderRequestCancelled:
             yield {
@@ -298,7 +342,7 @@ class ToolLoopRunner:
             }
             return current_session, []
 
-        return final_session, final_messages
+        return checkpoint_session if 'checkpoint_session' in locals() else final_session, final_messages
 
     def _apply_tool_calls(
         self,
@@ -316,6 +360,7 @@ class ToolLoopRunner:
         """
 
         core = self._core
+        session = self._refresh_runtime(session)
         config = self._config
         rid = self._request_id
         start_index = len(session.messages)
@@ -432,14 +477,15 @@ class ToolLoopRunner:
         # Emit a single checkpoint *after* tool_results so that
         # external consumers can align snapshots with the final tool
         # messages for this phase.
+        checkpoint_session = self._checkpoint_session(current_session)
         yield {
             "type": "session_checkpoint",
-            "session_id": current_session.session_id,
+            "session_id": checkpoint_session.session_id,
             "request_id": rid,
-            "session": current_session,
+            "session": checkpoint_session,
         }
 
-        return current_session
+        return checkpoint_session
 
     # ------------------------------------------------------------------
     # Public API
@@ -546,6 +592,13 @@ class ToolLoopRunner:
                         current_session = stop.value
                         break
                     yield ev
+        except ToolLoopCheckpointError as exc:
+            yield {
+                "type": "error",
+                "session_id": current_session.session_id,
+                "request_id": self._request_id,
+                "detail": exc.detail,
+            }
         except Exception as exc:
             print(f"Error in ToolLoopRunner: {exc}")
             traceback.print_exc()  # Print the stack trace

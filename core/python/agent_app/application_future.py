@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Set, Tuple, cast
@@ -25,8 +26,8 @@ from .config import (
 )
 from .events import EventStore, InMemoryEventStore
 from .session_assets import FilesystemSessionAssetStore
-from .sessions import FilesystemSessionStore
-from .tool_loop import RequestCancellation, ToolLoopRunner
+from .sessions import FilesystemSessionStore, SessionFileState
+from .tool_loop import RequestCancellation, ToolLoopRunner, ToolLoopCheckpointError
 from agent_core.utils import get_logger
 from .plugin_manager import PluginManager
 from .runtime_env import RuntimeEnvOverlay
@@ -51,6 +52,12 @@ class _AgentPluginRuntime:
     plugin_classes: Dict[str, List[type[Any]]]
     plugins_by_kind_and_id: Dict[str, Dict[str, type[Any]]]
     default_enabled_ids: Optional[List[str]]
+
+
+@dataclass
+class _CheckpointBaseline:
+    session: Session
+    file_state: SessionFileState
 
 
 class _ToolRuntimeStore:
@@ -826,6 +833,224 @@ class AgentApplication:
         effective_overrides = self._effective_overrides(metadata, overrides)
         return self._decorate_runtime_config(
             resolve_request_config(base_config, effective_overrides)
+        )
+
+    @staticmethod
+    def _session_messages_digest(session: Session) -> str:
+        payload = json.dumps(
+            [message.to_dict() for message in session.messages],
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(payload).hexdigest()
+
+    @staticmethod
+    def _metadata_without_overrides(session: Session) -> Dict[str, Any]:
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        return {
+            key: value
+            for key, value in metadata.items()
+            if key != "overrides"
+        }
+
+    @staticmethod
+    def _session_overrides(session: Session) -> Dict[str, Any]:
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        raw = metadata.get("overrides")
+        return raw if isinstance(raw, dict) else {}
+
+    def _save_session_conflict_backup(
+        self,
+        session: Session,
+        *,
+        request_id: str,
+    ) -> Path:
+        return self._session_store.save_backup(session, request_id=request_id)
+
+    def _reconcile_checkpoint_session(
+        self,
+        *,
+        baseline: _CheckpointBaseline | None,
+        checkpoint_session: Session,
+        request_id: str,
+    ) -> tuple[Session, _CheckpointBaseline]:
+        current_state = self._session_store.get_file_state(checkpoint_session.session_id)
+
+        if baseline is None:
+            self.save_session(checkpoint_session)
+            persisted = self.load_session_record(checkpoint_session.session_id) or checkpoint_session
+            saved_state = self._session_store.get_file_state(checkpoint_session.session_id)
+            return persisted, _CheckpointBaseline(
+                session=persisted,
+                file_state=saved_state,
+            )
+
+        if current_state == baseline.file_state:
+            self.save_session(checkpoint_session)
+            persisted = self.load_session_record(checkpoint_session.session_id) or checkpoint_session
+            saved_state = self._session_store.get_file_state(checkpoint_session.session_id)
+            return persisted, _CheckpointBaseline(
+                session=persisted,
+                file_state=saved_state,
+            )
+
+        stored_session = self.load_session_record(checkpoint_session.session_id)
+        if stored_session is None:
+            backup_path = self._save_session_conflict_backup(
+                checkpoint_session,
+                request_id=request_id,
+            )
+            raise ToolLoopCheckpointError(
+                "Concurrent session modification detected; stored session disappeared "
+                f"while request was running. Backup saved to {backup_path}"
+            )
+
+        if stored_session.session_id != baseline.session.session_id:
+            backup_path = self._save_session_conflict_backup(
+                checkpoint_session,
+                request_id=request_id,
+            )
+            raise ToolLoopCheckpointError(
+                "Concurrent session modification detected; session id changed. "
+                f"Backup saved to {backup_path}"
+            )
+
+        if len(stored_session.messages) != len(baseline.session.messages):
+            backup_path = self._save_session_conflict_backup(
+                checkpoint_session,
+                request_id=request_id,
+            )
+            raise ToolLoopCheckpointError(
+                "Concurrent session modification detected; message count changed. "
+                f"Backup saved to {backup_path}"
+            )
+
+        if self._session_messages_digest(stored_session) != self._session_messages_digest(
+            baseline.session
+        ):
+            backup_path = self._save_session_conflict_backup(
+                checkpoint_session,
+                request_id=request_id,
+            )
+            raise ToolLoopCheckpointError(
+                "Concurrent session modification detected; messages changed. "
+                f"Backup saved to {backup_path}"
+            )
+
+        if self._metadata_without_overrides(stored_session) != self._metadata_without_overrides(
+            baseline.session
+        ):
+            backup_path = self._save_session_conflict_backup(
+                checkpoint_session,
+                request_id=request_id,
+            )
+            raise ToolLoopCheckpointError(
+                "Concurrent session modification detected; non-settings metadata changed. "
+                f"Backup saved to {backup_path}"
+            )
+
+        merged_overrides = self._session_overrides(stored_session)
+        merged_metadata = (
+            dict(checkpoint_session.metadata)
+            if isinstance(checkpoint_session.metadata, dict)
+            else {}
+        )
+        if merged_overrides:
+            merged_metadata["overrides"] = merged_overrides
+        else:
+            merged_metadata.pop("overrides", None)
+
+        reconciled_session = Session(
+            session_id=checkpoint_session.session_id,
+            messages=checkpoint_session.messages,
+            metadata=merged_metadata,
+        )
+        self.save_session(reconciled_session)
+        persisted = self.load_session_record(reconciled_session.session_id) or reconciled_session
+        saved_state = self._session_store.get_file_state(reconciled_session.session_id)
+        return persisted, _CheckpointBaseline(
+            session=persisted,
+            file_state=saved_state,
+        )
+
+    def _sync_phase_session(
+        self,
+        *,
+        baseline: _CheckpointBaseline | None,
+        current_session: Session,
+        request_id: str,
+    ) -> tuple[Session, _CheckpointBaseline | None]:
+        if baseline is None:
+            return current_session, baseline
+
+        current_state = self._session_store.get_file_state(current_session.session_id)
+        if current_state == baseline.file_state:
+            return current_session, baseline
+
+        stored_session = self.load_session_record(current_session.session_id)
+        if stored_session is None:
+            backup_path = self._save_session_conflict_backup(
+                current_session,
+                request_id=request_id,
+            )
+            raise ToolLoopCheckpointError(
+                "Concurrent session modification detected before the next phase; "
+                f"stored session disappeared. Backup saved to {backup_path}"
+            )
+
+        if len(stored_session.messages) != len(baseline.session.messages):
+            backup_path = self._save_session_conflict_backup(
+                current_session,
+                request_id=request_id,
+            )
+            raise ToolLoopCheckpointError(
+                "Concurrent session modification detected before the next phase; "
+                f"message count changed. Backup saved to {backup_path}"
+            )
+
+        if self._session_messages_digest(stored_session) != self._session_messages_digest(
+            baseline.session
+        ):
+            backup_path = self._save_session_conflict_backup(
+                current_session,
+                request_id=request_id,
+            )
+            raise ToolLoopCheckpointError(
+                "Concurrent session modification detected before the next phase; "
+                f"messages changed. Backup saved to {backup_path}"
+            )
+
+        if self._metadata_without_overrides(stored_session) != self._metadata_without_overrides(
+            baseline.session
+        ):
+            backup_path = self._save_session_conflict_backup(
+                current_session,
+                request_id=request_id,
+            )
+            raise ToolLoopCheckpointError(
+                "Concurrent session modification detected before the next phase; "
+                f"non-settings metadata changed. Backup saved to {backup_path}"
+            )
+
+        merged_metadata = (
+            dict(current_session.metadata)
+            if isinstance(current_session.metadata, dict)
+            else {}
+        )
+        stored_overrides = self._session_overrides(stored_session)
+        if stored_overrides:
+            merged_metadata["overrides"] = stored_overrides
+        else:
+            merged_metadata.pop("overrides", None)
+
+        updated_session = Session(
+            session_id=current_session.session_id,
+            messages=current_session.messages,
+            metadata=merged_metadata,
+        )
+        return updated_session, _CheckpointBaseline(
+            session=stored_session,
+            file_state=current_state,
         )
 
     @staticmethod
@@ -2104,6 +2329,12 @@ class AgentApplication:
             "stream": bool(stream),
             "overrides": dict(overrides or {}),
         }
+        initial_file_state = self._session_store.get_file_state(session.session_id)
+        checkpoint_baseline: _CheckpointBaseline | None = (
+            _CheckpointBaseline(session=session, file_state=initial_file_state)
+            if initial_file_state.exists
+            else None
+        )
         original_session = session
         core, base_config, session, _results = self.run_session_lifecycle(
             "request_prepare",
@@ -2125,6 +2356,37 @@ class AgentApplication:
         def _is_cancelled() -> bool:
             return cancellation.is_cancelled()
 
+        def _refresh_config_for_session(current_session: Session) -> Dict[str, Any]:
+            refreshed = self.resolve_effective_config(base_config, current_session, overrides)
+            core.prepare_tools(
+                refreshed,
+                context={
+                    **self._build_tool_context(session=current_session, request_id=rid),
+                    "cancellation": cancellation,
+                },
+            )
+            return refreshed
+
+        def _persist_checkpoint(current_session: Session) -> Session:
+            nonlocal checkpoint_baseline
+            with self.acquire_session_lock(current_session.session_id):
+                reconciled, checkpoint_baseline = self._reconcile_checkpoint_session(
+                    baseline=checkpoint_baseline,
+                    checkpoint_session=current_session,
+                    request_id=rid,
+                )
+            return reconciled
+
+        def _sync_phase_session(current_session: Session) -> Session:
+            nonlocal checkpoint_baseline
+            with self.acquire_session_lock(current_session.session_id):
+                refreshed, checkpoint_baseline = self._sync_phase_session(
+                    baseline=checkpoint_baseline,
+                    current_session=current_session,
+                    request_id=rid,
+                )
+            return refreshed
+
         # Initial request_started event
         yield {
             "type": "request_started",
@@ -2135,11 +2397,12 @@ class AgentApplication:
 
         latest_session = session
         if session != original_session:
+            latest_session = _persist_checkpoint(session)
             yield {
                 "type": "session_checkpoint",
-                "session_id": session.session_id,
+                "session_id": latest_session.session_id,
                 "request_id": rid,
-                "session": session,
+                "session": latest_session,
             }
 
         loop_runner = ToolLoopRunner(
@@ -2153,6 +2416,9 @@ class AgentApplication:
                 **self._build_tool_context(session=session, request_id=rid),
                 "cancellation": cancellation,
             },
+            on_session_checkpoint=_persist_checkpoint,
+            session_for_phase=_sync_phase_session,
+            config_for_session=_refresh_config_for_session,
         )
 
         error_seen = False
@@ -2187,12 +2453,17 @@ class AgentApplication:
                             },
                         )
                         if latest_session != before_session:
-                            yield {
-                                "type": "session_checkpoint",
-                                "session_id": latest_session.session_id,
-                                "request_id": rid,
-                                "session": latest_session,
-                            }
+                            try:
+                                latest_session = _persist_checkpoint(latest_session)
+                            except ToolLoopCheckpointError:
+                                pass
+                            else:
+                                yield {
+                                    "type": "session_checkpoint",
+                                    "session_id": latest_session.session_id,
+                                    "request_id": rid,
+                                    "session": latest_session,
+                                }
                     continue
 
                 if event_type == "request_completed":
@@ -2207,12 +2478,23 @@ class AgentApplication:
                             context=request_context,
                         )
                         if latest_session != before_session:
-                            yield {
-                                "type": "session_checkpoint",
-                                "session_id": latest_session.session_id,
-                                "request_id": rid,
-                                "session": latest_session,
-                            }
+                            try:
+                                latest_session = _persist_checkpoint(latest_session)
+                            except ToolLoopCheckpointError as exc:
+                                error_seen = True
+                                yield {
+                                    "type": "error",
+                                    "session_id": latest_session.session_id,
+                                    "request_id": rid,
+                                    "detail": exc.detail,
+                                }
+                            else:
+                                yield {
+                                    "type": "session_checkpoint",
+                                    "session_id": latest_session.session_id,
+                                    "request_id": rid,
+                                    "session": latest_session,
+                                }
                     yield event
                     continue
 

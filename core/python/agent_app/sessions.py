@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, Optional
+import time
 
 from agent_core import AgentCore, Session
 
@@ -17,6 +19,13 @@ class SessionStore(Protocol):
 
     def delete(self, session_id: str) -> None:  # pragma: no cover - interface
         ...
+
+
+@dataclass(frozen=True)
+class SessionFileState:
+    exists: bool
+    mtime_ns: Optional[int]
+    size: Optional[int]
 
 
 class FilesystemSessionStore(SessionStore):
@@ -44,12 +53,41 @@ class FilesystemSessionStore(SessionStore):
         data = path.read_text(encoding="utf-8")
         return self._core.import_session(data)
 
+    def get_file_state(self, session_id: str) -> SessionFileState:
+        path = self._path_for(session_id)
+        try:
+            stat = path.stat()
+        except FileNotFoundError:
+            return SessionFileState(exists=False, mtime_ns=None, size=None)
+        return SessionFileState(
+            exists=True,
+            mtime_ns=getattr(stat, "st_mtime_ns", None),
+            size=getattr(stat, "st_size", None),
+        )
+
     def save(self, session: Session) -> None:
         path = self._path_for(session.session_id)
         tmp_path = path.with_suffix(path.suffix + ".tmp")
         serialized = self._core.export_session(session)
         tmp_path.write_text(serialized, encoding="utf-8")
         tmp_path.replace(path)
+
+    def save_backup(
+        self,
+        session: Session,
+        *,
+        request_id: str,
+        suffix: str = "tool-loop-conflict",
+    ) -> Path:
+        path = self._path_for(session.session_id)
+        stamp = time.time_ns()
+        backup_name = (
+            f"{session.session_id}.{suffix}.{request_id}.{stamp}.json"
+        )
+        backup_path = path.with_name(backup_name)
+        serialized = self._core.export_session(session)
+        backup_path.write_text(serialized, encoding="utf-8")
+        return backup_path
 
     def delete(self, session_id: str) -> None:
         path = self._path_for(session_id)

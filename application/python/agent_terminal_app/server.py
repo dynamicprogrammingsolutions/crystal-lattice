@@ -1024,32 +1024,25 @@ def _run_send_request_background(
             etype = ev.get("type")
 
             # Internal checkpoint events carry the live Session object so the
-            # server can persist progress incrementally. They are not
+            # server can track progress incrementally. They are not
             # published to the shared event store or serialized in responses.
             if etype == "session_checkpoint":
                 session_obj = ev.get("session")
                 if isinstance(session_obj, Session):
-                    with app_instance.acquire_session_lock(session_obj.session_id):
-                        try:
-                            app_instance.save_session(session_obj)
-                        except Exception:  # pragma: no cover - defensive
-                            _log.exception(
-                                "failed to save session checkpoint for %r", session_id
-                            )
-                        try:
-                            final_session_dict = session_obj.to_dict()
-                        except Exception:  # pragma: no cover - defensive
-                            _log.exception(
-                                "failed to serialize session checkpoint for %r", session_id
-                            )
-                        try:
-                            app_instance.record_checkpoint(
-                                session_obj.session_id, ev.get("request_id")
-                            )
-                        except Exception:  # pragma: no cover - defensive
-                            _log.exception(
-                                "failed to publish checkpoint event for %r", session_id
-                            )
+                    try:
+                        final_session_dict = session_obj.to_dict()
+                    except Exception:  # pragma: no cover - defensive
+                        _log.exception(
+                            "failed to serialize session checkpoint for %r", session_id
+                        )
+                    try:
+                        app_instance.record_checkpoint(
+                            session_obj.session_id, ev.get("request_id")
+                        )
+                    except Exception:  # pragma: no cover - defensive
+                        _log.exception(
+                            "failed to publish checkpoint event for %r", session_id
+                        )
                 continue
 
             stored = app_instance.publish_event(ev)
@@ -1061,13 +1054,6 @@ def _run_send_request_background(
                 # Backwards compatibility for older event shapes that include
                 # a serialized session payload.
                 final_session_dict = stored["session"]
-
-        if final_session_dict is not None:
-            try:
-                final_session = Session.from_dict(final_session_dict)
-                app_instance.save_session(final_session)
-            except Exception:  # pragma: no cover - defensive
-                _log.exception("failed to persist final session for %r", session_id)
 
         # ``final_messages`` and ``request_id`` are intentionally unused
         # here; callers are expected to observe results via the event
