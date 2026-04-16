@@ -25,7 +25,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException  # type: ignore[repo
 
 from agent_app.application_future import AgentApplication
 from agent_app.config import resolve_request_config
-from agent_core import Session
+from agent_core import Message, Session
 from agent_terminal_app import bonjour as bonjour_mod
 from agent_terminal_app import bridge_client as bridge_mod
 
@@ -1580,55 +1580,6 @@ def patch_session_overrides(
     return response
 
 
-@app.get("/sessions/{session_id}/config/schema")
-def get_session_config_schema(
-    session_id: str,
-    app_instance: AgentApplication = Depends(get_agent_app),
-) -> Dict[str, Any]:
-    """Return flattened config schema entries for this session's agent.
-
-    The schema entries are derived from ``core.get_config_schema()`` and
-    correspond to the same data used by the terminal application's
-    ``/help config`` output.
-    """
-
-    try:
-        ctx = app_instance.load_session(session_id)
-        if ctx is None:
-            raise KeyError(f"Session {session_id!r} not found")
-        core, _base_config, _session = ctx
-        schema = core.get_config_schema()
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except Exception:  # pragma: no cover - defensive
-        schema = []
-
-    return {"schema": schema}
-
-
-@app.get("/sessions/{session_id}/config/base")
-def get_session_base_config(
-    session_id: str,
-    app_instance: AgentApplication = Depends(get_agent_app),
-) -> Dict[str, Any]:
-    """Return the base agent configuration for this session.
-
-    The returned mapping corresponds to the configuration used for this
-    session's agent before applying any per-session overrides.
-    """
-
-    try:
-        ctx = app_instance.load_session(session_id)
-        if ctx is None:
-            raise KeyError(f"Session {session_id!r} not found")
-        _core, base_config, _session = ctx
-        cfg = base_config if isinstance(base_config, dict) else {}
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-    return {"config": cfg}
-
-
 @app.delete("/sessions/{session_id}/overrides/{key}")
 def delete_session_override(
     session_id: str,
@@ -2586,6 +2537,110 @@ def list_session_messages(
         "cursor_event_id": cursor_event_id,
         "active_request_id": active_request_id,
     }
+
+
+@app.get("/sessions/{session_id}/tool-prompts")
+def list_session_tool_prompts(
+    session_id: str,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """List pending tool interception prompts for a session."""
+    try:
+        with app_instance.acquire_session_lock(session_id):
+            session = app_instance.load_session_record(session_id)
+            if session is None:
+                raise KeyError(f"Session {session_id!r} not found")
+            prompts: List[Dict[str, Any]] = []
+            for index, msg in enumerate(session.messages):
+                md = msg.metadata or {}
+                current = md.get("interception_current")
+                if not isinstance(current, dict):
+                    continue
+                prompt = current.get("pending_prompt")
+                if not isinstance(prompt, dict):
+                    continue
+                prompts.append(
+                    {
+                        "message_index": index,
+                        "phase": current.get("phase"),
+                        "tool_call_id": current.get("tool_call_id"),
+                        "tool_name": current.get("tool_name"),
+                        "plugin": current.get("plugin"),
+                        "prompt": prompt,
+                    }
+                )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"prompts": prompts}
+
+
+@app.post("/sessions/{session_id}/tool-prompts/respond")
+def submit_session_tool_prompt(
+    session_id: str,
+    body: Dict[str, Any],
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Submit an answer for a pending tool interception prompt and resume."""
+    prompt_id = body.get("prompt_id")
+    button_id = body.get("button_id")
+    values = body.get("values")
+    if not isinstance(prompt_id, str) or not prompt_id:
+        raise HTTPException(status_code=400, detail="prompt_id must be a non-empty string")
+    if not isinstance(button_id, str) or not button_id:
+        raise HTTPException(status_code=400, detail="button_id must be a non-empty string")
+    if values is None:
+        values = {}
+    if not isinstance(values, dict):
+        raise HTTPException(status_code=400, detail="values must be an object")
+
+    matched = False
+    try:
+        with app_instance.acquire_session_lock(session_id):
+            session = app_instance.load_session_record(session_id)
+            if session is None:
+                raise KeyError(f"Session {session_id!r} not found")
+            messages = list(session.messages)
+            for idx, msg in enumerate(messages):
+                md = dict(msg.metadata or {})
+                current = md.get("interception_current")
+                if not isinstance(current, dict):
+                    continue
+                prompt = current.get("pending_prompt")
+                if not isinstance(prompt, dict):
+                    continue
+                if prompt.get("id") != prompt_id:
+                    continue
+                current["answer"] = {
+                    "prompt_id": prompt_id,
+                    "button_id": button_id,
+                    "values": values,
+                }
+                md["interception_current"] = current
+                messages[idx] = Message(
+                    role=msg.role,
+                    content=msg.content,
+                    metadata=md or None,
+                    multipart_content=msg.multipart_content,
+                )
+                matched = True
+                break
+            if not matched:
+                raise HTTPException(status_code=404, detail="Pending prompt not found")
+            updated = Session(
+                session_id=session.session_id,
+                messages=messages,
+                metadata=session.metadata,
+            )
+            app_instance.save_session(updated)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    send_result = send_request(
+        session_id,
+        {"config_overrides": {}},
+        app_instance=app_instance,
+    )
+    return {"status": "accepted", "request": send_result}
 
 
 @app.get("/events")

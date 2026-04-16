@@ -223,6 +223,19 @@ class AgentCore:
                 metadata=new_session_metadata,
             )
 
+        # Tool orchestration and interception rely on metadata (`tool_calls`,
+        # `interception_*`) being available on core messages. When native history
+        # is enabled, the native -> core rebuild does not guarantee arbitrary
+        # metadata round-trips for all providers. For these messages, prefer a
+        # core-only append and drop native history so the next request can
+        # reconstruct it if needed.
+        if isinstance(md, dict) and (
+            "tool_calls" in md
+            or "interception_current" in md
+            or "interception_phases" in md
+        ):
+            return _core_only_session(md), None
+
         retained_native = None
  
         if isinstance(session.metadata, dict):
@@ -268,6 +281,21 @@ class AgentCore:
             suffix_native = self._core_messages_to_native_for_config(core_suffix, config or {})
         except Exception as e:
             raise e
+
+        # Preserve core message metadata across the native-history rebuild by
+        # embedding it into provider-native messages using the `_metadata`
+        # convention. This is especially important for tool orchestration
+        # fields such as `tool_calls` that must survive round-trips when native
+        # history is enabled.
+        if isinstance(md, dict) and md and isinstance(suffix_native, list):
+            for native_msg in suffix_native:
+                if not isinstance(native_msg, dict):
+                    continue
+                existing_md = native_msg.get("_metadata")
+                if isinstance(existing_md, dict):
+                    native_msg["_metadata"] = {**existing_md, **md}
+                else:
+                    native_msg["_metadata"] = dict(md)
 
         # Append the native suffix to the retained history and rebuild the
         # full core message sequence from provider-native history so that
@@ -1737,6 +1765,7 @@ class AgentCore:
         tools: List[ToolWrapper],
         *,
         request_id: str | None = None,
+        tags: List[str] | None = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any], bool]:
         """Prepare shared state and inputs for a request.
 
@@ -1903,6 +1932,7 @@ class AgentCore:
                 features,
                 tools,
                 request_id=request_id,
+                tags=tags,
             )
             baseline_native_len = len(native_messages)
 
@@ -2053,6 +2083,7 @@ class AgentCore:
                 features,
                 tools,
                 request_id=request_id,
+                tags=tags,
             )
             baseline_native_len = len(native_messages)
 
@@ -2205,6 +2236,7 @@ class AgentCore:
                 features,
                 tools,
                 request_id=request_id,
+                tags=tags,
             )
             baseline_native_len = len(native_messages)
 

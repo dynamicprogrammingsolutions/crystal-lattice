@@ -148,6 +148,28 @@ class ToolWrapper(ToolPlugin):
             context=context,
         )
 
+    def intercept_tool_call(
+        self,
+        payload: Dict[str, Any],
+        context: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        if self.state is None:
+            raise RuntimeError(f"Tool {self.name} not initialized")
+        working_state = state or self.state
+        return self.plugin.intercept_tool_call(payload, context, working_state)
+
+    def intercept_tool_result(
+        self,
+        payload: Dict[str, Any],
+        context: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        if self.state is None:
+            raise RuntimeError(f"Tool {self.name} not initialized")
+        working_state = state or self.state
+        return self.plugin.intercept_tool_result(payload, context, working_state)
+
     async def execute_tool_async(
         self,
         tool_name: Optional[str],

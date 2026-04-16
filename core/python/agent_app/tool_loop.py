@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import threading
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, Iterator, List, Optional
 import traceback  # Add this import at the beginning of your file
 
 
-from agent_core import AgentCore, MessageRole, Session
+from agent_core import AgentCore, Message, MessageRole, Session
 from agent_core.types import ProviderRequestCancelled
 
 
@@ -78,6 +78,8 @@ class ToolLoopRunner:
         self._cancel_callback = cancel_callback
         self._cancellation = cancellation
         self._context = context
+        self._suspended = False
+        self._stop_after_tools = False
 
 
     # ------------------------------------------------------------------
@@ -130,6 +132,83 @@ class ToolLoopRunner:
             return bool(cb())
         except Exception:
             return False
+
+    def _set_message_metadata(
+        self,
+        session: Session,
+        index: int,
+        metadata: Dict[str, Any],
+    ) -> Session:
+        messages = list(session.messages)
+        if index < 0 or index >= len(messages):
+            return session
+        msg = messages[index]
+        messages[index] = Message(
+            role=msg.role,
+            content=msg.content,
+            metadata=metadata or None,
+            multipart_content=msg.multipart_content,
+        )
+        return Session(
+            session_id=session.session_id,
+            messages=messages,
+            metadata=session.metadata,
+        )
+
+    def _find_assistant_message_index_for_tool_call(
+        self,
+        session: Session,
+        tool_call_id: Optional[str],
+    ) -> Optional[int]:
+        if not isinstance(tool_call_id, str) or not tool_call_id:
+            return None
+        for idx in range(len(session.messages) - 1, -1, -1):
+            msg = session.messages[idx]
+            if msg.role != "assistant":
+                continue
+            md = msg.metadata or {}
+            calls = md.get("tool_calls") or []
+            if not isinstance(calls, list):
+                continue
+            for call in calls:
+                if not isinstance(call, dict):
+                    continue
+                cid = call.get("id")
+                if isinstance(cid, str) and cid == tool_call_id:
+                    return idx
+        return None
+
+    @staticmethod
+    def _append_interception_phase_entry(
+        metadata: Dict[str, Any],
+        entry: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        next_metadata = dict(metadata)
+        phases = next_metadata.get("interception_phases")
+        if isinstance(phases, list):
+            next_metadata["interception_phases"] = [*phases, entry]
+        else:
+            next_metadata["interception_phases"] = [entry]
+        return next_metadata
+
+    @staticmethod
+    def _validate_interceptor_response(response: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize and validate a tool interceptor directive envelope."""
+        kind = response.get("kind")
+        if kind not in ("continue", "prompt", "respond"):
+            return {"kind": "continue"}
+        has_call = isinstance(response.get("tool_call"), dict)
+        has_result = isinstance(response.get("tool_result"), dict)
+        if has_call and has_result:
+            return {
+                "kind": "respond",
+                "tool_result": {
+                    "success": False,
+                    "error": "invalid interceptor response: both tool_call and tool_result",
+                },
+                "continue_loop": False,
+            }
+        return response
 
     def _run_llm_phase(
         self,
@@ -320,9 +399,24 @@ class ToolLoopRunner:
         rid = self._request_id
         start_index = len(session.messages)
 
-        registry = core._get_tool_interop_registry_for_config(config)
+        provider, extensions, tool_states = core._get_enabled_tool_states_for_config(config)
+        registry = core._get_tool_interop_registry_for_config(
+            config,
+            provider=provider,
+            extensions=extensions,
+            tool_states=tool_states,
+        )
+
+        # Stable ordering by (priority asc, original registration order).
+        interceptors = sorted(
+            list(enumerate(tool_states)),
+            key=lambda item: (int(getattr(item[1][0], "priority", 100)), item[0]),
+        )
 
         current_session = session
+        self._suspended = False
+        self._stop_after_tools = False
+        stop_loop = False
 
         # Record the tool_calls event first
         yield {
@@ -343,29 +437,407 @@ class ToolLoopRunner:
                 call_id = None
             last_final: Dict[str, Any] | None = None
 
-            saw_partial = False
-            for item in core.iter_tool_messages(
-                [call],
-                config,
-                cancellation=self._cancellation,
-                context=self._context,
-            ):
-                if not isinstance(item, dict):
-                    continue
-                if "part" in item:
-                    if stream_tools:
-                        phase = "start" if not saw_partial else "stream"
-                        saw_partial = True
+            if inspected_call is None:
+                name = None
+                missing_tool_metadata: Dict[str, Any] = {
+                    "tool_call_id": call_id,
+                    "tool_name": name,
+                }
+                last_final = {
+                    "role": "tool",
+                    "content": f"Error: no tool handled '{name}'",
+                    "metadata": missing_tool_metadata,
+                }
+            else:
+                name = inspected_call.tool_name
+                effective_call = inspected_call.raw
+                effective_payload = inspected_call.payload
+                tool, state, matched_schema = core._resolve_tool_handler_for_call(
+                    inspected_call,
+                    tool_states,
+                    registry,
+                )
+                synthetic_result: Dict[str, Any] | None = None
+                assistant_idx = self._find_assistant_message_index_for_tool_call(
+                    current_session,
+                    call_id,
+                )
+                if assistant_idx is None:
+                    # Fallback: if the call id could not be resolved, attach prompt
+                    # metadata to the most recent assistant message that carries any
+                    # tool_calls payload (typically the unresolved tail).
+                    for idx in range(len(current_session.messages) - 1, -1, -1):
+                        msg = current_session.messages[idx]
+                        if msg.role != "assistant":
+                            continue
+                        md = msg.metadata or {}
+                        calls = md.get("tool_calls") or []
+                        if isinstance(calls, list) and any(isinstance(c, dict) for c in calls):
+                            assistant_idx = idx
+                            break
+                resume_answer: Dict[str, Any] | None = None
+                resume_prompt: Dict[str, Any] | None = None
+                if assistant_idx is not None:
+                    msg = current_session.messages[assistant_idx]
+                    md = dict(msg.metadata or {})
+                    current = md.get("interception_current")
+                    if isinstance(current, dict):
+                        if (
+                            current.get("phase") == "tool_call"
+                            and current.get("tool_call_id") == call_id
+                            and isinstance(current.get("answer"), dict)
+                        ):
+                            resume_answer = dict(current.get("answer") or {})
+                            rp = current.get("pending_prompt")
+                            resume_prompt = dict(rp) if isinstance(rp, dict) else None
+                            if resume_prompt is not None:
+                                md = self._append_interception_phase_entry(
+                                    md,
+                                    {
+                                        "entry_type": "prompt_response",
+                                        "phase": "tool_call",
+                                        "tool_call_id": call_id,
+                                        "tool_name": name,
+                                        "plugin": current.get("plugin"),
+                                        "prompt": resume_prompt,
+                                        "answer": resume_answer,
+                                    },
+                                )
+                            current.pop("answer", None)
+                            current.pop("pending_prompt", None)
+                            current["resumed"] = True
+                            md["interception_current"] = current
+                            current_session = self._set_message_metadata(current_session, assistant_idx, md)
+
+                # Call-phase interception
+                for _order, (interceptor, interceptor_state) in interceptors:
+                    response = interceptor.intercept_tool_call(
+                        {
+                            "tool_call_id": call_id,
+                            "tool_name": name,
+                            "arguments": effective_payload,
+                            "raw_call": effective_call,
+                        },
+                        {
+                            "request_id": rid,
+                            "phase": "tool_call",
+                            "session_id": current_session.session_id,
+                            "prompt": resume_prompt,
+                            "answer": resume_answer,
+                        },
+                        interceptor_state,
+                    )
+                    if not isinstance(response, dict):
+                        response = {"kind": "continue"}
+                    response = self._validate_interceptor_response(response)
+                    kind = response.get("kind")
+                    continue_loop = response.get("continue_loop")
+                    if kind == "prompt":
+                        prompt = response.get("prompt") or {}
+                        if (
+                            not isinstance(prompt, dict)
+                            or not isinstance(prompt.get("buttons"), list)
+                            or not prompt.get("buttons")
+                        ):
+                            prompt = {
+                                "id": f"prompt_{call_id or 'tool'}",
+                                "title": "Tool confirmation",
+                                "message": "Confirm tool action",
+                                "buttons": [{"id": "ok", "label": "OK", "default": True}],
+                            }
+                        if assistant_idx is not None:
+                            msg = current_session.messages[assistant_idx]
+                            md = dict(msg.metadata or {})
+                            md["interception_current"] = {
+                                "phase": "tool_call",
+                                "tool_call_id": call_id,
+                                "tool_name": name,
+                                "plugin": getattr(interceptor, "name", interceptor.__class__.__name__),
+                                "pending_prompt": prompt,
+                                "raw_call": effective_call,
+                                "arguments": effective_payload,
+                            }
+                            current_session = self._set_message_metadata(current_session, assistant_idx, md)
                         yield {
-                            "type": "tool_partial",
+                            "type": "tool_interceptor_prompt",
                             "session_id": current_session.session_id,
                             "request_id": rid,
                             "tool_call_id": call_id,
-                            "phase": phase,
-                            "payload": item,
+                            "phase": "tool_call",
+                            "prompt": prompt,
                         }
-                    continue
-                last_final = item
+                        self._suspended = True
+                        break
+                    if kind == "respond":
+                        tool_result = response.get("tool_result")
+                        if isinstance(tool_result, dict):
+                            synthetic_result = tool_result
+                        if assistant_idx is not None:
+                            msg = current_session.messages[assistant_idx]
+                            md = dict(msg.metadata or {})
+                            md = self._append_interception_phase_entry(
+                                md,
+                                {
+                                    "entry_type": "plugin_response",
+                                    "phase": "tool_call",
+                                    "tool_call_id": call_id,
+                                    "tool_name": name,
+                                    "plugin": getattr(interceptor, "name", interceptor.__class__.__name__),
+                                    "plugin_response": {
+                                        "kind": "respond",
+                                        "continue_loop": continue_loop,
+                                    },
+                                },
+                            )
+                            md["interception_current"] = {
+                                "phase": "tool_call",
+                                "tool_call_id": call_id,
+                                "tool_name": name,
+                                "plugin": getattr(interceptor, "name", interceptor.__class__.__name__),
+                                "completed": True,
+                            }
+                            current_session = self._set_message_metadata(current_session, assistant_idx, md)
+                        if continue_loop is False:
+                            stop_loop = True
+                        break
+                    transformed_call = response.get("tool_call")
+                    if isinstance(transformed_call, dict):
+                        effective_call = transformed_call
+                        try:
+                            inspected_call = registry.inspect_call(effective_call)
+                            effective_payload = inspected_call.payload
+                            name = inspected_call.tool_name
+                            call_id = inspected_call.call_id
+                            tool, state, matched_schema = core._resolve_tool_handler_for_call(
+                                inspected_call,
+                                tool_states,
+                                registry,
+                            )
+                        except Exception:
+                            pass
+                        if assistant_idx is not None:
+                            msg = current_session.messages[assistant_idx]
+                            md = dict(msg.metadata or {})
+                            md = self._append_interception_phase_entry(
+                                md,
+                                {
+                                    "entry_type": "plugin_response",
+                                    "phase": "tool_call",
+                                    "tool_call_id": call_id,
+                                    "tool_name": name,
+                                    "plugin": getattr(interceptor, "name", interceptor.__class__.__name__),
+                                    "plugin_response": {
+                                        "kind": "continue",
+                                        "tool_call": transformed_call,
+                                        "continue_loop": continue_loop,
+                                    },
+                                },
+                            )
+                            current_session = self._set_message_metadata(current_session, assistant_idx, md)
+                    transformed_result = response.get("tool_result")
+                    if isinstance(transformed_result, dict):
+                        synthetic_result = transformed_result
+                        if assistant_idx is not None:
+                            msg = current_session.messages[assistant_idx]
+                            md = dict(msg.metadata or {})
+                            md = self._append_interception_phase_entry(
+                                md,
+                                {
+                                    "entry_type": "plugin_response",
+                                    "phase": "tool_call",
+                                    "tool_call_id": call_id,
+                                    "tool_name": name,
+                                    "plugin": getattr(interceptor, "name", interceptor.__class__.__name__),
+                                    "plugin_response": {
+                                        "kind": "continue",
+                                        "tool_result": transformed_result,
+                                        "continue_loop": continue_loop,
+                                    },
+                                },
+                            )
+                            current_session = self._set_message_metadata(current_session, assistant_idx, md)
+                    if continue_loop is False and not isinstance(transformed_call, dict) and not isinstance(transformed_result, dict):
+                        # meaningful continue: loop control
+                        if assistant_idx is not None:
+                            msg = current_session.messages[assistant_idx]
+                            md = dict(msg.metadata or {})
+                            md = self._append_interception_phase_entry(
+                                md,
+                                {
+                                    "entry_type": "plugin_response",
+                                    "phase": "tool_call",
+                                    "tool_call_id": call_id,
+                                    "tool_name": name,
+                                    "plugin": getattr(interceptor, "name", interceptor.__class__.__name__),
+                                    "plugin_response": {"kind": "continue", "continue_loop": False},
+                                },
+                            )
+                            current_session = self._set_message_metadata(current_session, assistant_idx, md)
+                    if continue_loop is False:
+                        stop_loop = True
+                if self._suspended:
+                    break
+
+                if tool is None or state is None:
+                    missing_handler_metadata: Dict[str, Any] = {
+                        "tool_call_id": call_id,
+                        "tool_name": name,
+                    }
+                    last_final = {
+                        "role": "tool",
+                        "content": f"Error: no tool handled '{name}'",
+                        "metadata": missing_handler_metadata,
+                    }
+                else:
+                    had_result = False
+                    saw_partial = False
+                    stream_error: str | None = None
+                    last_result: Dict[str, Any] | None = synthetic_result
+                    if synthetic_result is not None:
+                        had_result = True
+                    if not had_result:
+                        tool_context: Dict[str, Any] = dict(self._context) if isinstance(self._context, dict) else {}
+                        tool_context.setdefault("core", core)
+                        tool_context.setdefault("config", config)
+                        tool_context.setdefault("trigger_source", "application")
+                        try:
+                            iterator = tool.stream_tool(
+                                name,
+                                effective_payload,
+                                state,
+                                payload_kind=inspected_call.payload_kind if inspected_call is not None else None,
+                                payload_format=inspected_call.payload_format if inspected_call is not None else None,
+                                payload_metadata=inspected_call.payload_metadata if inspected_call is not None else None,
+                                tool_call=effective_call if isinstance(effective_call, dict) else None,
+                                cancellation=self._cancellation,
+                                context=tool_context,
+                            )
+                            iterator = iter(iterator)
+                        except Exception as exc:
+                            iterator = None
+                            stream_error = f"Tool error: {exc}"
+                        if iterator is not None:
+                            try:
+                                for chunk in iterator:
+                                    if not isinstance(chunk, dict):
+                                        continue
+                                    if "success" in chunk:
+                                        last_result = chunk
+                                        had_result = True
+                                    elif "part" in chunk:
+                                        if stream_tools:
+                                            phase = "start" if not saw_partial else "stream"
+                                            saw_partial = True
+                                            yield {
+                                                "type": "tool_partial",
+                                                "session_id": current_session.session_id,
+                                                "request_id": rid,
+                                                "tool_call_id": call_id,
+                                                "phase": phase,
+                                                "payload": chunk,
+                                            }
+                            except Exception as exc:
+                                stream_error = f"Tool error: {exc}"
+                    if not had_result or not isinstance(last_result, dict):
+                        metadata = {"tool_call_id": call_id, "tool_name": name}
+                        last_final = {
+                            "role": "tool",
+                            "content": stream_error or f"Error: no tool handled '{name}'",
+                            "metadata": metadata,
+                        }
+                    else:
+                        # Result-phase interception (transform/respond only in 020)
+                        final_result = last_result
+                        tool_phase_md: Dict[str, Any] = {}
+                        for _order, (interceptor, interceptor_state) in interceptors:
+                            response = interceptor.intercept_tool_result(
+                                {
+                                    "tool_call_id": call_id,
+                                    "tool_name": name,
+                                    "arguments": effective_payload,
+                                    "raw_call": effective_call,
+                                    "tool_result": final_result,
+                                },
+                                {
+                                    "request_id": rid,
+                                    "phase": "tool_result",
+                                    "session_id": current_session.session_id,
+                                },
+                                interceptor_state,
+                            )
+                            if not isinstance(response, dict):
+                                response = {"kind": "continue"}
+                            response = self._validate_interceptor_response(response)
+                            kind = response.get("kind")
+                            transformed = response.get("tool_result")
+                            continue_loop = response.get("continue_loop")
+                            if kind in ("continue", "respond") and isinstance(transformed, dict):
+                                final_result = transformed
+                            if kind in ("continue", "respond") and isinstance(transformed, dict):
+                                tool_phase_md = self._append_interception_phase_entry(
+                                    tool_phase_md,
+                                    {
+                                        "entry_type": "plugin_response",
+                                        "phase": "tool_result",
+                                        "tool_call_id": call_id,
+                                        "tool_name": name,
+                                        "plugin": getattr(interceptor, "name", interceptor.__class__.__name__),
+                                        "plugin_response": {"kind": kind, "tool_result": transformed, "continue_loop": continue_loop},
+                                    },
+                                )
+                            if continue_loop is False and not isinstance(transformed, dict):
+                                tool_phase_md = self._append_interception_phase_entry(
+                                    tool_phase_md,
+                                    {
+                                        "entry_type": "plugin_response",
+                                        "phase": "tool_result",
+                                        "tool_call_id": call_id,
+                                        "tool_name": name,
+                                        "plugin": getattr(interceptor, "name", interceptor.__class__.__name__),
+                                        "plugin_response": {"kind": kind, "continue_loop": False},
+                                    },
+                                )
+                            if continue_loop is False:
+                                stop_loop = True
+                            if kind == "respond":
+                                break
+                        try:
+                            formatted_content = tool.format_tool_result(final_result, state)
+                        except Exception as exc:
+                            formatted_content = f"Tool formatting error: {exc}"
+                        metadata = {
+                            "tool_call_id": call_id,
+                            "tool_name": name,
+                        }
+                        if tool_phase_md:
+                            # For tool_result phase, persist lifecycle metadata on the tool message.
+                            metadata.update(tool_phase_md)
+                            metadata["interception_current"] = {
+                                "phase": "tool_result",
+                                "tool_call_id": call_id,
+                                "tool_name": name,
+                                "completed": True,
+                            }
+                        if matched_schema is not None:
+                            metadata["tool_schema"] = matched_schema
+                        plugin_name = getattr(tool, "name", None)
+                        if isinstance(plugin_name, str) and plugin_name:
+                            metadata["tool_plugin"] = plugin_name
+                        try:
+                            display_candidate = tool.to_display_format(
+                                formatted_content or "",
+                                final_result,
+                                state,
+                            )
+                            if isinstance(display_candidate, dict):
+                                metadata["display"] = display_candidate
+                        except Exception:
+                            pass
+                        last_final = {
+                            "role": "tool",
+                            "content": formatted_content or "",
+                            "metadata": metadata,
+                        }
 
             if last_final is None and self._is_cancelled():
                 break
@@ -374,14 +846,14 @@ class ToolLoopRunner:
                 # iter_tool_messages already synthesizes errors for missing tools,
                 # but guard defensively in case it yields nothing.
                 name = inspected_call.tool_name if inspected_call is not None else None
-                metadata: Dict[str, Any] = {
+                fallback_metadata: Dict[str, Any] = {
                     "tool_call_id": call_id,
                     "tool_name": name,
                 }
                 last_final = {
                     "role": "tool",
                     "content": f"Error: no tool handled '{name}'",
-                    "metadata": metadata,
+                    "metadata": fallback_metadata,
                 }
 
             if stream_tools and last_final is not None:
@@ -416,8 +888,20 @@ class ToolLoopRunner:
 
             if self._is_cancelled():
                 break
+            if stop_loop:
+                break
 
         # Summarise final tool messages appended to the session.
+        if self._suspended:
+            yield {
+                "type": "session_checkpoint",
+                "session_id": current_session.session_id,
+                "request_id": rid,
+                "session": current_session,
+            }
+            return current_session
+        self._stop_after_tools = stop_loop
+
         if not tool_messages and self._is_cancelled():
             return current_session
 
@@ -489,6 +973,13 @@ class ToolLoopRunner:
                         current_session = stop.value
                         break
                     yield ev
+                if self._suspended or self._stop_after_tools:
+                    yield {
+                        "type": "request_completed",
+                        "session_id": current_session.session_id,
+                        "request_id": self._request_id,
+                    }
+                    return
 
 
 
@@ -546,6 +1037,8 @@ class ToolLoopRunner:
                         current_session = stop.value
                         break
                     yield ev
+                if self._suspended or self._stop_after_tools:
+                    break
         except Exception as exc:
             print(f"Error in ToolLoopRunner: {exc}")
             traceback.print_exc()  # Print the stack trace

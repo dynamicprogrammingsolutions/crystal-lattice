@@ -1166,6 +1166,9 @@ class FeaturePlugin(BasePlugin, Protocol):
 
 
 class ToolPlugin(BasePlugin, Protocol):
+    # Optional interception priority. Lower runs first.
+    priority: int = 100
+
     """Protocol for tool plugins (own tool state; unchanged by shared state design).
 
     Tools provide function schemas and handle execution with their own state, independent
@@ -1302,6 +1305,30 @@ class ToolPlugin(BasePlugin, Protocol):
         ``None`` means no opinion and allows legacy name-based fallback.
         """
         return None
+
+    def intercept_tool_call(
+        self,
+        payload: Dict[str, Any],
+        context: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Optional pre-execution interception hook.
+
+        Default behavior is a no-op ``continue`` directive.
+        """
+        return {"kind": "continue"}
+
+    def intercept_tool_result(
+        self,
+        payload: Dict[str, Any],
+        context: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Optional post-execution interception hook.
+
+        Default behavior is a no-op ``continue`` directive.
+        """
+        return {"kind": "continue"}
 
     def execute_tool(
         self,

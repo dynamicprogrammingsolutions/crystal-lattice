@@ -951,6 +951,30 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
         )
         return out if isinstance(out, bool) else None
 
+    def intercept_tool_call(  # type: ignore[override]
+        self,
+        payload: Dict[str, Any],
+        context: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        fn = self._get_impl_method("intercept_tool_call", ToolPlugin)
+        if fn is None:
+            return {"kind": "continue"}
+        out = self._call_with_optional_kwargs(fn, payload, context, state)
+        return out if isinstance(out, dict) else {"kind": "continue"}
+
+    def intercept_tool_result(  # type: ignore[override]
+        self,
+        payload: Dict[str, Any],
+        context: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        fn = self._get_impl_method("intercept_tool_result", ToolPlugin)
+        if fn is None:
+            return {"kind": "continue"}
+        out = self._call_with_optional_kwargs(fn, payload, context, state)
+        return out if isinstance(out, dict) else {"kind": "continue"}
+
     def execute_tool(  # type: ignore[override]
         self,
         tool_name: Optional[str],

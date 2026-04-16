@@ -94,6 +94,25 @@ def _make_blocking_provider_config(
     return path
 
 
+def _make_interceptor_tool_config(tmp_path: Path) -> Path:
+    cfg: Dict[str, Any] = {
+        "plugin_cache_dir": str(tmp_path / ".plugin_cache"),
+        "providers": {
+            "dummy": {"provider": "dummy_provider", "model": "dummy-model"},
+        },
+        "plugins": [
+            "tests.dummy_provider.DummyProvider",
+            "tests.interceptor_tool.InterceptorCalculator",
+        ],
+        "agents": {
+            "default": {"provider": "dummy"},
+        },
+    }
+    path = tmp_path / "config_interceptor_tool_server.json"
+    path.write_text(json.dumps(cfg), encoding="utf-8")
+    return path
+
+
 def _wait_for_request_completion(app: AgentApplication, session_id: str, timeout_seconds: float = 10.0) -> None:
     deadline = time.time() + timeout_seconds
     while time.time() < deadline:
@@ -351,6 +370,47 @@ def test_send_request_single_flight_blocks_while_running(tmp_path: Path) -> None
         time.sleep(0.05)
 
     assert server_mod._get_active_send_request_id(session_id) is None
+
+
+def test_server_tool_prompt_list_and_respond_flow(tmp_path: Path) -> None:
+    from agent_terminal_app import server as server_mod
+
+    config_path = _make_interceptor_tool_config(tmp_path)
+    session_root = tmp_path / "sessions"
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    tool_call = {
+        "id": "call_prompt_1",
+        "type": "function",
+        "function": {"name": "add", "arguments": json.dumps({"a": 2, "b": 3})},
+    }
+    server_mod.add_message(
+        session_id,
+        {"role": "assistant", "content": "tool call", "metadata": {"tool_calls": [tool_call]}},
+        app_instance=app,
+    )
+    send_resp = server_mod.send_request(session_id, {"config_overrides": {}}, app_instance=app)
+    assert send_resp.get("status") == "started"
+    _wait_for_request_completion(app, session_id)
+
+    prompts_resp = server_mod.list_session_tool_prompts(session_id, app_instance=app)
+    prompts = prompts_resp.get("prompts") or []
+    assert prompts
+    prompt = prompts[0]["prompt"]
+    assert isinstance(prompt, dict)
+    prompt_id = prompt.get("id")
+    assert isinstance(prompt_id, str) and prompt_id
+
+    respond_resp = server_mod.submit_session_tool_prompt(
+        session_id,
+        {"prompt_id": prompt_id, "button_id": "allow", "values": {}},
+        app_instance=app,
+    )
+    assert respond_resp.get("status") == "accepted"
 
 
 def test_send_request_idempotency_key_replays_request_id(tmp_path: Path) -> None:
