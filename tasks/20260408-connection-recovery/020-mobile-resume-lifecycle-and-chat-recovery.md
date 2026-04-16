@@ -159,3 +159,8 @@ Added during completion.
       - `RUN_BACKEND_INTEGRATION=1 npx vitest run src/integration/__tests__/backend.integration.test.ts`: passed with 15 tests.
       - `npm test` in `packages/frontend-sdk`: passed.
       - `pytest application/python/tests/test_agent_terminal_app_server.py -q -k "events_endpoint_bootstrap_returns_latest_event_id or events_endpoint_uses_session_cursor_as_default_since_id or filtered_empty_response_still_includes_latest_event_id"`: passed with explicit `server_instance_id` assertions.
+  - Follow-up correction:
+    - Reverted the temporary reducer behavior that cleared `activeRequestId` on `final`; request lifecycle state again remains owned by `request_completed` / `request_cancelled`.
+    - Adjusted cursor-expiry handling in `packages/frontend-sdk/src/chat/chatController.ts` so an expired cursor that exactly matches the last `/messages` snapshot cursor is treated as non-resumable rather than as a reason to reload the same snapshot again.
+    - In that case, the controller now clears both stored cursors and restarts polling from a null bootstrap, which prevents cached old sessions from entering a repeating reload loop when `/messages` returns an already-expired cursor.
+    - Added regression coverage for both the reducer correction and the expired-snapshot-cursor no-reload path in the frontend SDK tests.

@@ -2374,8 +2374,8 @@ class AgentApplication:
 
         Key differences from the legacy API:
 
-        - Persistence is the responsibility of the caller
-        - The caller decides whether and how to expose events externally
+        - Checkpoint persistence is handled internally by the application
+        - The caller decides whether and how to expose public events externally
         - Tool loops are handled internally, with a configurable maximum
           depth (:class:`_ToolLoopConfig`).
         """
@@ -2390,7 +2390,7 @@ class AgentApplication:
         }
         try:
             with self.acquire_session_lock(session.session_id):
-                session, checkpoint_baseline = self._reconcile_session_with_store(
+                session, request_reconcile_baseline = self._reconcile_session_with_store(
                     baseline_session=session,
                     baseline_file_state=baseline_file_state,
                     current_session=session,
@@ -2456,19 +2456,11 @@ class AgentApplication:
             return refreshed
 
         def _persist_checkpoint(current_session: Session) -> Session:
-            nonlocal checkpoint_baseline
-            nonlocal last_checkpoint_event_id
+            nonlocal request_baseline_session
+            nonlocal request_baseline_file_state
             with self.acquire_session_lock(current_session.session_id):
-                baseline_session = (
-                    checkpoint_baseline.session
-                    if checkpoint_baseline is not None
-                    else current_session
-                )
-                baseline_file_state = (
-                    checkpoint_baseline.file_state
-                    if checkpoint_baseline is not None
-                    else None
-                )
+                baseline_session = request_baseline_session or current_session
+                baseline_file_state = request_baseline_file_state
                 try:
                     reconciled = self.save_session(
                         current_session,
@@ -2479,39 +2471,52 @@ class AgentApplication:
                         backup_on_conflict=True,
                         conflict_request_id=rid,
                     )
-                    checkpoint_baseline = _CheckpointBaseline(
-                        session=reconciled,
-                        file_state=self.get_session_file_state(reconciled.session_id),
+                    request_baseline_session = reconciled
+                    request_baseline_file_state = self.get_session_file_state(
+                        reconciled.session_id
                     )
-                    last_checkpoint_event_id = self.record_checkpoint(
-                        reconciled.session_id,
-                        rid,
-                    )
+                    self.record_checkpoint(reconciled.session_id, rid)
                 except SessionConflictError as exc:
                     raise ToolLoopCheckpointError(exc.detail) from exc
             return reconciled
 
         def _sync_phase_session_for_request(current_session: Session) -> Session:
-            nonlocal checkpoint_baseline
+            nonlocal request_baseline_session
+            nonlocal request_baseline_file_state
             with self.acquire_session_lock(current_session.session_id):
-                if checkpoint_baseline is None:
+                if request_baseline_session is None:
                     return current_session
                 try:
-                    refreshed, checkpoint_baseline = self._reconcile_session_with_store(
-                        baseline_session=checkpoint_baseline.session,
-                        baseline_file_state=checkpoint_baseline.file_state,
+                    refreshed, refreshed_baseline = self._reconcile_session_with_store(
+                        baseline_session=request_baseline_session,
+                        baseline_file_state=request_baseline_file_state,
                         current_session=current_session,
                         persist_on_success=False,
                         conflict_prefix="Concurrent session modification detected before the next phase; ",
                         backup_on_conflict=True,
                         conflict_request_id=rid,
                     )
+                    if refreshed_baseline is None:
+                        request_baseline_session = None
+                        request_baseline_file_state = None
+                    else:
+                        request_baseline_session = refreshed_baseline.session
+                        request_baseline_file_state = refreshed_baseline.file_state
                 except SessionConflictError as exc:
                     raise ToolLoopCheckpointError(exc.detail) from exc
             return refreshed
 
         latest_session = session
-        last_checkpoint_event_id: str | None = None
+        request_baseline_session = (
+            request_reconcile_baseline.session
+            if request_reconcile_baseline is not None
+            else None
+        )
+        request_baseline_file_state = (
+            request_reconcile_baseline.file_state
+            if request_reconcile_baseline is not None
+            else None
+        )
         if session != original_session:
             latest_session = _persist_checkpoint(session)
             yield {
@@ -2519,7 +2524,6 @@ class AgentApplication:
                 "session_id": latest_session.session_id,
                 "request_id": rid,
                 "session": latest_session,
-                "checkpoint_event_id": last_checkpoint_event_id,
             }
 
         loop_runner = ToolLoopRunner(
@@ -2548,10 +2552,7 @@ class AgentApplication:
                     event_session = event.get("session")
                     if isinstance(event_session, Session):
                         latest_session = event_session
-                    yield {
-                        **event,
-                        "checkpoint_event_id": last_checkpoint_event_id,
-                    }
+                    yield event
                     continue
 
                 if event_type == "error":
@@ -2583,7 +2584,6 @@ class AgentApplication:
                                     "session_id": latest_session.session_id,
                                     "request_id": rid,
                                     "session": latest_session,
-                                    "checkpoint_event_id": last_checkpoint_event_id,
                                 }
                     continue
 
@@ -2615,9 +2615,9 @@ class AgentApplication:
                                     "session_id": latest_session.session_id,
                                     "request_id": rid,
                                     "session": latest_session,
-                                    "checkpoint_event_id": last_checkpoint_event_id,
                                 }
                     yield event
+                    self.record_checkpoint(latest_session.session_id, None)
                     continue
 
                 yield event

@@ -1656,9 +1656,11 @@ def test_list_session_messages_exposes_active_request_id_during_and_after_reques
     )
 
     # Monkeypatch AgentApplication.send_request to capture the generated
-    # events without running a real provider. We simulate the core
-    # contract: initial request_started, one session_checkpoint, final,
-    # request_completed.
+    # events without running a real provider. The stub mirrors the
+    # current application contract:
+    # - application-owned checkpoints are recorded during the request
+    # - a final null-request checkpoint is recorded after completion
+    # - session_checkpoint remains informational only
     captured_events: list[Dict[str, Any]] = []
 
     def _fake_send_request(
@@ -1672,6 +1674,7 @@ def test_list_session_messages_exposes_active_request_id_during_and_after_reques
         baseline_file_state: Any = None,
     ) -> list[Dict[str, Any]]:
         rid = request_id or "req-test"
+        app.record_checkpoint(session_id, rid)
         # request_started
         captured_events.append(
             {
@@ -1707,14 +1710,15 @@ def test_list_session_messages_exposes_active_request_id_during_and_after_reques
                 "request_id": rid,
             }
         )
+        app.record_checkpoint(session_id, None)
         # The helper iterates over this list.
         return iter(captured_events)  # type: ignore[return-value]
 
     app.send_request = _fake_send_request  # type: ignore[assignment]
 
-    # Drive the background helper once. This should:
-    # - persist a checkpoint with request_id == rid during the request
-    # - then record a post-completion checkpoint with request_id None
+    # Drive the background helper once. The stubbed application layer
+    # records an in-request checkpoint and then a post-completion
+    # checkpoint with request_id None.
     server_mod._run_send_request_background(app, session_id, {})
 
     # Verify that at least one checkpoint exists with a non-null request_id

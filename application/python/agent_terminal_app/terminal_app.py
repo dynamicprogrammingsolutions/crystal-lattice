@@ -669,14 +669,9 @@ class TerminalApplication:
             if etype == "session_checkpoint":
                 session_obj = ev.get("session")
                 if isinstance(session_obj, Session):
-                    sid = session_obj.session_id
                     self._session = session_obj
                     try:
                         final_session_dict = session_obj.to_dict()
-                    except Exception:  # pragma: no cover - defensive
-                        pass
-                    try:
-                        self._app.record_checkpoint(sid, ev.get("request_id"))
                     except Exception:  # pragma: no cover - defensive
                         pass
                 continue

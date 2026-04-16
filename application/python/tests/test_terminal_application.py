@@ -81,6 +81,42 @@ def test_terminal_flow_with_echo_provider(tmp_path: Path) -> None:
     assert "request_started" in kinds or "final" in kinds
 
 
+def test_terminal_started_request_clears_active_request_id_for_http_snapshots(
+    tmp_path: Path,
+) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import server as server_mod
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    echo_config = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(str(echo_config), str(session_root), event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(echo_config),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    session = term_app.start_new_session(agent_id="default")
+    term_app.add_message(
+        session.session_id,
+        role="system",
+        content="You are a helpful echo assistant.",
+        metadata=None,
+    )
+    term_app.append_user_message("hello from a terminal-started request")
+
+    term_app.send_request(stream=True)
+
+    snapshot = server_mod.list_session_messages(session.session_id, app_instance=agent_app)
+    assert snapshot["cursor_event_id"] is not None
+    assert snapshot["active_request_id"] is None
+
+
 def _collect_completion_texts(completer, text: str) -> set[str]:
     doc = Document(text=text, cursor_position=len(text))
     return {c.text for c in completer.get_completions(doc, None)}

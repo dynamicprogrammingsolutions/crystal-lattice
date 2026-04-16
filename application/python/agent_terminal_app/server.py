@@ -1092,18 +1092,6 @@ def _run_send_request_background(
                         _log.exception(
                             "failed to serialize session checkpoint for %r", session_id
                         )
-                    checkpoint_event_id = ev.get("checkpoint_event_id")
-                    if not (
-                        isinstance(checkpoint_event_id, str) and checkpoint_event_id
-                    ):
-                        try:
-                            app_instance.record_checkpoint(
-                                session_obj.session_id, ev.get("request_id")
-                            )
-                        except Exception:  # pragma: no cover - defensive
-                            _log.exception(
-                                "failed to publish checkpoint event for %r", session_id
-                            )
                 continue
 
             stored = app_instance.publish_event(ev)
@@ -1119,16 +1107,6 @@ def _run_send_request_background(
         # ``final_messages`` and ``request_id`` are intentionally unused
         # here; callers are expected to observe results via the event
         # store and session history.
-
-        # Publish a post-completion checkpoint so that frontends can
-        # observe that there is no active request at/after this point
-        # when loading a session snapshot by cursor.
-        try:
-            app_instance.record_checkpoint(session_id, None)
-        except Exception:  # pragma: no cover - defensive
-            _log.exception(
-                "failed to publish post-completion checkpoint for %r", session_id,
-            )
 
 
     except Exception:  # pragma: no cover - defensive

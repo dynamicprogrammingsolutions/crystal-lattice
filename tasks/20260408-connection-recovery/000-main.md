@@ -9,6 +9,7 @@ Document the transport and mobile-app reliability problems discovered around hun
   - Expected to absorb remaining item `P1.5 Heartbeat / WS idle timeout alignment`.
   - Partially overlaps remaining item `P1.7 Python: stalled chunked request cleanup / TTL`, but does not fully replace it unless `010` is explicitly expanded to cover Python chunk-buffer TTL/scavenging.
 - [x] `tasks/20260408-connection-recovery/020-mobile-resume-lifecycle-and-chat-recovery.md`
+- [x] `tasks/20260408-connection-recovery/030-snapshot-cursor-alignment-race-tests.md`
 
 ## Problem summary
 
