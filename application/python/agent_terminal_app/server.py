@@ -26,7 +26,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException  # type: ignore[repo
 
 from agent_app.application_future import AgentApplication, SessionConflictError
 from agent_app.config import resolve_request_config
-from agent_core import Session
+from agent_core import Message, Session
 from agent_terminal_app import bonjour as bonjour_mod
 from agent_terminal_app import bridge_client as bridge_mod
 
@@ -772,6 +772,50 @@ if _TEST_CONTROL_ENABLED:
         _test_events_release.set()
         return {"paused": False}
 
+    @app.post("/__test/sessions/{session_id}/inject_pending_tool_call")
+    def _test_inject_pending_tool_call(
+        session_id: str,
+        payload: Optional[Dict[str, Any]] = None,
+        app_instance: AgentApplication = Depends(get_agent_app),
+    ) -> Dict[str, Any]:
+        body = payload or {}
+        tool_name = body.get("tool_name") if isinstance(body.get("tool_name"), str) else "add"
+        arguments = body.get("arguments")
+        if not isinstance(arguments, dict):
+            arguments = {"a": 2, "b": 3}
+        assistant_content = (
+            body.get("assistant_content")
+            if isinstance(body.get("assistant_content"), str)
+            else "Running tools."
+        )
+
+        ctx = app_instance.load_session(session_id)
+        if ctx is None:
+            raise HTTPException(status_code=404, detail=f"Session {session_id!r} not found")
+        _core, _base_config, session = ctx
+        tool_call = {
+            "id": "test-call-1",
+            "type": "function",
+            "function": {
+                "name": tool_name,
+                "arguments": json.dumps(arguments),
+            },
+        }
+        updated = Session(
+            session_id=session.session_id,
+            messages=[
+                *session.messages,
+                Message(
+                    role="assistant",
+                    content=assistant_content,
+                    metadata={"tool_calls": [tool_call]},
+                ),
+            ],
+            metadata=session.metadata,
+        )
+        app_instance.save_session(updated)
+        return {"session": updated.to_dict(), "tool_call": tool_call}
+
 
 # ---------------------------------------------------------------------------
 # Route handlers (single implementation per operation)
@@ -1048,14 +1092,18 @@ def _run_send_request_background(
                         _log.exception(
                             "failed to serialize session checkpoint for %r", session_id
                         )
-                    try:
-                        app_instance.record_checkpoint(
-                            session_obj.session_id, ev.get("request_id")
-                        )
-                    except Exception:  # pragma: no cover - defensive
-                        _log.exception(
-                            "failed to publish checkpoint event for %r", session_id
-                        )
+                    checkpoint_event_id = ev.get("checkpoint_event_id")
+                    if not (
+                        isinstance(checkpoint_event_id, str) and checkpoint_event_id
+                    ):
+                        try:
+                            app_instance.record_checkpoint(
+                                session_obj.session_id, ev.get("request_id")
+                            )
+                        except Exception:  # pragma: no cover - defensive
+                            _log.exception(
+                                "failed to publish checkpoint event for %r", session_id
+                            )
                 continue
 
             stored = app_instance.publish_event(ev)

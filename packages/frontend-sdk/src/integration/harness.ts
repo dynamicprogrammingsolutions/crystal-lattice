@@ -89,6 +89,8 @@ export async function startBackendServer(options: {
   configPath?: string;
   sessionsRoot?: string;
   port?: number;
+  sessionSaveDelayMs?: number;
+  checkpointDelayMs?: number;
   eventStoreOptions?: {
     maxEventsGlobal?: number;
     maxEventAgeSeconds?: number;
@@ -121,6 +123,12 @@ export async function startBackendServer(options: {
   }
   if (typeof options.eventStoreOptions?.maxEventAgeSeconds === 'number') {
     args.push('--max-event-age-seconds', String(options.eventStoreOptions.maxEventAgeSeconds));
+  }
+  if (typeof options.sessionSaveDelayMs === 'number' && options.sessionSaveDelayMs > 0) {
+    args.push('--session-save-delay-ms', String(options.sessionSaveDelayMs));
+  }
+  if (typeof options.checkpointDelayMs === 'number' && options.checkpointDelayMs > 0) {
+    args.push('--checkpoint-delay-ms', String(options.checkpointDelayMs));
   }
   if (options.enableTestControl) {
     args.push('--enable-test-control');

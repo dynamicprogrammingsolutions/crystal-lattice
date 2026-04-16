@@ -41,6 +41,25 @@ describeIf('backend integration (real FastAPI server + plugins + SDK)', () => {
     },
   };
 
+  const toolLoopServerConfig = {
+    providers: {
+      dummy: {
+        provider: 'dummy_provider',
+        model: 'dummy-model',
+        sleep_per_char: 0.01,
+      },
+    },
+    plugins: [
+      'tests.dummy_provider.DummyProvider',
+      'tests.dummy_tool.DummyCalculator',
+    ],
+    agents: {
+      default: {
+        provider: 'dummy',
+      },
+    },
+  };
+
   let stopServer: (() => Promise<void>) | null = null;
   let baseUrl = '';
 
@@ -112,6 +131,50 @@ describeIf('backend integration (real FastAPI server + plugins + SDK)', () => {
 
   function countMessagesByRole(messages: IndexedMessage[], role: string): number {
     return messages.filter((m) => m.message.role === role).length;
+  }
+
+  class ResponseLatencyTransport {
+    private inner: { request: <T = any>(req: any) => Promise<{ status: number; data: T }> };
+    private readonly rules: Array<{
+      method?: string;
+      pathPrefix: string;
+      delayMs: number;
+    }>;
+
+    constructor(
+      inner: { request: <T = any>(req: any) => Promise<{ status: number; data: T }> },
+      rules: Array<{ method?: string; pathPrefix: string; delayMs: number }>,
+    ) {
+      this.inner = inner;
+      this.rules = rules;
+    }
+
+    async request<T = any>(req: {
+      method: any;
+      path: string;
+      headers?: Record<string, string>;
+      body?: any;
+      timeoutMs?: number;
+    }): Promise<{ status: number; data: T }> {
+      const response = await this.inner.request<T>(req);
+      const method = String(req.method).toUpperCase();
+      const path = req.path.split('?')[0];
+      const rule = this.rules.find((candidate) => {
+        const matchesMethod =
+          candidate.method == null || method === candidate.method.toUpperCase();
+        return matchesMethod && path.startsWith(candidate.pathPrefix);
+      });
+      if (rule && rule.delayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, rule.delayMs));
+      }
+      return response;
+    }
+  }
+
+  function assertMonotonicUniqueIndices(messages: IndexedMessage[]): void {
+    for (let idx = 1; idx < messages.length; idx += 1) {
+      expect(messages[idx].index).toBeGreaterThan(messages[idx - 1].index);
+    }
   }
 
   async function seedSessionWithCompletedTurn(
@@ -199,6 +262,19 @@ describeIf('backend integration (real FastAPI server + plugins + SDK)', () => {
       }
     }
     return byId;
+  }
+
+  async function seedPendingToolLoopSession(baseUrl: string, sessionId: string): Promise<void> {
+    const transport = new FetchTransport({ baseUrl });
+    await transport.request({
+      method: 'POST',
+      path: `/__test/sessions/${encodeURIComponent(sessionId)}/inject_pending_tool_call`,
+      body: {
+        assistant_content: 'Running tools.',
+        tool_name: 'add',
+        arguments: { a: 2, b: 3 },
+      },
+    });
   }
 
   it('A: system_message_feature first append triggers one auto reload and recovers', async () => {
@@ -967,6 +1043,208 @@ describeIf('backend integration (real FastAPI server + plugins + SDK)', () => {
         ),
       ).toBe(true);
       controller.dispose();
+    } finally {
+      await started.stop();
+    }
+  }, 30000);
+
+  it('N: reload and polling timing matrix stays clean during delayed persistence', async () => {
+    const started = await startBackendServer({
+      config: serverConfig,
+      enableTestControl: true,
+      sessionSaveDelayMs: 150,
+    });
+
+    try {
+      const controlBackend = new RestAgentBackend({
+        transport: new FetchTransport({ baseUrl: started.baseUrl }),
+      });
+      const sessionId = await createSession(controlBackend);
+      await seedSessionWithCompletedTurn(controlBackend, sessionId, 'matrix seed');
+
+      await controlBackend.sendMessage(sessionId, {
+        message: { role: 'user', content: 'matrix live request' },
+        configOverrides: {
+          stream_chunk_count: 6,
+          stream_chunk_delay_ms: 80,
+        },
+      });
+
+      const profiles = [
+        { name: 'baseline', messageDelayMs: 0, eventDelayMs: 0, offsetMs: 0 },
+        { name: 'messages_50', messageDelayMs: 50, eventDelayMs: 0, offsetMs: 50 },
+        { name: 'events_50', messageDelayMs: 0, eventDelayMs: 50, offsetMs: 100 },
+        { name: 'both_50', messageDelayMs: 50, eventDelayMs: 50, offsetMs: 150 },
+      ];
+
+      const controllerEntries = await Promise.all(
+        profiles.map(async (profile) => {
+          const transport = new ResponseLatencyTransport(
+            new FetchTransport({ baseUrl: started.baseUrl }),
+            [
+              {
+                method: 'GET',
+                pathPrefix: `/sessions/${encodeURIComponent(sessionId)}/messages`,
+                delayMs: profile.messageDelayMs,
+              },
+              {
+                method: 'GET',
+                pathPrefix: '/events',
+                delayMs: profile.eventDelayMs,
+              },
+            ],
+          );
+          const backend = new RestAgentBackend({ transport });
+          const controller = new ChatController({ backend, sessionId });
+          const seen = {
+            dirty: false,
+            loadingTransitions: 0,
+          };
+          controller.subscribe(() => {
+            const snapshot = controller.getSnapshot();
+            if (snapshot.dirty) {
+              seen.dirty = true;
+            }
+            if (snapshot.loading) {
+              seen.loadingTransitions += 1;
+            }
+          });
+          await controller.loadMessagesFromRangeText({ startText: '-50', endText: '' });
+          controller.ensureEventStreamingStarted({
+            initialSinceId: controller.getSnapshot().eventsCursorId,
+          });
+          return { profile, controller, seen };
+        }),
+      );
+
+      await Promise.all(
+        controllerEntries.map(async ({ controller, profile }) => {
+          await new Promise((resolve) => setTimeout(resolve, profile.offsetMs));
+          for (let idx = 0; idx < 4; idx += 1) {
+            await controller.loadMessagesFromRangeText({ startText: '-50', endText: '' });
+            controller.ensureEventStreamingStarted({
+              initialSinceId: controller.getSnapshot().eventsCursorId,
+            });
+            await new Promise((resolve) => setTimeout(resolve, 50));
+          }
+        }),
+      );
+
+      await Promise.all(
+        controllerEntries.map(async ({ controller, seen, profile }) => {
+          await waitFor(() => {
+            const snapshot = controller.getSnapshot();
+            return (
+              snapshot.loading === false &&
+              snapshot.dirty === false &&
+              snapshot.activeRequestId == null &&
+              snapshot.messages.some(
+                (m) => m.message.role === 'user' && m.message.content === 'matrix live request',
+              ) &&
+              countMessagesByRole(snapshot.messages, 'assistant') >= 2
+            );
+          }, { timeoutMs: 20000, intervalMs: 50 });
+
+          const snapshot = controller.getSnapshot();
+          expect(seen.dirty, `${profile.name} should not observe dirty history`).toBe(false);
+          expect(snapshot.loading, `${profile.name} should not stay loading`).toBe(false);
+          assertMonotonicUniqueIndices(snapshot.messages);
+        }),
+      );
+
+      controllerEntries.forEach(({ controller }) => controller.dispose());
+    } finally {
+      await started.stop();
+    }
+  }, 40000);
+
+  it('O: tool-loop reopen matrix stays aligned across delayed checkpoint publication', async () => {
+    const started = await startBackendServer({
+      config: toolLoopServerConfig,
+      enableTestControl: true,
+      checkpointDelayMs: 150,
+    });
+
+    try {
+      const setupBackend = new RestAgentBackend({
+        transport: new FetchTransport({ baseUrl: started.baseUrl }),
+      });
+      const sessionId = await createSession(setupBackend);
+      await seedPendingToolLoopSession(started.baseUrl, sessionId);
+
+      await setupBackend.send(sessionId, {});
+
+      const profiles = [
+        { name: 'baseline', messageDelayMs: 0, eventDelayMs: 0, offsetMs: 0 },
+        { name: 'messages_50', messageDelayMs: 50, eventDelayMs: 0, offsetMs: 50 },
+        { name: 'events_50', messageDelayMs: 0, eventDelayMs: 50, offsetMs: 100 },
+        { name: 'both_50', messageDelayMs: 50, eventDelayMs: 50, offsetMs: 150 },
+      ];
+
+      const controllerEntries = await Promise.all(
+        profiles.map(async (profile) => {
+          const transport = new ResponseLatencyTransport(
+            new FetchTransport({ baseUrl: started.baseUrl }),
+            [
+              {
+                method: 'GET',
+                pathPrefix: `/sessions/${encodeURIComponent(sessionId)}/messages`,
+                delayMs: profile.messageDelayMs,
+              },
+              {
+                method: 'GET',
+                pathPrefix: '/events',
+                delayMs: profile.eventDelayMs,
+              },
+            ],
+          );
+          const backend = new RestAgentBackend({ transport });
+          const controller = new ChatController({ backend, sessionId });
+          const seen = {
+            dirty: false,
+          };
+          controller.subscribe(() => {
+            if (controller.getSnapshot().dirty) {
+              seen.dirty = true;
+            }
+          });
+          return { profile, controller, seen };
+        }),
+      );
+
+      await Promise.all(
+        controllerEntries.map(async ({ controller, profile }) => {
+          await new Promise((resolve) => setTimeout(resolve, profile.offsetMs));
+          for (let idx = 0; idx < 4; idx += 1) {
+            await controller.loadMessagesFromRangeText({ startText: '-50', endText: '' });
+            controller.ensureEventStreamingStarted({
+              initialSinceId: controller.getSnapshot().eventsCursorId,
+            });
+            await new Promise((resolve) => setTimeout(resolve, 75));
+          }
+        }),
+      );
+
+      await Promise.all(
+        controllerEntries.map(async ({ controller, seen, profile }) => {
+          await waitFor(() => {
+            const snapshot = controller.getSnapshot();
+            return (
+              snapshot.loading === false &&
+              snapshot.activeRequestId == null &&
+              snapshot.messages.some((m) => m.message.role === 'tool') &&
+              snapshot.messages.some((m) => m.message.role === 'assistant')
+            );
+          }, { timeoutMs: 15000, intervalMs: 50 });
+
+          const snapshot = controller.getSnapshot();
+          expect(seen.dirty, `${profile.name} should not observe dirty history`).toBe(false);
+          expect(snapshot.dirty, `${profile.name} should settle cleanly`).toBe(false);
+          assertMonotonicUniqueIndices(snapshot.messages);
+        }),
+      );
+
+      controllerEntries.forEach(({ controller }) => controller.dispose());
     } finally {
       await started.stop();
     }

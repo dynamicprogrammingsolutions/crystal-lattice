@@ -31,7 +31,7 @@ CORE_PY = ROOT / "core/python"
 if str(CORE_PY) not in sys.path:
     sys.path.insert(0, str(CORE_PY))
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from agent_app.application_future import AgentApplication
 from agent_app.events import InMemoryEventStore
@@ -40,6 +40,7 @@ from agent_core import Message, Session
 # Make dotted-path test plugins available to the application plugin loader.
 from plugins.echo_openai_like_provider import EchoOpenAILikeProvider  # noqa: F401
 from tests.dummy_provider import CancellableBlockingProvider, DummyProvider  # noqa: F401
+from tests.dummy_tool import DummyCalculator  # noqa: F401
 
 
 def _store_events(store: Any, **kwargs: Any) -> list[Dict[str, Any]]:
@@ -107,6 +108,92 @@ def _wait_for_request_completion(app: AgentApplication, session_id: str, timeout
             return
         time.sleep(0.05)
     raise AssertionError("timed out waiting for final/request_completed events")
+
+
+class DelayingSessionStore:
+    """Wrap a session store and add an artificial delay to saves."""
+
+    def __init__(self, inner: Any, *, save_delay_seconds: float) -> None:
+        self._inner = inner
+        self._save_delay_seconds = save_delay_seconds
+
+    def load(self, session_id: str) -> Optional[Session]:
+        return self._inner.load(session_id)
+
+    def save(self, session: Session) -> None:
+        time.sleep(self._save_delay_seconds)
+        self._inner.save(session)
+
+    def delete(self, session_id: str) -> None:
+        self._inner.delete(session_id)
+
+    def get_file_state(self, session_id: str) -> Any:
+        getter = getattr(self._inner, "get_file_state")
+        return getter(session_id)
+
+    def save_backup(self, session: Session, *, request_id: str, suffix: str = "tool-loop-conflict") -> Path:
+        saver = getattr(self._inner, "save_backup")
+        return saver(session, request_id=request_id, suffix=suffix)
+
+
+def _make_slow_dummy_provider_config(tmp_path: Path, *, sleep_per_char: float) -> Path:
+    cfg: Dict[str, Any] = {
+        "plugin_cache_dir": str(tmp_path / ".plugin_cache"),
+        "providers": {
+            "dummy": {
+                "provider": "dummy_provider",
+                "model": "dummy-model",
+                "sleep_per_char": sleep_per_char,
+            }
+        },
+        "plugins": [
+            "tests.dummy_provider.DummyProvider",
+        ],
+        "agents": {
+            "default": {"provider": "dummy"},
+        },
+    }
+
+    path = tmp_path / "config_slow_dummy_provider.json"
+    path.write_text(json.dumps(cfg), encoding="utf-8")
+    return path
+
+
+def _make_slow_tool_loop_config(tmp_path: Path, *, sleep_per_char: float) -> Path:
+    cfg: Dict[str, Any] = {
+        "plugin_cache_dir": str(tmp_path / ".plugin_cache"),
+        "providers": {
+            "dummy": {
+                "provider": "dummy_provider",
+                "model": "dummy-model",
+                "sleep_per_char": sleep_per_char,
+            }
+        },
+        "plugins": [
+            "tests.dummy_provider.DummyProvider",
+            "tests.dummy_tool.DummyCalculator",
+        ],
+        "agents": {
+            "default": {"provider": "dummy"},
+        },
+    }
+
+    path = tmp_path / "config_slow_tool_loop_provider.json"
+    path.write_text(json.dumps(cfg), encoding="utf-8")
+    return path
+
+
+def _request_has_completed(app: AgentApplication, session_id: str) -> bool:
+    events = _store_events(app.get_event_store(), session_id=session_id, limit=200)
+    kinds = {ev.get("type") for ev in events}
+    return "final" in kinds or "request_completed" in kinds
+
+
+def _first_history_event(events: list[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    for event in events:
+        if event.get("type") in {"message_appended", "final", "tool_results"}:
+            return event
+    return None
 
 
 def test_server_flow_with_echo_provider(tmp_path: Path) -> None:
@@ -1647,6 +1734,259 @@ def test_list_session_messages_exposes_active_request_id_during_and_after_reques
     resp = server_mod.list_session_messages(session_id, app_instance=app)
     assert resp["cursor_event_id"] == checkpoints[-1].get("event_id")
     assert resp.get("active_request_id") is None
+
+
+def test_messages_snapshots_stay_aligned_with_cursor_across_delayed_events_matrix(
+    tmp_path: Path,
+) -> None:
+    """Snapshots from /messages must align with their advertised cursor.
+
+    This regression widens the persistence window by delaying session saves,
+    then samples `/messages` during an in-flight request. For each sampled
+    snapshot, it queries `/events` after several delays and verifies that the
+    first history-mutating event after the snapshot cursor, if any, begins
+    exactly at the next expected message index.
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    config_path = _make_slow_dummy_provider_config(tmp_path, sleep_per_char=0.02)
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+    app._session_store = DelayingSessionStore(  # type: ignore[attr-defined]
+        app._session_store,  # type: ignore[attr-defined]
+        save_delay_seconds=0.15,
+    )
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    send_resp = server_mod.send_message(
+        session_id,
+        {
+            "message": {
+                "role": "user",
+                "content": "alignment-check " * 4,
+            },
+        },
+        app_instance=app,
+    )
+    assert send_resp.get("status") == "started"
+
+    delays = [0.0, 0.1, 0.5]
+    seen_samples: set[tuple[str, int, int]] = set()
+    observation_lock = threading.Lock()
+    observations: list[Dict[str, Any]] = []
+    workers: list[threading.Thread] = []
+
+    def _capture_events(snapshot: Dict[str, Any], delay_seconds: float) -> None:
+        time.sleep(delay_seconds)
+        events_resp = server_mod.list_events(
+            since_id=snapshot["cursor_event_id"],
+            session_id=session_id,
+            limit=100,
+            app_instance=app,
+        )
+        with observation_lock:
+            observations.append(
+                {
+                    "delay_seconds": delay_seconds,
+                    "cursor_event_id": snapshot["cursor_event_id"],
+                    "messages": snapshot["messages"],
+                    "events": events_resp.get("events") or [],
+                }
+            )
+
+    deadline = time.time() + 10.0
+    while time.time() < deadline:
+        snapshot = server_mod.list_session_messages(
+            session_id,
+            start=-50,
+            app_instance=app,
+        )
+        cursor_event_id = snapshot.get("cursor_event_id")
+        messages = snapshot.get("messages") or []
+        last_index = messages[-1]["index"] if messages else -1
+        sample_key = (
+            cursor_event_id or "",
+            len(messages),
+            last_index,
+        )
+        if cursor_event_id and sample_key not in seen_samples:
+            seen_samples.add(sample_key)
+            for delay_seconds in delays:
+                worker = threading.Thread(
+                    target=_capture_events,
+                    args=(snapshot, delay_seconds),
+                    daemon=True,
+                )
+                worker.start()
+                workers.append(worker)
+
+        if _request_has_completed(app, session_id):
+            break
+        time.sleep(0.05)
+
+    _wait_for_request_completion(app, session_id, timeout_seconds=10.0)
+
+    for worker in workers:
+        worker.join(timeout=2.0)
+
+    assert observations, "expected at least one sampled snapshot/events observation"
+
+    for observation in observations:
+        first_event = _first_history_event(observation["events"])
+        if first_event is None:
+            continue
+
+        messages = observation["messages"] or []
+        next_index = (messages[-1]["index"] + 1) if messages else 0
+        if first_event.get("type") == "message_appended":
+            observed_index = first_event.get("index")
+        else:
+            observed_index = first_event.get("start_index")
+
+        assert observed_index == next_index, (
+            "snapshot history was not aligned with cursor_event_id: "
+            f"delay={observation['delay_seconds']} cursor={observation['cursor_event_id']} "
+            f"next_index={next_index} first_event={first_event}"
+        )
+
+
+def test_tool_loop_snapshots_can_expose_history_ahead_of_cursor_when_checkpoint_lags(
+    tmp_path: Path,
+) -> None:
+    """Tool-loop snapshots should stay aligned even if checkpoint publication is slow.
+
+    This regression widens the exact suspected race: session persistence for a
+    checkpointed phase has already completed, but public checkpoint publication
+    lags. We then sample `/messages` and verify that the returned snapshot does
+    not already contain messages whose history-mutating event is still after the
+    advertised cursor.
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    config_path = _make_slow_tool_loop_config(tmp_path, sleep_per_char=0.01)
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+
+    original_record_checkpoint = app.record_checkpoint
+
+    def _delayed_record_checkpoint(session_id: str, request_id: Optional[str]) -> Optional[str]:
+        time.sleep(0.15)
+        return original_record_checkpoint(session_id, request_id)
+
+    app.record_checkpoint = _delayed_record_checkpoint  # type: ignore[assignment]
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    tool_call = {
+        "id": "call_add",
+        "type": "function",
+        "function": {"name": "add", "arguments": json.dumps({"a": 2, "b": 3})},
+    }
+    ctx = app.load_session(session_id)
+    assert ctx is not None
+    _core, _base_config, session = ctx
+    session = Session(
+        session_id=session.session_id,
+        messages=[
+            Message(
+                role="assistant",
+                content="Running tools.",
+                metadata={"tool_calls": [tool_call]},
+            )
+        ],
+        metadata=session.metadata,
+    )
+    app.save_session(session)
+
+    send_resp = server_mod.send_request(session_id, {"config_overrides": {}}, app_instance=app)
+    assert send_resp.get("status") == "started"
+
+    delays = [0.0, 0.1, 0.5]
+    observation_lock = threading.Lock()
+    observations: list[Dict[str, Any]] = []
+    stop_sampling = threading.Event()
+
+    def _sample_snapshots() -> None:
+        while not stop_sampling.is_set():
+            snapshot = server_mod.list_session_messages(
+                session_id,
+                start=-50,
+                app_instance=app,
+            )
+            cursor_event_id = snapshot.get("cursor_event_id")
+            if cursor_event_id:
+                for delay_seconds in delays:
+                    events_resp = server_mod.list_events(
+                        since_id=cursor_event_id,
+                        session_id=session_id,
+                        limit=200,
+                        app_instance=app,
+                    ) if delay_seconds == 0.0 else None
+
+                    if delay_seconds > 0.0:
+                        time.sleep(delay_seconds)
+                        events_resp = server_mod.list_events(
+                            since_id=cursor_event_id,
+                            session_id=session_id,
+                            limit=200,
+                            app_instance=app,
+                        )
+
+                    with observation_lock:
+                        observations.append(
+                            {
+                                "delay_seconds": delay_seconds,
+                                "cursor_event_id": cursor_event_id,
+                                "messages": snapshot.get("messages") or [],
+                                "events": (events_resp or {}).get("events") or [],
+                            }
+                        )
+            time.sleep(0.02)
+
+    sampler = threading.Thread(target=_sample_snapshots, daemon=True)
+    sampler.start()
+
+    _wait_for_request_completion(app, session_id, timeout_seconds=15.0)
+    stop_sampling.set()
+    sampler.join(timeout=2.0)
+
+    assert observations, "expected at least one tool-loop snapshot observation"
+    event_types = {ev.get("type") for ev in _store_events(app.get_event_store(), session_id=session_id, limit=200)}
+    assert "tool_results" in event_types
+
+    misaligned: list[Dict[str, Any]] = []
+    for observation in observations:
+        first_event = _first_history_event(observation["events"])
+        if first_event is None:
+            continue
+
+        messages = observation["messages"] or []
+        next_index = (messages[-1]["index"] + 1) if messages else 0
+        if first_event.get("type") == "message_appended":
+            observed_index = first_event.get("index")
+        else:
+            observed_index = first_event.get("start_index")
+
+        if observed_index != next_index:
+            misaligned.append(
+                {
+                    "delay_seconds": observation["delay_seconds"],
+                    "cursor_event_id": observation["cursor_event_id"],
+                    "next_index": next_index,
+                    "first_event": first_event,
+                }
+            )
+
+    assert not misaligned, f"found misaligned tool-loop snapshot/cursor observations: {misaligned[:3]}"
 
 
 def test_events_endpoint_bootstrap_returns_latest_event_id(tmp_path: Path) -> None:

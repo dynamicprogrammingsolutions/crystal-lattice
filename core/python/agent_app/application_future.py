@@ -2457,6 +2457,7 @@ class AgentApplication:
 
         def _persist_checkpoint(current_session: Session) -> Session:
             nonlocal checkpoint_baseline
+            nonlocal last_checkpoint_event_id
             with self.acquire_session_lock(current_session.session_id):
                 baseline_session = (
                     checkpoint_baseline.session
@@ -2482,6 +2483,10 @@ class AgentApplication:
                         session=reconciled,
                         file_state=self.get_session_file_state(reconciled.session_id),
                     )
+                    last_checkpoint_event_id = self.record_checkpoint(
+                        reconciled.session_id,
+                        rid,
+                    )
                 except SessionConflictError as exc:
                     raise ToolLoopCheckpointError(exc.detail) from exc
             return reconciled
@@ -2506,6 +2511,7 @@ class AgentApplication:
             return refreshed
 
         latest_session = session
+        last_checkpoint_event_id: str | None = None
         if session != original_session:
             latest_session = _persist_checkpoint(session)
             yield {
@@ -2513,6 +2519,7 @@ class AgentApplication:
                 "session_id": latest_session.session_id,
                 "request_id": rid,
                 "session": latest_session,
+                "checkpoint_event_id": last_checkpoint_event_id,
             }
 
         loop_runner = ToolLoopRunner(
@@ -2541,7 +2548,10 @@ class AgentApplication:
                     event_session = event.get("session")
                     if isinstance(event_session, Session):
                         latest_session = event_session
-                    yield event
+                    yield {
+                        **event,
+                        "checkpoint_event_id": last_checkpoint_event_id,
+                    }
                     continue
 
                 if event_type == "error":
@@ -2573,6 +2583,7 @@ class AgentApplication:
                                     "session_id": latest_session.session_id,
                                     "request_id": rid,
                                     "session": latest_session,
+                                    "checkpoint_event_id": last_checkpoint_event_id,
                                 }
                     continue
 
@@ -2604,6 +2615,7 @@ class AgentApplication:
                                     "session_id": latest_session.session_id,
                                     "request_id": rid,
                                     "session": latest_session,
+                                    "checkpoint_event_id": last_checkpoint_event_id,
                                 }
                     yield event
                     continue
