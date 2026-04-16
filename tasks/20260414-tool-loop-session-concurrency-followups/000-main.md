@@ -8,3 +8,4 @@ Track the implemented checkpoint-reconciliation work and the next draft for broa
 - [ ] `tasks/20260414-tool-loop-session-concurrency-followups/015-durable-request-error-log-and-lightweight-client-cache.md`
 - [ ] `tasks/20260414-tool-loop-session-concurrency-followups/020-request-conflict-handling-draft.md`
 - [ ] `tasks/20260414-tool-loop-session-concurrency-followups/025-session-snapshots-draft.md`
+- [ ] `tasks/20260414-tool-loop-session-concurrency-followups/026-session-snapshots-server-selected-view-draft.md`
