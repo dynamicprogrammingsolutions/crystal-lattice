@@ -1876,55 +1876,6 @@ def patch_session_overrides(
     return response
 
 
-@app.get("/sessions/{session_id}/config/schema")
-def get_session_config_schema(
-    session_id: str,
-    app_instance: AgentApplication = Depends(get_agent_app),
-) -> Dict[str, Any]:
-    """Return flattened config schema entries for this session's agent.
-
-    The schema entries are derived from ``core.get_config_schema()`` and
-    correspond to the same data used by the terminal application's
-    ``/help config`` output.
-    """
-
-    try:
-        ctx = app_instance.load_session(session_id)
-        if ctx is None:
-            raise KeyError(f"Session {session_id!r} not found")
-        core, _base_config, _session = ctx
-        schema = core.get_config_schema()
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except Exception:  # pragma: no cover - defensive
-        schema = []
-
-    return {"schema": schema}
-
-
-@app.get("/sessions/{session_id}/config/base")
-def get_session_base_config(
-    session_id: str,
-    app_instance: AgentApplication = Depends(get_agent_app),
-) -> Dict[str, Any]:
-    """Return the base agent configuration for this session.
-
-    The returned mapping corresponds to the configuration used for this
-    session's agent before applying any per-session overrides.
-    """
-
-    try:
-        ctx = app_instance.load_session(session_id)
-        if ctx is None:
-            raise KeyError(f"Session {session_id!r} not found")
-        _core, base_config, _session = ctx
-        cfg = base_config if isinstance(base_config, dict) else {}
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-    return {"config": cfg}
-
-
 @app.delete("/sessions/{session_id}/overrides/{key}")
 def delete_session_override(
     session_id: str,
@@ -3028,6 +2979,64 @@ def list_session_messages(
         "active_request_id": active_request_id,
         **snapshot_fields,
     }
+
+
+
+
+
+
+@app.post("/sessions/{session_id}/tool-prompts/respond")
+def submit_session_tool_prompt(
+    session_id: str,
+    body: Dict[str, Any],
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Submit an answer for a pending tool interception prompt and resume."""
+    message_index = body.get("message_index")
+    phase = body.get("phase")
+    tool_call_id = body.get("tool_call_id")
+    prompt_id = body.get("prompt_id")
+    button_id = body.get("button_id")
+    values = body.get("values")
+
+    if not isinstance(message_index, int):
+        raise HTTPException(status_code=400, detail="message_index must be an integer")
+    if not isinstance(phase, str) or not phase:
+        raise HTTPException(status_code=400, detail="phase must be a non-empty string")
+    if not isinstance(tool_call_id, str) or not tool_call_id:
+        raise HTTPException(status_code=400, detail="tool_call_id must be a non-empty string")
+    if not isinstance(prompt_id, str) or not prompt_id:
+        raise HTTPException(status_code=400, detail="prompt_id must be a non-empty string")
+    if not isinstance(button_id, str) or not button_id:
+        raise HTTPException(status_code=400, detail="button_id must be a non-empty string")
+    if values is None:
+        values = {}
+    if not isinstance(values, dict):
+        raise HTTPException(status_code=400, detail="values must be an object")
+
+    try:
+        result = app_instance.submit_interceptor_prompt_answer(
+            session_id=session_id,
+            message_index=message_index,
+            phase=phase,
+            tool_call_id=tool_call_id,
+            prompt_id=prompt_id,
+            button_id=button_id,
+            values=values,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    overrides = result.get("overrides") or {}
+    send_result = send_request(
+        session_id,
+        {"config_overrides": overrides},
+        app_instance=app_instance,
+    )
+    return {"status": "accepted", "request": send_result}
+
 
 
 @app.get("/events")

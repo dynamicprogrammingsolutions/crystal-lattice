@@ -218,19 +218,6 @@ class AgentCore:
 
         from agent_core.types import Message  # local import to avoid cycles
 
-        # Note on metadata preservation:
-        #
-        # When provider-native history is enabled (session.metadata contains
-        # ``native_messages``), this helper rebuilds the full core message list
-        # from the provider-native sequence.
-        #
-        # By design, arbitrary application-level ``Message.metadata`` is NOT
-        # automatically preserved across the native -> core rebuild step.
-        # If metadata must survive a native-history rebuild, providers/
-        # extensions/features should explicitly persist it into the provider-
-        # native message dicts under the ``_metadata`` key in
-        # ``to_native_messages`` and restore it in ``from_native_messages``.
-
         def _core_only_session(clean_metadata):
             cleaned = dict(clean_metadata)
             cleaned.pop("native_indices", None)
@@ -301,6 +288,21 @@ class AgentCore:
             )
         except Exception as e:
             raise e
+
+        # Preserve core message metadata across the native-history rebuild by
+        # embedding it into provider-native messages using the `_metadata`
+        # convention. This is especially important for tool orchestration
+        # fields such as `tool_calls` that must survive round-trips when native
+        # history is enabled.
+        if isinstance(md, dict) and md and isinstance(suffix_native, list):
+            for native_msg in suffix_native:
+                if not isinstance(native_msg, dict):
+                    continue
+                existing_md = native_msg.get("_metadata")
+                if isinstance(existing_md, dict):
+                    native_msg["_metadata"] = {**existing_md, **md}
+                else:
+                    native_msg["_metadata"] = dict(md)
 
         # Append the native suffix to the retained history and rebuild the
         # full core message sequence from provider-native history so that
@@ -582,6 +584,163 @@ class AgentCore:
             metadata=new_metadata,
         )
 
+    def _modify_single_message_metadata_with_native(
+        self,
+        session,
+        index,
+        metadata,
+        config,
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ):
+        from agent_core.types import Message  # local import to avoid cycles
+
+        messages = session.messages
+        message_count = len(messages)
+
+        # Normalize and validate index (supports negative indices).
+        if not isinstance(index, int):
+            raise TypeError("index must be an integer")
+
+        target_index = index
+        if target_index < 0:
+            target_index = message_count + target_index
+        if target_index < 0 or target_index >= message_count:
+            raise IndexError("message index out of range")
+
+        target = messages[target_index]
+
+        base_metadata = (
+            dict(session.metadata) if isinstance(session.metadata, dict) else {}
+        )
+
+        # Core-only path: drop native history and indices, update metadata only.
+        def _core_only_session() -> Session:
+            new_messages: List[Message] = []
+            for idx, msg in enumerate(messages):
+                data = msg.to_dict()
+                md = dict(metadata) if idx == target_index else dict(data.get("metadata") or {})
+                md.pop("native_indices", None)
+                multipart_content = data.get("multipartContent")
+                from agent_core.core import TOOL_RESULT_FIELD
+                tool_result = data.get(TOOL_RESULT_FIELD)
+                new_messages.append(
+                    Message(
+                        role=data["role"],
+                        content=data["content"],
+                        metadata=md or None,
+                        multipart_content=multipart_content,
+                        tool_result=tool_result if isinstance(tool_result, dict) else None,
+                    )
+                )
+
+            new_session_metadata: Dict[str, Any] = dict(base_metadata)
+            new_session_metadata.pop("native_messages", None)
+            new_session_metadata.pop("native_messages_integrity", None)
+
+            return type(session)(
+                session_id=session.session_id,
+                messages=new_messages,
+                metadata=new_session_metadata,
+            )
+
+        # If there is no retained native history, fall back immediately.
+        retained_native = None
+        if isinstance(session.metadata, dict):
+            rn = session.metadata.get("native_messages")
+            if isinstance(rn, list):
+                retained_native = rn
+
+        if retained_native is None:
+            return _core_only_session()
+
+        # Verify integrity before attempting any native-preserving update.
+        self._verify_native_integrity(session)
+
+        original_native = retained_native
+
+        # Determine which native indices belong to the target message.
+        target_md = target.metadata if isinstance(target.metadata, dict) else {}
+        native_indices = target_md.get("native_indices")
+        if not native_indices:
+            raise RuntimeError(
+                "modify_message_metadata requires non-empty native_indices for target message"
+            )
+
+        # Save tool_result from original messages before rebuilding
+        original_tool_results = {}
+        for idx, msg in enumerate(messages):
+            if msg.tool_result is not None:
+                original_tool_results[idx] = msg.tool_result
+
+        new_native = []
+        for i, n_msg in enumerate(original_native):
+            if i in native_indices:
+                n_msg_copy = dict(n_msg)
+                n_msg_md = dict(n_msg_copy.get("_metadata") or {})
+                n_msg_copy["_metadata"] = {**n_msg_md, **metadata}
+                new_native.append(n_msg_copy)
+            else:
+                new_native.append(n_msg)
+
+        # Rebuild core messages from the updated native history.
+        # skip_initialize=True: metadata mutation is not a request-preparation
+        # step, so initialize_request (which validates api_key) must not run.
+        new_messages, post_init_native = self._rebuild_core_from_native(
+            new_native, config or {}, context=context, skip_initialize=True
+        )
+
+        # Restore tool_result to rebuilt messages, and patch the target
+        # message to ensure intended metadata is applied.
+        #
+        # Some providers (e.g. openai_responses) produce a core message with
+        # empty metadata when the native segment contains only non-"message"
+        # typed items (e.g. "reasoning", "function_call"). In that case
+        # Crystal Lattice metadata fields like interception_phases are lost.
+        # We overlay the intended metadata onto the rebuilt target message,
+        # preserving native_indices from the rebuild.
+        final_messages = []
+        for idx, msg in enumerate(new_messages):
+            patched_metadata = msg.metadata
+            if idx == target_index:
+                rebuilt_md: Dict[str, Any] = dict(msg.metadata or {})
+                for key, value in metadata.items():
+                    if key != "native_indices":
+                        rebuilt_md[key] = value
+                patched_metadata = rebuilt_md or None
+            if idx in original_tool_results:
+                final_messages.append(
+                    Message(
+                        role=msg.role,
+                        content=msg.content,
+                        metadata=patched_metadata,
+                        multipart_content=msg.multipart_content,
+                        tool_result=original_tool_results[idx],
+                    )
+                )
+            else:
+                final_messages.append(
+                    Message(
+                        role=msg.role,
+                        content=msg.content,
+                        metadata=patched_metadata,
+                        multipart_content=msg.multipart_content,
+                        tool_result=msg.tool_result if hasattr(msg, "tool_result") else None,
+                    ) if idx == target_index else msg
+                )
+
+        new_metadata = {
+            **base_metadata,
+            "native_messages": post_init_native,
+            "native_messages_integrity": self._compute_native_integrity(final_messages),
+        }
+
+        return type(session)(
+            session_id=session.session_id,
+            messages=final_messages,
+            metadata=new_metadata,
+        )
+
     _MODEL_CACHE_KEY_VERSION = "agent-core-models-v2"
 
     def __init__(self, model_cache: Optional[ModelDiscoveryCache] = None):
@@ -789,6 +948,37 @@ class AgentCore:
         """
         return self._modify_single_message_with_native(
             session, index, content, config or {}, context=context
+        )
+
+    def modify_message_metadata(
+        self,
+        session: Session,
+        index: int,
+        metadata: Dict[str, Any],
+        config: Optional[Dict[str, Any]] = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Session:
+        """Modify the metadata of an existing message (pure function).
+
+        The message role and content remain unchanged. When provider-native
+        history is present and safely mappable via `native_indices`, the
+        corresponding native messages are updated by copying the new metadata
+        into their `_metadata` dictionary. Otherwise, native history
+        is dropped and will be reconstructed on the next request.
+
+        Args:
+            session: Current session.
+            index: Message index to modify (0-based; negative indices supported).
+            metadata: New metadata dictionary. This replaces the existing core metadata.
+            config: Optional configuration used to resolve provider and plugins
+                when rebuilding native history.
+
+        Returns:
+            New Session with the modified message (immutable update).
+        """
+        return self._modify_single_message_metadata_with_native(
+            session, index, metadata, config or {}, context=context
         )
 
     def _slice_session_core_only(
@@ -4468,6 +4658,156 @@ class AgentCore:
 
         return None, None, None, None
 
+    def _iter_resolved_tool_result_chunks(
+        self,
+        *,
+        inspected_call: Any,
+        tool: ToolWrapper,
+        state: Dict[str, Any],
+        prepared: Optional[Dict[str, Any]],
+        config: Dict[str, Any],
+        cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Iterator[Dict[str, Any]]:
+        """Yield partial tool chunks and return the final raw tool result.
+
+        The generator return value is ``(last_result, stream_error)``. Keeping
+        this lower-level primitive in core lets application-layer orchestration
+        insert interception decisions without copying tool execution details.
+        """
+
+        last_result: Dict[str, Any] | None = None
+        had_result = False
+        stream_error: str | None = None
+        tool_context = self._build_tool_runtime_context(config, context)
+
+        try:
+            iterator = tool.stream_tool(
+                inspected_call.tool_name,
+                inspected_call.payload,
+                state,
+                payload_kind=inspected_call.payload_kind,
+                payload_format=inspected_call.payload_format,
+                payload_metadata=inspected_call.payload_metadata,
+                tool_call=inspected_call.raw,
+                cancellation=cancellation,
+                context=tool_context,
+                prepared=prepared,
+            )
+            iterator = iter(iterator)
+        except Exception as exc:
+            iterator = None
+            stream_error = f"Tool error: {exc}"
+
+        if iterator is not None:
+            try:
+                for chunk in iterator:
+                    if not isinstance(chunk, dict):
+                        continue
+                    if "success" in chunk:
+                        last_result = chunk
+                        had_result = True
+                    elif "part" in chunk:
+                        yield chunk
+                    else:
+                        yield {"part": chunk}
+            except Exception as exc:
+                stream_error = f"Tool error: {exc}"
+                logger.error(
+                    "iter_tool_messages_stream_error",
+                    tool_name=str(inspected_call.tool_name),
+                    error=str(exc),
+                )
+
+        return (last_result if had_result else None), stream_error
+
+    def _format_tool_result_message(
+        self,
+        *,
+        registry: Any,
+        tool: ToolWrapper,
+        state: Dict[str, Any],
+        matched_schema: Optional[Dict[str, Any]],
+        call_id: Any,
+        name: Any,
+        result: Dict[str, Any],
+        extra_metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Convert a raw tool result into the canonical core tool message."""
+
+        try:
+            formatted_content = tool.format_tool_result(result, state)
+        except Exception as exc:
+            formatted_content = f"Tool formatting error: {exc}"
+
+        inspected_result = registry.inspect_result(formatted_content)
+        display_text = inspected_result.text
+        display_payload: Dict[str, Any] | None = None
+        try:
+            display_candidate = tool.to_display_format(
+                display_text,
+                result,
+                state,
+            )
+            if isinstance(display_candidate, dict):
+                display_payload = display_candidate
+        except Exception:
+            display_payload = None
+
+        if (
+            isinstance(display_payload, dict)
+            and display_payload.get("type") == "text"
+            and display_payload.get("content") == display_text
+            and "single_line" not in display_payload
+            and isinstance(inspected_result.display, dict)
+        ):
+            display_payload = inspected_result.display
+
+        tool_result_value: Dict[str, Any]
+        if isinstance(formatted_content, dict) and (
+            inspected_result.format_id != CORE_TEXT_TOOL_RESULT_FORMAT_ID
+        ):
+            tool_result_value = formatted_content
+        else:
+            converted_result = registry.convert_tool_result(
+                formatted_content,
+                target=ToolInteropTarget("core.tool_result"),
+                target_formats=[CORE_TEXT_TOOL_RESULT_FORMAT_ID],
+            )
+            if isinstance(converted_result, dict):
+                tool_result_value = converted_result
+            else:
+                tool_result_value = {
+                    "type": "tool_result",
+                    "text": inspected_result.text,
+                }
+
+        if display_payload is None:
+            canonical_result = registry.inspect_result(tool_result_value)
+            if isinstance(canonical_result.display, dict):
+                display_payload = canonical_result.display
+
+        metadata = {
+            "tool_call_id": call_id,
+            "tool_name": name,
+        }
+        if isinstance(extra_metadata, dict):
+            metadata.update(extra_metadata)
+        if matched_schema is not None:
+            metadata["tool_schema"] = matched_schema
+        plugin_name = getattr(tool, "name", None)
+        if isinstance(plugin_name, str) and plugin_name:
+            metadata["tool_plugin"] = plugin_name
+        if display_payload is not None:
+            metadata["display"] = display_payload
+
+        return {
+            "role": "tool",
+            "content": registry.inspect_result(tool_result_value).text,
+            "metadata": metadata,
+            TOOL_RESULT_FIELD: tool_result_value,
+        }
+
     def iter_tool_messages(
         self,
         tool_calls: List[Dict[str, Any]],
@@ -4550,56 +4890,24 @@ class AgentCore:
                     "metadata": metadata,
                 }
                 continue
-            last_result: Dict[str, Any] | None = None
-            had_result = False
-            stream_error: str | None = None
-
-            # Layer 1: Core-level context enrichment.
-            # Higher layers (application, terminal) may have already set these;
-            # use setdefault so we never overwrite a richer value.
-            tool_context = self._build_tool_runtime_context(config, context)
-
-            try:
-                iterator = tool.stream_tool(
-                    name,
-                    inspected_call.payload,
-                    state,
-                    payload_kind=inspected_call.payload_kind,
-                    payload_format=inspected_call.payload_format,
-                    payload_metadata=inspected_call.payload_metadata,
-                    tool_call=inspected_call.raw,
-                    cancellation=cancellation,
-                    context=tool_context,
-                    prepared=prepared,
-                )
-                iterator = iter(iterator)
-            except Exception as exc:
-                iterator = None
-                stream_error = f"Tool error: {exc}"
-
-            if iterator is not None:
+            result_gen = self._iter_resolved_tool_result_chunks(
+                inspected_call=inspected_call,
+                tool=tool,
+                state=state,
+                prepared=prepared,
+                config=config,
+                cancellation=cancellation,
+                context=context,
+            )
+            while True:
                 try:
-                    for chunk in iterator:
-                        if not isinstance(chunk, dict):
-                            continue
-                        if "success" in chunk:
-                            last_result = chunk
-                            had_result = True
-                        elif "part" in chunk:
-                            # Partial display payload; forward as-is.
-                            yield chunk
-                        else:
-                            # Backwards-compatible: treat any other dict as a partial payload.
-                            yield {"part": chunk}
-                except Exception as exc:
-                    stream_error = f"Tool error: {exc}"
-                    logger.error(
-                        "iter_tool_messages_stream_error",
-                        tool_name=str(name),
-                        error=str(exc),
-                    )
+                    chunk = next(result_gen)
+                except StopIteration as stop:
+                    last_result, stream_error = stop.value
+                    break
+                yield chunk
 
-            if not had_result:
+            if not isinstance(last_result, dict):
                 # No RESULT dict was produced; synthesize an error message.
                 content = stream_error or f"Error: no tool handled '{name}'"
                 metadata = {
@@ -4616,79 +4924,15 @@ class AgentCore:
                 }
                 continue
 
-            assert last_result is not None
-            try:
-                formatted_content = tool.format_tool_result(last_result, state)
-            except Exception as exc:
-                formatted_content = f"Tool formatting error: {exc}"
-
-            inspected_result = registry.inspect_result(formatted_content)
-            display_text = inspected_result.text
-            display_payload: Dict[str, Any] | None = None
-            try:
-                display_candidate = tool.to_display_format(
-                    display_text,
-                    last_result,
-                    state,
-                )
-                if isinstance(display_candidate, dict):
-                    display_payload = display_candidate
-            except Exception:
-                display_payload = None
-
-            if (
-                isinstance(display_payload, dict)
-                and display_payload.get("type") == "text"
-                and display_payload.get("content") == display_text
-                and "single_line" not in display_payload
-                and isinstance(inspected_result.display, dict)
-            ):
-                display_payload = inspected_result.display
-
-            tool_result_value: Dict[str, Any]
-            if isinstance(formatted_content, dict) and (
-                inspected_result.format_id != CORE_TEXT_TOOL_RESULT_FORMAT_ID
-            ):
-                tool_result_value = formatted_content
-            else:
-                converted_result = registry.convert_tool_result(
-                    formatted_content,
-                    target=ToolInteropTarget("core.tool_result"),
-                    target_formats=[CORE_TEXT_TOOL_RESULT_FORMAT_ID],
-                )
-                if isinstance(converted_result, dict):
-                    tool_result_value = converted_result
-                else:
-                    tool_result_value = {
-                        "type": "tool_result",
-                        "text": inspected_result.text,
-                    }
-
-            if display_payload is None:
-                canonical_result = registry.inspect_result(tool_result_value)
-                if isinstance(canonical_result.display, dict):
-                    display_payload = canonical_result.display
-
-            metadata = {
-                "tool_call_id": call_id,
-                "tool_name": name,
-            }
-            if matched_schema is not None:
-                metadata["tool_schema"] = matched_schema
-            plugin_name = getattr(tool, "name", None)
-            if isinstance(plugin_name, str) and plugin_name:
-                metadata["tool_plugin"] = plugin_name
-            if display_payload is not None:
-                metadata["display"] = display_payload
-
-            tool_message = {
-                "role": "tool",
-                "content": registry.inspect_result(tool_result_value).text,
-                "metadata": metadata,
-                TOOL_RESULT_FIELD: tool_result_value,
-            }
-
-            yield tool_message
+            yield self._format_tool_result_message(
+                registry=registry,
+                tool=tool,
+                state=state,
+                matched_schema=matched_schema,
+                call_id=call_id,
+                name=name,
+                result=last_result,
+            )
 
     def execute_tool_calls(
         self,
