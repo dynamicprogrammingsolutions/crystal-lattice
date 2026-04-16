@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 import pytest
+from agent_core import AgentCore
+from agent_core.types import ProviderPlugin, ToolPlugin
+from plugins.openai_tools_extension import OpenAIToolsExtension
+from plugins.request_options_feature import RequestOptionsFeature
+from plugins.tool_gating_feature import ToolGatingFeature
 
 from web_fetch_shared import (
     BROWSER_USER_AGENT,
@@ -22,10 +27,143 @@ from web_fetch_shared import (
     is_private_url,
     normalize_github_url,
     parse_urls_from_text,
-    summarize_content,
-    summarize_content_sync,
+    run_prompted_summary_request,
     truncate_content,
 )
+
+
+class RecordingOpenAIProvider(ProviderPlugin):
+    """Test provider that records the final internal request payload."""
+
+    name = "recording_openai_provider"
+    version = "1.0.0"
+
+    last_payload = None
+    last_user_message = None
+    call_count = 0
+
+    @classmethod
+    def reset(cls):
+        cls.last_payload = None
+        cls.last_user_message = None
+        cls.call_count = 0
+
+    def get_config_schema(self):
+        return {"model": {"type": "string", "required": True}}
+
+    def get_ui_elements(self, config=None, context=None):
+        return []
+
+    def init(self, config):
+        return {"config": dict(config), "runtime_state": {"accumulated_content": "", "native_chunks": []}}
+
+    def get_tags(self, config, models):
+        return ["provider:openai_compatible", "supports_tools"]
+
+    def to_native_messages(self, messages, state):
+        return list(messages)
+
+    def from_native_messages(self, native_messages, state):
+        return list(native_messages)
+
+    def initialize_request(self, native_messages, state):
+        config = state.get("config") or {}
+        payload = {"model": config.get("model", "test-model")}
+        return list(native_messages), {
+            **state,
+            "request": {"payload": payload},
+            "runtime_state": {"accumulated_content": "", "native_chunks": []},
+        }
+
+    def call_api(self, native_messages, state):
+        payload = dict((state.get("request") or {}).get("payload") or {})
+        last_user_message = None
+        for message in reversed(native_messages):
+            if message.get("role") != "user":
+                continue
+            content = message.get("content")
+            if isinstance(content, str):
+                last_user_message = content
+                break
+
+        type(self).last_payload = payload
+        type(self).last_user_message = last_user_message
+        type(self).call_count += 1
+
+        assistant = {
+            "role": "assistant",
+            "content": "shared-summary",
+        }
+        return [], [assistant], [*native_messages, assistant], state
+
+    def stream_api(self, native_messages, state):
+        payload = dict((state.get("request") or {}).get("payload") or {})
+        last_user_message = None
+        for message in reversed(native_messages):
+            if message.get("role") != "user":
+                continue
+            content = message.get("content")
+            if isinstance(content, str):
+                last_user_message = content
+                break
+
+        type(self).last_payload = payload
+        type(self).last_user_message = last_user_message
+        type(self).call_count += 1
+
+        for char in "shared-summary":
+            yield {"content": char}
+
+    def process_chunk(self, native_chunk, native_messages, state):
+        partial_content = native_chunk.get("content", "")
+        runtime_state = state.get("runtime_state") or {}
+        new_state = {
+            **state,
+            "runtime_state": {
+                **runtime_state,
+                "accumulated_content": str(runtime_state.get("accumulated_content") or "")
+                + str(partial_content),
+                "native_chunks": list(runtime_state.get("native_chunks") or []) + [native_chunk],
+            },
+        }
+        partial_msg = {"role": "assistant", "content": partial_content, "metadata": {}}
+        return ([partial_msg] if partial_content else []), [], list(native_messages), new_state
+
+    def finalize(self, native_messages, state, *, context=None):
+        runtime_state = state.get("runtime_state") or {}
+        content = runtime_state.get("accumulated_content") or ""
+        if not isinstance(content, str) or not content:
+            return [], list(native_messages), state
+        assistant = {"role": "assistant", "content": content}
+        return [assistant], [*native_messages, assistant], state
+
+
+class DummyPingTool(ToolPlugin):
+    """Simple extra tool so internal requests have real tools to suppress."""
+
+    name = "dummy_ping_tool"
+    version = "1.0.0"
+
+    def init(self, config):
+        return {}
+
+    def get_tool_schemas(self, state):
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "dummy_ping",
+                    "description": "Return a fixed ping response.",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        ]
+
+    def execute_tool(self, tool_name, arguments, state, *, context=None):
+        return {"success": True, "result": "pong"}
+
+    def format_tool_result(self, result, state):
+        return result.get("result", "")
 
 
 # -----------------------------------------------------------------------------
@@ -857,91 +995,70 @@ class TestRateLimitConstants:
 
 
 # -----------------------------------------------------------------------------
-# Summarization Tests
+# Internal Summary Request Tests
 # -----------------------------------------------------------------------------
 
 
-class TestSummarizeContent:
-    """Tests for summarize_content generator function."""
+class TestRunPromptedSummaryRequest:
+    """Tests for caller-supplied internal summary prompts."""
+
+    def setup_method(self):
+        RecordingOpenAIProvider.reset()
 
     def test_no_context_returns_fallback(self):
-        """No context should return raw content as fallback."""
-        content = "Test content"
-        events = list(summarize_content(content, "prompt", "https://example.com", None))
+        """No context should return fallback content."""
+        success, result = run_prompted_summary_request(
+            "Prompt text",
+            "Fallback content",
+            None,
+        )
 
-        assert len(events) == 1
-        assert events[0]["kind"] == "response_complete"
-        assert events[0]["content"] == content
-        assert events[0]["metadata"]["fallback"] is True
+        assert success is True
+        assert result == "Fallback content"
 
     def test_no_core_returns_fallback(self):
-        """No core in context should return raw content as fallback."""
-        content = "Test content"
-        context = {"config": {}}  # No core
-
-        events = list(summarize_content(content, "prompt", "https://example.com", context))
-
-        assert len(events) == 1
-        assert events[0]["kind"] == "response_complete"
-        assert events[0]["content"] == content
-        assert events[0]["metadata"]["fallback"] is True
-        assert events[0]["metadata"]["reason"] == "no_core"
-
-    def test_truncates_long_content(self):
-        """Long content should be truncated before summarization."""
-        content = "x" * 200
-        # This test doesn't need a real core, just verifies truncation is applied
-        # We'll use a mock that returns fallback
-
-        # Verify the truncate_content is called by checking the prompt building
-        # For now, just test that short content is unchanged
-        short_content = "short"
-        context = {"config": {}}
-
-        events = list(summarize_content(
-            short_content, "prompt", "https://example.com", context,
-            max_chars=100,
-        ))
-
-        assert events[0]["content"] == short_content
-
-
-class TestSummarizeContentSync:
-    """Tests for summarize_content_sync function."""
-
-    def test_no_context_returns_fallback(self):
-        """No context should return raw content as fallback."""
-        content = "Test content"
-        success, result = summarize_content_sync(
-            content, "prompt", "https://example.com", None
+        """No core in context should return fallback content."""
+        success, result = run_prompted_summary_request(
+            "Prompt text",
+            "Fallback content",
+            {"config": {}},
         )
 
         assert success is True
-        assert result == content
+        assert result == "Fallback content"
 
-    def test_no_core_returns_fallback(self):
-        """No core in context should return raw content as fallback."""
-        content = "Test content"
-        context = {"config": {}}
+    def test_internal_request_disables_tools_and_preserves_request_options(self):
+        """Internal requests should suppress tools while preserving request options."""
+        core = AgentCore()
+        core.register_provider(RecordingOpenAIProvider, extensions=[OpenAIToolsExtension])
+        core.register_feature(RequestOptionsFeature)
+        core.register_feature(ToolGatingFeature)
+        core.register_tool(DummyPingTool)
 
-        success, result = summarize_content_sync(
-            content, "prompt", "https://example.com", context
+        context = {
+            "core": core,
+            "config": {
+                "model": "test-model",
+                "request_options": {"temperature": 0.1},
+            },
+        }
+
+        available_tools = core.get_available_tools(context["config"])
+        assert [descriptor.tool_name for descriptor in available_tools] == ["dummy_ping"]
+
+        success, result = run_prompted_summary_request(
+            "Summarize the fetched content.",
+            "Fallback content",
+            context,
+            fallback_model="summary-model",
         )
 
         assert success is True
-        assert result == content
-
-    def test_truncates_content(self):
-        """Long content should be truncated."""
-        content = "x" * 200
-        context = {"config": {}}
-
-        # The content is truncated but returned as fallback since no core
-        success, result = summarize_content_sync(
-            content, "prompt", "https://example.com", context,
-            max_chars=50,
-        )
-
-        assert success is True
-        # Result should be truncated content + marker
-        assert len(result) == 50 + len(TRUNCATION_MARKER)
+        assert result == "shared-summary"
+        assert RecordingOpenAIProvider.call_count == 1
+        assert RecordingOpenAIProvider.last_payload == {
+            "model": "summary-model",
+            "temperature": 0.1,
+            "tool_choice": "none",
+        }
+        assert RecordingOpenAIProvider.last_user_message == "Summarize the fetched content."

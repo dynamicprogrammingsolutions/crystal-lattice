@@ -69,6 +69,7 @@ def _make_config(tmp_path: Path, verification_pass: bool = False) -> Path:
         },
         "plugins": [
             "openrouter_plugins.openrouter_provider.OpenRouterProvider",
+            "plugins.tool_gating_feature.ToolGatingFeature",
             "gemini_compaction_feature.GeminiCompactionFeaturePlugin",
         ],
     }
@@ -243,6 +244,7 @@ def test_feature_compaction_disabled_for_non_gemini_type(
         },
         "plugins": [
             "openrouter_plugins.openrouter_provider.OpenRouterProvider",
+            "plugins.tool_gating_feature.ToolGatingFeature",
             "gemini_compaction_feature.GeminiCompactionFeaturePlugin",
         ],
     }
@@ -308,6 +310,7 @@ def test_feature_compaction_disabled_by_default(
         },
         "plugins": [
             "openrouter_plugins.openrouter_provider.OpenRouterProvider",
+            "plugins.tool_gating_feature.ToolGatingFeature",
             "gemini_compaction_feature.GeminiCompactionFeaturePlugin",
         ],
     }

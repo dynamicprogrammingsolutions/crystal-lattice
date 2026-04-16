@@ -69,7 +69,10 @@ class RecordingOpenAIProvider(ProviderPlugin):
         return []
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        return {"config": dict(config)}
+        return {
+            "config": dict(config),
+            "runtime_state": {"accumulated_content": "", "native_chunks": []},
+        }
 
     def get_tags(
         self, config: Dict[str, Any], models: List[Dict[str, Any]]
@@ -100,6 +103,7 @@ class RecordingOpenAIProvider(ProviderPlugin):
         return list(native_messages), {
             **state,
             "request": {"payload": payload},
+            "runtime_state": {"accumulated_content": "", "native_chunks": []},
         }
 
     def call_api(
@@ -138,7 +142,65 @@ class RecordingOpenAIProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Iterator[Dict[str, Any]]:
-        yield from []
+        payload = dict((state.get("request") or {}).get("payload") or {})
+        last_user_message = None
+        for message in reversed(native_messages):
+            if message.get("role") != "user":
+                continue
+            content = message.get("content")
+            if isinstance(content, str):
+                last_user_message = content
+                break
+
+        type(self).last_payload = payload
+        type(self).last_user_message = last_user_message
+        type(self).call_count += 1
+
+        for char in "recorded-summary":
+            yield {"content": char}
+
+    def process_chunk(
+        self,
+        native_chunk: Dict[str, Any],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
+        partial_content = native_chunk.get("content", "")
+        runtime_state = state.get("runtime_state") or {}
+        new_state = {
+            **state,
+            "runtime_state": {
+                **runtime_state,
+                "accumulated_content": str(runtime_state.get("accumulated_content") or "")
+                + str(partial_content),
+                "native_chunks": list(runtime_state.get("native_chunks") or []) + [native_chunk],
+            },
+        }
+        partial_msg = {"role": "assistant", "content": partial_content, "metadata": {}}
+        return ([partial_msg] if partial_content else []), [], list(native_messages), new_state
+
+    def finalize(
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        runtime_state = state.get("runtime_state") or {}
+        content = runtime_state.get("accumulated_content") or ""
+        if not isinstance(content, str) or not content:
+            return [], list(native_messages), state
+        assistant = {
+            "role": "assistant",
+            "content": content,
+            "metadata": {
+                "payload": type(self).last_payload,
+                "last_user_message": type(self).last_user_message,
+            },
+        }
+        return [assistant], [*native_messages, assistant], state
 
 
 class DummyPingTool(ToolPlugin):

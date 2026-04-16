@@ -1,12 +1,9 @@
-"""Unit tests for :mod:`summarize_range_app` application plugin.
-
-These tests exercise the SummarizeRangeAppPlugin directly via the
-application-layer ``AgentApplication.execute_application_action`` helper.
-"""
+"""Unit tests for :mod:`summarize_range_app` application plugin."""
 
 from __future__ import annotations
 
 from pathlib import Path
+import threading
 from typing import Any, Dict, List
 
 import json
@@ -14,10 +11,14 @@ import pytest
 
 from agent_app.application_future import AgentApplication, SessionConflictError
 from agent_app.events import InMemoryEventStore
-from agent_core import Session
 
-# Ensure provider + app plugin are importable for dotted-path loading.
-from plugins.echo_openai_like_provider import EchoOpenAILikeProvider  # noqa: F401
+from plugins.controllable_openai_test_provider import (
+    get_controllable_openai_test_provider_state,
+    release_controllable_openai_test_provider_call,
+    reset_controllable_openai_test_provider_state,
+    wait_for_controllable_openai_test_provider_call,
+)
+
 from summarize_range_app import SummarizeRangeAppPlugin  # noqa: F401
 
 
@@ -26,41 +27,65 @@ def _get_mutations(result: Dict[str, Any]) -> Dict[str, Any]:
     return mutations if isinstance(mutations, dict) else {}
 
 
-def _make_config_with_summarize_range(tmp_path: Path) -> Path:
+def _make_config_with_summarize_range(
+    tmp_path: Path,
+    *,
+    provider_config: Dict[str, Any] | None = None,
+    application_config: Dict[str, Any] | None = None,
+    extra_plugins: List[str] | None = None,
+    filename: str = "config_summarize_range.json",
+) -> Path:
     cfg: Dict[str, Any] = {
         "providers": {
-            "echo": {"provider": "echo_openai_like", "model": "test-model"}
+            "controlled": {
+                "provider": "controllable_openai_test_provider",
+                "model": "test-model",
+                **dict(provider_config or {}),
+            }
         },
         "plugins": [
-            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.controllable_openai_test_provider.ControllableOpenAITestProvider",
+            *(extra_plugins or []),
             "summarize_range_app.SummarizeRangeAppPlugin",
         ],
         "agents": {
-            "default": {"provider": "echo"},
+            "default": {"provider": "controlled"},
         },
         "application": {
             "summarize_range_agent_id": "default",
             "summarize_range_prompt": "Summarize this range succinctly.",
+            **dict(application_config or {}),
         },
     }
 
-    path = tmp_path / "config_summarize_range.json"
+    path = tmp_path / filename
     path.write_text(json.dumps(cfg), encoding="utf-8")
     return path
 
 
-def _build_app(tmp_path: Path) -> AgentApplication:
-    config_path = _make_config_with_summarize_range(tmp_path)
-    session_root = tmp_path / "sessions"
+def _build_app(
+    tmp_path: Path,
+    *,
+    provider_config: Dict[str, Any] | None = None,
+    application_config: Dict[str, Any] | None = None,
+    extra_plugins: List[str] | None = None,
+    filename: str = "config_summarize_range.json",
+    session_dir: str = "sessions",
+) -> AgentApplication:
+    config_path = _make_config_with_summarize_range(
+        tmp_path,
+        provider_config=provider_config,
+        application_config=application_config,
+        extra_plugins=extra_plugins,
+        filename=filename,
+    )
+    session_root = tmp_path / session_dir
     events = InMemoryEventStore()
     return AgentApplication(str(config_path), str(session_root), event_store=events)
 
 
 def _create_session_with_messages(app: AgentApplication, contents: List[str]) -> str:
-    from agent_core import AgentCore
-
     core, base_config, session = app.create_session("default")
-    assert isinstance(core, AgentCore)
 
     for text in contents:
         session = core.add_message(session, "user", text, None, base_config)
@@ -70,7 +95,11 @@ def _create_session_with_messages(app: AgentApplication, contents: List[str]) ->
 
 
 def test_summarize_range_replaces_range_with_single_message(tmp_path: Path) -> None:
-    app = _build_app(tmp_path)
+    reset_controllable_openai_test_provider_state()
+    app = _build_app(
+        tmp_path,
+        provider_config={"response_text": "Range summary"},
+    )
 
     session_id = _create_session_with_messages(app, ["m0", "m1", "m2", "m3"])
 
@@ -87,27 +116,26 @@ def test_summarize_range_replaces_range_with_single_message(tmp_path: Path) -> N
     assert ctx is not None
     _core, _base, session = ctx
 
-    # Expect exactly one message in the original [1:3] range to have been
-    # replaced by a single assistant summary message.
     assert len(session.messages) == 3
     assert [m.content for m in session.messages] == [
         "m0",
-        session.messages[1].content,
+        "Range summary",
         "m3",
     ]
     assert session.messages[1].role == "assistant"
-    assert isinstance(session.messages[1].content, str)
-    assert session.messages[1].content != ""
 
 
 def test_prompt_input_overrides_config_default(tmp_path: Path) -> None:
-    app = _build_app(tmp_path)
+    reset_controllable_openai_test_provider_state()
+    app = _build_app(
+        tmp_path,
+        provider_config={"response_mode": "echo_last_user"},
+        filename="config_summarize_range_echo.json",
+        session_dir="sessions_echo",
+    )
 
     session_id = _create_session_with_messages(app, ["hello", "world"])
-
-    # The echo-like provider will echo the last user message, so by providing
-    # an explicit prompt we can assert that the summary text matches it.
-    custom_prompt = "Custom summarization prompt"  # echoed back verbatim
+    custom_prompt = "Custom summarization prompt"
 
     result = app.execute_application_action(
         plugin_id="summarize_range",
@@ -126,55 +154,69 @@ def test_prompt_input_overrides_config_default(tmp_path: Path) -> None:
     ctx = app.load_session(session_id)
     assert ctx is not None
     _core, _base, session = ctx
-
-    # With the echo provider wired up, the assistant summary should equal the
-    # last user message content (our custom prompt). In this test the entire
-    # range is summarized, so only a single assistant message remains.
     assert len(session.messages) == 1
-    summary_msg = session.messages[0]
-    assert summary_msg.role == "assistant"
-    assert isinstance(summary_msg.content, str)
-    assert custom_prompt in summary_msg.content
+    assert session.messages[0].role == "assistant"
+    assert custom_prompt in str(session.messages[0].content)
+
+
+def test_summarize_range_internal_request_disables_tools_with_real_app(tmp_path: Path) -> None:
+    reset_controllable_openai_test_provider_state()
+    app = _build_app(
+        tmp_path,
+        provider_config={"response_text": "Condensed summary"},
+        application_config={
+            "summarize_range_settings_overrides": {
+                "request_options": {"temperature": 0.4},
+            }
+        },
+        extra_plugins=[
+            "plugins.openai_tools_extension.OpenAIToolsExtension",
+            "plugins.request_options_feature.RequestOptionsFeature",
+            "plugins.tool_gating_feature.ToolGatingFeature",
+            "plugins.math_tools.MathTools",
+        ],
+        filename="config_summarize_range_tools.json",
+        session_dir="sessions_tools",
+    )
+
+    session_id = _create_session_with_messages(app, ["First message", "Second message"])
+
+    result = app.execute_application_action(
+        plugin_id="summarize_range",
+        action_id="summarize_range",
+        params={
+            "session_id": session_id,
+            "start": 0,
+            "end": 2,
+            "prompt": "Use this custom summarize prompt.",
+        },
+    )
+
+    ctx = app.load_session(session_id)
+    assert ctx is not None
+    _core, _base, session = ctx
+    provider_state = get_controllable_openai_test_provider_state()
+
+    assert _get_mutations(result).get("updated_session_ids") == [session_id]
+    assert len(session.messages) == 1
+    assert session.messages[0].content == "Condensed summary"
+    assert provider_state["payload"] == {
+        "model": "test-model",
+        "temperature": 0.4,
+    }
+    assert provider_state["last_user_message"] == "Use this custom summarize prompt."
 
 
 def test_plugin_error_status_when_no_assistant_reply(tmp_path: Path) -> None:
-    """Guard that a failed summarization run returns plugin_error status.
-
-    This test monkeypatches AgentApplication.send_request to simulate a
-    provider failure that yields no final assistant reply.
-    """
-
-    app = _build_app(tmp_path)
+    reset_controllable_openai_test_provider_state()
+    app = _build_app(
+        tmp_path,
+        provider_config={"response_mode": "none"},
+        filename="config_summarize_range_no_reply.json",
+        session_dir="sessions_no_reply",
+    )
 
     session_id = _create_session_with_messages(app, ["one", "two"])
-
-    captured: Dict[str, Any] = {}
-
-    class _FakeCore:
-        def send_request(
-            self,
-            session_arg: Session,
-            config_arg: Dict[str, Any],
-            *,
-            request_id: str | None = None,
-            cancellation: Any | None = None,
-        ) -> tuple[Session, List[Dict[str, Any]]]:
-            captured["session_id"] = session_arg.session_id
-            captured["config"] = config_arg
-            return session_arg, []
-
-    def _fake_prepare_tools_for_session(
-        core_arg: Any,
-        session_arg: Session,
-        base_config_arg: Dict[str, Any],
-        overrides_arg: Dict[str, Any] | None = None,
-        *,
-        request_id: str | None = None,
-    ) -> tuple[Any, Dict[str, Any], Session, Dict[str, Any], str]:
-        captured["overrides"] = overrides_arg
-        return _FakeCore(), base_config_arg, session_arg, dict(base_config_arg), "fake-rid"
-
-    app.prepare_tools_for_session = _fake_prepare_tools_for_session  # type: ignore[assignment]
 
     result = app.execute_application_action(
         plugin_id="summarize_range",
@@ -185,7 +227,6 @@ def test_plugin_error_status_when_no_assistant_reply(tmp_path: Path) -> None:
     assert result.get("status") == "error"
     assert result.get("error_type") == "plugin_error"
 
-    # Session history should be unchanged on failure.
     ctx = app.load_session(session_id)
     assert ctx is not None
     _core, _base, session = ctx
@@ -193,52 +234,56 @@ def test_plugin_error_status_when_no_assistant_reply(tmp_path: Path) -> None:
 
 
 def test_summarize_range_conflicts_when_session_changes_mid_action(tmp_path: Path) -> None:
-    app = _build_app(tmp_path)
+    reset_controllable_openai_test_provider_state()
+    app = _build_app(
+        tmp_path,
+        provider_config={
+            "response_text": "summary output",
+            "block_until_released": True,
+            "block_wait_timeout": 5.0,
+        },
+        filename="config_summarize_range_conflict.json",
+        session_dir="sessions_conflict",
+    )
     session_id = _create_session_with_messages(app, ["m0", "m1", "m2", "m3"])
 
-    class _FakeCore:
-        def send_request(
-            self,
-            session_arg: Session,
-            config_arg: Dict[str, Any],
-            *,
-            request_id: str | None = None,
-            cancellation: Any | None = None,
-        ) -> tuple[Session, List[Dict[str, Any]]]:
-            ctx = app.load_session(session_id)
-            assert ctx is not None
-            core_live, base_live, live_session = ctx
-            advanced = core_live.add_message(
-                live_session,
-                "user",
-                "concurrent edit",
-                None,
-                base_live,
+    outcome: Dict[str, Any] = {}
+
+    def _run_action() -> None:
+        try:
+            outcome["result"] = app.execute_application_action(
+                plugin_id="summarize_range",
+                action_id="summarize_range",
+                params={"session_id": session_id, "start": 1, "end": 3},
             )
-            app.save_session(advanced)
-            return session_arg, [{"role": "assistant", "content": "summary output"}]
+        except Exception as exc:  # pragma: no cover - asserted below
+            outcome["exception"] = exc
 
-    def _fake_prepare_tools_for_session(
-        core_arg: Any,
-        session_arg: Session,
-        base_config_arg: Dict[str, Any],
-        overrides_arg: Dict[str, Any] | None = None,
-        *,
-        request_id: str | None = None,
-    ) -> tuple[Any, Dict[str, Any], Session, Dict[str, Any], str]:
-        return _FakeCore(), base_config_arg, session_arg, dict(base_config_arg), "fake-rid"
+    thread = threading.Thread(target=_run_action)
+    thread.start()
 
-    app.prepare_tools_for_session = _fake_prepare_tools_for_session  # type: ignore[assignment]
-
-    with pytest.raises(
-        SessionConflictError,
-        match="Concurrent session modification detected while summarizing messages",
-    ):
-        app.execute_application_action(
-            plugin_id="summarize_range",
-            action_id="summarize_range",
-            params={"session_id": session_id, "start": 1, "end": 3},
+    try:
+        assert wait_for_controllable_openai_test_provider_call(2.0)
+        ctx = app.load_session(session_id)
+        assert ctx is not None
+        core_live, base_live, live_session = ctx
+        advanced = core_live.add_message(
+            live_session,
+            "user",
+            "concurrent edit",
+            None,
+            base_live,
         )
+        app.save_session(advanced)
+    finally:
+        release_controllable_openai_test_provider_call()
+
+    thread.join(timeout=2.0)
+    assert not thread.is_alive()
+
+    exc = outcome.get("exception")
+    assert isinstance(exc, SessionConflictError)
+    assert "Concurrent session modification detected while summarizing messages" in str(exc)
 
     ctx = app.load_session(session_id)
     assert ctx is not None

@@ -2,27 +2,40 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import threading
 from typing import Any, Dict, List
 
 import pytest
 
 from agent_app.application_future import AgentApplication, SessionConflictError
 from agent_app.events import InMemoryEventStore
-from agent_core import Session
+from plugins.controllable_openai_test_provider import (
+    release_controllable_openai_test_provider_call,
+    reset_controllable_openai_test_provider_state,
+    wait_for_controllable_openai_test_provider_call,
+)
 
 
 def _make_config(tmp_path: Path) -> Path:
     cfg: Dict[str, Any] = {
         "providers": {
-            "echo": {"provider": "echo_openai_like", "model": "test-model"},
+            "controlled": {
+                "provider": "controllable_openai_test_provider",
+                "model": "test-model",
+                "response_text": (
+                    "<state_snapshot><overall_goal>Keep going</overall_goal></state_snapshot>"
+                ),
+                "block_until_released": True,
+                "block_wait_timeout": 5.0,
+            },
         },
         "plugins": [
-            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.controllable_openai_test_provider.ControllableOpenAITestProvider",
             "gemini_compaction_app.GeminiCompactionAppPlugin",
         ],
         "agents": {
             "default": {
-                "provider": "echo",
+                "provider": "controlled",
                 "compaction": {
                     "enabled": True,
                     "type": "gemini",
@@ -45,6 +58,7 @@ def _build_app(tmp_path: Path) -> AgentApplication:
 
 
 def test_compact_range_conflicts_when_session_changes_mid_action(tmp_path: Path) -> None:
+    reset_controllable_openai_test_provider_state()
     app = _build_app(tmp_path)
 
     core, base_config, session = app.create_session("default")
@@ -60,54 +74,43 @@ def test_compact_range_conflicts_when_session_changes_mid_action(tmp_path: Path)
 
     app.save_session(session)
 
-    class _FakeCore:
-        def send_request(
-            self,
-            session_arg: Session,
-            config_arg: Dict[str, Any],
-            *,
-            request_id: str | None = None,
-            cancellation: Any | None = None,
-        ) -> tuple[Session, List[Dict[str, Any]]]:
-            ctx = app.load_session(session_id)
-            assert ctx is not None
-            core_live, base_live, live_session = ctx
-            advanced = core_live.add_message(
-                live_session,
-                "user",
-                "concurrent edit",
-                None,
-                base_live,
+    outcome: Dict[str, Any] = {}
+
+    def _run_action() -> None:
+        try:
+            outcome["result"] = app.execute_application_action(
+                "gemini_compaction",
+                "compact_range",
+                {"session_id": session_id},
             )
-            app.save_session(advanced)
-            return session_arg, [
-                {
-                    "role": "assistant",
-                    "content": "<state_snapshot><overall_goal>Keep going</overall_goal></state_snapshot>",
-                }
-            ]
+        except Exception as exc:  # pragma: no cover - asserted below
+            outcome["exception"] = exc
 
-    def _fake_prepare_tools_for_session(
-        core_arg: Any,
-        session_arg: Session,
-        base_config_arg: Dict[str, Any],
-        overrides_arg: Dict[str, Any] | None = None,
-        *,
-        request_id: str | None = None,
-    ) -> tuple[Any, Dict[str, Any], Session, Dict[str, Any], str]:
-        return _FakeCore(), base_config_arg, session_arg, dict(base_config_arg), "fake-rid"
+    thread = threading.Thread(target=_run_action)
+    thread.start()
 
-    app.prepare_tools_for_session = _fake_prepare_tools_for_session  # type: ignore[assignment]
-
-    with pytest.raises(
-        SessionConflictError,
-        match="Concurrent session modification detected while compacting messages",
-    ):
-        app.execute_application_action(
-            "gemini_compaction",
-            "compact_range",
-            {"session_id": session_id},
+    try:
+        assert wait_for_controllable_openai_test_provider_call(2.0)
+        ctx = app.load_session(session_id)
+        assert ctx is not None
+        core_live, base_live, live_session = ctx
+        advanced = core_live.add_message(
+            live_session,
+            "user",
+            "concurrent edit",
+            None,
+            base_live,
         )
+        app.save_session(advanced)
+    finally:
+        release_controllable_openai_test_provider_call()
+
+    thread.join(timeout=2.0)
+    assert not thread.is_alive()
+
+    exc = outcome.get("exception")
+    assert isinstance(exc, SessionConflictError)
+    assert "Concurrent session modification detected while compacting messages" in str(exc)
 
     stored = app.load_session_record(session_id)
     assert stored is not None

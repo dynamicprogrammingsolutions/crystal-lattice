@@ -34,6 +34,25 @@ if TYPE_CHECKING:  # pragma: no cover - import cycle guard
     from agent_app.application_future import AgentApplication
 
 
+def _collect_final_messages_from_stream(
+    core: Any,
+    session: Session,
+    config: Dict[str, Any],
+    *,
+    request_id: str | None = None,
+) -> List[Dict[str, Any]]:
+    """Run an internal request via the streaming path and return final messages."""
+
+    final_messages: List[Dict[str, Any]] = []
+    for event in core.send_request_stream(session, config, request_id=request_id):
+        if event.get("type") != "final":
+            continue
+        raw_messages = event.get("messages")
+        if isinstance(raw_messages, list):
+            final_messages = raw_messages
+    return final_messages
+
+
 def _normalize_slice_bounds(
     message_count: int,
     start: int | None,
@@ -426,6 +445,10 @@ class SummarizeRangeAppPlugin:
         )
 
         combined_overrides: Dict[str, Any] = {**md_overrides2, **cfg_overrides}
+        request_overrides: Dict[str, Any] = {
+            "disable_all_tools": True,
+            **combined_overrides,
+        }
         config_for_add = resolve_request_config(base_config_sum, combined_overrides)
 
         # Append the prompt as a user message using the summarizer core and
@@ -446,17 +469,15 @@ class SummarizeRangeAppPlugin:
                     core_sum,
                     session_with_prompt,
                     base_config_sum,
-                    combined_overrides,
+                    request_overrides,
                 )
             )
-            _request_session, final_messages = core_sum.send_request(
+            last_final_messages = _collect_final_messages_from_stream(
+                core_sum,
                 session_with_prompt,
                 request_config,
                 request_id=rid,
             )
-            last_final_messages: Optional[List[Dict[str, Any]]] = None
-            if isinstance(final_messages, list):
-                last_final_messages = final_messages
         except Exception as exc:  # pragma: no cover - defensive
             return {
                 "status": "error",

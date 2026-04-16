@@ -28,7 +28,7 @@ from web_fetch_shared import (
     extract_text,
     fetch_url,
     normalize_github_url,
-    summarize_content_sync,
+    run_prompted_summary_request,
     truncate_content,
 )
 
@@ -378,15 +378,23 @@ class QwenWebFetchTool(ToolPlugin):
                     "error": f"No text content extracted from {url}",
                 }
 
+            max_chars = web_fetch_cfg.get("max_content_chars", DEFAULT_MAX_CHARS)
+            content = truncate_content(content, max_chars=max_chars)
+
+            summarization_prompt = (
+                f'The user requested: "{prompt}"\n\n'
+                f"I have fetched the content from {url}. "
+                f"Please use the following content to answer the user's request.\n\n"
+                f"---\n{content}\n---"
+            )
+
             # Use shared summarization utility
-            success, result = summarize_content_sync(
+            success, result = run_prompted_summary_request(
+                summarization_prompt,
                 content,
-                prompt,
-                url,
                 context,
                 fallback_agent_id=web_fetch_cfg.get("summarization_agent_id"),
                 fallback_model=web_fetch_cfg.get("summarization_model"),
-                max_chars=web_fetch_cfg.get("max_content_chars", DEFAULT_MAX_CHARS),
             )
 
             if success:

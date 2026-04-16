@@ -12,7 +12,7 @@ import re
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 # aiohttp is imported lazily in fetch_url to allow the module to be
@@ -40,6 +40,25 @@ TRUNCATION_MARKER: str = "... [Content truncated due to size limit]"
 # Rate limiting defaults
 DEFAULT_RATE_LIMIT_REQUESTS: int = 10
 DEFAULT_RATE_LIMIT_WINDOW: float = 60.0
+
+
+def _collect_final_messages_from_stream(
+    core: Any,
+    session: Any,
+    config: Dict[str, Any],
+    *,
+    request_id: str | None = None,
+) -> List[Dict[str, Any]]:
+    """Run an internal request via the streaming path and return final messages."""
+
+    final_messages: List[Dict[str, Any]] = []
+    for event in core.send_request_stream(session, config, request_id=request_id):
+        if event.get("type") != "final":
+            continue
+        raw_messages = event.get("messages")
+        if isinstance(raw_messages, list):
+            final_messages = raw_messages
+    return final_messages
 
 
 # -----------------------------------------------------------------------------
@@ -715,203 +734,97 @@ def check_rate_limit(
 
 
 # -----------------------------------------------------------------------------
-# LLM Summarization Utilities
+# Internal LLM Request Utilities
 # -----------------------------------------------------------------------------
 
 
-def summarize_content(
-    content: str,
-    user_prompt: str,
-    url: str,
+def _build_internal_request_config(
+    config: Optional[Dict[str, Any]],
+    *,
+    fallback_model: Optional[str] = None,
+    disable_all_tools: bool = True,
+) -> Dict[str, Any]:
+    """Merge safeguards into a one-off internal request config."""
+    runtime_config = dict(config) if isinstance(config, dict) else {}
+    request_options = runtime_config.get("request_options")
+    merged_request_options = (
+        dict(request_options) if isinstance(request_options, dict) else {}
+    )
+    merged_request_options["tool_choice"] = "none"
+
+    runtime_config["request_options"] = merged_request_options
+    if disable_all_tools:
+        runtime_config["disable_all_tools"] = True
+    if fallback_model:
+        runtime_config["model"] = fallback_model
+    return runtime_config
+
+
+def _collect_assistant_text(final_messages: List[Dict[str, Any]]) -> str:
+    """Collect assistant text fragments from final messages."""
+    assistant_texts: List[str] = []
+    for message in final_messages:
+        if message.get("role") != "assistant":
+            continue
+        content = message.get("content")
+        if isinstance(content, str) and content.strip():
+            assistant_texts.append(content.strip())
+    return "\n\n".join(assistant_texts).strip()
+
+
+def run_prompted_summary_request(
+    prompt_text: str,
+    fallback_content: str,
     context: Optional[Dict[str, Any]],
     *,
     fallback_agent_id: Optional[str] = None,
     fallback_model: Optional[str] = None,
-    max_chars: int = DEFAULT_MAX_CHARS,
-) -> Iterator[Dict[str, Any]]:
-    """Summarize fetched content using LLM via tool context.
-
-    Uses context["core"] for LLM calls. Supports agent switching via
-    fallback_agent_id when context["app"] is available.
-
-    This is a generator function that yields events matching the
-    AgentCore stream_request event format:
-    - {"kind": "response_chunk", "content": "..."}
-    - {"kind": "response_complete", "content": "..."}
-
-    Args:
-        content: Fetched content to summarize.
-        user_prompt: User's original prompt/question.
-        url: Source URL (for context in summarization prompt).
-        context: Tool context dict with "core" and optional "app".
-        fallback_agent_id: Optional agent ID to switch to for summarization.
-        fallback_model: Optional model override for summarization.
-        max_chars: Maximum characters to include from content.
-
-    Yields:
-        Event dicts matching AgentCore stream_request format.
-
-    Example:
-        for event in summarize_content(content, prompt, url, context):
-            if event["kind"] == "response_chunk":
-                print(event["content"], end="")
-            elif event["kind"] == "response_complete":
-                result = event["content"]
-    """
-    # Truncate content if needed
-    if len(content) > max_chars:
-        content = truncate_content(content, max_chars=max_chars)
-
-    # Build summarization prompt
-    summarization_prompt = (
-        f'The user requested: "{user_prompt}"\n\n'
-        f"I have fetched the content from {url}. "
-        f"Please use the following content to answer the user's request.\n\n"
-        f"---\n{content}\n---"
-    )
-
-    # Check for context availability
+    disable_all_tools: bool = True,
+) -> Tuple[bool, str]:
+    """Run a caller-supplied internal summary prompt through the current app/core."""
     if not context:
-        # No context available, yield raw content
-        yield {
-            "kind": "response_complete",
-            "content": content,
-            "metadata": {"fallback": True, "reason": "no_context"},
-        }
-        return
+        return True, fallback_content
 
     core = context.get("core")
-    if not core:
-        # No core available, yield raw content
-        yield {
-            "kind": "response_complete",
-            "content": content,
-            "metadata": {"fallback": True, "reason": "no_core"},
-        }
-        return
+    if core is None:
+        return True, fallback_content
 
     config = context.get("config", {})
     app = context.get("app")
 
-    # Try agent switching if configured
-    if fallback_agent_id and app:
-        try:
-            # Import Session locally to avoid circular imports
-            from agent_core import Session
-
-            # Create temp session
-            temp_session = Session(session_id="web_fetch_summarize", messages=[])
-            temp_session = core.add_message(temp_session, "user", summarization_prompt)
-
-            # Switch to fallback agent
-            fallback_core, fallback_config, _ = app.update_agent(
-                fallback_agent_id, temp_session
-            )
-
-            # Apply model override if set
-            if fallback_model:
-                fallback_config = {**fallback_config, "model": fallback_model}
-
-            # Stream response
-            result_text = ""
-            for event in fallback_core.stream_request(temp_session, fallback_config):
-                if event.get("kind") == "response_chunk":
-                    result_text += event.get("content", "")
-                    yield event
-                elif event.get("kind") == "response_complete":
-                    result_text = event.get("content", result_text)
-                    yield event
-
-            return
-
-        except Exception:
-            # Fall through to default core usage
-            pass
-
-    # Apply fallback model override if set
-    if fallback_model:
-        config = {**config, "model": fallback_model}
-
-    # Use current agent/core for summarization
     try:
         from agent_core import Session
 
         temp_session = Session(session_id="web_fetch_summarize", messages=[])
-        temp_session = core.add_message(temp_session, "user", summarization_prompt)
+        temp_session = core.add_message(
+            temp_session,
+            "user",
+            prompt_text,
+            config=config if isinstance(config, dict) else None,
+        )
 
-        # Stream response
-        result_text = ""
-        for event in core.stream_request(temp_session, config):
-            if event.get("kind") == "response_chunk":
-                result_text += event.get("content", "")
-                yield event
-            elif event.get("kind") == "response_complete":
-                result_text = event.get("content", result_text)
-                yield event
+        request_core = core
+        request_session = temp_session
+        request_config = config
 
-    except Exception as e:
-        # Error during summarization, yield error
-        yield {
-            "kind": "response_complete",
-            "content": content,
-            "metadata": {"fallback": True, "reason": "error", "error": str(e)},
-        }
+        if fallback_agent_id and app:
+            request_core, request_config, request_session = app.update_agent(
+                fallback_agent_id,
+                temp_session,
+            )
 
+        runtime_config = _build_internal_request_config(
+            request_config,
+            fallback_model=fallback_model,
+            disable_all_tools=disable_all_tools,
+        )
 
-def summarize_content_sync(
-    content: str,
-    user_prompt: str,
-    url: str,
-    context: Optional[Dict[str, Any]],
-    *,
-    fallback_agent_id: Optional[str] = None,
-    fallback_model: Optional[str] = None,
-    max_chars: int = DEFAULT_MAX_CHARS,
-) -> Tuple[bool, str]:
-    """Synchronous wrapper for summarize_content.
-
-    Collects all events and returns the final result.
-
-    Args:
-        content: Fetched content to summarize.
-        user_prompt: User's original prompt/question.
-        url: Source URL.
-        context: Tool context dict.
-        fallback_agent_id: Optional agent ID to switch to.
-        fallback_model: Optional model override.
-        max_chars: Maximum characters to include from content.
-
-    Returns:
-        Tuple of (success, result_or_error).
-        - If success is True, result is the summarized content.
-        - If success is False, result is an error message or raw content.
-    """
-    result_text = ""
-    last_event = None
-
-    for event in summarize_content(
-        content,
-        user_prompt,
-        url,
-        context,
-        fallback_agent_id=fallback_agent_id,
-        fallback_model=fallback_model,
-        max_chars=max_chars,
-    ):
-        last_event = event
-        if event.get("kind") == "response_chunk":
-            result_text += event.get("content", "")
-        elif event.get("kind") == "response_complete":
-            result_text = event.get("content", result_text)
-
-    # Check for fallback mode
-    if last_event and last_event.get("kind") == "response_complete":
-        metadata = last_event.get("metadata", {})
-        if metadata.get("fallback"):
-            # Fallback to raw content
-            return True, result_text
-        # Successful summarization
-        return True, result_text
-
-    # Should not reach here, but return what we have
-    return True, result_text if result_text else (True, content)
+        final_messages = _collect_final_messages_from_stream(
+            request_core,
+            request_session,
+            runtime_config,
+        )
+        result_text = _collect_assistant_text(final_messages)
+        return True, result_text or fallback_content
+    except Exception:
+        return True, fallback_content

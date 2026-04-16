@@ -35,7 +35,7 @@ from web_fetch_shared import (
     is_private_url,
     normalize_github_url,
     parse_urls_from_text,
-    summarize_content_sync,
+    run_prompted_summary_request,
     truncate_content,
 )
 
@@ -706,6 +706,18 @@ class GeminiWebFetchTool(ToolPlugin):
                     "error": f"No text content extracted from {url}",
                 }
 
+            # Truncate content before building the Gemini-owned fallback prompt.
+            max_chars = web_fetch_cfg.get("max_content_chars", DEFAULT_MAX_CHARS)
+            content = truncate_content(content, max_chars=max_chars)
+
+            summarization_prompt = (
+                f'The user requested: "{prompt}"\n\n'
+                f"I was unable to access the URL directly via the Gemini API. "
+                f"Instead, I have fetched the raw content. Please use the following content "
+                f"to answer the request. Do not attempt to access the URL again.\n\n"
+                f"---\n{content}\n---"
+            )
+
             # Build context with settings overrides for summarization
             fallback_settings_overrides = web_fetch_cfg.get(
                 "fallback_settings_overrides", {}
@@ -719,14 +731,12 @@ class GeminiWebFetchTool(ToolPlugin):
                 }
 
             # Use shared summarization utility
-            success, result = summarize_content_sync(
+            success, result = run_prompted_summary_request(
+                summarization_prompt,
                 content,
-                prompt,
-                url,
                 summarization_context,
                 fallback_agent_id=web_fetch_cfg.get("fallback_agent_id"),
                 fallback_model=fallback_settings_overrides.get("model"),
-                max_chars=web_fetch_cfg.get("max_content_chars", DEFAULT_MAX_CHARS),
             )
 
             return {

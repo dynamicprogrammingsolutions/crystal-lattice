@@ -24,8 +24,7 @@ from .web_fetch_engine import (
     is_private_url,
     normalize_github_url,
     parse_urls_from_text,
-    summarize_content,
-    summarize_content_sync,
+    run_prompted_summary_request,
     truncate_content,
 )
 
@@ -47,7 +46,6 @@ __all__ = [
     "is_private_url",
     "normalize_github_url",
     "parse_urls_from_text",
-    "summarize_content",
-    "summarize_content_sync",
+    "run_prompted_summary_request",
     "truncate_content",
 ]

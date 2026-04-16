@@ -31,6 +31,25 @@ if TYPE_CHECKING:  # pragma: no cover - import cycle guard
 # -----------------------------------------------------------------------------
 
 
+def _collect_final_messages_from_stream(
+    core: Any,
+    session: Any,
+    config: Dict[str, Any],
+    *,
+    request_id: str | None = None,
+) -> List[Dict[str, Any]]:
+    """Run an internal request via the streaming path and return final messages."""
+
+    final_messages: List[Dict[str, Any]] = []
+    for event in core.send_request_stream(session, config, request_id=request_id):
+        if event.get("type") != "final":
+            continue
+        raw_messages = event.get("messages")
+        if isinstance(raw_messages, list):
+            final_messages = raw_messages
+    return final_messages
+
+
 def _normalize_slice_bounds(
     message_count: int,
     start: int | None,
@@ -692,6 +711,10 @@ class GeminiCompactionAppPlugin:
         )
 
         combined_overrides: Dict[str, Any] = {**md_overrides2, **cfg_overrides}
+        request_overrides: Dict[str, Any] = {
+            "disable_all_tools": True,
+            **combined_overrides,
+        }
         config_for_add = resolve_request_config(base_config_compact, combined_overrides)
 
         # Check for previous <state_snapshot> BEFORE adding compression prompt.
@@ -738,16 +761,14 @@ class GeminiCompactionAppPlugin:
                 core_compact,
                 session_with_prompt,
                 base_config_compact,
-                combined_overrides,
+                request_overrides,
             )
-            _request_session, final_messages = core_compact.send_request(
+            last_final_messages = _collect_final_messages_from_stream(
+                core_compact,
                 session_with_prompt,
                 request_config,
                 request_id=rid,
             )
-            last_final_messages: Optional[List[Dict[str, Any]]] = None
-            if isinstance(final_messages, list):
-                last_final_messages = final_messages
         except Exception as exc:
             return {
                 "status": "error",
@@ -801,16 +822,14 @@ class GeminiCompactionAppPlugin:
                     core_compact,
                     session_for_verify,
                     base_config_compact,
-                    combined_overrides,
+                    request_overrides,
                 )
-                _verify_session, verify_messages = core_compact.send_request(
+                verify_final_messages = _collect_final_messages_from_stream(
+                    core_compact,
                     session_for_verify,
                     verify_request_config,
                     request_id=verify_rid,
                 )
-                verify_final_messages: Optional[List[Dict[str, Any]]] = None
-                if isinstance(verify_messages, list):
-                    verify_final_messages = verify_messages
             except Exception:
                 # Verification failed; use the initial snapshot
                 verify_final_messages = None
