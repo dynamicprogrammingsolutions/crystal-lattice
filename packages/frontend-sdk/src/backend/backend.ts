@@ -13,6 +13,15 @@ export interface ListMessagesResult {
   messages: IndexedMessage[];
   cursorEventId: string | null;
   activeRequestId: string | null;
+  readonly?: boolean;
+  snapshotId?: string | null;
+}
+
+export interface SessionSnapshotSummary {
+  snapshot_id: string;
+  session_id: string;
+  created_at: string;
+  reason: string;
 }
 
 export interface FeatureCompletion {
@@ -63,6 +72,31 @@ export interface AgentBackend {
     sessionId: string,
     params?: { index?: number; idempotencyKey?: string },
   ): Promise<{ session: { session_id: string; [key: string]: any }; source_session_id: string }>;
+  listSessionSnapshots(sessionId: string): Promise<SessionSnapshotSummary[]>;
+  createSessionSnapshot(
+    sessionId: string,
+    params: { reason: string; metadata?: Record<string, any>; idempotencyKey?: string },
+  ): Promise<SessionSnapshotSummary>;
+  getSelectedSessionSnapshot(sessionId: string): Promise<string | null>;
+  selectSessionSnapshot(
+    sessionId: string,
+    snapshotId: string,
+    options?: { idempotencyKey?: string },
+  ): Promise<void>;
+  clearSelectedSessionSnapshot(
+    sessionId: string,
+    options?: { idempotencyKey?: string },
+  ): Promise<void>;
+  restoreSessionSnapshot(
+    sessionId: string,
+    snapshotId: string,
+    options?: { idempotencyKey?: string },
+  ): Promise<void>;
+  deleteSessionSnapshot(
+    sessionId: string,
+    snapshotId: string,
+    options?: { idempotencyKey?: string },
+  ): Promise<void>;
 
   // --- Session plugins ---
   listSessionPlugins(sessionId: string): Promise<SessionPluginEntry[]>;

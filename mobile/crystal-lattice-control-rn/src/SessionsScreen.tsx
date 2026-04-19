@@ -432,6 +432,11 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         return;
       }
 
+      if (action === 'snapshots') {
+        navigateToSession(s.session_id);
+        return;
+      }
+
       if (action === 'agentSwitch') {
         if (!backend) {
 	          Alert.alert('Error', 'No active connection');

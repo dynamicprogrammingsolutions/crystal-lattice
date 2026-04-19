@@ -13,6 +13,7 @@ import type {
   AgentBackend,
   BackendCapabilities,
   ListMessagesResult,
+  SessionSnapshotSummary,
 } from './backend';
 import { generateIdempotencyKey } from '../utils/idempotency';
 import { emitSessionUiSchemaInvalidated } from '../uiSchema/sessionUiSchemaInvalidation';
@@ -157,7 +158,97 @@ export class RestAgentBackend implements AgentBackend {
       messages,
       cursorEventId: resp.data?.cursor_event_id ?? null,
       activeRequestId: resp.data?.active_request_id ?? null,
+      readonly: resp.data?.readonly === true,
+      snapshotId: typeof resp.data?.snapshot_id === 'string' ? resp.data.snapshot_id : null,
     };
+  }
+
+  async listSessionSnapshots(sessionId: string): Promise<SessionSnapshotSummary[]> {
+    const path = `/sessions/${encodeURIComponent(sessionId)}/snapshots`;
+    const resp = await this.transport.request<{ snapshots?: SessionSnapshotSummary[] }>({
+      method: 'GET',
+      path,
+    });
+    return Array.isArray(resp.data?.snapshots) ? resp.data.snapshots : [];
+  }
+
+  async createSessionSnapshot(
+    sessionId: string,
+    params: { reason: string; metadata?: Record<string, any>; idempotencyKey?: string },
+  ): Promise<SessionSnapshotSummary> {
+    const path = `/sessions/${encodeURIComponent(sessionId)}/snapshots`;
+    const resp = await this.transport.request<{ snapshot: SessionSnapshotSummary }>({
+      method: 'POST',
+      path,
+      headers: this.buildIdempotencyHeaders(params.idempotencyKey),
+      body: {
+        reason: params.reason,
+        metadata: params.metadata ?? {},
+      },
+    });
+    return resp.data.snapshot as SessionSnapshotSummary;
+  }
+
+  async getSelectedSessionSnapshot(sessionId: string): Promise<string | null> {
+    const path = `/sessions/${encodeURIComponent(sessionId)}/snapshots/selected`;
+    const resp = await this.transport.request<{ snapshot_id?: string | null }>({
+      method: 'GET',
+      path,
+    });
+    return typeof resp.data?.snapshot_id === 'string' ? resp.data.snapshot_id : null;
+  }
+
+  async selectSessionSnapshot(
+    sessionId: string,
+    snapshotId: string,
+    options: { idempotencyKey?: string } = {},
+  ): Promise<void> {
+    const path = `/sessions/${encodeURIComponent(sessionId)}/snapshots/${encodeURIComponent(snapshotId)}/select`;
+    await this.transport.request({
+      method: 'POST',
+      path,
+      headers: this.buildIdempotencyHeaders(options.idempotencyKey),
+      body: {},
+    });
+  }
+
+  async clearSelectedSessionSnapshot(
+    sessionId: string,
+    options: { idempotencyKey?: string } = {},
+  ): Promise<void> {
+    const path = `/sessions/${encodeURIComponent(sessionId)}/snapshots/selected`;
+    await this.transport.request({
+      method: 'DELETE',
+      path,
+      headers: this.buildIdempotencyHeaders(options.idempotencyKey),
+    });
+  }
+
+  async restoreSessionSnapshot(
+    sessionId: string,
+    snapshotId: string,
+    options: { idempotencyKey?: string } = {},
+  ): Promise<void> {
+    const path = `/sessions/${encodeURIComponent(sessionId)}/snapshots/${encodeURIComponent(snapshotId)}/restore`;
+    await this.transport.request({
+      method: 'POST',
+      path,
+      headers: this.buildIdempotencyHeaders(options.idempotencyKey),
+      body: {},
+    });
+  }
+
+  async deleteSessionSnapshot(
+    sessionId: string,
+    snapshotId: string,
+    options: { idempotencyKey?: string } = {},
+  ): Promise<void> {
+    const path = `/sessions/${encodeURIComponent(sessionId)}/snapshots/${encodeURIComponent(snapshotId)}`;
+    await this.transport.request({
+      method: 'DELETE',
+      path,
+      headers: this.buildIdempotencyHeaders(options.idempotencyKey),
+    });
   }
 
   async appendMessage(

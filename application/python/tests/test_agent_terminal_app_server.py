@@ -35,6 +35,7 @@ from typing import Any, Dict, Optional
 
 from agent_app.application_future import AgentApplication
 from agent_app.events import InMemoryEventStore
+from agent_app.sessions import FilesystemSnapshotSelectionStore
 from agent_core import Message, Session
 
 # Make dotted-path test plugins available to the application plugin loader.
@@ -117,8 +118,8 @@ class DelayingSessionStore:
         self._inner = inner
         self._save_delay_seconds = save_delay_seconds
 
-    def load(self, session_id: str) -> Optional[Session]:
-        return self._inner.load(session_id)
+    def load(self, session_id: str, *, snapshot_id: Optional[str] = None) -> Optional[Session]:
+        return self._inner.load(session_id, snapshot_id=snapshot_id)
 
     def save(self, session: Session) -> None:
         time.sleep(self._save_delay_seconds)
@@ -127,13 +128,22 @@ class DelayingSessionStore:
     def delete(self, session_id: str) -> None:
         self._inner.delete(session_id)
 
-    def get_file_state(self, session_id: str) -> Any:
+    def get_file_state(self, session_id: str, *, snapshot_id: Optional[str] = None) -> Any:
         getter = getattr(self._inner, "get_file_state")
-        return getter(session_id)
+        return getter(session_id, snapshot_id=snapshot_id)
 
     def save_backup(self, session: Session, *, request_id: str, suffix: str = "tool-loop-conflict") -> Path:
         saver = getattr(self._inner, "save_backup")
         return saver(session, request_id=request_id, suffix=suffix)
+
+    def list_snapshots(self, session_id: str) -> Any:
+        return self._inner.list_snapshots(session_id)
+
+    def create_snapshot(self, session: Session, *, reason: str, metadata: Optional[Dict[str, Any]] = None) -> Any:
+        return self._inner.create_snapshot(session, reason=reason, metadata=metadata)
+
+    def delete_snapshot(self, session_id: str, snapshot_id: str) -> bool:
+        return self._inner.delete_snapshot(session_id, snapshot_id)
 
 
 def _make_slow_dummy_provider_config(tmp_path: Path, *, sleep_per_char: float) -> Path:
@@ -271,6 +281,51 @@ def test_server_flow_with_echo_provider(tmp_path: Path) -> None:
     assert "session_created" in kinds
     assert "message_appended" in kinds
     assert "request_started" in kinds or "final" in kinds
+
+
+def test_snapshot_selection_routes_resolve_snapshot_and_suppress_live_events(tmp_path: Path) -> None:
+    from agent_terminal_app import server as server_mod
+
+    config_path = _make_multi_provider_echo_config(tmp_path)
+    session_root = tmp_path / "sessions"
+    app = AgentApplication(
+        str(config_path),
+        str(session_root),
+        snapshot_selection_store=FilesystemSnapshotSelectionStore(session_root / ".snapshots"),
+    )
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+    server_mod.add_message(
+        session_id,
+        {"role": "user", "content": "live message"},
+        app_instance=app,
+    )
+
+    snapshot_resp = server_mod.create_session_snapshot(
+        session_id,
+        {"reason": "manual"},
+        app_instance=app,
+    )
+    snapshot_id = snapshot_resp["snapshot"]["snapshot_id"]
+
+    server_mod.select_session_snapshot(session_id, snapshot_id, app_instance=app)
+
+    messages_resp = server_mod.list_session_messages(session_id, app_instance=app)
+    selected_resp = server_mod.get_selected_session_snapshot(session_id, app_instance=app)
+    events_resp = server_mod.list_events(session_id=session_id, since_id="0", app_instance=app)
+
+    assert messages_resp["readonly"] is True
+    assert messages_resp["snapshot_id"] == snapshot_id
+    assert selected_resp["snapshot_id"] == snapshot_id
+    assert [item["message"]["content"] for item in messages_resp["messages"]] == ["live message"]
+    assert [ev.get("type") for ev in events_resp["events"]] == ["session_snapshot_selected"]
+
+    server_mod.clear_selected_session_snapshot(session_id, app_instance=app)
+    cleared_resp = server_mod.list_session_messages(session_id, app_instance=app)
+
+    assert cleared_resp["readonly"] is False
+    assert cleared_resp["snapshot_id"] is None
 
 
 def test_server_delete_preserves_native_history_with_multiple_loaded_providers(tmp_path: Path) -> None:

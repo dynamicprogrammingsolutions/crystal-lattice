@@ -469,6 +469,7 @@ def main() -> None:  # pragma: no cover - manual execution only
     # correct level.
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
+    from agent_app.sessions import FilesystemSnapshotSelectionStore
     from .server import run_api
     from .terminal import TerminalApplication, run_terminal
 
@@ -535,7 +536,12 @@ def main() -> None:  # pragma: no cover - manual execution only
     if run_console and run_server:
         shared_events = InMemoryEventStore()
 
-        server_app = AgentApplication(str(config_path), str(session_root), event_store=shared_events)
+        server_app = AgentApplication(
+            str(config_path),
+            str(session_root),
+            event_store=shared_events,
+            snapshot_selection_store=FilesystemSnapshotSelectionStore(session_root / ".snapshots"),
+        )
         terminal_agent_app = AgentApplication(str(config_path), str(session_root), event_store=shared_events)
         terminal_app = TerminalApplication(
             config_path=str(config_path),
@@ -590,7 +596,11 @@ def main() -> None:  # pragma: no cover - manual execution only
         )
         run_terminal(logger=console_logger, app_instance=terminal_app)
     else:
-        app_instance = AgentApplication(str(config_path), str(session_root))
+        app_instance = AgentApplication(
+            str(config_path),
+            str(session_root),
+            snapshot_selection_store=FilesystemSnapshotSelectionStore(session_root / ".snapshots"),
+        )
         run_api(
             host=args.host,
             port=args.port,

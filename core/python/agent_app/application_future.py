@@ -26,7 +26,13 @@ from .config import (
 )
 from .events import EventStore, InMemoryEventStore
 from .session_assets import FilesystemSessionAssetStore
-from .sessions import FilesystemSessionStore, SessionFileState
+from .sessions import (
+    FilesystemSessionStore,
+    NullSnapshotSelectionStore,
+    SessionFileState,
+    SessionSnapshotRecord,
+    SnapshotSelectionStore,
+)
 from .tool_loop import RequestCancellation, ToolLoopRunner, ToolLoopCheckpointError
 from agent_core.utils import get_logger
 from .plugin_manager import PluginManager
@@ -72,6 +78,10 @@ class SessionConflictError(RuntimeError):
         self.detail = detail
         self.reason = reason
         self.backup_path = backup_path
+
+
+class ReadonlySessionViewError(RuntimeError):
+    """Raised when a mutating operation targets a readonly snapshot view."""
 
 
 class _ToolRuntimeStore:
@@ -150,6 +160,7 @@ class AgentApplication:
         session_root: str | Path,
         core_factory: Callable[[], AgentCore] = AgentCore,
         event_store: Optional[EventStore] = None,
+        snapshot_selection_store: SnapshotSelectionStore | None = None,
         env_overrides: Mapping[str, str] | None = None,
     ) -> None:
         logger = get_logger("AgentApplication")
@@ -316,6 +327,7 @@ class AgentApplication:
 
         session_root_path = Path(session_root)
         self._session_store = FilesystemSessionStore(session_root_path, core)
+        self._snapshot_selection_store = snapshot_selection_store or NullSnapshotSelectionStore()
         self._session_asset_store = FilesystemSessionAssetStore(
             session_root_path.parent / "session_assets"
         )
@@ -1888,6 +1900,7 @@ class AgentApplication:
         session_id = params.get("session_id")
         if not isinstance(session_id, str) or not session_id:
             raise ValueError("session_id must be a non-empty string")
+        self._require_live_session_writable(session_id)
 
         action_params = dict(params)
         action_params.pop("session_id", None)
@@ -2002,7 +2015,8 @@ class AgentApplication:
         if not isinstance(session_id, str) or not session_id:
             raise ValueError("session_id must be a non-empty string")
 
-        session = self._session_store.load(session_id)
+        snapshot_id = self.get_selected_session_snapshot(session_id)
+        session = self._session_store.load(session_id, snapshot_id=snapshot_id)
         if session is None:
             return None
 
@@ -2019,7 +2033,74 @@ class AgentApplication:
         if not isinstance(session_id, str) or not session_id:
             raise ValueError("session_id must be a non-empty string")
 
+        snapshot_id = self.get_selected_session_snapshot(session_id)
+        return self._session_store.load(session_id, snapshot_id=snapshot_id)
+
+    def load_live_session_record(self, session_id: str) -> Optional[Session]:
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("session_id must be a non-empty string")
         return self._session_store.load(session_id)
+
+    def get_selected_session_snapshot(self, session_id: str) -> str | None:
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("session_id must be a non-empty string")
+        selected = self._snapshot_selection_store.get_selected_snapshot(session_id)
+        if not isinstance(selected, str) or not selected:
+            return None
+        if self._session_store.load(session_id, snapshot_id=selected) is None:
+            self._snapshot_selection_store.clear_selected_snapshot(session_id)
+            return None
+        return selected
+
+    def _require_live_session_writable(self, session_id: str) -> None:
+        selected = self._snapshot_selection_store.get_selected_snapshot(session_id)
+        if isinstance(selected, str) and selected:
+            raise ReadonlySessionViewError(
+                f"Session {session_id!r} is viewing readonly snapshot {selected!r}; clear selection before writing"
+            )
+
+    def list_session_snapshots(self, session_id: str) -> List[SessionSnapshotRecord]:
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("session_id must be a non-empty string")
+        return self._session_store.list_snapshots(session_id)
+
+    def create_session_snapshot(
+        self,
+        session_id: str,
+        *,
+        reason: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> SessionSnapshotRecord:
+        live = self.load_live_session_record(session_id)
+        if live is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        return self._session_store.create_snapshot(live, reason=reason, metadata=metadata)
+
+    def select_session_snapshot(self, session_id: str, snapshot_id: str) -> None:
+        if self.load_live_session_record(session_id) is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        if self._session_store.load(session_id, snapshot_id=snapshot_id) is None:
+            raise KeyError(f"Snapshot {snapshot_id!r} not found for session {session_id!r}")
+        self._snapshot_selection_store.select_snapshot(session_id, snapshot_id)
+
+    def clear_selected_session_snapshot(self, session_id: str) -> None:
+        self._snapshot_selection_store.clear_selected_snapshot(session_id)
+
+    def delete_session_snapshot(self, session_id: str, snapshot_id: str) -> bool:
+        return self._session_store.delete_snapshot(session_id, snapshot_id)
+
+    def restore_session_snapshot(self, session_id: str, snapshot_id: str) -> Session:
+        live = self.load_live_session_record(session_id)
+        if live is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        restored = self._session_store.load(session_id, snapshot_id=snapshot_id)
+        if restored is None:
+            raise KeyError(f"Snapshot {snapshot_id!r} not found for session {session_id!r}")
+        if live.to_dict() != restored.to_dict():
+            self._session_store.create_snapshot(live, reason="before restore")
+        self._snapshot_selection_store.clear_selected_snapshot(session_id)
+        saved = self.save_session(restored, acquire_lock=False)
+        return saved
 
     def get_session_asset_store(self) -> FilesystemSessionAssetStore:
         return self._session_asset_store
@@ -2059,6 +2140,7 @@ class AgentApplication:
         """Persist a session using the configured session store."""
         if reconcile and baseline_session is None:
             raise ValueError("baseline_session is required when reconcile=True")
+        self._require_live_session_writable(session.session_id)
 
         @contextmanager
         def _maybe_lock() -> Iterator[None]:
@@ -2087,6 +2169,7 @@ class AgentApplication:
     def delete_session(self, session_id: str) -> None:
         """Delete a session from the store (no-op if missing)."""
 
+        self._require_live_session_writable(session_id)
         session = self._session_store.load(session_id)
         if session is not None:
             self.run_session_lifecycle(
@@ -2381,6 +2464,7 @@ class AgentApplication:
         """
 
         rid = request_id or self._new_request_id()
+        self._require_live_session_writable(session.session_id)
 
         request_context = {
             "session_id": session.session_id,

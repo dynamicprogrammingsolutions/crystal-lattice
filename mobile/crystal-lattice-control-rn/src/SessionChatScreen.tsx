@@ -184,6 +184,13 @@ type ActionDisplayEntry = {
   context: RunActionContext;
 };
 
+type SessionSnapshotSummary = {
+  snapshot_id: string;
+  session_id: string;
+  created_at: string;
+  reason: string;
+};
+
 function createDisplayEntry(display: ActionDisplayPayload, context: RunActionContext): ActionDisplayEntry {
   const key =
     typeof display.display_id === 'string' && display.display_id
@@ -331,6 +338,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     useState<PendingRequestRecovery | null>(null);
   const [resumeRecoveryInProgress, setResumeRecoveryInProgress] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [snapshotsVisible, setSnapshotsVisible] = useState(false);
+  const [snapshotsLoading, setSnapshotsLoading] = useState(false);
+  const [snapshotItems, setSnapshotItems] = useState<SessionSnapshotSummary[]>([]);
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
   const [actionResultDisplay, setActionResultDisplay] = useState<ActionDisplayEntry | null>(null);
   const [inlineActionDisplays, setInlineActionDisplays] = useState<ActionDisplayEntry[]>([]);
   const [activeDisplayActionId, setActiveDisplayActionId] = useState<string | null>(null);
@@ -881,6 +892,39 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     sessionUiSchemaController,
   ]);
 
+  const refreshSelectedSnapshot = useCallback(async () => {
+    if (!backend) {
+      setSelectedSnapshotId(null);
+      return null;
+    }
+    try {
+      const next = await backend.getSelectedSessionSnapshot(sessionId);
+      setSelectedSnapshotId(next);
+      return next;
+    } catch {
+      setSelectedSnapshotId(null);
+      return null;
+    }
+  }, [backend, sessionId]);
+
+  const loadSnapshots = useCallback(async () => {
+    if (!backend) {
+      setSnapshotItems([]);
+      return;
+    }
+    setSnapshotsLoading(true);
+    try {
+      const items = await backend.listSessionSnapshots(sessionId);
+      setSnapshotItems(items);
+    } catch (err: any) {
+      console.log('Failed to load snapshots', err);
+      const message = err?.message || 'Failed to load snapshots';
+      Alert.alert('Error', message);
+    } finally {
+      setSnapshotsLoading(false);
+    }
+  }, [backend, sessionId]);
+
   const loadMessages = useCallback(
     async (options: { silent?: boolean; reason?: string; refreshUiSchema?: boolean } = {}) => {
       if (!chatController) {
@@ -903,6 +947,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           endText: rangeEndText,
         });
         const snapshot = syncCacheFromController(chatController);
+        await refreshSelectedSnapshot();
         appendDebugNote('Reload succeeded', options.reason ?? 'manual_reload', {
           activeRequestId: snapshot.activeRequestId,
           eventsCursorId: snapshot.eventsCursorId,
@@ -926,6 +971,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       rangeEndText,
       rangeStartText,
       refreshSessionUiControllers,
+      refreshSelectedSnapshot,
       syncCacheFromController,
     ],
   );
@@ -1715,7 +1761,20 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     persistUiState();
   }, [isActive, persistUiState]);
 
+  useEffect(() => {
+    if (!snapshotsVisible) return;
+    void loadSnapshots();
+  }, [loadSnapshots, snapshotsVisible]);
+
+  useEffect(() => {
+    void refreshSelectedSnapshot();
+  }, [refreshSelectedSnapshot]);
+
   const handleAppend = async () => {
+    if (selectedSnapshotId) {
+      Alert.alert('Read-only snapshot', 'Return to the live session before appending messages.');
+      return;
+    }
     const text = composeText.trim();
     const multipartContent = [...attachmentsAbove, ...attachmentsBelow].map(
       ({ type, content, metadata }) => ({
@@ -1850,6 +1909,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   ]);
 
   const handleSend = async () => {
+    if (selectedSnapshotId) {
+      Alert.alert('Read-only snapshot', 'Return to the live session before sending messages.');
+      return;
+    }
     const text = composeText.trim();
     const multipartContent = [...attachmentsAbove, ...attachmentsBelow].map(
       ({ type, content, metadata }) => ({
@@ -2193,6 +2256,83 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	    });
 	  };
 
+  const handleCreateSnapshot = useCallback(async () => {
+    if (!backend) {
+      Alert.alert('No connection', 'Connect to a server to create snapshots.');
+      return;
+    }
+    try {
+      await backend.createSessionSnapshot(sessionId, { reason: 'manual' });
+      await loadSnapshots();
+    } catch (err: any) {
+      console.log('Failed to create snapshot', err);
+      Alert.alert('Error', err?.message || 'Failed to create snapshot');
+    }
+  }, [backend, loadSnapshots, sessionId]);
+
+  const handleSelectSnapshot = useCallback(async (snapshotId: string) => {
+    if (!backend) {
+      Alert.alert('No connection', 'Connect to a server to select snapshots.');
+      return;
+    }
+    try {
+      await backend.selectSessionSnapshot(sessionId, snapshotId);
+      await refreshSelectedSnapshot();
+      await loadMessages({ reason: 'snapshot_select', refreshUiSchema: true });
+    } catch (err: any) {
+      console.log('Failed to select snapshot', err);
+      Alert.alert('Error', err?.message || 'Failed to select snapshot');
+    }
+  }, [backend, loadMessages, refreshSelectedSnapshot, sessionId]);
+
+  const handleClearSelectedSnapshot = useCallback(async () => {
+    if (!backend) {
+      Alert.alert('No connection', 'Connect to a server to return to the live session.');
+      return;
+    }
+    try {
+      await backend.clearSelectedSessionSnapshot(sessionId);
+      await refreshSelectedSnapshot();
+      await loadMessages({ reason: 'snapshot_clear', refreshUiSchema: true });
+    } catch (err: any) {
+      console.log('Failed to clear snapshot', err);
+      Alert.alert('Error', err?.message || 'Failed to return to the live session');
+    }
+  }, [backend, loadMessages, refreshSelectedSnapshot, sessionId]);
+
+  const handleRestoreSnapshot = useCallback(async (snapshotId: string) => {
+    if (!backend) {
+      Alert.alert('No connection', 'Connect to a server to restore snapshots.');
+      return;
+    }
+    try {
+      await backend.restoreSessionSnapshot(sessionId, snapshotId);
+      await refreshSelectedSnapshot();
+      await loadMessages({ reason: 'snapshot_restore', refreshUiSchema: true });
+      await loadSnapshots();
+    } catch (err: any) {
+      console.log('Failed to restore snapshot', err);
+      Alert.alert('Error', err?.message || 'Failed to restore snapshot');
+    }
+  }, [backend, loadMessages, loadSnapshots, refreshSelectedSnapshot, sessionId]);
+
+  const handleDeleteSnapshot = useCallback(async (snapshotId: string) => {
+    if (!backend) {
+      Alert.alert('No connection', 'Connect to a server to delete snapshots.');
+      return;
+    }
+    try {
+      await backend.deleteSessionSnapshot(sessionId, snapshotId);
+      if (selectedSnapshotId === snapshotId) {
+        await refreshSelectedSnapshot();
+      }
+      await loadSnapshots();
+    } catch (err: any) {
+      console.log('Failed to delete snapshot', err);
+      Alert.alert('Error', err?.message || 'Failed to delete snapshot');
+    }
+  }, [backend, loadSnapshots, refreshSelectedSnapshot, selectedSnapshotId, sessionId]);
+
   const handleSessionAction = async (action: SessionActionKey) => {
     if (action === 'reload') {
       chatController?.clearRequestState();
@@ -2238,6 +2378,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
     if (action === 'plugins') {
       setPluginsVisible(true);
+      return;
+    }
+    if (action === 'snapshots') {
+      setSnapshotsVisible(true);
       return;
     }
 
@@ -2615,6 +2759,21 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        </View>
 	      )}
 
+        {selectedSnapshotId && (
+          <View style={styles.dirtyBanner}>
+            <Text style={styles.dirtyBannerText} numberOfLines={1}>
+              Viewing snapshot {selectedSnapshotId} · Read-only
+            </Text>
+            <TouchableOpacity
+              style={[styles.button, styles.secondaryButton, styles.smallButton]}
+              onPress={handleClearSelectedSnapshot}
+              disabled={!backend}
+            >
+              <Text style={styles.buttonTextSecondary}>Live</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
 	      {(loadingMessages || pluginActionInProgress || attachmentActionInProgress || resumeRecoveryInProgress) && (
 	        <View style={styles.loadingContainer}>
 	          <ActivityIndicator size="small" color={theme.primary} />
@@ -2896,6 +3055,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
             {(() => {
               const canAppend =
                 !!backend &&
+                !selectedSnapshotId &&
                 !sendInProgress &&
                 !pendingRequestRecovery &&
                 !activeRequestId &&
@@ -2903,6 +3063,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 hasDraftMessage;
               const canSend =
                 !!backend &&
+                !selectedSnapshotId &&
                 !sendInProgress &&
                 !pendingRequestRecovery &&
                 !activeRequestId &&
@@ -3260,6 +3421,94 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	          </View>
 	        </Modal>
 	      )}
+        <Modal
+          visible={snapshotsVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setSnapshotsVisible(false)}
+        >
+          <TouchableWithoutFeedback onPress={() => setSnapshotsVisible(false)}>
+            <View style={styles.modalOverlay}>
+              <TouchableWithoutFeedback onPress={() => {}}>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>Snapshots</Text>
+                  <Text style={styles.modalSubtitle}>
+                    Browse readonly snapshots, restore one, or return to the live session.
+                  </Text>
+                  <View style={styles.modalButtonsRow}>
+                    <TouchableOpacity
+                      style={[styles.button, styles.secondaryButton, styles.modalButton]}
+                      onPress={() => {
+                        void handleCreateSnapshot();
+                      }}
+                      disabled={snapshotsLoading}
+                    >
+                      <Text style={styles.buttonTextSecondary}>Create</Text>
+                    </TouchableOpacity>
+                    {selectedSnapshotId ? (
+                      <TouchableOpacity
+                        style={[styles.button, styles.secondaryButton, styles.modalButton]}
+                        onPress={() => {
+                          void handleClearSelectedSnapshot();
+                        }}
+                      >
+                        <Text style={styles.buttonTextSecondary}>Live session</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                  <ScrollView style={styles.settingsScroll}>
+                    {snapshotsLoading ? (
+                      <ActivityIndicator size="small" color={theme.textSecondary} />
+                    ) : snapshotItems.length === 0 ? (
+                      <Text style={styles.modalSubtitle}>No snapshots yet.</Text>
+                    ) : (
+                      snapshotItems.map((item) => {
+                        const isSelected = selectedSnapshotId === item.snapshot_id;
+                        return (
+                          <View key={item.snapshot_id} style={styles.pluginRow}>
+                            <View style={styles.pluginRowContent}>
+                              <Text style={styles.pluginName}>{item.reason || 'snapshot'}</Text>
+                              <Text style={styles.pluginMeta}>{item.created_at}</Text>
+                              <Text style={styles.pluginMeta}>{item.snapshot_id}</Text>
+                            </View>
+                            <View style={styles.modalButtonsRow}>
+                              <TouchableOpacity
+                                style={[styles.button, styles.secondaryButton, styles.smallButton]}
+                                onPress={() => {
+                                  void handleSelectSnapshot(item.snapshot_id);
+                                }}
+                              >
+                                <Text style={styles.buttonTextSecondary}>
+                                  {isSelected ? 'Selected' : 'Select'}
+                                </Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={[styles.button, styles.secondaryButton, styles.smallButton]}
+                                onPress={() => {
+                                  void handleRestoreSnapshot(item.snapshot_id);
+                                }}
+                              >
+                                <Text style={styles.buttonTextSecondary}>Restore</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={[styles.button, styles.secondaryButton, styles.smallButton]}
+                                onPress={() => {
+                                  void handleDeleteSnapshot(item.snapshot_id);
+                                }}
+                              >
+                                <Text style={styles.buttonTextSecondary}>Delete</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        );
+                      })
+                    )}
+                  </ScrollView>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
 	      <AgentSwitchModal
 	        visible={agentModalVisible}
 	        loading={agentsLoading || agentSwitchInProgress}

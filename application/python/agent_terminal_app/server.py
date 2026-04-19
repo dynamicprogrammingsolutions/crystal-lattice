@@ -24,8 +24,13 @@ except Exception:  # pragma: no cover - optional dependency
 
 from fastapi import Depends, FastAPI, Header, HTTPException  # type: ignore[reportMissingImports]
 
-from agent_app.application_future import AgentApplication, SessionConflictError
+from agent_app.application_future import (
+    AgentApplication,
+    ReadonlySessionViewError,
+    SessionConflictError,
+)
 from agent_app.config import resolve_request_config
+from agent_app.sessions import FilesystemSnapshotSelectionStore
 from agent_core import Message, Session
 from agent_terminal_app import bonjour as bonjour_mod
 from agent_terminal_app import bridge_client as bridge_mod
@@ -228,6 +233,15 @@ def _load_session_ctx_for_send(
                 yield
 
         with _maybe_lock():
+            selected_snapshot_id = app_instance.get_selected_session_snapshot(session_id)
+            if isinstance(selected_snapshot_id, str) and selected_snapshot_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"Session {session_id!r} is viewing readonly snapshot "
+                        f"{selected_snapshot_id!r}; clear snapshot selection before sending"
+                    ),
+                )
             session_record = app_instance.load_session_record(session_id)
             if session_record is None:
                 raise KeyError(f"Session {session_id!r} not found")
@@ -245,6 +259,17 @@ def _load_session_ctx_for_send(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _snapshot_response_fields(
+    app_instance: AgentApplication,
+    session_id: str,
+) -> Dict[str, Any]:
+    snapshot_id = app_instance.get_selected_session_snapshot(session_id)
+    return {
+        "readonly": bool(snapshot_id),
+        "snapshot_id": snapshot_id,
+    }
 
 
 def _merged_session_overrides(
@@ -625,7 +650,12 @@ def _build_default_agent_app() -> AgentApplication:
     cfg = _DEFAULT_CONFIG_PATH
     root = _DEFAULT_SESSION_ROOT
     root.mkdir(parents=True, exist_ok=True)
-    return AgentApplication(str(cfg), str(root))
+    snapshot_selector = FilesystemSnapshotSelectionStore(root / ".snapshots")
+    return AgentApplication(
+        str(cfg),
+        str(root),
+        snapshot_selection_store=snapshot_selector,
+    )
 
 
 _agent_app: Optional[AgentApplication] = None
@@ -1330,6 +1360,8 @@ def add_message(
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -1394,6 +1426,8 @@ def get_session_overrides(
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return {"overrides": overrides}
 
@@ -1414,6 +1448,8 @@ def get_session_plugins(
         plugins = _list_plugins_for_session(app_instance, core, cfg, session)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return {"plugins": plugins}
 
@@ -1473,6 +1509,8 @@ def put_session_plugins(
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     response = {"session": loaded_session.to_dict(), "plugins": plugins}
     _idempotency_store(scope, idempotency_key, payload, response)
@@ -1523,6 +1561,8 @@ def delete_session_plugins(
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     response = {"session": loaded_session.to_dict(), "plugins": plugins}
     _idempotency_store(scope, idempotency_key, {}, response)
@@ -1952,6 +1992,8 @@ def send_message(
                 "session_id": session_id,
             }
             _idempotency_store(scope, effective_idempotency_key, idempotency_payload, response)
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -2107,6 +2149,8 @@ def delete_messages(
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     response = {"session": new_session.to_dict(), "deleted_indices": concrete_indices}
     _idempotency_store(scope, idempotency_key, body, response)
@@ -2332,6 +2376,195 @@ def list_sessions(
     return {"sessions": items}
 
 
+@app.get("/sessions/{session_id}/snapshots")
+def list_session_snapshots(
+    session_id: str,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    try:
+        snapshots = app_instance.list_session_snapshots(session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {
+        "snapshots": [
+            {
+                "snapshot_id": snap.snapshot_id,
+                "session_id": snap.session_id,
+                "created_at": snap.created_at,
+                "reason": snap.reason,
+            }
+            for snap in snapshots
+        ]
+    }
+
+
+@app.post("/sessions/{session_id}/snapshots")
+def create_session_snapshot(
+    session_id: str,
+    payload: Optional[Dict[str, Any]] = None,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    body = payload or {}
+    scope = f"POST /sessions/{session_id}/snapshots"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, body)
+    if cached is not None:
+        return cached
+    reason = body.get("reason")
+    if not isinstance(reason, str) or not reason.strip():
+        raise HTTPException(status_code=400, detail="reason must be a non-empty string")
+    try:
+        with app_instance.acquire_session_lock(session_id):
+            snapshot = app_instance.create_session_snapshot(
+                session_id,
+                reason=reason.strip(),
+                metadata=body.get("metadata") if isinstance(body.get("metadata"), dict) else None,
+            )
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    response = {
+        "snapshot": {
+            "snapshot_id": snapshot.snapshot_id,
+            "session_id": snapshot.session_id,
+            "created_at": snapshot.created_at,
+            "reason": snapshot.reason,
+        }
+    }
+    _idempotency_store(scope, idempotency_key, body, response)
+    return response
+
+
+@app.get("/sessions/{session_id}/snapshots/selected")
+def get_selected_session_snapshot(
+    session_id: str,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    selected = app_instance.get_selected_session_snapshot(session_id)
+    return {"snapshot_id": selected}
+
+
+@app.post("/sessions/{session_id}/snapshots/{snapshot_id}/select")
+def select_session_snapshot(
+    session_id: str,
+    snapshot_id: str,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    scope = f"POST /sessions/{session_id}/snapshots/{snapshot_id}/select"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, {})
+    if cached is not None:
+        return cached
+    if _get_active_send_request_id(session_id) is not None:
+        raise HTTPException(status_code=409, detail="Cannot select snapshot while a request is running")
+    try:
+        with app_instance.acquire_session_lock(session_id):
+            app_instance.select_session_snapshot(session_id, snapshot_id)
+            stored = app_instance.publish_event(
+                {
+                    "type": "session_snapshot_selected",
+                    "session_id": session_id,
+                    "snapshot_id": snapshot_id,
+                }
+            )
+            event_id = stored.get("event_id")
+            if isinstance(event_id, str) and event_id:
+                app_instance.advance_session_cursor(session_id, event_id)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    response = {"status": "ok", "snapshot_id": snapshot_id}
+    _idempotency_store(scope, idempotency_key, {}, response)
+    return response
+
+
+@app.delete("/sessions/{session_id}/snapshots/selected")
+def clear_selected_session_snapshot(
+    session_id: str,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    scope = f"DELETE /sessions/{session_id}/snapshots/selected"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, {})
+    if cached is not None:
+        return cached
+    with app_instance.acquire_session_lock(session_id):
+        app_instance.clear_selected_session_snapshot(session_id)
+        stored = app_instance.publish_event(
+            {
+                "type": "session_snapshot_cleared",
+                "session_id": session_id,
+            }
+        )
+        event_id = stored.get("event_id")
+        if isinstance(event_id, str) and event_id:
+            app_instance.advance_session_cursor(session_id, event_id)
+    response = {"status": "ok", "snapshot_id": None}
+    _idempotency_store(scope, idempotency_key, {}, response)
+    return response
+
+
+@app.post("/sessions/{session_id}/snapshots/{snapshot_id}/restore")
+def restore_session_snapshot(
+    session_id: str,
+    snapshot_id: str,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    scope = f"POST /sessions/{session_id}/snapshots/{snapshot_id}/restore"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, {})
+    if cached is not None:
+        return cached
+    if _get_active_send_request_id(session_id) is not None:
+        raise HTTPException(status_code=409, detail="Cannot restore snapshot while a request is running")
+    try:
+        with app_instance.acquire_session_lock(session_id):
+            restored = app_instance.restore_session_snapshot(session_id, snapshot_id)
+            stored = app_instance.publish_event(
+                {
+                    "type": "session_restored_from_snapshot",
+                    "session_id": session_id,
+                    "snapshot_id": snapshot_id,
+                }
+            )
+            event_id = stored.get("event_id")
+            if isinstance(event_id, str) and event_id:
+                app_instance.advance_session_cursor(session_id, event_id)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    response = {"status": "ok", "session": restored.to_dict()}
+    _idempotency_store(scope, idempotency_key, {}, response)
+    return response
+
+
+@app.delete("/sessions/{session_id}/snapshots/{snapshot_id}")
+def delete_session_snapshot(
+    session_id: str,
+    snapshot_id: str,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    scope = f"DELETE /sessions/{session_id}/snapshots/{snapshot_id}"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, {})
+    if cached is not None:
+        return cached
+    try:
+        deleted = app_instance.delete_session_snapshot(session_id, snapshot_id)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    response = {"status": "ok", "deleted": bool(deleted)}
+    _idempotency_store(scope, idempotency_key, {}, response)
+    return response
+
+
 def _legacy_sort_sessions(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Return sessions ordered by legacy semantics.
 
@@ -2549,6 +2782,8 @@ def fork_session(
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     response = {"session": new_session.to_dict(), "source_session_id": session.session_id}
     _idempotency_store(scope, idempotency_key, data, response)
@@ -2564,6 +2799,7 @@ def list_session_messages(
 ) -> Dict[str, Any]:
     """List messages for a session with optional slice-style bounds."""
 
+    snapshot_fields = _snapshot_response_fields(app_instance, session_id)
     try:
         with app_instance.acquire_session_lock(session_id):
             session = app_instance.load_session_record(session_id)
@@ -2577,6 +2813,7 @@ def list_session_messages(
                     "cursor_event_id": app_instance.get_session_cursor_event_id(
                         session_id
                     ),
+                    **snapshot_fields,
                 }
 
             try:
@@ -2603,7 +2840,7 @@ def list_session_messages(
             # event created via record_checkpoint(session_id,
             # request_id).
             active_request_id: Optional[str] = None
-            if cursor_event_id is not None:
+            if cursor_event_id is not None and not snapshot_fields["readonly"]:
                 store = app_instance.get_event_store()
                 ev = store.get_event_by_id(cursor_event_id)
                 if ev is not None and ev.get("type") == "checkpoint":
@@ -2618,6 +2855,7 @@ def list_session_messages(
         "messages": results,
         "cursor_event_id": cursor_event_id,
         "active_request_id": active_request_id,
+        **snapshot_fields,
     }
 
 
@@ -2683,6 +2921,17 @@ def list_events(
     )
     events = listed.get("events") or []
     compacted = app_instance.compact_events(events)
+    if session_id is not None:
+        selected_snapshot_id = app_instance.get_selected_session_snapshot(session_id)
+        if isinstance(selected_snapshot_id, str) and selected_snapshot_id:
+            allowed_types = {
+                "session_snapshot_selected",
+                "session_snapshot_cleared",
+                "session_restored_from_snapshot",
+            }
+            compacted = [
+                ev for ev in compacted if isinstance(ev, dict) and ev.get("type") in allowed_types
+            ]
     if len(compacted) > limit:
         compacted = compacted[:limit]
     return {
@@ -2936,6 +3185,16 @@ def execute_action(
             "action_id": action_id,
             "action_owner": action_owner,
             "error_type": "conflict",
+            "message": str(exc),
+            "details": {},
+        }
+    except ReadonlySessionViewError as exc:
+        response = {
+            "status": "error",
+            "plugin": plugin_id,
+            "action_id": action_id,
+            "action_owner": action_owner,
+            "error_type": "readonly",
             "message": str(exc),
             "details": {},
         }
