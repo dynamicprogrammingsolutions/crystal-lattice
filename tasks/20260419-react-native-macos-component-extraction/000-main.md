@@ -6,3 +6,7 @@ Create a reusable task area for extracting app-local macOS native UI pieces into
 
 - [x] `tasks/20260419-react-native-macos-component-extraction/010-extract-mac-text-view-library.md`
 - [x] `tasks/20260419-react-native-macos-component-extraction/020-mac-text-view-rn-text-input-alignment.md`
+
+## References
+
+- `tasks/20260419-react-native-macos-component-extraction/900-component-extraction-resources.md`
