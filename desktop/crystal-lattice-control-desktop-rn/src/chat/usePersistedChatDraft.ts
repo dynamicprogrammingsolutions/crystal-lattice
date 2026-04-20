@@ -10,7 +10,7 @@ import {
 
 import type { IndexedMessage } from '@crystal-lattice/frontend-sdk';
 
-import type { MacTextViewHandle } from '../native/MacTextView';
+import type { MacTextViewHandle } from '@crystal-lattice/react-native-mac-text-view';
 
 type UpdateMessagesCache = (params: {
   connectionId: string;

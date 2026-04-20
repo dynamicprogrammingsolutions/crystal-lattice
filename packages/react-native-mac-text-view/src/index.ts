@@ -1,0 +1,1 @@
+export { MacTextView, type MacTextViewHandle, type MacTextViewProps } from './MacTextView';

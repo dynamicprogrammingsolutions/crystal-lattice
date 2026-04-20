@@ -58,6 +58,7 @@ import {
   useSessionUiSchemaController,
   useSessionApplicationUiSchemaController,
 } from '@crystal-lattice/frontend-sdk-react';
+import { MacTextView, type MacTextViewHandle } from '@crystal-lattice/react-native-mac-text-view';
 
 import type { MessagesCacheEntry } from '../cache/types';
 import type { TabStripStyle } from '../tabs/tabStripStyle';
@@ -75,7 +76,6 @@ import { MessageLimitPopoverContent } from '../windows/MessageLimitPopoverConten
 import { setActiveSessionSettingsWindow } from '../windows/sessionSettingsCoordinator';
 import { setActiveSessionPluginsWindow } from '../windows/sessionPluginsCoordinator';
 import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationActionDialog';
-import { MacTextView, type MacTextViewHandle } from '../native/MacTextView';
 import { pickMacAttachment } from '../native/MacAttachmentPicker';
 import { AppendAsPopoverContent, type AppendAsRole } from './AppendAsPopoverContent';
 import {
