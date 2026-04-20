@@ -28,6 +28,70 @@ using namespace facebook::react;
 
 @end
 
+@interface CLCMacBackingTextView : NSTextView
+
+@property(nonatomic, weak) id owner;
+
+@end
+
+@implementation CLCMacBackingTextView
+
+- (void)toggleAutomaticSpellingCorrection:(id)__unused sender
+{
+  self.automaticSpellingCorrectionEnabled = !self.isAutomaticSpellingCorrectionEnabled;
+}
+
+- (void)toggleContinuousSpellChecking:(id)__unused sender
+{
+  self.continuousSpellCheckingEnabled = !self.isContinuousSpellCheckingEnabled;
+}
+
+- (void)toggleGrammarChecking:(id)__unused sender
+{
+  self.grammarCheckingEnabled = !self.isGrammarCheckingEnabled;
+}
+
+- (void)setEnabledTextCheckingTypes:(NSTextCheckingTypes)checkingType
+{
+  [super setEnabledTextCheckingTypes:checkingType];
+  self.automaticDataDetectionEnabled = checkingType != 0;
+}
+
+- (void)showGuessPanel:(id)sender
+{
+  if ([self.owner respondsToSelector:@selector(userDidExplicitlyRequestManagedSpellPanels)]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+    [self.owner performSelector:@selector(userDidExplicitlyRequestManagedSpellPanels)];
+#pragma clang diagnostic pop
+  }
+  [super showGuessPanel:sender];
+}
+
+- (void)orderFrontSubstitutionsPanel:(id)sender
+{
+  if ([self.owner respondsToSelector:@selector(userDidExplicitlyRequestManagedSpellPanels)]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+    [self.owner performSelector:@selector(userDidExplicitlyRequestManagedSpellPanels)];
+#pragma clang diagnostic pop
+  }
+  [super orderFrontSubstitutionsPanel:sender];
+}
+
+- (void)checkSpelling:(id)sender
+{
+  if ([self.owner respondsToSelector:@selector(userDidExplicitlyRequestManagedSpellPanels)]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+    [self.owner performSelector:@selector(userDidExplicitlyRequestManagedSpellPanels)];
+#pragma clang diagnostic pop
+  }
+  [super checkSpelling:sender];
+}
+
+@end
+
 @interface CLCMacTextViewContentView : NSView <NSTextViewDelegate>
 
 @property(nonatomic, copy) void (^onChangeText)(NSString *text);
@@ -46,6 +110,7 @@ using namespace facebook::react;
 - (void)setTextProgrammatically:(NSString *)text;
 - (void)focusInput;
 - (void)resetForRecycle;
+- (void)userDidExplicitlyRequestManagedSpellPanels;
 
 @end
 
@@ -61,8 +126,63 @@ using namespace facebook::react;
   BOOL _measureScheduled;
   BOOL _needsMeasureAfterLayout;
   BOOL _forceComplexMeasurement;
+  BOOL _suppressesSpellPanelsAfterActivation;
   CGFloat _lastAvailableWidth;
   CGFloat _lastContentHeight;
+}
+
+- (BOOL)isManagedSpellPanelWindow:(NSWindow *)window
+{
+  if (window == nil) {
+    return NO;
+  }
+
+  NSString *title = window.title ?: @"";
+  NSString *className = NSStringFromClass(window.class) ?: @"";
+  return [className isEqualToString:@"NSSpellingPanel"] ||
+      [title isEqualToString:@"Languages"] ||
+      [title isEqualToString:@"Spelling and Grammar"] ||
+      [title isEqualToString:@"Substitutions"];
+}
+
+- (void)closeSharedSpellPanelsIfNeeded
+{
+  NSSpellChecker *spellChecker = [NSSpellChecker sharedSpellChecker];
+  NSInteger spellDocumentTag = _textView.spellCheckerDocumentTag;
+
+  NSPanel *spellingPanel = spellChecker.spellingPanel;
+  if (spellingPanel.isVisible) {
+    [spellingPanel close];
+  }
+
+  NSPanel *substitutionsPanel = spellChecker.substitutionsPanel;
+  if (substitutionsPanel.isVisible) {
+    [substitutionsPanel close];
+  }
+
+  for (NSWindow *window in NSApp.windows) {
+    if ([self isManagedSpellPanelWindow:window]) {
+      if (window.isVisible) {
+        [window close];
+      }
+    }
+  }
+
+  if (spellDocumentTag != 0) {
+    [spellChecker closeSpellDocumentWithTag:(int)spellDocumentTag];
+  }
+
+  [spellChecker updatePanels];
+}
+
+- (BOOL)hasVisibleManagedSpellPanels
+{
+  for (NSWindow *window in NSApp.windows) {
+    if ([self isManagedSpellPanelWindow:window] && window.isVisible) {
+      return YES;
+    }
+  }
+  return NO;
 }
 
 - (instancetype)initWithFrame:(NSRect)frame
@@ -78,22 +198,17 @@ using namespace facebook::react;
     _scrollView.hasVerticalScroller = NO;
     _scrollView.autohidesScrollers = YES;
 
-    _textView = [[NSTextView alloc] initWithFrame:NSZeroRect];
+    _textView = [[CLCMacBackingTextView alloc] initWithFrame:NSZeroRect];
     _textView.translatesAutoresizingMaskIntoConstraints = YES;
     _textView.autoresizingMask = NSViewWidthSizable;
     _textView.delegate = self;
+    ((CLCMacBackingTextView *)_textView).owner = self;
     _textView.drawsBackground = NO;
     _textView.focusRingType = NSFocusRingTypeNone;
     _textView.usesFindBar = NO;
     _textView.richText = NO;
     _textView.importsGraphics = NO;
     _textView.allowsUndo = YES;
-    _textView.automaticQuoteSubstitutionEnabled = NO;
-    _textView.automaticDashSubstitutionEnabled = NO;
-    _textView.automaticTextReplacementEnabled = NO;
-    _textView.automaticSpellingCorrectionEnabled = NO;
-    _textView.continuousSpellCheckingEnabled = NO;
-    _textView.grammarCheckingEnabled = NO;
     _textView.textContainerInset = NSMakeSize(8, 8);
     _textView.textContainer.lineFragmentPadding = 0;
     _textView.maxSize = NSMakeSize(CGFLOAT_MAX, CGFLOAT_MAX);
@@ -135,9 +250,27 @@ using namespace facebook::react;
       [_placeholderLabel.trailingAnchor constraintLessThanOrEqualToAnchor:self.trailingAnchor constant:-8],
     ]];
 
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleApplicationDidBecomeActive:)
+                                                 name:NSApplicationDidBecomeActiveNotification
+                                               object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleApplicationWillResignActive:)
+                                                 name:NSApplicationWillResignActiveNotification
+                                               object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleWindowDidBecomeKey:)
+                                                 name:NSWindowDidBecomeKeyNotification
+                                               object:nil];
+
     [self resetForRecycle];
   }
   return self;
+}
+
+- (void)dealloc
+{
+  [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 - (void)resetForRecycle
@@ -147,6 +280,7 @@ using namespace facebook::react;
   _measureScheduled = NO;
   _needsMeasureAfterLayout = NO;
   _forceComplexMeasurement = YES;
+  _suppressesSpellPanelsAfterActivation = NO;
   _lastAvailableWidth = 0;
   _lastContentHeight = 0;
   self.initialText = @"";
@@ -158,6 +292,11 @@ using namespace facebook::react;
   self.placeholderTextColor = [NSColor placeholderTextColor];
   self.fontSize = 13;
   [self setTextProgrammatically:@""];
+}
+
+- (void)userDidExplicitlyRequestManagedSpellPanels
+{
+  _suppressesSpellPanelsAfterActivation = NO;
 }
 
 - (void)layout
@@ -196,12 +335,32 @@ using namespace facebook::react;
 
 - (BOOL)acceptsFirstResponder
 {
-  return YES;
+  return _textView.acceptsFirstResponder;
+}
+
+- (NSResponder *)responder
+{
+  return _textView;
 }
 
 - (BOOL)becomeFirstResponder
 {
   return [_textView becomeFirstResponder];
+}
+
+- (BOOL)resignFirstResponder
+{
+  if (_textView.selectable) {
+    _textView.selectedRange = NSMakeRange(NSNotFound, 0);
+  }
+
+  BOOL success = [_textView resignFirstResponder];
+  if (success) {
+    [_textView breakUndoCoalescing];
+    [self closeSharedSpellPanelsIfNeeded];
+  }
+
+  return success;
 }
 
 - (BOOL)acceptsFirstMouse:(__unused NSEvent *)event
@@ -254,7 +413,7 @@ using namespace facebook::react;
 
 - (void)focusInput
 {
-  [[self window] makeFirstResponder:_textView];
+  [[self window] makeFirstResponder:self];
 }
 
 - (void)setInitialText:(NSString *)initialText
@@ -461,6 +620,38 @@ using namespace facebook::react;
 
   if (self.onChangeText) {
     self.onChangeText(_textView.string ?: @"");
+  }
+}
+
+- (void)handleApplicationDidBecomeActive:(NSNotification *)notification
+{
+  if (_suppressesSpellPanelsAfterActivation) {
+    [self closeSharedSpellPanelsIfNeeded];
+  }
+}
+
+- (void)handleApplicationWillResignActive:(NSNotification *)notification
+{
+  BOOL ourTextViewIsActiveResponder =
+      self.window != nil &&
+      (self.window.firstResponder == _textView || self.window.firstResponder == self);
+  BOOL hasVisibleManagedPanels = [self hasVisibleManagedSpellPanels];
+  if (ourTextViewIsActiveResponder || hasVisibleManagedPanels) {
+    _suppressesSpellPanelsAfterActivation = YES;
+    if (ourTextViewIsActiveResponder) {
+      [self.window makeFirstResponder:nil];
+    }
+    [self closeSharedSpellPanelsIfNeeded];
+  } else {
+    _suppressesSpellPanelsAfterActivation = NO;
+  }
+}
+
+- (void)handleWindowDidBecomeKey:(NSNotification *)notification
+{
+  NSWindow *window = (NSWindow *)notification.object;
+  if (_suppressesSpellPanelsAfterActivation && [self isManagedSpellPanelWindow:window]) {
+    [self closeSharedSpellPanelsIfNeeded];
   }
 }
 

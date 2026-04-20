@@ -742,6 +742,7 @@ RCT_EXPORT_METHOD(toggleActionsPopover : (NSDictionary *)params)
     popover.behavior = NSPopoverBehaviorTransient;
     popover.contentViewController = controller;
     popover.contentSize = NSMakeSize(width, height);
+    popover.delegate = (id<NSPopoverDelegate>)self;
 
     self.actionsPopover = popover;
 
@@ -823,6 +824,7 @@ RCT_EXPORT_METHOD(openMessageLimitPopover : (NSDictionary *)params)
     popover.behavior = NSPopoverBehaviorTransient;
     popover.contentViewController = controller;
     popover.contentSize = NSMakeSize(width, height);
+    popover.delegate = (id<NSPopoverDelegate>)self;
 
     self.messageLimitPopover = popover;
 
@@ -969,6 +971,16 @@ RCT_EXPORT_METHOD(cancelAgentPicker)
   if (popover == self.applicationActionDialogPopover) {
     self.applicationActionDialogPopover = nil;
     [self sendEventWithName:@"applicationActionDialogCancelled" body:@{}];
+    return;
+  }
+
+  if (popover == self.actionsPopover) {
+    self.actionsPopover = nil;
+    return;
+  }
+
+  if (popover == self.messageLimitPopover) {
+    self.messageLimitPopover = nil;
     return;
   }
 }

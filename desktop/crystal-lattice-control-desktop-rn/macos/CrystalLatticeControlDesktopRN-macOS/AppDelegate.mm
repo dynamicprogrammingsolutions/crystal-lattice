@@ -198,9 +198,11 @@ static NSString *const kSessionsFollowActiveTabDefaultsKey =
   [NSApp unhide:nil];
 
   BOOL restoredAnyWindow = NO;
-  for (NSWindow *window in NSApp.windows) {
-    // Ignore windows that cannot be shown/activated.
-    if (![window isKindOfClass:[NSWindow class]] || !window.canBecomeKeyWindow) {
+  for (NSWindow *window in [self.mainWindows copy]) {
+    // Restore only tracked main windows. Auxiliary windows such as popovers,
+    // spelling panels, and other AppKit-managed helpers should not be revived
+    // when clicking the Dock icon.
+    if (![window isKindOfClass:[NSWindow class]] || !window.canBecomeKeyWindow || !window.isVisible) {
       continue;
     }
 
