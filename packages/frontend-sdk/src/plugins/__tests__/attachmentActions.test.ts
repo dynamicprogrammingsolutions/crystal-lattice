@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AgentBackend } from '../../backend/backend';
+import type { ExecuteActionResponse } from '../../types/plugins';
 import {
   deleteSessionAttachment,
   selectSessionAssetId,
@@ -24,7 +25,7 @@ function buildBackend(executeAction: AgentBackend['executeAction']): AgentBacken
 
 describe('attachmentActions', () => {
   it('stores an attachment using the provider-extension action contract', async () => {
-    const executeAction = vi.fn(async () => ({
+    const executeAction: AgentBackend['executeAction'] = vi.fn(async (): Promise<ExecuteActionResponse> => ({
       status: 'ok',
       plugin: 'openai_responses_attachments',
       action_id: 'store_attachment',
@@ -70,7 +71,7 @@ describe('attachmentActions', () => {
   });
 
   it('deletes an attachment using the provider-extension action contract', async () => {
-    const executeAction = vi.fn(async () => ({
+    const executeAction: AgentBackend['executeAction'] = vi.fn(async (): Promise<ExecuteActionResponse> => ({
       status: 'ok',
       plugin: 'openai_responses_attachments',
       action_id: 'delete_attachment',
@@ -107,8 +108,52 @@ describe('attachmentActions', () => {
     });
   });
 
+  it('forwards an explicit plugin id override for attachment actions', async () => {
+    const executeAction: AgentBackend['executeAction'] = vi.fn(async (): Promise<ExecuteActionResponse> => ({
+      status: 'ok',
+      plugin: 'reference_openai_compatible_attachments',
+      action_id: 'store_attachment',
+      result: {
+        attachment_asset: {
+          asset_ref: {
+            kind: 'session_asset',
+            session_id: 's1',
+            asset_id: 'asset_2',
+            attachment_type: 'image',
+          },
+          filename: 'red.png',
+          mime_type: 'image/png',
+        },
+      },
+    }));
+
+    await storeSessionAttachment({
+      backend: buildBackend(executeAction),
+      sessionId: 's1',
+      attachmentType: 'image',
+      filename: 'red.png',
+      mimeType: 'image/png',
+      dataBase64: 'QUJDRA==',
+      pluginId: 'reference_openai_compatible_attachments',
+    });
+
+    expect(executeAction).toHaveBeenCalledWith({
+      pluginId: 'reference_openai_compatible_attachments',
+      actionId: 'store_attachment',
+      actionOwner: 'provider_extension',
+      idempotencyKey: undefined,
+      inputs: {
+        session_id: 's1',
+        attachment_type: 'image',
+        filename: 'red.png',
+        mime_type: 'image/png',
+        data_base64: 'QUJDRA==',
+      },
+    });
+  });
+
   it('surfaces backend action errors with the server message', async () => {
-    const executeAction = vi.fn(async () => ({
+    const executeAction: AgentBackend['executeAction'] = vi.fn(async (): Promise<ExecuteActionResponse> => ({
       status: 'error',
       message: 'asset store unavailable',
     }));

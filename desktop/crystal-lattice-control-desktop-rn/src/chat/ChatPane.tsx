@@ -131,6 +131,7 @@ type ComposerAttachmentUiElement = {
   plugin?: string;
   attachment_type?: string;
   supported_file_types?: string[];
+  supports_upload?: boolean;
   supports_url?: boolean;
   display_placement?: 'above' | 'below' | string;
   label?: string;
@@ -528,11 +529,14 @@ export const ChatPane = React.memo(function ChatPane({
           ? String((el as any).icon)
           : 'paperclip';
 
-      rows.push({
-        id: `${baseKey}:file`,
-        label: `Select ${label}…`,
-        iconName,
-      });
+      const supportsUpload = Boolean((el as any).supports_upload ?? true);
+      if (supportsUpload) {
+        rows.push({
+          id: `${baseKey}:file`,
+          label: `Select ${label}…`,
+          iconName,
+        });
+      }
 
       const supportsUrl = Boolean((el as any).supports_url ?? true);
       if (supportsUrl) {
@@ -904,7 +908,12 @@ export const ChatPane = React.memo(function ChatPane({
   }, []);
 
   const deleteStoredAttachmentAsset = useCallback(
-    async (assetId: string, filename?: string, suppressAlert = false) => {
+    async (
+      assetId: string,
+      filename?: string,
+      suppressAlert = false,
+      pluginId?: string | null,
+    ) => {
       if (!backend) {
         return false;
       }
@@ -917,6 +926,7 @@ export const ChatPane = React.memo(function ChatPane({
           backend,
           sessionId,
           assetId,
+          pluginId: typeof pluginId === 'string' && pluginId.trim() ? pluginId.trim() : undefined,
         });
       } catch (err: any) {
         if (!suppressAlert) {
@@ -1107,6 +1117,9 @@ export const ChatPane = React.memo(function ChatPane({
                 params.pendingAssetId,
                 (params.content as any)?.filename,
                 false,
+                typeof (params.element as any).plugin === 'string'
+                  ? String((params.element as any).plugin)
+                  : undefined,
               )
                 .then((deleted) => {
                   if (deleted && params.draftId) {
@@ -1218,6 +1231,11 @@ export const ChatPane = React.memo(function ChatPane({
           filename: params.filename,
           mimeType: params.mimeType,
           dataBase64: params.dataBase64,
+          pluginId:
+            typeof (params.element as any).plugin === 'string' &&
+            String((params.element as any).plugin).trim()
+              ? String((params.element as any).plugin).trim()
+              : undefined,
         });
 
         beginAddDraftAttachment({
@@ -1694,7 +1712,12 @@ export const ChatPane = React.memo(function ChatPane({
         status: 'deleting',
         errorMessage: null,
       }));
-      const deleted = await deleteStoredAttachmentAsset(assetId, draft?.content?.filename, false);
+      const deleted = await deleteStoredAttachmentAsset(
+        assetId,
+        draft?.content?.filename,
+        false,
+        draft?.plugin,
+      );
       if (deleted) {
         if (placement === 'above') {
           setAttachmentsAbove(update);

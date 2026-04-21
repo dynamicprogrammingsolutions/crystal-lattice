@@ -151,6 +151,7 @@ type ComposerAttachmentUiElement = UiSchemaElement & {
   key?: string;
   attachment_type: string;
   supported_file_types?: string[];
+  supports_upload?: boolean;
   display_placement: 'above' | 'below' | 'left';
   label?: string;
   title?: string;
@@ -168,6 +169,7 @@ type MultipartPartDraft = {
   status: AttachmentDraftStatus;
   errorMessage?: string | null;
   attachmentKey: string;
+  pluginId?: string | null;
   title: string;
   iconName: string | null;
   metadataUi: AttachmentMetadataUi | null;
@@ -266,6 +268,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         content: any;
         previewUrl?: string | null;
         pendingAssetId?: string | null;
+        pluginId?: string | null;
       }
     | { kind: 'edit'; side: 'above' | 'below'; draftId: string }
     | null
@@ -1281,8 +1284,31 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     setAttachmentsBelow([]);
   }, [onSaveComposeText]);
 
+  const updateAttachmentDraft = useCallback(
+    (
+      side: 'above' | 'below',
+      draftId: string,
+      updater: (part: MultipartPartDraft) => MultipartPartDraft,
+    ) => {
+      const update = (prev: MultipartPartDraft[]) =>
+        prev.map((part) => (part.draftId === draftId ? updater(part) : part));
+
+      if (side === 'above') {
+        setAttachmentsAbove(update);
+        return;
+      }
+      setAttachmentsBelow(update);
+    },
+    [],
+  );
+
   const deleteStoredAttachmentAsset = useCallback(
-    async (assetId: string, filename?: string, suppressAlert = false) => {
+    async (
+      assetId: string,
+      filename?: string,
+      suppressAlert = false,
+      pluginId?: string | null,
+    ) => {
       if (!backend) {
         return false;
       }
@@ -1295,6 +1321,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           backend,
           sessionId,
           assetId,
+          pluginId: typeof pluginId === 'string' && pluginId.trim() ? pluginId.trim() : undefined,
         });
       } catch (err: any) {
         if (!suppressAlert) {
@@ -1334,7 +1361,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         status: 'deleting',
         errorMessage: null,
       }));
-      const deleted = await deleteStoredAttachmentAsset(assetId, removed?.content?.filename, false);
+      const deleted = await deleteStoredAttachmentAsset(
+        assetId,
+        removed?.content?.filename,
+        false,
+        removed?.pluginId,
+      );
       if (deleted) {
         if (side === 'above') {
           setAttachmentsAbove((prev) => prev.filter((p) => p.draftId !== draftId));
@@ -1365,24 +1397,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         next[nextIdx] = tmp;
         return next;
       };
-
-      if (side === 'above') {
-        setAttachmentsAbove(update);
-        return;
-      }
-      setAttachmentsBelow(update);
-    },
-    [],
-  );
-
-  const updateAttachmentDraft = useCallback(
-    (
-      side: 'above' | 'below',
-      draftId: string,
-      updater: (part: MultipartPartDraft) => MultipartPartDraft,
-    ) => {
-      const update = (prev: MultipartPartDraft[]) =>
-        prev.map((part) => (part.draftId === draftId ? updater(part) : part));
 
       if (side === 'above') {
         setAttachmentsAbove(update);
@@ -1434,6 +1448,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       status: options.status ?? 'ready',
       errorMessage: options.errorMessage ?? null,
       attachmentKey: attachmentKeyRaw,
+      pluginId:
+        typeof (options.element as any).plugin === 'string' &&
+        String((options.element as any).plugin).trim()
+          ? String((options.element as any).plugin).trim()
+          : null,
       title: String(titleRaw),
       iconName: iconNameRaw,
       metadataUi:
@@ -1458,6 +1477,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       pendingAssetId?: string | null;
       draftId?: string | null;
     }) => {
+      const side =
+        options.element.display_placement === 'above' ? 'above' : 'below';
       const metadataUi =
         options.element.metadata_ui && typeof options.element.metadata_ui === 'object'
           ? (options.element.metadata_ui as AttachmentMetadataUi)
@@ -1467,7 +1488,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       const shouldPrompt = shouldPromptForAttachmentMetadata({ metadataUi });
       if (shouldPrompt) {
         if (options.draftId) {
-          updateAttachmentDraft(options.element.display_placement, options.draftId, (part) => ({
+          updateAttachmentDraft(side, options.draftId, (part) => ({
             ...part,
             status: 'stored',
             errorMessage: null,
@@ -1485,18 +1506,23 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         setAttachmentMetadataContext({
           kind: 'new',
           element: options.element,
-          side: options.element.display_placement,
+          side,
           draftId: options.draftId ?? null,
           content: options.content,
           previewUrl: options.previewUrl ?? null,
           pendingAssetId: options.pendingAssetId ?? null,
+          pluginId:
+            typeof (options.element as any).plugin === 'string' &&
+            String((options.element as any).plugin).trim()
+              ? String((options.element as any).plugin).trim()
+              : null,
         });
         setAttachmentMetadataVisible(true);
         return;
       }
 
       if (options.draftId) {
-        updateAttachmentDraft(options.element.display_placement, options.draftId, (part) => ({
+        updateAttachmentDraft(side, options.draftId, (part) => ({
           ...part,
           content: options.content,
           metadata: defaults,
@@ -1590,7 +1616,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         previewUrl,
         status: 'uploading_to_server',
       });
-      const side = options.element.display_placement;
+      const side = options.element.display_placement === 'above' ? 'above' : 'below';
 
       setAttachmentBackgroundOperation({
         kind: 'upload',
@@ -1604,6 +1630,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           filename: options.filename,
           mimeType: options.mimeType,
           dataUrl: options.dataUrl,
+          pluginId:
+            typeof (options.element as any).plugin === 'string' &&
+            String((options.element as any).plugin).trim()
+              ? String((options.element as any).plugin).trim()
+              : undefined,
         });
 
         beginAddAttachmentPart({
@@ -1638,6 +1669,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     async (element: ComposerAttachmentUiElement) => {
       if (attachmentPickInProgress) return;
       if (element.attachment_type === 'image') {
+        const supportsUpload = Boolean((element as any).supports_upload ?? true);
+        const supportsUrl = Boolean((element as any).supports_url ?? true);
+        if (!supportsUpload && !supportsUrl) {
+          Alert.alert('Attachment unavailable', 'This provider does not allow image attachments.');
+          return;
+        }
         setImageAttachElement(element);
         setImageUrlText('');
         setImageAttachVisible(true);
@@ -2637,7 +2674,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
             errorMessage: null,
           }));
         }
-        deleteStoredAttachmentAsset(ctx.pendingAssetId, ctx.content?.filename, false)
+        deleteStoredAttachmentAsset(
+          ctx.pendingAssetId,
+          ctx.content?.filename,
+          false,
+          ctx.pluginId,
+        )
           .then((deleted) => {
             if (deleted && ctx.draftId) {
               if (ctx.side === 'above') {
@@ -3179,48 +3221,59 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 <View style={styles.modalContent}>
                   <Text style={styles.modalTitle}>Add image</Text>
                   <Text style={styles.modalSubtitle}>
-                    Choose a photo source or paste an image URL.
+                    {Boolean((imageAttachElement as any)?.supports_upload ?? true) &&
+                    Boolean((imageAttachElement as any)?.supports_url ?? true)
+                      ? 'Choose a photo source or paste an image URL.'
+                      : Boolean((imageAttachElement as any)?.supports_upload ?? true)
+                        ? 'Choose a photo source.'
+                        : 'Paste an image URL.'}
                   </Text>
 
-                  <View style={styles.imageSourceButtonsRow}>
-                    <TouchableOpacity
-                      style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                      onPress={() => pickImageForElement('library')}
-                      disabled={
-                        sendInProgress ||
-                        !!pendingRequestRecovery ||
-                        !!activeRequestId ||
-                        attachmentPickInProgress ||
-                        attachmentActionInProgress
-                      }
-                    >
-                      <Text style={styles.buttonTextSecondary}>Photo library</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                      onPress={() => pickImageForElement('camera')}
-                      disabled={
-                        sendInProgress ||
-                        !!pendingRequestRecovery ||
-                        !!activeRequestId ||
-                        attachmentPickInProgress ||
-                        attachmentActionInProgress
-                      }
-                    >
-                      <Text style={styles.buttonTextSecondary}>Take photo</Text>
-                    </TouchableOpacity>
-                  </View>
+                  {Boolean((imageAttachElement as any)?.supports_upload ?? true) && (
+                    <View style={styles.imageSourceButtonsRow}>
+                      <TouchableOpacity
+                        style={[styles.button, styles.secondaryButton, styles.modalButton]}
+                        onPress={() => pickImageForElement('library')}
+                        disabled={
+                          sendInProgress ||
+                          !!pendingRequestRecovery ||
+                          !!activeRequestId ||
+                          attachmentPickInProgress ||
+                          attachmentActionInProgress
+                        }
+                      >
+                        <Text style={styles.buttonTextSecondary}>Photo library</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.button, styles.secondaryButton, styles.modalButton]}
+                        onPress={() => pickImageForElement('camera')}
+                        disabled={
+                          sendInProgress ||
+                          !!pendingRequestRecovery ||
+                          !!activeRequestId ||
+                          attachmentPickInProgress ||
+                          attachmentActionInProgress
+                        }
+                      >
+                        <Text style={styles.buttonTextSecondary}>Take photo</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
 
-                  <Text style={styles.rangeLabel}>Image URL</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    value={imageUrlText}
-                    onChangeText={setImageUrlText}
-                    placeholder="https://... or data:image/..."
-                    keyboardType="default"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
+                  {Boolean((imageAttachElement as any)?.supports_url ?? true) && (
+                    <>
+                      <Text style={styles.rangeLabel}>Image URL</Text>
+                      <TextInput
+                        style={styles.modalInput}
+                        value={imageUrlText}
+                        onChangeText={setImageUrlText}
+                        placeholder="https://... or data:image/..."
+                        keyboardType="default"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                      />
+                    </>
+                  )}
 
                   <View style={styles.modalButtonsRow}>
                     <TouchableOpacity
@@ -3229,13 +3282,15 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                     >
                       <Text style={styles.buttonTextSecondary}>Cancel</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.button, styles.primaryButton, styles.modalButton]}
-                      onPress={addImageUrlForElement}
-                      disabled={!imageUrlText.trim() || attachmentActionInProgress}
-                    >
-                      <Text style={styles.buttonText}>Add URL</Text>
-                    </TouchableOpacity>
+                    {Boolean((imageAttachElement as any)?.supports_url ?? true) && (
+                      <TouchableOpacity
+                        style={[styles.button, styles.primaryButton, styles.modalButton]}
+                        onPress={addImageUrlForElement}
+                        disabled={!imageUrlText.trim() || attachmentActionInProgress}
+                      >
+                        <Text style={styles.buttonText}>Add URL</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               </TouchableWithoutFeedback>

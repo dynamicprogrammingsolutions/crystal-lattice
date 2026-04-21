@@ -4,6 +4,7 @@ import { FetchTransport } from '../../transport/fetchTransport';
 import { RestAgentBackend } from '../../backend/restBackend';
 import { ChatController } from '../../chat/chatController';
 import type { IndexedMessage } from '../../types/messages';
+import { storeSessionAttachment } from '../../plugins/attachmentActions';
 import {
   DelayingTransport,
   Gate,
@@ -476,6 +477,77 @@ describeIf('backend integration (real FastAPI server + plugins + SDK)', () => {
     expect(last.role).toBe('user');
     expect(last.content).toBe('');
     expect((last as any).multipartContent).toEqual(multipart);
+  }, 30000);
+
+  it('F2: uploaded attachment previews are present in frontend-visible user messages', async () => {
+    const started = await startBackendServer({
+      config: {
+        providers: {
+          reference_openai: {
+            provider: 'reference_openai_compatible',
+            model: 'test-model',
+            timeout: 60,
+          },
+        },
+        plugins: [
+          'path:${env:REPO_ROOT}/plugins/reference-openai-compatible-provider',
+        ],
+        agents: {
+          default: {
+            provider: 'reference_openai',
+          },
+        },
+      },
+    });
+
+    try {
+      const transport = new FetchTransport({ baseUrl: started.baseUrl });
+      const backend = new RestAgentBackend({ transport });
+      const created = await backend.createSession({ agentId: 'default' });
+      const sessionId = created.session.session_id;
+
+      const asset = await storeSessionAttachment({
+        backend,
+        sessionId,
+        attachmentType: 'image',
+        filename: 'red.png',
+        mimeType: 'image/png',
+        dataBase64: 'QUJDRA==',
+        pluginId: 'reference_openai_compatible_attachments',
+      });
+
+      await backend.appendMessage(sessionId, {
+        role: 'user',
+        content: 'show preview',
+        multipartContent: [
+          {
+            type: 'image',
+            content: {
+              asset_ref: asset.asset_ref,
+              filename: asset.filename,
+              mime_type: asset.mime_type,
+            },
+            metadata: {},
+          },
+        ],
+      });
+
+      const listed = await backend.listMessages(sessionId);
+      const userWithAttachment = listed.messages.find(
+        (message) =>
+          message.message.role === 'user' &&
+          message.message.content === 'show preview' &&
+          Array.isArray((message.message as any).multipartContent),
+      );
+
+      expect(userWithAttachment).toBeDefined();
+      const imageContent = (userWithAttachment?.message as any)?.multipartContent?.[0]?.content ?? {};
+      expect(
+        imageContent.url ?? `data:${imageContent.preview_mime_type};base64,${imageContent.preview_data_base64 ?? ''}`,
+      ).toBe('data:image/png;base64,QUJDRA==');
+    } finally {
+      await started.stop();
+    }
   }, 30000);
 
   it('G: FetchTransport times out cleanly against a delayed backend response', async () => {

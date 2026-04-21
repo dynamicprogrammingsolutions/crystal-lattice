@@ -11,6 +11,13 @@ import requests
 
 from agent_core.types import ProviderPlugin, ProviderRequestCancelled
 from agent_core.utils import get_logger
+from reference_openai_compatible_provider.attachment_parts import (
+    image_content_to_image_url_part,
+)
+from reference_openai_compatible_provider.attachment_policy import (
+    allow_image_attachment_base64,
+    allow_image_attachment_url,
+)
 
 log = get_logger("reference_openai_compatible_provider")
 
@@ -388,6 +395,182 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
             return False
         runtime.cancel()
         return True
+
+    def _native_internal_from_core_metadata(self, metadata: Any) -> dict[str, Any]:
+        if not isinstance(metadata, dict):
+            return {}
+        out = dict(metadata)
+        out.pop("native_indices", None)
+        out.pop("tool_calls", None)
+        out.pop("tool_call_id", None)
+        return out
+
+    def _core_metadata_from_native_internal(self, internal: Any) -> dict[str, Any]:
+        if not isinstance(internal, dict):
+            return {}
+        return {
+            key: value
+            for key, value in internal.items()
+            if key not in {"native_indices", "tool_calls", "tool_call_id"}
+        }
+
+    def _session_asset_store(self, state: dict[str, Any]) -> Any:
+        config = state.get("config") if isinstance(state.get("config"), dict) else {}
+        store = config.get("_session_asset_store")
+        if store is None:
+            raise RuntimeError(
+                "[reference_openai_compatible_provider] session asset attachment requires _session_asset_store in config"
+            )
+        return store
+
+    def _resolve_session_asset(
+        self,
+        state: dict[str, Any],
+        asset_ref: dict[str, Any],
+        expected_attachment_type: str,
+    ) -> tuple[str, str, bytes]:
+        store = self._session_asset_store(state)
+        session_id = asset_ref.get("session_id")
+        asset_id = asset_ref.get("asset_id")
+        if not isinstance(session_id, str) or not isinstance(asset_id, str):
+            raise ValueError(
+                "[reference_openai_compatible_provider] invalid session asset reference"
+            )
+        record = store.load(session_id, asset_id)
+        if record.attachment_type != expected_attachment_type:
+            raise ValueError(
+                f"[reference_openai_compatible_provider] session asset {asset_id!r} is not a {expected_attachment_type} attachment"
+            )
+        return record.filename, record.mime_type, store.load_bytes(session_id, asset_id)
+
+    def to_native_messages(
+        self,
+        messages: list[dict[str, Any]],
+        state: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        native: list[dict[str, Any]] = []
+
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            raw_metadata = msg.get("metadata")
+            metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
+            if not isinstance(content, str):
+                content = ""
+
+            native_message: dict[str, Any] = {"role": role, "content": content}
+
+            tool_calls = metadata.get("tool_calls")
+            if role == "assistant" and isinstance(tool_calls, list) and tool_calls:
+                native_message["tool_calls"] = tool_calls
+
+            tool_call_id = metadata.get("tool_call_id")
+            if role == "tool" and isinstance(tool_call_id, str) and tool_call_id:
+                native_message["tool_call_id"] = tool_call_id
+
+            internal_metadata = self._native_internal_from_core_metadata(metadata)
+            if internal_metadata:
+                native_message["_metadata"] = internal_metadata
+
+            multipart = msg.get("multipartContent")
+            if not isinstance(multipart, list) or not multipart:
+                native.append(native_message)
+                continue
+
+            parts: list[dict[str, Any]] = [{"type": "text", "text": content}]
+            for part in multipart:
+                if not isinstance(part, dict):
+                    continue
+
+                part_type = part.get("type")
+                part_content = part.get("content")
+                if part_type != "image":
+                    continue
+
+                parts.append(
+                    image_content_to_image_url_part(
+                        part_content,
+                        resolve_session_asset=lambda asset_ref, expected_attachment_type: self._resolve_session_asset(
+                            state,
+                            asset_ref,
+                            expected_attachment_type,
+                        ),
+                        allow_base64=allow_image_attachment_base64(state),
+                        allow_url=allow_image_attachment_url(state),
+                    )
+                )
+
+            native.append({**native_message, "content": parts})
+
+        return native
+
+    def from_native_messages(
+        self,
+        native_messages: list[dict[str, Any]],
+        state: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        normalized: list[dict[str, Any]] = []
+        for native_idx, native_message in enumerate(native_messages):
+            if not isinstance(native_message, dict):
+                continue
+            if not ("role" in native_message or "content" in native_message):
+                continue
+
+            role = native_message.get("role", "assistant")
+            content = native_message.get("content", "")
+            metadata = self._core_metadata_from_native_internal(
+                native_message.get("_metadata")
+            )
+
+            msg: dict[str, Any] = {"role": role, "content": ""}
+            multipart_out: list[dict[str, Any]] = []
+
+            if isinstance(content, list):
+                text_parts: list[str] = []
+                for part in content:
+                    if not isinstance(part, dict):
+                        continue
+                    part_type = part.get("type")
+                    if part_type == "text":
+                        text = part.get("text")
+                        if isinstance(text, str) and text:
+                            text_parts.append(text)
+                        continue
+                    if part_type == "image_url":
+                        image_url = part.get("image_url")
+                        if isinstance(image_url, dict):
+                            url = image_url.get("url")
+                            if isinstance(url, str) and url:
+                                multipart_out.append(
+                                    {
+                                        "type": "image",
+                                        "content": {"url": url},
+                                        "metadata": {},
+                                    }
+                                )
+                        continue
+
+                msg["content"] = "\n".join(text_parts)
+                if multipart_out:
+                    msg["multipartContent"] = multipart_out
+            else:
+                msg["content"] = content if isinstance(content, str) else ""
+
+            tool_calls = native_message.get("tool_calls")
+            if isinstance(tool_calls, list) and tool_calls:
+                metadata["tool_calls"] = tool_calls
+
+            tool_call_id = native_message.get("tool_call_id")
+            if isinstance(tool_call_id, str) and tool_call_id:
+                metadata["tool_call_id"] = tool_call_id
+
+            metadata["native_indices"] = [native_idx]
+            normalized.append({**msg, "metadata": metadata})
+
+        return normalized
 
     @staticmethod
     def _endpoint_options_from_config(config: dict[str, Any]) -> list[dict[str, str]]:
