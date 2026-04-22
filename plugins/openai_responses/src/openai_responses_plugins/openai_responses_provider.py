@@ -83,6 +83,7 @@ from .openai_responses_runtime import (
     strip_leading_system_or_developer_message as _strip_leading_shared,
 )
 
+log = get_logger("openai_responses_provider")
 
 JsonObject = Dict[str, Any]
 _DEFAULT_CHATGPT_CLIENT_VERSION = "0.1.0"
@@ -2081,6 +2082,11 @@ class OpenAIResponsesProvider(ProviderPlugin):
                         retry_input_items = [
                             self._sanitize_input_item(item) for item in retry_history
                         ]
+                        log.warning(
+                            "attachment_upload_retrying",
+                            action="call_api",
+                            attempt=1,
+                        )
                         sdk_response = local_request_client.responses.create(  # type: ignore[union-attr]
                             **{**payload, "input": retry_input_items, "stream": False},
                             extra_headers=extra_headers,
@@ -2223,6 +2229,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
                     runtime.add_closer(
                         lambda candidate=local_request_client: _close_candidate(candidate)
                     )
+                    log.warning(
+                        "chatgpt_auth_recovery_retrying",
+                        action="stream_api",
+                        attempt=1,
+                        source="reloaded_credentials",
+                    )
                     auth_recovery_used = True
                     return True
 
@@ -2240,6 +2252,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
                     max_retries=max_retries,
                 )
                 runtime.add_closer(lambda candidate=local_request_client: _close_candidate(candidate))
+                log.warning(
+                    "chatgpt_auth_recovery_retrying",
+                    action="stream_api",
+                    attempt=1,
+                    source="refreshed_config",
+                )
                 auth_recovery_used = True
                 return True
 
@@ -2296,6 +2314,11 @@ class OpenAIResponsesProvider(ProviderPlugin):
                             retry_input_items = [
                                 self._sanitize_input_item(item) for item in retry_history
                             ]
+                            log.warning(
+                                "attachment_upload_retrying",
+                                action="stream_api",
+                                attempt=1,
+                            )
                             if use_raw_streaming:
                                 sdk_stream = raw_stream_resource.create(  # type: ignore[union-attr]
                                     **{**payload, "input": retry_input_items, "stream": True},
@@ -2389,6 +2412,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
                         and terminal_error_attempts < self._config_terminal_error_max_retries(local_cfg)
                     ):
                         terminal_error_attempts += 1
+                        log.warning(
+                            "terminal_error_retrying",
+                            action="stream_api",
+                            attempt=terminal_error_attempts,
+                            error=str(stream_error),
+                        )
                         continue
 
                     should_recover = (
@@ -2398,6 +2427,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
                     )
                     if should_recover:
                         recovery_attempts += 1
+                        log.warning(
+                            "stream_recovery_retrying",
+                            action="stream_api",
+                            attempt=recovery_attempts,
+                            mode=stream_recovery_mode,
+                        )
                         continue
 
                     if stream_error is not None:
