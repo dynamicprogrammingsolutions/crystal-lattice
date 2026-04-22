@@ -2370,18 +2370,18 @@ class AgentCore:
             context=request_context,
         )
 
+        combined_native_finals = [*aggregated_native_finals, *final_native]
+
         # Feature finalize chain (native)
         for feature in features:
-            final_native, native_messages, state = feature.finalize(
-                final_native,
+            combined_native_finals, native_messages, state = feature.finalize(
+                combined_native_finals,
                 native_messages,
                 state,
                 context=request_context,
             )
 
-        logger.debug("streaming complete", final_native=final_native)
-
-        combined_native_finals = [*aggregated_native_finals, *final_native]
+        logger.debug("streaming complete", combined_native_finals=combined_native_finals)
 
         # Convert provider-native finals to core messages
         final_core = provider.from_native_messages(combined_native_finals, state)
@@ -2539,16 +2539,16 @@ class AgentCore:
             context=request_context,
         )
 
+        combined_native_finals = [*aggregated_native_finals, *final_native]
+
         # Feature finalize chain (native)
         for feature in features:
-            final_native, native_messages, state = feature.finalize(
-                final_native,
+            combined_native_finals, native_messages, state = feature.finalize(
+                combined_native_finals,
                 native_messages,
                 state,
                 context=request_context,
             )
-
-        combined_native_finals = [*aggregated_native_finals, *final_native]
 
         # Convert provider-native finals to core messages
         final_core = provider.from_native_messages(combined_native_finals, state)

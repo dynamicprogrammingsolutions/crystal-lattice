@@ -2989,3 +2989,84 @@ def test_call_api_can_be_cancelled_by_request_id() -> None:
     assert not worker.is_alive()
     assert isinstance(outcome.get("error"), ProviderRequestCancelled)
     assert provider.cancel_request("req_openai_call_cancel") is False
+
+
+def test_streaming_fixture_finals_receive_feature_finalize_stamps() -> None:
+    """Regression: openai_responses streaming finals must be processed by feature finalize.
+
+    When a provider emits finals during streaming (via process_chunk), those
+    finals accumulate in aggregated_native_finals. The core must pass the
+    combined list (aggregated + provider.finalize) into feature finalize so
+    that features like TimestampExtension and DurationExtension can stamp
+    metadata onto the real assistant messages.
+    """
+    from dataclasses import dataclass
+    from typing import List, Tuple
+
+    from agent_core.types import FeaturePlugin
+
+    @dataclass
+    class _StampFeature(FeaturePlugin):
+        name: str = "stamp_feature"
+        version: str = "1.0.0"
+
+        def get_config_schema(self) -> Dict[str, Any]:
+            return {}
+
+        def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+            return state
+
+        def finalize(
+            self,
+            final_messages: List[Dict[str, Any]],
+            native_messages: List[Dict[str, Any]],
+            state: Dict[str, Any],
+        ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+            stamped = [
+                {**m, "_metadata": {**(m.get("_metadata") or {}), "stamped": True}}
+                for m in final_messages
+            ]
+            # Also stamp history so native rebuilds keep the marker
+            start = len(native_messages) - len(stamped) if len(stamped) <= len(native_messages) else 0
+            stamped_history = list(native_messages)
+            for offset, final_msg in enumerate(stamped):
+                hist_idx = start + offset
+                if 0 <= hist_idx < len(stamped_history):
+                    stamped_history[hist_idx] = final_msg
+            return stamped, stamped_history, state
+
+    core = AgentCore()
+    core.register_provider(_StreamingFixtureProvider)
+    core.register_feature(_StampFeature)
+
+    config = {
+        "model": "gpt-5-mini",
+        "api_key": "test_key",
+        "base_url": "https://api.openai.com/v1",
+        "timeout": 30,
+    }
+
+    session = core.create_session()
+    session = core.add_message(session, "user", "Reply with STREAM_OK")
+
+    final_messages: list[Dict[str, Any]] = []
+    final_session = None
+    for chunk in core.send_request_stream(session, config):
+        if chunk["type"] == "final":
+            final_messages = chunk.get("messages") or []
+            final_session = chunk.get("session")
+
+    assert final_messages
+    assistant = final_messages[-1]
+    assert assistant.get("role") == "assistant"
+    # Feature stamps _metadata; provider from_native_messages copies relevant
+    # internal metadata into core message metadata.
+    assert assistant.get("metadata", {}).get("stamped") is True
+
+    # Verify native history persistence
+    assert final_session is not None
+    native_history = (final_session.metadata or {}).get("native_messages")
+    assert isinstance(native_history, list)
+    last_native = native_history[-1]
+    assert isinstance(last_native, dict)
+    assert last_native.get("_metadata", {}).get("stamped") is True
