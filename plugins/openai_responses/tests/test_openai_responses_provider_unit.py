@@ -424,6 +424,8 @@ def test_provider_metadata_schema_and_tags() -> None:
     assert "base_url" in schema
     assert "instructions" not in schema
     assert "timeout" in schema
+    assert "enable_terminal_error_retries" in schema
+    assert "terminal_error_max_retries" in schema
 
     tags = provider.get_tags({"model": "gpt-5-mini"}, [{"id": "gpt-5-mini"}])
     assert tags == [
@@ -628,6 +630,18 @@ def test_get_ui_elements_uses_dropdown_when_models_are_available() -> None:
         "default": "api",
     }
     assert elements[2] == {
+        "ui_type": "config",
+        "type": "checkbox",
+        "key": "enable_terminal_error_retries",
+        "label": "Retry on terminal stream errors",
+    }
+    assert elements[3] == {
+        "ui_type": "config",
+        "type": "number",
+        "key": "terminal_error_max_retries",
+        "label": "Terminal error max retries",
+    }
+    assert elements[4] == {
         "ui_type": "model_picker",
         "key": "model",
         "attachment_type": "dropdown",
@@ -638,7 +652,7 @@ def test_get_ui_elements_uses_dropdown_when_models_are_available() -> None:
         ],
         "label": "model",
     }
-    assert elements[3] == {
+    assert elements[5] == {
         "ui_type": "composer_attachment",
         "key": "openai_responses:attachment:image",
         "attachment_type": "image",
@@ -663,9 +677,13 @@ def test_get_ui_elements_falls_back_to_text_when_models_are_unavailable() -> Non
     }
     assert elements[1]["ui_type"] == "config"
     assert elements[1]["key"] == "auth_mode"
-    assert elements[2]["ui_type"] == "model_picker"
-    assert elements[2]["options"] == []
-    assert elements[3]["ui_type"] == "composer_attachment"
+    assert elements[2]["ui_type"] == "config"
+    assert elements[2]["key"] == "enable_terminal_error_retries"
+    assert elements[3]["ui_type"] == "config"
+    assert elements[3]["key"] == "terminal_error_max_retries"
+    assert elements[4]["ui_type"] == "model_picker"
+    assert elements[4]["options"] == []
+    assert elements[5]["ui_type"] == "composer_attachment"
 
 
 def test_init_uses_env_api_key_when_not_in_config(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2358,6 +2376,144 @@ def test_stream_api_preserves_existing_behavior_without_retry_override() -> None
     )
 
     assert fake_client.option_calls == []
+
+
+def test_stream_api_retries_terminal_error_event_when_enabled() -> None:
+    provider = OpenAIResponsesProvider()
+    error_batch = [{"type": "error", "message": "simulated terminal error"}]
+    success_events = _load_stream_fixture_events()
+    fake_client = _SequentialStreamingClient([error_batch, success_events])
+
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 30,
+            "enable_terminal_error_retries": True,
+            "terminal_error_max_retries": 2,
+        },
+        "client": fake_client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 30,
+        },
+    }
+
+    normalized = list(
+        provider.stream_api(
+            [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+            state,
+        )
+    )
+
+    assert len(fake_client.responses.calls) == 2
+    assert all(isinstance(ev, dict) for ev in normalized)
+    assert any(ev.get("type") == "response.output_text.delta" for ev in normalized)
+    assert any(ev.get("type") == "response.completed" for ev in normalized)
+    assert not any(ev.get("type") == "error" for ev in normalized)
+
+
+def test_stream_api_propagates_terminal_error_event_when_retries_disabled() -> None:
+    provider = OpenAIResponsesProvider()
+    error_batch = [{"type": "error", "message": "simulated terminal error"}]
+    fake_client = _FixtureStreamingClient(error_batch)
+
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 30,
+        },
+        "client": fake_client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 30,
+        },
+    }
+
+    normalized = list(
+        provider.stream_api(
+            [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+            state,
+        )
+    )
+
+    assert len(fake_client.responses.calls) == 1
+    assert any(ev.get("type") == "error" for ev in normalized)
+
+
+def test_stream_api_propagates_terminal_error_event_when_retries_exhausted() -> None:
+    provider = OpenAIResponsesProvider()
+    error_batch = [{"type": "error", "message": "simulated terminal error"}]
+    fake_client = _SequentialStreamingClient([error_batch, error_batch, error_batch])
+
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 30,
+            "enable_terminal_error_retries": True,
+            "terminal_error_max_retries": 2,
+        },
+        "client": fake_client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 30,
+        },
+    }
+
+    with pytest.raises(RuntimeError, match="terminal event error"):
+        list(
+            provider.stream_api(
+                [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+                state,
+            )
+        )
+
+    assert len(fake_client.responses.calls) == 3
+
+
+def test_stream_api_does_not_retry_terminal_error_after_visible_output() -> None:
+    provider = OpenAIResponsesProvider()
+    batch_with_output = [
+        {"type": "response.output_text.delta", "delta": "hello"},
+        {"type": "error", "message": "simulated terminal error"},
+    ]
+    fake_client = _FixtureStreamingClient(batch_with_output)
+
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 30,
+            "enable_terminal_error_retries": True,
+            "terminal_error_max_retries": 2,
+        },
+        "client": fake_client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 30,
+        },
+    }
+
+    normalized = list(
+        provider.stream_api(
+            [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+            state,
+        )
+    )
+
+    assert len(fake_client.responses.calls) == 1
+    assert any(ev.get("type") == "response.output_text.delta" for ev in normalized)
+    assert any(ev.get("type") == "error" for ev in normalized)
 
 
 def test_stream_api_wraps_sdk_error() -> None:

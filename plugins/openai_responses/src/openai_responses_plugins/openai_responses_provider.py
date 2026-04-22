@@ -221,6 +221,22 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 "required": False,
                 "default": _DEFAULT_TIMEOUT,
             },
+            "enable_terminal_error_retries": {
+                "type": "boolean",
+                "required": False,
+                "default": False,
+                "description": (
+                    "Enable automatic retries when a terminal error event is received "
+                    "in the streaming response. Only retries when no visible output has "
+                    "been emitted yet."
+                ),
+            },
+            "terminal_error_max_retries": {
+                "type": "integer",
+                "required": False,
+                "default": 2,
+                "description": "Maximum retry attempts for terminal stream error events.",
+            },
         }
 
     def get_ui_elements(
@@ -264,6 +280,18 @@ class OpenAIResponsesProvider(ProviderPlugin):
                     {"value": "auto", "label": "Auto"},
                 ],
                 "default": "api",
+            },
+            {
+                "ui_type": "config",
+                "type": "checkbox",
+                "key": "enable_terminal_error_retries",
+                "label": "Retry on terminal stream errors",
+            },
+            {
+                "ui_type": "config",
+                "type": "number",
+                "key": "terminal_error_max_retries",
+                "label": "Terminal error max retries",
             },
             {
                 "ui_type": "model_picker",
@@ -330,6 +358,18 @@ class OpenAIResponsesProvider(ProviderPlugin):
         if max_retries < 0:
             raise ValueError("[openai_responses_provider] max_retries must be >= 0")
         return max_retries
+
+    def _config_terminal_error_retries_enabled(self, config: Dict[str, Any]) -> bool:
+        raw = config.get("enable_terminal_error_retries")
+        return raw is True
+
+    def _config_terminal_error_max_retries(self, config: Dict[str, Any]) -> int:
+        raw = config.get("terminal_error_max_retries")
+        try:
+            retries = int(raw)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return 2
+        return retries if retries > 0 else 0
 
     def _resolve_api_key(self, config: Dict[str, Any]) -> str:
         return _resolve_api_key_shared(config)
@@ -2204,6 +2244,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 return True
 
             recovery_attempts = 0
+            terminal_error_attempts = 0
             try:
                 while True:
                     if runtime.cancelled.is_set():
@@ -2298,6 +2339,15 @@ class OpenAIResponsesProvider(ProviderPlugin):
                                         saw_completed = True
                                     if self._stream_event_has_visible_output(event_dict):
                                         emitted_visible_output = True
+                                    if event_dict.get("type") == "error":
+                                        if (
+                                            self._config_terminal_error_retries_enabled(local_cfg)
+                                            and not emitted_visible_output
+                                        ):
+                                            terminal_msg = self._terminal_stream_error_message(event_dict)
+                                            if terminal_msg is not None:
+                                                stream_error = RuntimeError(terminal_msg)
+                                                break
                                     results.put(("chunk", event_dict))
                         else:
                             for event in sdk_stream:
@@ -2308,6 +2358,15 @@ class OpenAIResponsesProvider(ProviderPlugin):
                                     saw_completed = True
                                 if self._stream_event_has_visible_output(event_dict):
                                     emitted_visible_output = True
+                                if event_dict.get("type") == "error":
+                                    if (
+                                        self._config_terminal_error_retries_enabled(local_cfg)
+                                        and not emitted_visible_output
+                                    ):
+                                        terminal_msg = self._terminal_stream_error_message(event_dict)
+                                        if terminal_msg is not None:
+                                            stream_error = RuntimeError(terminal_msg)
+                                            break
                                 results.put(("chunk", event_dict))
                     except Exception as exc:
                         stream_error = exc
@@ -2322,6 +2381,15 @@ class OpenAIResponsesProvider(ProviderPlugin):
                     if saw_completed:
                         results.put(("done", None))
                         return
+
+                    if (
+                        stream_error is not None
+                        and not emitted_visible_output
+                        and self._config_terminal_error_retries_enabled(local_cfg)
+                        and terminal_error_attempts < self._config_terminal_error_max_retries(local_cfg)
+                    ):
+                        terminal_error_attempts += 1
+                        continue
 
                     should_recover = (
                         stream_recovery_mode != "disabled"
