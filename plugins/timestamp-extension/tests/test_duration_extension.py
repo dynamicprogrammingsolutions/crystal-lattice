@@ -97,8 +97,8 @@ def test_turn_duration_sums_assistant_durations_since_last_separator() -> None:
     tool_call_msg = assistant_msgs[-1]
     assert tool_call_msg.metadata
     assert tool_call_msg.metadata.get("duration_ms") == seeded_duration_ms
-    assert "turn_duration_ms" not in tool_call_msg.metadata
-    assert "turn_duration_formatted" not in tool_call_msg.metadata
+    assert tool_call_msg.metadata.get("turn_duration_ms") == seeded_duration_ms
+    assert tool_call_msg.metadata.get("turn_duration_formatted") == "123ms"
 
     session_1, finals = core.send_request(session, config)
     assert finals
@@ -170,13 +170,13 @@ def test_turn_duration_uses_usage_extension_turn_metadata_for_responses_style_hi
     assert md.get("duration_ms") == 200
     assert md.get("turn_duration_ms") == 323
     assert md.get("turn_tps") == pytest.approx(80 / 0.323, rel=1e-9)
-    assert md.get("turn_tps_formatted") == "247.68 tok/s"
+    assert md.get("turn_tps_formatted") == "247.68"
 
     core_messages = [{"role": "assistant", "content": "done", "metadata": {}}]
     rebuilt = ext.from_native_messages(stamped_finals, core_messages)
     rebuilt_md = rebuilt[0].get("metadata") or {}
     assert rebuilt_md.get("turn_duration_ms") == 323
-    assert rebuilt_md.get("turn_tps_formatted") == "247.68 tok/s"
+    assert rebuilt_md.get("turn_tps_formatted") == "247.68"
 
 
 def test_turn_tps_falls_back_to_input_tokens_when_output_total_is_missing() -> None:
@@ -214,7 +214,7 @@ def test_turn_tps_falls_back_to_input_tokens_when_output_total_is_missing() -> N
     duration_ms = md.get("turn_duration_ms")
     assert isinstance(duration_ms, int)
     assert md.get("turn_tps") == pytest.approx((120 * 1000.0) / duration_ms, rel=1e-9)
-    assert md.get("turn_tps_formatted") == "401.34 tok/s"
+    assert md.get("turn_tps_formatted") == "401.34"
 
 
 def test_from_native_messages_uses_native_indices_for_responses_segments() -> None:
@@ -240,7 +240,7 @@ def test_from_native_messages_uses_native_indices_for_responses_segments() -> No
                 "turn_duration_ms": 3500,
                 "turn_duration_formatted": "3.5s",
                 "turn_tps": 12.0,
-                "turn_tps_formatted": "12 tok/s",
+                "turn_tps_formatted": "12",
                 "turn": {"id": 2, "has_tool_calls": False, "is_terminal": True},
             },
         },
@@ -271,7 +271,7 @@ def test_from_native_messages_uses_native_indices_for_responses_segments() -> No
     assert assistant_md.get("duration_formatted") == "2s"
     assert assistant_md.get("turn_duration_ms") == 3500
     assert assistant_md.get("turn_duration_formatted") == "3.5s"
-    assert assistant_md.get("turn_tps_formatted") == "12 tok/s"
+    assert assistant_md.get("turn_tps_formatted") == "12"
 
     tool_md = rebuilt[1].get("metadata") or {}
     assert "duration_ms" not in tool_md
@@ -322,7 +322,7 @@ def test_finalize_stamps_duration_on_tool_only_response_owner() -> None:
     assert md.get("duration_ms") == 500
     assert md.get("duration_formatted") == "500ms"
     assert md.get("turn_duration_ms") == 500
-    assert md.get("turn_tps_formatted") == "8 tok/s"
+    assert md.get("turn_tps_formatted") == "8"
 
     history_md = stamped_history[1].get("_metadata") or {}
     assert history_md.get("duration_ms") == 500
@@ -376,7 +376,7 @@ def test_turn_duration_accumulates_prior_tool_only_response_duration() -> None:
     md = stamped_finals[0].get("_metadata") or {}
     assert md.get("duration_ms") == 800
     assert md.get("turn_duration_ms") == 2000
-    assert md.get("turn_tps_formatted") == "9 tok/s"
+    assert md.get("turn_tps_formatted") == "9"
 
 
 def test_ui_elements_hide_message_footers_when_disabled() -> None:

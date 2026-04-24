@@ -125,14 +125,6 @@ class DurationExtension(FeaturePlugin):
         return None
 
     @classmethod
-    def _turn_has_tool_calls(cls, native_msg: Dict[str, Any]) -> Optional[bool]:
-        turn = cls._turn_metadata(native_msg)
-        if not isinstance(turn, dict):
-            return None
-        value = turn.get("has_tool_calls")
-        return value if isinstance(value, bool) else None
-
-    @classmethod
     def _sum_durations_for_turn(
         cls, native_history: List[Dict[str, Any]], turn_id: Any
     ) -> int:
@@ -187,17 +179,10 @@ class DurationExtension(FeaturePlugin):
             return output_tokens
         return cls._turn_input_tokens(native_msg)
 
-    @classmethod
-    def _should_surface_turn_metrics(cls, native_msg: Dict[str, Any]) -> bool:
-        turn_has_tool_calls = cls._turn_has_tool_calls(native_msg)
-        if isinstance(turn_has_tool_calls, bool):
-            return not turn_has_tool_calls
-        return not _has_tool_calls(native_msg)
-
     @staticmethod
     def _format_turn_tps(turn_tps: float) -> str:
         rendered = f"{turn_tps:.2f}".rstrip("0").rstrip(".")
-        return f"{rendered} tok/s"
+        return rendered
 
     @classmethod
     def _is_duration_owner_candidate(cls, native_msg: Dict[str, Any]) -> bool:
@@ -436,13 +421,9 @@ class DurationExtension(FeaturePlugin):
                 if key in chosen_internal and key not in core_md:
                     core_md[key] = chosen_internal.get(key)
 
-            if chosen_native is not None and not self._should_surface_turn_metrics(chosen_native):
-                for key in turn_keys:
-                    core_md.pop(key, None)
-            else:
-                for key in turn_keys:
-                    if key in chosen_internal and key not in core_md:
-                        core_md[key] = chosen_internal.get(key)
+            for key in turn_keys:
+                if key in chosen_internal and key not in core_md:
+                    core_md[key] = chosen_internal.get(key)
 
             return {**core_msg, "metadata": core_md}
 
